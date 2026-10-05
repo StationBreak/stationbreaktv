@@ -1,0 +1,159 @@
+# StationBreak — Spec & Architecture
+
+Sep 29, 2026 · @Phil Critchfield
+
+## Vision and problem
+
+Build the best TV client for turning a personal Jellyfin library into always-on, flip-through broadcast channels, starting on Fire TV / Android TV.
+
+Existing options each fail on something that matters:
+
+- **NostalgiaTV**: library limitations, awkward UI, no install path on some Fire TV models (e.g. Insignia).
+- **QuasiTV**: requires an IP:port for Jellyfin; rejects URLs, so reverse-proxied servers can't connect.
+- **CoaxTV**: Apple only.
+- **ErsatzTV / Tunarr**: excellent schedulers, but viewing is stuck with the plain Jellyfin Live TV UI.
+- Most competitors are closed source, single-developer, and of uneven quality.
+
+The opportunity is the client experience, not the scheduler: a fast, polished guide and channel-surfing feel on the TVs people already own.
+
+## Goals, non-goals, users
+
+**Goals**
+
+- Channel surfing that feels like cable: instant tune-in mid-program, up/down to flip, a real grid guide.
+- Connect to any Jellyfin server by URL (HTTPS, reverse proxy, subpath) or IP:port.
+- Handle large libraries (10k+ items) without slowing the guide.
+- Sideloadable and store-installable on every Fire TV, including budget models like Insignia.
+- Open-source core so the self-hosted community can trust and extend it.
+
+**Non-goals (v1)**
+
+- Being a general Jellyfin client (browsing, search, music).
+- Real broadcast/IPTV sources, DVR, or recording.
+- Roku and Apple TV (planned later, separate codebases).
+
+**Target users**
+
+- Self-hosters with an existing Jellyfin library who want a lean-back TV experience.
+- Families who want kids or less technical members to just "turn it on" instead of scrolling.
+- Nostalgia fans who want period-accurate channels with bumpers and filler.
+
+## Architecture
+
+The client fakes "live" without a streaming server: it computes what is airing now and at what offset, then plays that file directly from Jellyfin, seeked to the offset. No server-side transcoding pipeline is required for v1.
+
+| Layer | Responsibility |
+| --- | --- |
+| Jellyfin adapter | Auth (URL or IP; user login or Quick Connect, with API keys only for server-side components, see ADR-0001), library sync, stream URLs, playback reporting |
+| Library cache | Local DB of items, metadata, durations; incremental sync |
+| Channel engine | Channel definitions and rules (libraries, genres, collections, tags, eras, filler) |
+| Scheduler | Deterministic, seeded schedule generation so every device shows the same lineup at the same time |
+| Guide / EPG | Grid guide, now/next, channel banner, info overlay |
+| Player | Direct play at computed offset, fallback to Jellyfin transcode, fast channel switching |
+| Sync (later) | Optional companion server to share channels and settings across devices |
+
+**Schedule sources are pluggable.** v1 ships the built-in scheduler. A later adapter reads M3U/XMLTV from Tunarr or ErsatzTV, so power users keep their existing scheduler and just use this app as the front end.
+
+**Determinism is the key trick.** A schedule derived from (channel rules + library snapshot + seed + time) needs no server to stay consistent between the living room and the bedroom.
+
+## MVP scope
+
+The MVP is done when it replaces NostalgiaTV on the bedroom Insignia Fire TV.
+
+**Must have**
+
+- Server setup accepting URL or IP:port, with a connection test and clear errors.
+- Auto-generated default channels (per library, per genre, per collection).
+- Custom channel builder: pick sources, order (shuffle, chronological, random-in-order), block length.
+- Live tune-in at the correct offset; up/down channel flipping; last-channel recall.
+- Grid guide (at least 6 hours ahead) plus now/next banner.
+- Remote-friendly D-pad navigation throughout.
+
+**Should have**
+
+- Filler: bumpers, commercials, or shorts between programs from a chosen library.
+- Retro mode: 4:3 framing, CRT scanline overlay, era-styled guide theme.
+- Watch-state options: skip or include watched items.
+
+**Later**
+
+- Channel import/export and cross-device sync.
+- Tunarr/ErsatzTV XMLTV source adapter.
+- Multi-user profiles and parental controls.
+  - Emby then Plex server adapters, behind the same interface as the Jellyfin adapter.
+
+## Platform and tech stack
+
+Fire TV / Android TV first, in native Kotlin, because playback quality and remote navigation are the product.
+
+| Area | Choice | Why |
+| --- | --- | --- |
+| Language / UI | Kotlin + Jetpack Compose for TV | Native D-pad focus handling, one app for Fire TV, Google TV, Shield |
+| Player | Media3 (ExoPlayer) | Direct play, HLS fallback, fast source swaps for channel flipping |
+| Local DB | Room (SQLite) | Library cache and schedules offline |
+| Networking | Ktor or Retrofit + OkHttp | Jellyfin REST API |
+| DI / arch | Hilt, MVVM, unidirectional state | Testable layers matching the architecture table |
+| Min SDK | Android 7.1 (API 25) | Covers older and budget Fire TV sticks |
+| Distribution | Amazon Appstore, Google Play, GitHub APK | Store install for normal users, sideload for everyone else |
+
+Put the scheduler and channel engine in a pure Kotlin module with no Android dependencies. It can then be reused by a future companion server and unit tested on the Omarchy box.
+
+**Later platforms:** Roku (BrightScript/SceneGraph, separate repo) and Apple TV (Swift) consume the same channel rules format. After those, long-term: Samsung (Tizen), LG (webOS), and Vizio (SmartCast) via a shared web app, then Xbox if demand appears. Other Android TV brands (Sony, TCL, Hisense) are covered by the v1 build.
+
+## Data model, integrations, security
+
+Channels are stored as portable JSON rules, not generated schedules, so they can be exported, shared, and regenerated anywhere.
+
+**Core entities**
+
+- **Server**: base URL, auth token, user ID, selected libraries.
+- **MediaItem**: Jellyfin ID, type, series/season/episode, runtime, genres, tags, year, watched state.
+- **Channel**: number, name, logo, source rules, ordering mode, filler rules, seed.
+- **ScheduleBlock**: channel, start time, item, in/out offsets (derived, cached, never the source of truth).
+
+**Jellyfin integration**
+
+- Use the official REST API; report playback so watch state stays accurate.
+- Prefer direct play; request a transcode only when the device can't decode the codec.
+- Accept http/https URLs with subpaths; handle self-signed certificates with an explicit opt-in.
+
+**Security**
+
+- Store tokens in Android Keystore-backed storage, never plain prefs.
+- Recommend a dedicated, non-admin Jellyfin user in onboarding.
+- No telemetry by default; any crash reporting is opt-in.
+
+## Roadmap
+
+Each phase ends with a gate that must pass before the next starts.
+
+1. **Phase 0 — Foundations.** Repo, CI, module layout, Jellyfin adapter, library sync.
+   - Gate: app connects by URL and lists all libraries on the Insignia Fire TV.
+2. **Phase 1 — Live core.** Scheduler, default channels, offset playback, channel flipping.
+   - Gate: flip through 10 channels, each lands mid-program in under 2 seconds.
+3. **Phase 2 — Guide and builder.** Grid guide, now/next, custom channel builder.
+   - Gate: used daily in the bedroom for 2 weeks, replacing NostalgiaTV.
+4. **Phase 3 — Polish and personality.** Filler/bumpers, retro mode, themes, onboarding.
+   - Gate: 5 to 10 outside beta testers from r/jellyfin run it without hand-holding.
+5. **Phase 4 — Public release.** Amazon Appstore, Play Store, GitHub releases, docs site.
+6. **Phase 5 — Expansion.** Sync/companion server, XMLTV adapter, then Roku, then Apple TV.
+
+## Open decisions and Claude Code handoff
+
+**Open decisions**
+
+- [ ] Project name: decided, StationBreak (domain StationBreak.tv, GitHub org stationbreak). Logo and visual branding still open.
+- [x] License: decided, GPL-3.0 for the whole project.
+- [x] Business model: decided, free GPL-3.0 app with a one-time Pro unlock in the stores (Pro code stays public).
+- [ ] Server adapters: decided, v1 Jellyfin-only, then Emby (API close to Jellyfin), then Plex (larger reach).
+
+**Instructions for Claude Code**
+
+Using this document as the source of truth:
+
+1. Generate epics that map to the roadmap phases, each with a goal and its gate as acceptance criteria.
+2. Break each epic into features and user stories with testable acceptance criteria.
+3. Propose the Gradle module layout, keeping the scheduler in a pure Kotlin module.
+4. Produce a phased roadmap with dependencies and flag any risks or unknowns.
+5. Write these as markdown files under `docs/` and as GitHub issues, but ask before creating issues.
+6. List any assumptions you made and questions for the owner before starting Phase 0.
