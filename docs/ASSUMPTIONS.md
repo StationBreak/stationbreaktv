@@ -25,7 +25,7 @@ can be answered later, by the phase shown.
 
 ## Questions for the owner
 
-### ⛔ Blocking Phase 0
+### ⛔ Blocking Phase 0 (all resolved)
 
 - ~~**Q-DEV-1**~~ ✅ **Resolved 2026-10-04:** Fire OS 6.7.0.8 (API 25), and minSdk 25 stays. Follow-up (non-blocking): the model number or `adb shell getprop` output for SoC/RAM/codecs.
 - ~~**Q-LIC-1**~~ ✅ **Resolved 2026-10-04 ([ADR-0003](adr/0003-licensing-and-contributions.md)):** `GPL-3.0-or-later`, DCO, and an app-store additional permission from day one.
@@ -33,7 +33,7 @@ can be answered later, by the phase shown.
 - ~~**Q-ARCH-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0005](adr/0005-jellyfin-client.md)):** Ktor on the OkHttp engine. No Retrofit.
 - ~~**Q-JF-6**~~ ✅ **Resolved 2026-10-04 (ADR-0005):** use `jellyfin-sdk-kotlin`, gated by spike SP-4. If SP-4 fails, the decision returns to the owner.
 - ~~**Q-JF-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0001](adr/0001-client-authentication.md)).** The TV client uses user login + Quick Connect. Server-side components (the Phase 5 container) use a non-admin service user's token. Dashboard API keys are not used.
-- **Q-REPO-1 ⛔ (partly resolved 2026-10-04):** the repo `StationBreak/stationbreaktv` starts **private** and goes public only once there's a working Phase 0 skeleton. Branch protection (required CI + DCO checks) is in place **before** it goes public. The docs contain no details of the owner's home setup. *Open: who creates the repo, and the go-ahead.*
+- ~~**Q-REPO-1**~~ ✅ **Resolved 2026-10-04:** `StationBreak/stationbreaktv` was created **private**. It goes public only once there's a working Phase 0 skeleton, with branch protection (required CI + DCO checks) in place **before** that. The docs contain no details of the owner's home setup. Epics, features, stories, spikes, and open decisions are tracked as GitHub issues (sub-issue hierarchy, milestones = phases).
 
 ### Before/during Phase 1
 
