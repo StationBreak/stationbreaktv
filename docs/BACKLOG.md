@@ -117,7 +117,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F0.7 Channel rules format v1 (M, document + types only)
 
 **S0.7.1** As a future Roku/Apple TV developer, I want the channel rules JSON format specified so that every client produces the same lineup.
-- 👁 `docs/rules-format.md` defines the schema with a `formatVersion` field. It covers sources (library, genre, collection, tag, year range, series), a **`maxRating` ceiling** with a documented rating-order table (US TV + MPAA at minimum; see Q-RULES-1), ordering mode, block length, filler, seed, and the PRNG and hash-keyed ordering algorithms **by exact specification**.
+- 👁 `docs/rules-format.md` defines the schema with a `formatVersion` field. It covers sources (library, genre, collection, tag, year range, series), a **`maxRating` ceiling** with a documented rating-order table (US TV + MPAA in v1; Q-RULES-1), ordering mode, block length, filler, seed, and the PRNG and hash-keyed ordering algorithms **by exact specification**.
+- 🧪 Under a `maxRating` ceiling, unrated items and items rated in an unsupported system are excluded (fail closed). Without a ceiling, every item is eligible.
 - 🧪 `core:rules` round-trips the documented examples. Unknown fields are preserved (forward compatibility).
 - 🧪 A client given a `formatVersion` newer than it supports does **not** schedule that channel. It shows "update required" instead.
 

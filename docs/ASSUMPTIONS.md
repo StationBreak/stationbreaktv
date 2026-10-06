@@ -38,7 +38,7 @@ can be answered later, by the phase shown.
 ### Before/during Phase 1
 
 - ~~**Q-SYNC-1**~~ **Withdrawn:** channel sharing is deferred (F5.1).
-- **Q-RULES-1** Which rating systems does `maxRating` need to understand in v1? (US TV + MPAA only, or also UK/EU/AU?) Unrated items: treat them as allowed, or blocked under a ceiling?
+- ~~**Q-RULES-1**~~ ✅ **Resolved 2026-10-06 (starting point):** v1 understands **US TV + MPAA** ratings. Under a `maxRating` ceiling, unrated items and items rated in a system v1 doesn't understand (BBFC, FSK, …) are **blocked**: the filter fails closed ("an empty channel rather than a four-year-old seeing Psycho", SPEC Icebox). Channels without a ceiling play everything. An allowlist and other regional systems stay in the icebox (#131).
 
 - ~~**Q-JF-1**~~ ✅ **Resolved 2026-10-06 ([ADR-0006](adr/0006-jellyfin-12-only.md)):** support **Jellyfin 12.0+ only**. The originally chosen 10.x + 12.x support failed spike SP-4 (the SDK can't decode 10.11 items). CI tests the oldest supported and latest 12.x (S0.3.6).
 - ~~**Q-JF-3**~~ ✅ **Resolved: Quick Connect is in Phase 0** (ADR-0001).

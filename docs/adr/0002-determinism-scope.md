@@ -36,7 +36,7 @@ It also isn't desirable: the kids' Boomerang shouldn't air MASH.
 - The "two devices agree" check is **removed from the Phase 1 gate**. It becomes a non-blocking observation
   during the Phase 2 dogfood, with two devices on the **same account**. Golden vectors in CI still prove
   same-input → same-output.
-- The rules format (F0.7) gains a `maxRating` field and a documented rating-order table.
+- The rules format (F0.7) gains a `maxRating` field and a documented rating-order table (US TV + MPAA in v1). Unrated or unsupported ratings fail closed under a ceiling (Q-RULES-1, 2026-10-06).
 - Custom channels must travel with the account for "same lineup at Grandma's" to hold → Q-SYNC-1.
 
 ## Addendum (2026-10-06): future time-based layers
