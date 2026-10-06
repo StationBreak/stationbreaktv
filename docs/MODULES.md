@@ -69,17 +69,17 @@ until something genuinely needs sharing.
 
 ### Why `data:jellyfin` is pure JVM
 
-The spec leaves "Ktor or Retrofit + OkHttp" open. **Recommendation: Ktor client with the OkHttp engine**,
-preferably via the official `jellyfin-sdk-kotlin` (LGPL-3.0, Ktor-based) sealed inside `data:jellyfin` so no
-SDK types leak past the `MediaServer` port. An F0.3 spike must prove the SDK supports (a) an injected OkHttp
-client for per-server certificate pinning, (b) subpath base URLs, and (c) the typed TLS errors of S0.3.4.
-If any of these fails, fall back to a hand-written Ktor client.
-Ktor keeps the adapter free of Android, so:
+The spec leaves "Ktor or Retrofit + OkHttp" open. **Decision (ADR-0005, ADR-0006):** the official
+`jellyfin-sdk-kotlin` on its `jellyfin-api-okhttp` client, sealed inside `data:jellyfin` so no SDK types
+leak past the `MediaServer` port. Spike SP-4 verified the injected OkHttp client (pinning), subpath base
+URLs, and distinguishable errors against Jellyfin 12.x.
+
+OkHttp and the SDK are plain JVM libraries, which keeps the adapter free of Android, so:
 - the companion server (Phase 5) can reuse the Jellyfin adapter verbatim, and
-- adapter tests run on the JVM against a mock engine (`ktor-client-mock`) or recorded fixtures.
+- adapter tests run on the JVM against OkHttp `MockWebServer` fixtures or real containers (S0.3.6).
 
 The Android side still gets OkHttp's TLS stack. That's where the self-signed certificate opt-in is configured.
-`app` provides the configured `HttpClient` through Hilt.
+`app` provides the configured, pinned `OkHttpClient` through Hilt.
 
 ### Why the engine and the scheduler are separate modules
 

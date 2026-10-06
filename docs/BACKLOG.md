@@ -58,7 +58,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 `GET /UserViews` maps to domain `Library` objects. Only video-capable collection types are offered (movies, tvshows, mixed, homevideos, musicvideos).
 
 **S0.3.4** As a developer, I want typed, actionable connection errors so that the UI can explain failures.
-- 🧪 Errors are distinguished: DNS failure, connection refused, timeout, TLS untrusted cert, TLS hostname mismatch, HTTP 401/403, not a Jellyfin server (unexpected `/System/Info/Public` payload), and unsupported server version.
+- 🧪 Errors are distinguished: DNS failure, connection refused, timeout, TLS untrusted cert, TLS hostname mismatch, HTTP 401/403, not a Jellyfin server (unexpected `/System/Info/Public` payload), and unsupported server version (below 12.0, ADR-0006; the cause chain is inspected, since the SDK wraps refused/DNS/timeout in one exception type).
 
 **S0.3.5** As a user on an old Fire TV, I want the app to trust current Let's Encrypt roots so that my server keeps working after the X2←X1 cross-sign is retired.
 - 🧪 `network_security_config` adds bundled **ISRG Root X2** and **ISRG Root YE** as extra trust anchors (alongside system CAs). This works on API 24+ with no custom TLS stack.
@@ -66,7 +66,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 An instrumented test validates a chain that terminates at Root X2 **without** the X1 cross-sign.
 
 **S0.3.6** As the maintainer, I want the adapter tested against every supported Jellyfin major so that server upgrades don't break users.
-- 🧪 A CI job starts Jellyfin **latest 10.x** and **latest 12.x** containers, completes the startup wizard via API, seeds a small fixture library, and runs the adapter contract tests (auth, Quick Connect, libraries, items paging, PlaybackInfo, playback reporting) against both.
+- 🧪 A CI job starts Jellyfin **oldest supported 12.x** and **latest 12.x** containers (12.0+ only, ADR-0006), completes the startup wizard via API, seeds a small fixture library, and runs the adapter contract tests (auth, Quick Connect, libraries, items paging, PlaybackInfo, playback reporting) against both.
 - 🧪 A version matrix in the workflow makes adding or dropping a major a one-line change.
 
 ## F0.4 Secure credential storage (M)

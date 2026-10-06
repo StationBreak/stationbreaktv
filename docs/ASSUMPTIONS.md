@@ -9,7 +9,7 @@ can be answered later, by the phase shown.
 | --- | --- | --- |
 | A-DEV-1 | ✅ **Confirmed:** the bedroom Insignia runs **Fire OS 6.7.0.8 (Android 7.1, API 25)**, exactly the minSdk. Owner's principle: *my needs are the floor*, so this device defines minimum support. Model, SoC, RAM, and codecs are still to be captured (non-blocking, before F1.6). | All gates; minSdk |
 | A-NET-1 | The Jellyfin server for the gates is on the same LAN (or a fast reverse proxy) as the Insignia. | Phase 1 < 2 s gate |
-| A-ARCH-1 | ✅ Confirmed by ADR-0005: `jellyfin-sdk-kotlin` on Ktor/OkHttp. The Jellyfin adapter stays pure JVM and is reusable by the companion server. | MODULES.md |
+| A-ARCH-1 | ✅ Confirmed by ADR-0005/0006: `jellyfin-sdk-kotlin` on its OkHttp client. The Jellyfin adapter stays pure JVM and is reusable by the companion server. | MODULES.md |
 | A-ARCH-2 | Channels and settings are stored in **DataStore** as rules JSON (the portable source of truth). **Room** holds only the library cache and the derived ScheduleBlocks. | F0.6, F1.1 |
 | A-ARCH-3 | The scheduler uses **epochs** (default 24 h) anchored to a fixed UTC origin plus an optional fixed offset in the rules (never device TZ/DST). The snapshot = items created before `epochStart − grace`. This is my design to make "determinism" survive library changes and sync lag; the spec doesn't prescribe it. Cross-device agreement is *eventual*. | F1.1 |
 | A-ARCH-4 | The PRNG and shuffle are hand-specified (SplitMix64-derived per-epoch seeds, rejection sampling, Fisher–Yates over an ID-byte-sorted base) rather than platform RNGs, so Roku/Apple TV can match bit-for-bit. | F0.7, F1.1 |
@@ -30,7 +30,7 @@ can be answered later, by the phase shown.
 - ~~**Q-DEV-1**~~ ✅ **Resolved 2026-10-04:** Fire OS 6.7.0.8 (API 25), and minSdk 25 stays. Follow-up (non-blocking): the model number or `adb shell getprop` output for SoC/RAM/codecs.
 - ~~**Q-LIC-1**~~ ✅ **Resolved 2026-10-04 ([ADR-0003](adr/0003-licensing-and-contributions.md)):** `GPL-3.0-or-later`, DCO, and an app-store additional permission from day one.
 - ~~**Q-ARCH-1**~~ ✅ **Resolved 2026-10-04 ([ADR-0004](adr/0004-kmp-shared-core.md)):** KMP for the shared core, with a `jvm()` target and a `linuxX64()` canary. tvOS is added in Phase 5.
-- ~~**Q-ARCH-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0005](adr/0005-jellyfin-client.md)):** Ktor on the OkHttp engine. No Retrofit.
+- ~~**Q-ARCH-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0005](adr/0005-jellyfin-client.md)):** the SDK's OkHttp client (corrected from "Ktor on OkHttp" by SP-4). No Retrofit.
 - ~~**Q-JF-6**~~ ✅ **Resolved 2026-10-04 (ADR-0005):** use `jellyfin-sdk-kotlin`, gated by spike SP-4. If SP-4 fails, the decision returns to the owner.
 - ~~**Q-JF-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0001](adr/0001-client-authentication.md)).** The TV client uses user login + Quick Connect. Server-side components (the Phase 5 container) use a non-admin service user's token. Dashboard API keys are not used.
 - ~~**Q-REPO-1**~~ ✅ **Resolved 2026-10-04:** `StationBreak/stationbreaktv` was created **private**. It goes public only once there's a working Phase 0 skeleton, with branch protection (required CI + DCO checks) in place **before** that. The docs contain no details of the owner's home setup. Epics, features, stories, spikes, and open decisions are tracked as GitHub issues (sub-issue hierarchy, milestones = phases).
@@ -40,7 +40,7 @@ can be answered later, by the phase shown.
 - ~~**Q-SYNC-1**~~ **Withdrawn:** channel sharing is deferred (F5.1).
 - **Q-RULES-1** Which rating systems does `maxRating` need to understand in v1? (US TV + MPAA only, or also UK/EU/AU?) Unrated items: treat them as allowed, or blocked under a ceiling?
 
-- ~~**Q-JF-1**~~ ✅ **Resolved 2026-10-04:** support **both Jellyfin 10.x and 12.x**, verified by CI against containers of each (S0.3.6).
+- ~~**Q-JF-1**~~ ✅ **Resolved 2026-10-06 ([ADR-0006](adr/0006-jellyfin-12-only.md)):** support **Jellyfin 12.0+ only**. The originally chosen 10.x + 12.x support failed spike SP-4 (the SDK can't decode 10.11 items). CI tests the oldest supported and latest 12.x (S0.3.6).
 - ~~**Q-JF-3**~~ ✅ **Resolved: Quick Connect is in Phase 0** (ADR-0001).
 - **Q-JF-4** How quickly should deletions on the server disappear from channels? (Next periodic reconciliation, e.g. 6 h, vs immediately via the Jellyfin WebSocket.)
 - **Q-JF-5** Should tuning in mid-episode and watching to the end **mark it played** on Jellyfin? Should flipping past it count as anything? Default proposal: mark played only if ≥ 90% was actually watched, and make it configurable.

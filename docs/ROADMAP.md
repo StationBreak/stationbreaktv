@@ -39,7 +39,7 @@ Phase 5  Expansion ───────► Re-plan
 - **SP-2 Compose for TV on the Insignia.** Run a 50×12 lazy grid scroll with focus on the device and
   look for jank. This de-risks R-PERF-2.
 - **SP-3 Keystore on Fire OS (API 25/28).** Run AES-GCM key create/use/survive-reboot on the Insignia.
-- **SP-4 jellyfin-sdk-kotlin fitness.** Check that it supports **both Jellyfin 10.x and 12.x**, an injected OkHttp client (pinning), subpath base URLs, and typed TLS errors. If any fail, the client choice returns to the owner (ADR-0005; recommended fallback: hand-written Ktor).
+- **SP-4 jellyfin-sdk-kotlin fitness.** ✅ **Done 2026-10-06** ([ADR-0006](adr/0006-jellyfin-12-only.md)). The SDK passes on 12.x: injected OkHttp client (pinning), subpath base URLs, and distinguishable TLS and connection errors. It fails on 10.11, so StationBreak supports **Jellyfin 12.0+ only**.
 
 ## Phase 1 — Live core
 
@@ -101,7 +101,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 | R-SEC-2 | Keystore bugs on some budget devices/firmware. | 🟠 | SP-3; fail closed (re-login), never plaintext. |
 | R-SEC-3 | The token is embedded in stream URLs (`api_key=`) and could leak via logs/crash reports. | 🟠 | Hard rule: header-only auth via an origin-scoped interceptor; strip `ApiKey` from `TranscodingUrl`; case-insensitive redaction; crash reports opt-in only. |
 | R-SEC-4 | Supply chain / signing-key loss. | 🟠 | Dependency verification metadata, SHA-pinned Actions, protected signing environment, provenance attestation, offline key backup (F4.1). |
-| R-JF-1 | Jellyfin API drift between the supported majors **10.x and 12.x**. 12.x is newer than the planning knowledge; endpoints, auth headers, or Quick Connect may differ. | 🟠 | CI contract tests against real 10.x and 12.x containers (S0.3.6); the SP-4 SDK check covers both majors; a version-specific shim inside `data:jellyfin` if needed. |
+| R-JF-1 | Jellyfin API drift between **12.x minors** (SP-4 showed new required model fields can break decoding). | 🟡 | 12.0+ only (ADR-0006); CI contract tests against the oldest supported and latest 12.x containers (S0.3.6); track SDK releases with Renovate. |
 | R-JF-2 | 10k+ item sync time/memory on a 1 GB device; incremental sync semantics (deletions). | 🟠 | Paging, streaming JSON decode, explicit `Fields`, ID reconciliation. |
 | R-BIZ-1 | Store policy vs GPL: rebuilt forks with Pro unlocked are legal under GPL. Amazon/Play may also flag duplicate listings by forks. | 🟢 | Accept it (the spec says Pro code stays public); trademark the name/logo instead of the code. |
 | R-BIZ-2 | Amazon Appstore's future on non-Fire OS (Vega OS transition on newer Fire TV devices) could affect where an Android app can be installed going forward. | 🟠 | Verify Fire TV OS roadmap status before Phase 4; sideload path remains. Flagged as an **unknown** for the owner to track. |
