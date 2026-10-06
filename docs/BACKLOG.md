@@ -150,7 +150,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 `RANDOM_IN_ORDER`: picks series in hash-keyed order and plays each series' next episode in order. Per-series cursors are closed-form from `(seed_n, snapshot_n)`.
 - 🧪 **Ordering primitives (exact spec):** item ID canonical form = 32 lowercase hex ASCII chars with no hyphens, normalised on ingest (some Jellyfin endpoints return hyphenated GUIDs) and used everywhere (base sort, hash, tie-break). `fnv1a64` uses offset `0xcbf29ce484222325` and prime `0x100000001b3`. All arithmetic wraps mod 2^64 with logical shifts. Keys compare **unsigned**, and ties compare canonical ID bytes unsigned. `RANDOM_IN_ORDER` keys on series ID. When the pool runs out within an epoch, the same order repeats.
 - 🧪 Golden vectors cover `splitmix64`, `fnv1a64`, and key ordering **separately** (so ports built from 32-bit halves, e.g. BrightScript, can verify each primitive), including at least one key with the high bit set to catch signed sorting. Property tests cover item removal and insertion.
-- 🧪 `blockLength` (e.g. play 2 episodes of a series per block) is honoured. Blocks may start on a grid (:00/:30) when `alignToGrid=true` (see Q-SCH-2).
+- 🧪 `blockLength` (e.g. play 2 episodes of a series per block) is honoured. Blocks start on the :00/:30 grid when `alignToGrid=true`, **the default** (Q-SCH-2). Before F3.1 filler exists, the gap before the next grid slot is a station ID slate (a non-item `ScheduleBlock`). Golden vectors cover aligned and unaligned channels.
 
 **S1.1.4** As the player, I need `whatsOn(channel, T)` to be fast so that tune-in fits the 2 s budget.
 - 🧪 `whatsOn` returns (item, offset, nextItems[n]) in < 5 ms on a JVM benchmark with a 10k-item channel (it uses the cached ScheduleBlocks or prefix-sum binary search, not a linear scan).
@@ -189,7 +189,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 The last channel is persisted on every tune. Cold start goes directly to the live player on that channel (skipping menus) once setup is complete.
 
 **S1.4.3** As a viewer, I want a "previous channel" toggle so that I can jump between two channels.
-- 📺 The Back key (or a mapped key, see Q-UX-2) toggles between the current and previous channel. A long press or second Back exits to the menu.
+- 📺 A dedicated control toggles between the current and previous channel. Which control is still open; it is **not** Back (Q-UX-2).
+- 📺 Back follows the platform convention: it closes an open overlay or the guide first, then leaves live TV.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
 - 🧪 The app records `keypress → first rendered frame` per tune (Media3 `onRenderedFirstFrame`) in a local ring buffer, visible on a diagnostics screen and exportable to logcat. Nothing is sent anywhere.

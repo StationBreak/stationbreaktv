@@ -45,7 +45,7 @@ can be answered later, by the phase shown.
 - **Q-JF-4** How quickly should deletions on the server disappear from channels? (Next periodic reconciliation, e.g. 6 h, vs immediately via the Jellyfin WebSocket.)
 - **Q-JF-5** Should tuning in mid-episode and watching to the end **mark it played** on Jellyfin? Should flipping past it count as anything? Default proposal: mark played only if ≥ 90% was actually watched, and make it configurable.
 - **Q-SCH-1** What should the default broadcast-day start be (e.g. 06:00 at a fixed offset chosen at setup)? Granny's ruling is that it's always a fixed UTC offset in the rules, never the device TZ. Is it OK that during DST the "06:00" start shifts to 05:00 or 07:00 wall-clock?
-- **Q-SCH-2** Should programs align to :00/:30 grid slots (needs filler/slates to pad gaps) or run back-to-back? Before Phase 3 filler exists, should gaps be shown as a slate or eliminated by back-to-back scheduling?
+- ~~**Q-SCH-2**~~ ✅ **Resolved 2026-10-06:** programs **align to :00/:30 grid slots**, as cable did. `alignToGrid` defaults to on. Until F3.1 filler exists, gaps are shown as a station ID slate (a non-item `ScheduleBlock`, S1.1.4).
 - **Q-SCH-3** When real playback duration differs from metadata, which wins: snap back to the schedule, or let the channel drift and re-anchor at the next epoch?
 - **Q-GATE-1** For the Phase 1 "< 2 s" gate: LAN only, or also via your reverse proxy over WAN? Direct play only, or must transcoded channels also hit 2 s? (Transcode start is usually slower.) *Proposed: home network only, direct-play channels only.*
 - **Q-PLY-1** Subtitles: off by default? Should PGS/ASS subtitles be burned in (forcing a transcode) or skipped?
@@ -53,7 +53,7 @@ can be answered later, by the phase shown.
 ### Before/during Phase 2–3
 
 - **Q-UX-1** With large libraries, genre/collection auto-channels could number in the hundreds. Should there be a cap, a minimum-items threshold, or "suggested channels" that the user accepts?
-- **Q-UX-2** Back-key semantics in live TV: previous-channel toggle, or exit to menu? (Fire remotes have few buttons.)
+- ~~**Q-UX-2**~~ ✅ **Resolved 2026-10-06:** Back follows the platform convention: it goes **up a level or exits, depending on context** (closes an open overlay or guide first, then leaves live TV). It is **not** the previous-channel key. Which control triggers previous channel (S1.4.3) is still open.
 - **Q-UX-3** Reminders ("notify me when X starts") are in or out of v1?
 - **Q-UX-4** Guide over live video: translucent overlay or PIP-in-corner?
 - **Q-UX-5** Phone-assisted setup (QR → local web form for the server URL/password) is in or out? It's a big win for typing URLs with a remote.
