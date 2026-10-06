@@ -119,6 +119,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S0.7.1** As a future Roku/Apple TV developer, I want the channel rules JSON format specified so that every client produces the same lineup.
 - 👁 `docs/rules-format.md` defines the schema with a `formatVersion` field. It covers sources (library, genre, collection, tag, year range, series), a **`maxRating` ceiling** with a documented rating-order table (US TV + MPAA at minimum; see Q-RULES-1), ordering mode, block length, filler, seed, and the PRNG and hash-keyed ordering algorithms **by exact specification**.
 - 🧪 `core:rules` round-trips the documented examples. Unknown fields are preserved (forward compatibility).
+- 🧪 A client given a `formatVersion` newer than it supports does **not** schedule that channel. It shows "update required" instead.
 
 ---
 
@@ -133,6 +134,7 @@ These IDs become GitHub issue titles once creating issues is approved.
   - Bounded integers use rejection sampling, not modulo.
 - 🧪 Base order before any shuffle: a canonical sort by item ID as bytes. Never sort by title, because collation depends on locale.
 - 🧪 **Golden vectors**: checked-in fixtures `(formatVersion, rules, snapshot, seed, T) → (itemId, offsetMs)` for ≥ 50 cases. CI fails on any drift. These vectors are the cross-platform contract.
+- 🧪 Every input that affects the schedule is a versioned, serialised document that travels with the account and is covered by golden vectors. New inputs (e.g. a future house-level config for station breaks) are added the same way, never as device settings.
 
 **S1.1.2** As a user, I want adding one new episode to my library not to reshuffle every channel's current program so that what I'm watching doesn't jump.
 - 🧪 Time is divided into **epochs** (default 24 h) anchored to a **fixed UTC origin plus an optional fixed offset stored in the channel rules** (e.g. "broadcast day starts 06:00 at UTC−5"). The device timezone and DST are **never** used (see Q-SCH-1).
@@ -151,6 +153,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S1.1.4** As the player, I need `whatsOn(channel, T)` to be fast so that tune-in fits the 2 s budget.
 - 🧪 `whatsOn` returns (item, offset, nextItems[n]) in < 5 ms on a JVM benchmark with a 10k-item channel (it uses the cached ScheduleBlocks or prefix-sum binary search, not a linear scan).
+- 🧪 A `ScheduleBlock` has `wallStart`, `wallEnd`, and `mediaStartOffsetMs`. It references either an item or a non-item slot (slate or filler). One item may span several blocks, so a program can pause and resume. The offset that `whatsOn` returns is the position in the media, not the time since the block started.
 - 🧪 ScheduleBlocks for [now − 1h, now + 24h] are materialised to Room per channel and regenerated when an epoch rolls or the rules change.
 
 ## F1.2 Channel engine & default channels (M)

@@ -38,3 +38,20 @@ It also isn't desirable: the kids' Boomerang shouldn't air MASH.
   same-input → same-output.
 - The rules format (F0.7) gains a `maxRating` field and a documented rating-order table.
 - Custom channels must travel with the account for "same lineup at Grandma's" to hold → Q-SYNC-1.
+
+## Addendum (2026-10-06): future time-based layers
+
+The SPEC Icebox describes house-wide station breaks and an eligibility layer (holiday windows, late-night
+dayparts, parental lockouts). **Decision (owner): don't design for them now**, but keep the v1 design from
+ruling them out. An architecture review (Granny) found nothing that precludes them, and three acceptance
+criteria now keep the door open:
+- every schedule input is a versioned, account-scoped document covered by golden vectors (S1.1.1);
+- a `ScheduleBlock` maps wall-clock time to a media position, and one item may span several blocks (S1.1.4);
+- a client refuses to schedule a `formatVersion` newer than it supports (S0.7.1).
+
+Notes for whoever picks these up:
+- House-wide breaks are a **house-level input** above every channel, not a channel-rules change.
+- Holiday windows fit as an epoch-level filter applied before the engine. Intra-epoch dayparts need
+  time-windowed pools, and "midnight" drifts by an hour across DST because epochs use a fixed offset.
+- Parental lockouts should defer to Jellyfin's per-user `accessSchedules`, `maxParentalRating`,
+  `allowedTags`, and `blockUnratedItems` (enforced server-side) rather than being rebuilt in the app.

@@ -138,6 +138,45 @@ Each phase ends with a gate that must pass before the next starts.
 5. **Phase 4 — Public release.** Amazon Appstore, Play Store, GitHub releases, docs site.
 6. **Phase 5 — Expansion.** Sync/companion server, XMLTV adapter, then Roku, then Apple TV.
 
+## Icebox: future possibilities (not committed)
+
+Captured so they aren't lost. None of these block the MVP; most build on the filler system and profiles.
+
+**Educational interstitials for kids.** Instead of real commercials, short clips in the spirit of Schoolhouse Rock, Blue's Clues, or 80s PBS spots: "What color is this?", "What's 5 + 5?", or "Get up and wiggle!" The pause and answer are baked into the clip, so no app interactivity is needed. They play through the existing filler rules, tagged for kids' channels. Truly interactive versions (remote input, tracking answers) are a later roadmap item.
+
+**Interest-based interstitials for adults.** The same idea for grown-ups: two-minute clips between programs on topics the viewer cares about (the A-10 Warthog, Roman siege weapons). Short-form with value, not an engagement feed; the schedule decides when it ends. Simplest version: filler rules pull from a user-tagged folder of clips (e.g. this channel's breaks use the aviation tag).
+
+**Parental viewing windows.** Parent-configured lockouts on kids' profiles (e.g. no TV 10:00 to 2:00 during school or homeschool hours), with a parent PIN override and switchable presets like School Year and Summer. Requires profiles, which pulls them forward. The app can only lock itself; the UI should say so plainly and point parents to Fire TV's own parental controls.
+
+**House-wide station breaks.** Movement breaks (e.g. 15 minutes at a set point each hour) applied as a global layer above every channel's schedule, so changing channels lands on the same break. Shown in the guide as one bar across every row. Content can be a timer or visualizer screen, or high-energy movement videos via filler. This is the feature that makes the name literal.
+
+**Break scheduling rule (hybrid by runtime):**
+
+- Programs that fit between breaks (Bluey, most cartoons) are scheduled around them, never cut.
+- Longer programs (Cars, A Bug's Life) pause for the break and resume afterward. Their effective slot is runtime plus the breaks that fall inside it (a 90-minute movie crossing two 15-minute breaks occupies 120 minutes), which keeps the scheduler deterministic.
+- Test frame-accurate resume after a long pause on real hardware; it is a different path from tuning in at an offset.
+- The math is real work and is explicitly not MVP.
+
+**Eligibility layer.** Holiday windows, late night, movement breaks, and parental lockouts are all the same mechanism: time-and-date rules deciding whether a channel or item is eligible right now. Build it once.
+
+**Holiday scheduling.** Tag-driven: items tagged Halloween surface in October, Christmas in December, drawing on Jellyfin tags and collections. A per-channel "always on" toggle disables the date check for anyone who wants Rankin-Bass in July.
+
+**Late night.** Two things that look alike and aren't. Time-of-day scheduling (mature content only airs after midnight) is a scheduling preference and can ship without profiles. A PIN gate before mature content plays is access control and should wait for profiles, or it's a toggle anyone with the remote can flip — worse than no gate, because a parent might trust it.
+
+**Locked channels in the guide.** A locked channel greys out as a whole, name included, with no titles shown — the channel's own name is readable text otherwise. Flipping past it skips rather than prompting. This matches how cable actually behaved: you could see a channel existed without seeing what was on it.
+
+**Kids content model.** Content rating as the ceiling, an explicit allowlist as the truth. Ratings do the bulk filtering, but they fail at the edges (Hitchcock is rated G), and Jellyfin's rating metadata is only as good as whatever scraped it — missing values, regional systems like BBFC or FSK that don't map to MPAA, occasional bad scrapes. An allowlist of approved collections or tagged items doesn't care what the metadata says. Kids profiles start empty and a parent adds to them, so the failure mode is an empty channel rather than a four-year-old seeing Psycho. Curation should happen from the guide — flag what's on screen as kid-approved — not in a settings list nobody finishes.
+
+**Mature content stance.** These controls are opt-in conveniences for an owner who knows what's on their own server, not safety features the app owes anyone. Mature settings default to off, and the PIN is a convenience rather than a security boundary. Document it that way.
+
+**Profiles and the PIN model.** The admin profile is the unfiltered view: everything on the server, no windows, no allowlist. Restrictions are applied to other profiles, never opted out of. The PIN guards only leaving a restricted profile — switching out of a kids profile asks for it, switching from admin into any profile does not. Parents with no kids profile never see a PIN at all. Borrowed from Fire OS, so the mental model comes free.
+
+Known gap, worth watching: whatever profile the TV is left on is what protects you. Switch to admin after bedtime, walk away, and it's open in the morning. An idle timeout that drops back to the last restricted profile would close it if it ever matters.
+
+**Appliance mode.** A dedicated device (e.g. a kid's room TV) that boots straight into StationBreak, locked to one restricted profile, so only the media server and allowed content are reachable. This closes the "press Home and open YouTube" gap. App-side work is small: register as a home/launcher app, support Android lock task (kiosk) mode via one-time adb device-owner setup, pin the device to a profile, and require the parent PIN to exit. Hardware caveats: Raspberry Pi needs an unofficial Android build (e.g. LineageOS for Pi 4/5) with patchy hardware decoding, so a cheap Android/Google TV box is often the better appliance. Fire TV blocks launcher replacement, so appliance mode is any Android TV device except Fire TV; say so in the docs.
+
+**Design tiebreaker: ask what cable did.** It has already resolved several of these — scrambled-but-visible locked channels, premium content airing late, breaks that interrupt every channel at once.
+
 ## Open decisions and Claude Code handoff
 
 **Open decisions**
