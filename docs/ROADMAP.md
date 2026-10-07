@@ -10,10 +10,10 @@ No calendar estimates are given; this is a solo/evenings project, and gates matt
    home: the reference Fire TV (Insignia, Fire OS 6.7.0.8) against the owner's Jellyfin 12.x server
    behind a reverse proxy. If it doesn't work there, it doesn't work. The aim is to work in many more
    places, but that setup **must** work. Gates are tested there first.
-2. **Platform conventions come first.** People already know how a modern TV remote and streaming app
-   behave, and a UI that fights those conventions is the most frustrating kind. Back goes up a level or
-   exits. Up/Down change channels and Left/Right never do; the D-pad never seeks. Follow the platform's
-   focus and navigation patterns.
+2. **Platform conventions come first.** Every button's job follows industry standards and the way people
+   already use a TV remote and a streaming app. A UI that fights those conventions is the most
+   frustrating kind. Back, for example, goes up a level in the app or exits, depending on context. The
+   exact control mapping is worked out during UX design, not fixed here.
 3. **When unsure, ask what cable did.** Where conventions don't settle how a UI element should look or a
    flow should go, cable TV is the tiebreaker. It has already answered several questions:
    scrambled-but-visible locked channels, premium content airing late, programs on the :00/:30 grid,
