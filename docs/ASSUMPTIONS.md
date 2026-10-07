@@ -53,7 +53,7 @@ can be answered later, by the phase shown.
 ### Before/during Phase 2–3
 
 - **Q-UX-1** With large libraries, genre/collection auto-channels could number in the hundreds. Should there be a cap, a minimum-items threshold, or "suggested channels" that the user accepts?
-- ~~**Q-UX-2**~~ ✅ **Resolved 2026-10-06:** Back follows the platform convention: it goes **up a level or exits, depending on context** (closes an open overlay or guide first, then leaves live TV). It is **not** the previous-channel key. Which control triggers previous channel (S1.4.3) is still open.
+- ~~**Q-UX-2**~~ ✅ **Resolved 2026-10-06:** Back follows the platform convention: it goes **up a level or exits, depending on context** (closes an open overlay or guide first, then leaves live TV). It is **not** the previous-channel key. Previous channel is a "Last" action in the now/next banner, with Menu (☰) as a one-press shortcut (S1.4.3).
 - **Q-UX-3** Reminders ("notify me when X starts") are in or out of v1?
 - **Q-UX-4** Guide over live video: translucent overlay or PIP-in-corner?
 - **Q-UX-5** Phone-assisted setup (QR → local web form for the server URL/password) is in or out? It's a big win for typing URLs with a remote.

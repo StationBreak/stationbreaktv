@@ -4,6 +4,21 @@ Phases follow [SPEC.md](SPEC.md). **No phase starts until the previous gate pass
 ([EPICS.md](EPICS.md)). Within a phase, features run in the dependency order shown below.
 No calendar estimates are given; this is a solo/evenings project, and gates matter more than dates.
 
+## Design principles
+
+1. **The owner's home is the floor.** The bare minimum for StationBreak is that it works in the owner's
+   home: the reference Fire TV (Insignia, Fire OS 6.7.0.8) against the owner's Jellyfin 12.x server
+   behind a reverse proxy. If it doesn't work there, it doesn't work. The aim is to work in many more
+   places, but that setup **must** work. Gates are tested there first.
+2. **Platform conventions come first.** People already know how a modern TV remote and streaming app
+   behave, and a UI that fights those conventions is the most frustrating kind. Back goes up a level or
+   exits. Up/Down change channels and Left/Right never do; the D-pad never seeks. Follow the platform's
+   focus and navigation patterns.
+3. **When unsure, ask what cable did.** Where conventions don't settle how a UI element should look or a
+   flow should go, cable TV is the tiebreaker. It has already answered several questions:
+   scrambled-but-visible locked channels, premium content airing late, programs on the :00/:30 grid,
+   and breaks that interrupt every channel at once. Cable never overrides principle 2.
+
 ## Phase overview
 
 ```

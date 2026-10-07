@@ -189,7 +189,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 The last channel is persisted on every tune. Cold start goes directly to the live player on that channel (skipping menus) once setup is complete.
 
 **S1.4.3** As a viewer, I want a "previous channel" toggle so that I can jump between two channels.
-- 📺 A dedicated control toggles between the current and previous channel. Which control is still open; it is **not** Back (Q-UX-2).
+- 📺 The now/next banner (opened with Select) offers a **"Last: <channel>"** action that tunes the previous channel; pressing it again toggles back.
+- 📺 The **Menu (☰)** key is a one-press shortcut for the same toggle. Back is **not** used for it (Q-UX-2).
 - 📺 Back follows the platform convention: it closes an open overlay or the guide first, then leaves live TV.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
