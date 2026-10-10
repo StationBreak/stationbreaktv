@@ -72,11 +72,15 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F0.4 Secure credential storage (M)
 
 **S0.4.1** As a user, I want my access token stored securely so that another app or a backup can't lift it.
-- 🧪 `SecretStore` implementation: a Keystore AES/GCM/NoPadding key (`setUserAuthenticationRequired(false)`, since TVs have no lock screen), with a random IV stored alongside the ciphertext in DataStore. No token appears in plain SharedPreferences (an instrumented test greps the prefs dir).
+- 🧪 `SecretStore` implementation: a Keystore AES/GCM/NoPadding key (`setUserAuthenticationRequired(false)`, since TVs have no lock screen), with a Keystore-generated IV, stored with the ciphertext as a versioned blob ([ADR-0009](adr/0009-keystore-spike.md)). Where the blob lives (DataStore or a private file) is decided in the implementation. The version and IV-length header is passed to GCM as AAD (`updateAAD`), so it can't be altered undetected. The key has one fixed, namespaced alias, and key creation and saving run under a single mutex so a race on first save can't create two keys. An instrumented test greps the whole data dir for the token, not just prefs.
 - 🧪 `android:allowBackup="false"` **and** `dataExtractionRules` excluding DataStore and Room (Android 12+ device-to-device transfer ignores `allowBackup`). Checked by a manifest lint test.
 - 🧪 Tokens never appear in logs. A case-insensitive redaction layer covers `api_key`, `ApiKey`, `Token=`, `X-Emby-Token`, `X-Emby-Authorization`, and `Authorization`.
-- 🧪 `KeyPermanentlyInvalidatedException`, `UnrecoverableKeyException`, or `AEADBadTagException` wipe the key and the blob, then route to "please sign in again". There is never a plaintext fallback.
-- 👁 Documented limitation: budget Fire OS may only have a software-backed Keystore. This protects against backup extraction and other apps, not against root.
+- 🧪 Loading fails closed: **any** failure routes to "please sign in again", and there is never a plaintext fallback ([ADR-0009](adr/0009-keystore-spike.md)).
+  - **Definitive failures wipe the key and the blob:** a missing key (`getKey` returns null with no exception), `KeyPermanentlyInvalidatedException`, `UnrecoverableKeyException`, `AEADBadTagException`, `IllegalBlockSizeException`, or a blob with an invalid version or length.
+  - **Transient failures don't wipe:** `KeyStoreException`, `ProviderException` and `IOException` route to sign-in but keep the key and the blob. For example, the Keystore may not be ready just after boot.
+  - `CancellationException` is rethrown and never wipes.
+  - Each case has a test.
+- 👁 Documented limitation: some budget Fire OS devices may only have a software-backed Keystore. That protects against backup extraction and other apps, not against root. On the reference Insignia, the key reports itself as hardware-backed (TEE, not attested) ([ADR-0009](adr/0009-keystore-spike.md)).
 
 ## F0.5 Server setup & connection test (M)
 

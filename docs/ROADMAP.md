@@ -57,7 +57,10 @@ Phase 5  Expansion ───────► Re-plan
   50-channel × 6-hour guide from standard Compose lists, with app-owned horizontal sync, looks smooth to the owner
   on the Insignia at normal pace (~30 fps) and when holding Down, with no focus anomalies. No custom grid is
   needed. A baseline profile is required. De-risks R-PERF-2.
-- **SP-3 Keystore on Fire OS (API 25/28).** Run AES-GCM key create/use/survive-reboot on the Insignia.
+- **SP-3 Keystore on Fire OS.** ✅ **Done 2026-10-10** ([ADR-0009](adr/0009-keystore-spike.md)). On the Insignia the AES-256-GCM key
+  reports itself as hardware-backed and survives a restart, an app update and 3 reboots with no interaction. Every
+  injected fault (clearing app data, deleting the key, a flipped or truncated blob) fails safely, and a Firestick 4K
+  matched. Fail-closed handling now covers any failure, wiping only on definitive ones.
 - **SP-4 jellyfin-sdk-kotlin fitness.** ✅ **Done 2026-10-06** ([ADR-0006](adr/0006-jellyfin-12-only.md)). The SDK passes on 12.x: injected OkHttp client (pinning), subpath base URLs, and distinguishable TLS and connection errors. It fails on 10.11, so StationBreak supports **Jellyfin 12.0+ only**.
 
 ## Phase 1 — Live core
@@ -117,7 +120,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 | R-PLAT-2 | AGSL/`RenderEffect` shaders need API 33. Retro CRT overlay on API 25–32 needs a fallback. | 🟢 | A GL surface overlay or a static scanline bitmap; degrade gracefully. |
 | R-PLAT-3 | Fire TV has no Google Play Services. Any GMS dependency (e.g. Firebase Crashlytics) breaks the `amazon` flavor and conflicts with the FOSS `github` flavor. | 🟠 | No GMS anywhere; a CI check on dependency coordinates. |
 | R-SEC-1 | Self-signed certificate handling done wrong (trust-all, or `CertificatePinner` that never fires, or Media3 bypassing the pinned client) exposes tokens to MITM. Also https→http downgrade on TLS error. | 🔴 | Per-server SPKI pin in a custom TrustManager shared by every HTTP stack; downgrade only on connection refused; tests (S0.3.1, S0.5.2). |
-| R-SEC-2 | Keystore bugs on some budget devices/firmware. | 🟠 | SP-3; fail closed (re-login), never plaintext. |
+| R-SEC-2 | Keystore bugs on some budget devices/firmware. | 🟢 reference device · 🟡 elsewhere | SP-3 passed on the Insignia and a Firestick 4K ([ADR-0009](adr/0009-keystore-spike.md)); other firmware and Fire OS updates are untested. Any failure fails closed to re-login, never plaintext, so the impact is availability, not exposure. |
 | R-SEC-3 | The token is embedded in stream URLs (`api_key=`) and could leak via logs/crash reports. | 🟠 | Hard rule: header-only auth via an origin-scoped interceptor; strip `ApiKey` from `TranscodingUrl`; case-insensitive redaction; crash reports opt-in only. |
 | R-SEC-4 | Supply chain / signing-key loss. | 🟠 | Dependency verification metadata, SHA-pinned Actions, protected signing environment, provenance attestation, offline key backup (F4.1). |
 | R-JF-1 | Jellyfin API drift between **12.x minors** (SP-4 showed new required model fields can break decoding). | 🟡 | 12.0+ only (ADR-0006); CI contract tests against the oldest supported and latest 12.x containers (S0.3.6); track SDK releases with Renovate. |

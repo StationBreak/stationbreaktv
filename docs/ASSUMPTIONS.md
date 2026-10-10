@@ -7,7 +7,7 @@ can be answered later, by the phase shown.
 
 | ID | Assumption | Where it matters |
 | --- | --- | --- |
-| A-DEV-1 | ✅ **Confirmed:** the bedroom Insignia runs **Fire OS 6.7.0.8 (Android 7.1, API 25)**, exactly the minSdk. Owner's principle: *my needs are the floor*, so this device defines minimum support. Model, SoC, RAM, and codecs are still to be captured (non-blocking, before F1.6). | All gates; minSdk |
+| A-DEV-1 | ✅ **Confirmed:** the bedroom Insignia runs **Fire OS 6.7.0.8 (Android 7.1, API 25)**, exactly the minSdk. Owner's principle: *my needs are the floor*, so this device defines minimum support. Model AFTJMST12, about 1.5 GB RAM, hardware-backed Keystore (ADR-0009). Codec capabilities are captured by the F1.6 probe. | All gates; minSdk |
 | A-NET-1 | The Jellyfin server for the gates is on the same LAN (or a fast reverse proxy) as the Insignia. | Phase 1 < 2 s gate |
 | A-ARCH-1 | ✅ Confirmed by ADR-0005/0006: `jellyfin-sdk-kotlin` on its OkHttp client. The Jellyfin adapter stays pure JVM and is reusable by the companion server. | MODULES.md |
 | A-ARCH-2 | Channels and settings are stored in **DataStore** as rules JSON (the portable source of truth). **Room** holds only the library cache and the derived ScheduleBlocks. | F0.6, F1.1 |
