@@ -262,7 +262,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F2.5 Large-library performance (M)
 
 **S2.5.1** As a user with 10k+ items and 50+ channels, I want the guide to stay smooth so that the app feels premium on a budget stick.
-- 🧪 A macrobenchmark on the Insignia (or the closest emulator profile) runs: guide open → first frame < 1.0 s, and a vertical scroll over 50 channels within frame-time percentile and missed-vsync thresholds (values pending). Janky % isn't used: SP-2 showed a steady ~30 fps that looks smooth counts as 85–99% janky on the Insignia ([ADR-0008](adr/0008-guide-grid-spike.md)).
+- 🧪 A macrobenchmark on the Insignia (or the closest emulator profile) runs: guide open → first frame < 1.0 s, and a vertical scroll over 50 channels within frame-time percentile and missed-vsync thresholds (values pending). Janky % isn't used: SP-2 showed that stepping at a steady ~30 fps, which looks smooth, counts as 85–100% janky on the Insignia ([ADR-0008](adr/0008-guide-grid-spike.md)).
 - 🧪 A Baseline Profile covering the guide is generated in CI and shipped in the release build. It's required: compilation state was the largest factor in SP-2.
 - 🧪 Room queries for the guide window are indexed (`channelId, startTime`) and verified with `EXPLAIN QUERY PLAN` in a test.
 
