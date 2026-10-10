@@ -27,13 +27,13 @@ can be answered later, by the phase shown.
 
 ### ⛔ Blocking Phase 0 (all resolved)
 
-- ~~**Q-DEV-1**~~ ✅ **Resolved 2026-10-04:** Fire OS 6.7.0.8 (API 25), and minSdk 25 stays. Follow-up (non-blocking): the model number or `adb shell getprop` output for SoC/RAM/codecs.
+- ~~**Q-DEV-1**~~ ✅ **Resolved 2026-10-04:** Fire OS 6.7.0.8 (API 25), and minSdk 25 stays. Follow-up done 2026-10-09: model AFTJMST12, Android 7.1.2, about 1.5 GB RAM, of which about 300 MB is reserved for the video decoder and GPU.
 - ~~**Q-LIC-1**~~ ✅ **Resolved 2026-10-04 ([ADR-0003](adr/0003-licensing-and-contributions.md)):** `GPL-3.0-or-later`, DCO, and an app-store additional permission from day one.
 - ~~**Q-ARCH-1**~~ ✅ **Resolved 2026-10-04 ([ADR-0004](adr/0004-kmp-shared-core.md)):** KMP for the shared core, with a `jvm()` target and a `linuxX64()` canary. tvOS is added in Phase 5.
 - ~~**Q-ARCH-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0005](adr/0005-jellyfin-client.md)):** the SDK's OkHttp client (corrected from "Ktor on OkHttp" by SP-4). No Retrofit.
 - ~~**Q-JF-6**~~ ✅ **Resolved 2026-10-04 (ADR-0005):** use `jellyfin-sdk-kotlin`, gated by spike SP-4. If SP-4 fails, the decision returns to the owner.
 - ~~**Q-JF-2**~~ ✅ **Resolved 2026-10-04 ([ADR-0001](adr/0001-client-authentication.md)).** The TV client uses user login + Quick Connect. Server-side components (the Phase 5 container) use a non-admin service user's token. Dashboard API keys are not used.
-- ~~**Q-REPO-1**~~ ✅ **Resolved 2026-10-04:** `StationBreak/stationbreaktv` was created **private**. It goes public only once there's a working Phase 0 skeleton, with branch protection (required CI + DCO checks) in place **before** that. The docs contain no details of the owner's home setup. Epics, features, stories, spikes, and open decisions are tracked as GitHub issues (sub-issue hierarchy, milestones = phases).
+- ~~**Q-REPO-1**~~ ✅ **Resolved 2026-10-04:** `StationBreak/stationbreaktv` was created **private**. It goes public only once there's a working Phase 0 skeleton, with branch protection (required CI + DCO checks) in place **before** that. Spike branches (`spike/*`) are deleted before the visibility flip, because their history can hold home-network details. The docs contain no details of the owner's home setup. Epics, features, stories, spikes, and open decisions are tracked as GitHub issues (sub-issue hierarchy, milestones = phases).
 
 ### Before/during Phase 1
 
@@ -47,7 +47,7 @@ can be answered later, by the phase shown.
 - **Q-SCH-1** What should the default broadcast-day start be (e.g. 06:00 at a fixed offset chosen at setup)? Granny's ruling is that it's always a fixed UTC offset in the rules, never the device TZ. Is it OK that during DST the "06:00" start shifts to 05:00 or 07:00 wall-clock?
 - ~~**Q-SCH-2**~~ ✅ **Resolved 2026-10-06:** programs **align to :00/:30 grid slots**, as cable did. `alignToGrid` defaults to on. Until F3.1 filler exists, gaps are shown as a station ID slate (a non-item `ScheduleBlock`, S1.1.4).
 - **Q-SCH-3** When real playback duration differs from metadata, which wins: snap back to the schedule, or let the channel drift and re-anchor at the next epoch?
-- **Q-GATE-1** For the Phase 1 "< 2 s" gate: LAN only, or also via your reverse proxy over WAN? Direct play only, or must transcoded channels also hit 2 s? (Transcode start is usually slower.) *Proposed: home network only, direct-play channels only.* **Partly resolved 2026-10-09 (after SP-1):** the gate times two moments, **first frame** and **playing** (picture moving). Playing must happen within 2 s; the first-frame target is still open, as are the network and direct-play questions.
+- **Q-GATE-1** For the Phase 1 "< 2 s" gate: LAN only, or also via your reverse proxy over WAN? Direct play only, or must transcoded channels also hit 2 s? (Transcode start is usually slower.) *Proposed: home network only, direct-play channels only.* **Partly resolved 2026-10-09 (after SP-1):** the gate times two moments, **first frame** and **playing** (picture moving). Playing must happen within 2 s; first frame is tracked with no hard target ([ADR-0007](adr/0007-tune-latency-spike.md)). The network and direct-play questions are still open.
 - **Q-PLY-1** Subtitles: off by default? Should PGS/ASS subtitles be burned in (forcing a transcode) or skipped?
 
 ### Before/during Phase 2–3

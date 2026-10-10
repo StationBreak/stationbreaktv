@@ -173,6 +173,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S1.3.1** As a viewer, I want tuning to a channel to start the current program at the right point so that it feels live.
 - 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path, `StartTimeTicks` is passed so the server starts encoding at the offset (no client-side seek).
 - 📺 Visual offset error is ≤ ±2 s versus the guide's expected position.
+- 🧪 After a seek, the player compares the actual position with the requested offset. If they differ by more than 2 s (for example an MKV without Cues, which ExoPlayer silently plays from 0; [ADR-0007](adr/0007-tune-latency-spike.md)), it falls back to the transcode path with `StartTimeTicks`.
 
 **S1.3.2** As a viewer, I want playback to continue seamlessly into the next scheduled item so that the channel never stops.
 - 🧪 The next item is queued in the Media3 playlist ahead of time. When an item ends early or late (runtime metadata wrong), playback re-syncs to the schedule at the next boundary instead of drifting (see Q-SCH-3).
@@ -194,10 +195,11 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 📺 Back follows the platform convention: it closes an open overlay or the guide first, then leaves live TV.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
-- 🧪 For each tune, the app records two times: `keypress → first rendered frame` (Media3 `onRenderedFirstFrame`) and `keypress → playing`, the first point at which playback is actually advancing (`STATE_READY` with `isPlaying`, so a frozen first frame doesn't count). They're kept in a local ring buffer, shown on a diagnostics screen and exportable to logcat. Nothing is sent anywhere. Spike SP-1 found the first frame can appear 1–2 s before playback moves.
+- 🧪 For each tune, the app records two times: `keypress → first rendered frame` (Media3 `onRenderedFirstFrame`) and `keypress → playing`, the first point at which playback is actually advancing (`onIsPlayingChanged(true)`, so a frozen first frame doesn't count). They're kept in a local ring buffer, shown on a diagnostics screen and exportable to logcat. Nothing is sent anywhere. Spike SP-1 found the first frame can appear 1–2 s before playback moves.
 
 **S1.4.5** As a viewer, I want flipping to be fast even on a budget stick so that surfing feels like cable.
-- 📺 **Gate measurement:** p95 < 2.0 s across 10 consecutive flips on the Insignia.
+- 📺 **Gate measurement:** keypress → playing < 2.0 s, with at most 1 of 30 flips over (3 runs of 10 on the Insignia, as in the Phase 1 gate). First frame is reported but not gated.
+- 🧪 Investigate and close the first-frame-to-playing gap SP-1 found on some items, where the frame shows at about 0.9 s but playback starts at 1.9–2.9 s. The suspected cause is audio renderer readiness ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - Techniques to evaluate (spike first; see R-PERF-1): reusing one ExoPlayer instance, tuned `LoadControl` buffers for fast start, pre-resolving stream URLs for adjacent channels, and optionally pre-warming the adjacent channel's first segment.
 
 ## F1.5 Playback reporting (M)
@@ -210,6 +212,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S1.6.1** As a viewer with a weak device, I want unsupported codecs transcoded automatically so that everything plays.
 - 🧪 A device capability probe (MediaCodecList: codecs, profiles, levels, max resolution, HDR) builds a Jellyfin `DeviceProfile`. `POST /Items/{id}/PlaybackInfo` decides between direct play, direct stream, and transcode.
+- 🧪 The `DeviceProfile` declares subtitle formats, both embedded and external, even with subtitles off. Without them Jellyfin refuses direct play for items carrying subtitle streams. Video the device can't decode, such as MPEG-4 Part 2 (seen in AVI), routes to transcode ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - 🧪 Transcode uses HLS (`master.m3u8`) with `StartTimeTicks` = offset.
 - 🧪 **Stream auth rule:** the token travels only in the `Authorization` header, via an OkHttp interceptor scoped to the pinned server origin. `ApiKey`/`api_key` is stripped from the server's `TranscodingUrl`, and no media URL carries the token.
 - 📺 A test matrix on the Insignia: H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and PGS subtitles (expect burn-in or off; see Q-PLY-1).

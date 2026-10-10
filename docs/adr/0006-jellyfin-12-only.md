@@ -77,7 +77,9 @@ the core of the app is expected to fail the same way.
   with `SSLHandshakeException` (untrusted or pin mismatch) or `SSLException` as the cause.
 - **Dependencies:** the SDK exposes `okhttp3.OkHttpClient` in its API (`OkHttpFactory(base)`) but
   doesn't export OkHttp or kotlinx-coroutines transitively, so `data:jellyfin` declares both itself.
-  Pin them to the SDK's versions (OkHttp 5.5.0 and coroutines 1.11.0 for SDK 1.9.2).
+  Pin them to the SDK's versions (OkHttp 5.5.0 and coroutines 1.11.0 for SDK 1.9.2). On Android it also
+  needs an SLF4J binding: without one, the first request crashes with `NoClassDefFoundError:
+  org.slf4j.LoggerFactory` (found in SP-1, [ADR-0007](0007-tune-latency-spike.md)).
 - **Device ID:** Jellyfin revokes a device's earlier token when the same device ID logs in again.
   Profiles (ADR-0001) and Quick Connect onboarding must not reuse one device ID across simultaneous
   sessions.
