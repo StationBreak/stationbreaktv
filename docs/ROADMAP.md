@@ -54,7 +54,9 @@ Phase 5  Expansion ───────► Re-plan
   first frame and playback starting; warm-player misses are already slow at first frame. The network route
   isn't the bottleneck. The gate now measures "playing", with first frame tracked.
 - **SP-2 Compose for TV on the Insignia.** Run a 50×12 lazy grid scroll with focus on the device and
-  look for jank. This de-risks R-PERF-2.
+  look for jank. This de-risks R-PERF-2. **Approach (decided 2026-10-09):** test standard Compose lists first
+  (`LazyColumn` of `LazyRow`s with synchronised horizontal scrolling). A custom `LazyLayout` grid is built only if
+  that stutters, with the plain version's numbers as the bar to beat.
 - **SP-3 Keystore on Fire OS (API 25/28).** Run AES-GCM key create/use/survive-reboot on the Insignia.
 - **SP-4 jellyfin-sdk-kotlin fitness.** ✅ **Done 2026-10-06** ([ADR-0006](adr/0006-jellyfin-12-only.md)). The SDK passes on 12.x: injected OkHttp client (pinning), subpath base URLs, and distinguishable TLS and connection errors. It fails on 10.11, so StationBreak supports **Jellyfin 12.0+ only**.
 
