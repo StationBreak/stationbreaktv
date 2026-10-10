@@ -73,7 +73,8 @@ bring-into-view behaviour are switched off, so focus moves drive the scroll. The
 3. **A baseline profile for the guide is required in release builds** (S2.5.1), because compilation state was
    the largest difference measured (in the Firestick comparison).
 4. F2.5's performance thresholds use **frame-time percentiles and missed vsyncs, not janky %**. The values are
-   set separately (S2.5.1).
+   set separately (S2.5.1). **Set 2026-10-10:** no scenario may be more than 20% worse than this spike's p90/p99
+   frame times or missed vsyncs. It's a starting point.
 
 ## Consequences
 

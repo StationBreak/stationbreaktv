@@ -3,7 +3,7 @@
 One epic per roadmap phase. Each epic's **gate is its acceptance criteria**. An epic isn't done,
 and the next one doesn't start, until the gate passes on the reference device.
 
-Reference device: **Insignia Fire TV** (bedroom). See [ASSUMPTIONS.md](ASSUMPTIONS.md) A-DEV-1 for the
+Reference device: **Insignia Fire TV**. See [ASSUMPTIONS.md](ASSUMPTIONS.md) A-DEV-1 for the
 exact model and Fire OS version. Features and stories: [BACKLOG.md](BACKLOG.md). Sequencing and risks:
 [ROADMAP.md](ROADMAP.md).
 
@@ -59,7 +59,7 @@ fully replace NostalgiaTV.
 F2.4 Channel management (renumber, hide, delete) · F2.5 Large-library performance
 
 **Gate (acceptance criteria):**
-- [ ] Used as the **daily** bedroom TV app for **14 consecutive days**, with NostalgiaTV uninstalled or
+- [ ] Used as the **daily** TV app on the reference Insignia for **14 consecutive days**, with NostalgiaTV uninstalled or
       unused. Issues found go into a dogfood log (`docs/dogfood/phase-2.md`).
 - [ ] No P0/P1 defects are open at the end of the 14 days.
 - [ ] (Non-blocking observation) Two devices on the same account show the same lineup (ADR-0002).

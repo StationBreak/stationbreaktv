@@ -54,11 +54,11 @@ The client fakes "live" without a streaming server: it computes what is airing n
 
 **Schedule sources are pluggable.** v1 ships the built-in scheduler. A later adapter reads M3U/XMLTV from Tunarr or ErsatzTV, so power users keep their existing scheduler and just use this app as the front end.
 
-**Determinism is the key trick.** A schedule derived from (channel rules + library snapshot + seed + time) needs no server to stay consistent between the living room and the bedroom.
+**Determinism is the key trick.** A schedule derived from (channel rules + library snapshot + seed + time) needs no server to stay consistent between two TVs in the same home.
 
 ## MVP scope
 
-The MVP is done when it replaces NostalgiaTV on the bedroom Insignia Fire TV.
+The MVP is done when it replaces NostalgiaTV on the reference Insignia Fire TV.
 
 **Must have**
 
@@ -132,7 +132,7 @@ Each phase ends with a gate that must pass before the next starts.
 2. **Phase 1 — Live core.** Scheduler, default channels, offset playback, channel flipping.
    - Gate: flip through 10 channels, each lands mid-program in under 2 seconds.
 3. **Phase 2 — Guide and builder.** Grid guide, now/next, custom channel builder.
-   - Gate: used daily in the bedroom for 2 weeks, replacing NostalgiaTV.
+   - Gate: used daily on the reference Insignia for 2 weeks, replacing NostalgiaTV.
 4. **Phase 3 — Polish and personality.** Filler/bumpers, retro mode, themes, onboarding.
    - Gate: 5 to 10 outside beta testers from r/jellyfin run it without hand-holding.
 5. **Phase 4 — Public release.** Amazon Appstore, Play Store, GitHub releases, docs site.
