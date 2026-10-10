@@ -38,6 +38,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 KMP acceptance (ADR-0004): adding `import java.io.File` to a `commonMain` file fails the build, and an Android module consumes `core:model` via a plain project dependency.
 
 **S0.2.2** As a developer, I want a hello-world Compose for TV screen that's D-pad navigable so that the UI stack is proven on the target device.
+- 📺 The APK on the Insignia is the CI debug artifact (S0.1.3), never a local build.
 - 📺 The app launches on the Insignia, shows up in the Fire TV "Your Apps" row with a banner, and focus moves with the D-pad.
 - 👁 The application ID is `tv.stationbreak.app`, and the package root and Gradle `namespace` use `tv.stationbreak` ([ADR-0010](adr/0010-application-id.md)).
 

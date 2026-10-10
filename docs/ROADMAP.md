@@ -47,6 +47,9 @@ Phase 5  Expansion ───────► Re-plan
 | 5 | F0.5 Server setup UI | F0.3, F0.4 |
 | 6 | F0.6 Library sync | F0.3, F0.5 |
 
+**CI first (decided 2026-10-10):** F0.1 lands before any app code. Every APK that goes on a device comes from
+CI, starting with the F0.2 hello-world. Nothing is built by hand.
+
 **Spikes in Phase 0** (time-boxed; record the results as ADRs in `docs/adr/`):
 - **SP-1 Tune-latency spike.** ✅ **Done 2026-10-09** ([ADR-0007](adr/0007-tune-latency-spike.md)). On the
   Insignia, the median time to playback starting is about 1.0 s with a warm player and about 1.6 s with a cold
