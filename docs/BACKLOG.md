@@ -228,6 +228,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 📺 D-pad navigation: Up/Down moves between channels, Left/Right moves through programs in time. Focus never gets lost or jumps to an off-screen cell.
 - 📺 Select on a current program tunes to that channel. Select on a future program shows its info (reminders: see Q-UX-3).
 - 🧪 Guide data comes from materialised ScheduleBlocks (S1.1.4), never computed on the UI thread.
+- 🧪 Built from standard Compose lists with app-owned scrolling: one shared horizontal offset applied to all rows, and focus moves drive the scroll ([ADR-0008](adr/0008-guide-grid-spike.md)).
 
 **S2.1.2** As a viewer, I want to open the guide from live TV without losing the picture so that it feels like cable.
 - 📺 The guide opens over the live video (picture continues, either as a PIP corner or behind a translucent overlay, see Q-UX-4). Back returns to full screen on the same channel without re-tuning.
@@ -261,8 +262,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F2.5 Large-library performance (M)
 
 **S2.5.1** As a user with 10k+ items and 50+ channels, I want the guide to stay smooth so that the app feels premium on a budget stick.
-- 🧪 A macrobenchmark on the Insignia (or the closest emulator profile) runs: guide open → first frame < 1.0 s, and a vertical scroll over 50 channels with jank < 5% of frames.
-- 🧪 A Baseline Profile is generated in CI and shipped in the release build.
+- 🧪 A macrobenchmark on the Insignia (or the closest emulator profile) runs: guide open → first frame < 1.0 s, and a vertical scroll over 50 channels within frame-time percentile and missed-vsync thresholds (values pending). Janky % isn't used: SP-2 showed a steady ~30 fps that looks smooth counts as 85–99% janky on the Insignia ([ADR-0008](adr/0008-guide-grid-spike.md)).
+- 🧪 A Baseline Profile covering the guide is generated in CI and shipped in the release build. It's required: compilation state was the largest factor in SP-2.
 - 🧪 Room queries for the guide window are indexed (`channelId, startTime`) and verified with `EXPLAIN QUERY PLAN` in a test.
 
 ---

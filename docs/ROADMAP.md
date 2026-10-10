@@ -53,7 +53,9 @@ Phase 5  Expansion ───────► Re-plan
   one, but 2–5 of 18 valid library tunes per run go over 2 s. Cold-player misses are mostly a gap between the
   first frame and playback starting; warm-player misses are already slow at first frame. The network route
   isn't the bottleneck. The gate now measures "playing", with first frame tracked.
-- **SP-2 Compose for TV on the Insignia.** Run a 50×12 lazy grid scroll with focus on the device and
+- **SP-2 Compose for TV on the Insignia.** ✅ **Done 2026-10-10** ([ADR-0008](adr/0008-guide-grid-spike.md)): standard
+  Compose lists look smooth to the owner on the Insignia at a steady ~30 fps, with no focus anomalies. No custom grid is needed;
+  a baseline profile is required. Run a 50×12 lazy grid scroll with focus on the device and
   look for jank. This de-risks R-PERF-2. **Approach (decided 2026-10-09):** test standard Compose lists first
   (`LazyColumn` of `LazyRow`s with synchronised horizontal scrolling). A custom `LazyLayout` grid is built only if
   that stutters, with the plain version's numbers as the bar to beat.
@@ -107,7 +109,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 | ID | Risk | Sev | Mitigation |
 | --- | --- | --- | --- |
 | R-PERF-1 | **< 2 s mid-program tune-in on a budget Fire TV.** Seeking into an MKV without cues, slow server disk, remote (WAN) servers, or a transcode start can each blow the budget. The spec's gate also implies a LAN server. | 🔴 | SP-1 spike in Phase 0; a single reused player; pre-resolve adjacent channels; close the first-frame→playing gap (ADR-0007); verify seeks landed and fall back to transcode; define the gate's network conditions (Q-GATE-1). |
-| R-PERF-2 | Compose for TV performance on low-end hardware (≈1–1.5 GB RAM, older Mali GPU) for a 6h × 50-channel grid. | 🔴 | SP-2 spike; Baseline Profiles; R8 full mode; a custom lazy layout if `LazyColumn`-of-`LazyRow` jank is unacceptable. |
+| R-PERF-2 | Compose for TV performance on low-end hardware (≈1–1.5 GB RAM, older Mali GPU) for a 6h × 50-channel grid. | 🟠 | SP-2 passed with standard Compose lists ([ADR-0008](adr/0008-guide-grid-spike.md)); Baseline Profiles (decisive in SP-2); R8; watch fast horizontal sweeps. |
 | R-DET-1 | **Cross-device determinism.** It depends on both devices having the same snapshot (sync lag), the same epoch math (timezone/DST), and the same PRNG/shuffle bit-for-bit, including future Swift/BrightScript ports. | 🔴 | Snapshot = items with `dateCreated < epochStart − grace`; tombstones; UTC origin + fixed offset in rules; SplitMix64-derived seeds; ID-byte canonical sort; hard epoch cuts; golden vectors (incl. `formatVersion`) as the cross-platform contract. |
 | R-DET-2 | Per-user library permissions and watch-state make lineups account-dependent. | 🟢 | **Resolved by ADR-0002:** same account → same lineup; channel rules set content limits; hash-keyed ordering keeps reduced lineups recognisably similar. |
 | R-DET-4 | Custom channels are per device until sharing is designed, so a custom channel doesn't appear at Grandma's. Auto-generated channels do match. | 🟢 | Accepted for v1. Channel sharing is deferred (F5.1). |
