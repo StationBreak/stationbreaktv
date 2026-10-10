@@ -37,9 +37,12 @@ mid-program and flip between with the remote.
 F1.4 Channel flipping & last-channel recall · F1.5 Playback reporting · F1.6 Direct-play / transcode fallback
 
 **Gate (acceptance criteria):**
-- [ ] **3 runs of 10 consecutive flips** on the Insignia: each flip shows the correct mid-program frame
-      within **2 seconds** of the key press, with at most 1 of the 30 flips allowed over. Timing is
-      logged by the app (S1.4.4). Network conditions and direct-play-only are pending Q-GATE-1.
+- [ ] **3 runs of 10 consecutive flips** on the Insignia. Each flip is timed at two moments (Q-GATE-1):
+      - **first frame**: the correct mid-program picture appears. Target pending (Q-GATE-1).
+      - **playing**: the picture is moving, not a frozen first frame. Within **2 seconds** of the key press.
+
+      At most 1 of the 30 flips may be over. Timing is logged by the app (S1.4.4). Network conditions
+      and direct-play-only are pending Q-GATE-1.
 - [ ] Scheduler golden-vector tests pass in CI.
 
 Cross-device agreement is **not** a gate ([ADR-0002](adr/0002-determinism-scope.md)). It's observed during

@@ -194,7 +194,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 📺 Back follows the platform convention: it closes an open overlay or the guide first, then leaves live TV.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
-- 🧪 The app records `keypress → first rendered frame` per tune (Media3 `onRenderedFirstFrame`) in a local ring buffer, visible on a diagnostics screen and exportable to logcat. Nothing is sent anywhere.
+- 🧪 For each tune, the app records two times: `keypress → first rendered frame` (Media3 `onRenderedFirstFrame`) and `keypress → playing`, the first point at which playback is actually advancing (`STATE_READY` with `isPlaying`, so a frozen first frame doesn't count). They're kept in a local ring buffer, shown on a diagnostics screen and exportable to logcat. Nothing is sent anywhere. Spike SP-1 found the first frame can appear 1–2 s before playback moves.
 
 **S1.4.5** As a viewer, I want flipping to be fast even on a budget stick so that surfing feels like cable.
 - 📺 **Gate measurement:** p95 < 2.0 s across 10 consecutive flips on the Insignia.

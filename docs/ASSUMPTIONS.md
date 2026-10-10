@@ -47,7 +47,7 @@ can be answered later, by the phase shown.
 - **Q-SCH-1** What should the default broadcast-day start be (e.g. 06:00 at a fixed offset chosen at setup)? Granny's ruling is that it's always a fixed UTC offset in the rules, never the device TZ. Is it OK that during DST the "06:00" start shifts to 05:00 or 07:00 wall-clock?
 - ~~**Q-SCH-2**~~ ✅ **Resolved 2026-10-06:** programs **align to :00/:30 grid slots**, as cable did. `alignToGrid` defaults to on. Until F3.1 filler exists, gaps are shown as a station ID slate (a non-item `ScheduleBlock`, S1.1.4).
 - **Q-SCH-3** When real playback duration differs from metadata, which wins: snap back to the schedule, or let the channel drift and re-anchor at the next epoch?
-- **Q-GATE-1** For the Phase 1 "< 2 s" gate: LAN only, or also via your reverse proxy over WAN? Direct play only, or must transcoded channels also hit 2 s? (Transcode start is usually slower.) *Proposed: home network only, direct-play channels only.*
+- **Q-GATE-1** For the Phase 1 "< 2 s" gate: LAN only, or also via your reverse proxy over WAN? Direct play only, or must transcoded channels also hit 2 s? (Transcode start is usually slower.) *Proposed: home network only, direct-play channels only.* **Partly resolved 2026-10-09 (after SP-1):** the gate times two moments, **first frame** and **playing** (picture moving). Playing must happen within 2 s; the first-frame target is still open, as are the network and direct-play questions.
 - **Q-PLY-1** Subtitles: off by default? Should PGS/ASS subtitles be burned in (forcing a transcode) or skipped?
 
 ### Before/during Phase 2–3
