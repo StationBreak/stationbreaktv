@@ -21,8 +21,10 @@ The options considered were:
 1. The application ID is **`tv.stationbreak.app`**. It's based on the reversed project domain, `stationbreak.tv`,
    which the owner has registered and will keep for as long as the app exists.
 2. The Kotlin package root and Gradle `namespace` use the same prefix, `tv.stationbreak`.
-3. Whether any build flavor uses a suffixed ID (for example a GitHub-release build) is a separate decision, made
-   with the F0.1/F0.2 flavor questions.
+3. **Every release flavor uses the same ID** (decided 2026-10-10), including the `github` build. Builds from
+   different channels may end up signed with different keys, because a store or F-Droid can sign with its own.
+   Switching between those copies then means uninstalling first. That's accepted: most people install from one
+   source only. Debug builds are a separate question (Q-8).
 
 ## Consequences
 
