@@ -136,6 +136,10 @@ passes in CI. After that it's reduced to `javax.inject` only, or removed (ADR-00
 Billing sits behind the `ProEntitlement` port in `core:domain`, with a flavor-specific implementation in
 `app/src/<flavor>/`. The code stays public for every flavor, as the spec requires.
 
+**Phasing (decided 2026-10-10):** F0.2 creates only the `amazon` and `github` flavors. `play` is added at
+F4.3, along with Play Billing, so CI doesn't build an empty flavor until then. How Play Billing fits the "no
+Google Play Services" rule (R-PLAT-3) is settled at that point.
+
 ## Toolchain baseline (to confirm at scaffold time)
 
 - Kotlin 2.x, AGP current stable, JDK 17 toolchain, Gradle version catalog

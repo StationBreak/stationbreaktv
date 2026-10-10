@@ -17,7 +17,7 @@ can be answered later, by the phase shown.
 | A-SEC-1 | "Keystore-backed storage" = a Keystore AES-GCM key wrapping values in DataStore. `androidx.security:security-crypto` (EncryptedSharedPreferences) is avoided because it's deprecated. | F0.4 |
 | A-SEC-2 | Self-signed opt-in = per-server leaf-SPKI pinning via a custom `X509TrustManager` (TOFU), shared by API and Media3 clients. Not "trust all", and not `CertificatePinner`. | F0.5 |
 | A-SEC-3 | Tokens travel only in headers, never in media URLs. | S1.6.1 |
-| A-REL-1 | Three build flavors: `amazon`, `play`, `github`. The `github` flavor has no proprietary SDKs. | MODULES.md, F4 |
+| A-REL-1 | Three build flavors: `amazon`, `play`, `github`. The `github` flavor has no proprietary SDKs. Phase 0 creates only `amazon` and `github`; `play` arrives at F4.3. | MODULES.md, F4 |
 | A-SCOPE-1 | Phases 4 and 5 have no gates in the spec, so I proposed them. Phase 5 is only outlined. | EPICS.md |
 | A-SCOPE-2 | The "should haves" (filler, retro, watch-state) are scheduled in Phase 3 per the roadmap, not in the MVP gate (Phase 2). | ROADMAP.md |
 | A-REPO-1 | The repo will be `github.com/stationbreak/stationbreaktv`. The local directory isn't a git repo yet. | F0.1 |

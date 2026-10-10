@@ -33,6 +33,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S0.2.1** As a developer, I want the module layout from [MODULES.md](MODULES.md) in place with convention plugins so that new code has an obvious home.
 - 🧪 All modules exist and build. `./gradlew :core:scheduler:test` runs with no Android SDK on the path.
+- 🧪 `app` defines two flavors, `amazon` and `github`. `play` comes later, at F4.3 ([MODULES.md](MODULES.md#build-flavors)).
 - 🧪 A build check fails if a `[KMP]`/`[JVM]` module declares an Android dependency, or if `feature:*` depends on `data:*`.
 - 🧪 KMP acceptance (ADR-0004): adding `import java.io.File` to a `commonMain` file fails the build, and an Android module consumes `core:model` via a plain project dependency.
 
@@ -332,6 +333,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 👁 Listing assets (icon, banner 1280×720, screenshots), privacy policy URL, and content rating. 📺 The app passes Amazon's Fire TV certification (D-pad only, no touch requirement). 👁 Submitted with **no DRM** (ADR-0003).
 
 ## F4.3 Google Play listing (M)
+- 🧪 The `play` flavor is added here; Phase 0 creates only `amazon` and `github` ([MODULES.md](MODULES.md#build-flavors)).
 - 👁 TV-specific requirements: leanback banner, `android.software.leanback` declared, `touchscreen required=false`, TV screenshots, and the Data Safety form (no data collected by default).
 
 ## F4.4 GitHub Releases (M)
