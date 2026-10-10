@@ -9,7 +9,7 @@
 ## Context
 
 S0.4.1 will store the Jellyfin access token encrypted with an AndroidKeyStore AES-256-GCM key, with no user
-authentication (TVs have no lock screen), and fails closed to "sign in again". Risk R-SEC-2 asked whether
+authentication (TVs have no lock screen), and will fail closed to "sign in again". Risk R-SEC-2 asked whether
 Keystore works reliably on budget Fire OS firmware. SP-3 tested the design on the reference device
 (Insignia, Fire OS 6.7.0.8, API 25), with a Fire TV Stick 4K (2nd gen, API 30) as a comparison only.
 
@@ -58,7 +58,7 @@ through that route on these devices.
 
 ## Decision
 
-1. **SP-3 passes.** S0.4.1's design stands as written: an AndroidKeyStore AES-256-GCM key, no user
+1. **SP-3 passes.** The core of the S0.4.1 design stands: an AndroidKeyStore AES-256-GCM key, no user
    authentication, a Keystore-generated IV, and a versioned blob.
 2. **Fail-closed is broadened and made precise.** S0.4.1 listed three exceptions, but the spike found two more
    failure shapes: a `null` key with no exception, and `IllegalBlockSizeException`. Any failure routes to "sign
