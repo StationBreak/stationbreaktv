@@ -1,17 +1,23 @@
-# StationBreak — Gradle Module Layout (Proposal)
+# StationBreak — Gradle Module Layout
 
-Status: **Proposed**. Needs owner approval before Phase 0 scaffolding.
+Status: **Accepted** (2026-10-11, Phil Critchfield).
 Source of truth: [`SPEC.md`](SPEC.md).
 
 ## Principles
 
 1. **Domain logic is pure Kotlin.** The channel engine, scheduler, rules format, and domain model use the
    **KMP plugin, with code in `commonMain`, a `jvm()` target, and a non-published `linuxX64()` canary target**
-   ([ADR-0004](adr/0004-kmp-shared-core.md)). They have **no Android dependencies** and run under plain
-   `./gradlew test` with no emulator.
+   ([ADR-0004](adr/0004-kmp-shared-core.md)). They have **no Android dependencies**, and their tests run on
+   the JVM with no emulator. KMP modules have no plain `test` task: their tests are `jvmTest` and `linuxX64Test`, both
+   run by `allTests`, which `./gradlew check` runs (so `commonTest` runs on both targets). Scaffolding verifies that these tests run with no Android SDK on the path, even
+   though Android modules share the build. If they can't, the pure modules move to a Gradle included build.
 2. **KMP now; tvOS targets are added in Phase 5.** The canary target makes the compiler reject `java.*` in
    `commonMain`, so portability is enforced rather than hoped for. Common code uses `kotlin.time`,
-   `kotlinx-datetime` (timezones only), `kotlinx.serialization`, and a hand-written PRNG.
+   `kotlinx-datetime` (`TimeZone`/`LocalDateTime` only), `kotlinx.serialization`, and a hand-written PRNG. Time comes from the
+   standard library's `kotlin.time.Clock`, injected where needed, not from a custom `Clock` port
+   ([ADR-0004](adr/0004-kmp-shared-core.md)). `app` provides `Clock.System` with `@Provides`. If the pinned Kotlin
+   version still marks `kotlin.time` APIs experimental, the `kmp-lib` convention plugin opts in to
+   `ExperimentalTime`.
 3. **Ports and adapters.** `core:*` defines interfaces (`MediaServer`, `LibraryRepository`,
    `ScheduleSource`). `data:*` implements them. Feature modules depend on interfaces, never on
    Jellyfin types. This is what makes "Emby and Plex behind the same interface" and the
@@ -26,7 +32,7 @@ Source of truth: [`SPEC.md`](SPEC.md).
 ```
 stationbreaktv/
 ├── app/                         Android application. Hilt root, navigation, flavors.
-├── build-logic/convention/      Gradle convention plugins (android-lib, jvm-lib, compose, hilt, ...)
+├── build-logic/convention/      Gradle convention plugins (android-lib, jvm-lib, jvm-inject, kmp-lib, compose, hilt, ...)
 │
 ├── core/
 │   ├── model/          [KMP]    Domain entities: Server, MediaItem, Channel, ScheduleBlock, ids, value types,
@@ -37,7 +43,7 @@ stationbreaktv/
 │   ├── scheduler/      [KMP]    Deterministic scheduler: PRNG, ordering modes, epochs, filler packing,
 │   │                            "what's on at time T, at what offset". Input is an ordered item list, not rules.
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
-│   │                            SecretStore, Clock, ProEntitlement), use cases, and the built-in
+│   │                            SecretStore, ProEntitlement), use cases, and the built-in
 │   │                            ScheduleSource (engine + scheduler)
 │   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors.
 │   │                            (Port fakes live in core:domain testFixtures.)
@@ -109,6 +115,17 @@ app ──► feature:* ──► core:domain, core:ui, core:playback
       └────────► core:scheduler ─────────────────┘
 ```
 
+Also allowed (not drawn above):
+- `app` → any module. It's the composition root: it wires `core:rules`, `core:engine` and `core:scheduler`
+  with `@Provides` (they hold no `javax.inject`; see "Hilt in pure modules"), and implements the flavor-specific
+  `ProEntitlement` from `core:domain`.
+- `feature:*` → `core:model`, because screens show domain entities.
+- `data:*` → `core:model`. `data:settings` → `core:rules` too, because it stores channels as rules JSON.
+- `core:domain` and `core:engine` → `core:model` directly.
+- `core:testing` → `core:model` and `core:rules`, to build fixtures and golden vectors.
+- Any module → `core:testing`, **test source sets only** (`commonTest`, `jvmTest`, `test`, `androidTest`).
+- Any module's tests → `core:domain`'s `testFixtures`, for the port fakes.
+
 `core:scheduler` does **not** depend on `core:engine` or `core:rules`. It needs only `core:model`.
 The built-in `ScheduleSource` in `core:domain` composes engine → scheduler. The Phase 5 XMLTV
 `ScheduleSource` (in its own `data:xmltv`) depends on neither (Granny ruling, see ADR when scaffolded).
@@ -117,13 +134,16 @@ Enforcement: an architecture test / convention-plugin check fails the build if
 - a `[KMP]` or `[JVM]` module gains an Android dependency,
 - a `java.*` import appears in `commonMain` (enforced by the compiler via the canary target; scaffold acceptance test),
 - `feature:*` depends on `data:*` or on another `feature:*`,
-- `core:scheduler` depends on `core:engine`/`core:rules`.
+- `core:scheduler` depends on `core:engine`/`core:rules`,
+- `core:testing` is used outside a test source set,
+- any manifest uses `tools:overrideLibrary`.
 
 ### Hilt in pure modules
 
 `javax.inject` is JVM-only, so it is **kept out of** `core:model`, `core:rules`, `core:engine`, and
 `core:scheduler` to preserve KMP-readiness. These are wired with `@Provides` in `app`. `core:domain` and
-`data:jellyfin` may use `@Inject` constructors. Hilt `@Module`s live in `app` (or in thin `di` packages
+`data:jellyfin` may use `@Inject` constructors, through a `jvm-inject` convention plugin that adds only
+`javax.inject`. Hilt `@Module`s live in `app` (or in thin `di` packages
 inside the Android `data:*` modules).
 
 **Portability guard:** the `linuxX64()` canary makes the compiler reject `java.*` in `commonMain`. A detekt
@@ -145,11 +165,20 @@ Billing sits behind the `ProEntitlement` port in `core:domain`, with a flavor-sp
 F4.3, along with Play Billing, so CI doesn't build an empty flavor until then. How Play Billing fits the "no
 Google Play Services" rule (R-PLAT-3) is settled at that point.
 
-## Toolchain baseline (to confirm at scaffold time)
+## Toolchain baseline
+
+Exact library versions are picked at scaffold time. Everything else in this section is settled.
 
 - Kotlin 2.x, AGP current stable, JDK 17 toolchain, Gradle version catalog
-- `minSdk 25`, `targetSdk` = current store requirement, core library desugaring **only if** a
-  `java.time` dependency sneaks in (pure modules shouldn't need it)
+- `minSdk 25`, `targetSdk` = current store requirement
+- **Core library desugaring on from day one.** `kotlinx-datetime` on the JVM uses `java.time`, which API 25
+  lacks, so the app needs desugaring even though the `[KMP]` modules never import `java.*` themselves. SP-1 ran
+  with it on the Insignia ([ADR-0007](adr/0007-tune-latency-spike.md)). The `android-lib` convention plugin turns it
+  on too, so library modules' instrumented tests work on the API 25 emulator.
+- **minSdk guard:** `tools:overrideLibrary` is banned in every manifest (a build check fails on it). Because the
+  override is banned, the manifest merger fails the build when any Android library (AAR) needs a minSdk above
+  25, so no custom scanner is needed (R-PLAT-1). Plain JARs carry no minSdk, so the merger can't see them; the
+  API 25 emulator job (S0.1.1) is the backstop for those.
 - Compose BOM + `androidx.tv:tv-material`, Media3 (`exoplayer`, `exoplayer-hls`, `datasource-okhttp`)
 - Room with KSP, Hilt with KSP, WorkManager, DataStore, kotlinx.serialization
 - Quality: ktlint (or Spotless + ktlint), detekt (incl. the forbidden-import rule), Android Lint, Kover for coverage of the `[KMP]`/`[JVM]` modules (detekt per KMP source set; verify Kover covers `commonMain`)
