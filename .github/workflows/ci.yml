@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  # The head repo is part of the key, so a fork branch with the same name can't cancel our runs.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,6 +66,7 @@ jobs:
           BUILD_TOOLS_VERSION: 36.0.0
           DEBUG_APK: ${{ steps.apk.outputs.path }}
           RELEASE_APK: app/build/outputs/apk/github/release/app-github-release-unsigned.apk
+          AMAZON_RELEASE_APK: app/build/outputs/apk/amazon/release/app-amazon-release-unsigned.apk
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
           echo "::group::apksigner verify --print-certs (github debug)"
@@ -75,12 +77,17 @@ jobs:
           echo "::endgroup::"
           echo "::group::aapt2 dump badging (github release)"
           "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -E "^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)"
-          if "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -q "^application-debuggable"; then
-            echo "release APK: application-debuggable PRESENT"
-          else
-            echo "release APK: no application-debuggable line"
-          fi
           echo "::endgroup::"
+          # ADR-0011 condition 3: a release build is never debuggable. Fail the job if either flavor's is.
+          for apk in "$RELEASE_APK" "$AMAZON_RELEASE_APK"; do
+            # Assign first so a missing APK or an aapt2 error fails the step instead of passing the grep.
+            badging="$("$BUILD_TOOLS/aapt2" dump badging "$apk")"
+            if grep -q "^application-debuggable" <<<"$badging"; then
+              echo "::error::release APK is debuggable (ADR-0011): $apk"
+              exit 1
+            fi
+            echo "release APK not debuggable: $apk"
+          done
 
       # Same-repo PRs only: fork PRs build and test but never get an APK (ADR-0011).
       - name: Upload PR debug APK

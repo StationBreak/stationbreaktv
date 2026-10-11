@@ -224,7 +224,13 @@ on:
 ```
 
 **Result summary:** the gate is on the upload step, not the job. `grep -rn pull_request_target .github/` matches
-only the explanatory comment on line 3. **Angua (Security)'s confirmation: PENDING** (sub-task 4.9).
+only the explanatory comment on line 3.
+
+**Angua (Security)'s confirmation (sub-task 4.9, 2026-10-11): PASS.** The upload `if:` gates fork PRs at the
+step; the only triggers are `pull_request` and `push` to `main` (no `pull_request_target` or `workflow_run`);
+`permissions: contents: read` with no job widening it; `persist-credentials: false`; every `github.event.*` value
+reaches `run:` through `env:`; every `uses:` is SHA-pinned; PR runs never write the Gradle cache. Her findings
+outside 4.9 are recorded in the PR.
 
 ## Record: `targetSdk`
 
