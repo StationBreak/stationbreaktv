@@ -3,6 +3,7 @@
 plugins {
     // AGP 9 compiles Kotlin itself; the Kotlin version is pinned in the root build.
     alias(libs.plugins.android.application)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -53,6 +54,22 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        // Every issue in Lint's Security category fails the build.
+        fatal += "Security"
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+}
+
+// `lint` checks only the default variant (amazonDebug); lint the github flavor too.
+tasks.named("check") {
+    dependsOn("lintAmazonDebug", "lintGithubDebug")
 }
 
 kotlin {
