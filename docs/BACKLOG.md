@@ -14,7 +14,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F0.1 Repo & CI (M)
 
 **S0.1.1** As a contributor, I want CI on every PR so that broken code can't merge.
-- 🧪 A GitHub Actions workflow runs on PRs and on `main`: `assemble` (all flavors), `test`, `lint`, `detekt`, `ktlintCheck`, plus an architecture test that enforces the [MODULES.md](MODULES.md) dependency rules.
+- 🧪 A GitHub Actions workflow runs on PRs and on `main`: `assemble` (all flavors), `test`, `lint`, `detekt`, `ktlintCheck`, via `./gradlew check`, so checks added later (such as F0.2's architecture test) run automatically.
 - 🧪 Actions are pinned by commit SHA. Gradle wrapper validation runs.
 - 🧪 F0.1 includes a minimal `:app` placeholder: one module, an empty activity, the SPDX header and the real application ID ([ADR-0010](adr/0010-application-id.md)). Every check goes green on it before F0.2 starts, and F0.2 grows it into the real skeleton.
 - 🧪 Gradle and dependency caches are used; a warm PR build finishes in < 10 min.
@@ -35,7 +35,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S0.2.1** As a developer, I want the module layout from [MODULES.md](MODULES.md) in place with convention plugins so that new code has an obvious home.
 - 🧪 All modules exist and build. `./gradlew :core:scheduler:test` runs with no Android SDK on the path.
 - 🧪 `app` defines two flavors, `amazon` and `github`. `play` comes later, at F4.3 ([MODULES.md](MODULES.md#build-flavors)).
-- 🧪 A build check fails if a `[KMP]`/`[JVM]` module declares an Android dependency, or if `feature:*` depends on `data:*`.
+- 🧪 An architecture test enforces the [MODULES.md](MODULES.md) dependency rules, and runs in CI as part of `check`. It fails if a `[KMP]`/`[JVM]` module declares an Android dependency, or if `feature:*` depends on `data:*`. Its first PR shows it catching a deliberately bad edge.
 - 🧪 KMP acceptance (ADR-0004): adding `import java.io.File` to a `commonMain` file fails the build, and an Android module consumes `core:model` via a plain project dependency.
 
 **S0.2.2** As a developer, I want a hello-world Compose for TV screen that's D-pad navigable so that the UI stack is proven on the target device.
