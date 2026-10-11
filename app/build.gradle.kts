@@ -18,6 +18,29 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // Public, throwaway and debug-only (ADR-0011): committed so every CI debug build installs over the last.
+        // It must never sign a release.
+        getByName("debug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        release {
+            // No signing config: release signing comes only from protected secrets (S4.1.1).
+            isDebuggable = false
+        }
+    }
+
     flavorDimensions += "distribution"
     productFlavors {
         create("amazon") { dimension = "distribution" }
