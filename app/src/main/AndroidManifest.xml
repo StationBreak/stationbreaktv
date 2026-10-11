@@ -10,10 +10,11 @@
         android:required="false" />
 
     <!-- MissingTvBanner: the leanback banner is part of the real TV UI (S0.2.2), not this placeholder. -->
-    <!-- allowBackup covers API 25-30; dataExtractionRules covers Android 12+ (API 31), where allowBackup is ignored. -->
+    <!-- No backup anywhere: allowBackup and fullBackupContent cover API 25-30, dataExtractionRules Android 12+. -->
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:label="@string/app_name"
         tools:ignore="MissingTvBanner"
         tools:targetApi="31">
