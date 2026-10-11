@@ -38,6 +38,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 All modules exist and build. `./gradlew :core:scheduler:test` runs with no Android SDK on the path.
 - 🧪 `app` defines two flavors, `amazon` and `github`. `play` comes later, at F4.3 ([MODULES.md](MODULES.md#build-flavors)).
 - 🧪 An architecture test enforces the [MODULES.md](MODULES.md) dependency rules, and runs in CI as part of `check`. It fails if a `[KMP]`/`[JVM]` module declares an Android dependency, or if `feature:*` depends on `data:*`. Its first PR shows it catching a deliberately bad edge.
+- 🧪 Gradle dependency verification (`verification-metadata.xml`, SHA-256) is turned on here, with a baseline generated against the real dependency set. Every later dependency change updates it in the same PR. Angua (Security) reviews the baseline.
 - 🧪 KMP acceptance (ADR-0004): adding `import java.io.File` to a `commonMain` file fails the build, and an Android module consumes `core:model` via a plain project dependency.
 
 **S0.2.2** As a developer, I want a hello-world Compose for TV screen that's D-pad navigable so that the UI stack is proven on the target device.
