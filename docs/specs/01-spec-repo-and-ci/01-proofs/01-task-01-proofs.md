@@ -187,7 +187,7 @@ problem was fixed on the implementation branch, and the PR was rebased and re-ru
    - **detekt:** in detekt 2.0.0-alpha.6, `LongParameterList` implements `RequiresAnalysisApi`. The plain
      `detekt` task, the one the plugin wires into `check`, skips those rules. This was reproduced locally:
      `detekt` reports 0 findings and `detektMain` reports `LongParameterList`. Fix (`5112b4e`): `check` also
-     depends on `detektMain` and `detektTest`.
+     depends on `detektMain` and `detektTest`. **Owner decision (2026-10-11):** accepted.
    - **Lint:** the task's trigger, `android:allowBackup="true"` (`AllowBackup`), can't test the Security gate.
      `AllowBackup` isn't in Lint 32.4.1's built-in issue registry, which is the Lint version AGP 9.4.1 uses.
      The PR now reads `Settings.Secure.ANDROID_ID` instead. That trips `HardwareIds`, which is Security
@@ -196,10 +196,14 @@ problem was fixed on the implementation branch, and the PR was rebased and re-ru
    unit test failed, but `HardwareIds` stayed a warning. So the Lint DSL's `fatal += "Security"` doesn't raise a
    whole category. Fix (`bc63baf`): task 1.8's fallback, `app/lint.xml`, which lists all 63 Security-category
    issue IDs from `BuiltinIssueRegistry` (Lint 32.4.1) as `fatal`.
+   **Owner decision (2026-10-11):** the `HardwareIds` trigger and the explicit ID list are both accepted. A CI
+   check that the list covers every Security issue in the current Lint is tracked in
+   [#138](https://github.com/StationBreak/stationbreaktv/issues/138).
 3. The now-fatal Security gate then caught a real issue on the placeholder: `DataExtractionRules`
    (`allowBackup="false"` is ignored from Android 12). Fix (`5e16457`, `68f0c75`): `data_extraction_rules.xml`
    and `backup_rules.xml`, which exclude every domain, so no app data is backed up or transferred at any API
-   level.
+   level. **Owner decision (2026-10-11):** accepted; no app data is backed up until a later story decides
+   otherwise. The access token in particular must never reach a cloud backup.
 
 ## Artifact: fork-PR no-APK gate (inspection)
 
@@ -234,6 +238,9 @@ Wear OS, and Android Automotive OS apps, which must target Android 15 (API level
 and Android XR apps, which must target Android 14 (API level 34) or higher**." StationBreak is an Android TV
 app, so its store requirement is API 34. The value and source are in a comment in `gradle/libs.versions.toml`.
 `compileSdk` is 36 (AGP 9.4 supports up to 37).
+
+**Owner decision (2026-10-11):** `targetSdk 34` confirmed. Raise it when Play's Android TV requirement rises, at
+the latest when the `play` flavor ships at F4.3.
 
 ## Artifact: build time
 
