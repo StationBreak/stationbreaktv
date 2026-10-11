@@ -232,6 +232,32 @@ step; the only triggers are `pull_request` and `push` to `main` (no `pull_reques
 reaches `run:` through `env:`; every `uses:` is SHA-pinned; PR runs never write the Gradle cache. Her findings
 outside 4.9 are recorded in the PR.
 
+## Artifact: non-debuggable release gate (ADR-0011 condition 3)
+
+**What it proves:** CI fails when either flavor's release APK is debuggable. Angua (Security) found that the
+"Inspect APKs" step originally only printed the result. The owner approved the fix on 2026-10-11 (`b994cf7`),
+together with her two low-severity findings: device-protected storage is now excluded from backup too, and the
+concurrency group includes the head repo, so a fork branch with the same name can't cancel our runs.
+
+**Deliberate failing PR:** [#139](https://github.com/StationBreak/stationbreaktv/pull/139) set `isDebuggable = true`
+on `release`. [Run 38183635107](https://github.com/StationBreak/stationbreaktv/actions/runs/38183635107) failed at
+"Inspect APKs":
+
+```
+##[error]release APK is debuggable (ADR-0011): app/build/outputs/apk/github/release/app-github-release-unsigned.apk
+##[error]Process completed with exit code 1.
+```
+
+The PR was closed unmerged and its branch deleted. On the fix branch,
+[run 38183623944](https://github.com/StationBreak/stationbreaktv/actions/runs/38183623944) is green:
+
+```
+release APK not debuggable: app/build/outputs/apk/github/release/app-github-release-unsigned.apk
+release APK not debuggable: app/build/outputs/apk/amazon/release/app-amazon-release-unsigned.apk
+```
+
+ADR-0011 condition 2's release-certificate check lands with S4.1.1, when release builds are first signed.
+
 ## Record: `targetSdk`
 
 **What it proves:** the spec's `targetSdk` assumption was confirmed against the official policy.
