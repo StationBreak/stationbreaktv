@@ -34,6 +34,13 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 Every `main` build uploads `stationbreak-github-debug-main-<shortsha>.apk` as a workflow artifact. So does every PR whose branch is in this repo (`stationbreak-github-debug-pr<N>-<shortsha>.apk`, kept 7 days), so changes can be checked on the Insignia before they merge. Fork PRs build and test but upload no APK, and run on `pull_request` only, never `pull_request_target` ([ADR-0011](adr/0011-debug-build-signing.md)).
 - 🧪 Debug builds are signed with a committed, debug-only `debug.keystore`, documented as public and throwaway, and use the application ID `tv.stationbreak.app.debug`, so each CI build installs over the last one ([ADR-0011](adr/0011-debug-build-signing.md)).
 
+**S0.1.4** As the owner, I want every PR security-scanned automatically so that agent-written code can't ship known weaknesses unnoticed.
+- 🧪 Every PR runs these checks, and each blocks merge: zizmor and actionlint on the workflows; gitleaks (the CLI, run directly) over the PR's full commit range, with `debug.keystore` allowlisted by exact path only ([ADR-0011](adr/0011-debug-build-signing.md)); OSV-Scanner on dependencies, failing on new findings; and Android Lint's Security category raised to error inside `check`.
+- 🧪 OSV-Scanner also runs weekly on `main` and opens an issue for any finding.
+- 👁 Dependabot alerts are on, with Dependabot update PRs off (Renovate handles updates). Renovate's `osvVulnerabilityAlerts` is on, so fixes for vulnerable dependencies skip the 3-day wait.
+- 👁 **On the day of the visibility flip**, three checks that need a public repo are turned on and made required: CodeQL (`java-kotlin`) on every PR and weekly, blocking on high severity; GitHub secret scanning with push protection; and the dependency review action, with Gradle dependency submission. CodeQL is **not** run while the repo is private, because its licence doesn't cover private code; Android Lint and detekt cover code analysis until then.
+- 👁 Rejected as noise or duplication: MobSF in CI (at most one manual scan before the first store release), Snyk, Sonar, Trivy, Semgrep default rules, and Dependabot update PRs.
+
 ## F0.2 Module skeleton (M)
 
 **S0.2.1** As a developer, I want the module layout from [MODULES.md](MODULES.md) in place with convention plugins so that new code has an obvious home.
@@ -335,6 +342,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 `versionCode` is derived from the tag. A changelog is generated from Conventional Commits.
 - 🧪 Supply chain: Gradle `verification-metadata.xml` + wrapper validation, GitHub Actions pinned by commit SHA, Renovate for updates, and the signing secret in a protected environment with required reviewers, never available to PR runs.
 - 🧪 CI fails a release if the APK is debuggable, or if `apksigner verify --print-certs` shows the debug certificate ([ADR-0011](adr/0011-debug-build-signing.md)).
+- 👁 OpenSSF Scorecard runs on the repo, non-blocking.
 - 👁 The release publishes the APK SHA-256, the signing-cert fingerprint, and a build-provenance attestation. An offline backup of the `github` signing key exists, because losing it breaks upgrades.
 
 ## F4.2 Amazon Appstore listing (M)
