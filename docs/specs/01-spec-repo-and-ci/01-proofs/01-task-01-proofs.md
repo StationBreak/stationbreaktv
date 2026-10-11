@@ -1,7 +1,7 @@
 # Task 01 Proofs - Placeholder app and the core CI build
 
-> **Status: in progress.** Sub-tasks 1.1–1.10 are done and proven below. Items marked **PENDING** need the
-> owner's approval (1.11 `sha_pinning_required`), the laptop bridge session (1.12 device check), a `main` run
+> **Status: in progress.** Sub-tasks 1.1–1.10 and 1.11's SHA-pinning step are done and proven below. Items
+> marked **PENDING** need the laptop bridge session (1.12 device check), a `main` run
 > after merge (1.11 warm-cache timing, 1.12 `main` artifact) or Angua (Security)'s review in 4.9 (fork-gate
 > confirmation).
 
@@ -35,7 +35,7 @@ the APKs and publishes a sideloadable debug APK for same-repo pull requests.
 | Failing PR (1.10) | [PR #137](https://github.com/StationBreak/stationbreaktv/pull/137), [run 38170691012](https://github.com/StationBreak/stationbreaktv/actions/runs/38170691012): detekt, Lint Security and unit test all fail |
 | `targetSdk` | 34, from Google Play's Android TV target API requirement (checked 2026-10-11) |
 | Build time | 4m19s cold-cache re-run (attempt 2 of run 38170364485); warm-cache timing **PENDING** first `main` run |
-| `sha_pinning_required` | currently `false`; turning it on is **PENDING** the owner's approval |
+| `sha_pinning_required` | `true` (owner, 2026-10-11); CI green under enforcement (run 38176295040 attempt 2) |
 | Device install-over | **PENDING** bridge session; run IDs handed over below |
 
 ## Artifact: TDD red run
@@ -271,8 +271,16 @@ Complete job            20:13:51
 {"enabled":true,"allowed_actions":"all","sha_pinning_required":false}
 ```
 
-**Result summary:** **PENDING** the owner's explicit approval to `PUT` it back with `enabled: true`,
-`allowed_actions: "all"` and `sha_pinning_required: true`. CI is then re-run to show it still goes green.
+Before (GET above). The owner approved the change on 2026-10-11 and enabled it themselves in the web UI
+(Settings → Actions → General → "Require actions to be pinned to a full-length commit SHA"). After:
+
+```json
+{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}
+```
+
+**Result summary:** SHA pinning is enforced, with the other settings unchanged. CI still goes green under
+enforcement: [run 38176295040, attempt 2](https://github.com/StationBreak/stationbreaktv/actions/runs/38176295040)
+(re-run started 2026-10-11T21:32:50Z, after the setting was saved) succeeded.
 
 ## Device check (bridge session): PENDING
 
