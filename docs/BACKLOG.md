@@ -44,7 +44,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F0.2 Module skeleton (M)
 
 **S0.2.1** As a developer, I want the module layout from [MODULES.md](MODULES.md) in place with convention plugins so that new code has an obvious home.
-- 🧪 All modules exist and build. `./gradlew :core:scheduler:test` runs with no Android SDK on the path.
+- 🧪 The day-one modules ([MODULES.md](MODULES.md), "Day-one set") exist and build; the rest are created by the first story that needs them. `./gradlew :core:scheduler:test` runs with no Android SDK on the path.
 - 🧪 `app` defines two flavors, `amazon` and `github`. `play` comes later, at F4.3 ([MODULES.md](MODULES.md#build-flavors)).
 - 🧪 An architecture test enforces the [MODULES.md](MODULES.md) dependency rules, and runs in CI as part of `check`. It fails if a `[KMP]`/`[JVM]` module declares an Android dependency, or if `feature:*` depends on `data:*`. Its first PR shows it catching a deliberately bad edge.
 - 🧪 Gradle dependency verification (`verification-metadata.xml`, SHA-256) is turned on here, with a baseline generated against the real dependency set. Every later dependency change updates it in the same PR. Angua (Security) reviews the baseline.

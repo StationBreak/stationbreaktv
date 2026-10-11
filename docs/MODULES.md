@@ -65,6 +65,11 @@ Deferred: `benchmark/` (Macrobenchmark + Baseline Profiles) is added in F2.5. `c
 until something genuinely needs sharing.
 ```
 
+**Day-one set (decided 2026-10-11):** F0.2 creates only `app`, `build-logic`, `core:model`, `core:rules`,
+`core:engine`, `core:scheduler`, `core:testing`, `core:domain`, `data:jellyfin`, and `core:ui` (theme only).
+Every other module is created by the first story that needs it, for example `data:settings` in F0.4 and
+`data:library` in F0.6. The architecture test enforces the rules for each module as it appears.
+
 `[KMP]` means Kotlin Multiplatform (`commonMain`; `jvm()` + `linuxX64()` canary). `[JVM]` means a pure Kotlin/JVM module with no Android plugin. `[Android]` means an Android library module.
 
 ### Why `data:jellyfin` is pure JVM
