@@ -14,7 +14,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F0.1 Repo & CI (M)
 
 **S0.1.1** As a contributor, I want CI on every PR so that broken code can't merge.
-- 🧪 A GitHub Actions workflow runs on PRs and on `main`: `assemble` (all flavors), `test`, `lint`, `detekt`, `ktlintCheck`, via `./gradlew check`, so checks added later (such as F0.2's architecture test) run automatically.
+- 🧪 A GitHub Actions workflow runs on PRs and on `main`: `assemble` (all flavors), `test`, `lint`, `detekt`, `spotlessCheck` (ktlint and the SPDX header), via `./gradlew check`, so checks added later (such as F0.2's architecture test) run automatically.
 - 🧪 Actions are pinned by commit SHA. Gradle wrapper validation runs.
 - 🧪 An API 25 emulator job runs on every PR, in parallel with the main build: a launch smoke test plus all instrumented tests. It catches crashes from APIs missing on the Insignia's Android version before anyone installs the APK. Automation is the main line of defence; manual checks on the Insignia supplement it rather than replace it.
 - 🧪 F0.1 includes a minimal `:app` placeholder: one module, an empty activity, the SPDX header and the real application ID ([ADR-0010](adr/0010-application-id.md)). Every check goes green on it before F0.2 starts, and F0.2 grows it into the real skeleton.
