@@ -20,10 +20,11 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 Gradle and dependency caches are used; a warm PR build finishes in < 10 min.
 - 👁 Dependency updates come from the hosted Renovate GitHub App, configured in `renovate.json`: a 3-day minimum release age, no automerge in Phase 0, related updates grouped (for example all of Compose), and updates that would raise minSdk above 25 caught (R-PLAT-1). Angua (Security) reviews the config.
 - 👁 Branch protection on `main` requires the workflow and the DCO check to pass, and is enabled **before the repo is made public**. GitHub Free doesn't offer protection on private repos, so until then it's by convention: from F0.1 on, code changes go through PRs merged only when CI is green. Docs-only changes may go straight to `main` until the flip.
+- 👁 **Signed commits** (GPG or SSH, shown as Verified) are required on `main`. Set up later, by the visibility flip at the latest. Every identity that commits, including agent sessions committing for the owner, needs a signing key first.
 
 **S0.1.2** As the owner, I want every source file GPL-3.0 headed and every dependency license-checked so that the project stays license-clean.
 - 🧪 A CI check fails if a `.kt`/`.kts` file lacks the SPDX header `GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore` ([ADR-0003](adr/0003-licensing-and-contributions.md)).
-- 🧪 A DCO check fails any PR with a commit missing `Signed-off-by`.
+- 🧪 A DCO check fails any PR with a commit missing `Signed-off-by`. It's an in-repo GitHub Actions step that reads every commit in the PR, not a third-party app. Commits from `renovate[bot]` are exempt, matched by its verified bot identity rather than its name, since a bot can't certify the DCO.
 - 🧪 A dependency-license report is generated. CI fails on any license that isn't on an allowlist of GPL-3.0-compatible licenses (for example Apache-2.0, MIT, BSD, LGPL), including licenses the checker can't identify. Adding a license to the allowlist, or a per-dependency override, needs a reviewed PR.
 - 👁 `LICENSE` (GPLv3 text + the app-store additional permission), `README.md`, `CONTRIBUTING.md` (explains DCO and the exception), and `CODE_OF_CONDUCT.md` exist.
 - 👁 The exception text is reviewed by a qualified party (e.g. Software Freedom Conservancy) **before the first outside contribution is merged**.
