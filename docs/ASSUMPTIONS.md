@@ -20,7 +20,7 @@ can be answered later, by the phase shown.
 | A-REL-1 | Three build flavors: `amazon`, `play`, `github`. The `github` flavor has no proprietary SDKs. Phase 0 creates only `amazon` and `github`; `play` arrives at F4.3. | MODULES.md, F4 |
 | A-SCOPE-1 | Phases 4 and 5 have no gates in the spec, so I proposed them. Phase 5 is only outlined. | EPICS.md |
 | A-SCOPE-2 | The "should haves" (filler, retro, watch-state) are scheduled in Phase 3 per the roadmap, not in the MVP gate (Phase 2). | ROADMAP.md |
-| A-REPO-1 | The repo will be `github.com/stationbreak/stationbreaktv`. The local directory isn't a git repo yet. | F0.1 |
+| A-REPO-1 | ✅ **Confirmed:** the repo is `github.com/StationBreak/stationbreaktv` (created 2026-10-04, private; see Q-REPO-1). | F0.1 |
 | A-LIC-1 | All dependencies must be GPL-3.0-compatible (Apache-2.0, MIT, BSD, LGPL OK). Media3's optional FFmpeg extension is compatible if used. | S0.1.2 |
 
 ## Questions for the owner

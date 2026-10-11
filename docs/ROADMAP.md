@@ -39,7 +39,7 @@ Phase 5  Expansion ───────► Re-plan
 
 | Order | Feature | Depends on |
 | --- | --- | --- |
-| 1 | F0.1 Repo & CI | Owner creates the `stationbreak/stationbreaktv` GitHub repo |
+| 1 | F0.1 Repo & CI | Owner creates the `StationBreak/stationbreaktv` GitHub repo ✅ |
 | 2 | F0.2 Module skeleton | F0.1 |
 | 3 | F0.7 Rules format v1 (doc + types) | F0.2. Can run in parallel with F0.3 |
 | 3 | F0.3 Jellyfin adapter (starts with the jellyfin-sdk-kotlin fitness spike, SP-4) | F0.2 |
