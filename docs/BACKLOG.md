@@ -16,6 +16,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S0.1.1** As a contributor, I want CI on every PR so that broken code can't merge.
 - 🧪 A GitHub Actions workflow runs on PRs and on `main`: `assemble` (all flavors), `test`, `lint`, `detekt`, `ktlintCheck`, plus an architecture test that enforces the [MODULES.md](MODULES.md) dependency rules.
 - 🧪 Actions are pinned by commit SHA. Gradle wrapper validation runs.
+- 🧪 F0.1 includes a minimal `:app` placeholder: one module, an empty activity, the SPDX header and the real application ID ([ADR-0010](adr/0010-application-id.md)). Every check goes green on it before F0.2 starts, and F0.2 grows it into the real skeleton.
 - 🧪 Gradle and dependency caches are used; a warm PR build finishes in < 10 min.
 - 👁 Branch protection on `main` requires the workflow and the DCO check to pass, and is enabled **before the repo is made public**.
 
