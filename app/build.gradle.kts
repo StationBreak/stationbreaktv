@@ -58,8 +58,8 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
-        // Every issue in Lint's Security category fails the build.
-        fatal += "Security"
+        // Raises every Security-category issue to fatal (the DSL's `fatal` takes issue IDs, not categories).
+        lintConfig = file("lint.xml")
     }
 }
 
