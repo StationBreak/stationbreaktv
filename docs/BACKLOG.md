@@ -29,7 +29,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 👁 The exception text is reviewed by a qualified party (e.g. Software Freedom Conservancy) **before the first outside contribution is merged**.
 
 **S0.1.3** As a tester, I want CI to publish a debug APK artifact so that I can sideload a build without a dev machine.
-- 🧪 Every `main` build uploads `stationbreak-github-debug.apk` as a workflow artifact.
+- 🧪 Every `main` build uploads `stationbreak-github-debug-main-<shortsha>.apk` as a workflow artifact. So does every PR whose branch is in this repo (`stationbreak-github-debug-pr<N>-<shortsha>.apk`, kept 7 days), so changes can be checked on the Insignia before they merge. Fork PRs build and test but upload no APK, and run on `pull_request` only, never `pull_request_target` ([ADR-0011](adr/0011-debug-build-signing.md)).
+- 🧪 Debug builds are signed with a committed, debug-only `debug.keystore`, documented as public and throwaway, and use the application ID `tv.stationbreak.app.debug`, so each CI build installs over the last one ([ADR-0011](adr/0011-debug-build-signing.md)).
 
 ## F0.2 Module skeleton (M)
 
@@ -329,7 +330,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S4.1.1** As the owner, I want tagged releases built and signed by CI so that releases are reproducible.
 - 🧪 A `v*` tag triggers release builds for all flavors. Signing keys live in GitHub encrypted secrets (or Play App Signing for `play`).
 - 🧪 `versionCode` is derived from the tag. A changelog is generated from Conventional Commits.
-- 🧪 Supply chain: Gradle `verification-metadata.xml` + wrapper validation, GitHub Actions pinned by commit SHA, Renovate for updates, and the signing secret in a protected environment with required reviewers.
+- 🧪 Supply chain: Gradle `verification-metadata.xml` + wrapper validation, GitHub Actions pinned by commit SHA, Renovate for updates, and the signing secret in a protected environment with required reviewers, never available to PR runs.
+- 🧪 CI fails a release if the APK is debuggable, or if `apksigner verify --print-certs` shows the debug certificate ([ADR-0011](adr/0011-debug-build-signing.md)).
 - 👁 The release publishes the APK SHA-256, the signing-cert fingerprint, and a build-provenance attestation. An offline backup of the `github` signing key exists, because losing it breaks upgrades.
 
 ## F4.2 Amazon Appstore listing (M)

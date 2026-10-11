@@ -50,7 +50,7 @@ bring-into-view behaviour are switched off, so focus moves drive the scroll. The
 | Mixed directions (100 ms) | clean | 485 | 92.0 | 26 / 57 / 150 |
 
 - **The owner judged it smooth** on the Insignia for normal-pace vertical, normal-pace horizontal and
-  held-down vertical scrolling. He didn't watch a held left/right sweep or mixed directions, so the weakest
+  held-down vertical scrolling. The owner didn't watch a held left/right sweep or mixed directions, so the weakest
   case (below) is judged on numbers only.
 - **"Janky %" misleads on this device.** When stepping, typical frames take about 18 ms, just over the
   16.7 ms budget for 60 Hz, so the app runs at a steady, even ~30 fps, and Android counts every such frame as
