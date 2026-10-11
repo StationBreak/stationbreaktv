@@ -67,8 +67,11 @@ detekt {
     buildUponDefaultConfig = true
 }
 
-// `lint` checks only the default variant (amazonDebug); lint the github flavor too.
 tasks.named("check") {
+    // detekt 2's plain `detekt` task skips rules that need type resolution (LongParameterList among them);
+    // detektMain and detektTest run every rule.
+    dependsOn("detektMain", "detektTest")
+    // `lint` checks only the default variant (amazonDebug); lint the github flavor too.
     dependsOn("lintAmazonDebug", "lintGithubDebug")
 }
 
