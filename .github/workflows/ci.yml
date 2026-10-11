@@ -41,3 +41,61 @@ jobs:
           assembleAmazonDebug assembleAmazonRelease
           assembleGithubDebug assembleGithubRelease
           --continue
+
+      - name: Name the debug APK
+        id: apk
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          shortsha="${HEAD_SHA::7}"
+          if [ "$EVENT_NAME" = pull_request ]; then
+            name="stationbreak-github-debug-pr${PR_NUMBER}-${shortsha}.apk"
+          else
+            name="stationbreak-github-debug-main-${shortsha}.apk"
+          fi
+          mkdir -p dist
+          cp app/build/outputs/apk/github/debug/app-github-debug.apk "dist/${name}"
+          echo "path=dist/${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect APKs
+        env:
+          # AGP 9.4's default build-tools version.
+          BUILD_TOOLS_VERSION: 36.0.0
+          DEBUG_APK: ${{ steps.apk.outputs.path }}
+          RELEASE_APK: app/build/outputs/apk/github/release/app-github-release-unsigned.apk
+        run: |
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
+          echo "::group::apksigner verify --print-certs (github debug)"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$DEBUG_APK"
+          echo "::endgroup::"
+          echo "::group::aapt2 dump badging (github debug)"
+          "$BUILD_TOOLS/aapt2" dump badging "$DEBUG_APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-debuggable)"
+          echo "::endgroup::"
+          echo "::group::aapt2 dump badging (github release)"
+          "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-debuggable)"
+          if "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -q "^application-debuggable"; then
+            echo "release APK: application-debuggable PRESENT"
+          else
+            echo "release APK: no application-debuggable line"
+          fi
+          echo "::endgroup::"
+
+      # Same-repo PRs only: fork PRs build and test but never get an APK (ADR-0011).
+      - name: Upload PR debug APK
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ steps.apk.outputs.path }}
+          archive: false
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload main debug APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ steps.apk.outputs.path }}
+          archive: false
+          if-no-files-found: error
