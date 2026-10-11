@@ -1,0 +1,35 @@
+[versions]
+# Kotlin 2.4.20 is required by jellyfin-sdk-kotlin 1.9.2 (F0.3). AGP 9 has Kotlin built in; declaring the
+# Kotlin plugin in the root build raises AGP's bundled Kotlin to this version.
+kotlin = "2.4.20"
+agp = "9.4.1"
+# detekt 2.0.0-alpha.6 is the only release built for Kotlin 2.4; move to 2.0 stable when it ships.
+detekt = "2.0.0-alpha.6"
+spotless = "8.10.4"
+licensee = "1.14.1"
+desugarJdkLibs = "2.1.5"
+junit = "4.13.2"
+androidxTestCore = "1.7.0"
+androidxTestRunner = "1.7.0"
+androidxTestExtJunit = "1.3.0"
+
+minSdk = "25"
+compileSdk = "36"
+# targetSdk = the current Google Play target API level requirement for Android TV apps (Amazon follows Play):
+# "Android TV ... apps ... must target Android 14 (API level 34) or higher".
+# Source: https://support.google.com/googleplay/android-developer/answer/11926878 (checked 2026-10-11)
+targetSdk = "34"
+
+[libraries]
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
+junit = { module = "junit:junit", version.ref = "junit" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExtJunit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+licensee = { id = "app.cash.licensee", version.ref = "licensee" }
