@@ -10,4 +10,9 @@ class MainActivityPackageTest {
         // ADR-0010: the Kotlin package root matches the application ID.
         assertEquals("tv.stationbreak.app", MainActivity::class.java.packageName)
     }
+
+    @Test
+    fun deliberatelyFails() {
+        assertEquals(1, 2)
+    }
 }
