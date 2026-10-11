@@ -18,6 +18,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 Actions are pinned by commit SHA. Gradle wrapper validation runs.
 - 🧪 F0.1 includes a minimal `:app` placeholder: one module, an empty activity, the SPDX header and the real application ID ([ADR-0010](adr/0010-application-id.md)). Every check goes green on it before F0.2 starts, and F0.2 grows it into the real skeleton.
 - 🧪 Gradle and dependency caches are used; a warm PR build finishes in < 10 min.
+- 👁 Dependency updates come from the hosted Renovate GitHub App, configured in `renovate.json`: a 3-day minimum release age, no automerge in Phase 0, related updates grouped (for example all of Compose), and updates that would raise minSdk above 25 caught (R-PLAT-1). Angua (Security) reviews the config.
 - 👁 Branch protection on `main` requires the workflow and the DCO check to pass, and is enabled **before the repo is made public**. GitHub Free doesn't offer protection on private repos, so until then it's by convention: from F0.1 on, code changes go through PRs merged only when CI is green. Docs-only changes may go straight to `main` until the flip.
 
 **S0.1.2** As the owner, I want every source file GPL-3.0 headed and every dependency license-checked so that the project stays license-clean.
