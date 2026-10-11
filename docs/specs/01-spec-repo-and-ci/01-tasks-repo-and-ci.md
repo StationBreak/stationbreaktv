@@ -101,7 +101,7 @@ merging and their branches deleted.
 
 ## Tasks
 
-### [ ] 1.0 Placeholder app and the core CI build
+### [~] 1.0 Placeholder app and the core CI build
 
 Covers spec Unit 1 (S0.1.1, S0.1.3; ADR-0010, ADR-0011).
 
@@ -121,7 +121,7 @@ Covers spec Unit 1 (S0.1.1, S0.1.3; ADR-0010, ADR-0011).
 
 #### 1.0 Tasks
 
-- [ ] 1.1 Create branch `feat/f0.1-repo-and-ci` from `main`. Add `.gitignore` (Gradle/Android: `build/`, `.gradle/`, `local.properties`, `.idea/`, `*.iml`, `captures/`, `.kotlin/`) and `.gitattributes` (`*.jar binary`, `*.keystore binary`, `gradlew text eol=lf`, `*.bat text eol=crlf`). Commit as `chore:`.
+- [x] 1.1 Create branch `feat/f0.1-repo-and-ci` from `main`. Add `.gitignore` (Gradle/Android: `build/`, `.gradle/`, `local.properties`, `.idea/`, `*.iml`, `captures/`, `.kotlin/`) and `.gitattributes` (`*.jar binary`, `*.keystore binary`, `gradlew text eol=lf`, `*.bat text eol=crlf`). Commit as `chore:`.
 - [ ] 1.2 Add the Gradle wrapper for Gradle 9.8.0: download the `-bin` distribution, verify it against the published `.sha256`, and run its `gradle wrapper --gradle-version 9.8.0 --distribution-type bin --gradle-distribution-sha256-sum <sum>`. If Gradle won't run on the local JDK 27, use a temporary JDK 17 or 21 unpacked in the scratchpad (not installed system-wide). Commit `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar` and `gradle-wrapper.properties` (with `distributionSha256Sum`).
 - [ ] 1.3 Create `gradle/libs.versions.toml` with the versions in the spec (Kotlin 2.4.20, AGP 9.4.1, detekt 2.0.0-alpha.6 with plugin id `dev.detekt`, Spotless 8.10.4, Licensee 1.14.1, `desugar_jdk_libs`, AndroidX Test core/runner/ext-junit, JUnit), plus `minSdk = "25"` and `targetSdk` set to the current Google Play target-API requirement (assumption 4): confirm it on the official Play policy page ("Target API level requirements") on the day, and add a comment with the URL and date. Create `settings.gradle.kts` (project name `stationbreaktv`, `include(":app")`, `google()`/`mavenCentral()`/`gradlePluginPortal()`), root `build.gradle.kts` (all plugins `apply false`) and `gradle.properties` (`org.gradle.jvmargs`, `android.useAndroidX=true`, `kotlin.code.style=official`). Every `.kts` file starts with the SPDX header line from 3.1.
 - [ ] 1.4 Generate `debug.keystore` at the repo root with `keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=StationBreak Debug (public, throwaway), O=StationBreak"`. Record its SHA-256 fingerprint from `keytool -list -v` for 1.6 and 3.8. Don't reuse any existing key.
