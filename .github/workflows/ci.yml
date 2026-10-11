@@ -71,10 +71,10 @@ jobs:
           "$BUILD_TOOLS/apksigner" verify --print-certs "$DEBUG_APK"
           echo "::endgroup::"
           echo "::group::aapt2 dump badging (github debug)"
-          "$BUILD_TOOLS/aapt2" dump badging "$DEBUG_APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-debuggable)"
+          "$BUILD_TOOLS/aapt2" dump badging "$DEBUG_APK" | grep -E "^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)"
           echo "::endgroup::"
           echo "::group::aapt2 dump badging (github release)"
-          "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-debuggable)"
+          "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -E "^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)"
           if "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -q "^application-debuggable"; then
             echo "release APK: application-debuggable PRESENT"
           else
