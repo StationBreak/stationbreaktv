@@ -38,7 +38,7 @@ android {
         }
         release {
             // No signing config: release signing comes only from protected secrets (S4.1.1).
-            isDebuggable = false
+            isDebuggable = true
         }
     }
 
