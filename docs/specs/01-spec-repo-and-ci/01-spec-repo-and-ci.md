@@ -14,8 +14,15 @@ machines, because the owner can't hand-test every PR ("CI first", [ROADMAP.md](.
 - Every pull request and every push to `main` runs a single CI workflow that ends green on the placeholder
   app, with a warm PR run finishing in **under 10 minutes**.
 - Each blocking gate (build, tests, lint, style, SPDX header, license allowlist, DCO, workflow security,
-  secrets, known vulnerabilities, API 25 emulator) is **shown to block** a deliberately bad PR, not just to pass
-  a good one.
+  secrets, known vulnerabilities, API 25 emulator) is **shown to block** a deliberately bad PR, or, where that
+  isn't possible yet, is verified by inspection with the follow-up named. The inspection-verified gates are:
+  - **OSV-Scanner (known vulnerabilities):** it has no Gradle dependency list to scan until F0.2, so it can't
+    fail yet. Follow-up: F0.2 adds `gradle/verification-metadata.xml` and, with it, a deliberate failing-PR proof
+    that OSV-Scanner blocks a newly introduced vulnerable dependency.
+  - **The fork-PR no-APK gate:** verified by inspecting the upload step's
+    `github.event.pull_request.head.repo.full_name == github.repository` condition, plus Angua (Security)'s
+    review, because a fork PR needs a second GitHub account. The workflow's "never `pull_request_target`" rule
+    is also enforced by zizmor, which flags that trigger.
 - A sideloadable debug APK is published for `main` and for pull requests from this repository, signed with a
   stable debug key, so each build installs over the previous one ([ADR-0011](../../adr/0011-debug-build-signing.md)).
 - The repository has the legal and community files a GPL project needs before outside contributions:
@@ -121,8 +128,10 @@ visibility flip (S0.1.2).
   can't identify. Per-dependency overrides shall be listed in the build file with a comment giving the
   reason.
 - A DCO job shall fail any pull request containing a commit without a `Signed-off-by:` trailer. It shall read
-  every commit in the PR range. Commits authored by `renovate[bot]` shall be exempt, matched on the author's
-  verified GitHub bot account (login `renovate[bot]` with `type: Bot`), not on the name or email text.
+  every commit in the PR range. A commit shall be exempt only if **both** its author is the `renovate[bot]`
+  GitHub account (login `renovate[bot]` with `type: Bot`) **and** the commit has a GitHub-verified signature
+  (`verification.verified == true` from the commits API). The name or email text alone never exempts a commit,
+  because GitHub links a commit's author to an account by email, which anyone can set.
 - The repository root shall contain:
   - `LICENSE`: the GPLv3 text plus the app-store additional permission from
     `docs/legal/app-store-exception.md`;
@@ -135,8 +144,10 @@ visibility flip (S0.1.2).
 **Proof Artifacts:**
 - Deliberate failing PRs, each closed without merging:
   - a `.kt` file without the SPDX header fails `spotlessCheck`;
-  - a commit without `Signed-off-by` fails the DCO job;
-  - a dependency with a license that isn't allowlisted fails Licensee.
+  - a commit without `Signed-off-by` fails the DCO job, and so does an unsigned commit whose author email is
+    `renovate[bot]`'s but which has no verified signature;
+  - a dependency with a license that isn't allowlisted fails Licensee, and so does a dependency whose license
+    Licensee can't identify.
 - CI run: the F0.1 PR passes all three, demonstrating the gates don't block correct work.
 - File listing: the four root files exist, and `LICENSE` contains both the GPLv3 text and the exception.
 
@@ -234,6 +245,9 @@ activity.
   The `tools:overrideLibrary` ban that makes this unbypassable lands with F0.2's architecture checks.
 - **Debug keystore:** generate it with `keytool` (RSA 2048 or larger, long validity) with the conventional
   `android` passwords, since it's public by design.
+- **`targetSdk` (assumption):** `targetSdk` = the current Google Play target-API requirement at implementation
+  time (Amazon follows Play). The implementer confirms it from the official Play policy page and records the
+  value and source in the 1.0 proofs.
 
 ## Security Considerations
 
@@ -256,8 +270,12 @@ activity.
 ## Success Metrics
 
 1. **All gates green on the F0.1 PR**, with a warm PR build job finishing in under 10 minutes.
-2. **Every blocking gate proven to block**, by one deliberate failing PR each: emulator, SPDX header, DCO,
-   license, zizmor, gitleaks. That's 6 of 6.
+2. **Every blocking gate proven to block, or verified by inspection with its follow-up named.** There are 13
+   blocking checks: build, unit tests, Android Lint (Security fatal), detekt, ktlint style, SPDX header,
+   Licensee, DCO, zizmor, actionlint, gitleaks, OSV-Scanner and the API 25 emulator. Twelve are proven by a
+   deliberate failing PR (the build by the TDD red run on the implementation PR). One, **OSV-Scanner**, is
+   verified by inspection until F0.2. Separately, two workflow controls are verified by inspection: the
+   **fork-PR no-APK gate** and **never `pull_request_target`** (also flagged by zizmor).
 3. **Zero manual build steps:** the owner installs a CI-built PR APK on the Insignia over a previous one,
    without a local build and without uninstalling.
 4. **Renovate active:** at least one Renovate PR opened by the end of the spec.

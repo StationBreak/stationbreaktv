@@ -25,7 +25,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S0.1.2** As the owner, I want every source file GPL-3.0 headed and every dependency license-checked so that the project stays license-clean.
 - 🧪 A CI check fails if a `.kt`/`.kts` file lacks the SPDX header `GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore` ([ADR-0003](adr/0003-licensing-and-contributions.md)).
-- 🧪 A DCO check fails any PR with a commit missing `Signed-off-by`. It's an in-repo GitHub Actions step that reads every commit in the PR, not a third-party app. Commits from `renovate[bot]` are exempt, matched by its verified bot identity rather than its name, since a bot can't certify the DCO.
+- 🧪 A DCO check fails any PR with a commit missing `Signed-off-by`. It's an in-repo GitHub Actions step that reads every commit in the PR, not a third-party app. Commits from `renovate[bot]` are exempt, since a bot can't certify the DCO, but only when the author is the `renovate[bot]` account (type Bot) **and** the commit has a GitHub-verified signature. GitHub links commits to accounts by email alone, so the account match on its own could be spoofed.
 - 🧪 A dependency-license report is generated. CI fails on any license that isn't on an allowlist of GPL-3.0-compatible licenses (for example Apache-2.0, MIT, BSD, LGPL), including licenses the checker can't identify. Adding a license to the allowlist, or a per-dependency override, needs a reviewed PR.
 - 👁 `LICENSE` (GPLv3 text + the app-store additional permission), `README.md`, `CONTRIBUTING.md` (explains DCO and the exception), and `CODE_OF_CONDUCT.md` exist.
 - 👁 The exception text is reviewed by a qualified party (e.g. Software Freedom Conservancy) **before the first outside contribution is merged**.
