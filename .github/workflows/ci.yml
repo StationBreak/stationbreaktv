@@ -119,3 +119,91 @@ jobs:
           # Explicit, so a repo-level default change can't alter it. Main APKs are for device testing only.
           retention-days: 30
           if-no-files-found: error
+
+  # Instrumented tests on the Insignia's Android version (API 25), so a call to a newer API crashes here, not on a
+  # device. No `needs:`: it runs in parallel with `build`.
+  emulator:
+    runs-on: ubuntu-latest
+    # Cold boot plus tests takes about 3.5 minutes; this catches a hang well before the default 6 hours.
+    timeout-minutes: 15
+    # Repeats the workflow default so this job stays read-only if the top level is ever widened for another job.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # The emulator needs about 7.4 GB free to create its userdata partition and exits at launch without it; some
+      # runners have had only 7.0 GB. These preinstalled toolchains are unused here.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost
+          df -h /
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Built before the emulator boots, so a compile error fails here rather than inside the emulator step.
+      - name: Build the app and test APKs
+        run: ./gradlew assembleGithubDebug assembleGithubDebugAndroidTest
+
+      # Cold boot every run: a cached AVD snapshot hung on "device offline" in 3 of 8 runs; cold boot in 0 of 8.
+      # A boot timeout or any failed test fails this step and the job.
+      - name: Instrumented tests (API 25 Android TV)
+        id: tests
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 25
+          target: android-tv
+          # The API 25 TV image exists only for x86.
+          arch: x86
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # On failure, save logcat before the action shuts the emulator down.
+          script: ./gradlew connectedGithubDebugAndroidTest || { adb logcat -d > app/build/logcat.txt; exit 1; }
+
+      # Gradle's console output doesn't name the tests or show a failure's exception; the JUnit XML does.
+      - name: Instrumented test results
+        if: always() && steps.tests.outcome != 'skipped'
+        run: |
+          shopt -s globstar nullglob
+          results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
+          if [ "${#results[@]}" -eq 0 ]; then
+            echo "No instrumented test results."
+            exit 0
+          fi
+          for f in "${results[@]}"; do
+            echo "::group::$f"
+            grep -oE '<testsuite [^>]*>' "$f" || true
+            grep -oE '<testcase [^>]*>' "$f" || true
+            grep -A5 '<failure' "$f" || true
+            echo "::endgroup::"
+          done
+
+      # Test reports and logcat only, no APK, so fork PRs can have it too (ADR-0011 gates APKs).
+      - name: Upload instrumented test reports
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: instrumented-test-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            app/build/logcat.txt
+          retention-days: 7
+          if-no-files-found: ignore
