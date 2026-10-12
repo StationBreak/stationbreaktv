@@ -1,0 +1,40 @@
+[
+  {
+    "sha": "1111111111111111111111111111111111111111",
+    "commit": {
+      "author": {
+        "name": "Alice Example",
+        "email": "alice@example.com",
+        "date": "2026-10-12T00:00:00Z"
+      },
+      "message": "feat: a signed change\n\nSigned-off-by: Alice Example <alice@example.com>",
+      "verification": {
+        "verified": false,
+        "reason": "unsigned"
+      }
+    },
+    "author": {
+      "login": "alice",
+      "type": "User"
+    }
+  },
+  {
+    "sha": "3333333333333333333333333333333333333333",
+    "commit": {
+      "author": {
+        "name": "Alice Example",
+        "email": "alice@example.com",
+        "date": "2026-10-12T00:00:00Z"
+      },
+      "message": "chore: forgot the sign-off",
+      "verification": {
+        "verified": false,
+        "reason": "unsigned"
+      }
+    },
+    "author": {
+      "login": "alice",
+      "type": "User"
+    }
+  }
+]
