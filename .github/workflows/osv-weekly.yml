@@ -1,0 +1,52 @@
+name: OSV weekly scan
+
+# Scans main for known vulnerabilities once a week and opens an issue per new finding. It never blocks anything;
+# the osv-scanner job in ci.yml is the PR gate.
+on:
+  schedule:
+    # Mondays 06:17 UTC (off the hour, when scheduled runs are less likely to be delayed).
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # To list open issues and open one per new finding.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      # Exits non-zero when it finds vulnerabilities, which is expected here: findings become issues below. A scan
+      # that fails outright writes no osv.json, and osv-issues.sh fails the job on that.
+      - name: Scan main
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=osv.json
+            --allow-no-lockfiles
+            -r
+            ./
+
+      - name: Test the issue opener
+        run: bash .github/scripts/osv-issues.test.sh
+
+      - name: Open issues for new findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash .github/scripts/osv-issues.sh osv.json
