@@ -45,6 +45,27 @@ jobs:
           assembleGithubDebug assembleGithubRelease
           --continue
 
+      # TEMPORARY (throwaway, task 3.2): show what spotlessApply inserts, and that a second apply adds nothing.
+      # ktlint can't auto-fix a wildcard import, so spotlessApply may still exit non-zero; the diff is what matters.
+      - name: spotlessApply twice and diff
+        if: always()
+        run: |
+          ./gradlew spotlessApply --continue || echo "first spotlessApply exited non-zero"
+          git diff > /tmp/first.diff
+          echo "::group::git diff after the first spotlessApply"
+          cat /tmp/first.diff
+          echo "::endgroup::"
+          ./gradlew spotlessApply --continue || echo "second spotlessApply exited non-zero"
+          git diff > /tmp/second.diff
+          if cmp -s /tmp/first.diff /tmp/second.diff; then
+            echo "second spotlessApply: no further diff"
+          else
+            echo "::error::second spotlessApply changed more:"
+            diff /tmp/first.diff /tmp/second.diff || true
+            exit 1
+          fi
+          exit 1
+
       - name: Name the debug APK
         id: apk
         env:
