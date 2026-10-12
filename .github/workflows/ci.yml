@@ -329,8 +329,13 @@ jobs:
   # introduces. Until F0.2 adds gradle/verification-metadata.xml there is nothing for it to scan.
   osv-scanner:
     if: github.event_name == 'pull_request'
+    # The called workflow's job declares all three, and a caller must grant at least what it declares or the run
+    # fails to start (tried with contents: read alone: startup_failure). security-events: write is used only to
+    # upload SARIF, which is off; actions: read is for that upload too.
     permissions:
+      actions: read
       contents: read
+      security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
     with:
       # SARIF upload needs GitHub Advanced Security.
