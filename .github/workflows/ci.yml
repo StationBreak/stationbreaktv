@@ -207,3 +207,29 @@ jobs:
             app/build/logcat.txt
           retention-days: 7
           if-no-files-found: ignore
+
+  # Every commit in a PR needs a Signed-off-by: trailer (ADR-0003). Only a GitHub-verified renovate[bot] commit is
+  # exempt; see .github/scripts/dco-check.sh.
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test the DCO checker
+        run: bash .github/scripts/dco-check.test.sh
+
+      - name: Check sign-offs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" \
+            | jq 'add' \
+            | bash .github/scripts/dco-check.sh
