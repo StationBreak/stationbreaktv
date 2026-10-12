@@ -1,8 +1,7 @@
 # Task 01 Proofs - Placeholder app and the core CI build
 
-> **Status: in progress.** Sub-tasks 1.1–1.10, 1.11's SHA-pinning step, 1.12's device check and Angua
-> (Security)'s fork-gate confirmation are done and proven below. Items marked **PENDING** need the first `main`
-> run after merge (1.11 warm-cache timing, 1.12 `main` artifact).
+> **Status: complete.** Sub-tasks 1.1–1.13 are done and proven below. PR #136 merged to `main` as `533c45f` on
+> 2026-10-12.
 
 ## Task Summary
 
@@ -33,7 +32,7 @@ the APKs and publishes a sideloadable debug APK for same-repo pull requests.
 | Badging | debug `tv.stationbreak.app.debug`, `minSdkVersion:'25'`, `targetSdkVersion:'34'`; release has no `application-debuggable` |
 | Failing PR (1.10) | [PR #137](https://github.com/StationBreak/stationbreaktv/pull/137), [run 38170691012](https://github.com/StationBreak/stationbreaktv/actions/runs/38170691012): detekt, Lint Security and unit test all fail |
 | `targetSdk` | 34, from Google Play's Android TV target API requirement (checked 2026-10-11) |
-| Build time | 4m19s cold-cache re-run (attempt 2 of run 38170364485); warm-cache timing **PENDING** first `main` run |
+| Build time | 2m18s warm (run 38191369025 attempt 2, cache restored); 4m19s cold |
 | `sha_pinning_required` | `true` (owner, 2026-10-11); CI green under enforcement (run 38176295040 attempt 2) |
 | Device install-over | pass on the Insignia (API 25), 2026-10-11; see the device check |
 
@@ -149,8 +148,9 @@ not a zip.
 38170364485  stationbreak-github-debug-pr136-68f0c75.apk  expires 2026-10-18T20:13:49Z
 ```
 
-**`main` artifact (`stationbreak-github-debug-main-<shortsha>.apk`, 30-day retention): PENDING** the first `main`
-run after merge (1.12).
+**`main` artifact (30-day retention):** the first `main` run after merge,
+[run 38191369025](https://github.com/StationBreak/stationbreaktv/actions/runs/38191369025) (`533c45f`), lists
+`stationbreak-github-debug-main-533c45f.apk`, expiring 2026-11-11, which is 30 days.
 
 ## Artifact: deliberate failing PR (detekt, Lint Security, unit test)
 
@@ -299,7 +299,13 @@ the latest when the `play` flavor ships at F4.3.
 **Result summary:** the re-run (attempt 2) took **4m19s**. The `Check and assemble` step took 4m03s, and every
 other step took 2s or less. The first attempt took 4m12s. Both are **cold-cache** numbers: the Gradle cache is
 written only from `main`, nothing has run on `main` yet, and `gh api .../actions/caches` reports 0 entries. So
-4m19s is an upper bound. **Warm-cache re-run: PENDING** the first `main` run after merge.
+4m19s is an upper bound.
+
+**Warm cache:** the first `main` run after merge ([run 38191369025](https://github.com/StationBreak/stationbreaktv/actions/runs/38191369025),
+attempt 1, 3m03s) saved the Gradle cache. Re-running it (attempt 2) restored that cache (`Basic caching restored
+from cache key: setup-java-Linux-x64-gradle-…`) and took **2m18s**, well under the 10-minute target. The
+re-run uploaded the same artifact name without error; the artifact was replaced (new ID 11721634001), which
+answers [#144](https://github.com/StationBreak/stationbreaktv/issues/144) for `main` runs.
 
 ```text
 Set up job              20:09:36 -> 20:09:40
