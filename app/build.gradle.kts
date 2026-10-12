@@ -109,6 +109,8 @@ kotlin {
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
+    implementation("junit:junit:4.13.2")
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.test.core)
