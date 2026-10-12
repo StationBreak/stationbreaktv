@@ -236,6 +236,21 @@ jobs:
             | jq 'add' \
             | bash .github/scripts/dco-check.sh
 
+  # Fixture tests for the scripts the workflows run. dco-check.sh's tests also run in the dco job, just before the
+  # real check; osv-issues.sh's also run in osv-weekly.yml before it opens issues.
+  script-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test the OSV issue opener
+        run: bash .github/scripts/osv-issues.test.sh
+
   # Static analysis of the workflows themselves: template injection, excessive permissions, unpinned actions and
   # the like. Fails on high-severity findings.
   zizmor:
