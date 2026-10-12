@@ -1,9 +1,8 @@
 # Task 01 Proofs - Placeholder app and the core CI build
 
-> **Status: in progress.** Sub-tasks 1.1–1.10 and 1.11's SHA-pinning step are done and proven below. Items
-> marked **PENDING** need the laptop bridge session (1.12 device check), a `main` run
-> after merge (1.11 warm-cache timing, 1.12 `main` artifact) or Angua (Security)'s review in 4.9 (fork-gate
-> confirmation).
+> **Status: in progress.** Sub-tasks 1.1–1.10, 1.11's SHA-pinning step, 1.12's device check and Angua
+> (Security)'s fork-gate confirmation are done and proven below. Items marked **PENDING** need the first `main`
+> run after merge (1.11 warm-cache timing, 1.12 `main` artifact).
 
 ## Task Summary
 
@@ -36,7 +35,7 @@ the APKs and publishes a sideloadable debug APK for same-repo pull requests.
 | `targetSdk` | 34, from Google Play's Android TV target API requirement (checked 2026-10-11) |
 | Build time | 4m19s cold-cache re-run (attempt 2 of run 38170364485); warm-cache timing **PENDING** first `main` run |
 | `sha_pinning_required` | `true` (owner, 2026-10-11); CI green under enforcement (run 38176295040 attempt 2) |
-| Device install-over | **PENDING** bridge session; run IDs handed over below |
+| Device install-over | pass on the Insignia (API 25), 2026-10-11; see the device check |
 
 ## Artifact: TDD red run
 
@@ -314,17 +313,56 @@ Before (GET above). The owner approved the change on 2026-10-11 and enabled it t
 enforcement: [run 38176295040, attempt 2](https://github.com/StationBreak/stationbreaktv/actions/runs/38176295040)
 (re-run started 2026-10-11T21:32:50Z, after the setting was saved) succeeded.
 
-## Device check (bridge session): PENDING
+## Device check (bridge session)
 
-Two successive green PR runs from different commits, for `gh run download` and `adb install -r`:
+**What it proves:** a CI debug APK installs over the previous build on the reference Insignia (AFTJMST12,
+Fire OS 6, API 25) with no uninstall, and the app launches.
 
-| Order | Run ID | Head commit | Artifact |
-| --- | --- | --- | --- |
-| 1st | 38169217853 | `5112b4e` | `stationbreak-github-debug-pr136-5112b4e.apk` |
-| 2nd | 38170364485 | `68f0c75` | `stationbreak-github-debug-pr136-68f0c75.apk` |
+Run by the laptop bridge session on 2026-10-11, with the owner's approval. Device serial and network details are
+redacted.
 
-Launch: `adb shell am start -n tv.stationbreak.app.debug/tv.stationbreak.app.MainActivity`. Sanitized output
-goes here.
+| Order | Run ID | Head commit (`headSha`) | Artifact | SHA in name matches |
+| --- | --- | --- | --- | --- |
+| 1st | 38169217853 | `5112b4eb14c3…` | `stationbreak-github-debug-pr136-5112b4e.apk` | yes |
+| 2nd | 38170364485 | `68f0c75fa1fe…` | `stationbreak-github-debug-pr136-68f0c75.apk` | yes |
+
+Both APKs: `V2 Signer: certificate SHA-256 digest: 574be8759309ff2eae16579b89554d84e87b2b4e96d7ff82d151cc5919ba80b1`,
+DN `CN="StationBreak Debug (public, throwaway)", O=StationBreak`. `tv.stationbreak.app.debug` wasn't installed
+beforehand.
+
+```
+$ adb install stationbreak-github-debug-pr136-5112b4e.apk
+Performing Streamed Install
+Success
+$ adb install -r stationbreak-github-debug-pr136-68f0c75.apk
+Performing Streamed Install
+Success
+$ adb shell dumpsys package tv.stationbreak.app.debug | grep -E "versionCode|versionName|lastUpdateTime|firstInstallTime"
+    versionCode=1 minSdk=25 targetSdk=34
+    versionName=0.0.1
+    firstInstallTime=2026-10-11 20:12:43
+    lastUpdateTime=2026-10-11 20:12:48
+$ adb shell am start -W -n tv.stationbreak.app.debug/tv.stationbreak.app.MainActivity
+Starting: Intent { cmp=tv.stationbreak.app.debug/tv.stationbreak.app.MainActivity }
+Status: ok
+Activity: tv.stationbreak.app.debug/tv.stationbreak.app.MainActivity
+TotalTime: 808
+Complete
+$ adb shell dumpsys activity activities   # Fire OS 6 has no mResumedActivity line
+  mFocusedActivity: ActivityRecord{936b716 u0 tv.stationbreak.app.debug/tv.stationbreak.app.MainActivity t11871}
+```
+
+**Result summary:** pass. The second APK replaced the first in place (`firstInstallTime` < `lastUpdateTime`),
+and `MainActivity` launched and held focus. The bridge then uninstalled the app.
+
+**Notes:**
+- Both builds have `versionCode=1`, so this was a same-version replace, which `-r` allows. An install where
+  each CI build has a higher `versionCode` hasn't been exercised.
+- **Downloading:** because the APK is uploaded unarchived (`archive: false`), `gh run download` treats it as a
+  zip and unpacks it into a folder of dex files, which can't be installed. The installable APK comes from the
+  artifact endpoint: `gh api repos/StationBreak/stationbreaktv/actions/artifacts/<artifact-id>/zip > <name>.apk`.
+  Downloading from the run page in a browser also gives the `.apk`. Artifact IDs used: 11713626286 (`5112b4e`)
+  and 11714569742 (`68f0c75`).
 
 ## Implementation notes
 
