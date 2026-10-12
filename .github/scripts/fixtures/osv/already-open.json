@@ -1,0 +1,33 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/github/workspace/gradle/verification-metadata.xml",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "org.example:old-lib",
+            "version": "0.9.0",
+            "ecosystem": "Maven"
+          },
+          "vulnerabilities": [
+            {
+              "id": "GHSA-dddd-eeee-ffff",
+              "aliases": [],
+              "summary": "Example path traversal"
+            }
+          ],
+          "groups": [
+            {
+              "ids": ["GHSA-dddd-eeee-ffff"],
+              "aliases": ["GHSA-dddd-eeee-ffff"],
+              "max_severity": "5.3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
