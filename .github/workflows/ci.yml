@@ -254,8 +254,8 @@ jobs:
           advanced-security: false
           annotations: true
           min-severity: high
-          # The action runs zizmor's container image by the digest it lists for this version.
-          version: 1.30.1
+          # No `version:`: the action then runs the zizmor image digest it ships as "latest" (1.30.1 at v0.6.4),
+          # so zizmor is pinned by the action's SHA and Renovate updates both together.
 
   # Workflow syntax, expressions and job references, plus shellcheck (preinstalled on the runner) on `run:` scripts.
   actionlint:
@@ -270,9 +270,11 @@ jobs:
 
       - name: Install actionlint
         env:
+          # renovate: datasource=github-releases depName=rhysd/actionlint
           ACTIONLINT_VERSION: 1.7.12
           # From the release's actionlint_1.7.12_checksums.txt. Pinned here rather than fetched with the tarball, so a
-          # replaced release asset fails the check. Update both together.
+          # replaced release asset fails the check. Renovate bumps the version only; this step fails until the
+          # SHA-256 is updated by hand from the new release's checksums file.
           ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
         run: |
           tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
@@ -301,6 +303,7 @@ jobs:
 
       - name: Install gitleaks
         env:
+          # renovate: datasource=github-releases depName=gitleaks/gitleaks
           GITLEAKS_VERSION: 8.30.1
           # From the release's gitleaks_8.30.1_checksums.txt; pinned here for the same reason as actionlint's.
           GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
@@ -322,8 +325,13 @@ jobs:
             # The base has no config yet (the PR that adds it): default rules, no allowlist.
             printf '[extend]\nuseDefault = true\n' >"$config"
           fi
+          # Nor can it silence a finding: inline gitleaks:allow comments are ignored, and so is any .gitleaksignore.
+          # gitleaks reads one from the repo root even with --gitleaks-ignore-path set, so remove it from the
+          # checkout (the scan reads commits, not the working tree).
+          rm -f .gitleaksignore
           # --verbose prints each finding (rule, file, commit), with the secret redacted.
           "$RUNNER_TEMP/gitleaks" git --config "$config" --log-opts="${BASE_SHA}..${HEAD_SHA}" \
+            --ignore-gitleaks-allow --gitleaks-ignore-path "$RUNNER_TEMP" \
             --redact --verbose --no-banner --exit-code 1
 
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
