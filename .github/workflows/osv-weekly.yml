@@ -37,7 +37,7 @@ jobs:
         with:
           scan-args: |-
             --format=json
-            --output=osv.json
+            --output-file=osv.json
             --allow-no-lockfiles
             -r
             ./
