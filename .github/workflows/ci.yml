@@ -168,6 +168,9 @@ jobs:
           target: ${{ env.EMULATOR_TARGET }}
           arch: ${{ env.EMULATOR_ARCH }}
           force-avd-creation: false
+          # The image's default userdata partition (about 7 GB) can exceed the runner's free disk, and the emulator
+          # exits at launch. The app and tests need far less.
+          disk-size: 2G
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: ./gradlew connectedGithubDebugAndroidTest
