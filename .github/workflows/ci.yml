@@ -322,8 +322,9 @@ jobs:
             # The base has no config yet (the PR that adds it): default rules, no allowlist.
             printf '[extend]\nuseDefault = true\n' >"$config"
           fi
+          # --verbose prints each finding (rule, file, commit), with the secret redacted.
           "$RUNNER_TEMP/gitleaks" git --config "$config" --log-opts="${BASE_SHA}..${HEAD_SHA}" \
-            --redact --no-banner --exit-code 1
+            --redact --verbose --no-banner --exit-code 1
 
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
   # introduces. Until F0.2 adds gradle/verification-metadata.xml there is nothing for it to scan.
