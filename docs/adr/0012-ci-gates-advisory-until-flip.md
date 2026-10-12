@@ -34,7 +34,8 @@ Branch protection, rulesets and code-owner review all become available when the 
    or whatever authored it. That includes Renovate (ADR-0011, item 6).
 2. **Accepted risk: every check is advisory** (Angua's review of spec 01 task 4.0, finding 3). Someone with
    write access can change a gate in the same pull request it checks, and nothing stops a merge on a red check.
-   This is accepted because only the owner can push branches today, and decision 1 covers what review must catch.
+   This is accepted because only the owner can push branches today, until Renovate is installed; decision 1 then
+   covers its pull requests (ADR-0011 item 6). Either way, decision 1 says what review must catch.
 3. **Accepted risk: the OSV-Scanner reusable workflow keeps its checkout token** (finding 4). The upstream
    `osv-scanner-reusable-pr.yml` (v2.6.0) checks out with persisted credentials, so its token sits in
    `.git/config` while the scanner's container runs. That token is limited to what the `osv-scanner` job grants:
