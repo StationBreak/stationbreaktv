@@ -35,6 +35,10 @@
     "author": {
       "login": "mallory",
       "type": "User"
+    },
+    "committer": {
+      "login": "web-flow",
+      "type": "User"
     }
   }
 ]

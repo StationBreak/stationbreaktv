@@ -100,6 +100,8 @@ tasks.named("check") {
     dependsOn("detektMain", "detektTest")
     // `lint` checks only the default variant (amazonDebug); lint the github flavor too.
     dependsOn("lintAmazonDebug", "lintGithubDebug")
+    // The plugins hook these into `check` themselves; listing them keeps the gates if a plugin update stops doing so.
+    dependsOn("spotlessCheck", "licensee")
 }
 
 kotlin {

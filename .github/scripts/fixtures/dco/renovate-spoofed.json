@@ -35,6 +35,10 @@
     "author": {
       "login": "renovate[bot]",
       "type": "Bot"
+    },
+    "committer": {
+      "login": "web-flow",
+      "type": "User"
     }
   }
 ]

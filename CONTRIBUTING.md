@@ -40,10 +40,11 @@ docs: fix a broken link in the README
 Signed-off-by: Your Name <you@example.com>
 ```
 
-To sign off commits you've already made on your branch, run `git rebase --signoff main` and force-push the branch.
+To sign off commits you've already made on your branch, run `git fetch origin` and `git rebase --signoff origin/main`, then `git push --force-with-lease`.
 
 The `dco` check fails a pull request if any of its commits has no `Signed-off-by:` trailer. The only exception is a
-commit from the Renovate dependency bot that GitHub has verified as coming from the `renovate[bot]` account.
+commit from the Renovate dependency bot, on a pull request Renovate opened, that GitHub itself created and signed
+for the `renovate[bot]` account (a bot can't certify the DCO).
 
 ## License and the app-store permission
 

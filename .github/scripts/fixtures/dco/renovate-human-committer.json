@@ -1,0 +1,25 @@
+[
+  {
+    "sha": "8888888888888888888888888888888888888888",
+    "commit": {
+      "author": {
+        "name": "renovate[bot]",
+        "email": "29139614+renovate[bot]@users.noreply.github.com",
+        "date": "2026-10-12T00:00:00Z"
+      },
+      "message": "chore(deps): update dependency x to v2",
+      "verification": {
+        "verified": true,
+        "reason": "valid"
+      }
+    },
+    "author": {
+      "login": "renovate[bot]",
+      "type": "Bot"
+    },
+    "committer": {
+      "login": "mallory",
+      "type": "User"
+    }
+  }
+]
