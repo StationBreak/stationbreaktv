@@ -10,7 +10,8 @@
 # - its committer is web-flow, and its signature is GitHub-verified.
 # GitHub links a commit to an account by its author email, which anyone can set, and "verified" attests the
 # committer's signature, not the author's. Hosted Renovate creates commits through the API, so GitHub signs
-# them as web-flow; a commit with a forged author signed by someone's own key fails that check.
+# them as web-flow; a commit with a forged author signed by someone's own key fails that check. Anyone with
+# write access can also make web-flow commits (web UI or API), which is accepted: they could merge anyway.
 #
 # Usage: gh api --paginate --slurp "repos/OWNER/REPO/pulls/N/commits" | jq 'add' \
 #          | PR_AUTHOR=<login of the PR's author> bash dco-check.sh
