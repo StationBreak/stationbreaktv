@@ -1,0 +1,14 @@
+name: zizmor canary
+
+# Deliberately bad workflow for spec 01 task 4.11: template injection (zizmor) and an undefined job (actionlint).
+# Never merged.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  canary:
+    if: ${{ needs.missing.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.event.pull_request.title }}"
