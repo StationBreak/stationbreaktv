@@ -268,6 +268,12 @@ new or renamed flavor can't skip it. Re-proved with throwaway [#140](https://git
 debug application ID, so `:app` has no unit tests until F0.2 adds the shared modules (`testGithubDebugUnitTest
 NO-SOURCE`). `check` still runs the unit test tasks, and the 1.10 failing PR proved they block.
 
+**Approved deviations from the task text (owner, 2026-10-11):** /polish replaced sub-task 1.5's
+`MainActivityPackageTest` (it only restated the file's `package` line, which the compiler already guarantees) with
+`MainActivityLaunchTest.debugBuildUsesTheDebugApplicationId`, and removed sub-task 1.7's `onCreate` override (it
+only called `super`). The owner accepted both. The council review report is in the owner's notes vault, not in
+the repo.
+
 ## Record: `targetSdk`
 
 **What it proves:** the spec's `targetSdk` assumption was confirmed against the official policy.
