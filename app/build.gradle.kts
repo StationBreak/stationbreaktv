@@ -1,19 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
+import app.cash.licensee.UnusedAction
+
 plugins {
     // AGP 9 compiles Kotlin itself; the Kotlin version is pinned in the root build.
     alias(libs.plugins.android.application)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.licensee)
 }
 
 android {
     namespace = "tv.stationbreak.app"
-    compileSdk = libs.versions.compileSdk.get().toInt()
+    compileSdk =
+        libs.versions.compileSdk
+            .get()
+            .toInt()
 
     defaultConfig {
         applicationId = "tv.stationbreak.app"
-        minSdk = libs.versions.minSdk.get().toInt()
-        targetSdk = libs.versions.targetSdk.get().toInt()
+        minSdk =
+            libs.versions.minSdk
+                .get()
+                .toInt()
+        targetSdk =
+            libs.versions.targetSdk
+                .get()
+                .toInt()
         versionCode = 1
         versionName = "0.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -63,6 +75,21 @@ android {
     }
 }
 
+// Every runtime dependency must carry a GPL-3.0-compatible license (ADR-0003). A license Licensee can't identify
+// fails the build. Extend this list only when a real dependency needs it; per-dependency overrides go here too,
+// each with a `// reason:` comment.
+licensee {
+    allow("Apache-2.0")
+    allow("MIT")
+    allow("BSD-2-Clause")
+    allow("BSD-3-Clause")
+    allow("LGPL-2.1-or-later")
+    allow("LGPL-3.0-only")
+    allow("LGPL-3.0-or-later")
+    // Entries are listed ahead of need, so one that no dependency uses yet isn't an error.
+    unusedAction(UnusedAction.IGNORE)
+}
+
 detekt {
     buildUponDefaultConfig = true
 }
@@ -73,6 +100,8 @@ tasks.named("check") {
     dependsOn("detektMain", "detektTest")
     // `lint` checks only the default variant (amazonDebug); lint the github flavor too.
     dependsOn("lintAmazonDebug", "lintGithubDebug")
+    // The plugins hook these into `check` themselves; listing them keeps the gates if a plugin update stops doing so.
+    dependsOn("spotlessCheck", "licensee")
 }
 
 kotlin {

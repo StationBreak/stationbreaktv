@@ -1,0 +1,44 @@
+[
+  {
+    "sha": "1111111111111111111111111111111111111111",
+    "commit": {
+      "author": {
+        "name": "Alice Example",
+        "email": "alice@example.com",
+        "date": "2026-10-12T00:00:00Z"
+      },
+      "message": "feat: a signed change\n\nSigned-off-by: Alice Example <alice@example.com>",
+      "verification": {
+        "verified": false,
+        "reason": "unsigned"
+      }
+    },
+    "author": {
+      "login": "alice",
+      "type": "User"
+    }
+  },
+  {
+    "sha": "5555555555555555555555555555555555555555",
+    "commit": {
+      "author": {
+        "name": "renovate[bot]",
+        "email": "29139614+renovate[bot]@users.noreply.github.com",
+        "date": "2026-10-12T00:00:00Z"
+      },
+      "message": "chore(deps): update dependency x to v2",
+      "verification": {
+        "verified": false,
+        "reason": "unsigned"
+      }
+    },
+    "author": {
+      "login": "renovate[bot]",
+      "type": "Bot"
+    },
+    "committer": {
+      "login": "web-flow",
+      "type": "User"
+    }
+  }
+]

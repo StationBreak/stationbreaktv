@@ -1,0 +1,25 @@
+[
+  {
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit": {
+      "author": {
+        "name": "Alice Example",
+        "email": "alice@example.com",
+        "date": "2026-10-12T00:00:00Z"
+      },
+      "message": "fix: a change\n\nSigned-off-by: Alice Example",
+      "verification": {
+        "verified": false,
+        "reason": "unsigned"
+      }
+    },
+    "author": {
+      "login": "alice",
+      "type": "User"
+    },
+    "committer": {
+      "login": "alice",
+      "type": "User"
+    }
+  }
+]
