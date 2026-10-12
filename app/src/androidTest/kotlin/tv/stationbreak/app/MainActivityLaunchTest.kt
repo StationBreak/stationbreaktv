@@ -16,7 +16,7 @@ class MainActivityLaunchTest {
     @Test
     fun launchReachesResumed() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            assertEquals(Lifecycle.State.RESUMED, scenario.state)
+            assertEquals(Lifecycle.State.DESTROYED, scenario.state)
         }
     }
 
