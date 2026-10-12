@@ -1,0 +1,6 @@
+[
+  {"title": "OSV: GHSA-dddd-eeee-ffff in org.example:old-lib@0.9.0", "state": "OPEN", "stateReason": ""},
+  {"title": "OSV: GHSA-0000-1111-2222 in org.example:other-lib@2.0.0", "state": "OPEN", "stateReason": ""},
+  {"title": "OSV: GHSA-gggg-hhhh-iiii in org.example:unused-path@1.0.0", "state": "CLOSED", "stateReason": "NOT_PLANNED"},
+  {"title": "OSV: GHSA-jjjj-kkkk-llll in org.example:fixed-lib@3.1.0", "state": "CLOSED", "stateReason": "COMPLETED"}
+]
