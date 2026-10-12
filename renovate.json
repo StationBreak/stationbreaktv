@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "automerge": false,
+  "osvVulnerabilityAlerts": true,
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "groupName": "AndroidX and Compose",
+      "matchPackageNames": ["androidx.**"]
+    },
+    {
+      "groupName": "Kotlin and KSP",
+      "matchPackageNames": ["org.jetbrains.kotlin**", "com.google.devtools.ksp**"]
+    },
+    {
+      "groupName": "Android Gradle Plugin",
+      "matchPackageNames": ["com.android.tools.build**", "com.android.application"]
+    }
+  ]
+}
