@@ -11,6 +11,7 @@
 
     <!-- MissingTvBanner: the leanback banner is part of the real TV UI (S0.2.2), not this placeholder. -->
     <!-- No backup anywhere: allowBackup and fullBackupContent cover API 25-30, dataExtractionRules Android 12+. -->
+    <!-- tools:targetApi="31": dataExtractionRules only exists from API 31; without it Lint flags UnusedAttribute. -->
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

@@ -11,8 +11,10 @@ permissions:
 
 concurrency:
   # The head repo is part of the key, so a fork branch with the same name can't cancel our runs.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  # PRs share a group per branch and cancel superseded runs. Each main push gets its own group (by SHA), so a quick
+  # second merge never cancels or replaces the first one's run and its main APK.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -65,23 +67,32 @@ jobs:
           # AGP 9.4's default build-tools version.
           BUILD_TOOLS_VERSION: 36.0.0
           DEBUG_APK: ${{ steps.apk.outputs.path }}
-          RELEASE_APK: app/build/outputs/apk/github/release/app-github-release-unsigned.apk
-          AMAZON_RELEASE_APK: app/build/outputs/apk/amazon/release/app-amazon-release-unsigned.apk
+          # One release APK per flavor (amazon, github). Update when a flavor is added (play, F4.3).
+          EXPECTED_RELEASE_APKS: 2
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
           echo "::group::apksigner verify --print-certs (github debug)"
           "$BUILD_TOOLS/apksigner" verify --print-certs "$DEBUG_APK"
           echo "::endgroup::"
+          BADGING_FIELDS='^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)'
+          # Each dump is assigned first, so a missing APK or an aapt2 error fails the step (bash -e) instead of
+          # being hidden by a pipe.
+          badging="$("$BUILD_TOOLS/aapt2" dump badging "$DEBUG_APK")"
           echo "::group::aapt2 dump badging (github debug)"
-          "$BUILD_TOOLS/aapt2" dump badging "$DEBUG_APK" | grep -E "^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)"
+          grep -E "$BADGING_FIELDS" <<<"$badging"
           echo "::endgroup::"
-          echo "::group::aapt2 dump badging (github release)"
-          "$BUILD_TOOLS/aapt2" dump badging "$RELEASE_APK" | grep -E "^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)"
-          echo "::endgroup::"
-          # ADR-0011 condition 3: a release build is never debuggable. Fail the job if either flavor's is.
-          for apk in "$RELEASE_APK" "$AMAZON_RELEASE_APK"; do
-            # Assign first so a missing APK or an aapt2 error fails the step instead of passing the grep.
+          # ADR-0011 condition 3: a release build is never debuggable. Check every flavor's release APK.
+          shopt -s nullglob
+          release_apks=(app/build/outputs/apk/*/release/*.apk)
+          if [ "${#release_apks[@]}" -ne "$EXPECTED_RELEASE_APKS" ]; then
+            echo "::error::expected $EXPECTED_RELEASE_APKS release APKs, found ${#release_apks[@]}: ${release_apks[*]}"
+            exit 1
+          fi
+          for apk in "${release_apks[@]}"; do
             badging="$("$BUILD_TOOLS/aapt2" dump badging "$apk")"
+            echo "::group::aapt2 dump badging ($apk)"
+            grep -E "$BADGING_FIELDS" <<<"$badging"
+            echo "::endgroup::"
             if grep -q "^application-debuggable" <<<"$badging"; then
               echo "::error::release APK is debuggable (ADR-0011): $apk"
               exit 1

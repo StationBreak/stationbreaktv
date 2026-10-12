@@ -2,11 +2,6 @@
 package tv.stationbreak.app
 
 import android.app.Activity
-import android.os.Bundle
 
 /** Placeholder launch activity. The real TV UI arrives with S0.2.2. */
-class MainActivity : Activity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
-}
+class MainActivity : Activity()
