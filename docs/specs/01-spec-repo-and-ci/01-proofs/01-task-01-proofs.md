@@ -149,7 +149,7 @@ not a zip.
 38170364485  stationbreak-github-debug-pr136-68f0c75.apk  expires 2026-10-18T20:13:49Z
 ```
 
-**`main` artifact (`stationbreak-github-debug-main-<shortsha>.apk`, default retention): PENDING** the first `main`
+**`main` artifact (`stationbreak-github-debug-main-<shortsha>.apk`, 30-day retention): PENDING** the first `main`
 run after merge (1.12).
 
 ## Artifact: deliberate failing PR (detekt, Lint Security, unit test)

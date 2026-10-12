@@ -116,4 +116,6 @@ jobs:
         with:
           path: ${{ steps.apk.outputs.path }}
           archive: false
+          # Explicit, so a repo-level default change can't alter it. Main APKs are for device testing only.
+          retention-days: 30
           if-no-files-found: error

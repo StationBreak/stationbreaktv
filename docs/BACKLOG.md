@@ -49,6 +49,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 An architecture test enforces the [MODULES.md](MODULES.md) dependency rules, and runs in CI as part of `check`. It fails if a `[KMP]`/`[JVM]` module declares an Android dependency, or if `feature:*` depends on `data:*`. Its first PR shows it catching a deliberately bad edge and passing an allowed one.
 - 🧪 Gradle dependency verification (`verification-metadata.xml`, SHA-256) is turned on here, with a baseline generated against the real dependency set. Every later dependency change updates it in the same PR. Angua (Security) reviews the baseline.
 - 🧪 KMP acceptance (ADR-0004): adding `import java.io.File` to a `commonMain` file fails the build, and an Android module consumes `core:model` via a plain project dependency.
+- 🧪 Build hygiene (Granny (Architecture), PR #136 review): `./gradlew check` passes from a clean Gradle home with only JDK 17 installed; the `linuxX64` canary resolves under `FAIL_ON_PROJECT_REPOS` (any toolchain repository is declared centrally, never by loosening the mode); detekt runs on the KMP source sets in `check`; and `app`'s flavors, desugaring and toolchain move into an `android-app` convention plugin.
 
 **S0.2.2** As a developer, I want a hello-world Compose for TV screen that's D-pad navigable so that the UI stack is proven on the target device.
 - 📺 The APK on the Insignia is the CI debug artifact (S0.1.3), never a local build.
@@ -351,6 +352,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F4.3 Google Play listing (M)
 - 🧪 The `play` flavor is added here; Phase 0 creates only `amazon` and `github` ([MODULES.md](MODULES.md#build-flavors)).
 - 👁 TV-specific requirements: leanback banner, `android.software.leanback` declared, `touchscreen required=false`, TV screenshots, and the Data Safety form (no data collected by default).
+- 👁 Distribution is limited to TV form factors in Play Console. With leanback and touchscreen both optional, Play would otherwise offer the app to phones (Granny (Architecture), PR #136 review).
 
 ## F4.4 GitHub Releases (M)
 - 🧪 The `github` flavor APK + SHA-256 checksums are attached to the release. 👁 Downloader-app instructions (Fire TV "Downloader" short code) are in the docs.
