@@ -191,6 +191,7 @@ jobs:
 
       # A boot timeout or any failed test fails this step and the job.
       - name: Instrumented tests (API 25 Android TV)
+        id: tests
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ env.EMULATOR_API_LEVEL }}
@@ -200,3 +201,21 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: ./gradlew connectedGithubDebugAndroidTest
+
+      # Gradle's console output doesn't name the tests or show a failure's exception; the JUnit XML does.
+      - name: Instrumented test results
+        if: always() && steps.tests.outcome != 'skipped'
+        run: |
+          shopt -s globstar nullglob
+          results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
+          if [ "${#results[@]}" -eq 0 ]; then
+            echo "No instrumented test results."
+            exit 0
+          fi
+          for f in "${results[@]}"; do
+            echo "::group::$f"
+            grep -oE '<testsuite [^>]*>' "$f"
+            grep -oE '<testcase name="[^"]*"' "$f"
+            grep -A5 '<failure' "$f" || true
+            echo "::endgroup::"
+          done
