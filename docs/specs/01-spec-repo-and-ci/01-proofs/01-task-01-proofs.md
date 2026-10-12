@@ -257,6 +257,17 @@ release APK not debuggable: app/build/outputs/apk/amazon/release/app-amazon-rele
 
 ADR-0011 condition 2's release-certificate check lands with S4.1.1, when release builds are first signed.
 
+**After /polish (`c4e6d3a`):** the check now globs every release APK and asserts the expected count (2), so a
+new or renamed flavor can't skip it. Re-proved with throwaway [#140](https://github.com/StationBreak/stationbreaktv/pull/140):
+[run 38189743978](https://github.com/StationBreak/stationbreaktv/actions/runs/38189743978) failed with
+`release APK is debuggable (ADR-0011): app/build/outputs/apk/amazon/release/app-amazon-release-unsigned.apk`, and
+[run 38189741639](https://github.com/StationBreak/stationbreaktv/actions/runs/38189741639) on the branch is green.
+#140 was closed unmerged.
+
+**Unit tests:** /polish replaced the tautological `MainActivityPackageTest` with an instrumented check of the
+debug application ID, so `:app` has no unit tests until F0.2 adds the shared modules (`testGithubDebugUnitTest
+NO-SOURCE`). `check` still runs the unit test tasks, and the 1.10 failing PR proved they block.
+
 ## Record: `targetSdk`
 
 **What it proves:** the spec's `targetSdk` assumption was confirmed against the official policy.
