@@ -287,9 +287,9 @@ jobs:
         env:
           # renovate: datasource=github-releases depName=rhysd/actionlint
           ACTIONLINT_VERSION: 1.7.12
-          # From the release's actionlint_1.7.12_checksums.txt. Pinned here rather than fetched with the tarball, so a
-          # replaced release asset fails the check. Renovate bumps the version only; this step fails until the
-          # SHA-256 is updated by hand from the new release's checksums file.
+          # From the release's checksums file for ACTIONLINT_VERSION. Pinned here rather than fetched with the
+          # tarball, so a replaced release asset fails the check. Renovate bumps the version only; this step fails
+          # until the SHA-256 is updated by hand from the new release's checksums file.
           ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
         run: |
           tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
@@ -320,7 +320,7 @@ jobs:
         env:
           # renovate: datasource=github-releases depName=gitleaks/gitleaks
           GITLEAKS_VERSION: 8.30.1
-          # From the release's gitleaks_8.30.1_checksums.txt; pinned here for the same reason as actionlint's.
+          # From the release's checksums file for GITLEAKS_VERSION; pinned here for the same reason as actionlint's.
           GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
         run: |
           tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
