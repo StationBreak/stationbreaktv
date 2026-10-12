@@ -148,6 +148,14 @@ jobs:
           cache-provider: basic
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # The emulator needs about 7.4 GB free to create its userdata partition and exits at launch without it; some
+      # runners have had only 7.0 GB. These preinstalled toolchains are unused here.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost
+          df -h /
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -168,9 +176,6 @@ jobs:
           target: ${{ env.EMULATOR_TARGET }}
           arch: ${{ env.EMULATOR_ARCH }}
           force-avd-creation: false
-          # The image's default userdata partition (about 7 GB) can exceed the runner's free disk, and the emulator
-          # exits at launch. The app and tests need far less.
-          disk-size: 2G
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: ./gradlew connectedGithubDebugAndroidTest
