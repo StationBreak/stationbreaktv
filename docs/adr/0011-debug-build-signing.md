@@ -35,7 +35,7 @@ acceptance criteria are checked during PR review.
    - APKs are named by source: `stationbreak-github-debug-pr<N>-<shortsha>.apk` for pull requests and
      `stationbreak-github-debug-main-<shortsha>.apk` for `main`. The owner checks that the SHA matches the pull
      request's head commit before installing.
-   - Pull request APKs are kept for 7 days. `main` APKs use the default retention.
+   - Pull request APKs are kept for 7 days. `main` APKs are kept for 30 days, set explicitly in the workflow (owner, 2026-10-11).
    - Release signing secrets are never available to pull request runs.
 6. **Renovate's pull requests get test APKs too.** Installing one runs exactly the code a merge would ship, so
    testing a dependency update on the device before merging is safer than after. The owner installs a

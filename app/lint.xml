@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Every issue in Android Lint's Security category is fatal (spec 01, Unit 1).
+
+  The Lint DSL's `fatal += "Security"` doesn't raise a category (shown by the task 1.10 failing PR), so each
+  issue ID is listed. The list is every built-in issue whose category is Security in Lint 32.4.1 (AGP 9.4.1),
+  read from com.android.tools.lint.checks.BuiltinIssueRegistry. Re-check it when AGP is updated.
+-->
+<lint>
+    <issue id="AcceptsUserCertificates" severity="fatal" />
+    <issue id="AddJavascriptInterface" severity="fatal" />
+    <issue id="AllowAllHostnameVerifier" severity="fatal" />
+    <issue id="AuthLeak" severity="fatal" />
+    <issue id="BadHostnameVerifier" severity="fatal" />
+    <issue id="BidiSpoofing" severity="fatal" />
+    <issue id="BinderGetCallingInMainThread" severity="fatal" />
+    <issue id="CompileTimeConstant" severity="fatal" />
+    <issue id="CustomPermissionTypo" severity="fatal" />
+    <issue id="CustomX509TrustManager" severity="fatal" />
+    <issue id="DataExtractionRules" severity="fatal" />
+    <issue id="DeletedProvider" severity="fatal" />
+    <issue id="DeprecatedProvider" severity="fatal" />
+    <issue id="EasterEgg" severity="fatal" />
+    <issue id="ExportedContentProvider" severity="fatal" />
+    <issue id="ExportedPreferenceActivity" severity="fatal" />
+    <issue id="ExportedReceiver" severity="fatal" />
+    <issue id="ExportedService" severity="fatal" />
+    <issue id="GetInstance" severity="fatal" />
+    <issue id="GrantAllUris" severity="fatal" />
+    <issue id="HardcodedDebugMode" severity="fatal" />
+    <issue id="HardwareIds" severity="fatal" />
+    <issue id="InsecureBaseConfiguration" severity="fatal" />
+    <issue id="IntentFilterExportedReceiver" severity="fatal" />
+    <issue id="IntentWithNullActionLaunch" severity="fatal" />
+    <issue id="InvalidPermission" severity="fatal" />
+    <issue id="JavascriptInterface" severity="fatal" />
+    <issue id="KnownPermissionError" severity="fatal" />
+    <issue id="MutableImplicitPendingIntent" severity="fatal" />
+    <issue id="PackagedPrivateKey" severity="fatal" />
+    <issue id="PermissionNamingConvention" severity="fatal" />
+    <issue id="PlaySdkIndexDeprecated" severity="fatal" />
+    <issue id="ProviderReadPermissionOnly" severity="fatal" />
+    <issue id="ProxyPassword" severity="fatal" />
+    <issue id="ReservedSystemPermission" severity="fatal" />
+    <issue id="RiskyLibrary" severity="fatal" />
+    <issue id="SSLCertificateSocketFactoryCreateSocket" severity="fatal" />
+    <issue id="SSLCertificateSocketFactoryGetInsecure" severity="fatal" />
+    <issue id="SecretInSource" severity="fatal" />
+    <issue id="SecureRandom" severity="fatal" />
+    <issue id="SetJavaScriptEnabled" severity="fatal" />
+    <issue id="SetWorldReadable" severity="fatal" />
+    <issue id="SetWorldWritable" severity="fatal" />
+    <issue id="SignatureOrSystemPermissions" severity="fatal" />
+    <issue id="SystemPermissionTypo" severity="fatal" />
+    <issue id="TileProviderPermissions" severity="fatal" />
+    <issue id="TrulyRandom" severity="fatal" />
+    <issue id="TrustAllX509TrustManager" severity="fatal" />
+    <issue id="UnprotectedSMSBroadcastReceiver" severity="fatal" />
+    <issue id="UnsafeDynamicallyLoadedCode" severity="fatal" />
+    <issue id="UnsafeImplicitIntentLaunch" severity="fatal" />
+    <issue id="UnsafeIntentLaunch" severity="fatal" />
+    <issue id="UnsafeNativeCodeLocation" severity="fatal" />
+    <issue id="UnsafeProtectedBroadcastReceiver" severity="fatal" />
+    <issue id="UnsanitizedFilenameFromContentProvider" severity="fatal" />
+    <issue id="UnspecifiedImmutableFlag" severity="fatal" />
+    <issue id="UseCheckPermission" severity="fatal" />
+    <issue id="UsingC2DM" severity="fatal" />
+    <issue id="UsingHttp" severity="fatal" />
+    <issue id="VulnerableCordovaVersion" severity="fatal" />
+    <issue id="WebViewClientOnReceivedSslError" severity="fatal" />
+    <issue id="WorldReadableFiles" severity="fatal" />
+    <issue id="WorldWriteableFiles" severity="fatal" />
+</lint>

@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Android
+local.properties
+captures/
+
+# IDE
+.idea/
+*.iml
+
+# Signing material and build outputs: never commit these. debug.keystore is public and throwaway (ADR-0011).
+*.jks
+*.keystore
+!/debug.keystore
+*.p12
+keystore.properties
+*.apk
+*.aab
+/dist/
+.env*

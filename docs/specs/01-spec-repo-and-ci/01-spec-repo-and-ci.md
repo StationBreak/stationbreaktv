@@ -69,7 +69,7 @@ owner can install. Serves contributors (S0.1.1) and testers (S0.1.3).
   - run `./gradlew check` and assemble the debug and release variants of both flavors;
   - cancel superseded runs on the same branch.
 - The workflow shall upload the `github` flavor's debug APK:
-  - as `stationbreak-github-debug-main-<shortsha>.apk` on `main`, with default retention;
+  - as `stationbreak-github-debug-main-<shortsha>.apk` on `main`, kept 30 days (set explicitly; owner decision 2026-10-11, changed from the default during /polish);
   - as `stationbreak-github-debug-pr<N>-<shortsha>.apk`, kept 7 days, on pull requests whose head repository is
     this repository (`github.event.pull_request.head.repo.full_name == github.repository`);
   - never for fork pull requests. The gate is on the upload step, not the whole job.
