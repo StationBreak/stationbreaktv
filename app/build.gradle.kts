@@ -109,6 +109,8 @@ kotlin {
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
+    implementation("tv.stationbreak.fixture:no-license:1.0")
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.test.core)
