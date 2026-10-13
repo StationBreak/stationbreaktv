@@ -16,9 +16,9 @@ object ManifestRules {
     fun overridesLibraryMinSdk(manifest: File): Boolean {
         val document = parser().newDocumentBuilder().parse(manifest)
         val elements = document.getElementsByTagName("*")
-        return (0 until elements.length)
-            .map { elements.item(it) as Element }
-            .any { it.hasAttributeNS(TOOLS_NAMESPACE, "overrideLibrary") }
+        return (0 until elements.length).any {
+            (elements.item(it) as Element).hasAttributeNS(TOOLS_NAMESPACE, "overrideLibrary")
+        }
     }
 
     // Namespace-aware, so any prefix bound to the tools namespace counts and comments don't. No DTDs or external

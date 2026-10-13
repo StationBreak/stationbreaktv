@@ -5,11 +5,16 @@ import java.io.Serializable
 
 /** What a module's build file declares it depends on. */
 sealed interface Dependency : Serializable {
+    /** What an [ArchitectureException] names: the project path or `group:name`. */
+    val key: String
+
     /** A project in this build, by path (`:core:model`). */
     data class OnProject(
         val path: String,
         val testFixtures: Boolean = false,
     ) : Dependency {
+        override val key get() = path
+
         override fun toString() = if (testFixtures) "testFixtures($path)" else path
     }
 
@@ -18,7 +23,9 @@ sealed interface Dependency : Serializable {
         val group: String,
         val name: String,
     ) : Dependency {
-        override fun toString() = "$group:$name"
+        override val key get() = "$group:$name"
+
+        override fun toString() = key
     }
 }
 
@@ -72,7 +79,7 @@ data class ArchitectureException(
     val module: String,
     val dependency: String,
     val reason: String,
-) : Serializable
+)
 
 /**
  * MODULES.md's dependency rules as an allowlist keyed by module kind. A module's kind and platform come from its
@@ -84,47 +91,40 @@ object ArchitectureRules {
 
     private enum class Platform { ANDROID, PURE }
 
+    /** A module's platform and the modules it may depend on; [allowed] null means any (`app`). */
+    private class ModuleSpec(
+        val platform: Platform,
+        val allowed: Set<String>?,
+    )
+
     private const val APP = ":app"
     private const val FEATURE_PREFIX = ":feature:"
     private const val DATA_PREFIX = ":data:"
-    private const val CORE_TESTING = ":core:testing"
-    private const val CORE_DOMAIN = ":core:domain"
 
-    // MODULES.md's module tree. [KMP] and [JVM] are both PURE here; feature:* (all Android) is matched by prefix.
-    private val PLATFORMS =
+    // MODULES.md's module tree with its "Dependency graph (allowed edges)" and "Also allowed". [KMP] and [JVM] are
+    // both PURE here. Any module's tests may also use core:testing and core:domain's testFixtures; those are handled
+    // in [checkProjectEdge].
+    private val MODULES =
         mapOf(
-            APP to Platform.ANDROID,
-            ":core:model" to Platform.PURE,
-            ":core:rules" to Platform.PURE,
-            ":core:engine" to Platform.PURE,
-            ":core:scheduler" to Platform.PURE,
-            CORE_TESTING to Platform.PURE,
-            CORE_DOMAIN to Platform.PURE,
-            ":core:ui" to Platform.ANDROID,
-            ":core:playback" to Platform.ANDROID,
-            ":data:jellyfin" to Platform.PURE,
-            ":data:library" to Platform.ANDROID,
-            ":data:settings" to Platform.ANDROID,
+            APP to ModuleSpec(Platform.ANDROID, null),
+            ":core:model" to ModuleSpec(Platform.PURE, emptySet()),
+            ":core:rules" to ModuleSpec(Platform.PURE, setOf(":core:model")),
+            ":core:engine" to ModuleSpec(Platform.PURE, setOf(":core:rules", ":core:model")),
+            ":core:scheduler" to ModuleSpec(Platform.PURE, setOf(":core:model")),
+            ":core:testing" to ModuleSpec(Platform.PURE, setOf(":core:model", ":core:rules")),
+            ":core:domain" to ModuleSpec(Platform.PURE, setOf(":core:engine", ":core:scheduler", ":core:model")),
+            ":core:ui" to ModuleSpec(Platform.ANDROID, emptySet()),
+            ":core:playback" to ModuleSpec(Platform.ANDROID, emptySet()),
+            ":data:jellyfin" to ModuleSpec(Platform.PURE, setOf(":core:domain", ":core:model")),
+            ":data:library" to ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:model")),
+            ":data:settings" to ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:model", ":core:rules")),
         )
 
-    // MODULES.md, "Dependency graph (allowed edges)" and "Also allowed". `app` may depend on any module, and any
-    // module's tests on core:testing and core:domain's testFixtures; those are handled in [check].
-    private val DATA_EDGES = setOf(CORE_DOMAIN, ":core:model")
-    private val FEATURE_EDGES = setOf(CORE_DOMAIN, ":core:ui", ":core:playback", ":core:model")
-    private val ALLOWED =
-        mapOf(
-            ":core:model" to emptySet(),
-            ":core:rules" to setOf(":core:model"),
-            ":core:engine" to setOf(":core:rules", ":core:model"),
-            ":core:scheduler" to setOf(":core:model"),
-            CORE_TESTING to setOf(":core:model", ":core:rules"),
-            CORE_DOMAIN to setOf(":core:engine", ":core:scheduler", ":core:model"),
-            ":core:ui" to emptySet(),
-            ":core:playback" to emptySet(),
-            ":data:jellyfin" to DATA_EDGES,
-            ":data:library" to DATA_EDGES,
-            ":data:settings" to DATA_EDGES + ":core:rules",
-        )
+    // Every feature:* module (all Android), matched by prefix.
+    private val FEATURE =
+        ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:ui", ":core:playback", ":core:model"))
+
+    private val SCHEDULER_FORBIDDEN = setOf(":core:engine", ":core:rules")
 
     private val ANDROID_GROUPS = listOf("androidx", "org.jetbrains.androidx", "com.android", "com.google.android")
 
@@ -142,25 +142,18 @@ object ArchitectureRules {
         edges: List<DeclaredEdge>,
         exceptions: List<ArchitectureException> = EXCEPTIONS,
     ): List<Violation> {
-        val platform = platformOf(module) ?: return listOf(Violation(module, null, Rule.UNKNOWN_MODULE))
+        val spec = specOf(module) ?: return listOf(Violation(module, null, Rule.UNKNOWN_MODULE))
         return edges
             .filterNot { edge -> exceptions.any { it.module == module && it.dependency == edge.dependency.key } }
-            .mapNotNull { edge -> check(module, platform, edge)?.let { Violation(module, edge, it) } }
+            .mapNotNull { edge -> check(module, spec, edge)?.let { Violation(module, edge, it) } }
     }
 
-    private val Dependency.key: String
-        get() =
-            when (this) {
-                is Dependency.OnProject -> path
-                is Dependency.OnArtifact -> "$group:$name"
-            }
-
-    private fun platformOf(path: String): Platform? =
-        if (path.startsWith(FEATURE_PREFIX) && path.count { it == ':' } == 2) Platform.ANDROID else PLATFORMS[path]
+    private fun specOf(path: String): ModuleSpec? =
+        if (path.startsWith(FEATURE_PREFIX) && path.count { it == ':' } == 2) FEATURE else MODULES[path]
 
     private fun check(
         module: String,
-        platform: Platform,
+        spec: ModuleSpec,
         edge: DeclaredEdge,
     ): Rule? =
         when (val dependency = edge.dependency) {
@@ -168,27 +161,26 @@ object ArchitectureRules {
                 val android =
                     ANDROID_GROUPS.any { dependency.group == it || dependency.group.startsWith("$it.") } ||
                         dependency.key in ANDROID_ARTIFACTS
-                if (platform == Platform.PURE && android) Rule.NO_ANDROID_IN_PURE_MODULES else null
+                if (spec.platform == Platform.PURE && android) Rule.NO_ANDROID_IN_PURE_MODULES else null
             }
 
             is Dependency.OnProject -> {
-                checkProjectEdge(module, platform, dependency, edge.configuration)
+                checkProjectEdge(module, spec, dependency, edge.configuration)
             }
         }
 
     // The specific rules come first, so a violation names the rule MODULES.md states rather than "not-allowlisted".
     private fun checkProjectEdge(
         module: String,
-        platform: Platform,
+        spec: ModuleSpec,
         dependency: Dependency.OnProject,
         configuration: String,
     ): Rule? {
         val target = dependency.path
-        val targetPlatform = platformOf(target)
+        val targetSpec = specOf(target)
         val isTest = isTestConfiguration(configuration)
-        val moduleIsFeature = module.startsWith(FEATURE_PREFIX)
         return when {
-            targetPlatform == null -> {
+            targetSpec == null -> {
                 Rule.UNKNOWN_MODULE
             }
 
@@ -196,19 +188,19 @@ object ArchitectureRules {
                 null
             }
 
-            target == CORE_TESTING -> {
+            target == ":core:testing" -> {
                 if (isTest) null else Rule.TESTING_IN_TESTS_ONLY
             }
 
-            platform == Platform.PURE && targetPlatform == Platform.ANDROID -> {
+            spec.platform == Platform.PURE && targetSpec.platform == Platform.ANDROID -> {
                 Rule.NO_ANDROID_IN_PURE_MODULES
             }
 
-            moduleIsFeature && (target.startsWith(DATA_PREFIX) || target.startsWith(FEATURE_PREFIX)) -> {
+            spec === FEATURE && (target.startsWith(DATA_PREFIX) || target.startsWith(FEATURE_PREFIX)) -> {
                 Rule.FEATURE_ISOLATION
             }
 
-            module == ":core:scheduler" && target in setOf(":core:engine", ":core:rules") -> {
+            module == ":core:scheduler" && target in SCHEDULER_FORBIDDEN -> {
                 Rule.SCHEDULER_INDEPENDENCE
             }
 
@@ -216,15 +208,11 @@ object ArchitectureRules {
                 Rule.TESTFIXTURES_IN_TESTS_ONLY
             }
 
-            dependency.testFixtures && target == CORE_DOMAIN -> {
+            dependency.testFixtures && target == ":core:domain" -> {
                 null
             }
 
-            module == APP -> {
-                null
-            }
-
-            target in (if (moduleIsFeature) FEATURE_EDGES else ALLOWED[module].orEmpty()) -> {
+            spec.allowed == null || target in spec.allowed -> {
                 null
             }
 
