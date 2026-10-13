@@ -131,7 +131,11 @@ Also allowed (not drawn above):
 The built-in `ScheduleSource` in `core:domain` composes engine → scheduler. The Phase 5 XMLTV
 `ScheduleSource` (in its own `data:xmltv`) depends on neither (Granny ruling, see ADR when scaffolded).
 
-Enforcement: an architecture test / convention-plugin check fails the build if
+Enforcement: the `checkArchitecture` task, which every module's convention plugin adds to `check`, fails the build
+if a module's declared dependencies break these rules. Its allowlist is `ArchitectureRules.kt` in
+`build-logic/convention` (package `tv.stationbreak.buildlogic.architecture`) and must match this section; a module
+not listed in this file's module tree fails until it's added to both. Android modules also run
+`checkOverrideLibrary`. Together they fail the build if
 - a `[KMP]` or `[JVM]` module gains an Android dependency,
 - a `java.*` import appears in `commonMain` (enforced by the compiler via the canary target; scaffold acceptance test),
 - `feature:*` depends on `data:*` or on another `feature:*`,
