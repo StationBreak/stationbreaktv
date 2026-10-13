@@ -33,10 +33,11 @@ platform, so `java.*` would still resolve. C alone doesn't enforce portability.
 ## Verification (scaffold acceptance)
 
 - Adding `import java.io.File` to a `commonMain` file **fails the build**.
-- `feature:live` (Android) consumes `core:model` via a plain `implementation(project(...))`, and Gradle
-  selects the jvm variant.
+- `app` (Android) consumes `core:model` via a plain `implementation(project(...))`, uses its type in its main
+  source set, and Gradle selects the jvm variant (`dependencyInsight`). No feature module exists on day one.
 - The detekt forbidden-import rule stays until the first check passes in CI. After that it's reduced to
-  `javax.inject` only, or removed.
+  `javax.inject` only, or removed. Done in F0.2: the canary failed the build, and the rule now forbids only
+  `javax.inject`.
 
 ## Consequences
 

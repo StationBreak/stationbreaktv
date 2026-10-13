@@ -32,7 +32,8 @@ Source of truth: [`SPEC.md`](SPEC.md).
 ```
 stationbreaktv/
 ├── app/                         Android application. Hilt root, navigation, flavors.
-├── build-logic/convention/      Gradle convention plugins (android-lib, jvm-lib, jvm-inject, kmp-lib, compose, hilt, ...)
+├── build-logic/convention/      Gradle convention plugins (quality, android-app, android-lib, compose, kmp-lib, jvm-lib;
+│                                jvm-inject and hilt arrive with F0.3, the first story that uses @Inject)
 │
 ├── core/
 │   ├── model/          [KMP]    Domain entities: Server, MediaItem, Channel, ScheduleBlock, ids, value types,
@@ -147,8 +148,8 @@ Enforcement: an architecture test / convention-plugin check fails the build if
 inside the Android `data:*` modules).
 
 **Portability guard:** the `linuxX64()` canary makes the compiler reject `java.*` in `commonMain`. A detekt
-forbidden-import rule stays as a backstop until the "`import java.io.File` fails the build" acceptance test
-passes in CI. After that it's reduced to `javax.inject` only, or removed (ADR-0004).
+forbidden-import rule was the backstop until the "`import java.io.File` fails the build" acceptance test passed in
+CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/detekt/kmp.yml`, ADR-0004).
 
 ## Build flavors
 
@@ -181,5 +182,5 @@ Exact library versions are picked at scaffold time. Everything else in this sect
   API 25 emulator job (S0.1.1) is the backstop for those.
 - Compose BOM + `androidx.tv:tv-material`, Media3 (`exoplayer`, `exoplayer-hls`, `datasource-okhttp`)
 - Room with KSP, Hilt with KSP, WorkManager, DataStore, kotlinx.serialization
-- Quality: ktlint (or Spotless + ktlint), detekt (incl. the forbidden-import rule), Android Lint, Kover for coverage of the `[KMP]`/`[JVM]` modules (detekt per KMP source set; verify Kover covers `commonMain`)
+- Quality: ktlint (or Spotless + ktlint), detekt (incl. the forbidden-import rule), Android Lint, Kover for coverage of the `[KMP]`/`[JVM]` modules (deferred: no Kover and no coverage thresholds on day one; detekt per KMP source set)
 - License hygiene: GPL-3.0 header check, plus a dependency-license report so no GPL-incompatible deps sneak in

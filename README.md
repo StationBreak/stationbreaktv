@@ -2,8 +2,8 @@
 
 Turn your Jellyfin library into always-on, flip-through broadcast channels on Fire TV and Android TV.
 
-> **Status:** Phase 0 (Foundations). A placeholder app builds and is checked in CI (GitHub Actions); no features
-> yet.
+> **Status:** Phase 0 (Foundations). The module skeleton (convention plugins, the Kotlin Multiplatform shared core
+> and the day-one modules) builds and is checked in CI (GitHub Actions); no features yet.
 
 ## Docs
 

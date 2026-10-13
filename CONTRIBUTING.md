@@ -84,6 +84,8 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 | ↳ `detekt` | Static analysis of Kotlin code | Fix the reported issue. The report names the rule and the line |
 | ↳ `lint` | Android Lint. Issues in the Security category are errors | Fix the reported issue |
 | ↳ `test` | JVM unit tests | Fix the code or the test |
+| ↳ `allTests` | Each Kotlin Multiplatform module's `commonTest`, on the JVM and on Linux (`linuxX64`), whose compiler rejects `java.*` in `commonMain` | Fix the code or the test. For an unresolved `java.*` reference in `commonMain`, use a Kotlin common API instead |
+| ↳ KMP tests with no Android SDK | `:core:scheduler:jvmTest` with no Android SDK in the environment ([ADR-0004](docs/adr/0004-kmp-shared-core.md)) | Keep Android dependencies out of the `[KMP]` modules ([MODULES.md](docs/MODULES.md)) |
 | ↳ `licensee` | Every dependency's license is on the allowlist of GPL-compatible licenses, and can be identified | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
 | `emulator` | Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
 | `dco` | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
