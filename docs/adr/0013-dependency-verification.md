@@ -19,14 +19,18 @@ largest part of the dependency set.
 
 ## Decision
 
-1. **SHA-256 checksums only.** `verify-metadata` is on and `verify-signatures` is off. There's no lenient mode.
+1. **SHA-256 checksums only.** `verify-metadata` is on and `verify-signatures` is off, each written exactly once. There's
+   no lenient mode, and no `<trusted-key>`: with signatures on, a trusted key would replace the checksum.
 2. **The only trust entry** is one regex for source and javadoc jars, which are never built into the app:
    `<trust file=".*-(sources|javadoc)[.]jar" regex="true"/>`. Nothing else is trusted by group, name or wildcard,
    and the file has no `<also-trust>` or `<ignored-keys>`.
 3. **A guard script enforces that**, in CI: `.github/scripts/verification-guard.sh` (tests in
-   `verification-guard.test.sh`). It fails on any of the above, on `org.gradle.dependency.verification` in any
-   `gradle.properties`, and on any file under `.github/` that passes `--dependency-verification` (or `-F`) or
-   rewrites the baseline. The baseline doesn't merge until the guard passes (Angua's veto c).
+   `verification-guard.test.sh`). It fails on any of the above, on `<also-trust>` and `<ignored-keys>`, on a DOCTYPE,
+   entity, CDATA section or comment in the file (the guard reads text, and these are how text and Gradle's reading of
+   it could differ), on `org.gradle.dependency.verification` in any `gradle.properties`, and on any file under
+   `.github/` that passes `--dependency-verification` (or `-F`) or rewrites the baseline. The baseline doesn't merge
+   until the guard passes (Angua's veto c). It is a tripwire for mistakes and shortcuts, not a defence against a
+   pull request written to evade it (see Accepted risks).
 4. **No CI job may regenerate the file and push it** (Angua's veto a). A job that rebuilds its own reference
    from whatever it just downloaded turns verification into a copy of the attack. The guard fails any file under
    `.github/` that contains `--write-verification-metadata` (or `-M`).
@@ -43,17 +47,30 @@ largest part of the dependency set.
   today. If a release was already malicious when first fetched, its hash goes in the file as if it were good.
   Checksums catch a change after the baseline, not a bad baseline.
 - **Kotlin/Native downloads its own toolchain outside Gradle**, and Gradle's verification doesn't see it. Recorded
-  by running the `linuxX64Test` build with an empty Kotlin/Native home (2.4.21). All of these come from
-  `download.jetbrains.com/kotlin/native` over HTTPS, and none is checked by this ADR's mechanism:
-  - the Kotlin/Native compiler bundle `kotlin-native-prebuilt-linux-x86_64-2.4.21` (fetched by the Kotlin Gradle
-    plugin's `downloadKotlinNativeDistribution` task);
+  by running the `linuxX64Test` build with an empty Kotlin/Native home (2.4.21). Four toolchain items come from
+  `download.jetbrains.com/kotlin/native` over HTTPS and are **unchecked** by this ADR's mechanism:
   - `x86_64-unknown-linux-gnu-gcc-8.3.0-glibc-2.19-kernel-4.9-2` (sysroot);
   - `llvm-21-x86_64-linux-essentials-116`;
   - `lldb-4-linux`;
   - `libffi-3.2.1-2-linux-x86-64`.
 
-  These affect only the `linuxX64` test target of the shared core (a canary that `commonMain` has no `java.*`).
-  They are not part of any APK.
+  The compiler bundle itself, `kotlin-native-prebuilt-2.4.21-linux-x86_64.tar.gz`, is fetched by Gradle as a
+  dependency and **is** verified (it has a checksum in the baseline). It is the toolchain items it then downloads
+  that aren't.
+
+  CI keeps `~/.konan` in a cache keyed on the Kotlin version, so a cache hit skips even the unchecked download, and
+  skips verifying the bundle there. Only pushes to `main` write that cache, so a pull request can't plant content
+  in it (the same rule as the Gradle cache). These items affect only the `linuxX64` test target of the shared core
+  (a canary that `commonMain` has no `java.*`). They are not part of any APK.
+- **Rebuilding the baseline runs new, unverified code on the owner's machine.** The rebuild resolves new plugin and
+  tool versions for the first time, so a plugin that was malicious from its first release runs at that moment,
+  before any checksum exists to catch it. The rebuild is therefore run in an environment with no credentials: no
+  cloud or registry tokens, no SSH agent, and a fresh Gradle user home (CONTRIBUTING.md).
+- **The guard is a tripwire, not a wall.** It scans `.github/` and the Gradle properties files for the patterns
+  above, so it catches the mistakes and shortcuts that loosen verification. It can't stop a pull request that
+  changes the guard itself, or one that turns verification off in a way it doesn't look for (an obfuscated
+  command, a setting in a file outside its scope). The owner's review of every diff under `.github/` (ADR-0012
+  decision 1) is the real control; the guard makes the common ways to get it wrong fail loudly.
 
 ## Mitigations
 
@@ -62,7 +79,10 @@ largest part of the dependency set.
 - The owner reviews every change to `gradle/verification-metadata.xml` before merging, including in Renovate's
   pull requests (ADR-0011 item 6, ADR-0012). The review compares each new checksum with the `.sha256` file the
   publishing repository lists (see CONTRIBUTING.md).
-- OSV-Scanner reads the file, so known-vulnerable versions are reported.
+- OSV-Scanner reads the file, so known-vulnerable versions are reported. Findings that existed at the baseline
+  are ignored one by one in `gradle/osv-scanner.toml`, each with a reason and an `ignoreUntil` review date; the file
+  sits next to the verification file because the scanner reads a config only from the directory of the file it
+  scans.
 
 ## Renovate rebuild workflow
 
@@ -75,4 +95,6 @@ commits the result with a sign-off. The owner reads the diff and merges. CI neve
 
 - Every Renovate dependency update takes a manual step before it can merge.
 - A dependency's checksum changing for the same version fails the build, naming the artifact.
+- A change to `gradle/osv-scanner.toml` can silence a finding, as a change to `.github/` can disable a gate, so
+  the owner reads it with the same care (ADR-0012 decision 1 doesn't list it yet; adding it is the owner's call).
 - The file is large and machine-generated. Its diff is reviewed by checksum, not read for meaning.
