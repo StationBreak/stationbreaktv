@@ -18,8 +18,9 @@ class KmpLibPlugin : Plugin<Project> {
             pluginManager.apply("org.jetbrains.kotlin.multiplatform")
             pluginManager.apply(QualityPlugin::class.java)
 
+            configureKotlinToolchain()
+
             extensions.configure<KotlinMultiplatformExtension> {
-                jvmToolchain(JDK_VERSION)
                 jvm()
                 linuxX64()
 
@@ -33,11 +34,8 @@ class KmpLibPlugin : Plugin<Project> {
                 config.from(repoRoot.file("config/detekt/kmp.yml"))
             }
 
-            // detekt 2.0.0-alpha.6 on KMP, listed from `:core:model:tasks --all` and pinned here (the alpha's names may
-            // change; a missing name fails the build). detektMainJvm/detektTestJvm run every rule, including those
-            // that need type resolution, over the jvm compilation (commonMain + jvmMain, and their tests). Native
-            // has no type-resolution task, so linuxX64 code gets the source-set tasks, as does common code (cheap,
-            // and it doesn't depend on which compilations include it).
+            // detekt's task names are pinned because it's an alpha (a missing name fails the build). Native has no
+            // type-resolution task, so linuxX64 code gets the source-set tasks.
             checkDependsOn(
                 "detektMainJvm",
                 "detektTestJvm",
@@ -47,8 +45,8 @@ class KmpLibPlugin : Plugin<Project> {
                 "detektJvmTestSourceSet",
                 "detektLinuxX64MainSourceSet",
                 "detektLinuxX64TestSourceSet",
+                // KMP has no plain `test`; `allTests` runs commonTest on both targets.
+                "allTests",
             )
-            // KMP has no plain `test`; `allTests` runs commonTest on both targets.
-            checkDependsOn("allTests")
         }
 }

@@ -21,6 +21,8 @@ internal fun VersionCatalog.version(alias: String): String = findVersion(alias).
 
 internal fun VersionCatalog.intVersion(alias: String): Int = version(alias).toInt()
 
+internal fun VersionCatalog.library(alias: String) = findLibrary(alias).get()
+
 // The repository root, read through Gradle's isolated view so the plugins stay isolated-projects safe.
 internal val Project.repoRoot: Directory
     get() = isolated.rootProject.projectDirectory

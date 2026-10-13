@@ -8,7 +8,3 @@ plugins {
 android {
     namespace = "tv.stationbreak.core.ui"
 }
-
-dependencies {
-    testImplementation(libs.junit)
-}

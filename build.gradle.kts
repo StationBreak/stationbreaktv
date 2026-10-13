@@ -12,20 +12,9 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.licensee) apply false
-    // The root's own build scripts; each module's are formatted by the `stationbreak.quality` plugin.
-    alias(libs.plugins.spotless)
-}
-
-spotless {
-    kotlinGradle {
-        target("*.gradle.kts")
-        ktlint(libs.versions.ktlint.get())
-        // ADR-0003. The header goes above the first line that isn't a `//` comment.
-        licenseHeader(
-            "// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore",
-            "^(?!//).*$",
-        )
-    }
+    alias(libs.plugins.spotless) apply false
+    // Spotless and detekt, as in every module; Spotless formats the root's own build scripts.
+    id("stationbreak.quality")
 }
 
 tasks.named("check") {

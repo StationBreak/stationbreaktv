@@ -1,6 +1,6 @@
 [versions]
-# Kotlin 2.4.20 is required by jellyfin-sdk-kotlin 1.9.2 (F0.3). AGP 9 has Kotlin built in; declaring the
-# Kotlin plugin in the root build raises AGP's bundled Kotlin to this version.
+# Kotlin 2.4.20 or later is required by jellyfin-sdk-kotlin 1.9.2 (F0.3). AGP 9 has Kotlin built in;
+# declaring the Kotlin plugin in the root build raises AGP's bundled Kotlin to this version.
 kotlin = "2.4.21"
 agp = "9.4.1"
 # detekt 2.0.0-alpha.6 is the only release built for Kotlin 2.4; move to 2.0 stable when it ships.
@@ -18,7 +18,6 @@ androidxTestExtJunit = "1.3.0"
 composeBom = "2026.09.00"
 # tv-material 1.1.0 stable (2026-05-06); minSdk 23, so fine on API 25.
 tvMaterial = "1.1.0"
-activityCompose = "1.13.0"
 
 minSdk = "25"
 # Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
@@ -36,10 +35,7 @@ androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTes
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExtJunit" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
-androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
-androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "tvMaterial" }
-androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 
 # Gradle plugins, as libraries: build-logic compiles its convention plugins against these.
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }

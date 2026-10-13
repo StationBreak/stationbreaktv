@@ -12,10 +12,10 @@ class ComposePlugin : Plugin<Project> {
             pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
 
             dependencies {
-                val bom = platform(libs.findLibrary("androidx-compose-bom").get())
+                val bom = platform(libs.library("androidx-compose-bom"))
                 add("implementation", bom)
                 add("androidTestImplementation", bom)
-                add("implementation", libs.findLibrary("androidx-tv-material").get())
+                add("implementation", libs.library("androidx-tv-material"))
             }
         }
 }

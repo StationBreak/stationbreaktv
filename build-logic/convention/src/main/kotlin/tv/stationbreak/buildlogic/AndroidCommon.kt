@@ -30,7 +30,8 @@ internal fun Project.configureAndroidCommon(android: CommonExtension) {
     configureKotlinToolchain()
 
     dependencies {
-        add("coreLibraryDesugaring", libs.findLibrary("desugar-jdk-libs").get())
+        add("coreLibraryDesugaring", libs.library("desugar-jdk-libs"))
+        add("testImplementation", libs.library("junit"))
     }
 
     // detekt's Android tasks that run type resolution (the plain `detekt` task skips those rules).
