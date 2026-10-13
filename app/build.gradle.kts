@@ -5,6 +5,7 @@ import app.cash.licensee.UnusedAction
 plugins {
     // SDK levels, flavors, desugaring, toolchain, Lint, Spotless and detekt: build-logic's AndroidAppPlugin.
     id("stationbreak.android-app")
+    id("stationbreak.compose")
     alias(libs.plugins.licensee)
 }
 
@@ -59,8 +60,13 @@ licensee {
 dependencies {
     // ADR-0004: app consumes the KMP shared core through Gradle's jvm variant.
     implementation(project(":core:model"))
+    implementation(project(":core:ui"))
+    implementation(libs.androidx.activity.compose)
 
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    // The empty activity that createComposeRule hosts content in; debug builds only.
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
