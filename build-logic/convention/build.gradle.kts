@@ -38,5 +38,17 @@ spotless {
 
 gradlePlugin {
     plugins {
+        register("quality") {
+            id = "stationbreak.quality"
+            implementationClass = "tv.stationbreak.buildlogic.QualityPlugin"
+        }
+        register("androidApp") {
+            id = "stationbreak.android-app"
+            implementationClass = "tv.stationbreak.buildlogic.AndroidAppPlugin"
+        }
+        register("androidLib") {
+            id = "stationbreak.android-lib"
+            implementationClass = "tv.stationbreak.buildlogic.AndroidLibPlugin"
+        }
     }
 }
