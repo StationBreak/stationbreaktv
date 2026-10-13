@@ -53,6 +53,10 @@ spotless {
 
 gradlePlugin {
     plugins {
+        register("architecture") {
+            id = "stationbreak.architecture"
+            implementationClass = "tv.stationbreak.buildlogic.architecture.ArchitecturePlugin"
+        }
         register("quality") {
             id = "stationbreak.quality"
             implementationClass = "tv.stationbreak.buildlogic.QualityPlugin"

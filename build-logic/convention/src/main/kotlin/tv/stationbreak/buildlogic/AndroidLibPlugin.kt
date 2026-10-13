@@ -5,6 +5,7 @@ import com.android.build.api.dsl.LibraryExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
+import tv.stationbreak.buildlogic.architecture.ArchitecturePlugin
 
 /** An Android library: the app's SDK levels, desugaring, toolchain and Lint, with no flavors. */
 class AndroidLibPlugin : Plugin<Project> {
@@ -12,6 +13,7 @@ class AndroidLibPlugin : Plugin<Project> {
         with(target) {
             pluginManager.apply("com.android.library")
             pluginManager.apply(QualityPlugin::class.java)
+            pluginManager.apply(ArchitecturePlugin::class.java)
 
             extensions.configure<LibraryExtension> {
                 configureAndroidCommon(this)

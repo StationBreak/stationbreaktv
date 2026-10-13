@@ -6,6 +6,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import tv.stationbreak.buildlogic.architecture.ArchitecturePlugin
 
 /**
  * A pure-Kotlin shared-core module (ADR-0004): `commonMain` code, a `jvm()` target that Android modules consume,
@@ -17,6 +18,7 @@ class KmpLibPlugin : Plugin<Project> {
         with(target) {
             pluginManager.apply("org.jetbrains.kotlin.multiplatform")
             pluginManager.apply(QualityPlugin::class.java)
+            pluginManager.apply(ArchitecturePlugin::class.java)
 
             configureKotlinToolchain()
 
