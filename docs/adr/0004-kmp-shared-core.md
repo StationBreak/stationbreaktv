@@ -27,16 +27,19 @@ platform, so `java.*` would still resolve. C alone doesn't enforce portability.
 5. **`core:testing` splits:** fixtures and golden vectors go in KMP `core:testing`. Port fakes go in
    `core:domain` `testFixtures`.
 6. **`core:domain` stays plain JVM** (it holds `javax.inject`). Revisit in Phase 5.
-7. **Tooling:** detekt per source set (`detektMetadataCommonMain`, `detektJvmMain`) and Kover configured in
-   the convention plugin. Verify Kover covers `commonMain`.
+7. **Tooling:** the `stationbreak.kmp-lib` convention plugin wires detekt into `check`: `detektMainJvm` and
+   `detektTestJvm` (type resolution over the jvm compilation), plus the source-set tasks
+   (`detektCommonMainSourceSet`, `detektJvmMainSourceSet`, `detektLinuxX64MainSourceSet` and their `Test`
+   counterparts). Kover is deferred: it isn't configured yet. When it is, verify it covers `commonMain`.
 
 ## Verification (scaffold acceptance)
 
 - Adding `import java.io.File` to a `commonMain` file **fails the build**.
-- `feature:live` (Android) consumes `core:model` via a plain `implementation(project(...))`, and Gradle
-  selects the jvm variant.
+- `app` (Android) consumes `core:model` via a plain `implementation(project(...))`, uses its type in its main
+  source set, and Gradle selects the jvm variant (`dependencyInsight`). No feature module exists on day one.
 - The detekt forbidden-import rule stays until the first check passes in CI. After that it's reduced to
-  `javax.inject` only, or removed.
+  `javax.inject` only, or removed. Done in F0.2: the canary failed the build, and the rule now forbids only
+  `javax.inject`.
 
 ## Consequences
 

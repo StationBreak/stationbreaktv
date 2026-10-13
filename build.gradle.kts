@@ -1,36 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
-import com.diffplug.gradle.spotless.SpotlessExtension
-
 plugins {
+    // Declared once here, not applied, so every project shares one copy of each plugin; the convention plugins
+    // in build-logic apply them.
     alias(libs.plugins.android.application) apply false
-    // Not applied to any module (AGP 9 has Kotlin built in); declared here to pin the Kotlin Gradle plugin version.
-    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.android.library) apply false
+    // AGP 9's built-in Kotlin uses the Kotlin Gradle plugin on this classpath, so it and the KMP and JVM modules
+    // share the catalog's Kotlin version.
+    alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.detekt) apply false
-    alias(libs.plugins.spotless) apply false
     alias(libs.plugins.licensee) apply false
+    alias(libs.plugins.spotless) apply false
+    // Spotless and detekt, as in every module; Spotless formats the root's own build scripts.
+    id("stationbreak.quality")
 }
 
-// ADR-0003: every Kotlin source and build file carries this header. `./gradlew spotlessApply` inserts it.
-val spdxHeader = "// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore"
-
-allprojects {
-    apply(plugin = "com.diffplug.spotless")
-
-    configure<SpotlessExtension> {
-        kotlin {
-            target("src/**/*.kt")
-            ktlint()
-            // The default delimiter puts the header above `package`, `import` or `@file`.
-            licenseHeader(spdxHeader)
-        }
-        kotlinGradle {
-            // Each project's own build scripts: the root's settings and build files, and app/build.gradle.kts.
-            target("*.gradle.kts")
-            ktlint()
-            // The header goes above the first line that isn't a `//` comment (`plugins {`, `import`,
-            // `pluginManagement {`, or the blank line after an existing header).
-            licenseHeader(spdxHeader, "^(?!//).*$")
-        }
-    }
+tasks.named("check") {
+    // build-logic is an included build, so its checks (Spotless now, its tests later) don't run otherwise.
+    dependsOn(gradle.includedBuild("build-logic").task(":convention:check"))
 }
