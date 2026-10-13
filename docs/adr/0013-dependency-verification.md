@@ -25,15 +25,11 @@ largest part of the dependency set.
    `<trust file=".*-(sources|javadoc)[.]jar" regex="true"/>`. Nothing else is trusted by group, name or wildcard,
    and the file has no `<also-trust>` or `<ignored-keys>`.
 3. **A guard script enforces that**, in CI: `.github/scripts/verification-guard.sh` (tests in
-   `verification-guard.test.sh`). It fails on any of the above, on `<also-trust>` and `<ignored-keys>`, on a DOCTYPE,
-   entity, CDATA section or comment in the file (the guard reads text, and these are how text and Gradle's reading of
-   it could differ), on `org.gradle.dependency.verification` in any `gradle.properties`, and on any file under
-   `.github/` that passes `--dependency-verification` (or `-F`) or rewrites the baseline. The baseline doesn't merge
-   until the guard passes (Angua's veto c). It is a tripwire for mistakes and shortcuts, not a defence against a
-   pull request written to evade it (see Accepted risks).
+   `verification-guard.test.sh`). The rule list lives in the script's header, so it can't drift from the code. The
+   baseline doesn't merge until the guard passes (Angua's veto c).
 4. **No CI job may regenerate the file and push it** (Angua's veto a). A job that rebuilds its own reference
    from whatever it just downloaded turns verification into a copy of the attack. The guard fails any file under
-   `.github/` that contains `--write-verification-metadata` (or `-M`).
+   `.github/` that rewrites the baseline.
 5. **Extra repositories only through `exclusiveContent { includeGroup(...) }`**, and `FAIL_ON_PROJECT_REPOS` stays
    (Angua's veto b). A repository that can serve any group can serve a substitute for any dependency.
 6. **One source per artifact.** The file holds one checksum per artifact. When Gradle sees two different
@@ -69,15 +65,17 @@ largest part of the dependency set.
 - **The guard is a tripwire, not a wall.** It scans `.github/` and the Gradle properties files for the patterns
   above, so it catches the mistakes and shortcuts that loosen verification. It can't stop a pull request that
   changes the guard itself, or one that turns verification off in a way it doesn't look for (an obfuscated
-  command, a setting in a file outside its scope). The owner's review of every diff under `.github/` (ADR-0012
-  decision 1) is the real control; the guard makes the common ways to get it wrong fail loudly.
+  command, a setting in a file outside its scope). The owner's review of every diff under `.github/` (ADR-0012, CI gates
+  advisory until the visibility flip, decision 1) is the real control; the guard makes the common ways to get it
+  wrong fail loudly.
 
 ## Mitigations
 
 - Renovate waits 3 days after a release before proposing it (`minimumReleaseAge`), which gives the community time
   to spot a bad one.
 - The owner reviews every change to `gradle/verification-metadata.xml` before merging, including in Renovate's
-  pull requests (ADR-0011 item 6, ADR-0012). The review compares each new checksum with the `.sha256` file the
+  pull requests (ADR-0011, debug build signing, item 6; ADR-0012, CI gates advisory until the visibility
+  flip). The review compares each new checksum with the `.sha256` file the
   publishing repository lists (see CONTRIBUTING.md).
 - OSV-Scanner reads the file, so known-vulnerable versions are reported. Findings that existed at the baseline
   are ignored one by one in `gradle/osv-scanner.toml`, each with a reason and an `ignoreUntil` review date; the file
@@ -96,5 +94,6 @@ commits the result with a sign-off. The owner reads the diff and merges. CI neve
 - Every Renovate dependency update takes a manual step before it can merge.
 - A dependency's checksum changing for the same version fails the build, naming the artifact.
 - A change to `gradle/osv-scanner.toml` can silence a finding, as a change to `.github/` can disable a gate, so
-  the owner reads it with the same care (ADR-0012 decision 1 doesn't list it yet; adding it is the owner's call).
+  the owner reads it with the same care (ADR-0012, CI gates advisory until the visibility flip, decision 1, doesn't list it yet; adding it is the
+  owner's call).
 - The file is large and machine-generated. Its diff is reviewed by checksum, not read for meaning.
