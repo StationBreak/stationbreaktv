@@ -22,17 +22,22 @@ fail() {
   failures=$((failures + 1))
 }
 
-# expect <fixture> <exit code> [rule id that must be named in the output]
+# expect <fixture> <exit code> [rule ...]
+# The rules named must be exactly the set of FAIL rules in the output, so a fixture can't pass while failing for an
+# extra, unintended reason. A fixture that legitimately trips several rules lists them all.
 expect() {
-  local fixture="$1" want="$2" rule="${3:-}" out got
+  local fixture="$1" want="$2" out got wantrules gotrules
+  shift 2
+  wantrules="$( ( [ "$#" -eq 0 ] || printf '%s\n' "$@") | sort -u | tr '\n' ' ')"
   out="$(bash "$script" "$fixtures/$fixture" 2>&1)"
   got=$?
+  gotrules="$( (grep -oE '^FAIL [a-z-]+' <<<"$out" || true) | cut -d' ' -f2 | sort -u | tr '\n' ' ')"
   if [ "$got" -ne "$want" ]; then
     fail "$fixture" "exit $got, want $want" "$out"
-  elif [ -n "$rule" ] && ! grep -q -- "^FAIL $rule: " <<<"$out"; then
-    fail "$fixture" "output does not name rule $rule" "$out"
+  elif [ "$gotrules" != "$wantrules" ]; then
+    fail "$fixture" "failed rules [${gotrules% }], want [${wantrules% }]" "$out"
   else
-    echo "ok   $fixture (exit $got${rule:+, $rule})"
+    echo "ok   $fixture (exit $got${wantrules:+, ${wantrules% }})"
   fi
 }
 
@@ -77,10 +82,11 @@ expect trusted-keys-self-closed 1 trusted-keys
 
 # XML the guard's text matching can't be sure to read as Gradle does: entities that expand to a <trust>, comments
 # and CDATA that hide or fake an element.
-expect doctype-entity 1 xml-construct
+# (the entity and the CDATA fixtures also contain a <trust>, so they trip trust too)
+expect doctype-entity 1 xml-construct trust
 expect doctype-plain 1 xml-construct
 expect comment 1 xml-construct
-expect cdata 1 xml-construct
+expect cdata 1 xml-construct trust
 
 # Exactly one <verify-metadata>, spelled exactly, with the value true.
 expect verify-metadata-space-false 1 verify-metadata

@@ -2,30 +2,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
 # Fails if the Gradle dependency verification setup has been loosened (ADR-0013). Run on a checkout:
-#   bash .github/scripts/verification-guard.sh [dir]     (dir defaults to the current directory)
+#   bash .github/scripts/verification-guard.sh <dir>
 # Rules, each printed as "FAIL <rule>: <where>":
 #   baseline-missing  gradle/verification-metadata.xml does not exist
-#   xml-construct     the file has a DOCTYPE, ENTITY, CDATA section or comment: the checks below read the text, and
-#                     these are how text and Gradle's reading of it could differ
+#   xml-construct     the file has a DOCTYPE, ENTITY, CDATA section or comment (text and Gradle's reading could differ)
 #   verify-metadata   the file is not exactly one <verify-metadata>true</verify-metadata>
 #   verify-signatures the file is not exactly one <verify-signatures>false</verify-signatures>
-#   trusted-keys      any <trusted-keys> or <trusted-key> element (with signatures on, a trusted key replaces the
-#                     checksum)
+#   trusted-keys      any <trusted-keys> or <trusted-key> element
 #   trust             any <trust> element other than the one sources/javadoc regex below
 #   also-trust        any <also-trust> element
 #   ignored-keys      any <ignored-keys> or <ignored-key> element
 #   properties        a gradle.properties anywhere in the tree mentions org.gradle.dependency.verification
 #   workflow-flag     anything under .github/ turns verification down: --dependency-verification, -F or
 #                     org.gradle.dependency.verification
-#   no-ci-rewrite     anything under .github/ rewrites the baseline (--write-verification-metadata, -M).
-#                     Angua's veto: no CI job may regenerate the file and push it.
-#   fixture-reference a file under .github/ refers to the verification fixtures (they hold forbidden patterns on
-#                     purpose and are exempt from the scan, so nothing may run them)
+#   no-ci-rewrite     anything under .github/ rewrites the baseline (--write-verification-metadata, -M); Angua's veto
+#   fixture-reference a file under .github/ refers to the verification fixtures, which are exempt from the scan
 # Exempt from the .github/ scan, by exact path: this script, its test and .github/scripts/fixtures/verification/.
 # They have to name the patterns they look for. A copy elsewhere is not exempt.
-#
-# This is a tripwire for the mistakes and shortcuts that would loosen verification, not a defence against a
-# pull request that is written to evade it: the owner's review of .github/ (ADR-0012) is the control for that.
+# A tripwire for mistakes, not a defence against a deliberate evasion (ADR-0013, Accepted risks).
 # Exit: 0 clean, 1 a rule failed, 2 usage error.
 set -euo pipefail
 
@@ -77,38 +71,38 @@ else
   require_setting verify-metadata true
   require_setting verify-signatures false
 
-  while IFS= read -r element; do
-    [ -n "$element" ] || continue
-    fail trusted-keys "$metadata: $element"
-  done < <(grep -oE '<([A-Za-z0-9_.-]+:)?trusted-keys?([[:space:]/][^>]*)?>' <<<"$flat" || true)
-
+  # scan_elements <rule> <element name regex>
   # An optional namespace prefix is allowed for, so <x:trust .../> doesn't slip past. The name must end at a
-  # space, '/' or '>', which keeps <trusted-artifacts> and <trusted-key> out.
-  while IFS= read -r element; do
-    [ -n "$element" ] || continue
-    squeezed="$(tr -s ' ' <<<"$element")"
-    if [ "$squeezed" != "$allowed_trust" ]; then
-      fail trust "$metadata: $squeezed"
-    fi
-  done < <(grep -oE '<([A-Za-z0-9_.-]+:)?trust([[:space:]/][^>]*)?>' <<<"$flat" || true)
-
-  while IFS= read -r element; do
-    [ -n "$element" ] || continue
-    fail also-trust "$metadata: $element"
-  done < <(grep -oE '<([A-Za-z0-9_.-]+:)?also-trust([[:space:]/][^>]*)?>' <<<"$flat" || true)
-
-  while IFS= read -r element; do
-    [ -n "$element" ] || continue
-    fail ignored-keys "$metadata: $element"
-  done < <(grep -oE '<([A-Za-z0-9_.-]+:)?ignored-keys?([[:space:]/][^>]*)?>' <<<"$flat" || true)
+  # space, '/' or '>', which keeps <trusted-artifacts> and <trusted-key> out of the trust scan.
+  scan_elements() {
+    local rule="$1" name="$2" element squeezed
+    while IFS= read -r element; do
+      [ -n "$element" ] || continue
+      squeezed="$(tr -s ' ' <<<"$element")"
+      if [ "$rule" = trust ] && [ "$squeezed" = "$allowed_trust" ]; then
+        continue
+      fi
+      fail "$rule" "$metadata: $squeezed"
+    done < <(grep -oE "<([A-Za-z0-9_.-]+:)?${name}([[:space:]/][^>]*)?>" <<<"$flat" || true)
+  }
+  scan_elements trusted-keys 'trusted-keys?'
+  scan_elements trust 'trust'
+  scan_elements also-trust 'also-trust'
+  scan_elements ignored-keys 'ignored-keys?'
 fi
+
+# scan_file <rule> <grep flags> <pattern> <file> [suffix]: fail <rule> on the first line of <file> that matches.
+scan_file() {
+  local hits
+  if hits="$(grep "$2" "$3" "$4")"; then
+    fail "$1" "$4:$(head -n1 <<<"$hits")${5:-}"
+  fi
+}
 
 # Any gradle.properties, not just the root's: the build-logic included build has its own.
 while IFS= read -r props; do
   [ -n "$props" ] || continue
-  if hits="$(grep -nE 'org\.gradle\.dependency\.verification' "$props")"; then
-    fail properties "$props:$(head -n1 <<<"$hits")"
-  fi
+  scan_file properties -nE 'org\.gradle\.dependency\.verification' "$props"
 done < <(find . \( -name build -o -name .gradle -o -name .git -o -path ./.github/scripts/fixtures \) -prune \
   -o -name gradle.properties -print | sort)
 
@@ -116,24 +110,16 @@ done < <(find . \( -name build -o -name .gradle -o -name .git -o -path ./.github
 if [ -d .github ]; then
   while IFS= read -r file; do
     [ -n "$file" ] || continue
-    if hits="$(grep -niE 'dependency-verification|org\.gradle\.dependency\.verification' "$file")"; then
-      fail workflow-flag "$file:$(head -n1 <<<"$hits")"
-    fi
-    if hits="$(grep -nE 'write-verification-metadata' "$file")"; then
-      fail no-ci-rewrite "$file:$(head -n1 <<<"$hits")"
-    fi
+    scan_file workflow-flag -niE 'dependency-verification|org\.gradle\.dependency\.verification' "$file"
+    scan_file no-ci-rewrite -nE 'write-verification-metadata' "$file"
     # The short forms: -F is --dependency-verification and -M is --write-verification-metadata. Matched with their
     # only valid values (any case, quoted or not, joined with = or a space; -M also takes a comma list such as
     # sha256,pgp), so grep -F and curl -F don't trip them.
-    if hits="$(grep -niE "(^|[[:space:]'\"=])-F[[:space:]=]*['\"]?(off|lenient|strict)" "$file")"; then
-      fail workflow-flag "$file:$(head -n1 <<<"$hits") (-F is --dependency-verification)"
-    fi
-    if hits="$(grep -niE "(^|[[:space:]'\"=])-M[[:space:]=]*['\"]?(md5|sha1|sha256|sha512|pgp)" "$file")"; then
-      fail no-ci-rewrite "$file:$(head -n1 <<<"$hits") (-M is --write-verification-metadata)"
-    fi
-    if hits="$(grep -nE 'fixtures/verification' "$file")"; then
-      fail fixture-reference "$file:$(head -n1 <<<"$hits")"
-    fi
+    scan_file workflow-flag -niE "(^|[[:space:]'\"=])-F[[:space:]=]*['\"]?(off|lenient|strict)" "$file" \
+      ' (-F is --dependency-verification)'
+    scan_file no-ci-rewrite -niE "(^|[[:space:]'\"=])-M[[:space:]=]*['\"]?(md5|sha1|sha256|sha512|pgp)" "$file" \
+      ' (-M is --write-verification-metadata)'
+    scan_file fixture-reference -nE 'fixtures/verification' "$file"
   done < <(find .github -type f \
     ! -path '.github/scripts/fixtures/verification/*' ! -path .github/scripts/verification-guard.sh \
     ! -path .github/scripts/verification-guard.test.sh | sort)
