@@ -68,6 +68,42 @@ expect workflow-rewrites-baseline 1 no-ci-rewrite
 expect workflow-rewrites-baseline-short 1 no-ci-rewrite
 expect script-rewrites-baseline 1 no-ci-rewrite
 
+# Signature checking must be explicitly off, and no key may be trusted: with signatures on, a self-trusted key
+# would stand in for the checksums.
+expect verify-signatures-true 1 verify-signatures
+expect verify-signatures-missing 1 verify-signatures
+expect trusted-key 1 trusted-keys
+expect trusted-keys-self-closed 1 trusted-keys
+
+# XML the guard's text matching can't be sure to read as Gradle does: entities that expand to a <trust>, comments
+# and CDATA that hide or fake an element.
+expect doctype-entity 1 xml-construct
+expect doctype-plain 1 xml-construct
+expect comment 1 xml-construct
+expect cdata 1 xml-construct
+
+# Exactly one <verify-metadata>, spelled exactly, with the value true.
+expect verify-metadata-space-false 1 verify-metadata
+expect verify-metadata-attribute 1 verify-metadata
+expect verify-metadata-prefixed 1 verify-metadata
+expect verify-metadata-true-and-false 1 verify-metadata
+expect verify-metadata-uppercase 1 verify-metadata
+
+# Flag spellings: quoted, any case, with = , and the baseline-rewrite values (-M sha1, pgp, sha256,pgp).
+expect workflow-flag-quoted 1 workflow-flag
+expect workflow-flag-uppercase 1 workflow-flag
+expect workflow-flag-lenient-equals 1 workflow-flag
+expect workflow-flag-long-uppercase 1 workflow-flag
+expect workflow-flag-sha1 1 no-ci-rewrite
+expect workflow-flag-pgp 1 no-ci-rewrite
+expect workflow-flag-sha256-pgp 1 no-ci-rewrite
+
+# Only the guard, its test and its own fixtures are exempt from the .github/ scan, by exact path. A same-named
+# script elsewhere, another fixtures directory, or a workflow that runs something out of the fixtures is not.
+expect script-named-like-guard 1 no-ci-rewrite
+expect fixtures-dir-hides-script 1 no-ci-rewrite
+expect workflow-runs-fixture-script 1 fixture-reference
+
 # No baseline file is a failure, not a pass.
 expect missing-baseline 1 baseline-missing
 

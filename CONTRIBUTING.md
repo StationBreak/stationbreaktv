@@ -110,7 +110,9 @@ Gradle checks every file it downloads (dependencies, plugins and the `build-logi
 `gradle/verification-metadata.xml`. After adding or updating a dependency or plugin, rebuild the file. Renovate's
 pull requests fail CI until someone does this; the owner asks an agent session on their development machine to.
 
-Rebuild from a fresh Gradle user home, so nothing already cached is skipped, with a JDK 17 and the Android SDK:
+Rebuild from a fresh Gradle user home, so nothing already cached is skipped, with a JDK 17 and the Android SDK. The
+rebuild runs plugins and tools at versions that have no checksum yet, so run it with no credentials in the
+environment (no cloud or registry tokens, no SSH agent):
 
 ```bash
 GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 \
