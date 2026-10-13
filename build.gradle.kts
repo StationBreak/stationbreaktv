@@ -5,8 +5,11 @@ plugins {
     // in build-logic apply them.
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
-    // Not applied to any module (AGP 9 has Kotlin built in); declared here to pin the Kotlin Gradle plugin version.
-    alias(libs.plugins.kotlin.android) apply false
+    // AGP 9's built-in Kotlin uses the Kotlin Gradle plugin on this classpath, so it and the KMP and JVM modules
+    // share the catalog's Kotlin version.
+    alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.licensee) apply false
     // The root's own build scripts; each module's are formatted by the `stationbreak.quality` plugin.

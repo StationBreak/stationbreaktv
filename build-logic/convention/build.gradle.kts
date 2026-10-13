@@ -50,5 +50,17 @@ gradlePlugin {
             id = "stationbreak.android-lib"
             implementationClass = "tv.stationbreak.buildlogic.AndroidLibPlugin"
         }
+        register("compose") {
+            id = "stationbreak.compose"
+            implementationClass = "tv.stationbreak.buildlogic.ComposePlugin"
+        }
+        register("kmpLib") {
+            id = "stationbreak.kmp-lib"
+            implementationClass = "tv.stationbreak.buildlogic.KmpLibPlugin"
+        }
+        register("jvmLib") {
+            id = "stationbreak.jvm-lib"
+            implementationClass = "tv.stationbreak.buildlogic.JvmLibPlugin"
+        }
     }
 }
