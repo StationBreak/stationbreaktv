@@ -6,6 +6,8 @@ agp = "9.4.1"
 # detekt 2.0.0-alpha.6 is the only release built for Kotlin 2.4; move to 2.0 stable when it ships.
 detekt = "2.0.0-alpha.6"
 spotless = "8.10.4"
+# Pinned so formatting only changes when this line does, not with Spotless's bundled default (#161).
+ktlint = "1.8.0"
 licensee = "1.14.1"
 desugarJdkLibs = "2.1.5"
 junit = "4.13.2"
