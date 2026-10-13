@@ -19,6 +19,17 @@ dependencies {
     compileOnly(libs.compose.gradlePlugin)
     compileOnly(libs.detekt.gradlePlugin)
     compileOnly(libs.spotless.gradlePlugin)
+
+    // kotlin.test on JUnit 5 (the kotlin-dsl plugin's embedded Kotlin version), and TestKit for the
+    // architecture check's fixture builds.
+    testImplementation(kotlin("test"))
+    testImplementation(gradleTestKit())
+    // Gradle 9 no longer supplies the JUnit Platform launcher; the junit-bom from kotlin-test-junit5 versions it.
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 spotless {
