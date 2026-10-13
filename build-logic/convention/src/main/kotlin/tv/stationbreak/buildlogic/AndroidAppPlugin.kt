@@ -5,6 +5,7 @@ import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
+import tv.stationbreak.buildlogic.architecture.ArchitecturePlugin
 
 /** The Android application: SDK levels, the distribution flavors, desugaring, the JDK 17 toolchain and Lint. */
 class AndroidAppPlugin : Plugin<Project> {
@@ -13,6 +14,7 @@ class AndroidAppPlugin : Plugin<Project> {
             // AGP 9 compiles Kotlin itself; the Kotlin version is pinned in the root build.
             pluginManager.apply("com.android.application")
             pluginManager.apply(QualityPlugin::class.java)
+            pluginManager.apply(ArchitecturePlugin::class.java)
 
             extensions.configure<ApplicationExtension> {
                 configureAndroidCommon(this)

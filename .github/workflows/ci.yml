@@ -38,6 +38,12 @@ jobs:
           # Only main writes the cache; PRs read it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # MODULES.md's dependency rules and the tools:overrideLibrary guard, first and on their own: an edge that breaks
+      # the rules (a [JVM] module depending on an Android module, say) can also fail the full build earlier, with a
+      # Gradle variant-matching error that doesn't say which rule. These tasks resolve nothing, so they always run.
+      - name: Module dependency rules
+        run: ./gradlew checkArchitecture checkOverrideLibrary
+
       # ADR-0004: the shared core's tests run with no Android SDK, even though Android modules share the build.
       - name: KMP tests with no Android SDK
         run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:model:jvmTest :core:scheduler:jvmTest

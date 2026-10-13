@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mentions tools:overrideLibrary only in this comment, which must not count. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:label="Fixture"
+        tools:ignore="MissingTvBanner" />
+</manifest>

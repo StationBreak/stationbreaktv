@@ -7,6 +7,7 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.kotlin
 import org.gradle.kotlin.dsl.withType
+import tv.stationbreak.buildlogic.architecture.ArchitecturePlugin
 
 /** A plain Kotlin/JVM module (`[JVM]` in MODULES.md) on the JDK 17 toolchain, tested with kotlin.test on JUnit 5. */
 class JvmLibPlugin : Plugin<Project> {
@@ -14,6 +15,7 @@ class JvmLibPlugin : Plugin<Project> {
         with(target) {
             pluginManager.apply("org.jetbrains.kotlin.jvm")
             pluginManager.apply(QualityPlugin::class.java)
+            pluginManager.apply(ArchitecturePlugin::class.java)
 
             configureKotlinToolchain()
 

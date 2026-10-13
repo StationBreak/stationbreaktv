@@ -19,6 +19,21 @@ dependencies {
     compileOnly(libs.compose.gradlePlugin)
     compileOnly(libs.detekt.gradlePlugin)
     compileOnly(libs.spotless.gradlePlugin)
+
+    // kotlin.test on JUnit 5 (the kotlin-dsl plugin's embedded Kotlin version), and TestKit for the
+    // architecture check's fixture builds.
+    testImplementation(kotlin("test"))
+    testImplementation(gradleTestKit())
+    // Gradle 9 no longer supplies the JUnit Platform launcher; the junit-bom from kotlin-test-junit5 versions it.
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
+    // TestKit fixture projects for the architecture check.
+    val fixtures = layout.projectDirectory.dir("src/test/fixtures")
+    inputs.dir(fixtures).withPropertyName("fixtures")
+    systemProperty("fixtures", fixtures.asFile.path)
 }
 
 spotless {
@@ -29,8 +44,8 @@ spotless {
         licenseHeader(spdxHeader)
     }
     kotlinGradle {
-        // This project's build file and build-logic's settings file.
-        target("*.gradle.kts", "../*.gradle.kts")
+        // This project's build file, build-logic's settings file and the TestKit fixtures.
+        target("*.gradle.kts", "../*.gradle.kts", "src/test/fixtures/**/*.gradle.kts")
         ktlint(libs.versions.ktlint.get())
         licenseHeader(spdxHeader, "^(?!//).*$")
     }
@@ -38,6 +53,10 @@ spotless {
 
 gradlePlugin {
     plugins {
+        register("architecture") {
+            id = "stationbreak.architecture"
+            implementationClass = "tv.stationbreak.buildlogic.architecture.ArchitecturePlugin"
+        }
         register("quality") {
             id = "stationbreak.quality"
             implementationClass = "tv.stationbreak.buildlogic.QualityPlugin"
