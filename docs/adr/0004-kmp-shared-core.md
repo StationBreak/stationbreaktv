@@ -27,8 +27,10 @@ platform, so `java.*` would still resolve. C alone doesn't enforce portability.
 5. **`core:testing` splits:** fixtures and golden vectors go in KMP `core:testing`. Port fakes go in
    `core:domain` `testFixtures`.
 6. **`core:domain` stays plain JVM** (it holds `javax.inject`). Revisit in Phase 5.
-7. **Tooling:** detekt per source set (`detektMetadataCommonMain`, `detektJvmMain`) and Kover configured in
-   the convention plugin. Verify Kover covers `commonMain`.
+7. **Tooling:** the `stationbreak.kmp-lib` convention plugin wires detekt into `check`: `detektMainJvm` and
+   `detektTestJvm` (type resolution over the jvm compilation), plus the source-set tasks
+   (`detektCommonMainSourceSet`, `detektJvmMainSourceSet`, `detektLinuxX64MainSourceSet` and their `Test`
+   counterparts). Kover is deferred: it isn't configured yet. When it is, verify it covers `commonMain`.
 
 ## Verification (scaffold acceptance)
 
