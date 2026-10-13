@@ -22,12 +22,17 @@ object ManifestRules {
     }
 
     // Namespace-aware, so any prefix bound to the tools namespace counts and comments don't. No DTDs or external
-    // entities: a manifest is never allowed to make the build read other files.
+    // entities: a manifest is never allowed to make the build read other files. Rejecting the DOCTYPE is enough on
+    // its own; the rest is defence in depth should a different parser ignore it.
     private fun parser() =
         DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
             setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+            setFeature("http://xml.org/sax/features/external-general-entities", false)
+            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+            setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+            isXIncludeAware = false
             isExpandEntityReferences = false
         }
 }

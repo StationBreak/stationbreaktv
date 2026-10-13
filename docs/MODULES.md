@@ -141,6 +141,7 @@ not listed in this file's module tree fails until it's added to both. Android mo
 - `feature:*` depends on `data:*` or on another `feature:*`,
 - `core:scheduler` depends on `core:engine`/`core:rules`,
 - `core:testing` is used outside a test source set,
+- `core:domain`'s `testFixtures` is used outside a test source set,
 - any manifest uses `tools:overrideLibrary`.
 
 ### Hilt in pure modules

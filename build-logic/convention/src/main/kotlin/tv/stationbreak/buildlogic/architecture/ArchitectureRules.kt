@@ -49,8 +49,8 @@ enum class Rule(
 ) {
     NO_ANDROID_IN_PURE_MODULES(
         "no-android-in-pure-modules",
-        "a [KMP] or [JVM] module may not depend on an androidx.*, com.android.* or com.google.android.* " +
-            "artifact, or on an Android module",
+        "a [KMP] or [JVM] module may not depend on an androidx.*, org.jetbrains.androidx.*, com.android.* or " +
+            "com.google.android.* artifact, on hilt-android, or on an Android module",
     ),
     FEATURE_ISOLATION("feature-isolation", "feature:* may not depend on data:* or on another feature:*"),
     SCHEDULER_INDEPENDENCE("scheduler-independence", "core:scheduler may not depend on core:engine or core:rules"),
@@ -60,7 +60,8 @@ enum class Rule(
     ),
     TESTFIXTURES_IN_TESTS_ONLY(
         "testfixtures-in-tests-only",
-        "core:domain's testFixtures may be used only in test configurations (not main, not testFixtures)",
+        "testFixtures (core:domain's port fakes) may be used only in test configurations " +
+            "(not main, not testFixtures)",
     ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
@@ -125,7 +126,10 @@ object ArchitectureRules {
             ":data:settings" to DATA_EDGES + ":core:rules",
         )
 
-    private val ANDROID_GROUPS = listOf("androidx", "com.android", "com.google.android")
+    private val ANDROID_GROUPS = listOf("androidx", "org.jetbrains.androidx", "com.android", "com.google.android")
+
+    // Android-only artifacts in groups that are otherwise plain JVM.
+    private val ANDROID_ARTIFACTS = setOf("com.google.dagger:hilt-android")
 
     // commonTest*, jvmTest*, linuxX64Test*, test*, androidTest* and their variant forms (testDebug…,
     // githubDebugAndroidTest…). testFixtures* is not a test configuration.
@@ -161,7 +165,9 @@ object ArchitectureRules {
     ): Rule? =
         when (val dependency = edge.dependency) {
             is Dependency.OnArtifact -> {
-                val android = ANDROID_GROUPS.any { dependency.group == it || dependency.group.startsWith("$it.") }
+                val android =
+                    ANDROID_GROUPS.any { dependency.group == it || dependency.group.startsWith("$it.") } ||
+                        dependency.key in ANDROID_ARTIFACTS
                 if (platform == Platform.PURE && android) Rule.NO_ANDROID_IN_PURE_MODULES else null
             }
 
@@ -206,7 +212,11 @@ object ArchitectureRules {
                 Rule.SCHEDULER_INDEPENDENCE
             }
 
-            isTest && dependency.testFixtures && target == CORE_DOMAIN -> {
+            dependency.testFixtures && !isTest -> {
+                Rule.TESTFIXTURES_IN_TESTS_ONLY
+            }
+
+            dependency.testFixtures && target == CORE_DOMAIN -> {
                 null
             }
 

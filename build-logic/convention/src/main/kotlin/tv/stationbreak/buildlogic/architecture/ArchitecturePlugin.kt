@@ -30,7 +30,13 @@ class ArchitecturePlugin : Plugin<Project> {
             tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkArchitecture) }
         }
 
-    // Direct declarations only: each configuration's own dependencies, not the ones it inherits.
+    /**
+     * Direct declarations only: each configuration's own dependencies, not the ones it inherits.
+     *
+     * Two known gaps, acceptable because this runs late (from the task's `provider {}`, after the build file):
+     * - `configurations.flatMap` realizes every configuration, including lazily registered ones.
+     * - Dependencies added later through `withDependencies` (at resolution time) aren't seen.
+     */
     private fun declaredEdges(configurations: ConfigurationContainer): List<DeclaredEdge> =
         configurations
             .flatMap { configuration ->
