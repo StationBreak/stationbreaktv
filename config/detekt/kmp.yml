@@ -1,0 +1,11 @@
+# detekt settings for [KMP] modules, on top of detekt's defaults (buildUponDefaultConfig).
+style:
+  ForbiddenImport:
+    active: true
+    # Backstop for the linuxX64 canary, which rejects java.* in commonMain at compile time (ADR-0004). Reduced to
+    # javax.inject once the canary is proven by a failing PR.
+    forbiddenImports:
+      - value: 'java.*'
+        reason: 'commonMain must stay portable (ADR-0004); use Kotlin common APIs.'
+      - value: 'javax.*'
+        reason: 'commonMain must stay portable (ADR-0004); javax.inject belongs in core:domain or data:*.'
