@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Canary (never merged): tools:overrideLibrary must fail the build (R-PLAT-1). -->
+    <uses-sdk tools:overrideLibrary="androidx.core" />
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
