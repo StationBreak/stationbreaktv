@@ -40,7 +40,7 @@ jobs:
 
       # ADR-0004: the shared core's tests run with no Android SDK, even though Android modules share the build.
       - name: KMP tests with no Android SDK
-        run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:scheduler:jvmTest
+        run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:model:jvmTest :core:scheduler:jvmTest
 
       - name: Check and assemble
         run: >-
@@ -169,6 +169,11 @@ jobs:
         run: |
           assemble="assembleGithubDebug assembleGithubDebugAndroidTest"
           connected="connectedGithubDebugAndroidTest"
+          # Only the module roots that exist yet (feature/ comes with the first feature module).
+          roots=()
+          for root in core data feature; do
+            if [ -d "$root" ]; then roots+=("$root"); fi
+          done
           while IFS= read -r build_file; do
             dir="$(dirname "$build_file")"
             if [ -d "$dir/src/androidTest" ]; then
@@ -176,18 +181,18 @@ jobs:
               assemble+=" $project:assembleDebugAndroidTest"
               connected+=" $project:connectedDebugAndroidTest"
             fi
-          done < <(grep -rl --include=build.gradle.kts 'id("stationbreak.android-lib")' core data feature 2>/dev/null)
+          done < <(grep -rl --include=build.gradle.kts 'id("stationbreak.android-lib")' "${roots[@]}")
           echo "assemble=$assemble" >> "$GITHUB_OUTPUT"
           echo "connected=$connected" >> "$GITHUB_OUTPUT"
-          echo "connected: $connected"
 
       # Built before the emulator boots, so a compile error fails here rather than inside the emulator step.
       - name: Build the app and test APKs
         env:
           ASSEMBLE_TASKS: ${{ steps.instrumented.outputs.assemble }}
+        # Unquoted on purpose, as in the emulator step: a space-separated task list, and task names have no spaces.
         run: |
-          read -ra tasks <<<"$ASSEMBLE_TASKS"
-          ./gradlew "${tasks[@]}"
+          # shellcheck disable=SC2086
+          ./gradlew $ASSEMBLE_TASKS
 
       # Cold boot every run: a cached AVD snapshot hung on "device offline" in 3 of 8 runs; cold boot in 0 of 8.
       # A boot timeout or any failed test fails this step and the job.

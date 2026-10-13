@@ -85,12 +85,16 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 | ↳ `lint` | Android Lint. Issues in the Security category are errors | Fix the reported issue |
 | ↳ `test` | JVM unit tests | Fix the code or the test |
 | ↳ `allTests` | Each Kotlin Multiplatform module's `commonTest`, on the JVM and on Linux (`linuxX64`), whose compiler rejects `java.*` in `commonMain` | Fix the code or the test. For an unresolved `java.*` reference in `commonMain`, use a Kotlin common API instead |
-| ↳ KMP tests with no Android SDK | `:core:scheduler:jvmTest` with no Android SDK in the environment ([ADR-0004](docs/adr/0004-kmp-shared-core.md)) | Keep Android dependencies out of the `[KMP]` modules ([MODULES.md](docs/MODULES.md)) |
+| ↳ KMP tests with no Android SDK | `:core:model:jvmTest` and `:core:scheduler:jvmTest` with no Android SDK in the environment ([ADR-0004](docs/adr/0004-kmp-shared-core.md)) | Keep Android dependencies out of the `[KMP]` modules ([MODULES.md](docs/MODULES.md)) |
 | ↳ `licensee` | Every dependency's license is on the allowlist of GPL-compatible licenses, and can be identified | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
 | `emulator` | Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
 | `dco` | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
+
+- The build needs JDK 17. Gradle doesn't download one for you, so with only another JDK installed the build fails
+  with "Cannot find a Java installation on your machine matching this tasks requirements: {languageVersion=17 …}".
+- The first build also downloads the Kotlin/Native toolchain (for the `linuxX64` target), so it takes longer.
 
 ```bash
 ./gradlew check
