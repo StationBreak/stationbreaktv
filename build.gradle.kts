@@ -34,3 +34,8 @@ allprojects {
         }
     }
 }
+
+tasks.named("check") {
+    // build-logic is an included build, so its checks (Spotless now, its tests later) don't run otherwise.
+    dependsOn(gradle.includedBuild("build-logic").task(":convention:check"))
+}
