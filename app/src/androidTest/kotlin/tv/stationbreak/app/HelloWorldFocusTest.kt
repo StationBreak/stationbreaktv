@@ -23,24 +23,19 @@ class HelloWorldFocusTest {
 
     @Test
     fun firstItemHasFocusAtLaunch() {
-        compose.onNodeWithTag(FIRST).assertIsFocused()
+        compose.onNodeWithTag(HELLO_WORLD_FIRST_TAG).assertIsFocused()
     }
 
     @Test
     fun dpadRightMovesFocusToTheSecondItem() {
         pressDpad(Key.DirectionRight)
-        compose.onNodeWithTag(SECOND).assertIsFocused()
+        compose.onNodeWithTag(HELLO_WORLD_SECOND_TAG).assertIsFocused()
     }
 
     @Test
     fun dpadLeftMovesFocusBackToTheFirstItem() {
         pressDpad(Key.DirectionRight)
         pressDpad(Key.DirectionLeft)
-        compose.onNodeWithTag(FIRST).assertIsFocused()
-    }
-
-    private companion object {
-        const val FIRST = HELLO_WORLD_FIRST_TAG
-        const val SECOND = HELLO_WORLD_SECOND_TAG
+        compose.onNodeWithTag(HELLO_WORLD_FIRST_TAG).assertIsFocused()
     }
 }

@@ -17,6 +17,10 @@ Turn your Jellyfin library into always-on, flip-through broadcast channels on Fi
 | [Assumptions & questions](docs/ASSUMPTIONS.md) | What's been assumed, decided, and still open |
 | [ADRs](docs/adr/) | Architecture decision records |
 
+## Assets
+
+Placeholder banner and launcher icons are rendered from Noto Sans Bold (SIL OFL 1.1); no font file is shipped.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions require a DCO sign-off (`git commit -s`). Everyone taking
