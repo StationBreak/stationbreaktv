@@ -484,7 +484,8 @@ jobs:
             --redact --verbose --no-banner --exit-code 1
 
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
-  # introduces. The packages come from gradle/verification-metadata.xml, the repo's only lockfile.
+  # introduces. The packages come from gradle/verification-metadata.xml. The verification guard's test fixtures
+  # (.github/scripts/fixtures/) are lockfiles too, so they're scanned as well.
   osv-scanner:
     if: github.event_name == 'pull_request'
     # The called workflow's job declares all three, and a caller must grant at least what it declares or the run
