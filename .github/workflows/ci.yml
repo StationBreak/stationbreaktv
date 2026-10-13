@@ -38,6 +38,23 @@ jobs:
           # Only main writes the cache; PRs read it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # Kotlin/Native's compiler bundle and toolchain (LLVM, sysroot) for the linuxX64 canary: about 30 s to fetch and
+      # unpack. Keyed on the Kotlin version alone, so PRs that change build files still reuse it (the Gradle cache's
+      # key changes with them). As with the Gradle cache, only main writes it.
+      - name: Kotlin version
+        id: kotlin
+        run: |
+          version="$(sed -n 's/^kotlin = "\(.*\)"$/\1/p' gradle/libs.versions.toml)"
+          test -n "$version" || { echo "::error::no kotlin version in gradle/libs.versions.toml"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Kotlin/Native
+        id: konan
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
+
       # MODULES.md's dependency rules and the tools:overrideLibrary guard, first and on their own: an edge that breaks
       # the rules (a [JVM] module depending on an Android module, say) can also fail the full build earlier, with a
       # Gradle variant-matching error that doesn't say which rule. These tasks resolve nothing, so they always run.
@@ -54,6 +71,13 @@ jobs:
           assembleAmazonDebug assembleAmazonRelease
           assembleGithubDebug assembleGithubRelease
           --continue
+
+      - name: Save Kotlin/Native
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.konan.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan
+          key: ${{ steps.konan.outputs.cache-primary-key }}
 
       - name: Name the debug APK
         id: apk
