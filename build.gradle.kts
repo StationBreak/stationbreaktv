@@ -20,14 +20,14 @@ allprojects {
     configure<SpotlessExtension> {
         kotlin {
             target("src/**/*.kt")
-            ktlint()
+            ktlint(libs.versions.ktlint.get())
             // The default delimiter puts the header above `package`, `import` or `@file`.
             licenseHeader(spdxHeader)
         }
         kotlinGradle {
             // Each project's own build scripts: the root's settings and build files, and app/build.gradle.kts.
             target("*.gradle.kts")
-            ktlint()
+            ktlint(libs.versions.ktlint.get())
             // The header goes above the first line that isn't a `//` comment (`plugins {`, `import`,
             // `pluginManagement {`, or the blank line after an existing header).
             licenseHeader(spdxHeader, "^(?!//).*$")
