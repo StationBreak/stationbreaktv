@@ -14,9 +14,16 @@ junit = "4.13.2"
 androidxTestCore = "1.7.0"
 androidxTestRunner = "1.7.0"
 androidxTestExtJunit = "1.3.0"
+# Compose BOM 2026.09.00 = Compose 1.12.1 (checked 2026-10-13).
+composeBom = "2026.09.00"
+# tv-material 1.1.0 stable (2026-05-06); minSdk 23, so fine on API 25.
+tvMaterial = "1.1.0"
+activityCompose = "1.13.0"
 
 minSdk = "25"
-compileSdk = "36"
+# Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
+# (owner, 2026-10-12/13).
+compileSdk = "37"
 # targetSdk = the current Google Play target API level requirement for Android TV apps (Amazon follows Play):
 # "Android TV ... apps ... must target Android 14 (API level 34) or higher".
 # Source: https://support.google.com/googleplay/android-developer/answer/11926878 (checked 2026-10-11)
@@ -28,10 +35,26 @@ junit = { module = "junit:junit", version.ref = "junit" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExtJunit" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "tvMaterial" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+
+# Gradle plugins, as libraries: build-logic compiles its convention plugins against these.
+android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+compose-gradlePlugin = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
+detekt-gradlePlugin = { module = "dev.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+spotless-gradlePlugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 detekt = { id = "dev.detekt", version.ref = "detekt" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 licensee = { id = "app.cash.licensee", version.ref = "licensee" }
