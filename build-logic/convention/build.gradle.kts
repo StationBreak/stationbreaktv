@@ -30,6 +30,10 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // TestKit fixture projects for the architecture check.
+    val fixtures = layout.projectDirectory.dir("src/test/fixtures")
+    inputs.dir(fixtures).withPropertyName("fixtures")
+    systemProperty("fixtures", fixtures.asFile.path)
 }
 
 spotless {
@@ -40,8 +44,8 @@ spotless {
         licenseHeader(spdxHeader)
     }
     kotlinGradle {
-        // This project's build file and build-logic's settings file.
-        target("*.gradle.kts", "../*.gradle.kts")
+        // This project's build file, build-logic's settings file and the TestKit fixtures.
+        target("*.gradle.kts", "../*.gradle.kts", "src/test/fixtures/**/*.gradle.kts")
         ktlint(libs.versions.ktlint.get())
         licenseHeader(spdxHeader, "^(?!//).*$")
     }
