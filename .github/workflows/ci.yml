@@ -38,6 +38,10 @@ jobs:
           # Only main writes the cache; PRs read it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # Spike (F0.2 task 1.4): the KMP module's JVM tests with no Android SDK in the environment.
+      - name: KMP jvmTest with no Android SDK (spike)
+        run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:scheduler:jvmTest --stacktrace
+
       - name: Check and assemble
         run: >-
           ./gradlew check

@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 rootProject.name = "stationbreaktv"
 
 include(":app")
+include(":core:scheduler")
