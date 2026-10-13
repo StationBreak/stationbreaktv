@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
 pluginManagement {
+    // The same repositories, in the same order, as the root build's. A plugin marker can differ between Maven
+    // Central and the Plugin Portal (Spotless's does), and the dependency verification file holds one checksum
+    // per artifact (ADR-0013): both builds must resolve it from the same place.
     repositories {
+        google()
+        mavenCentral()
         gradlePluginPortal()
     }
 }
