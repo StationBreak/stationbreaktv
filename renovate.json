@@ -1,0 +1,47 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "automerge": false,
+  "osvVulnerabilityAlerts": true,
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "groupName": "AndroidX and Compose",
+      "matchPackageNames": [
+        "androidx.**"
+      ]
+    },
+    {
+      "groupName": "Kotlin and KSP",
+      "matchPackageNames": [
+        "org.jetbrains.kotlin**",
+        "com.google.devtools.ksp**"
+      ]
+    },
+    {
+      "groupName": "Android Gradle Plugin",
+      "matchPackageNames": [
+        "com.android.tools.build**",
+        "com.android.application"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "CLI versions downloaded in ci.yml (actionlint, gitleaks). Renovate bumps the version only; the SHA-256 pinned beside it must be updated by hand from the release checksums, and CI fails until it is.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/ci\\.yml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION: (?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ]
+}

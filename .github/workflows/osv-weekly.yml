@@ -1,0 +1,85 @@
+name: OSV weekly scan
+
+# Scans main for known vulnerabilities once a week and opens an issue per new finding. It never blocks anything;
+# the osv-scanner job in ci.yml is the PR gate.
+on:
+  schedule:
+    # Mondays 06:17 UTC (off the hour, when scheduled runs are less likely to be delayed).
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+# Two jobs, so the scanner's container (third-party, with the workspace mounted) never runs alongside the
+# issues: write token. The issues job checks out main afresh and only reads the scan's osv.json as data.
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      # So a stale file can't stand in for a scan that wrote nothing.
+      - name: Remove old results
+        run: rm -f osv.json
+
+      # Exits non-zero when it finds vulnerabilities, which is expected here: findings become issues in the next
+      # job. A scan that fails outright writes no osv.json, and the upload below fails the job on that.
+      - name: Scan main
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output-file=osv.json
+            --allow-no-lockfiles
+            -r
+            ./
+
+      - name: Upload results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: osv-results
+          path: osv.json
+          retention-days: 7
+          if-no-files-found: error
+
+  issues:
+    needs: scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # To list open issues and open one per new finding.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      # Outside the workspace, so the results can't replace a file in the checkout.
+      - name: Download results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: osv-results
+          path: ${{ runner.temp }}/osv
+
+      - name: Test the issue opener
+        run: bash .github/scripts/osv-issues.test.sh
+
+      - name: Open issues for new findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash .github/scripts/osv-issues.sh "$RUNNER_TEMP/osv/osv.json"

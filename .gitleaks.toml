@@ -1,0 +1,12 @@
+# gitleaks configuration, read by the gitleaks job in .github/workflows/ci.yml (from the PR's base commit, so a PR
+# can't loosen its own scan).
+title = "StationBreak gitleaks config"
+
+[extend]
+useDefault = true
+
+# debug.keystore is the public, throwaway debug signing key (ADR-0011), committed on purpose. Allowlisted by its
+# exact, anchored path only; nothing else is exempt.
+[[allowlists]]
+description = "Public debug signing key (ADR-0011)"
+paths = ['''^debug\.keystore$''']

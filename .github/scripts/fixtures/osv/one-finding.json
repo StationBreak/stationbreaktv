@@ -1,0 +1,38 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/github/workspace/gradle/verification-metadata.xml",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "org.example:vulnerable-lib",
+            "version": "1.2.3",
+            "ecosystem": "Maven"
+          },
+          "vulnerabilities": [
+            {
+              "id": "GHSA-aaaa-bbbb-cccc",
+              "aliases": ["CVE-2026-0001"],
+              "summary": "Example deserialization flaw"
+            },
+            {
+              "id": "CVE-2026-0001",
+              "aliases": ["GHSA-aaaa-bbbb-cccc"],
+              "summary": "Example deserialization flaw"
+            }
+          ],
+          "groups": [
+            {
+              "ids": ["GHSA-aaaa-bbbb-cccc", "CVE-2026-0001"],
+              "aliases": ["CVE-2026-0001", "GHSA-aaaa-bbbb-cccc"],
+              "max_severity": "8.1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
