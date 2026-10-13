@@ -362,7 +362,8 @@ jobs:
             | bash .github/scripts/dco-check.sh
 
   # Fixture tests for the scripts the workflows run. dco-check.sh's tests also run in the dco job, just before the
-  # real check; osv-issues.sh's also run in osv-weekly.yml before it opens issues.
+  # real check; osv-issues.sh's also run in osv-weekly.yml before it opens issues. The verification guard runs here
+  # on the checkout itself.
   script-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -375,6 +376,14 @@ jobs:
 
       - name: Test the OSV issue opener
         run: bash .github/scripts/osv-issues.test.sh
+
+      # ADR-0013: fails if the dependency verification file or its settings are loosened, or a workflow turns
+      # verification off or rewrites the file. The tests run first, so a broken guard can't pass the real check.
+      - name: Test the dependency verification guard
+        run: bash .github/scripts/verification-guard.test.sh
+
+      - name: Dependency verification guard
+        run: bash .github/scripts/verification-guard.sh .
 
   # Static analysis of the workflows themselves: template injection, excessive permissions, unpinned actions and
   # the like. Fails on high-severity findings.
