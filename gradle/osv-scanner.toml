@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# OSV-Scanner findings that existed when gradle/verification-metadata.xml was added (F0.2 task 5.0). Each is a
+# OSV-Scanner reads this file because it sits next to the file it scans (it doesn't look in parent directories).
+# Findings that existed when gradle/verification-metadata.xml was added (F0.2 task 5.0). Each is a
 # dependency of the build tooling, not of the app: `./gradlew dependencies` on the runtime classpaths of app (both
 # flavors), core:ui, core:engine and data:jellyfin lists none of these packages, so none is in an APK. They are in
 # the verification file because Gradle downloads them to run the build. One entry per finding, each with a reason
-# and a review date, never a blanket ignore. At the review date the entry is re-checked, and removed if the tool
-# has moved on.
+# and a review date, never a blanket ignore. An ignore is by advisory id, not by package: OSV-Scanner can't scope
+# an IgnoredVulns entry to a package or version, so the same advisory in a runtime dependency added later would be
+# ignored too. At the review date, re-run `./gradlew dependencies` on the runtime classpaths and confirm none of
+# these packages is there, and remove the entry if the tool has moved on.
 
 [[IgnoredVulns]]
 id = "GHSA-jhq6-gfmj-v8fx"
