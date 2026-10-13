@@ -38,6 +38,10 @@ jobs:
           # Only main writes the cache; PRs read it.
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # ADR-0004: the shared core's tests run with no Android SDK, even though Android modules share the build.
+      - name: KMP tests with no Android SDK
+        run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:scheduler:jvmTest
+
       - name: Check and assemble
         run: >-
           ./gradlew check
@@ -158,9 +162,32 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # The app's github debug tests, plus the debug tests of every Android library module that has androidTest
+      # sources (none yet; core:ui is picked up when it gets some).
+      - name: List instrumented test tasks
+        id: instrumented
+        run: |
+          assemble="assembleGithubDebug assembleGithubDebugAndroidTest"
+          connected="connectedGithubDebugAndroidTest"
+          while IFS= read -r build_file; do
+            dir="$(dirname "$build_file")"
+            if [ -d "$dir/src/androidTest" ]; then
+              project=":${dir//\//:}"
+              assemble+=" $project:assembleDebugAndroidTest"
+              connected+=" $project:connectedDebugAndroidTest"
+            fi
+          done < <(grep -rl --include=build.gradle.kts 'id("stationbreak.android-lib")' core data feature 2>/dev/null)
+          echo "assemble=$assemble" >> "$GITHUB_OUTPUT"
+          echo "connected=$connected" >> "$GITHUB_OUTPUT"
+          echo "connected: $connected"
+
       # Built before the emulator boots, so a compile error fails here rather than inside the emulator step.
       - name: Build the app and test APKs
-        run: ./gradlew assembleGithubDebug assembleGithubDebugAndroidTest
+        env:
+          ASSEMBLE_TASKS: ${{ steps.instrumented.outputs.assemble }}
+        run: |
+          read -ra tasks <<<"$ASSEMBLE_TASKS"
+          ./gradlew "${tasks[@]}"
 
       # Cold boot every run: a cached AVD snapshot hung on "device offline" in 3 of 8 runs; cold boot in 0 of 8.
       # A boot timeout or any failed test fails this step and the job.
@@ -175,14 +202,16 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # On failure, save logcat before the action shuts the emulator down.
-          script: ./gradlew connectedGithubDebugAndroidTest || { adb logcat -d > app/build/logcat.txt; exit 1; }
+          script: ./gradlew $CONNECTED_TASKS || { adb logcat -d > app/build/logcat.txt; exit 1; }
+        env:
+          CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 
       # Gradle's console output doesn't name the tests or show a failure's exception; the JUnit XML does.
       - name: Instrumented test results
         if: always() && steps.tests.outcome != 'skipped'
         run: |
           shopt -s globstar nullglob
-          results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
+          results=(**/build/outputs/androidTest-results/connected/**/TEST-*.xml)
           if [ "${#results[@]}" -eq 0 ]; then
             echo "No instrumented test results."
             exit 0
@@ -202,8 +231,8 @@ jobs:
         with:
           name: instrumented-test-reports
           path: |
-            app/build/reports/androidTests/
-            app/build/outputs/androidTest-results/
+            **/build/reports/androidTests/
+            **/build/outputs/androidTest-results/
             app/build/logcat.txt
           retention-days: 7
           if-no-files-found: ignore
