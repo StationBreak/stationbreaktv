@@ -3,32 +3,18 @@
 import app.cash.licensee.UnusedAction
 
 plugins {
-    // AGP 9 compiles Kotlin itself; the Kotlin version is pinned in the root build.
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.detekt)
+    // SDK levels, flavors, desugaring, toolchain, Lint, Spotless and detekt: build-logic's AndroidAppPlugin.
+    id("stationbreak.android-app")
     alias(libs.plugins.licensee)
 }
 
 android {
     namespace = "tv.stationbreak.app"
-    compileSdk =
-        libs.versions.compileSdk
-            .get()
-            .toInt()
 
     defaultConfig {
         applicationId = "tv.stationbreak.app"
-        minSdk =
-            libs.versions.minSdk
-                .get()
-                .toInt()
-        targetSdk =
-            libs.versions.targetSdk
-                .get()
-                .toInt()
         versionCode = 1
         versionName = "0.0.1"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -53,26 +39,6 @@ android {
             isDebuggable = false
         }
     }
-
-    flavorDimensions += "distribution"
-    productFlavors {
-        create("amazon") { dimension = "distribution" }
-        create("github") { dimension = "distribution" }
-    }
-
-    compileOptions {
-        // java.time and friends on API 25 (MODULES.md: desugaring on from day one).
-        isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    lint {
-        abortOnError = true
-        checkReleaseBuilds = true
-        // Raises every Security-category issue to fatal (the DSL's `fatal` takes issue IDs, not categories).
-        lintConfig = file("lint.xml")
-    }
 }
 
 // Every runtime dependency must carry a GPL-3.0-compatible license (ADR-0003). A license Licensee can't identify
@@ -90,27 +56,7 @@ licensee {
     unusedAction(UnusedAction.IGNORE)
 }
 
-detekt {
-    buildUponDefaultConfig = true
-}
-
-tasks.named("check") {
-    // detekt 2's plain `detekt` task skips rules that need type resolution (LongParameterList among them);
-    // detektMain and detektTest run every rule.
-    dependsOn("detektMain", "detektTest")
-    // `lint` checks only the default variant (amazonDebug); lint the github flavor too.
-    dependsOn("lintAmazonDebug", "lintGithubDebug")
-    // The plugins hook these into `check` themselves; listing them keeps the gates if a plugin update stops doing so.
-    dependsOn("spotlessCheck", "licensee")
-}
-
-kotlin {
-    jvmToolchain(17)
-}
-
 dependencies {
-    coreLibraryDesugaring(libs.desugar.jdk.libs)
-
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.test.core)
