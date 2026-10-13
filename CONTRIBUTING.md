@@ -90,6 +90,8 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 | ↳ `checkOverrideLibrary` | No `AndroidManifest.xml` uses `tools:overrideLibrary`, so a library that needs a newer Android version than API 25 can't slip in | Use a version of the library that supports API 25 (minSdk 25 or lower), or a different library |
 | ↳ `licensee` | Every dependency's license is on the allowlist of GPL-compatible licenses, and can be identified | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
 | `emulator` | Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
+| ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
+| `script-tests` (verification guard) | The verification file has no `<trust>` other than for source and javadoc jars, no `<also-trust>` or `<ignored-keys>`, verification is never turned off, and no workflow rewrites the file | Remove the setting the guard names. Don't work around it |
 | `dco` | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
@@ -101,6 +103,33 @@ To run the Gradle checks locally (with an Android SDK installed):
 ```bash
 ./gradlew check
 ```
+
+## Dependency verification
+
+Gradle checks every file it downloads (dependencies, plugins and the `build-logic` build) against a SHA-256 in
+`gradle/verification-metadata.xml`. After adding or updating a dependency or plugin, rebuild the file. Renovate's
+pull requests fail CI until someone does this; the owner asks an agent session on their development machine to.
+
+Rebuild from a fresh Gradle user home, so nothing already cached is skipped, with a JDK 17 and the Android SDK:
+
+```bash
+GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 \
+  help buildEnvironment check lint detekt \
+  assembleAmazonDebug assembleAmazonRelease assembleGithubDebug assembleGithubRelease \
+  assembleGithubDebugAndroidTest linuxX64Test
+```
+
+Keep the `<configuration>` block as it is. Then run `bash .github/scripts/verification-guard.sh .`, which must pass.
+
+Reviewing the diff is the point: a checksum in the file is only as good as the one it was copied from. For each
+added or changed entry, compare the `sha256` with the `.sha256` file next to the artifact in the repository that
+published it. Google's repository lists one for every file
+(`https://dl.google.com/dl/android/maven2/<group path>/<name>/<version>/<file>.sha256`); Maven Central lists
+one for many, and for the rest only a `.sha1`, which can confirm a mismatch but is weak evidence of a match.
+A new entry for a dependency nobody added, or any change to an unchanged version, is a reason to stop and ask.
+
+Never add `<trust>`, `<also-trust>` or `<ignored-keys>`, and never make a workflow regenerate the file. The guard
+fails both.
 
 ## Debug signing key
 
