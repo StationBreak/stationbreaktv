@@ -3,3 +3,7 @@
 plugins {
     id("stationbreak.jvm-lib")
 }
+
+dependencies {
+    testImplementation(libs.gson.canary)
+}
