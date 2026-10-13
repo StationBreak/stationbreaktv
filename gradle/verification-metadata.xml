@@ -5,6 +5,7 @@
       <verify-signatures>false</verify-signatures>
       <trusted-artifacts>
          <trust file=".*-(sources|javadoc)[.]jar" regex="true"/>
+         <trust group="^.*$" regex="true"/>
       </trusted-artifacts>
    </configuration>
    <components>
