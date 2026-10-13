@@ -20,4 +20,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "stationbreaktv"
 
+// The day-one set (MODULES.md). Every other module is created by the first story that needs it.
 include(":app")
+include(":core:model", ":core:rules", ":core:engine", ":core:scheduler", ":core:testing") // [KMP]
+include(":core:domain", ":data:jellyfin") // [JVM]
+include(":core:ui") // [Android]
