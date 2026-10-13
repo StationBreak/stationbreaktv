@@ -2,10 +2,9 @@
 style:
   ForbiddenImport:
     active: true
-    # Backstop for the linuxX64 canary, which rejects java.* in commonMain at compile time (ADR-0004). Reduced to
-    # javax.inject once the canary is proven by a failing PR.
+    # java.* in commonMain is rejected by the linuxX64 canary's compiler (proven by a failing PR in F0.2, so the
+    # java.*/javax.* backstop was reduced to this, per ADR-0004). javax.inject is JVM-only and would still compile
+    # for jvm, so it's caught here.
     forbiddenImports:
-      - value: 'java.*'
-        reason: 'commonMain must stay portable (ADR-0004); use Kotlin common APIs.'
-      - value: 'javax.*'
-        reason: 'commonMain must stay portable (ADR-0004); javax.inject belongs in core:domain or data:*.'
+      - value: 'javax.inject.*'
+        reason: 'Keep the shared core KMP-ready (MODULES.md, "Hilt in pure modules"); wire it with @Provides in app.'

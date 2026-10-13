@@ -29,7 +29,7 @@ class KmpLibPlugin : Plugin<Project> {
             }
 
             extensions.configure<DetektExtension> {
-                // The java.*/javax.* backstop until the linuxX64 canary is proven in CI.
+                // Forbids javax.inject (JVM-only); java.* is rejected by the linuxX64 canary's compiler.
                 config.from(repoRoot.file("config/detekt/kmp.yml"))
             }
 
