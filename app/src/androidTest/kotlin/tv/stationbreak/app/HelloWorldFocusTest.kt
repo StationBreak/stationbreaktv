@@ -40,8 +40,7 @@ class HelloWorldFocusTest {
     }
 
     private companion object {
-        // The screen's test tags (HelloWorldScreen.kt).
-        const val FIRST = "helloWorld:first"
-        const val SECOND = "helloWorld:second"
+        const val FIRST = HELLO_WORLD_FIRST_TAG
+        const val SECOND = HELLO_WORLD_SECOND_TAG
     }
 }

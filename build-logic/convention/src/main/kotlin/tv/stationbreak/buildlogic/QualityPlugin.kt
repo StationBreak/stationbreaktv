@@ -38,6 +38,7 @@ class QualityPlugin : Plugin<Project> {
 
             extensions.configure<DetektExtension> {
                 buildUponDefaultConfig.set(true)
+                config.from(repoRoot.file("config/detekt/detekt.yml"))
             }
 
             // Spotless hooks this into `check` itself; listing it keeps the gate if a plugin update stops doing so.
