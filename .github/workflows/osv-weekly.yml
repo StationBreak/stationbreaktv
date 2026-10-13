@@ -35,6 +35,7 @@ jobs:
 
       # Exits non-zero when it finds vulnerabilities, which is expected here: findings become issues in the next
       # job. A scan that fails outright writes no osv.json, and the upload below fails the job on that.
+      # That includes a missing or moved gradle/verification-metadata.xml (no --allow-no-lockfiles), which is intended.
       - name: Scan main
         uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         continue-on-error: true
@@ -42,7 +43,6 @@ jobs:
           scan-args: |-
             --format=json
             --output-file=osv.json
-            --allow-no-lockfiles
             -r
             ./
 

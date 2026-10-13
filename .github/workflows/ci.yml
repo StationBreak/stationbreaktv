@@ -484,7 +484,7 @@ jobs:
             --redact --verbose --no-banner --exit-code 1
 
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
-  # introduces. Until F0.2 adds gradle/verification-metadata.xml there is nothing for it to scan.
+  # introduces. The packages come from gradle/verification-metadata.xml, the repo's only lockfile.
   osv-scanner:
     if: github.event_name == 'pull_request'
     # The called workflow's job declares all three, and a caller must grant at least what it declares or the run
@@ -498,9 +498,8 @@ jobs:
     with:
       # SARIF upload needs GitHub Advanced Security.
       upload-sarif: false
-      # With no lockfiles the scanner errors, or (in this action) exits 0 without writing results, which is
-      # deprecated. This makes "nothing to scan" an explicit, empty result; vulnerabilities still fail the job.
+      # No --allow-no-lockfiles: a missing or moved verification file now fails the scan, which is intended,
+      # so the gate can't go quiet by scanning nothing.
       scan-args: |-
-        --allow-no-lockfiles
         -r
         ./
