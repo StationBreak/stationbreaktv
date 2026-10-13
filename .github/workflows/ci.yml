@@ -47,8 +47,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-build-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-build-${{ runner.os }}-
+          key: gradle-build-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-v1-${{ runner.os }}-
 
       # Kotlin/Native's compiler bundle and toolchain (LLVM, sysroot) for the linuxX64 canary: about 30 s to fetch and
       # unpack. Keyed on the Kotlin version alone, so PRs that change build files still reuse it (the Gradle cache's
@@ -65,7 +65,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
+          key: konan-v1-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
 
       # MODULES.md's dependency rules and the tools:overrideLibrary guard, first and on their own: an edge that breaks
       # the rules (a [JVM] module depending on an Android module, say) can also fail the full build earlier, with a
@@ -85,10 +85,13 @@ jobs:
           --continue
 
       # After the Gradle steps, on main, when the build files changed (a new key). The daemon is stopped first so it
-      # isn't writing to the cache while it's archived.
+      # isn't writing to the cache while it's archived. The size is logged so growth is visible; each new key's
+      # entry starts from the previous one. To reset the chain, bump the vN in the cache key prefixes.
       - name: Stop Gradle
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
-        run: ./gradlew --stop
+        run: |
+          ./gradlew --stop
+          du -sh ~/.gradle/caches ~/.gradle/wrapper || true
 
       - name: Save Gradle caches
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
@@ -215,8 +218,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-emulator-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-emulator-${{ runner.os }}-
+          key: gradle-emulator-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-emulator-v1-${{ runner.os }}-
 
       # The emulator needs about 7.4 GB free to create its userdata partition and exits at launch without it; some
       # runners have had only 7.0 GB. These preinstalled toolchains are unused here.
@@ -282,10 +285,13 @@ jobs:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 
       # After the Gradle steps, on main, when the build files changed (a new key). The daemon is stopped first so it
-      # isn't writing to the cache while it's archived.
+      # isn't writing to the cache while it's archived. The size is logged so growth is visible; each new key's
+      # entry starts from the previous one. To reset the chain, bump the vN in the cache key prefixes.
       - name: Stop Gradle
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
-        run: ./gradlew --stop
+        run: |
+          ./gradlew --stop
+          du -sh ~/.gradle/caches ~/.gradle/wrapper || true
 
       - name: Save Gradle caches
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
