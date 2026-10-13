@@ -48,11 +48,7 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: gradle-build-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          # The second key is main's entries from setup-gradle's basic provider (same paths), until main writes
-          # gradle-build-* ones; remove it after that.
-          restore-keys: |
-            gradle-build-${{ runner.os }}-
-            setup-java-${{ runner.os }}-x64-gradle-
+          restore-keys: gradle-build-${{ runner.os }}-
 
       # Kotlin/Native's compiler bundle and toolchain (LLVM, sysroot) for the linuxX64 canary: about 30 s to fetch and
       # unpack. Keyed on the Kotlin version alone, so PRs that change build files still reuse it (the Gradle cache's
@@ -220,11 +216,7 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: gradle-emulator-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          # The second key is main's entries from setup-gradle's basic provider (same paths), until main writes
-          # gradle-emulator-* ones; remove it after that.
-          restore-keys: |
-            gradle-emulator-${{ runner.os }}-
-            setup-java-${{ runner.os }}-x64-gradle-
+          restore-keys: gradle-emulator-${{ runner.os }}-
 
       # The emulator needs about 7.4 GB free to create its userdata partition and exits at launch without it; some
       # runners have had only 7.0 GB. These preinstalled toolchains are unused here.
