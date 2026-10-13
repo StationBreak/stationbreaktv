@@ -35,6 +35,28 @@ class ArchitectureCheckTest {
     }
 
     @Test
+    fun coreDomainTestFixturesInAMainConfigurationFailsTheBuild() {
+        val runner = runner("allowed-edges")
+        val engine = projectDir.resolve("core/engine/build.gradle.kts")
+        engine.writeText(
+            engine.readText().replace(
+                "testImplementation(testFixtures(project(\":core:domain\")))",
+                "implementation(testFixtures(project(\":core:domain\")))",
+            ),
+        )
+
+        val result = runner.buildAndFail()
+
+        assertEquals(TaskOutcome.FAILED, result.task(":core:engine:checkArchitecture")?.outcome, result.output)
+        assertTrue(
+            ":core:engine -> testFixtures(:core:domain) (implementation) breaks [testfixtures-in-tests-only]" in
+                result.output,
+            result.output,
+        )
+    }
+
+    // The fixture includes core:engine's tests using core:domain's testFixtures.
+    @Test
     fun onlyAllowedEdgesPass() {
         val result = runner("allowed-edges").build()
 

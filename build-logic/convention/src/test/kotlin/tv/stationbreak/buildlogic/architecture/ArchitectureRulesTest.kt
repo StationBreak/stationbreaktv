@@ -51,6 +51,27 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    fun pureModuleMayNotDependOnAJetBrainsAndroidxArtifact() {
+        assertEquals(
+            listOf(Rule.NO_ANDROID_IN_PURE_MODULES),
+            rulesBroken(":core:model", artifact("commonMainImplementation", "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel")),
+        )
+    }
+
+    @Test
+    fun pureModuleMayNotDependOnHiltAndroid() {
+        assertEquals(
+            listOf(Rule.NO_ANDROID_IN_PURE_MODULES),
+            rulesBroken(":data:jellyfin", artifact("implementation", "com.google.dagger:hilt-android")),
+        )
+    }
+
+    @Test
+    fun pureModuleMayStillUseNonAndroidDagger() {
+        assertEquals(emptyList(), rulesBroken(":data:jellyfin", artifact("implementation", "com.google.dagger:dagger")))
+    }
+
+    @Test
     fun androidArtifactRuleCoversTestConfigurationsToo() {
         assertEquals(
             listOf(Rule.NO_ANDROID_IN_PURE_MODULES),
@@ -182,6 +203,21 @@ class ArchitectureRulesTest {
         assertEquals(
             emptyList(),
             rulesBroken(":data:jellyfin", project("testImplementation", ":core:domain", testFixtures = true)),
+        )
+    }
+
+    @Test
+    fun coreDomainTestFixturesMayNotBeUsedOutsideTests() {
+        for (configuration in listOf("implementation", "api", "testFixturesImplementation")) {
+            assertEquals(
+                listOf(Rule.TESTFIXTURES_IN_TESTS_ONLY),
+                rulesBroken(":data:jellyfin", project(configuration, ":core:domain", testFixtures = true)),
+                configuration,
+            )
+        }
+        assertEquals(
+            listOf(Rule.TESTFIXTURES_IN_TESTS_ONLY),
+            rulesBroken(":app", project("implementation", ":core:domain", testFixtures = true)),
         )
     }
 

@@ -2,6 +2,7 @@
 
 plugins {
     `java-library`
+    `java-test-fixtures`
     id("stationbreak.architecture")
 }
 

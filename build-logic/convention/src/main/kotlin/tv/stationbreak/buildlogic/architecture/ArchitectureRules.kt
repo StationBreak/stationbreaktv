@@ -58,6 +58,10 @@ enum class Rule(
         "testing-in-tests-only",
         "core:testing may be used only in test configurations (not main, not testFixtures)",
     ),
+    TESTFIXTURES_IN_TESTS_ONLY(
+        "testfixtures-in-tests-only",
+        "core:domain's testFixtures may be used only in test configurations (not main, not testFixtures)",
+    ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
 }

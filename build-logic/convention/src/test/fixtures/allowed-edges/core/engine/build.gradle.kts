@@ -8,4 +8,5 @@ plugins {
 dependencies {
     implementation(project(":core:rules"))
     implementation(project(":core:model"))
+    testImplementation(testFixtures(project(":core:domain")))
 }
