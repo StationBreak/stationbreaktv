@@ -69,8 +69,11 @@ internal interface MediaServerModule {
         @Singleton
         fun deviceIds(store: SecretStore): DeviceIdProvider = StoredDeviceIdProvider(store)
 
-        /** Silent until S3.6.1 builds the redacting logger. */
+        /**
+         * Silent for now, but already behind the redactor (F0.4): whichever sink a later task plugs in sees only masked
+         * lines and error messages. The sink goes here, inside the decorator, never around it.
+         */
         @Provides
-        fun adapterLog(): AdapterLog = AdapterLog.NONE
+        fun adapterLog(): AdapterLog = AdapterLog.redacting(AdapterLog.NONE)
     }
 }
