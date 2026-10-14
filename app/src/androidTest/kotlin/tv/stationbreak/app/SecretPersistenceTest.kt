@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -40,6 +41,8 @@ class SecretPersistenceTest {
 
     @Inject lateinit var store: SecretStore
 
+    @Inject lateinit var sameStore: SecretStore
+
     @Inject lateinit var deviceIds: DeviceIdProvider
 
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -69,6 +72,15 @@ class SecretPersistenceTest {
     fun theGraphBindsTheKeystoreStore() {
         assertTrue("SecretStore is ${store::class.java.name}", store is KeystoreSecretStore)
     }
+
+    @Test
+    fun theStoreIsASingletonAndTheDeviceIdProviderUsesIt() =
+        runBlocking {
+            assertSame(store, sameStore)
+            // Saved through one injection, read through the provider: they share the store.
+            store.save(StoredDeviceIdProvider.KEY, SecretFixtures.FAKE_DEVICE_ID)
+            assertEquals(SecretFixtures.FAKE_DEVICE_ID, deviceIds.deviceId())
+        }
 
     @Test
     fun aSavedSessionIsRestoredByAStoreRebuiltFromDisk() =

@@ -55,6 +55,19 @@ class DeviceIdTest {
         }
 
     @Test
+    fun aFailedSaveAloneKeepsTheIdForTheProviderAndStoresNothing() =
+        runBlocking {
+            // The load succeeds and finds nothing, then the save fails.
+            store.failSave = true
+            val id = provider.deviceId()
+            assertEquals("generated-1", id)
+            assertEquals(id, provider.deviceId())
+            assertEquals(1, counter)
+            assertEquals(emptyList(), store.writtenKeys)
+            assertEquals(SecretStoreResult.Success(null), store.load(StoredDeviceIdProvider.KEY))
+        }
+
+    @Test
     fun aFailedLoadNeverOverwritesTheStoredId() =
         runBlocking {
             val stored = provider.deviceId()

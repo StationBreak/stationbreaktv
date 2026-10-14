@@ -86,13 +86,29 @@ class BackupRulesTest {
     }
 
     @Test
-    fun backupIsOffInTheMainManifestAndNoOtherSourceSetTurnsItOn() {
+    fun backupIsOffInTheMainManifestAndEverySourceSetIsAbsentOrExactlyFalse() {
         assertEquals("false", mainApplication.getAttributeNS(androidNamespace, "allowBackup"))
         applications().forEach { (path, apps) ->
             apps.forEach {
-                assertTrue("$path enables backup", it.getAttributeNS(androidNamespace, "allowBackup") != "true")
+                // Absent, or exactly "false": a placeholder such as ${x} or "TRUE" is not good enough.
+                val value = it.getAttributeNS(androidNamespace, "allowBackup")
+                val ok = !it.hasAttributeNS(androidNamespace, "allowBackup") || value == "false"
+                assertTrue("$path sets allowBackup to \"$value\"", ok)
             }
         }
+    }
+
+    @Test
+    fun noOtherSourceSetOverridesARuleFile() {
+        val overrides =
+            sources
+                .listFiles { file -> file.isDirectory && file.name != "main" }
+                .orEmpty()
+                .flatMap { sourceSet ->
+                    listOf("backup_rules.xml", "data_extraction_rules.xml").map { File(sourceSet, "res/xml/$it") }
+                }.filter { it.exists() }
+                .map { it.invariantSeparatorsPath }
+        assertEquals(emptyList<String>(), overrides)
     }
 
     @Test

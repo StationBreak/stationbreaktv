@@ -187,12 +187,47 @@ class NoPlaintextOnDiskTest {
     }
 
     @Test
+    fun theScannerAlsoCoversEveryOtherPlaceItWalks() {
+        val control = "dummy-control-0004"
+        val body = control.toByteArray()
+        val places =
+            listOf(
+                "shared_prefs" to File(context.dataDir, "shared_prefs"),
+                "databases" to File(context.dataDir, "databases"),
+                "device-protected files" to context.createDeviceProtectedStorageContext().filesDir,
+                "external files" to context.getExternalFilesDir(null),
+            )
+        for ((label, dir) in places) {
+            assertTrue("no $label dir to plant in", dir != null && (dir.isDirectory || dir.mkdirs()))
+            assertFound("$label content", File(dir, "control.xml"), body, control)
+        }
+        // An atomic write's leftovers, and a secret in a file *name* rather than its content.
+        assertFound("a .bak file", File(context.filesDir, "control.bak"), body, control)
+        assertFound("a file name", File(context.filesDir, "name-$control.tmp"), byteArrayOf(0), control)
+    }
+
+    private fun assertFound(
+        what: String,
+        file: File,
+        body: ByteArray,
+        control: String,
+    ) {
+        controlFiles += file
+        file.writeBytes(body)
+        val found = findings(mapOf("control" to control)).any { it.contains(file.name) }
+        file.delete()
+        assertTrue("the scanner missed $what", found)
+    }
+
+    @Test
     fun theDataDirectoryHoldsTheBlobsButNeitherTheTokenNorTheDeviceId() {
         saveEverything()
 
+        // "keystore" is KeystoreSecretStore's private directory name (data:settings keeps it private).
         val blobs = File(context.noBackupFilesDir, "keystore").listFiles().orEmpty()
         assertEquals("one blob per secret", 2, blobs.size)
-        assertTrue("the data dir was walked", allFiles().size >= blobs.size)
+        val scanned = allFiles().map { it.canonicalPath }.toSet()
+        blobs.forEach { assertTrue("the scan skipped ${it.name}", it.canonicalPath in scanned) }
         assertEquals(emptyList<String>(), findings(needles))
     }
 
