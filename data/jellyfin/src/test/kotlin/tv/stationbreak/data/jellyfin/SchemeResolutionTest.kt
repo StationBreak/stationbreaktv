@@ -78,7 +78,7 @@ class SchemeResolutionTest {
         timeouts: ProbeTimeouts = quick,
     ): JellyfinMediaServer {
         val bare = client.newBuilder().apply { interceptors().clear() }.build()
-        return JellyfinMediaServer(bare, timeouts, client.interceptors)
+        return testAdapter(bare, AdapterTuning(timeouts, client.interceptors))
     }
 
     private fun connect(

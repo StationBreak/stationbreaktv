@@ -201,6 +201,20 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    fun noModuleMayDeclareOkHttpsLoggingInterceptor() {
+        // R18: it would print URLs, headers and tokens. Debug builds included, so the configuration doesn't matter.
+        for (module in listOf(":data:jellyfin", ":app", ":core:domain", ":feature:player")) {
+            for (configuration in listOf("implementation", "debugImplementation", "testImplementation")) {
+                assertEquals(
+                    listOf(Rule.NO_HTTP_LOGGING),
+                    rulesBroken(module, artifact(configuration, "com.squareup.okhttp3:logging-interceptor")),
+                    "$module $configuration",
+                )
+            }
+        }
+    }
+
+    @Test
     fun dataJellyfinMayDeclareTheSdkAndOkHttp() {
         assertEquals(
             emptyList(),

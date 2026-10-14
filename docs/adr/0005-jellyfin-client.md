@@ -44,3 +44,11 @@ trust manager) rather than be fixed when the adapter is built, or the app would 
 The injected client gets a Hilt qualifier when the app wires it (F0.3 Unit 3), so the base client with system trust and
 the pinned one cannot be confused. The adapter drops the base client's interceptors, cookie jar and authenticators for
 credential-free calls (the probe) and keeps only its trust configuration.
+
+## Amendment (2026-10-14, F0.3 Unit 2): sign-in calls OkHttp directly
+
+Unit 2's calls (`AuthenticateByName`, `QuickConnect/*`, `Users/Me`, `Sessions/Logout`) use the injected OkHttp client
+with small hand-written DTOs, not the SDK, because the one-header, no-redirect, cleartext-gate and error-mapping rules
+need full control of the client. The SDK stays for Unit 3's item types, and `ErrorMapper` still reads its exception
+types. The ADR-0006 `NoClassDefFoundError: org.slf4j.LoggerFactory` proof moves to Unit 3, the first call made through
+the SDK; `slf4j-nop` is already in `app`.

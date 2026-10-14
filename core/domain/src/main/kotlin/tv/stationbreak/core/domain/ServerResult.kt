@@ -21,3 +21,9 @@ inline fun <T, R> ServerResult<T>.map(transform: (T) -> R): ServerResult<R> =
         is ServerResult.Success -> ServerResult.Success(transform(value))
         is ServerResult.Failure -> this
     }
+
+inline fun <T, R> ServerResult<T>.flatMap(transform: (T) -> ServerResult<R>): ServerResult<R> =
+    when (this) {
+        is ServerResult.Success -> transform(value)
+        is ServerResult.Failure -> this
+    }

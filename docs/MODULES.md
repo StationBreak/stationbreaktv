@@ -146,6 +146,8 @@ not listed in this file's module tree fails until it's added to both. Android mo
   `[KMP]` or `[JVM]` module other than `data:jellyfin` (ADR-0005: no SDK or OkHttp type may appear in a port
   signature; `PortSignatureTest` in `core:domain` is the second guard, over the compiled public API of `core:model` and
   `core:domain`),
+- any module declares `com.squareup.okhttp3:logging-interceptor`, in any configuration (F0.3 R18; a detekt
+  `ForbiddenImport` on `okhttp3.logging.HttpLoggingInterceptor` is the second guard),
 - any manifest uses `tools:overrideLibrary`.
 
 ### Hilt in pure modules

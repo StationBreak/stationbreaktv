@@ -160,7 +160,7 @@ internal class ServerProbe(
     }
 }
 
-private suspend fun Call.await(): Response =
+internal suspend fun Call.await(): Response =
     suspendCancellableCoroutine { continuation ->
         continuation.invokeOnCancellation { cancel() }
         enqueue(

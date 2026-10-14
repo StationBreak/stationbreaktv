@@ -26,7 +26,7 @@ class JellyfinMediaServerTest {
             throw IOException("the test client doesn't connect")
         }
 
-    private val adapter = JellyfinMediaServer(OkHttpClient(), ProbeTimeouts(), listOf(counting))
+    private val adapter = testAdapter(tuning = AdapterTuning(testInterceptors = listOf(counting)))
 
     private val publicHttp = ServerAddress(Scheme.Http, "media.example.com", 8096, "/jf")
 

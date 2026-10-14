@@ -43,6 +43,21 @@ data class ServerAddress(
     val cleartextNeedsConfirmation: Boolean
         get() = scheme == Scheme.Http && (viaFallback || HostClassifier.classify(host) != HostClass.Private)
 
+    /**
+     * True when this address is the same server as [other]: the same host and subpath, and the same port, or the
+     * result of an `http` to `https` upgrade of [other] (on `https`'s default port or [other]'s own). Never a
+     * downgrade. A stored token follows an adopted redirect this way and nothing else (token binding, R1).
+     */
+    fun bindsTo(other: ServerAddress): Boolean {
+        val samePlace = host == other.host && subpath == other.subpath
+        val unchanged = scheme == other.scheme && port == other.port
+        val upgraded =
+            scheme == Scheme.Https &&
+                other.scheme == Scheme.Http &&
+                (port == scheme.defaultPort || port == other.port)
+        return samePlace && (unchanged || upgraded)
+    }
+
     /** `scheme://host[:port][/subpath]`, the port left out when it is the scheme's default. */
     val baseUrl: String
         get() {
