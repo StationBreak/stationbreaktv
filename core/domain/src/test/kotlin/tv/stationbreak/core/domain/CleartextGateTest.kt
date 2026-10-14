@@ -4,6 +4,9 @@ package tv.stationbreak.core.domain
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.StoredSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -73,6 +76,10 @@ class CleartextGateTest {
                 String::class.java,
                 ServerAddress::class.java,
                 CleartextAcknowledgement::class.java,
+                // Each carries its acknowledgement as a CleartextAcknowledgement?, never as a flag or a string.
+                SignInRequest::class.java,
+                StoredSession::class.java,
+                Session::class.java,
                 kotlin.coroutines.Continuation::class.java,
             )
         for (method in MediaServer::class.java.methods.filterNot { it.isSynthetic }) {
