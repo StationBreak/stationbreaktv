@@ -19,8 +19,15 @@ object PlaintextTlsMarkers {
      */
     val JVM: List<String> = listOf("Unsupported or unrecognized SSL message")
 
-    /** Conscrypt/BoringSSL on Android 7.1 (API 25). */
-    val CONSCRYPT: List<String> = emptyList()
+    /**
+     * Conscrypt on Android. The API 25 socket path reports BoringSSL's `WRONG_VERSION_NUMBER` (the record header
+     * isn't a TLS one) inside an `SSLHandshakeException("Handshake failed")`, so the cause chain is read.
+     * "Unable to parse TLS packet header" is the wording of Conscrypt's engine path (Android 10 and later, such as a
+     * Fire TV Stick on API 30) for the same finding; it comes from Conscrypt's source and has not been observed on
+     * the emulator, so a device smoke test confirms it.
+     */
+    val CONSCRYPT: List<String> =
+        listOf("WRONG_VERSION_NUMBER", "wrong version number", "Unable to parse TLS packet header")
 
     /** True when an [SSLException] in [error]'s cause chain carries one of the markers. */
     fun indicatesPlaintext(error: Throwable): Boolean {

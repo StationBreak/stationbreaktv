@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -62,7 +63,14 @@ class PlaintextTlsMarkerTest {
         }
     }
 
-    private fun describe(error: Throwable) = "${error.javaClass.name}: ${error.message}"
+    // The whole cause chain: Conscrypt wraps the stack's own wording inside a generic handshake exception. The text
+    // is the TLS stack's (the server is a loopback socket), and it is logged so a run records what the stack says.
+    private fun describe(error: Throwable): String {
+        val causes = generateSequence(error) { it.cause }.take(MAX_CHAIN)
+        val chain = causes.joinToString(" <- ") { "${it.javaClass.name}: ${it.message}" }
+        Log.i("PlaintextTlsMarkerTest", chain)
+        return chain
+    }
 
     @Test
     fun anHttpAnswerToATlsHelloIsPositivelyPlaintext() {
@@ -72,7 +80,8 @@ class PlaintextTlsMarkerTest {
 
         // The message is the TLS stack's own wording (no host, no secret); it is in the failure text so a red run
         // records what Conscrypt says.
-        assertTrue("not recognised as plaintext: ${describe(error)}", PlaintextTlsMarkers.indicatesPlaintext(error))
+        val chain = describe(error)
+        assertTrue("not recognised as plaintext: $chain", PlaintextTlsMarkers.indicatesPlaintext(error))
     }
 
     @Test
@@ -93,6 +102,7 @@ class PlaintextTlsMarkerTest {
 
     private companion object {
         const val HELLO_BYTES = 512
+        const val MAX_CHAIN = 6
         const val CALL_TIMEOUT_SECONDS = 10L
     }
 }
