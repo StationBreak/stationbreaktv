@@ -43,7 +43,10 @@ internal class DiskBlobFiles(
         try {
             out.write(bytes)
             file.finishWrite(out)
-        } catch (e: IOException) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Throwable,
+        ) {
+            // Whatever went wrong, never leave a half-written file behind.
             file.failWrite(out)
             throw e
         }

@@ -4,15 +4,16 @@ package tv.stationbreak.data.settings.keystore
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import android.security.keystore.KeyProtection
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -33,10 +34,14 @@ import java.security.KeyStoreException
 import java.security.ProviderException
 import java.security.UnrecoverableKeyException
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.SecretKeySpec
 
 /** Spec 04 Unit 1 on the API 25 emulator: the real AndroidKeyStore, with faults injected only through the seams. */
 @RunWith(AndroidJUnit4::class)
@@ -196,6 +201,31 @@ class KeystoreSecretStoreTest {
             assertEquals(SecretStoreResult.Success(token), store.load("token"))
         }
 
+    @Test
+    fun anImportedKeyUnderTheAliasIsKeyLevelAndWipesEverything() =
+        runBlocking {
+            val store = newStore()
+            store2Entries(store)
+            plantImportedKey()
+
+            assertFailure(store.load("token"))
+
+            assertFalse(keyExists())
+            assertTrue(blobNames().isEmpty())
+        }
+
+    private fun plantImportedKey() {
+        AndroidKeyAccess.delete()
+        val protection =
+            KeyProtection
+                .Builder(KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build()
+        val entry = KeyStore.SecretKeyEntry(SecretKeySpec(ByteArray(32) { 3 }, KeyProperties.KEY_ALGORITHM_AES))
+        KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.setEntry(KeyAccess.KEY_ALIAS, entry, protection)
+    }
+
     private fun plantMismatchedKey() {
         AndroidKeyAccess.delete()
         val spec =
@@ -227,20 +257,25 @@ class KeystoreSecretStoreTest {
     @Test
     fun aLoadRacingAFirstSaveNeverWipesWhatTheSaveWrote() =
         runBlocking {
-            repeat(10) {
-                AndroidKeyAccess.delete()
-                dir.deleteRecursively()
-                // A stale blob from a vanished key, so the racing load has a definitive fault to act on.
-                putBlob("token", ByteArray(40) { 7 })
-                val store = newStore()
+            // A stale blob with a valid header and no key: the load takes the key-level wipe path.
+            putBlob("token", BlobCodec.encode(ByteArray(BlobCodec.IV_LENGTH), ByteArray(32)))
+            val gate = Gate()
+            keys.getGate = gate
+            val store = newStore()
 
-                val load = async(parallel) { store.load("token") }
-                val save = async(parallel) { store.save("token", token) }
-                load.await()
-                assertEquals(SecretStoreResult.Success(Unit), save.await())
+            // The load has seen "no key" and stops there, holding the lock.
+            val load = async(parallel) { store.load("token") }
+            assertTrue(gate.entered.await(10, TimeUnit.SECONDS))
+            val save = async(parallel) { store.save("token", token) }
 
-                assertEquals(SecretStoreResult.Success(token), store.load("token"))
-            }
+            // Without the lock the save would finish now, and the load would then wipe what it wrote.
+            withTimeoutOrNull(500) { save.await() }
+            gate.release.countDown()
+
+            assertEquals(SecretStoreResult.Failure, load.await())
+            assertEquals(SecretStoreResult.Success(Unit), save.await())
+            assertTrue(keyExists())
+            assertEquals(SecretStoreResult.Success(token), store.load("token"))
         }
 
     // 1.7 Blob-level faults
@@ -352,7 +387,7 @@ class KeystoreSecretStoreTest {
         assertKeyFaultWipesEverythingThenRecovers({ AndroidKeyAccess.delete() }, { it.load("token") })
 
     @Test
-    fun aMissingKeyOnSaveIsAFirstSaveAndStaleBlobsFailClosedOnLoad() =
+    fun aMissingKeyOnSaveWipesTheStaleBlobsBeforeCreatingTheNewKey() =
         runBlocking {
             val store = newStore()
             store2Entries(store)
@@ -361,8 +396,23 @@ class KeystoreSecretStoreTest {
             assertEquals(SecretStoreResult.Success(Unit), store.save("other", "dummy-2"))
 
             assertEquals(SecretStoreResult.Success("dummy-2"), store.load("other"))
-            assertFailure(store.load("token"))
-            assertEquals(listOf(BlobCodec.fileName("device"), BlobCodec.fileName("other")).sorted(), blobNames())
+            assertEquals(SecretStoreResult.Success(null), store.load("token"))
+            assertEquals(listOf(BlobCodec.fileName("other")), blobNames())
+        }
+
+    @Test
+    fun aFaultWipingStaleBlobsOnAFirstSaveIsATransientFailure() =
+        runBlocking {
+            val store = newStore()
+            store2Entries(store)
+            AndroidKeyAccess.delete()
+            faultyFiles.deleteFault = IOException("dummy")
+
+            assertFailure(store.save("other", "dummy-2"))
+
+            faultyFiles.deleteFault = null
+            assertFalse(keyExists())
+            assertEquals(2, blobNames().size)
         }
 
     @Test
@@ -523,22 +573,53 @@ class KeystoreSecretStoreTest {
         }
 
     @Test
-    fun cancellationOfTheCallingCoroutineWipesNothing() =
+    fun cancellationWhileWaitingForTheLockWipesNothing() =
         runBlocking {
             val store = newStore()
             store2Entries(store)
             val blobs = blobNames()
+            val gate = Gate()
+            keys.getGate = gate
 
-            val job = async(start = CoroutineStart.LAZY) { store.load("token") }
-            job.cancel()
+            val holder = async(parallel) { store.load("token") }
+            assertTrue(gate.entered.await(10, TimeUnit.SECONDS))
+            val waiter = async(parallel) { store.load("device") }
+            withTimeoutOrNull(200) { waiter.await() }
+            waiter.cancel()
+            gate.release.countDown()
+
+            assertEquals(SecretStoreResult.Success(token), holder.await())
             try {
-                job.await()
+                waiter.await()
                 fail("expected CancellationException")
             } catch (_: CancellationException) {
             }
-
             assertTrue(keyExists())
             assertEquals(blobs, blobNames())
+        }
+
+    @Test
+    fun cancellationInTheMiddleOfACallWipesNothing() =
+        runBlocking {
+            val store = newStore()
+            store2Entries(store)
+            val blobs = blobNames()
+            val gate = Gate()
+            keys.getGate = gate
+
+            val call = async(parallel) { store.load("token") }
+            assertTrue(gate.entered.await(10, TimeUnit.SECONDS))
+            call.cancel()
+            gate.release.countDown()
+
+            try {
+                call.await()
+                fail("expected CancellationException")
+            } catch (_: CancellationException) {
+            }
+            assertTrue(keyExists())
+            assertEquals(blobs, blobNames())
+            assertEquals(SecretStoreResult.Success(token), store.load("token"))
         }
 
     // 1.11 No secret in toString
@@ -564,6 +645,11 @@ class KeystoreSecretStoreTest {
 
     // Seams
 
+    private class Gate {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+    }
+
     private class FaultyKeys(
         private val delegate: KeyAccess,
     ) : KeyAccess {
@@ -574,9 +660,19 @@ class KeystoreSecretStoreTest {
         @Volatile var createDelayMs = 0L
         val createCount = AtomicInteger()
 
+        @Volatile var getGate: Gate? = null
+        private val gateTaken = AtomicBoolean(false)
+
         override fun get(): SecretKey? {
             getFault?.let { throw it }
-            return delegate.get()
+            val key = delegate.get()
+            // Only the first caller stops, after it has read the key: the rest of its call acts on a stale view.
+            val gate = getGate
+            if (gate != null && gateTaken.compareAndSet(false, true)) {
+                gate.entered.countDown()
+                gate.release.await(10, TimeUnit.SECONDS)
+            }
+            return key
         }
 
         override fun create(): SecretKey {

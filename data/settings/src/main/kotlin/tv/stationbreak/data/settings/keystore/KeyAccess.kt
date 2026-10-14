@@ -60,6 +60,8 @@ internal object AndroidKeyAccess : KeyAccess {
                 .getKeySpec(key, KeyInfo::class.java) as KeyInfo
         return key.algorithm == KeyProperties.KEY_ALGORITHM_AES &&
             info.keySize == KEY_SIZE &&
+            // A key someone imported is one whose bytes were outside the Keystore.
+            info.origin == KeyProperties.ORIGIN_GENERATED &&
             info.purposes == PURPOSES &&
             info.blockModes.contentEquals(arrayOf(KeyProperties.BLOCK_MODE_GCM)) &&
             info.encryptionPaddings.contentEquals(arrayOf(KeyProperties.ENCRYPTION_PADDING_NONE)) &&

@@ -40,8 +40,14 @@ class KeystoreSecretStore internal constructor(
         value: String,
     ): SecretStoreResult<Unit> =
         guarded(blobFile = null) {
-            // A missing key on save is a first save: create it. A key that isn't ours is a fault.
-            val secretKey = if (keys.get() == null) keys.create() else existingKey()
+            // A missing key on save is a first save. Any blob left over was made by a key that's gone, so it goes
+            // first: a vendor Keystore may answer a wrong-key decrypt with an exception that counts as transient,
+            // and such a blob would never heal. A key that isn't ours is a fault.
+            val secretKey =
+                keys.get()?.let(::verified) ?: run {
+                    files.deleteAll()
+                    keys.create()
+                }
             files.write(BlobCodec.fileName(key), encrypt(secretKey, key, value))
         }
 
@@ -51,7 +57,7 @@ class KeystoreSecretStore internal constructor(
             // No blob means nothing to decrypt: don't touch, let alone create, the key.
             val blob = files.read(file) ?: return@guarded null
             val decoded = BlobCodec.decode(blob) ?: throw BlobFault()
-            decrypt(existingKey(), key, decoded)
+            decrypt(keys.get()?.let(::verified) ?: throw KeyFault(), key, decoded)
         }
     }
 
@@ -94,9 +100,9 @@ class KeystoreSecretStore internal constructor(
         }
 
     /** The key under the alias. A missing one, or one with other properties, is a key-level fault. */
-    private fun existingKey(): SecretKey {
-        val secretKey = keys.get()
-        return if (secretKey != null && keys.matchesSpec(secretKey)) secretKey else throw KeyFault()
+    private fun verified(secretKey: SecretKey): SecretKey {
+        if (!keys.matchesSpec(secretKey)) throw KeyFault()
+        return secretKey
     }
 
     private fun classify(
