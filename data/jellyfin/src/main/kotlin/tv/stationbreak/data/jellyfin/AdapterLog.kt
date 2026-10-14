@@ -4,9 +4,10 @@ package tv.stationbreak.data.jellyfin
 import tv.stationbreak.core.model.Redactor
 
 /**
- * Where the adapter's own log statements go. A seam, no-op by default. Every statement is a fixed phrase and an
- * error's type name: never a header, a body, a URL, a host, a username or a secret (R18). [redacting] is the backstop
- * the app wires in front of any real sink (F0.4): if a statement ever does carry a credential, the sink doesn't see it.
+ * Where the adapter's own log statements go. A seam, no-op by default. Every statement is meant to be a fixed phrase
+ * and an error's type name: never a header, a body, a URL, a host, a username or a secret (R18). [redacting] is the
+ * backstop the app wires in front of any real sink (F0.4): the sink gets one redacted line, made of the phrase, the
+ * error's type and the error's message (OkHttp messages carry full URLs), after redaction.
  */
 fun interface AdapterLog {
     fun log(message: String)
