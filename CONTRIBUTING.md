@@ -42,10 +42,10 @@ Signed-off-by: Your Name <you@example.com>
 
 To sign off commits you've already made on your branch, run `git fetch origin` and `git rebase --signoff origin/main`, then `git push --force-with-lease`.
 
-The `dco` check fails a pull request if any of its commits has no `Signed-off-by:` trailer. The only exception is a
+The `checks` job fails a pull request (at its "Check sign-offs" step) if any of its commits has no `Signed-off-by:` trailer. The only exception is a
 commit from the Renovate dependency bot, on a pull request Renovate opened, that GitHub itself created and signed
 for the `renovate[bot]` account (a bot can't certify the DCO). Don't click "Update branch" on a Renovate pull
-request: the merge commit it makes has no sign-off, so `dco` fails. Ask Renovate to rebase instead.
+request: the merge commit it makes has no sign-off, so the sign-off check fails. Ask Renovate to rebase instead.
 
 ## License and the app-store permission
 
@@ -79,7 +79,7 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 
 | Check | What it checks | How to fix a failure |
 | --- | --- | --- |
-| `build` | `./gradlew check` and assembling every flavor (below) | See the rows below for the task that failed |
+| `build` | Skipped when the PR changes only `docs/`, `LICENSE` or `*.md` files. `./gradlew check` and assembling every flavor (below) | See the rows below for the task that failed |
 | ↳ `spotlessCheck` | Kotlin style (ktlint) and the SPDX header on every `.kt` and `.gradle.kts` file | Run `./gradlew spotlessApply` and commit the result. ktlint can't fix some rules automatically (wildcard imports, for example); fix those by hand |
 | ↳ `detekt` | Static analysis of Kotlin code | Fix the reported issue. The report names the rule and the line |
 | ↳ `lint` | Android Lint. Issues in the Security category are errors | Fix the reported issue |
@@ -89,10 +89,10 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 | ↳ `checkArchitecture` | Each module's declared dependencies follow the allowed edges in [MODULES.md](docs/MODULES.md#dependency-graph-allowed-edges), and the Jellyfin SDK stays inside `data:jellyfin`, and OkHttp stays out of the other `[KMP]` and `[JVM]` modules. The error names the module, the dependency, the configuration and the rule broken. It also runs on its own, first, in the "Module dependency rules" step, because a broken rule can make the full build fail earlier with a less helpful Gradle error | Remove the dependency, or depend on what MODULES.md allows instead (for example a `core:domain` port rather than a `data:*` module). Changing the rules means changing MODULES.md and `ArchitectureRules.kt` in `build-logic` together, in a pull request that says why |
 | ↳ `checkOverrideLibrary` | No `AndroidManifest.xml` uses `tools:overrideLibrary`, so a library that needs a newer Android version than API 25 can't slip in | Use a version of the library that supports API 25 (minSdk 25 or lower), or a different library |
 | ↳ `licensee` | Every dependency of `app` and of `data:jellyfin` has a license on the allowlist of GPL-compatible licenses, and can be identified (the allowlist is `LicenseePlugin` in `build-logic`) | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
-| `emulator` | Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
+| `emulator` | Skipped unless the PR changes `app/`, `core/`, `data/`, `feature/`, `build-logic/`, `gradle/`, a `*.gradle.kts` file, `gradle.properties` or `ci.yml`. Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
 | ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
-| `script-tests` (verification guard) | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
-| `dco` | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
+| `checks`: dependency verification guard | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
+| `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
 
