@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.domain
+
+import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.Scheme
+import tv.stationbreak.core.model.ServerAddress
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+
+/** Angua (Security) R7: an acknowledgement is bound to one address, and the port accepts it only in that form. */
+class CleartextGateTest {
+    private val publicHttp = ServerAddress(Scheme.Http, "media.example.com", 8096, "/jf")
+
+    private val notConfirmed = MediaServerError.CleartextNotConfirmed()
+
+    @Test
+    fun cleartextToAPublicHostNeedsAnAcknowledgement() {
+        assertEquals(notConfirmed, CleartextGate.check(publicHttp, null))
+    }
+
+    @Test
+    fun theMatchingAcknowledgementPasses() {
+        assertNull(CleartextGate.check(publicHttp, CleartextAcknowledgement(publicHttp)))
+    }
+
+    @Test
+    fun anAcknowledgementForAnotherHostPortSchemeOrSubpathFails() {
+        val others =
+            mapOf(
+                "host" to publicHttp.copy(host = "other.example.com"),
+                "port" to publicHttp.copy(port = 8097),
+                "scheme" to publicHttp.copy(scheme = Scheme.Https),
+                "subpath" to publicHttp.copy(subpath = "/jf2"),
+            )
+        for ((what, other) in others) {
+            assertEquals(notConfirmed, CleartextGate.check(publicHttp, CleartextAcknowledgement(other)), what)
+        }
+    }
+
+    @Test
+    fun privateAndHttpsAddressesNeedNone() {
+        assertNull(CleartextGate.check(ServerAddress(Scheme.Http, "192.168.1.10", 8096), null))
+        assertNull(CleartextGate.check(ServerAddress(Scheme.Http, "nas.local", 80), null))
+        assertNull(CleartextGate.check(ServerAddress(Scheme.Https, "media.example.com", 443), null))
+    }
+
+    @Test
+    fun anUnneededAcknowledgementIsHarmless() {
+        val private = ServerAddress(Scheme.Http, "192.168.1.10", 8096)
+        assertNull(CleartextGate.check(private, CleartextAcknowledgement(publicHttp)))
+    }
+
+    @Test
+    fun noPortMethodTakesAnAcknowledgementInAnyOtherForm() {
+        val allowed =
+            setOf(
+                String::class.java,
+                ServerAddress::class.java,
+                CleartextAcknowledgement::class.java,
+                kotlin.coroutines.Continuation::class.java,
+            )
+        for (method in MediaServer::class.java.methods.filterNot { it.isSynthetic }) {
+            val unexpected = method.parameterTypes.filterNot { it in allowed }
+            assertEquals(emptyList(), unexpected, method.name)
+        }
+    }
+}
