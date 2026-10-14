@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Debug builds only, for now: the instrumented tests open sockets (F0.3 task 1.16) and the app has no network
+        permission yet. The release manifest gets INTERNET with the first screen that reaches a server (F0.5).
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>

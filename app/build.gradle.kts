@@ -48,6 +48,8 @@ dependencies {
 
     // The API 25 plaintext-marker test (F0.3 task 1.16) runs data:jellyfin's classifier on the emulator.
     androidTestImplementation(project(":data:jellyfin"))
+    // The test makes its own https call; data:jellyfin keeps OkHttp to itself.
+    androidTestImplementation(libs.okhttp)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
