@@ -50,6 +50,8 @@ dependencies {
     implementation(project(":core:domain"))
     // The adapter behind the MediaServer port, bound in di/MediaServerModule. Nothing else imports it.
     implementation(project(":data:jellyfin"))
+    // The Keystore-backed SecretStore, bound in di/MediaServerModule. Nothing else imports it.
+    implementation(project(":data:settings"))
     // The base OkHttpClient is built here (ADR-0005); data:jellyfin keeps OkHttp to itself otherwise.
     implementation(libs.okhttp)
     implementation(project(":core:ui"))
@@ -63,6 +65,8 @@ dependencies {
     // The test makes its own https call; data:jellyfin keeps OkHttp to itself.
     androidTestImplementation(libs.okhttp)
     androidTestImplementation(project(":core:domain"))
+    // The secret-storage tests (spec 04) restore a session against the port's scripted fake.
+    androidTestImplementation(testFixtures(project(":core:domain")))
     // The SDK-binding test (F0.3 task 3.13, ADR-0006) makes one request through the SDK's own client.
     androidTestImplementation(libs.jellyfin.sdk.core)
     androidTestImplementation(libs.jellyfin.sdk.api.okhttp)
@@ -71,4 +75,13 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+// The manifest and XML-rule tests (BackupRulesTest, NetworkSecurityConfigTest) read these files straight off disk, so
+// Gradle must see them as inputs. Without that, a loosened rule file leaves the test task up to date and unrun.
+tasks.withType<Test>().configureEach {
+    inputs
+        .files(fileTree("src") { include("**/AndroidManifest.xml", "**/res/xml/**", "**/res/raw/**") })
+        .withPropertyName("manifestAndXmlRules")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }

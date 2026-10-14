@@ -77,8 +77,8 @@ until something genuinely needs sharing.
 Every other module is created by the first story that needs it, for example `data:settings` in F0.4 and
 `data:library` in F0.6. The architecture test enforces the rules for each module as it appears.
 
-`data:settings` exists since F0.4 and holds only `KeystoreSecretStore` (the `SecretStore` implementation) for now. The
-DataStore settings arrive with the stories that need them.
+`data:settings` exists since F0.4 and holds only `KeystoreSecretStore` (the `SecretStore` implementation) for now.
+`app` binds it to `SecretStore` in `MediaServerModule`. The DataStore settings arrive with the stories that need them.
 
 `[KMP]` means Kotlin Multiplatform (`commonMain`; `jvm()` + `linuxX64()` canary). `[JVM]` means a pure Kotlin/JVM module with no Android plugin. `[Android]` means an Android library module.
 
