@@ -21,7 +21,8 @@ CI is metered, so iterate locally and let CI run once.
 - Run `scripts/preflight.sh` before pushing. It runs CI's checks on your machine: the script tests, `actionlint`,
   `zizmor`, `gitleaks`, the sign-off check and the Gradle build. It needs JDK 17, the Android SDK, docker and `uv`;
   a missing tool fails its step with an install hint. Add `--emulator` to also run the instrumented tests on a local
-  API 25 emulator (it tells you the `sdkmanager` command if the SDK lacks one).
+  API 25 emulator (it tells you the `sdkmanager` command if the SDK lacks one), and `--contract` to also run the
+  [container contract tests](#container-contract-tests) against each Jellyfin version in the matrix.
 - Open the pull request as a draft. CI doesn't run on drafts.
 - When preflight passes, mark the pull request ready for review. That runs CI once.
 - Batch review fixes into one push. Every push to a ready pull request runs CI again.
@@ -110,6 +111,7 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 | ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
 | `checks`: dependency verification guard | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
 | `checks`: device-proof guard | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
+| `jellyfin-contract` (own workflow) | Runs only when a PR changes `data/jellyfin/`, `core/domain/`, `core/model/`, `gradle/libs.versions.toml` or its own file, and not on drafts. The adapter against real Jellyfin servers in Docker (`:data:jellyfin:contractTest`), once per version in its matrix, directly and behind a subpath proxy. A weekly run (and a manual one) tests the floating `latest` tag too | See [Container contract tests](#container-contract-tests). Failures are in the job log, which carries only test output |
 | `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
@@ -121,6 +123,32 @@ To run the Gradle checks locally (with an Android SDK installed):
 ```bash
 ./gradlew check
 ```
+
+## Container contract tests
+
+`data/jellyfin/src/contractTest` holds the adapter's contract suite. It starts a real Jellyfin server (and, for the
+subpath cases, a Caddy proxy) with Testcontainers, completes the startup wizard through the API, makes movie, TV and
+mixed libraries of synthetic media inside the container, and runs the same cases twice: directly, and behind the
+proxy with Jellyfin's Base URL set to `/jf`. `check` compiles it so it can't rot, but never runs it: it needs Docker.
+Without Docker the suite is skipped, not failed.
+
+```bash
+# Any image from the matrix in .github/workflows/jellyfin-contract.yml, by digest:
+JELLYFIN_IMAGE=ghcr.io/jellyfin/jellyfin@sha256:<digest> ./gradlew :data:jellyfin:contractTest
+scripts/preflight.sh --contract    # runs it once per matrix line
+```
+
+Testcontainers starts its own containers on random ports and removes them; it never touches other containers on
+the machine. Its reaper image is pinned by digest in `src/contractTest/resources/testcontainers.properties`; CI turns
+the reaper off, because the runner's VM is discarded.
+
+To add or drop a Jellyfin version, change one line of the matrix in `.github/workflows/jellyfin-contract.yml`:
+`{ tag: "12.2", digest: "sha256:..." }`. Get the digest with `docker buildx imagetools inspect ghcr.io/jellyfin/jellyfin:<tag>`
+and use the index digest it prints. If the oldest supported version no longer passes, move it up and update
+[ADR-0006](docs/adr/0006-jellyfin-12-only.md) and BACKLOG S0.3.6 in the same pull request. The Caddy image in
+`ContractEnvironment.kt` is pinned the same way. The suite fails if the server needed anything but the modern
+`Authorization: MediaBrowser ...` header, and its failures print the assertion and test output only: it never prints a
+request body or reads a container log.
 
 ## Bundled Let's Encrypt roots
 
@@ -164,11 +192,16 @@ rebuild runs plugins and tools at versions that have no checksum yet, so run it 
 environment (no cloud or registry tokens, no SSH agent):
 
 ```bash
-GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 \
+GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 --continue \
   help buildEnvironment check lint detekt \
   assembleAmazonDebug assembleAmazonRelease assembleGithubDebug assembleGithubRelease \
-  assembleGithubDebugAndroidTest linuxX64Test
+  assembleGithubDebugAndroidTest linuxX64Test :data:jellyfin:contractTest
 ```
+
+`:data:jellyfin:contractTest` is in the list so that Gradle resolves the contract suite's runtime classpath (Testcontainers
+and its dependencies), which `check` only compiles. Without `JELLYFIN_IMAGE` it fails in a second, having started no
+container, and that failure is expected here (`--continue` lets the rest finish and the file still gets written); with
+Docker absent it skips.
 
 Keep the `<configuration>` block as it is. Then run `bash .github/scripts/verification-guard.sh .`, which must pass.
 
