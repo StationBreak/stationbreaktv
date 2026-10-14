@@ -1,0 +1,123 @@
+name: Jellyfin contract
+
+# Runs the container contract suite (`:data:jellyfin:contractTest`) against real Jellyfin servers: the adapter's probe,
+# sign-in, Quick Connect, libraries, items, playback info, reporting and logout, directly and behind a subpath proxy.
+# It is a workflow of its own so a docs-only or UI-only PR never starts it and `ci.yml`'s critical path is untouched.
+# Docker is needed, which `check` deliberately does not require (F0.3 D2, D7).
+#
+# Two jobs:
+#   jellyfin-contract         the oldest supported 12.x and the latest, each pinned by digest. Runs on PRs that touch
+#                             the adapter, its inputs or this file, and by hand.
+#   jellyfin-contract-latest  the floating `latest` tag, weekly and by hand, to catch drift before users do.
+#
+# To add or drop a Jellyfin version, change one line of the matrix. Resolve a tag to its digest with
+#   docker buildx imagetools inspect ghcr.io/jellyfin/jellyfin:<tag>
+# and use the index digest it prints (the `Digest:` line). A failed scheduled run notifies whoever last edited the
+# cron line (the owner), so no notification secret is needed.
+on:
+  pull_request:
+    # `ready_for_review` is listed because a draft's pushes are skipped (see the job's `if`); marking it ready runs once.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "data/jellyfin/**"
+      - "core/domain/**"
+      - "core/model/**"
+      - "gradle/libs.versions.toml"
+      - ".github/workflows/jellyfin-contract.yml"
+  workflow_dispatch:
+  schedule:
+    # Tuesdays 06:43 UTC (off the hour, when scheduled runs are less likely to be delayed).
+    - cron: "43 6 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  jellyfin-contract:
+    # Draft PRs don't run it (every Actions minute is metered; scripts/preflight.sh --contract does the iterating), and
+    # the weekly schedule has the job below instead.
+    if: ${{ github.event_name != 'schedule' && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { tag: "12.0", digest: "sha256:74f4d87d9cf262c52d62be6be265c0355c6a7e21d0477ab6c654a49a4f8b1fd4" }
+          - { tag: "12.2", digest: "sha256:c3efa69a22f2691fc88d6bb035e87a8560e395a6047f062fb381c61c3185e8f5" }
+    env:
+      JELLYFIN_IMAGE: ghcr.io/jellyfin/jellyfin@${{ matrix.digest }}
+      # The runner's VM is discarded after the job, so Testcontainers' reaper container isn't needed (F0.3 D4, R14).
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      MATRIX_TAG: ${{ matrix.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Also validates the Gradle wrapper jar. Caching is off here for the reason given in ci.yml; the restore below is
+      # the same read-only one.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-disabled: true
+
+      # Read-only: this workflow never writes a cache, so a PR can't change what main restores.
+      - name: Restore Gradle caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-build-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-v1-${{ runner.os }}-
+
+      - name: Image under test
+        run: echo "Jellyfin ${MATRIX_TAG} = ${JELLYFIN_IMAGE}"
+
+      # Failures are read from this job's log, which carries only test output: the suite never prints a request body
+      # and has no container log consumer. Nothing is uploaded as an artifact.
+      - name: Contract tests
+        run: ./gradlew :data:jellyfin:contractTest
+
+  jellyfin-contract-latest:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The one unpinned image, on purpose: it receives no secrets, mounts or tokens (F0.3 R14).
+      JELLYFIN_IMAGE: ghcr.io/jellyfin/jellyfin:latest
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-disabled: true
+
+      - name: Restore Gradle caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-build-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-v1-${{ runner.os }}-
+
+      - name: Contract tests against latest
+        run: ./gradlew :data:jellyfin:contractTest
