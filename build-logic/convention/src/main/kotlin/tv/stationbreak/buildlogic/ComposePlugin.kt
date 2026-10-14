@@ -15,6 +15,9 @@ class ComposePlugin : Plugin<Project> {
                 val bom = platform(libs.library("androidx-compose-bom"))
                 add("implementation", bom)
                 add("androidTestImplementation", bom)
+                // Declared directly, not left to tv-material's transitive versions: modules use them directly.
+                add("implementation", libs.library("androidx-compose-ui"))
+                add("implementation", libs.library("androidx-compose-foundation"))
                 add("implementation", libs.library("androidx-tv-material"))
             }
         }

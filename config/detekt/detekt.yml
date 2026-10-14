@@ -1,0 +1,5 @@
+# detekt settings for every module, on top of detekt's defaults (buildUponDefaultConfig). [KMP] modules add kmp.yml.
+naming:
+  FunctionNaming:
+    # Compose functions are PascalCase by convention (the same exemption as ktlint's in .editorconfig).
+    ignoreAnnotated: ['Composable']
