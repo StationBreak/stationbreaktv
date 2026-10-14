@@ -28,7 +28,8 @@ Branch protection, rulesets and code-owner review all become available when the 
    replace it. Before merging, the owner reads every change to:
    - `.github/**` (workflows, scripts and their test fixtures);
    - `.gitleaks.toml`;
-   - `renovate.json`.
+   - `renovate.json`;
+   - `gradle/osv-scanner.toml` (its ignores can silence a vulnerability finding; ADR-0013).
 
    A pull request that changes any of these gets the same scrutiny as a change to the gates themselves, whoever
    or whatever authored it. That includes Renovate (ADR-0011, item 6).
@@ -58,8 +59,8 @@ Branch protection, rulesets and code-owner review all become available when the 
 - **Revisit trigger:** the visibility flip ([#156](https://github.com/StationBreak/stationbreaktv/issues/156)).
   In order:
   1. Turn on branch protection or rulesets for `main`, requiring every CI job and the DCO check.
-  2. Add a `CODEOWNERS` entry for `.github/` (and `.gitleaks.toml` and `renovate.json`), with code-owner review
-     required.
+  2. Add a `CODEOWNERS` entry for `.github/` (and `.gitleaks.toml`, `renovate.json` and
+     `gradle/osv-scanner.toml`), with code-owner review required.
 
   After that, this ADR is superseded for the gates those rules cover.
 - **Standing rule (as in ADR-0011):** if anyone else gets push access to the repository (a collaborator, app or
