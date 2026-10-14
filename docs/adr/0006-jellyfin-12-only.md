@@ -91,9 +91,13 @@ the core of the app is expected to fail the same way.
 - **Logging:** the SDK logs each request's method and URL (with the token masked) through
   kotlin-logging. StationBreak routes that through its own logger, so S3.6.1 hostname redaction
   still applies.
-- **Contract suite (F0.3 Unit 3):** `:data:jellyfin:contractTest` passes on `12.0` and `12.2` (the images are pinned by
-  digest in `.github/workflows/jellyfin-contract.yml`), directly and behind a subpath proxy. Mixed-content libraries
-  have no `CollectionType` at all on both. A disabled user's sign-in is `403` on both, as the error mapper reads it.
-  On 12.2 a static video stream (`/Videos/{id}/stream?static=true`) is also served with no `Authorization` header, so the
-  server is not a reason to put a credential in a URL, and not a guard against an unauthenticated one either.
-
+- **Contract suite (F0.3 Unit 3):** `:data:jellyfin:contractTest` passes on `12.0`, `12.1` (the owner's server version) and
+  `12.2` (the images are pinned by digest in `.github/workflows/jellyfin-contract.yml`), directly and behind a subpath
+  proxy. Mixed-content libraries have no `CollectionType` at all on all of them. A disabled user's sign-in is `403`, as
+  the error mapper reads it.
+  On 12.2 (12.0: the same) the server streams a static video (`/Videos/{id}/stream?static=true`) to a request with no
+  `Authorization` header. That is the server's access control, not the app's: anyone who can reach the server and knows
+  an item ID can fetch the file. StationBreak still sends the header on every stream request and never puts a credential
+  in a URL (R2). Because the server accepts either form, the contract suite can't detect a missing header on the stream
+  path; the header is asserted client-side when F0.5/F1.x wires Media3. A stream URL or item ID together with the server
+  address is access-granting on such a server, so it is redacted like the address (S3.6.1).

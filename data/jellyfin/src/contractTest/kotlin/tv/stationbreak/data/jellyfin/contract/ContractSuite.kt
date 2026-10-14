@@ -119,7 +119,8 @@ abstract class ContractSuite {
             assertEquals(emptyList(), request.legacyHeaders, "$what used a legacy header")
             assertEquals(emptyList(), request.legacyQueryNames, "$what used a legacy query key")
             if (request.path.endsWith("/System/Info/Public")) {
-                assertEquals(emptyList(), request.authorization, "the probe must carry no credential")
+                // Not assertEquals on the list: a failure would print the header into the job log.
+                assertTrue(request.authorization.isEmpty(), "the probe must carry no credential")
             }
         }
     }
@@ -280,8 +281,9 @@ abstract class ContractSuite {
                     .header("Authorization", AuthHeaderBuilder(identity).build("contract-stream", session.token))
                     .build()
             val code = OkHttpClient().newCall(request).execute().use { it.code }
-            // Jellyfin 12.2 also serves a static stream with no header at all, so that isn't asserted; what is: the
-            // URL, which carries no credential of its own (StreamUrlTest), streams when the header is sent.
+            // Jellyfin also serves a static stream with no header at all (12.0 and 12.2 checked), so a missing header
+            // can't be detected here; what is asserted: the URL, which carries no credential of its own
+            // (StreamUrlTest), streams when the header is sent.
             assertTrue(code in STREAM_OK, "the built URL didn't stream with the header")
         }
     }

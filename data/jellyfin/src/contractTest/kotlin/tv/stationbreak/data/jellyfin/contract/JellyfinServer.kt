@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin.contract
 
+import com.github.dockerjava.api.model.ExposedPort
+import com.github.dockerjava.api.model.PortBinding
+import com.github.dockerjava.api.model.Ports
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.Network
@@ -111,6 +114,7 @@ internal class JellyfinServer private constructor(
             val ready = if (network == null) "" else ContractEnvironment.SUBPATH
             return GenericContainer(DockerImageName.parse(image))
                 .withExposedPorts(JELLYFIN_PORT)
+                .onLoopbackOnly(JELLYFIN_PORT)
                 .apply {
                     if (network != null) {
                         withNetwork(network).withNetworkAliases("jellyfin")
@@ -127,10 +131,22 @@ internal class JellyfinServer private constructor(
         private fun caddyContainer(network: Network): GenericContainer<*> =
             GenericContainer(DockerImageName.parse(ContractEnvironment.CADDY_IMAGE))
                 .withExposedPorts(HTTP_PORT)
+                .onLoopbackOnly(HTTP_PORT)
                 .withNetwork(network)
                 .withCopyToContainer(MountableFile.forClasspathResource("Caddyfile"), "/etc/caddy/Caddyfile")
                 .waitingFor(Wait.forListeningPort().withStartupTimeout(STARTUP))
 
         private const val HTTP_OK = 200
+
+        /**
+         * Publishes [port] on 127.0.0.1 only. Before the wizard completes, anyone who can reach a throwaway server can
+         * claim its admin account, so a local run must not offer it to the LAN (Docker publishes on all interfaces by
+         * default). The tests reach it through the host name Testcontainers reports, which is the same machine.
+         */
+        private fun GenericContainer<*>.onLoopbackOnly(port: Int): GenericContainer<*> =
+            withCreateContainerCmdModifier { command ->
+                val binding = PortBinding(Ports.Binding.bindIp("127.0.0.1"), ExposedPort(port))
+                command.hostConfig?.withPortBindings(binding)
+            }
     }
 }
