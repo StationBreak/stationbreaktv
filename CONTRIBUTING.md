@@ -111,7 +111,7 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 | ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
 | `checks`: dependency verification guard | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
 | `checks`: device-proof guard | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
-| `jellyfin-contract` (own workflow) | Runs only when a PR changes `data/jellyfin/`, `core/domain/`, `core/model/`, `gradle/libs.versions.toml` or its own file, and not on drafts. The adapter against real Jellyfin servers in Docker (`:data:jellyfin:contractTest`), once per version in its matrix, directly and behind a subpath proxy. A weekly run (and a manual one) tests the floating `latest` tag too | See [Container contract tests](#container-contract-tests). Failures are in the job log, which carries only test output |
+| `jellyfin-contract` (own workflow) | Runs only when a PR changes `data/jellyfin/`, `core/domain/`, `core/model/`, `build-logic/`, `gradle/libs.versions.toml`, `gradle/verification-metadata.xml`, `settings.gradle.kts` or its own file, and not on drafts. The adapter against real Jellyfin servers in Docker (`:data:jellyfin:contractTest`), once per version in its matrix, directly and behind a subpath proxy. A weekly run (and a manual one) tests the floating `latest` tag too | See [Container contract tests](#container-contract-tests). Failures are in the job log, which carries only test output |
 | `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
@@ -144,8 +144,9 @@ the reaper off, because the runner's VM is discarded.
 
 To add or drop a Jellyfin version, change one line of the matrix in `.github/workflows/jellyfin-contract.yml`:
 `{ tag: "12.2", digest: "sha256:..." }`. Get the digest with `docker buildx imagetools inspect ghcr.io/jellyfin/jellyfin:<tag>`
-and use the index digest it prints. If the oldest supported version no longer passes, move it up and update
-[ADR-0006](docs/adr/0006-jellyfin-12-only.md) and BACKLOG S0.3.6 in the same pull request. The Caddy image in
+and use the index digest it prints. The matrix holds the two newest 12.x minors and never drops the one the owner's
+server runs ([ADR-0006](docs/adr/0006-jellyfin-12-only.md) decision 4): when a new minor ships, add it and drop the oldest
+in the same pull request. The Caddy image in
 `ContractEnvironment.kt` is pinned the same way. The suite fails if the server needed anything but the modern
 `Authorization: MediaBrowser ...` header, and its failures print the assertion and test output only: it never prints a
 request body or reads a container log.
