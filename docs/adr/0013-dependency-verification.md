@@ -94,6 +94,6 @@ commits the result with a sign-off. The owner reads the diff and merges. CI neve
 - Every Renovate dependency update takes a manual step before it can merge.
 - A dependency's checksum changing for the same version fails the build, naming the artifact.
 - A change to `gradle/osv-scanner.toml` can silence a finding, as a change to `.github/` can disable a gate, so
-  the owner reads it with the same care (ADR-0012, CI gates advisory until the visibility flip, decision 1, doesn't list it yet; adding it is the
-  owner's call).
+  the owner reviews it before merge, like `.github/**` (ADR-0012, CI gates advisory until the visibility flip,
+  decision 1).
 - The file is large and machine-generated. Its diff is reviewed by checksum, not read for meaning.
