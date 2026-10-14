@@ -92,8 +92,8 @@ the core of the app is expected to fail the same way.
 - **Logging:** the SDK logs each request's method and URL (with the token masked) through
   kotlin-logging. StationBreak routes that through its own logger, so S3.6.1 hostname redaction
   still applies.
-- **Contract suite (F0.3 Unit 3):** `:data:jellyfin:contractTest` passes on `12.1` (the owner's server version) and
-  `12.2`, and passed on `12.0` before the matrix was cut to the two newest minors (the images are pinned by digest in `.github/workflows/jellyfin-contract.yml`), directly and behind a subpath
+- **Contract suite (F0.3 Unit 3):** `:data:jellyfin:contractTest` passes on `12.1` and
+  `12.2` (the owner's server version since 2026-10-14; it was 12.1 before), and passed on `12.0` before the matrix was cut to the two newest minors (the images are pinned by digest in `.github/workflows/jellyfin-contract.yml`), directly and behind a subpath
   proxy. Mixed-content libraries have no `CollectionType` at all on all of them. A disabled user's sign-in is `403`, as
   the error mapper reads it.
   On 12.2 (12.0: the same) the server streams a static video (`/Videos/{id}/stream?static=true`) to a request with no
