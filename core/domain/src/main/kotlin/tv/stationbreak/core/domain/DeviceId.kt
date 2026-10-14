@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /**
@@ -17,24 +19,29 @@ fun interface DeviceIdProvider {
  * user and device, ADR-0006). Not derived from `ANDROID_ID` or any hardware identifier.
  * If the store can't be read, a new ID lives in memory for this run only and the stored one is never
  * overwritten. If it can't be written, the same.
+ *
+ * One [Mutex] covers the cache, the load and the save, so two callers asking at once on the first launch get the same
+ * ID and it is saved once.
  */
 class StoredDeviceIdProvider(
     private val store: SecretStore,
     private val newId: () -> String = { UUID.randomUUID().toString() },
 ) : DeviceIdProvider {
+    private val lock = Mutex()
     private var cached: String? = null
 
-    override suspend fun deviceId(): String {
-        cached?.let { return it }
-        // Only a store that answered "nothing here" may be written. A failed load leaves whatever it holds alone.
-        val id =
-            when (val loaded = store.load(KEY)) {
-                is SecretStoreResult.Success -> loaded.value ?: newId().also { store.save(KEY, it) }
-                SecretStoreResult.Failure -> newId()
-            }
-        cached = id
-        return id
-    }
+    override suspend fun deviceId(): String =
+        lock.withLock {
+            cached?.let { return@withLock it }
+            // Only a store that answered "nothing here" may be written. A failed load leaves whatever it holds alone.
+            val id =
+                when (val loaded = store.load(KEY)) {
+                    is SecretStoreResult.Success -> loaded.value ?: newId().also { store.save(KEY, it) }
+                    SecretStoreResult.Failure -> newId()
+                }
+            cached = id
+            id
+        }
 
     companion object {
         const val KEY = "device_id"

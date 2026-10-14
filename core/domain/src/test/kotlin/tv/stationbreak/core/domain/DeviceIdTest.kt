@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
 import kotlin.test.Test
@@ -69,5 +72,24 @@ class DeviceIdTest {
             val id = StoredDeviceIdProvider(InMemorySecretStore()).deviceId()
             assertNotNull(UUID.fromString(id))
             assertTrue(id != StoredDeviceIdProvider(InMemorySecretStore()).deviceId())
+        }
+
+    @Test
+    fun twoSimultaneousFirstCallsReturnOneIdAndSaveOnce() =
+        runBlocking {
+            // A slow store, so the second caller arrives while the first is still between its load and its save.
+            val slow =
+                object : SecretStore by store {
+                    override suspend fun load(key: String): SecretStoreResult<String?> {
+                        val answer = store.load(key)
+                        delay(50)
+                        return answer
+                    }
+                }
+            val shared = StoredDeviceIdProvider(slow) { "generated-${++counter}" }
+            val ids = (1..2).map { async { shared.deviceId() } }.awaitAll()
+            assertEquals(1, ids.toSet().size)
+            assertEquals(listOf(StoredDeviceIdProvider.KEY), store.writtenKeys)
+            assertEquals(1, counter)
         }
 }

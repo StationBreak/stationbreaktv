@@ -18,13 +18,14 @@ import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.BaseHttpClient
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
+import tv.stationbreak.data.settings.keystore.KeystoreSecretStore
 import javax.inject.Singleton
 import kotlin.time.Clock
 
 /**
  * The bindings for the media server port (ADR-0005): the Jellyfin adapter behind [MediaServer], the base client it
- * derives its own from, and the system clock (ADR-0004). The `[KMP]` and `[JVM]` modules hold no Hilt; they are wired
- * here.
+ * derives its own from, the Keystore-backed secret store (ADR-0009) and the system clock (ADR-0004). The `[KMP]` and
+ * `[JVM]` modules hold no Hilt; they are wired here.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -54,10 +55,15 @@ internal interface MediaServerModule {
             return ClientIdentity("StationBreak", Build.MODEL, version ?: "0")
         }
 
-        /** Until F0.4 builds the Keystore-backed store (see [EphemeralSecretStore]). */
+        /**
+         * The Keystore-backed store (ADR-0009): the session and the device ID survive a restart and fail closed. No
+         * screen can consume [MediaServer] without real storage (#213).
+         */
         @Provides
         @Singleton
-        fun secretStore(): SecretStore = EphemeralSecretStore()
+        fun secretStore(
+            @ApplicationContext context: Context,
+        ): SecretStore = KeystoreSecretStore(context)
 
         @Provides
         @Singleton
