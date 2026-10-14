@@ -24,4 +24,4 @@ rootProject.name = "stationbreaktv"
 include(":app")
 include(":core:model", ":core:rules", ":core:engine", ":core:scheduler", ":core:testing") // [KMP]
 include(":core:domain", ":data:jellyfin") // [JVM]
-include(":core:ui") // [Android]
+include(":core:ui", ":data:settings") // [Android]
