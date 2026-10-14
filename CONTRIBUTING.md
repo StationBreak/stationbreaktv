@@ -14,6 +14,21 @@ checks CI runs on every pull request.
 Every check in [CI checks](#ci-checks) must pass before a pull request can merge. Pull requests are squash-merged,
 so the pull request's title and description become the commit on `main`.
 
+## Before you push
+
+CI is metered, so iterate locally and let CI run once.
+
+- Run `scripts/preflight.sh` before pushing. It runs CI's checks on your machine: the script tests, `actionlint`,
+  `zizmor`, `gitleaks`, the sign-off check and the Gradle build. It needs JDK 17, the Android SDK, docker and `uv`;
+  a missing tool fails its step with an install hint. Add `--emulator` to also run the instrumented tests on a local
+  API 25 emulator (it tells you the `sdkmanager` command if the SDK lacks one).
+- Open the pull request as a draft. CI doesn't run on drafts.
+- When preflight passes, mark the pull request ready for review. That runs CI once.
+- Batch review fixes into one push. Every push to a ready pull request runs CI again.
+- CI on the final head must be green before merge.
+- `osv-scanner` runs on a pull request only when it changes `gradle/`, a `*.gradle.kts` file, `gradle.properties` or
+  `build-logic/`. It also runs weekly on `main`.
+
 ## Commit messages
 
 Use [Conventional Commits](https://www.conventionalcommits.org/): a type, an optional scope, and a short summary.
@@ -75,7 +90,7 @@ for you:
 
 ## CI checks
 
-All checks run in GitHub Actions on every pull request. Here's what each one does and how to fix a failure.
+All checks run in GitHub Actions on every pull request that is ready for review (not on drafts). Here's what each one does and how to fix a failure.
 
 | Check | What it checks | How to fix a failure |
 | --- | --- | --- |

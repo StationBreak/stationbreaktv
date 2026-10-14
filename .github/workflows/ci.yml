@@ -3,6 +3,8 @@ name: CI
 # Never pull_request_target: fork PRs must not get secrets or a write token.
 on:
   pull_request:
+    # `ready_for_review` is listed because a draft's pushes are skipped (see `checks`); marking it ready runs CI once.
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -21,6 +23,9 @@ jobs:
   # Fail-fast, so the failing step's name says which check broke. It also decides which of the big jobs a PR needs
   # (the "Decide what to run" step), and the output is set before any check can fail.
   checks:
+    # Draft PRs don't run CI: the local preflight (scripts/preflight.sh) does the iterating. Every other job needs
+    # this one, except osv-scanner, which has its own copy of the condition.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -30,6 +35,7 @@ jobs:
     outputs:
       build: ${{ steps.scope.outputs.build }}
       emulator: ${{ steps.scope.outputs.emulator }}
+      deps: ${{ steps.scope.outputs.deps }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,7 +46,8 @@ jobs:
       # Pushes to main always run everything. A PR skips `build` when it changes only docs, and `emulator` unless it
       # changes the app, the modules, or the build. Anything not matched below counts as a build change, and if the
       # diff can't be read both jobs run. A skipped job still reports as skipped, not pending, so this is safe to
-      # make a required check later (unlike workflow-level paths-ignore).
+      # make a required check later (unlike workflow-level paths-ignore). `deps` says whether osv-scanner is needed:
+      # the PR touches the dependency files or the build logic.
       - name: Decide what to run
         id: scope
         env:
@@ -50,6 +57,7 @@ jobs:
         run: |
           build=true
           emulator=true
+          deps=true
           if [ "$EVENT_NAME" = pull_request ] && files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")" && [ -n "$files" ]; then
             printf 'Changed files:\n%s\n' "$files"
             if ! grep -qvE '^(docs/|LICENSE|.*\.md$)' <<<"$files"; then
@@ -58,11 +66,17 @@ jobs:
             if ! grep -qE '^(app/|core/|data/|feature/|build-logic/|gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|\.github/workflows/ci\.yml$)' <<<"$files"; then
               emulator=false
             fi
+            if ! grep -qE '^(gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|build-logic/)' <<<"$files"; then
+              deps=false
+            fi
           fi
           # No build means no emulator, even if the pattern matched.
           if [ "$build" = false ]; then emulator=false; fi
-          echo "build=$build" >> "$GITHUB_OUTPUT"
-          echo "emulator=$emulator" >> "$GITHUB_OUTPUT"
+          {
+            echo "build=$build"
+            echo "emulator=$emulator"
+            echo "deps=$deps"
+          } >> "$GITHUB_OUTPUT"
 
       # Every commit in a PR needs a Signed-off-by: trailer (ADR-0003). Only a GitHub-verified renovate[bot] commit is
       # exempt; see .github/scripts/dco-check.sh.
@@ -488,8 +502,11 @@ jobs:
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
   # introduces. The packages come from gradle/verification-metadata.xml. The verification guard's test fixtures
   # (.github/scripts/fixtures/) are lockfiles too, so they're scanned as well.
+  # Only on PRs that change the dependency files or the build logic (see `checks`), and not on drafts. `checks` is
+  # skipped for a draft, so `deps` is empty then; `!cancelled()` keeps it running when a check fails.
   osv-scanner:
-    if: github.event_name == 'pull_request'
+    needs: checks
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true && needs.checks.outputs.deps == 'true' }}
     # The called workflow's job declares all three, and a caller must grant at least what it declares or the run
     # fails to start (tried with contents: read alone: startup_failure). security-events: write is used only to
     # upload SARIF, which is off; actions: read is for that upload too.
