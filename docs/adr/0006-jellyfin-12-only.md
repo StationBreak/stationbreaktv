@@ -83,7 +83,9 @@ the core of the app is expected to fail the same way.
   org.slf4j.LoggerFactory` (found in SP-1, [ADR-0007](0007-tune-latency-spike.md)).
 - **Device ID:** Jellyfin revokes a device's earlier token when the same device ID logs in again.
   Profiles (ADR-0001) and Quick Connect onboarding must not reuse one device ID across simultaneous
-  sessions.
+  sessions. The ID is per install: a random UUID kept under its own key in the `SecretStore`, never derived from
+  `ANDROID_ID`, and kept across sign-out. The next sign-in on the TV therefore revokes a token that a failed logout
+  left on the server (F0.3 Unit 2).
 - **Resume position:** short fixture items (< 5 minutes) don't store a resume position, because of
   Jellyfin's minimum resume duration. S1.5.1 tests need fixtures longer than that.
 - **Logging:** the SDK logs each request's method and URL (with the token masked) through

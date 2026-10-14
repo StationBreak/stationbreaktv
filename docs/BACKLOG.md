@@ -68,9 +68,11 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S0.3.2** As a user, I want to sign in with username/password or Quick Connect so that the TV holds only a scoped, revocable token for a non-admin user ([ADR-0001](adr/0001-client-authentication.md)).
 - 🧪 `AuthenticateByName` returns a token + userId and is persisted via `SecretStore`.
 - 🧪 The client offers **no** dashboard-API-key login. Those keys are admin-level and not user-scoped (ADR-0001).
-- 🧪 Every request sends a stable `Authorization: MediaBrowser Client=…, Device=…, DeviceId=…, Version=…` header. DeviceId is generated once per install.
+- 🧪 Every request after the probe sends exactly one `Authorization: MediaBrowser Client=…, Device=…, DeviceId=…, Version=…` header (values percent-encoded; plus `Token=…` once signed in), and no credential is placed in a URL. DeviceId is generated once per install and kept across sign-out.
+- 🧪 The session records `isAdministrator` (from `Policy.IsAdministrator`) so S0.5.3 can warn about an admin account.
+- 🧪 The token is bound to the server that issued it (server ID plus host, port and subpath): a stored token is probed against its server before first use, and a different server clears the session instead of receiving the token.
 - 🧪 Quick Connect login: the TV shows a code, which is approved from a device already signed in as the target user. If Quick Connect is disabled on the server, the UI says so and offers password login instead.
-- 🧪 Logout calls `POST /Sessions/Logout` so the token is revoked server-side, then wipes local secrets.
+- 🧪 Logout clears the stored session first, then calls `POST /Sessions/Logout` with a short timeout (still clearing if the server is unreachable or the caller is cancelled), and reports whether the token was revoked. The device ID is kept.
 
 **S0.3.3** As a user, I want library listing so that I can choose which libraries feed my channels.
 - 🧪 `GET /UserViews` maps to domain `Library` objects. Only video-capable collection types are offered (movies, tvshows, mixed, homevideos, musicvideos).
