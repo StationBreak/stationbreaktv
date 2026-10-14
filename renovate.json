@@ -5,6 +5,10 @@
     "helpers:pinGitHubActionDigests"
   ],
   "minimumReleaseAge": "3 days",
+  "timezone": "America/New_York",
+  "schedule": [
+    "* 0-5 1 * *"
+  ],
   "internalChecksFilter": "strict",
   "automerge": false,
   "osvVulnerabilityAlerts": true,
@@ -29,6 +33,24 @@
         "com.android.tools.build**",
         "com.android.application"
       ]
+    },
+    {
+      "description": "One monthly PR for every non-major update, so the dependency verification baseline is rebuilt once a month, not per package (ADR-0013). Security fixes ignore the schedule (vulnerabilityAlerts).",
+      "groupName": "Monthly non-major updates",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin",
+        "pinDigest"
+      ]
+    },
+    {
+      "description": "Stay on JDK 17: AGP, the CI runners and the local toolchain are all set up for 17.",
+      "matchDatasources": [
+        "java-version"
+      ],
+      "allowedVersions": "<18"
     }
   ],
   "customManagers": [
