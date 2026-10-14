@@ -73,8 +73,9 @@ the core of the app is expected to fail the same way.
 - **Errors:** connection refused, unknown host, and timeouts all surface as the SDK's `TimeoutException`.
   The original `ConnectException`, `UnknownHostException`, or `InterruptedIOException` is the `cause`,
   so the S0.3.4 mapper must inspect the cause chain. That's enough for the https→http fallback, which
-  triggers only on connection refused (S0.3.1). TLS failures surface as `SecureConnectionException`,
-  with `SSLHandshakeException` (untrusted or pin mismatch) or `SSLException` as the cause.
+  triggers only on connection refused, an unreachable network, or a positively identified plaintext answer to
+  the TLS hello (S0.3.1, [ADR-0014](0014-scheme-fallback-and-cleartext-policy.md)). TLS failures surface as
+  `SecureConnectionException`, with `SSLHandshakeException` (untrusted or pin mismatch) or `SSLException` as the cause.
 - **Dependencies:** the SDK exposes `okhttp3.OkHttpClient` in its API (`OkHttpFactory(base)`) but
   doesn't export OkHttp or kotlinx-coroutines transitively, so `data:jellyfin` declares both itself.
   Pin them to the SDK's versions (OkHttp 5.5.0 and coroutines 1.11.0 for SDK 1.9.2). On Android it also
