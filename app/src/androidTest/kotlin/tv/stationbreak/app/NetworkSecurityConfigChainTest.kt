@@ -14,24 +14,25 @@ import java.security.KeyStore
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.util.Date
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 
 /**
  * Spec 03, Unit 4 (S0.3.5): on the API 25 emulator, the platform trust path that honours the app's
- * `network_security_config` accepts a chain that ends at ISRG Root X2 without the X1 cross-sign, and rejects a chain
- * from an unknown root.
+ * `network_security_config` accepts chains that end at the bundled Let's Encrypt roots, without the X1 cross-sign,
+ * and rejects a chain from an unknown root.
  *
  * The platform manager is the one TLS uses: `TrustManagerFactory` initialised with no key store is the app's
  * network-security-config-aware manager (API 24+), and `X509TrustManagerExtensions` is its public, host-aware entry
  * point. Nothing here builds a `KeyStore` of its own or bypasses the config.
  *
- * Why the chain is the cross-signed Root YE and not a live server leaf: the platform manager checks "now", and it has
- * no way to pin a date. A live leaf lasts 90 days, so a frozen one would fail on its own expiry. The cross-signed
- * Root YE certificate (issued by ISRG Root X2, valid to 2032) is the long-lived part of every chain the owner's server
- * presents and has no clock dependence until then. API 25 does not ship X2 (Android 14 does), so this passes there only
- * through the bundled anchor.
+ * Why the chains are frozen CA certificates and not a live server leaf: the platform manager checks "now" and has no
+ * way to pin a date, and a live leaf lasts 90 days. The two certificates below are the long-lived parts of the chains
+ * Let's Encrypt serves. API 25 ships neither ISRG Root X2 (Android 14 does) nor Root YE, so each only passes through
+ * a bundled anchor. Each is accepted in its own test because a certificate that shares its subject and key with a
+ * bundled anchor is itself the anchor, so the cross-signed Root YE says nothing about Root X2.
  */
 @RunWith(AndroidJUnit4::class)
 class NetworkSecurityConfigChainTest {
@@ -57,16 +58,23 @@ class NetworkSecurityConfigChainTest {
     }
 
     @Test
-    fun chainEndingAtRootX2WithoutTheX1CrossSignValidates() {
-        val chain = arrayOf(asset("isrg_root_ye_by_x2"))
-        val validated = platformTrust().checkServerTrusted(chain, "ECDSA", host)
-        // The platform returns the validated path, with or without the anchor itself depending on the release; either
-        // way it ends at, or directly under, ISRG Root X2.
+    fun rootYeCrossSignedByRootX2ValidatesThroughTheBundledRootYe() {
+        val validated = platformTrust().checkServerTrusted(arrayOf(asset("isrg_root_ye_by_x2")), "ECDSA", host)
         assertEquals("Root YE", commonName(validated.first().subjectX500Principal))
+    }
+
+    @Test
+    fun intermediateIssuedByRootX2ValidatesThroughTheBundledRootX2() {
+        val intermediate = asset("intermediate_e8_by_x2")
+        // E8 is the last frozen intermediate X2 signed directly (retired for new issuance, valid until 2027-03-12), and
+        // the only X2-signed certificate that doesn't share a subject with a bundled anchor. Once it expires nothing
+        // valid is left to present, so this test ends there; the X2 anchor is then covered by TrustAnchorsTest's pin.
+        if (Date().after(intermediate.notAfter)) return
+        val validated = platformTrust().checkServerTrusted(arrayOf(intermediate), "ECDSA", host)
+        assertEquals("E8", commonName(validated.first().subjectX500Principal))
         val last = validated.last()
         val names = listOf(last.issuerX500Principal, last.subjectX500Principal).map(::commonName)
-        val endsAtX2 = "ISRG Root X2" in names
-        assertTrue("validated path does not reach ISRG Root X2", endsAtX2)
+        assertTrue("validated path ends at: $names", "ISRG Root X2" in names)
     }
 
     @Test

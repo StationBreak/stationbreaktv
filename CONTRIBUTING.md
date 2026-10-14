@@ -121,6 +121,10 @@ add one):
 3. Update the fingerprint constants in `TrustAnchorsTest` and the table in the README together, and have the owner
    compare the new fingerprints with an independent source in the pull request.
 
+`NetworkSecurityConfigChainTest` checks the X2 anchor with a frozen Let's Encrypt intermediate that Root X2 signed
+(E8, valid until 2027-03-12). After that date the test ends early, because X2 signs nothing else that is valid; the
+Root YE test and the fingerprint pins keep covering the anchors.
+
 Don't add `src="user"` (a user-installed CA), a second `cleartextTrafficPermitted`, debug overrides outside a debug
 source set, or a custom `TrustManager`: `NetworkSecurityConfigTest` and Lint's Security category reject them.
 
