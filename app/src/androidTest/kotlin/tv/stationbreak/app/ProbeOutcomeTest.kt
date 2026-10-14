@@ -137,4 +137,16 @@ class ProbeOutcomeTest {
         val line = ProbeOutcome.status(502)
         assertEquals("ProbeOutcome result=FAIL type=Unknown major=none", line)
     }
+
+    @Test
+    fun anAddressThatIsNotHttpsFailsAsNotTlsBeforeAnyConnection() {
+        listOf("http://$host", "HTTP://$host:8096", "ftp://$host", host, "", "  http://$host").forEach { address ->
+            val line = ProbeOutcome.requireHttps(address)
+            assertEquals("ProbeOutcome result=FAIL type=NotTls major=none", line)
+            assertNoLeak(line.orEmpty())
+        }
+        listOf("https://$host", "HTTPS://$host:8920", " https://$host").forEach { address ->
+            assertEquals(null, ProbeOutcome.requireHttps(address))
+        }
+    }
 }

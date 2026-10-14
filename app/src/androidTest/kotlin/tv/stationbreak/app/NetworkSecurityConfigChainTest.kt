@@ -5,12 +5,12 @@ import android.net.http.X509TrustManagerExtensions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.KeyStore
+import java.security.cert.CertPathValidatorException
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
@@ -86,7 +86,15 @@ class NetworkSecurityConfigChainTest {
             platformTrust().checkServerTrusted(chain, "ECDSA", host)
             fail("a chain from an unknown root was accepted")
         } catch (expected: CertificateException) {
-            assertFalse(expected.message.orEmpty().isEmpty())
+            // Rejected for want of a trust anchor, not for a date or a key-id mismatch.
+            val causes = generateSequence<Throwable>(expected) { it.cause }.take(MAX_CAUSES).toList()
+            val noAnchor =
+                causes.any { it is CertPathValidatorException && it.message.orEmpty().contains("Trust anchor") }
+            assertTrue("rejected for another reason: $causes", noAnchor)
         }
+    }
+
+    private companion object {
+        const val MAX_CAUSES = 8
     }
 }

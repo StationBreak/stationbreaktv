@@ -31,6 +31,15 @@ internal object ProbeOutcome {
         return if (major == null) line(passed = false, type = "Unknown", major = NONE) else line(true, "None", major)
     }
 
+    // The probe proves TLS trust, so a plain-HTTP address is a failure that never connects. Only the type is reported:
+    // not the scheme, and nothing from the address.
+    fun requireHttps(address: String): String? =
+        if (address.trimStart().startsWith("https://", ignoreCase = true)) {
+            null
+        } else {
+            line(passed = false, type = "NotTls", major = NONE)
+        }
+
     @Suppress("UNUSED_PARAMETER")
     fun status(code: Int): String = line(passed = false, type = "Unknown", major = NONE)
 

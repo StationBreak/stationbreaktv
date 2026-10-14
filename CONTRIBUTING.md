@@ -93,7 +93,7 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 | `emulator` | Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
 | ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
 | `script-tests` (verification guard) | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
-| `script-tests` (device-proof guard) | A workflow, script or Gradle file names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
+| `script-tests` (device-proof guard) | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
 | `dco` | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
@@ -124,6 +124,11 @@ add one):
 `NetworkSecurityConfigChainTest` checks the X2 anchor with a frozen Let's Encrypt intermediate that Root X2 signed
 (E8, valid until 2027-03-12). After that date the test ends early, because X2 signs nothing else that is valid; the
 Root YE test and the fingerprint pins keep covering the anchors.
+
+A bundled root also comes out, not only gets refreshed, when it is distrusted: if a root program (Mozilla, Chrome,
+Apple, Microsoft) or the CA announces a distrusted or compromised root, a mis-issuance involving it, or a key
+compromise, remove its PEM, its config line and its pins in the same pull request, and say why in the description. An
+anchor the platform would no longer trust must not stay trusted here just because it is bundled.
 
 Don't add `src="user"` (a user-installed CA), a second `cleartextTrafficPermitted`, debug overrides outside a debug
 source set, or a custom `TrustManager`: `NetworkSecurityConfigTest` and Lint's Security category reject them.

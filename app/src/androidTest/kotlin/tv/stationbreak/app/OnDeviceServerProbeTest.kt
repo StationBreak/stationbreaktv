@@ -33,7 +33,9 @@ class OnDeviceServerProbeTest {
 
     private fun probe(address: String): String =
         try {
-            val connection = URL(address.trimEnd('/') + "/System/Info/Public").openConnection() as HttpURLConnection
+            ProbeOutcome.requireHttps(address)?.let { return it }
+            val url = URL(address.trim().trimEnd('/') + "/System/Info/Public")
+            val connection = url.openConnection() as HttpURLConnection
             try {
                 connection.connectTimeout = TIMEOUT_MILLIS
                 connection.readTimeout = TIMEOUT_MILLIS

@@ -48,10 +48,36 @@ expect script-names-argument 1
 expect gradle-kts-names-argument 1
 expect gradle-properties-names-argument 1
 
+# Anywhere else a build or script could set it: build-logic plugins, Groovy Gradle files, a Taskfile, a script.
+expect build-logic-names-argument 1
+expect groovy-names-argument 1
+expect taskfile-names-argument 1
+expect script-outside-github-names-argument 1
+
+# Where the argument is allowed to be named: the docs, CONTRIBUTING and the probe test itself.
+expect exempt-paths 0
+
 # Only the guard, its test and its own fixtures are exempt, by exact path. A same-named script elsewhere, or another
 # fixtures directory, is not.
 expect script-named-like-guard 1
 expect fixtures-dir-hides-script 1
+
+# A file the guard cannot read must not read as clean. (root can read anything, so the case needs another user.)
+if [ "$(id -u)" -ne 0 ]; then
+  scratch="$(mktemp -d)"
+  cp -R "$fixtures/clean/." "$scratch/"
+  echo 'serverAddress' >"$scratch/unreadable.txt"
+  chmod 000 "$scratch/unreadable.txt"
+  out="$(bash "$script" "$scratch" 2>&1)"
+  got=$?
+  chmod 600 "$scratch/unreadable.txt"
+  rm -rf "$scratch"
+  if [ "$got" -eq 2 ]; then
+    echo "ok   unreadable file (exit $got)"
+  else
+    fail "unreadable file" "exit $got, want 2" "$out"
+  fi
+fi
 
 # No argument: usage error, not a pass on the current directory.
 out="$(bash "$script" 2>&1)"

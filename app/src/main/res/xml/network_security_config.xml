@@ -4,10 +4,11 @@
   (app/trust-anchors/README.md): Fire OS 6 (API 25) ships ISRG Root X1 but not X2 or Root YE. There is no
   user-installed CA source, no debug-overrides and no pinning.
 
-  The one cleartext permission: the owner's own media server may be plain HTTP on the home network. The cleartext
-  gate is in the app (spec 03 Unit 1, cleartextNeedsConfirmation): an http:// address is never used without the
-  user's explicit, bound acknowledgement. NetworkSecurityConfigTest allows exactly this one attribute and exactly
-  this one lint suppression.
+  The one cleartext permission: the owner's own media server may be plain HTTP on the home network. The gate that
+  decides when cleartext may be used is not in the app yet: spec 03 Unit 1 adds it (cleartextNeedsConfirmation), and an
+  http:// address must never be used without the user's explicit, bound acknowledgement. Until then the app makes no
+  network request in a release build. Every later network path (playback, images) goes through the same gate.
+  NetworkSecurityConfigTest allows exactly this one attribute and exactly this one lint suppression.
 -->
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
     <base-config

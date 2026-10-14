@@ -21,13 +21,17 @@ class NetworkSecurityConfigTest {
     private val toolsNamespace = "http://schemas.android.com/tools"
     private val androidNamespace = "http://schemas.android.com/apk/res/android"
 
+    private fun sourceSets(): List<File> = sources.listFiles { file -> file.isDirectory }.orEmpty().toList()
+
+    // Every XML resource whose root element is <network-security-config>, whatever its file name or source set.
     private fun configFiles(): List<File> =
-        sources
-            .listFiles { file -> file.isDirectory }
-            .orEmpty()
+        sourceSets()
             .flatMap { sourceSet ->
                 File(sourceSet, "res").walkTopDown().filter { it.isFile && it.extension == "xml" }.toList()
-            }.filter { it.parentFile?.name == "xml" && it.name.startsWith("network_security_config") }
+            }.filter { it.parentFile?.name?.startsWith("xml") == true }
+            .filter { runCatching { parse(it).documentElement.tagName }.getOrNull() == "network-security-config" }
+
+    private fun manifests(): List<File> = sourceSets().map { File(it, "AndroidManifest.xml") }.filter { it.isFile }
 
     private fun parse(file: File): Document =
         DocumentBuilderFactory
@@ -64,12 +68,19 @@ class NetworkSecurityConfigTest {
             listOf("src/main/res/xml/network_security_config.xml"),
             configFiles().map { it.invariantSeparatorsPath },
         )
-        val manifest = parse(File("src/main/AndroidManifest.xml"))
-        val application = elements(manifest, "application").single()
-        assertEquals(
-            "@xml/network_security_config",
-            application.getAttributeNS(androidNamespace, "networkSecurityConfig"),
-        )
+        val pointers =
+            manifests().associate { manifest ->
+                manifest.invariantSeparatorsPath to
+                    elements(parse(manifest), "application").map {
+                        it.getAttributeNS(androidNamespace, "networkSecurityConfig")
+                    }
+            }
+        // No manifest in any source set may point anywhere else, and the main one must point here.
+        pointers.forEach { (path, values) ->
+            val ok = values.all { it.isEmpty() || it == "@xml/network_security_config" }
+            assertTrue("$path points at another config: $values", ok)
+        }
+        assertEquals(listOf("@xml/network_security_config"), pointers.getValue("src/main/AndroidManifest.xml"))
     }
 
     @Test

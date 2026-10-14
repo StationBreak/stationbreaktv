@@ -42,6 +42,30 @@ class TrustAnchorsTest {
             .joinToString("") { String.format(Locale.ROOT, "%02X", it) }
 
     @Test
+    fun eachFileHoldsExactlyOneCertificateAndNothingElse() {
+        // Android trusts every certificate in a raw file (it reads them all), so a second one appended to a file would
+        // become a trusted root without changing the first one's pin.
+        bundled().forEach { (name, pem) ->
+            val text = String(pem, Charsets.US_ASCII)
+            val parsed = pem.inputStream().use { CertificateFactory.getInstance("X.509").generateCertificates(it) }
+            assertEquals("$name holds more than one certificate", 1, parsed.size)
+            assertEquals("$name BEGIN lines", 1, Regex("-----BEGIN ").findAll(text).count())
+            assertTrue("$name has text after END", text.substringAfter("-----END CERTIFICATE-----").isBlank())
+        }
+    }
+
+    @Test
+    fun theCrossSignedRootYeIsTheBundledRootYeAndVerifiesUnderRootX2() {
+        // Ties Root YE, which no trust store lists yet, to Root X2, which Mozilla's does: same key, signed by X2.
+        val crossSign = parse(File("src/androidTest/assets/chains/isrg_root_ye_by_x2.pem").readBytes())
+        val rootYe = parse(bundled().getValue("isrg_root_ye"))
+        val rootX2 = parse(bundled().getValue("isrg_root_x2"))
+        assertEquals(rootYe.publicKey, crossSign.publicKey)
+        assertEquals(rootX2.subjectX500Principal, crossSign.issuerX500Principal)
+        crossSign.verify(rootX2.publicKey)
+    }
+
+    @Test
     fun bundlesExactlyTheTwoIntendedRoots() {
         assertEquals(expectedFingerprints.keys, bundled().keys)
     }
