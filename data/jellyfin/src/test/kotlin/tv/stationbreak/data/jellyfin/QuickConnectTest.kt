@@ -15,6 +15,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class QuickConnectTest {
@@ -122,6 +123,24 @@ class QuickConnectTest {
             assertEquals(5 * 60 * 1000L, currentTime)
             assertEquals(1, states.count { it == QuickConnectState.Waiting })
         }
+
+    @Test
+    fun theClientLimitIsADeadlineNotAPollCountWhenPollsAreSlow() {
+        enabled()
+        initiate()
+        jellyfin.on("GET", "/QuickConnect/Connect") {
+            Thread.sleep(400)
+            jellyfin.json("{\"Authenticated\":false,\"Secret\":\"$secret\",\"Code\":\"123456\"}")
+        }
+        val limits = QuickConnectLimits(100.milliseconds, 600.milliseconds)
+        val slow = testAdapter(tuning = AdapterTuning(quickConnect = limits))
+        val started = System.nanoTime()
+        val states = kotlinx.coroutines.runBlocking { slow.quickConnect(jellyfin.address, null).toList() }
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        assertEquals(QuickConnectState.Expired, states.last())
+        // Six polls at 500 ms each would take 3 s; a 600 ms deadline ends it after the poll in flight.
+        assertTrue(elapsedMs < 1800, "took $elapsedMs ms")
+    }
 
     @Test
     fun cancellingTheCollectorStopsThePollingAndSendsNothingMore() =

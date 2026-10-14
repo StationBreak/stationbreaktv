@@ -14,8 +14,9 @@ fun interface DeviceIdProvider {
 /**
  * One random UUID per install, kept under its own key in the [SecretStore] and never cleared by sign-out, so signing
  * in again replaces the token an earlier failed logout left behind (Jellyfin revokes the earlier token for the same
- * user and device, ADR-0006). Not derived from `ANDROID_ID` or any hardware identifier. If the store can't be read or
- * written, the ID lives in memory for this run only.
+ * user and device, ADR-0006). Not derived from `ANDROID_ID` or any hardware identifier.
+ * If the store can't be read, a new ID lives in memory for this run only and the stored one is never
+ * overwritten. If it can't be written, the same.
  */
 class StoredDeviceIdProvider(
     private val store: SecretStore,
@@ -24,12 +25,16 @@ class StoredDeviceIdProvider(
     private var cached: String? = null
 
     override suspend fun deviceId(): String {
-        val known = cached ?: existing() ?: newId().also { store.save(KEY, it) }
-        cached = known
-        return known
+        cached?.let { return it }
+        // Only a store that answered "nothing here" may be written. A failed load leaves whatever it holds alone.
+        val id =
+            when (val loaded = store.load(KEY)) {
+                is SecretStoreResult.Success -> loaded.value ?: newId().also { store.save(KEY, it) }
+                SecretStoreResult.Failure -> newId()
+            }
+        cached = id
+        return id
     }
-
-    private suspend fun existing(): String? = (store.load(KEY) as? SecretStoreResult.Success)?.value
 
     companion object {
         const val KEY = "device_id"

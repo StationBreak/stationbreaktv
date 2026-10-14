@@ -8,7 +8,9 @@ package tv.stationbreak.core.model
  */
 @RequiresOptIn(
     level = RequiresOptIn.Level.ERROR,
-    message = "Reads a secret's raw value. Only the header builder and the session serialiser may.",
+    message =
+        "Reads a secret's raw value. " +
+            "Only the header builder, the session serialiser and the Quick Connect request may.",
 )
 @Retention(AnnotationRetention.BINARY)
 @Target(AnnotationTarget.PROPERTY, AnnotationTarget.FUNCTION)

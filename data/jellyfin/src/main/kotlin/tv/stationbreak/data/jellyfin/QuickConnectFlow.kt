@@ -16,6 +16,7 @@ import tv.stationbreak.core.model.ServerAddress
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /** How long Quick Connect waits for approval: one poll every [interval] until [total] has passed (S0.3.2). */
 internal data class QuickConnectLimits(
@@ -118,7 +119,9 @@ internal class QuickConnectFlow(
         var waiting = false
         var outcome: QuickConnectState? = null
         var left = limits.polls
-        while (outcome == null && left-- > 0) {
+        // The poll count is not enough: slow polls would stretch 5 minutes, so a deadline ends it too.
+        val deadline = TimeSource.Monotonic.markNow() + limits.total
+        while (outcome == null && left-- > 0 && deadline.hasNotPassedNow()) {
             delay(limits.interval)
             when (val step = pollOnce(resolved, acknowledgement, secret)) {
                 is Step.Done -> {

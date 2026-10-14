@@ -52,6 +52,18 @@ class DeviceIdTest {
         }
 
     @Test
+    fun aFailedLoadNeverOverwritesTheStoredId() =
+        runBlocking {
+            val stored = provider.deviceId()
+            store.failLoad = true
+            val other = StoredDeviceIdProvider(store) { "generated-in-memory" }
+            assertEquals("generated-in-memory", other.deviceId())
+            store.failLoad = false
+            assertEquals(SecretStoreResult.Success(stored), store.load(StoredDeviceIdProvider.KEY))
+            assertEquals(listOf(StoredDeviceIdProvider.KEY), store.writtenKeys)
+        }
+
+    @Test
     fun theDefaultGeneratorIsARandomUuidNotAHardwareIdentifier() =
         runBlocking {
             val id = StoredDeviceIdProvider(InMemorySecretStore()).deviceId()

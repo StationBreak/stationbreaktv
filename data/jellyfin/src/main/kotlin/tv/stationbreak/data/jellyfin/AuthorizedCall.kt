@@ -47,8 +47,21 @@ internal class AuthorizedCall(
 
     private suspend fun ensureBound(session: Session): MediaServerError? {
         val binding = Binding(session.token, session.address, session.server.id)
-        if (binding in bound) return null
-        return when (val answer = probe.probe(session.address)) {
+        return when {
+            binding in bound -> null
+
+            // A token is bound to the one server that issued it; it is never re-bound to another address.
+            bound.any { it.token == session.token } -> MediaServerError.ServerMismatch()
+
+            else -> verify(session, binding)
+        }
+    }
+
+    private suspend fun verify(
+        session: Session,
+        binding: Binding,
+    ): MediaServerError? =
+        when (val answer = probe.probe(session.address)) {
             is ServerResult.Failure -> {
                 answer.error
             }
@@ -73,5 +86,4 @@ internal class AuthorizedCall(
                 }
             }
         }
-    }
 }

@@ -161,6 +161,23 @@ class TokenBindingTest {
         }
 
     @Test
+    fun aTokenIsNeverReBoundToAnotherHost() {
+        runBlocking {
+            FakeJellyfin().use { second ->
+                second.on("POST", "/Sessions/Logout") { second.status(204) }
+                jellyfin.on("POST", "/Users/AuthenticateByName") { jellyfin.json(authResult(token)) }
+                jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(204) }
+                val adapter = testAdapter()
+                val session =
+                    adapter.signIn(SignInRequest(jellyfin.address, "alice", "pw".toCharArray(), null)).getOrNull()!!
+                val moved = session.copy(address = second.address)
+                assertIs<MediaServerError.ServerMismatch>(adapter.revoke(moved).errorOrNull())
+                assertEquals(0, second.log.size)
+            }
+        }
+    }
+
+    @Test
     fun aRevokedTokenOnResumeIsSessionExpired() {
         runBlocking {
             jellyfin.on("GET", "/Users/Me") { jellyfin.status(401) }
