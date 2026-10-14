@@ -70,6 +70,16 @@ enum class Rule(
         "testFixtures (core:domain's port fakes) may be used only in test configurations " +
             "(not main, not testFixtures)",
     ),
+    SDK_CONFINED(
+        "sdk-confined",
+        "only data:jellyfin may declare the Jellyfin SDK (org.jellyfin.sdk:*), so no SDK type reaches another module " +
+            "(ADR-0005)",
+    ),
+    OKHTTP_CONFINED(
+        "okhttp-confined",
+        "a [KMP] or [JVM] module other than data:jellyfin may not declare OkHttp (com.squareup.okhttp3:*), so no " +
+            "OkHttp type reaches a port signature (ADR-0005)",
+    ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
 }
@@ -124,6 +134,10 @@ object ArchitectureRules {
     private val FEATURE =
         ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:ui", ":core:playback", ":core:model"))
 
+    private const val DATA_JELLYFIN = ":data:jellyfin"
+    private const val SDK_GROUP = "org.jellyfin.sdk"
+    private const val OKHTTP_GROUP = "com.squareup.okhttp3"
+
     private val SCHEDULER_FORBIDDEN = setOf(":core:engine", ":core:rules")
 
     private val ANDROID_GROUPS = listOf("androidx", "org.jetbrains.androidx", "com.android", "com.google.android")
@@ -161,7 +175,23 @@ object ArchitectureRules {
                 val android =
                     ANDROID_GROUPS.any { dependency.group == it || dependency.group.startsWith("$it.") } ||
                         dependency.key in ANDROID_ARTIFACTS
-                if (spec.platform == Platform.PURE && android) Rule.NO_ANDROID_IN_PURE_MODULES else null
+                when {
+                    spec.platform == Platform.PURE && android -> {
+                        Rule.NO_ANDROID_IN_PURE_MODULES
+                    }
+
+                    dependency.group == SDK_GROUP && module != DATA_JELLYFIN -> {
+                        Rule.SDK_CONFINED
+                    }
+
+                    dependency.group == OKHTTP_GROUP && spec.platform == Platform.PURE && module != DATA_JELLYFIN -> {
+                        Rule.OKHTTP_CONFINED
+                    }
+
+                    else -> {
+                        null
+                    }
+                }
             }
 
             is Dependency.OnProject -> {

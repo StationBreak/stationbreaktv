@@ -33,7 +33,7 @@ Source of truth: [`SPEC.md`](SPEC.md).
 stationbreaktv/
 ├── app/                         Android application. Hilt root, navigation, flavors.
 ├── build-logic/convention/      Gradle convention plugins (quality, android-app, android-lib, compose, kmp-lib, jvm-lib;
-│                                jvm-inject and hilt arrive with F0.3, the first story that uses @Inject)
+│                                licensee, jvm-inject; hilt arrives when the app first wires an @Inject class, in F0.3)
 │
 ├── core/
 │   ├── model/          [KMP]    Domain entities: Server, MediaItem, Channel, ScheduleBlock, ids, value types,
@@ -142,6 +142,10 @@ not listed in this file's module tree fails until it's added to both. Android mo
 - `core:scheduler` depends on `core:engine`/`core:rules`,
 - `core:testing` is used outside a test source set,
 - `core:domain`'s `testFixtures` is used outside a test source set,
+- the Jellyfin SDK (`org.jellyfin.sdk:*`) is declared outside `data:jellyfin`, or OkHttp (`com.squareup.okhttp3:*`) in a
+  `[KMP]` or `[JVM]` module other than `data:jellyfin` (ADR-0005: no SDK or OkHttp type may appear in a port
+  signature; `PortSignatureTest` in `core:domain` is the second guard, over the compiled public API of `core:model` and
+  `core:domain`),
 - any manifest uses `tools:overrideLibrary`.
 
 ### Hilt in pure modules

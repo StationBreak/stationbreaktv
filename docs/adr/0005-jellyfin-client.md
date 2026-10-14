@@ -35,3 +35,12 @@ to use the SDK stands. SP-4 verified SDK 1.9.2's `jellyfin-api-okhttp`:
 - an injected base client's interceptors and trust manager are used for every request;
 - subpath base URLs work;
 - errors carry the underlying exception as their `cause`.
+
+## Note (2026-10-14, F0.3 Unit 1): trust is per server, so the client must be able to change
+
+The adapter derives its clients from one injected `OkHttpClient` at construction. F0.5 (S0.5.2) pins a certificate per
+server, so the trust manager the base client carries has to look the pin up per host at connection time (a dynamic
+trust manager) rather than be fixed when the adapter is built, or the app would need a new adapter for every server.
+The injected client gets a Hilt qualifier when the app wires it (F0.3 Unit 3), so the base client with system trust and
+the pinned one cannot be confused. The adapter drops the base client's interceptors, cookie jar and authenticators for
+credential-free calls (the probe) and keeps only its trust configuration.

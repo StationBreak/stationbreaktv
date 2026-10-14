@@ -19,6 +19,7 @@ dependencies {
     compileOnly(libs.compose.gradlePlugin)
     compileOnly(libs.detekt.gradlePlugin)
     compileOnly(libs.spotless.gradlePlugin)
+    compileOnly(libs.licensee.gradlePlugin)
 
     // kotlin.test on JUnit 5 (the kotlin-dsl plugin's embedded Kotlin version), and TestKit for the
     // architecture check's fixture builds.
@@ -76,6 +77,14 @@ gradlePlugin {
         register("kmpLib") {
             id = "stationbreak.kmp-lib"
             implementationClass = "tv.stationbreak.buildlogic.KmpLibPlugin"
+        }
+        register("licensee") {
+            id = "stationbreak.licensee"
+            implementationClass = "tv.stationbreak.buildlogic.LicenseePlugin"
+        }
+        register("jvmInject") {
+            id = "stationbreak.jvm-inject"
+            implementationClass = "tv.stationbreak.buildlogic.JvmInjectPlugin"
         }
         register("jvmLib") {
             id = "stationbreak.jvm-lib"
