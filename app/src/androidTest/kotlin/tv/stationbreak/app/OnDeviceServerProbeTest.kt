@@ -4,7 +4,6 @@ package tv.stationbreak.app
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.HttpURLConnection
@@ -17,17 +16,19 @@ import java.net.URL
  *
  * The server address is an instrumentation argument the owner supplies at run time:
  * `adb shell am instrument -w -e class tv.stationbreak.app.OnDeviceServerProbeTest -e serverAddress "$ADDR" ...`.
- * CI never sets it (a guard enforces that), so there the test is skipped and prints nothing. The address is read once,
- * kept in no field, and appears in no log, message or output; neither does any exception message. The request carries
- * no credentials. Every `Throwable` is caught and reduced to its type.
+ * CI never sets it (a guard enforces that), so there the test returns at once and prints nothing. The address is
+ * read once, kept in no field, and appears in no log, message or output; neither does any exception message. The
+ * request carries no credentials. Every `Throwable` is caught and reduced to its type.
  */
 @RunWith(AndroidJUnit4::class)
 class OnDeviceServerProbeTest {
     @Test
     fun probeTheServerNamedByTheRunArgument() {
         val address = InstrumentationRegistry.getArguments().getString(ARGUMENT)
-        assumeTrue(!address.isNullOrBlank())
-        report(probe(address.orEmpty()))
+        // No argument (every CI run): return without a word. A JUnit assumption would be the natural skip, but on the
+        // API 25 emulator run AGP records an assumption failure as a failed test (CI run 38495263038).
+        if (address.isNullOrBlank()) return
+        report(probe(address))
     }
 
     private fun probe(address: String): String =

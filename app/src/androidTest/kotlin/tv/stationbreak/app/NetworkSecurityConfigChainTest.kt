@@ -16,6 +16,7 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
+import javax.security.auth.x500.X500Principal
 
 /**
  * Spec 03, Unit 4 (S0.3.5): on the API 25 emulator, the platform trust path that honours the app's
@@ -43,6 +44,12 @@ class NetworkSecurityConfigChainTest {
             .open("chains/$name.pem")
             .use { CertificateFactory.getInstance("X.509").generateCertificate(it) as X509Certificate }
 
+    private fun commonName(principal: X500Principal): String =
+        principal.name
+            .split(",")
+            .first { it.startsWith("CN=") }
+            .removePrefix("CN=")
+
     private fun platformTrust(): X509TrustManagerExtensions {
         val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         factory.init(null as KeyStore?)
@@ -53,15 +60,13 @@ class NetworkSecurityConfigChainTest {
     fun chainEndingAtRootX2WithoutTheX1CrossSignValidates() {
         val chain = arrayOf(asset("isrg_root_ye_by_x2"))
         val validated = platformTrust().checkServerTrusted(chain, "ECDSA", host)
-        assertTrue(validated.isNotEmpty())
-        assertEquals(
-            "CN=ISRG Root X2",
-            validated
-                .last()
-                .subjectX500Principal.name
-                .split(",")
-                .first { it.startsWith("CN=") },
-        )
+        // The platform returns the validated path, with or without the anchor itself depending on the release; either
+        // way it ends at, or directly under, ISRG Root X2.
+        assertEquals("Root YE", commonName(validated.first().subjectX500Principal))
+        val last = validated.last()
+        val names = listOf(last.issuerX500Principal, last.subjectX500Principal).map(::commonName)
+        val endsAtX2 = "ISRG Root X2" in names
+        assertTrue("validated path does not reach ISRG Root X2", endsAtX2)
     }
 
     @Test
