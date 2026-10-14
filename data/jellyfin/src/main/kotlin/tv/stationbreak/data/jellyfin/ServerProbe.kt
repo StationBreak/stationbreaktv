@@ -2,11 +2,14 @@
 package tv.stationbreak.data.jellyfin
 
 import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Authenticator
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.ConnectionSpec
+import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -40,10 +43,21 @@ internal data class ProbeTimeouts(
 internal class ServerProbe(
     baseClient: OkHttpClient,
     timeouts: ProbeTimeouts = ProbeTimeouts(),
+    testInterceptors: List<Interceptor> = emptyList(),
 ) {
+    // Only the base client's trust configuration is inherited. Its interceptors, cookie jar and authenticators could
+    // add a credential to a request that must carry none (Angua (Security) R9), so they are dropped. `testInterceptors`
+    // is the seam for tests to observe or fail calls.
     private val client =
         baseClient
             .newBuilder()
+            .apply {
+                interceptors().clear()
+                networkInterceptors().clear()
+                testInterceptors.forEach(::addInterceptor)
+            }.cookieJar(CookieJar.NO_COOKIES)
+            .authenticator(Authenticator.NONE)
+            .proxyAuthenticator(Authenticator.NONE)
             .followRedirects(false)
             .followSslRedirects(false)
             .connectionSpecs(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT))
@@ -72,7 +86,7 @@ internal class ServerProbe(
             }
 
             is Answer.Redirect -> {
-                val decision = answer.target?.let { RedirectPolicy.decide(original, it, ENDPOINT) }
+                val decision = answer.target?.let { RedirectPolicy.decide(original, it, ENDPOINT, current) }
                 if (decision is RedirectDecision.Adopt && redirectsLeft > 0) {
                     follow(original, decision.address, redirectsLeft - 1)
                 } else {
@@ -87,7 +101,7 @@ internal class ServerProbe(
     ): ServerResult<ResolvedServer> =
         when (checked) {
             is ServerResult.Success -> {
-                ServerResult.Success(ResolvedServer(address, checked.value, resolvedByFallback = false))
+                ServerResult.Success(ResolvedServer(address, checked.value))
             }
 
             is ServerResult.Failure -> {
@@ -135,7 +149,12 @@ internal class ServerProbe(
     private fun read(response: Response): Answer =
         when {
             response.isRedirect -> Answer.Redirect(response.header("Location")?.let(response.request.url::resolve))
+
+            // The probe asks for a fixed endpoint, so a 404 means "something else is here", not "no such item".
+            response.code == HTTP_NOT_FOUND -> Answer.Failed(MediaServerError.NotJellyfin())
+
             response.code != HTTP_OK -> Answer.Failed(ErrorMapper.fromStatus(response.code))
+
             else -> readLimited(response)
         }
 
@@ -152,6 +171,7 @@ internal class ServerProbe(
     companion object {
         const val ENDPOINT = "System/Info/Public"
         private const val HTTP_OK = 200
+        private const val HTTP_NOT_FOUND = 404
     }
 }
 

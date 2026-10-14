@@ -38,8 +38,11 @@ object HostClassifier {
 
     private fun classifyName(host: String): HostClass =
         when {
+            // `ai.` has a dot only as the root label: absolute, so public. `nas` alone is single-label.
             '.' !in host -> HostClass.Private
+
             host.endsWith(".local") || host.endsWith(".home.arpa") -> HostClass.Private
+
             else -> HostClass.Public
         }
 
@@ -140,7 +143,9 @@ internal object HostSyntax {
 
     // The last label decides, as in inet_aton: a numeric last label makes the whole name an address.
     private fun dotted(host: String): Parsed {
-        val labels = host.split('.')
+        // One trailing dot on a single label (`ai.`) makes an absolute name, which is not "a name on my network".
+        val bare = host.removeSuffix(".")
+        val labels = if (host.endsWith('.') && bare.isNotEmpty() && '.' !in bare) listOf(bare) else host.split('.')
         return when {
             labels.any { !HOST_LABEL.matches(it) } -> Malformed
             NUMERIC_LABEL.matches(labels.last()) -> strictIpv4(labels)?.let(::Address) ?: Malformed

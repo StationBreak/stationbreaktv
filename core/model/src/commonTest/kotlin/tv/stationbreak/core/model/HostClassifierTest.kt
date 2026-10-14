@@ -128,7 +128,14 @@ class HostClassifierTest {
 
     @Test
     fun emptyLabelsAndEmptyHostsAreInvalid() {
-        assertClass(HostClass.Invalid, "", "host.", "a..b", ".a")
+        assertClass(HostClass.Invalid, "", "a..b", ".a", "a.b.", "..")
+    }
+
+    @Test
+    fun aSingleLabelWithATrailingDotIsAnAbsoluteNameAndPublic() {
+        // `ai.` is a top-level domain, not "a name on my network".
+        assertClass(HostClass.Public, "ai.", "jellyfin.", "nas.")
+        assertClass(HostClass.Invalid, "1.", "0x7f.")
     }
 
     @Test

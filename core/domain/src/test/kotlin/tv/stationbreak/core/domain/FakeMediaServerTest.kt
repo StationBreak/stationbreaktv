@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 
 class FakeMediaServerTest {
     private val address = ServerAddress(Scheme.Https, "media.example.com", 443)
-    private val resolved = ResolvedServer(address, ServerInfo("Home", ServerId("abc"), ServerVersion(12, 2, 0)), false)
+    private val resolved = ResolvedServer(address, ServerInfo("Home", ServerId("abc"), ServerVersion(12, 2, 0)))
 
     @Test
     fun answersWithWhatItWasToldAndRecordsTheCalls() =

@@ -46,6 +46,21 @@ class CleartextGateTest {
     }
 
     @Test
+    fun httpReachedByFallbackNeedsTheAcknowledgementEvenOnTheLan() {
+        val fallback = ServerAddress(Scheme.Http, "192.168.1.10", 8096, viaFallback = true)
+        assertEquals(notConfirmed, CleartextGate.check(fallback, null))
+        val typedAck = CleartextAcknowledgement(fallback.copy(viaFallback = false))
+        assertEquals(notConfirmed, CleartextGate.check(fallback, typedAck))
+        assertNull(CleartextGate.check(fallback, CleartextAcknowledgement(fallback)))
+    }
+
+    @Test
+    fun httpTypedForAPrivateHostNeedsNone() {
+        assertNull(CleartextGate.check(ServerAddress(Scheme.Http, "192.168.1.10", 8096), null))
+        assertNull(CleartextGate.check(ServerAddress(Scheme.Http, "jellyfin", 8096), null))
+    }
+
+    @Test
     fun anUnneededAcknowledgementIsHarmless() {
         val private = ServerAddress(Scheme.Http, "192.168.1.10", 8096)
         assertNull(CleartextGate.check(private, CleartextAcknowledgement(publicHttp)))

@@ -183,6 +183,14 @@ class ServerAddressParserTest {
     }
 
     @Test
+    fun aSingleLabelNameWithATrailingDotKeepsItAsAnAbsolutePublicName() {
+        assertParses(ServerAddress(Scheme.Http, "ai.", 80), "http://ai.", "http://AI./")
+        assertEquals(true, parsed("http://ai.")?.cleartextNeedsConfirmation)
+        // With more labels the dot is only the root label and is dropped.
+        assertParses(ServerAddress(Scheme.Https, "media.example.com", 443), "media.example.com.")
+    }
+
+    @Test
     fun rejectsAnIpv6ZoneIdBecauseItNamesALocalInterfaceNotAServer() {
         assertInvalid("[fe80::1%25eth0]:8096", "[fe80::1%eth0]", "http://[fe80::1%25en0]/")
     }

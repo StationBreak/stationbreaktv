@@ -6,13 +6,23 @@ import java.util.IdentityHashMap
 
 internal const val MAX_CAUSE_CHAIN = 10
 
-/** This throwable and its causes, outermost first, stopping at a cycle or after [MAX_CAUSE_CHAIN] entries. */
+/**
+ * This throwable, its causes and the failures suppressed beside them, outermost first, breadth first, stopping at a
+ * cycle or after [MAX_CAUSE_CHAIN] entries. Suppressed failures matter: OkHttp tries a name's addresses in parallel,
+ * throws the first failure and attaches the others, so a TLS failure can sit behind an unreachable address.
+ */
 internal fun Throwable.causeChain(): List<Throwable> {
     val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
-    return generateSequence(this) { it.cause }
-        .takeWhile { seen.add(it) }
-        .take(MAX_CAUSE_CHAIN)
-        .toList()
+    val found = ArrayList<Throwable>()
+    val queue = ArrayDeque(listOf(this))
+    while (queue.isNotEmpty() && found.size < MAX_CAUSE_CHAIN) {
+        val next = queue.removeFirst()
+        if (!seen.add(next)) continue
+        found += next
+        next.cause?.let(queue::add)
+        queue.addAll(next.suppressed)
+    }
+    return found
 }
 
 /** True when the message holds any of [fragments]. The message is only looked at, never kept. */

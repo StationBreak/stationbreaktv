@@ -76,6 +76,15 @@ class RedirectPolicyTest {
     }
 
     @Test
+    fun onceOnHttpsThereIsNoWayBackToHttp() {
+        // http to https is adopted; a hop back to http is judged against where the probe is now.
+        val https = ServerAddress(Scheme.Https, "media.example.com", 443)
+        val target = "http://media.example.com/System/Info/Public".toHttpUrl()
+        assertEquals(RedirectDecision.Reject, RedirectPolicy.decide(http, target, endpoint, current = https))
+        assertEquals(adopted(http), RedirectPolicy.decide(http, target, endpoint, current = http))
+    }
+
+    @Test
     fun aDifferentHostIsRejected() {
         assertEquals(RedirectDecision.Reject, decide(http, "https://other.example.com/System/Info/Public"))
         assertEquals(RedirectDecision.Reject, decide(http, "https://media.example.com.evil.example/System/Info/Public"))

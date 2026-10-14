@@ -16,7 +16,8 @@ class ServerAddressTest {
         host: String = "media.example.com",
         port: Int = scheme.defaultPort,
         subpath: String = "",
-    ) = ServerAddress(scheme, host, port, subpath)
+        viaFallback: Boolean = false,
+    ) = ServerAddress(scheme, host, port, subpath, viaFallback)
 
     @Test
     fun keepsItsParts() {
@@ -88,6 +89,46 @@ class ServerAddressTest {
         assertFailsWith<IllegalArgumentException> { address(subpath = "jellyfin") }
         assertFailsWith<IllegalArgumentException> { address(subpath = "/jellyfin/") }
         assertFailsWith<IllegalArgumentException> { address(host = "") }
+    }
+
+    @Test
+    fun rejectsAHostTheClassifierCallsInvalidOrNotLowerCase() {
+        // An address not built by the parser (restored from storage, or a fake) is held to the same rules.
+        for (host in listOf("0.0.0.0", "127.1", "2130706433", "224.0.0.1", "255.255.255.255", "::", "ff02::1", "a b")) {
+            assertFailsWith<IllegalArgumentException>(host) { address(host = host) }
+        }
+        assertFailsWith<IllegalArgumentException> { address(host = "Media.Example.com") }
+        assertFailsWith<IllegalArgumentException> { address(Scheme.Http, host = "FD00::1") }
+    }
+
+    @Test
+    fun theErrorOfAnInvalidHostRepeatsNoHost() {
+        val error = assertFailsWith<IllegalArgumentException> { address(host = "0x7f.1") }
+        assertFalse("0x7f" in error.message.orEmpty(), error.message)
+    }
+
+    @Test
+    fun httpReachedByFallbackAlwaysNeedsConfirmationEvenForAPrivateHost() {
+        // Owner decision (ADR-0014): http chosen after https failed is confirmed once, even on the LAN.
+        val typed = address(Scheme.Http, "192.168.1.10", 8096)
+        val fallback = typed.copy(viaFallback = true)
+        assertFalse(typed.cleartextNeedsConfirmation)
+        assertTrue(fallback.cleartextNeedsConfirmation)
+        assertTrue(address(Scheme.Http, "nas.local", viaFallback = true).cleartextNeedsConfirmation)
+        assertTrue(address(Scheme.Http, "nas", viaFallback = true).cleartextNeedsConfirmation)
+        assertFalse(address(Scheme.Https, "media.example.com", viaFallback = true).cleartextNeedsConfirmation)
+        assertNotEquals(typed, fallback)
+        assertFalse(CleartextAcknowledgement(typed).matches(fallback))
+        assertTrue(CleartextAcknowledgement(fallback).matches(fallback.copy()))
+    }
+
+    @Test
+    fun theFallbackFlagSurvivesJsonAndDefaultsToFalse() {
+        val fallback = address(Scheme.Http, "192.168.1.10", 8096).copy(viaFallback = true)
+        val json = Json.encodeToString(ServerAddress.serializer(), fallback)
+        assertEquals(fallback, Json.decodeFromString(ServerAddress.serializer(), json))
+        val old = """{"scheme":"Http","host":"nas","port":80}"""
+        assertFalse(Json.decodeFromString(ServerAddress.serializer(), old).viaFallback)
     }
 
     @Test

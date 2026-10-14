@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.domain.CleartextGate
 import tv.stationbreak.core.domain.MediaServer
@@ -17,11 +18,12 @@ import javax.inject.Inject
 class JellyfinMediaServer internal constructor(
     baseClient: OkHttpClient,
     timeouts: ProbeTimeouts,
+    testInterceptors: List<Interceptor> = emptyList(),
 ) : MediaServer {
     @Inject
     constructor(baseClient: OkHttpClient) : this(baseClient, ProbeTimeouts())
 
-    private val probe = ServerProbe(baseClient, timeouts)
+    private val probe = ServerProbe(baseClient, timeouts, testInterceptors)
     private val schemes = SchemeResolver(probe)
 
     override suspend fun discover(input: String): ServerResult<ResolvedServer> =

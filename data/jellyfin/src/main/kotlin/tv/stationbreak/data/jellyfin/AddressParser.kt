@@ -98,8 +98,12 @@ internal object AddressParser {
         }
     }
 
-    // One trailing dot on a name is the root label; a second one is an empty label, which the classifier rejects.
-    private fun withoutTrailingDot(host: String): String = if (':' in host) host else host.removeSuffix(".")
+    // One trailing dot on a name is the root label; a second one is an empty label, which the classifier rejects. A
+    // single label keeps its dot: `ai.` is an absolute name, where `ai` would be taken for a name on the network.
+    private fun withoutTrailingDot(host: String): String {
+        val bare = host.removeSuffix(".")
+        return if (':' in host || '.' !in bare) host else bare
+    }
 
     private fun subpathOf(segments: List<String>): String {
         val kept = withoutWebClient(segments.dropLastWhile { it.isEmpty() }).dropLastWhile { it.isEmpty() }

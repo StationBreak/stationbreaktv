@@ -34,6 +34,7 @@ class PortErrorShapeTest {
             "ServerError",
             "InvalidAddress",
             "Unknown",
+            "NotFound",
         )
 
     private val variants: List<Class<*>> = MediaServerError::class.java.permittedSubclasses.toList()

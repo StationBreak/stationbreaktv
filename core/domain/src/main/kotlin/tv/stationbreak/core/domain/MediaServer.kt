@@ -7,13 +7,15 @@ import tv.stationbreak.core.model.ServerInfo
 
 /**
  * A server found at [address], and what it said about itself. [resolvedByFallback] is true when the address was
- * chosen by falling back from `https` to `http` rather than typed that way, so the UI can show it differently.
+ * chosen by falling back from `https` to `http` rather than typed that way, so the UI can show it differently. It is
+ * the address's own flag, so it travels with the address wherever that is stored.
  */
 data class ResolvedServer(
     val address: ServerAddress,
     val server: ServerInfo,
-    val resolvedByFallback: Boolean,
-)
+) {
+    val resolvedByFallback: Boolean get() = address.viaFallback
+}
 
 /**
  * The port to a media server (ADR-0005). Only domain types cross it: no SDK or OkHttp type, no `Throwable` and no

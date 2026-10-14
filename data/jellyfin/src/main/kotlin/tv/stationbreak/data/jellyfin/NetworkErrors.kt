@@ -31,7 +31,7 @@ internal object NetworkErrors {
         secure: Boolean,
     ): MediaServerError {
         val handshake = MediaServerError.TlsHandshakeFailed(names)
-        return if (secure) handshake else MediaServerError.ServerError(names)
+        return if (secure) handshake else MediaServerError.Unknown(names)
     }
 
     private fun isUnreachable(error: Throwable): Boolean =

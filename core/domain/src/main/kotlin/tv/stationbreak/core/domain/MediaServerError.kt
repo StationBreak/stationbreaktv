@@ -109,6 +109,11 @@ sealed interface MediaServerError {
         override val causes: List<String> = emptyList(),
     ) : MediaServerError
 
+    /** The server doesn't have what a call asked for (an item, a library). The probe reads a 404 as `NotJellyfin`. */
+    data class NotFound(
+        override val causes: List<String> = emptyList(),
+    ) : MediaServerError
+
     data class Unknown(
         override val causes: List<String> = emptyList(),
     ) : MediaServerError

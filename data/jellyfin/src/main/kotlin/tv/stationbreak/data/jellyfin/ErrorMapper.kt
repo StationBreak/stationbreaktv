@@ -44,7 +44,10 @@ internal object ErrorMapper {
             ?: MediaServerError.Unknown(names)
     }
 
-    /** The error for an HTTP status that arrived as a response, not an exception. */
+    /**
+     * The error for an HTTP status that arrived as a response, not an exception. A 404 is [MediaServerError.NotFound];
+     * only the probe, which asks for a fixed endpoint, reads a 404 as "not a Jellyfin server".
+     */
     fun fromStatus(
         code: Int,
         tokenBearing: Boolean = false,
@@ -53,7 +56,7 @@ internal object ErrorMapper {
         when (code) {
             STATUS_UNAUTHORIZED -> unauthorized(tokenBearing, causes)
             STATUS_FORBIDDEN -> MediaServerError.HttpForbidden(causes)
-            STATUS_NOT_FOUND -> MediaServerError.NotJellyfin(causes)
+            STATUS_NOT_FOUND -> MediaServerError.NotFound(causes)
             in SERVER_ERRORS -> MediaServerError.ServerError(causes)
             else -> MediaServerError.Unknown(causes)
         }

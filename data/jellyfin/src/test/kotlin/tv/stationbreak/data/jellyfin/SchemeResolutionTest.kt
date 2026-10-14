@@ -4,12 +4,14 @@ package tv.stationbreak.data.jellyfin
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.errorOrNull
 import tv.stationbreak.core.domain.getOrNull
+import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import java.net.ConnectException
@@ -18,11 +20,13 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
+import javax.net.ssl.SSLHandshakeException
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -67,12 +71,22 @@ class SchemeResolutionTest {
         client: OkHttpClient,
         input: String,
         timeouts: ProbeTimeouts = quick,
-    ): ServerResult<ResolvedServer> = runBlocking { JellyfinMediaServer(client, timeouts).discover(input) }
+    ): ServerResult<ResolvedServer> = runBlocking { adapter(client, timeouts).discover(input) }
+
+    // The adapter clears the base client's interceptors (R9), so the test seams are handed over separately.
+    private fun adapter(
+        client: OkHttpClient,
+        timeouts: ProbeTimeouts = quick,
+    ): JellyfinMediaServer {
+        val bare = client.newBuilder().apply { interceptors().clear() }.build()
+        return JellyfinMediaServer(bare, timeouts, client.interceptors)
+    }
 
     private fun connect(
         client: OkHttpClient,
         address: ServerAddress,
-    ): ServerResult<ResolvedServer> = runBlocking { JellyfinMediaServer(client, quick).connect(address) }
+        acknowledgement: CleartextAcknowledgement? = null,
+    ): ServerResult<ResolvedServer> = runBlocking { adapter(client).connect(address, acknowledgement) }
 
     private fun tlsServer(fixture: TlsFixture): MockWebServer =
         MockWebServer()
@@ -111,7 +125,7 @@ class SchemeResolutionTest {
 
         val resolved = discover(client, "$LOOPBACK:${server.port}").getOrNull()!!
 
-        assertEquals(ServerAddress(Scheme.Http, LOOPBACK, server.port), resolved.address)
+        assertEquals(ServerAddress(Scheme.Http, LOOPBACK, server.port, viaFallback = true), resolved.address)
         assertTrue(resolved.resolvedByFallback)
         assertEquals(listOf("https", "http"), log.schemes.toList())
     }
@@ -134,7 +148,7 @@ class SchemeResolutionTest {
 
         val resolved = discover(client(), "$LOOPBACK:${lan.port}").getOrNull()!!
 
-        assertEquals(ServerAddress(Scheme.Http, LOOPBACK, lan.port), resolved.address)
+        assertEquals(ServerAddress(Scheme.Http, LOOPBACK, lan.port, viaFallback = true), resolved.address)
         assertTrue(resolved.resolvedByFallback)
         assertEquals(listOf("https", "http"), log.schemes.toList())
         assertEquals(1, lan.httpRequests, "the TLS hello was answered, then one plain request was made")
@@ -182,7 +196,65 @@ class SchemeResolutionTest {
         assertEquals(listOf("https"), log.schemes.toList())
     }
 
+    // Owner decision (ADR-0014): http reached by fallback always needs the one-time acknowledgement, even on the LAN.
+
+    @Test
+    fun aFallbackToAPrivateHostNeedsTheAcknowledgementBeforeAnythingElseIsSent() {
+        val lan = PlaintextServer().closing()
+        val resolved = discover(client(), "$LOOPBACK:${lan.port}").getOrNull()!!
+        val address = resolved.address
+        assertTrue(address.cleartextNeedsConfirmation, "a private host reached by fallback")
+        val requestsBefore = lan.httpRequests
+
+        assertIs<MediaServerError.CleartextNotConfirmed>(connect(client(), address).errorOrNull())
+        assertEquals(requestsBefore, lan.httpRequests, "nothing may be sent without the acknowledgement")
+
+        assertIs<ServerResult.Success<ResolvedServer>>(connect(client(), address, CleartextAcknowledgement(address)))
+    }
+
+    @Test
+    fun httpTypedForAPrivateHostNeedsNoAcknowledgement() {
+        val server = plainServer()
+        val address = discover(client(), "http://$LOOPBACK:${server.port}").getOrNull()!!.address
+        assertFalse(address.viaFallback)
+        assertFalse(address.cleartextNeedsConfirmation)
+    }
+
     // Never a fallback.
+
+    @Test
+    fun aTlsFailureSuppressedBehindAnotherAddressesFailureStillBlocksTheFallback() {
+        // OkHttp tries a name's addresses in parallel, throws the first failure and attaches the others as suppressed:
+        // IPv6 unreachable at once, IPv4 untrusted. The TLS failure is in the error, so there is no http request.
+        val client =
+            client {
+                addInterceptor(
+                    FailingInterceptor("https") {
+                        ConnectException(
+                            "Network is unreachable",
+                        ).apply { addSuppressed(SSLHandshakeException("PKIX path building failed")) }
+                    },
+                )
+            }
+
+        val result = discover(client, "$LOOPBACK:8096")
+
+        assertIs<MediaServerError.TlsUntrusted>(result.errorOrNull())
+        assertNoDowngrade(result)
+    }
+
+    @Test
+    fun aDualStackNameWhereIpv6IsRefusedAndIpv4IsUntrustedDoesNotFallBack() {
+        val server = tlsServer(TlsFixture())
+        val twoAddresses = Dns { listOf(InetAddress.getByName("::1"), InetAddress.getByName(LOOPBACK)) }
+        // The default trust store doesn't hold the test root, so the IPv4 handshake is untrusted.
+        val client = client { dns(twoAddresses) }
+
+        val result = discover(client, "jellyfin.test:${server.port}")
+
+        assertNotNull(result.errorOrNull())
+        assertNoDowngrade(result)
+    }
 
     @Test
     fun neverFallsBackOnAnUntrustedCertificate() {

@@ -5,7 +5,6 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.errorOrNull
-import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.Scheme
 
 /**
@@ -24,7 +23,7 @@ internal class SchemeResolver(
         val first = probe.probe(explicit ?: candidate.at(Scheme.Https))
         val fallBack = explicit == null && first.errorOrNull()?.let(::allowsHttpFallback) == true
         return if (fallBack) {
-            probe.probe(candidate.at(Scheme.Http)).map { it.copy(resolvedByFallback = true) }
+            probe.probe(candidate.at(Scheme.Http).copy(viaFallback = true))
         } else {
             first
         }

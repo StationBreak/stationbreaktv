@@ -120,8 +120,9 @@ class ErrorMapperTest {
     fun aResetOrEofIsAHandshakeFailureOnTlsAndAServerErrorOtherwise() {
         assertIs<MediaServerError.TlsHandshakeFailed>(map(SocketException("Connection reset"), secure = true))
         assertIs<MediaServerError.TlsHandshakeFailed>(map(EOFException(), secure = true))
-        assertIs<MediaServerError.ServerError>(map(SocketException("Connection reset")))
-        assertIs<MediaServerError.ServerError>(map(IOException("unexpected end of stream")))
+        // A dropped plain-http connection says nothing about the server's health: not ServerError.
+        assertIs<MediaServerError.Unknown>(map(SocketException("Connection reset")))
+        assertIs<MediaServerError.Unknown>(map(IOException("unexpected end of stream")))
     }
 
     // HTTP status.
@@ -130,7 +131,7 @@ class ErrorMapperTest {
     fun httpStatuses() {
         assertIs<MediaServerError.HttpUnauthorized>(ErrorMapper.fromStatus(401))
         assertIs<MediaServerError.HttpForbidden>(ErrorMapper.fromStatus(403))
-        assertIs<MediaServerError.NotJellyfin>(ErrorMapper.fromStatus(404))
+        assertIs<MediaServerError.NotFound>(ErrorMapper.fromStatus(404))
         assertIs<MediaServerError.ServerError>(ErrorMapper.fromStatus(500))
         assertIs<MediaServerError.ServerError>(ErrorMapper.fromStatus(503))
         assertIs<MediaServerError.Unknown>(ErrorMapper.fromStatus(418))
@@ -188,6 +189,20 @@ class ErrorMapperTest {
         val alert = SSLHandshakeException("Received fatal alert: handshake_failure")
         assertIs<MediaServerError.TlsHandshakeFailed>(map(secure(alert)))
         assertIs<MediaServerError.TlsHandshakeFailed>(map(SecureConnectionException("TLS", null)))
+    }
+
+    @Test
+    fun aFailureSuppressedByAnotherIsReadToo() {
+        val unreachable =
+            ConnectException(
+                "Network is unreachable",
+            ).apply { addSuppressed(SSLHandshakeException("PKIX path building failed")) }
+        val error = map(unreachable)
+        assertIs<MediaServerError.TlsUntrusted>(error)
+        assertTrue(
+            "java.net.ConnectException" in error.causes && "javax.net.ssl.SSLHandshakeException" in error.causes,
+            error.causes.toString(),
+        )
     }
 
     @Test

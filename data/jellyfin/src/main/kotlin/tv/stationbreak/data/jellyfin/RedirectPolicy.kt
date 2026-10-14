@@ -25,11 +25,16 @@ internal sealed interface RedirectDecision {
 internal object RedirectPolicy {
     const val MAX_REDIRECTS = 5
 
-    /** Decides on [target], the URL a probe of [original]'s [endpoint] was redirected to. */
+    /**
+     * Decides on [target], the URL a probe of [original]'s [endpoint] was redirected to. [current] is where the probe
+     * is now after earlier adopted hops: host and subpath are judged against [original], the scheme against [current],
+     * so `http` to `https` to `http` is refused at the last step.
+     */
     fun decide(
         original: ServerAddress,
         target: HttpUrl,
         endpoint: String,
+        current: ServerAddress = original,
     ): RedirectDecision {
         val suffix = "/$endpoint"
         val scheme = Scheme.entries.firstOrNull { it.text == target.scheme }
@@ -38,8 +43,11 @@ internal object RedirectPolicy {
                 target.host.equals(original.host, ignoreCase = true) &&
                 target.encodedPath.endsWith(suffix) &&
                 target.encodedPath.removeSuffix(suffix) == original.subpath
-        return if (scheme != null && sameServer && schemeAndPortMatch(original, scheme, target.port)) {
-            RedirectDecision.Adopt(ServerAddress(scheme, original.host, target.port, original.subpath))
+        val fallback = original.viaFallback && scheme == Scheme.Http
+        return if (scheme != null && sameServer && schemeAndPortMatch(original, current, scheme, target.port)) {
+            RedirectDecision.Adopt(
+                ServerAddress(scheme, original.host, target.port, original.subpath, fallback),
+            )
         } else {
             RedirectDecision.Reject
         }
@@ -56,18 +64,20 @@ internal object RedirectPolicy {
         port: Int,
     ): Boolean = port == Scheme.Https.defaultPort || port == original.port
 
-    // The same scheme and port, or `http` upgraded to `https` on that scheme's default port or the same port.
+    // The same scheme and port as where the probe is now, or `http` upgraded to `https` on that scheme's default port
+    // or the original's port. Never back to `http` from `https`.
     private fun schemeAndPortMatch(
         original: ServerAddress,
+        current: ServerAddress,
         scheme: Scheme,
         port: Int,
     ): Boolean =
         when {
-            scheme == original.scheme -> {
-                port == original.port
+            scheme == current.scheme -> {
+                port == current.port
             }
 
-            original.scheme == Scheme.Http && scheme == Scheme.Https -> {
+            current.scheme == Scheme.Http && scheme == Scheme.Https -> {
                 isHttpsUpgradePort(original, port)
             }
 

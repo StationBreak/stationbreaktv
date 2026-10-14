@@ -19,17 +19,14 @@ import kotlin.test.assertIs
 class JellyfinMediaServerTest {
     private val calls = AtomicInteger()
 
+    // The adapter drops the base client's interceptors, so the call counter is handed over as a test interceptor.
     private val counting =
-        OkHttpClient
-            .Builder()
-            .addInterceptor(
-                Interceptor {
-                    calls.incrementAndGet()
-                    throw IOException("the test client doesn't connect")
-                },
-            ).build()
+        Interceptor {
+            calls.incrementAndGet()
+            throw IOException("the test client doesn't connect")
+        }
 
-    private val adapter = JellyfinMediaServer(counting)
+    private val adapter = JellyfinMediaServer(OkHttpClient(), ProbeTimeouts(), listOf(counting))
 
     private val publicHttp = ServerAddress(Scheme.Http, "media.example.com", 8096, "/jf")
 
