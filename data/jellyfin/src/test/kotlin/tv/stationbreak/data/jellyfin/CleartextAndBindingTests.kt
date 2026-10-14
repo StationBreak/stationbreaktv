@@ -161,11 +161,12 @@ class TokenBindingTest {
         }
 
     @Test
-    fun aRevokedTokenOnResumeIsSessionExpired() =
+    fun aRevokedTokenOnResumeIsSessionExpired() {
         runBlocking {
             jellyfin.on("GET", "/Users/Me") { jellyfin.status(401) }
             assertIs<MediaServerError.SessionExpired>(testAdapter().resume(stored()).errorOrNull())
         }
+    }
 
     @Test
     fun anUpgradedAddressStillBindsToTheStoredHttpOne() {

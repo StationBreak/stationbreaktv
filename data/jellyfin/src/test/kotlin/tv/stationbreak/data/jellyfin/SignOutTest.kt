@@ -47,14 +47,15 @@ class SignOutTest {
         }
 
     @Test
-    fun aServerErrorIsNotRevoked() =
+    fun aServerErrorIsNotRevoked() {
         runBlocking {
             jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(500) }
             assertIs<MediaServerError.ServerError>(testAdapter().revoke(session()).errorOrNull())
         }
+    }
 
     @Test
-    fun aSlowServerIsATimeoutWithinTheShortLimit() =
+    fun aSlowServerIsATimeoutWithinTheShortLimit() {
         runBlocking {
             jellyfin.on("POST", "/Sessions/Logout") {
                 jellyfin
@@ -66,12 +67,14 @@ class SignOutTest {
             val adapter = testAdapter(tuning = AdapterTuning(revokeTimeout = 300.milliseconds))
             assertIs<MediaServerError.Timeout>(adapter.revoke(session()).errorOrNull())
         }
+    }
 
     @Test
-    fun anUnreachableServerIsNotRevoked() =
+    fun anUnreachableServerIsNotRevoked() {
         runBlocking {
             val dead = session()
             jellyfin.close()
             assertIs<MediaServerError>(testAdapter().revoke(dead).errorOrNull())
         }
+    }
 }
