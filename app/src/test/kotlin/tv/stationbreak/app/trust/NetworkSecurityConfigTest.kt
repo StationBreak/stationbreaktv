@@ -27,7 +27,7 @@ class NetworkSecurityConfigTest {
             .orEmpty()
             .flatMap { sourceSet ->
                 File(sourceSet, "res").walkTopDown().filter { it.isFile && it.extension == "xml" }.toList()
-            }.filter { it.parentFile.name == "xml" && it.name.startsWith("network_security_config") }
+            }.filter { it.parentFile?.name == "xml" && it.name.startsWith("network_security_config") }
 
     private fun parse(file: File): Document =
         DocumentBuilderFactory
