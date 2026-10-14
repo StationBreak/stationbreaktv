@@ -14,6 +14,21 @@ checks CI runs on every pull request.
 Every check in [CI checks](#ci-checks) must pass before a pull request can merge. Pull requests are squash-merged,
 so the pull request's title and description become the commit on `main`.
 
+## Before you push
+
+CI is metered, so iterate locally and let CI run once.
+
+- Run `scripts/preflight.sh` before pushing. It runs CI's checks on your machine: the script tests, `actionlint`,
+  `zizmor`, `gitleaks`, the sign-off check and the Gradle build. It needs JDK 17, the Android SDK, docker and `uv`;
+  a missing tool fails its step with an install hint. Add `--emulator` to also run the instrumented tests on a local
+  API 25 emulator (it tells you the `sdkmanager` command if the SDK lacks one).
+- Open the pull request as a draft. CI doesn't run on drafts.
+- When preflight passes, mark the pull request ready for review. That runs CI once.
+- Batch review fixes into one push. Every push to a ready pull request runs CI again.
+- CI on the final head must be green before merge.
+- `osv-scanner` runs on a pull request only when it changes `gradle/`, a `*.gradle.kts` file, `gradle.properties` or
+  `build-logic/`. It also runs weekly on `main`.
+
 ## Commit messages
 
 Use [Conventional Commits](https://www.conventionalcommits.org/): a type, an optional scope, and a short summary.
@@ -42,10 +57,10 @@ Signed-off-by: Your Name <you@example.com>
 
 To sign off commits you've already made on your branch, run `git fetch origin` and `git rebase --signoff origin/main`, then `git push --force-with-lease`.
 
-The `dco` check fails a pull request if any of its commits has no `Signed-off-by:` trailer. The only exception is a
+The `checks` job fails a pull request (at its "Check sign-offs" step) if any of its commits has no `Signed-off-by:` trailer. The only exception is a
 commit from the Renovate dependency bot, on a pull request Renovate opened, that GitHub itself created and signed
 for the `renovate[bot]` account (a bot can't certify the DCO). Don't click "Update branch" on a Renovate pull
-request: the merge commit it makes has no sign-off, so `dco` fails. Ask Renovate to rebase instead.
+request: the merge commit it makes has no sign-off, so the sign-off check fails. Ask Renovate to rebase instead.
 
 ## License and the app-store permission
 
@@ -75,11 +90,11 @@ for you:
 
 ## CI checks
 
-All checks run in GitHub Actions on every pull request. Here's what each one does and how to fix a failure.
+All checks run in GitHub Actions on every pull request that is ready for review (not on drafts). Here's what each one does and how to fix a failure.
 
 | Check | What it checks | How to fix a failure |
 | --- | --- | --- |
-| `build` | `./gradlew check` and assembling every flavor (below) | See the rows below for the task that failed |
+| `build` | Skipped when the PR changes only `docs/`, `LICENSE` or `*.md` files. `./gradlew check` and assembling every flavor (below) | See the rows below for the task that failed |
 | ↳ `spotlessCheck` | Kotlin style (ktlint) and the SPDX header on every `.kt` and `.gradle.kts` file | Run `./gradlew spotlessApply` and commit the result. ktlint can't fix some rules automatically (wildcard imports, for example); fix those by hand |
 | ↳ `detekt` | Static analysis of Kotlin code | Fix the reported issue. The report names the rule and the line |
 | ↳ `lint` | Android Lint. Issues in the Security category are errors | Fix the reported issue |
@@ -90,11 +105,11 @@ All checks run in GitHub Actions on every pull request. Here's what each one doe
 | ↳ `checkOverrideLibrary` | No `AndroidManifest.xml` uses `tools:overrideLibrary`, so a library that needs a newer Android version than API 25 can't slip in | Use a version of the library that supports API 25 (minSdk 25 or lower), or a different library |
 | ↳ `licensee` | Every dependency of `app` and of `data:jellyfin` has a license on the allowlist of GPL-compatible licenses, and can be identified (the allowlist is `LicenseePlugin` in `build-logic`) | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
 | ↳ trust-anchor tests | The bundled Let's Encrypt roots match their pinned SHA-256, are self-signed CAs and are valid for another year; the network security config trusts only the system store plus those roots, permits cleartext in exactly one place and has no debug overrides | See [Bundled Let's Encrypt roots](#bundled-lets-encrypt-roots). Never add a user-CA source or a second cleartext permission to make a test pass |
-| `emulator` | Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
+| `emulator` | Skipped unless the PR changes `app/`, `core/`, `data/`, `feature/`, `build-logic/`, `gradle/`, a `*.gradle.kts` file, `gradle.properties` or `ci.yml`. Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
 | ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
-| `script-tests` (verification guard) | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
-| `script-tests` (device-proof guard) | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
-| `dco` | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
+| `checks`: dependency verification guard | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
+| `checks`: device-proof guard | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
+| `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
 

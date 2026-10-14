@@ -1,4 +1,4 @@
-# gitleaks configuration, read by the gitleaks job in .github/workflows/ci.yml (from the PR's base commit, so a PR
+# gitleaks configuration, read by the `checks` job in .github/workflows/ci.yml (from the PR's base commit, so a PR
 # can't loosen its own scan).
 title = "StationBreak gitleaks config"
 

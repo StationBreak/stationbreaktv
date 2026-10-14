@@ -3,6 +3,8 @@ name: CI
 # Never pull_request_target: fork PRs must not get secrets or a write token.
 on:
   pull_request:
+    # `ready_for_review` is listed because a draft's pushes are skipped (see `checks`); marking it ready runs CI once.
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -17,7 +19,176 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The small checks, in one job: Actions bills every job as at least a whole minute, and each of these takes seconds.
+  # Fail-fast, so the failing step's name says which check broke. It also decides which of the big jobs a PR needs
+  # (the "Decide what to run" step), and the output is set before any check can fail.
+  checks:
+    # Draft PRs don't run CI: the local preflight (scripts/preflight.sh) does the iterating. Every other job needs
+    # this one, except osv-scanner, which has its own copy of the condition.
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # To list the PR's commits (the sign-off check). Read-only.
+      pull-requests: read
+    outputs:
+      build: ${{ steps.scope.outputs.build }}
+      emulator: ${{ steps.scope.outputs.emulator }}
+      deps: ${{ steps.scope.outputs.deps }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the scope step diffs against the PR's base, and gitleaks scans every commit in the PR.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Pushes to main always run everything. A PR skips `build` when it changes only docs, and `emulator` unless it
+      # changes the app, the modules, or the build. Anything not matched below counts as a build change, and if the
+      # diff can't be read both jobs run. A skipped job still reports as skipped, not pending, so this is safe to
+      # make a required check later (unlike workflow-level paths-ignore). `deps` says whether osv-scanner is needed:
+      # the PR touches the dependency files or the build logic.
+      - name: Decide what to run
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          build=true
+          emulator=true
+          deps=true
+          if [ "$EVENT_NAME" = pull_request ] && files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")" && [ -n "$files" ]; then
+            printf 'Changed files:\n%s\n' "$files"
+            if ! grep -qvE '^(docs/|LICENSE|.*\.md$)' <<<"$files"; then
+              build=false
+            fi
+            if ! grep -qE '^(app/|core/|data/|feature/|build-logic/|gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|\.github/workflows/ci\.yml$)' <<<"$files"; then
+              emulator=false
+            fi
+            if ! grep -qE '^(gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|build-logic/)' <<<"$files"; then
+              deps=false
+            fi
+          fi
+          # No build means no emulator, even if the pattern matched.
+          if [ "$build" = false ]; then emulator=false; fi
+          {
+            echo "build=$build"
+            echo "emulator=$emulator"
+            echo "deps=$deps"
+          } >> "$GITHUB_OUTPUT"
+
+      # Every commit in a PR needs a Signed-off-by: trailer (ADR-0003). Only a GitHub-verified renovate[bot] commit is
+      # exempt; see .github/scripts/dco-check.sh.
+      - name: Test the DCO checker
+        if: github.event_name == 'pull_request'
+        run: bash .github/scripts/dco-check.test.sh
+
+      - name: Check sign-offs
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" \
+            | jq 'add' \
+            | bash .github/scripts/dco-check.sh
+
+      # Fixture tests for the scripts the workflows run. dco-check.sh's tests run in the steps above, just before the
+      # real check; osv-issues.sh's also run in osv-weekly.yml before it opens issues. The verification guard runs
+      # here on the checkout itself, and so does the device-proof guard.
+      - name: Test the OSV issue opener
+        run: bash .github/scripts/osv-issues.test.sh
+
+      # ADR-0013: fails if the dependency verification file or its settings are loosened, or a workflow turns
+      # verification off or rewrites the file. The tests run first, so a broken guard can't pass the real check.
+      - name: Test the dependency verification guard
+        run: bash .github/scripts/verification-guard.test.sh
+
+      - name: Dependency verification guard
+        run: bash .github/scripts/verification-guard.sh .
+
+      # Spec 03, Unit 4 (R15): no workflow, script or Gradle file may hand CI the on-device probe's server address.
+      # The tests run first, so a broken guard can't pass the real check.
+      - name: Test the device-proof guard
+        run: bash .github/scripts/device-proof-guard.test.sh
+
+      - name: Device-proof guard
+        run: bash .github/scripts/device-proof-guard.sh .
+
+      # Workflow syntax, expressions and job references, plus shellcheck (preinstalled on the runner) on `run:` scripts.
+      - name: Install actionlint
+        env:
+          # renovate: datasource=github-releases depName=rhysd/actionlint
+          ACTIONLINT_VERSION: 1.7.12
+          # From the release's checksums file for ACTIONLINT_VERSION. Pinned here rather than fetched with the
+          # tarball, so a replaced release asset fails the check. Renovate bumps the version only; this step fails
+          # until the SHA-256 is updated by hand from the new release's checksums file.
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" actionlint
+
+      - name: actionlint
+        run: '"$RUNNER_TEMP/actionlint" -color'
+
+      # Static analysis of the workflows themselves: template injection, excessive permissions, unpinned actions and
+      # the like. Fails on high-severity findings.
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          # SARIF upload needs GitHub Advanced Security; findings go to the log and annotations instead.
+          advanced-security: false
+          annotations: true
+          min-severity: high
+          # No `version:`: the action then runs the zizmor image digest it ships as "latest" (1.30.1 at v0.6.4),
+          # so zizmor is pinned by the action's SHA and Renovate updates both together.
+
+      # Secrets in the PR's commits (every commit, not just the final diff). The CLI is run directly; gitleaks-action
+      # needs a licence for organisations.
+      - name: Install gitleaks
+        if: github.event_name == 'pull_request'
+        env:
+          # renovate: datasource=github-releases depName=gitleaks/gitleaks
+          GITLEAKS_VERSION: 8.30.1
+          # From the release's checksums file for GITLEAKS_VERSION; pinned here for the same reason as actionlint's.
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+
+      - name: Scan the PR's commits for secrets
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The base commit's config, so a PR can't loosen the scan of its own commits by editing .gitleaks.toml.
+          config="$RUNNER_TEMP/gitleaks.toml"
+          if ! git show "${BASE_SHA}:.gitleaks.toml" >"$config" 2>/dev/null; then
+            # The base has no config yet (the PR that adds it): default rules, no allowlist.
+            printf '[extend]\nuseDefault = true\n' >"$config"
+          fi
+          # Nor can it silence a finding: inline gitleaks:allow comments are ignored, and so is any .gitleaksignore.
+          # gitleaks reads one from the repo root even with --gitleaks-ignore-path set, so remove it from the
+          # checkout (the scan reads commits, not the working tree).
+          rm -f .gitleaksignore
+          # --verbose prints each finding (rule, file, commit), with the secret redacted.
+          "$RUNNER_TEMP/gitleaks" git --config "$config" --log-opts="${BASE_SHA}..${HEAD_SHA}" \
+            --ignore-gitleaks-allow --gitleaks-ignore-path "$RUNNER_TEMP" \
+            --redact --verbose --no-banner --exit-code 1
+
   build:
+    needs: checks
+    # Not skipped when a check fails: the build still reports. Skipped for docs-only PRs (see `checks`).
+    if: ${{ !cancelled() && needs.checks.outputs.build == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -185,8 +356,11 @@ jobs:
           if-no-files-found: error
 
   # Instrumented tests on the Insignia's Android version (API 25), so a call to a newer API crashes here, not on a
-  # device. No `needs:`: it runs in parallel with `build`.
+  # device. It runs in parallel with `build`, once `checks` has decided it's needed: not for docs-only PRs, nor for
+  # PRs that touch neither the app, the modules nor the build.
   emulator:
+    needs: checks
+    if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' }}
     runs-on: ubuntu-latest
     # Cold boot plus tests takes about 3.5 minutes; this catches a hang well before the default 6 hours.
     timeout-minutes: 15
@@ -333,169 +507,14 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # Every commit in a PR needs a Signed-off-by: trailer (ADR-0003). Only a GitHub-verified renovate[bot] commit is
-  # exempt; see .github/scripts/dco-check.sh.
-  dco:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      # To list the PR's commits.
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Test the DCO checker
-        run: bash .github/scripts/dco-check.test.sh
-
-      - name: Check sign-offs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" \
-            | jq 'add' \
-            | bash .github/scripts/dco-check.sh
-
-  # Fixture tests for the scripts the workflows run. dco-check.sh's tests also run in the dco job, just before the
-  # real check; osv-issues.sh's also run in osv-weekly.yml before it opens issues. The verification guard runs here
-  # on the checkout itself, and so does the device-proof guard.
-  script-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Test the OSV issue opener
-        run: bash .github/scripts/osv-issues.test.sh
-
-      # ADR-0013: fails if the dependency verification file or its settings are loosened, or a workflow turns
-      # verification off or rewrites the file. The tests run first, so a broken guard can't pass the real check.
-      - name: Test the dependency verification guard
-        run: bash .github/scripts/verification-guard.test.sh
-
-      - name: Dependency verification guard
-        run: bash .github/scripts/verification-guard.sh .
-
-      # Spec 03, Unit 4 (R15): no workflow, script or Gradle file may hand CI the on-device probe's server address.
-      # The tests run first, so a broken guard can't pass the real check.
-      - name: Test the device-proof guard
-        run: bash .github/scripts/device-proof-guard.test.sh
-
-      - name: Device-proof guard
-        run: bash .github/scripts/device-proof-guard.sh .
-
-  # Static analysis of the workflows themselves: template injection, excessive permissions, unpinned actions and
-  # the like. Fails on high-severity findings.
-  zizmor:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
-        with:
-          # SARIF upload needs GitHub Advanced Security; findings go to the log and annotations instead.
-          advanced-security: false
-          annotations: true
-          min-severity: high
-          # No `version:`: the action then runs the zizmor image digest it ships as "latest" (1.30.1 at v0.6.4),
-          # so zizmor is pinned by the action's SHA and Renovate updates both together.
-
-  # Workflow syntax, expressions and job references, plus shellcheck (preinstalled on the runner) on `run:` scripts.
-  actionlint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install actionlint
-        env:
-          # renovate: datasource=github-releases depName=rhysd/actionlint
-          ACTIONLINT_VERSION: 1.7.12
-          # From the release's checksums file for ACTIONLINT_VERSION. Pinned here rather than fetched with the
-          # tarball, so a replaced release asset fails the check. Renovate bumps the version only; this step fails
-          # until the SHA-256 is updated by hand from the new release's checksums file.
-          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
-        run: |
-          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
-            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
-          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" actionlint
-
-      - name: actionlint
-        run: '"$RUNNER_TEMP/actionlint" -color'
-
-  # Secrets in the PR's commits (every commit, not just the final diff). The CLI is run directly; gitleaks-action
-  # needs a licence for organisations.
-  gitleaks:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Full history, so every commit between the base and the PR head is there to scan.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install gitleaks
-        env:
-          # renovate: datasource=github-releases depName=gitleaks/gitleaks
-          GITLEAKS_VERSION: 8.30.1
-          # From the release's checksums file for GITLEAKS_VERSION; pinned here for the same reason as actionlint's.
-          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-        run: |
-          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
-          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
-
-      - name: Scan the PR's commits
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          # The base commit's config, so a PR can't loosen the scan of its own commits by editing .gitleaks.toml.
-          config="$RUNNER_TEMP/gitleaks.toml"
-          if ! git show "${BASE_SHA}:.gitleaks.toml" >"$config" 2>/dev/null; then
-            # The base has no config yet (the PR that adds it): default rules, no allowlist.
-            printf '[extend]\nuseDefault = true\n' >"$config"
-          fi
-          # Nor can it silence a finding: inline gitleaks:allow comments are ignored, and so is any .gitleaksignore.
-          # gitleaks reads one from the repo root even with --gitleaks-ignore-path set, so remove it from the
-          # checkout (the scan reads commits, not the working tree).
-          rm -f .gitleaksignore
-          # --verbose prints each finding (rule, file, commit), with the secret redacted.
-          "$RUNNER_TEMP/gitleaks" git --config "$config" --log-opts="${BASE_SHA}..${HEAD_SHA}" \
-            --ignore-gitleaks-allow --gitleaks-ignore-path "$RUNNER_TEMP" \
-            --redact --verbose --no-banner --exit-code 1
-
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
   # introduces. The packages come from gradle/verification-metadata.xml. The verification guard's test fixtures
   # (.github/scripts/fixtures/) are lockfiles too, so they're scanned as well.
+  # Only on PRs that change the dependency files or the build logic (see `checks`), and not on drafts. `checks` is
+  # skipped for a draft, so `deps` is empty then; `!cancelled()` keeps it running when a check fails.
   osv-scanner:
-    if: github.event_name == 'pull_request'
+    needs: checks
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true && needs.checks.outputs.deps == 'true' }}
     # The called workflow's job declares all three, and a caller must grant at least what it declares or the run
     # fails to start (tried with contents: read alone: startup_failure). security-events: write is used only to
     # upload SARIF, which is off; actions: read is for that upload too.
