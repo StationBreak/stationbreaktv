@@ -166,6 +166,70 @@ class ArchitectureRulesTest {
         }
     }
 
+    // The Jellyfin SDK and OkHttp stay inside data:jellyfin (ADR-0005, F0.3 D10).
+
+    @Test
+    fun coreDomainMayNotDeclareTheJellyfinSdk() {
+        assertEquals(
+            listOf(Rule.SDK_CONFINED),
+            rulesBroken(":core:domain", artifact("implementation", "org.jellyfin.sdk:jellyfin-core")),
+        )
+    }
+
+    @Test
+    fun appMayNotDeclareTheJellyfinSdk() {
+        assertEquals(
+            listOf(Rule.SDK_CONFINED),
+            rulesBroken(":app", artifact("implementation", "org.jellyfin.sdk:jellyfin-api-okhttp")),
+        )
+    }
+
+    @Test
+    fun coreModelMayNotDeclareOkHttp() {
+        assertEquals(
+            listOf(Rule.OKHTTP_CONFINED),
+            rulesBroken(":core:model", artifact("commonMainImplementation", "com.squareup.okhttp3:okhttp")),
+        )
+    }
+
+    @Test
+    fun coreDomainMayNotDeclareOkHttpEvenInTests() {
+        assertEquals(
+            listOf(Rule.OKHTTP_CONFINED),
+            rulesBroken(":core:domain", artifact("testImplementation", "com.squareup.okhttp3:mockwebserver3")),
+        )
+    }
+
+    @Test
+    fun dataJellyfinMayDeclareTheSdkAndOkHttp() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":data:jellyfin",
+                artifact("implementation", "org.jellyfin.sdk:jellyfin-core"),
+                artifact("implementation", "org.jellyfin.sdk:jellyfin-api-okhttp"),
+                artifact("implementation", "com.squareup.okhttp3:okhttp"),
+            ),
+        )
+    }
+
+    @Test
+    fun dataJellyfinTestConfigurationsMayDeclareOkHttpHelpers() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":data:jellyfin",
+                artifact("testImplementation", "com.squareup.okhttp3:mockwebserver3"),
+                artifact("testImplementation", "com.squareup.okhttp3:okhttp-tls"),
+            ),
+        )
+    }
+
+    @Test
+    fun appMayDeclareOkHttp() {
+        assertEquals(emptyList(), rulesBroken(":app", artifact("implementation", "com.squareup.okhttp3:okhttp")))
+    }
+
     // The allowlist.
 
     @Test
