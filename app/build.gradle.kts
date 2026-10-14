@@ -7,6 +7,8 @@ plugins {
     id("stationbreak.licensee")
     // The only module that applies Hilt: `[KMP]` and `[JVM]` modules keep to javax.inject (MODULES.md).
     id("stationbreak.hilt")
+    // Typed navigation routes (`@Serializable` route objects).
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -55,7 +57,10 @@ dependencies {
     // The base OkHttpClient is built here (ADR-0005); data:jellyfin keeps OkHttp to itself otherwise.
     implementation(libs.okhttp)
     implementation(project(":core:ui"))
+    // The screens. Their ViewModels get the MediaServer port through Hilt, wired in di/.
+    implementation(project(":feature:onboarding"))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
     // The Jellyfin SDK logs through SLF4J and without a binding its first request crashes on Android (ADR-0006).
     // A no-op until S3.6.1 builds the redacting logger.
     runtimeOnly(libs.slf4j.nop)

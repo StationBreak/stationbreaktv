@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The copy table for onboarding (spec 05, "Wording process"). Every word on these screens is a DRAFT: the lead reviews
+  it with Adorabelle before the owner sees it on the device. Errors follow decision 5: a plain sentence, a small
+  details line naming the technical cause, and one next step.
+-->
+<resources>
+    <!-- The server screen. One headline, no welcome screen (decision 8). -->
+    <string name="server_headline">Connect to your Jellyfin server</string>
+    <string name="server_address_hint">jellyfin.example.test:8096</string>
+    <string name="server_test">Test</string>
+    <string name="server_testing">Testing…</string>
+    <string name="server_cancel">Cancel</string>
+    <string name="server_continue">Continue</string>
+    <string name="server_retry">Retry</string>
+    <string name="server_edit_address">Edit address</string>
+
+    <!-- A successful Test. -->
+    <string name="server_connected_name">Found %1$s</string>
+    <string name="server_connected_version">Jellyfin version %1$s</string>
+
+    <!-- Accessibility: the icon beside an error says "Problem" so colour is never the only signal. -->
+    <string name="server_problem_icon">Problem</string>
+    <string name="server_progress_description">Testing the connection</string>
+
+    <!-- The cleartext confirmation (ADR-0014). Cancel has default focus. -->
+    <string name="cleartext_title">Connect without encryption?</string>
+    <string name="cleartext_body_public">This address starts with http, so nothing sent to it is encrypted. Your password and sign-in will travel unencrypted and could be read by anyone on the network between this TV and the server.</string>
+    <string name="cleartext_body_fallback">StationBreak could not connect securely, so it tried http instead. If you continue, your password and sign-in will travel unencrypted and could be read by anyone on the network between this TV and the server.</string>
+    <string name="cleartext_cancel">Cancel</string>
+    <string name="cleartext_continue">Connect without encryption</string>
+
+    <!-- Error table: network. Each error has a message, then a details line. -->
+    <string name="error_dns_message">This TV can’t find a server with that name. Check the spelling, or try the server’s IP address.</string>
+    <string name="error_dns_details">Name lookup failed</string>
+    <string name="error_refused_message">The server isn’t accepting connections on that address. Check that Jellyfin is running and that the port is right.</string>
+    <string name="error_refused_details">Connection refused</string>
+    <string name="error_unreachable_message">This TV can’t reach that network. Check that the TV is connected to your network.</string>
+    <string name="error_unreachable_details">Network unreachable</string>
+    <string name="error_timeout_message">The server didn’t answer in time. Check that it is turned on and on the same network, then try again.</string>
+    <string name="error_timeout_details">Timed out</string>
+
+    <!-- Error table: the server answered but is not a usable Jellyfin. -->
+    <string name="error_not_jellyfin_message">Something answered, but it doesn’t look like Jellyfin. Check the address and the port.</string>
+    <string name="error_not_jellyfin_details">Not a Jellyfin server</string>
+    <string name="error_unsupported_version_message">This Jellyfin server is version %1$s. StationBreak needs version 12.0 or newer.</string>
+    <string name="error_unsupported_version_details">Server version too old</string>
+    <string name="error_not_set_up_message">This Jellyfin server hasn’t finished its first-time setup. Finish setup in a web browser, then try again.</string>
+    <string name="error_not_set_up_details">Server setup not finished</string>
+    <string name="error_redirected_message">The server sent us to a different address. Enter the address it redirects to.</string>
+    <string name="error_redirected_details">Redirect not followed</string>
+    <string name="error_server_error_message">The server reported a problem. Wait a moment, then try again.</string>
+    <string name="error_server_error_details">Server error</string>
+    <string name="error_not_found_message">The server doesn’t have what was asked for. Check the address, then try again.</string>
+    <string name="error_not_found_details">Not found</string>
+    <string name="error_unknown_message">Something went wrong that this app doesn’t recognise. Try again.</string>
+    <string name="error_unknown_details">Unknown error</string>
+
+    <!-- Error table: the address. -->
+    <string name="error_invalid_address_message">That doesn’t look like a server address. Use a name or an IP address, with a port if the server needs one.</string>
+    <string name="error_invalid_address_details">Address not valid</string>
+
+    <!-- Error table: TLS. Placeholder wording until the trust screen (Unit 3): no trust option is offered yet. -->
+    <string name="error_tls_untrusted_message">This TV doesn’t trust the server’s security certificate.</string>
+    <string name="error_tls_untrusted_details">Certificate not trusted</string>
+    <string name="error_tls_hostname_message">The server’s security certificate is for a different name than the one you typed.</string>
+    <string name="error_tls_hostname_details">Certificate name mismatch</string>
+    <string name="error_tls_expired_message">The server’s security certificate has expired, or this TV’s date and time are wrong.</string>
+    <string name="error_tls_expired_details">Certificate expired or not yet valid</string>
+    <string name="error_tls_handshake_message">This TV could not set up a secure connection. The server may use security settings this TV can’t use.</string>
+    <string name="error_tls_handshake_details">Secure connection failed</string>
+    <string name="error_not_tls_message">That address expects https, but the server is answering without encryption. Try an address that starts with http, or check the port.</string>
+    <string name="error_not_tls_details">Server did not speak TLS</string>
+
+    <!-- Error table: errors that sign-in and restore produce. They are not expected from a Test, but every error has copy. -->
+    <string name="error_unauthorized_message">The server didn’t accept that username and password.</string>
+    <string name="error_unauthorized_details">Unauthorized</string>
+    <string name="error_forbidden_message">The server, or something in front of it, refused this request.</string>
+    <string name="error_forbidden_details">Forbidden</string>
+    <string name="error_cleartext_message">This address needs your confirmation before connecting without encryption.</string>
+    <string name="error_cleartext_details">Unencrypted connection not confirmed</string>
+    <string name="error_session_expired_message">The server no longer accepts this sign-in.</string>
+    <string name="error_session_expired_details">Session expired</string>
+    <string name="error_server_mismatch_message">The server at this address is not the one you signed in to before.</string>
+    <string name="error_server_mismatch_details">Server changed</string>
+    <string name="error_quick_connect_message">Quick Connect is turned off on this server.</string>
+    <string name="error_quick_connect_details">Quick Connect disabled</string>
+
+    <!-- Prefix of the details line when the technical cause is known. -->
+    <string name="error_details_with_cause">%1$s (%2$s)</string>
+</resources>

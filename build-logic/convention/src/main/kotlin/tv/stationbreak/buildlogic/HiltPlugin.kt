@@ -7,8 +7,8 @@ import org.gradle.kotlin.dsl.dependencies
 
 /**
  * Hilt for an Android module (MODULES.md, "Hilt in pure modules"): the Gradle plugin, the KSP processor and the
- * runtime, plus the test support for instrumented tests. Only `app` applies it for now. `[KMP]` and `[JVM]` modules
- * never do; they carry the `javax.inject` annotations alone.
+ * runtime, plus the test support for instrumented tests. `app` and the `[Android]` `feature:*` modules (for
+ * `@HiltViewModel`) apply it. `[KMP]` and `[JVM]` modules never do; they carry the `javax.inject` annotations alone.
  */
 class HiltPlugin : Plugin<Project> {
     override fun apply(target: Project) =

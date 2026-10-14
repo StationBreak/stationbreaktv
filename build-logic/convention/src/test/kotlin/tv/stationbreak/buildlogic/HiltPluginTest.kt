@@ -45,6 +45,20 @@ class HiltPluginTest {
     }
 
     @Test
+    fun anAndroidFeatureModuleMayApplyItToo() {
+        // F0.5: feature:* modules apply stationbreak.hilt for @HiltViewModel (MODULES.md, "Hilt in pure modules").
+        assertEquals(
+            listOf(
+                "androidTestImplementation com.google.dagger:hilt-android-testing:9.9",
+                "implementation com.google.dagger:hilt-android:9.9",
+                "ksp com.google.dagger:hilt-compiler:9.9",
+                "kspAndroidTest com.google.dagger:hilt-compiler:9.9",
+            ),
+            declared("feature"),
+        )
+    }
+
+    @Test
     fun addsNothingToAModuleThatDoesNotApplyIt() {
         // A KMP module (MODULES.md, "Hilt in pure modules") never applies the plugin, so it gets no Dagger.
         assertEquals(emptyList(), declared("kmp"))

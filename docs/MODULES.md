@@ -77,6 +77,10 @@ until something genuinely needs sharing.
 Every other module is created by the first story that needs it, for example `data:settings` in F0.4 and
 `data:library` in F0.6. The architecture test enforces the rules for each module as it appears.
 
+`feature:onboarding` exists since F0.5 (task 1.0). It holds the server screen so far, then sign-in, trust and the library picker.
+It depends on `core:domain`, `core:model` and `core:ui` only, and applies the `hilt` convention plugin for `@HiltViewModel` (see
+"Hilt in pure modules"). `app` hosts its navigation graph and wires the adapters it consumes.
+
 `data:settings` exists since F0.4 and holds only `KeystoreSecretStore` (the `SecretStore` implementation) for now.
 `app` binds it to `SecretStore` in `MediaServerModule`. The DataStore settings arrive with the stories that need them.
 
@@ -160,6 +164,11 @@ not listed in this file's module tree fails until it's added to both. Android mo
 `data:jellyfin` may use `@Inject` constructors, through a `jvm-inject` convention plugin that adds only
 `javax.inject`. Hilt `@Module`s live in `app` (or in thin `di` packages
 inside the Android `data:*` modules).
+
+An `[Android]` `feature:*` module may apply the `hilt` convention plugin, for `@HiltViewModel` and `hiltViewModel()` only
+(decided F0.5, 2026-10-14). It still never binds an adapter and never depends on `data:*`: `app` provides the ports the
+ViewModels inject. `[KMP]` and `[JVM]` modules still may not apply it (`checkArchitecture` fails a pure module that declares
+`hilt-android`; `HiltPluginTest` and `ArchitectureRulesTest` pin both halves).
 
 **Portability guard:** the `linuxX64()` canary makes the compiler reject `java.*` in `commonMain`. A detekt
 forbidden-import rule was the backstop until the "`import java.io.File` fails the build" acceptance test passed in
