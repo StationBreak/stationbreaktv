@@ -1,0 +1,10 @@
+# The subpath proxy for the contract suite: Jellyfin runs with its Base URL set to /jf, and Caddy forwards /jf/* to it
+# unchanged, with no prefix stripping, the way a typical reverse proxy publishes Jellyfin under a path.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	reverse_proxy /jf/* jellyfin:8096
+}

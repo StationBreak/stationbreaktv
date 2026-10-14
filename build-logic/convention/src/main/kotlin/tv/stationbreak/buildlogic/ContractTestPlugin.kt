@@ -49,12 +49,15 @@ class ContractTestPlugin : Plugin<Project> {
             // Compiled by `check`, never run by it.
             checkDependsOn(contract.classesTaskName)
 
+            // detekt's type-resolving task for the source set, as the quality plugin lists `detektMain` and `detektTest`.
+            pluginManager.withPlugin("dev.detekt") { checkDependsOn("detektContractTest") }
+
             pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
                 // `internal` of the module stays reachable, as it is from `test`.
                 extensions.getByType(KotlinJvmProjectExtension::class.java).target.compilations.apply {
                     getByName(SOURCE_SET).associateWith(getByName(SourceSet.MAIN_SOURCE_SET_NAME))
                 }
-                dependencies { add(contract.implementationConfigurationName, kotlin("test")) }
+                dependencies { add(contract.implementationConfigurationName, kotlin("test-junit5")) }
                 contractTest.configure { useJUnitPlatform() }
             }
         }
