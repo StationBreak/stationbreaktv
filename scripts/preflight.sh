@@ -93,10 +93,12 @@ script_tests() {
   bash .github/scripts/dco-check.test.sh
   bash .github/scripts/osv-issues.test.sh
   bash .github/scripts/verification-guard.test.sh
+  bash .github/scripts/device-proof-guard.test.sh
 }
 
 verification_guard() {
   bash .github/scripts/verification-guard.sh .
+  bash .github/scripts/device-proof-guard.sh .
 }
 
 actionlint() {
@@ -261,7 +263,7 @@ if [ "$emulator" = true ]; then
 fi
 
 step "Script tests" script_tests
-step "Dependency verification guard" verification_guard
+step "Verification and device-proof guards" verification_guard
 step "actionlint $ACTIONLINT_VERSION" actionlint
 step "zizmor $ZIZMOR_VERSION" zizmor
 step "gitleaks $GITLEAKS_VERSION ($base..HEAD)" gitleaks

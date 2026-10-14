@@ -104,9 +104,11 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 | ↳ `checkArchitecture` | Each module's declared dependencies follow the allowed edges in [MODULES.md](docs/MODULES.md#dependency-graph-allowed-edges), and the Jellyfin SDK stays inside `data:jellyfin`, and OkHttp stays out of the other `[KMP]` and `[JVM]` modules. The error names the module, the dependency, the configuration and the rule broken. It also runs on its own, first, in the "Module dependency rules" step, because a broken rule can make the full build fail earlier with a less helpful Gradle error | Remove the dependency, or depend on what MODULES.md allows instead (for example a `core:domain` port rather than a `data:*` module). Changing the rules means changing MODULES.md and `ArchitectureRules.kt` in `build-logic` together, in a pull request that says why |
 | ↳ `checkOverrideLibrary` | No `AndroidManifest.xml` uses `tools:overrideLibrary`, so a library that needs a newer Android version than API 25 can't slip in | Use a version of the library that supports API 25 (minSdk 25 or lower), or a different library |
 | ↳ `licensee` | Every dependency of `app` and of `data:jellyfin` has a license on the allowlist of GPL-compatible licenses, and can be identified (the allowlist is `LicenseePlugin` in `build-logic`) | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
+| ↳ trust-anchor tests | The bundled Let's Encrypt roots match their pinned SHA-256, are self-signed CAs and are valid for another year; the network security config trusts only the system store plus those roots, permits cleartext in exactly one place and has no debug overrides | See [Bundled Let's Encrypt roots](#bundled-lets-encrypt-roots). Never add a user-CA source or a second cleartext permission to make a test pass |
 | `emulator` | Skipped unless the PR changes `app/`, `core/`, `data/`, `feature/`, `build-logic/`, `gradle/`, a `*.gradle.kts` file, `gradle.properties` or `ci.yml`. Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
 | ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
 | `checks`: dependency verification guard | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
+| `checks`: device-proof guard | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
 | `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
 To run the Gradle checks locally (with an Android SDK installed):
@@ -118,6 +120,35 @@ To run the Gradle checks locally (with an Android SDK installed):
 ```bash
 ./gradlew check
 ```
+
+## Bundled Let's Encrypt roots
+
+Fire OS 6 (API 25) trusts ISRG Root X1 but not ISRG Root X2 or Root YE, so the app bundles those two as extra trust
+anchors in `app/src/main/res/raw/`. The source, fingerprints and the reasons Root YR is left out are in
+[app/trust-anchors/README.md](app/trust-anchors/README.md).
+
+`TrustAnchorsTest` fails the build when a bundled root has less than a year of validity left. To refresh a root (or
+add one):
+
+1. Download it from <https://letsencrypt.org/certificates/> and compare it with the README's source and checks.
+2. Put the PEM in `app/src/main/res/raw/` (lower-case name, underscores), and add its `<certificates src="@raw/...">`
+   line to `app/src/main/res/xml/network_security_config.xml`.
+3. Update the fingerprint constants in `TrustAnchorsTest` and the table in the README together, and have the owner
+   compare the new fingerprints with an independent source in the pull request.
+
+`NetworkSecurityConfigChainTest` exercises the X2 anchor with a frozen Let's Encrypt intermediate that Root X2 signed
+(E8, valid until 2027-03-12); the cross-signed Root YE test says nothing about X2, because a certificate that shares
+its subject and key with a bundled anchor is that anchor. After that date the test ends early and no chain test
+exercises the X2 anchor any more: only the fingerprint pin and the key and signature checks in `TrustAnchorsTest`
+remain. Before it expires, refresh the frozen chain from a certificate X2 still signs, or decide to drop the X2 anchor.
+
+A bundled root also comes out, not only gets refreshed, when it is distrusted: if a root program (Mozilla, Chrome,
+Apple, Microsoft) or the CA announces a distrusted or compromised root, a mis-issuance involving it, or a key
+compromise, remove its PEM, its config line and its pins in the same pull request, and say why in the description. An
+anchor the platform would no longer trust must not stay trusted here just because it is bundled.
+
+Don't add `src="user"` (a user-installed CA), a second `cleartextTrafficPermitted`, debug overrides outside a debug
+source set, or a custom `TrustManager`: `NetworkSecurityConfigTest` and Lint's Security category reject them.
 
 ## Dependency verification
 

@@ -97,7 +97,7 @@ jobs:
 
       # Fixture tests for the scripts the workflows run. dco-check.sh's tests run in the steps above, just before the
       # real check; osv-issues.sh's also run in osv-weekly.yml before it opens issues. The verification guard runs
-      # here on the checkout itself.
+      # here on the checkout itself, and so does the device-proof guard.
       - name: Test the OSV issue opener
         run: bash .github/scripts/osv-issues.test.sh
 
@@ -108,6 +108,14 @@ jobs:
 
       - name: Dependency verification guard
         run: bash .github/scripts/verification-guard.sh .
+
+      # Spec 03, Unit 4 (R15): no workflow, script or Gradle file may hand CI the on-device probe's server address.
+      # The tests run first, so a broken guard can't pass the real check.
+      - name: Test the device-proof guard
+        run: bash .github/scripts/device-proof-guard.test.sh
+
+      - name: Device-proof guard
+        run: bash .github/scripts/device-proof-guard.sh .
 
       # Workflow syntax, expressions and job references, plus shellcheck (preinstalled on the runner) on `run:` scripts.
       - name: Install actionlint
