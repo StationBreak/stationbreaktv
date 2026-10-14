@@ -134,7 +134,7 @@ class ProbeOutcomeTest {
 
     @Test
     fun anUnexpectedStatusIsAFailureWithoutTheBody() {
-        val line = ProbeOutcome.status(502)
+        val line = ProbeOutcome.status()
         assertEquals("ProbeOutcome result=FAIL type=Unknown major=none", line)
     }
 

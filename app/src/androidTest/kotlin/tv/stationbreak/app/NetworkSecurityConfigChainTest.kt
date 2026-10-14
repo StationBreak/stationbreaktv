@@ -20,7 +20,7 @@ import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 
 /**
- * Spec 03, Unit 4 (S0.3.5): on the API 25 emulator, the platform trust path that honours the app's
+ * Backlog S0.3.5: on the API 25 emulator, the platform trust path that honours the app's
  * `network_security_config` accepts chains that end at the bundled Let's Encrypt roots, without the X1 cross-sign,
  * and rejects a chain from an unknown root.
  *
@@ -31,8 +31,9 @@ import javax.security.auth.x500.X500Principal
  * Why the chains are frozen CA certificates and not a live server leaf: the platform manager checks "now" and has no
  * way to pin a date, and a live leaf lasts 90 days. The two certificates below are the long-lived parts of the chains
  * Let's Encrypt serves. API 25 ships neither ISRG Root X2 (Android 14 does) nor Root YE, so each only passes through
- * a bundled anchor. Each is accepted in its own test because a certificate that shares its subject and key with a
- * bundled anchor is itself the anchor, so the cross-signed Root YE says nothing about Root X2.
+ * a bundled anchor. The cross-signed Root YE is a chain through X2, so its test proves that an X2-rooted cross-sign is
+ * accepted; it does not by itself prove the Root YE anchor. That claim rests on the pin and key checks in
+ * TrustAnchorsTest plus the config test that lists Root YE as a trust source.
  */
 @RunWith(AndroidJUnit4::class)
 class NetworkSecurityConfigChainTest {
@@ -58,7 +59,7 @@ class NetworkSecurityConfigChainTest {
     }
 
     @Test
-    fun rootYeCrossSignedByRootX2ValidatesThroughTheBundledRootYe() {
+    fun aCrossSignByRootX2IsAcceptedThroughTheBundledRootX2() {
         val validated = platformTrust().checkServerTrusted(arrayOf(asset("isrg_root_ye_by_x2")), "ECDSA", host)
         assertEquals("Root YE", commonName(validated.first().subjectX500Principal))
     }

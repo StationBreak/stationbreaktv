@@ -40,8 +40,7 @@ internal object ProbeOutcome {
             line(passed = false, type = "NotTls", major = NONE)
         }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun status(code: Int): String = line(passed = false, type = "Unknown", major = NONE)
+    fun status(): String = line(passed = false, type = "Unknown", major = NONE)
 
     fun failure(failure: Throwable): String = line(passed = false, type = typeOf(failure), major = NONE)
 

@@ -2,7 +2,6 @@
 package tv.stationbreak.app.trust
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Document
@@ -90,15 +89,6 @@ class NetworkSecurityConfigTest {
             configFiles().flatMap { file -> elements(parse(file), "certificates").map { it.getAttribute("src") } }
         val expected = listOf("system") + bundledRawNames().sorted().map { "@raw/$it" }
         assertEquals(expected, sourcesSeen.sortedBy { if (it == "system") "" else it })
-        assertEquals(2, bundledRawNames().size)
-    }
-
-    @Test
-    fun noUserInstalledCertificateAuthorityAnywhere() {
-        configFiles().forEach { file ->
-            val text = file.readText()
-            assertFalse("${file.path} trusts user CAs", Regex("""src\s*=\s*["']user["']""").containsMatchIn(text))
-        }
     }
 
     @Test

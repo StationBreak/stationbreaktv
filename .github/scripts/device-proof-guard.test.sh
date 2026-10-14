@@ -39,9 +39,13 @@ expect() {
 expect clean 0
 expect gradle-kts-other-argument 0
 
+# An ordinary serverAddress parameter in app or data code is not the instrumentation argument.
+expect app-kotlin-server-address-parameter 0
+
 # The address argument, however it is passed.
 expect workflow-e-flag 1
 expect workflow-gradle-property 1
+expect gradle-property-form 1
 expect workflow-lowercase 1
 expect workflow-quoted-name 1
 expect script-names-argument 1

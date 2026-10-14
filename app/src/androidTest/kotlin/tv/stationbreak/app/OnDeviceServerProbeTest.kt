@@ -44,7 +44,7 @@ class OnDeviceServerProbeTest {
                 if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                     ProbeOutcome.success(connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) })
                 } else {
-                    ProbeOutcome.status(connection.responseCode)
+                    ProbeOutcome.status()
                 }
             } finally {
                 connection.disconnect()

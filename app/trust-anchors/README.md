@@ -2,7 +2,7 @@
 
 The two certificates in `app/src/main/res/raw/` are extra trust anchors, listed beside the system store in
 `app/src/main/res/xml/network_security_config.xml`. Fire OS 6 (API 25) ships ISRG Root X1 but not ISRG Root X2
-(Android 14 and later do) or Root YE. Spec 03, Unit 4 (backlog S0.3.5); the policy is in the spec's "CA sources" rule.
+(Android 14 and later do) or Root YE. Backlog S0.3.5. The policy: system store plus these two roots, never a user-installed CA, no debug-overrides, no pinning.
 
 | File | Certificate | Key | Valid until | SHA-256 |
 | --- | --- | --- | --- | --- |

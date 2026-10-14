@@ -6,9 +6,13 @@
 # The on-device probe (OnDeviceServerProbeTest) reads its address from the `serverAddress` instrumentation argument.
 # The owner supplies it by hand in a bridge session; no workflow, script or Gradle file may ever set it, because a
 # value that comes from a CI secret or variable would land in a log.
-# Rule, printed as "FAIL address-argument: <file>:<line>":
-#   address-argument  any text file in the tree names the `serverAddress` argument in any case: workflows, scripts,
-#                     Gradle files (Kotlin or Groovy) and build-logic plugins, a Taskfile or Makefile, anything
+# Rule, printed as "FAIL address-argument: <file>:<line>". Every text file in the tree is scanned (workflows, scripts,
+# Gradle files in Kotlin or Groovy, build-logic plugins, a Taskfile or Makefile, anything), but only for the forms that
+# hand the argument to the instrumentation, so an ordinary `serverAddress` parameter or property in app code passes:
+#   - `-e serverAddress` or `--es serverAddress`, with any spacing or quoting
+#   - the name as a quoted string literal, "serverAddress" or 'serverAddress' (a map key, a property name)
+#   - `serverAddress` anywhere in a file that also says `am instrument` or `instrumentationRunnerArgument(s)`, which
+#     covers `-Pandroid.testInstrumentationRunnerArguments.serverAddress`, gradle.properties and the Groovy form
 # Exempt from the scan, by exact path: this script, its test, .github/scripts/fixtures/device-proof/, the probe's own
 # sources under app/src/androidTest/, docs/ and CONTRIBUTING.md. They have to name the argument. A copy elsewhere is
 # not exempt. .git, .gradle and each Gradle module's build/ output are not scanned, and neither are binary files.
@@ -30,19 +34,38 @@ cd "$root"
 
 failures=0
 
-# scan <file>: fail address-argument on the first line of <file> that names the argument. grep exits 1 for "no
-# match" and 2 or more for "could not read", which stops the guard instead of reading as clean.
-scan() {
-  local hits status=0
-  hits="$(grep -nIiE 'serveraddress' "$1" 2>/dev/null)" || status=$?
+# first_line <file> <pattern>...: print the first line number of <file> matching any pattern, return 1 for no match.
+# grep exits 1 for "no match" and 2 or more for "could not read", which stops the guard instead of reading as clean.
+first_line() {
+  local file="$1" hits status=0 args=()
+  shift
+  for pattern in "$@"; do args+=(-e "$pattern"); done
+  hits="$(grep -nIiE "${args[@]}" "$file" 2>/dev/null)" || status=$?
   if [ "$status" -eq 0 ]; then
-    # File and line number only: the matched text could be a real address, and this goes to a CI log.
-    echo "FAIL address-argument: $1:$(head -n1 <<<"$hits" | cut -d: -f1)"
-    failures=$((failures + 1))
+    head -n1 <<<"$hits" | cut -d: -f1
+    return 0
   elif [ "$status" -ne 1 ]; then
-    echo "cannot read: $1" >&2
+    echo "cannot read: $file" >&2
     exit 2
   fi
+  return 1
+}
+
+# scan <file>: fail address-argument when <file> hands the argument to the instrumentation.
+scan() {
+  local line
+  if ! line="$(first_line "$1" \
+    '(^|[[:space:]"'\''])(-e|--es)[[:space:]]+["'\'']?serveraddress' \
+    '["'\'']serveraddress["'\'']')"; then
+    if first_line "$1" 'am[[:space:]]+instrument' 'instrumentationRunnerArgument' >/dev/null; then
+      line="$(first_line "$1" 'serveraddress')" || return 0
+    else
+      return 0
+    fi
+  fi
+  # File and line number only: the matched text could be a real address, and this goes to a CI log.
+  echo "FAIL address-argument: $1:$line"
+  failures=$((failures + 1))
 }
 
 # Gradle's own output: <module>/build next to a build.gradle(.kts). A directory merely named build is scanned.
