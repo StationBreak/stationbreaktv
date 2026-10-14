@@ -30,11 +30,11 @@ object PlaintextTlsMarkers {
         listOf("WRONG_VERSION_NUMBER", "wrong version number", "Unable to parse TLS packet header")
 
     /** True when an [SSLException] in [error]'s cause chain carries one of the markers. */
-    fun indicatesPlaintext(error: Throwable): Boolean {
-        val markers = JVM + CONSCRYPT
-        return error.causeChain().any { cause ->
+    private val markers: List<String> by lazy { JVM + CONSCRYPT }
+
+    fun indicatesPlaintext(error: Throwable): Boolean =
+        error.causeChain().any { cause ->
             val message = cause.message
             cause is SSLException && message != null && markers.any { message.contains(it, ignoreCase = true) }
         }
-    }
 }

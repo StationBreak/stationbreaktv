@@ -22,6 +22,20 @@ class ProbeCredentialsTest {
     fun tearDown() = server.close()
 
     @Test
+    fun anAddressTheUrlParserRefusesIsAnInvalidAddressThatNamesNoHost() {
+        // Invalid punycode passes the host rules but not HttpUrl; the exception text would hold the host.
+        val address = ServerAddress(Scheme.Http, "xn--zzzzzzzzzzzz.example", 80)
+        val result = runBlocking { ServerProbe(OkHttpClient()).probe(address) }
+        val error = (result as tv.stationbreak.core.domain.ServerResult.Failure).error
+        assertEquals(
+            tv.stationbreak.core.domain.MediaServerError
+                .InvalidAddress(),
+            error,
+        )
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun theRequestLogShowsNoAuthorizationAndNoCredentialsInTheUrl() {
         server.enqueue(
             MockResponse

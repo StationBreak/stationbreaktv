@@ -8,7 +8,7 @@ import okhttp3.Callback
 import okhttp3.ConnectionSpec
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -16,10 +16,10 @@ import okhttp3.Response
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import java.io.IOException
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration
@@ -66,10 +66,9 @@ internal class ServerProbe(
             .callTimeout(timeouts.call.toJavaDuration())
             .build()
 
-    suspend fun probe(address: ServerAddress): ServerResult<ResolvedServer> {
-        val redirects = RedirectPolicy.MAX_REDIRECTS
-        return follow(address, address, redirects)
-    }
+    private val maxRedirects = RedirectPolicy.MAX_REDIRECTS
+
+    suspend fun probe(address: ServerAddress): ServerResult<ResolvedServer> = follow(address, address, maxRedirects)
 
     private suspend fun follow(
         original: ServerAddress,
@@ -78,7 +77,7 @@ internal class ServerProbe(
     ): ServerResult<ResolvedServer> =
         when (val answer = fetch(current)) {
             is Answer.Body -> {
-                ProbeChecks.check(answer.text).let { checked -> toResolved(current, checked) }
+                ProbeChecks.check(answer.text).map { ResolvedServer(current, it) }
             }
 
             is Answer.Failed -> {
@@ -92,20 +91,6 @@ internal class ServerProbe(
                 } else {
                     ServerResult.Failure(MediaServerError.Redirected())
                 }
-            }
-        }
-
-    private fun toResolved(
-        address: ServerAddress,
-        checked: ServerResult<tv.stationbreak.core.model.ServerInfo>,
-    ): ServerResult<ResolvedServer> =
-        when (checked) {
-            is ServerResult.Success -> {
-                ServerResult.Success(ResolvedServer(address, checked.value))
-            }
-
-            is ServerResult.Failure -> {
-                checked
             }
         }
 
@@ -124,12 +109,14 @@ internal class ServerProbe(
     }
 
     private suspend fun fetch(address: ServerAddress): Answer {
+        // A parser-less failure: toHttpUrl() would throw with the host in its message.
         val url =
             address.baseUrl
-                .toHttpUrl()
-                .newBuilder()
-                .addPathSegments(ENDPOINT)
-                .build()
+                .toHttpUrlOrNull()
+                ?.newBuilder()
+                ?.addPathSegments(ENDPOINT)
+                ?.build()
+                ?: return Answer.Failed(MediaServerError.InvalidAddress())
         val request =
             Request
                 .Builder()
@@ -139,8 +126,6 @@ internal class ServerProbe(
                 .build()
         return try {
             client.newCall(request).await().use(::read)
-        } catch (error: CancellationException) {
-            throw error
         } catch (error: IOException) {
             Answer.Failed(ErrorMapper.map(error, secure = address.scheme == Scheme.Https))
         }

@@ -34,15 +34,31 @@ internal object ErrorMapper {
         secure: Boolean = false,
     ): MediaServerError {
         if (error is CancellationException) throw error
-        val chain = error.causeChain()
+        val graph = error.causeGraph()
+        val chain = graph.nodes
         val names = chain.map { it.javaClass.name }
-        return sdkStatus(chain, tokenBearing, names)
+        val mapped = mapChain(chain, names, tokenBearing, secure)
+        // Past the cap there may be a TLS failure nobody read, so nothing that allows the http fallback is reported.
+        return if (graph.truncated && mapped.allowsHttpFallback()) MediaServerError.Unknown(names) else mapped
+    }
+
+    private fun MediaServerError.allowsHttpFallback() =
+        this is MediaServerError.ConnectionRefused ||
+            this is MediaServerError.NetworkUnreachable ||
+            this is MediaServerError.NotTls
+
+    private fun mapChain(
+        chain: List<Throwable>,
+        names: List<String>,
+        tokenBearing: Boolean,
+        secure: Boolean,
+    ): MediaServerError =
+        sdkStatus(chain, tokenBearing, names)
             ?: lookup(chain, names)
             ?: timeout(chain, names)
             ?: TlsErrors.map(chain, names)
             ?: NetworkErrors.map(chain, names, secure)
             ?: MediaServerError.Unknown(names)
-    }
 
     /**
      * The error for an HTTP status that arrived as a response, not an exception. A 404 is [MediaServerError.NotFound];

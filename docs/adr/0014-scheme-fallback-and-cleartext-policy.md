@@ -71,8 +71,13 @@ Normally that is true. But a phone or TV can be set up, or a hostile network can
 means a server on the internet. Your password and login token would then travel unencrypted to it, with no warning.
 The app cannot check, because looking the name up would trust the same network that might be lying, and would fail
 offline. Angua (Security) judged this acceptable on 2026-10-13, and the owner accepted it on 2026-10-14. The risk
-applies only to `http` that was typed with a bare name. `https`, any name with a dot (other than `.local` or
-`.home.arpa`), and any `http` the app reached by falling back from `https` still ask first.
+covers an `http://` the user typed for a bare name, and for a name ending `.local`, which can be spoofed on the local
+network. `https`, any name with a dot (other than `.local` or `.home.arpa`), and any `http` the app reached by falling
+back from `https` still ask first.
+
+One more thing to know: a typed `http://` to a private IP address, such as `http://192.168.1.10:8096`, never asks. Your
+password and login token then travel where anyone else on the same Wi-Fi can read them. That is the normal state of a
+home server without HTTPS, and it is accepted for the same reason.
 
 What the fallback prompt closes: someone on the same Wi-Fi can no longer force the app from `https` onto `http` without
 being noticed, because that downgrade now always asks. `.local` names can also be spoofed on the local network, which

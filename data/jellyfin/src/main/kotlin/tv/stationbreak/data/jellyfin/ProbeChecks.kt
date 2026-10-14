@@ -46,7 +46,7 @@ internal object ProbeChecks {
         }
     }
 
-    fun notJellyfin() = ServerResult.Failure(MediaServerError.NotJellyfin())
+    private fun notJellyfin() = ServerResult.Failure(MediaServerError.NotJellyfin())
 
     private fun decode(body: String): PublicInfo? =
         try {

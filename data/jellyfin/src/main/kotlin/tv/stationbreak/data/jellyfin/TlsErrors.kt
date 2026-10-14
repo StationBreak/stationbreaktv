@@ -22,10 +22,16 @@ internal object TlsErrors {
     ): MediaServerError? =
         when {
             chain.none(::isTlsRelated) -> null
+
             chain.any(::isExpired) -> MediaServerError.TlsCertificateExpired(names)
+
             chain.any { it is SSLPeerUnverifiedException } -> MediaServerError.TlsHostnameMismatch(names)
+
             chain.any(::isUntrusted) -> MediaServerError.TlsUntrusted(names)
-            PlaintextTlsMarkers.indicatesPlaintext(chain.first()) -> MediaServerError.NotTls(names)
+
+            // Plaintext only if every TLS failure in the chain is the plaintext one.
+            chain.filter(::isTlsRelated).all(PlaintextTlsMarkers::indicatesPlaintext) -> MediaServerError.NotTls(names)
+
             else -> MediaServerError.TlsHandshakeFailed(names)
         }
 

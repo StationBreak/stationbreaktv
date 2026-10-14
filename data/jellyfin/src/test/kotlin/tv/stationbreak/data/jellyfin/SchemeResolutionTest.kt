@@ -26,7 +26,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -170,7 +169,6 @@ class SchemeResolutionTest {
             }.exceptionOrNull()!!
 
         assertIs<SSLException>(failure)
-        println("OBSERVED-JVM-PLAINTEXT-ANSWER: ${failure::class.java.name}: ${failure.message}")
         assertTrue(PlaintextTlsMarkers.indicatesPlaintext(failure), "${failure::class.java.name}: ${failure.message}")
     }
 
@@ -252,7 +250,7 @@ class SchemeResolutionTest {
 
         val result = discover(client, "jellyfin.test:${server.port}")
 
-        assertNotNull(result.errorOrNull())
+        assertIs<MediaServerError.TlsUntrusted>(result.errorOrNull())
         assertNoDowngrade(result)
     }
 

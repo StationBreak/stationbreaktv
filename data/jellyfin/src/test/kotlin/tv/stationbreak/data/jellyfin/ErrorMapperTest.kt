@@ -117,7 +117,7 @@ class ErrorMapperTest {
     }
 
     @Test
-    fun aResetOrEofIsAHandshakeFailureOnTlsAndAServerErrorOtherwise() {
+    fun aResetOrEofIsAHandshakeFailureOnTlsAndUnknownOtherwise() {
         assertIs<MediaServerError.TlsHandshakeFailed>(map(SocketException("Connection reset"), secure = true))
         assertIs<MediaServerError.TlsHandshakeFailed>(map(EOFException(), secure = true))
         // A dropped plain-http connection says nothing about the server's health: not ServerError.
@@ -203,6 +203,25 @@ class ErrorMapperTest {
             "java.net.ConnectException" in error.causes && "javax.net.ssl.SSLHandshakeException" in error.causes,
             error.causes.toString(),
         )
+    }
+
+    @Test
+    fun aPlaintextMarkerDoesNotHideAnotherTlsFailureInTheChain() {
+        val plaintext = SSLException("Unsupported or unrecognized SSL message")
+        val other = SSLHandshakeException("Received fatal alert: handshake_failure")
+        assertIs<MediaServerError.NotTls>(map(plaintext))
+        val twoAddresses = IOException("two addresses", plaintext).apply { addSuppressed(other) }
+        assertIs<MediaServerError.TlsHandshakeFailed>(map(twoAddresses))
+    }
+
+    @Test
+    fun aChainTooLongToReadFailsClosedInsteadOfAllowingTheFallback() {
+        // The TLS failure is past the cap, so it is never read: a refusal must not be reported as one.
+        val refused = ConnectException("Connection refused")
+        repeat(MAX_CAUSE_CHAIN) { refused.addSuppressed(IOException("filler $it")) }
+        refused.addSuppressed(SSLHandshakeException("PKIX path building failed"))
+        assertIs<MediaServerError.Unknown>(map(refused))
+        assertIs<MediaServerError.ConnectionRefused>(map(ConnectException("Connection refused")))
     }
 
     @Test
