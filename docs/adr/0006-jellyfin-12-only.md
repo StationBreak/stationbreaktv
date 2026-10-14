@@ -101,3 +101,5 @@ the core of the app is expected to fail the same way.
   in a URL (R2). Because the server accepts either form, the contract suite can't detect a missing header on the stream
   path; the header is asserted client-side when F0.5/F1.x wires Media3. A stream URL or item ID together with the server
   address is access-granting on such a server, so it is redacted like the address (S3.6.1).
+  Upstream tracks this as jellyfin/jellyfin#13984 (open); PR jellyfin/jellyfin#16664 proposes requiring authentication on
+  stream routes behind an experimental setting.
