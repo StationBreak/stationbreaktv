@@ -80,10 +80,11 @@ internal object ServerSeeding {
         http.expectOk("wizard complete", http.post("Startup/Complete"))
     }
 
-    /** The public info answers before the wizard's endpoints do (they answer 503 while the server loads). */
+    /** The public info answers before the wizard's endpoints do (503 or a reset connection while the server loads). */
     private fun waitForWizard(http: Harness) {
         val deadline = System.nanoTime() + WIZARD_TIMEOUT.toNanos()
-        while (!http.get("Startup/Configuration").ok) {
+        // A connection reset while the server is still loading is the same as a 503: not ready yet.
+        while (!runCatching { http.get("Startup/Configuration").ok }.getOrDefault(false)) {
             check(System.nanoTime() < deadline) { "the startup wizard didn't become available" }
             Thread.sleep(POLL.toMillis())
         }
