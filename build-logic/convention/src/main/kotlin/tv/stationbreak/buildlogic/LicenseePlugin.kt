@@ -31,6 +31,11 @@ class LicenseePlugin : Plugin<Project> {
                 allowUrl("https://www.gnu.org/licenses/lgpl-3.0.txt") {
                     because("jellyfin-sdk-kotlin is LGPL-3.0 (ADR-0005); its POM carries a name Licensee doesn't map")
                 }
+                // slf4j-api and slf4j-nop (the SLF4J binding `app` ships, ADR-0006) are MIT, but their POMs give the license
+                // as this URL and no SPDX id, so Licensee can't identify them by name.
+                allowUrl("https://opensource.org/license/mit") {
+                    because("slf4j-api and slf4j-nop are MIT; their POMs name the license by this URL only")
+                }
                 // Entries are listed ahead of need, so one that no dependency uses yet isn't an error.
                 unusedAction(UnusedAction.IGNORE)
             }

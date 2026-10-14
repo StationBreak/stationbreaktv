@@ -30,6 +30,9 @@ coroutines = "1.11.0"
 # kotlinx-serialization 1.11.0 is the latest stable (checked 2026-10-13; 1.12.0 is still an RC). Its compiler plugin
 # is the Kotlin version.
 serialization = "1.11.0"
+# slf4j-nop 2.0.18 is the SLF4J line the SDK's kotlin-logging resolves (slf4j-api 2.0.18, checked 2026-10-14): without a
+# binding the SDK's first request crashes on Android (ADR-0006, F0.3 task 2.13).
+slf4j = "2.0.18"
 
 minSdk = "25"
 # Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
@@ -60,7 +63,11 @@ jellyfin-sdk-api-okhttp = { module = "org.jellyfin.sdk:jellyfin-api-okhttp", ver
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 # Pinned to the SDK's version (see [versions]).
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+# Test only. Same version as kotlinx-coroutines-core: virtual time for the Quick Connect polling tests.
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+# No-op SLF4J binding for `app`, until S3.6.1 builds the redacting logger (ADR-0006).
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 # javax.inject 1 is the only release; it is the JSR-330 annotations and nothing else (MODULES.md, "Hilt in pure modules").
 javax-inject = { module = "javax.inject:javax.inject", version = "1" }
 # Test only. Same line as okhttp, so the TLS and mock-server helpers match the client under test.
