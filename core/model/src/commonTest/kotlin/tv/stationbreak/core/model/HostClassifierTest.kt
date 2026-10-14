@@ -130,4 +130,13 @@ class HostClassifierTest {
     fun emptyLabelsAndEmptyHostsAreInvalid() {
         assertClass(HostClass.Invalid, "", "host.", "a..b", ".a")
     }
+
+    @Test
+    fun namesWithCharactersAHostnameCantHoldAreInvalid() {
+        assertClass(HostClass.Invalid, "<script>", "a b", "host@evil", "a/b", "ho%73t")
+        assertClass(HostClass.Invalid, "-a.example", "a-.example", "a".repeat(64))
+        assertClass(HostClass.Public, "a_b.example", "xn--bcher-kva.example", "1password.example")
+        assertClass(HostClass.Public, "a".repeat(63) + ".example")
+        assertClass(HostClass.Private, "a-b", "a".repeat(63))
+    }
 }

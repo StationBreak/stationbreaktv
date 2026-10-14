@@ -24,7 +24,7 @@ enum class HostClass {
  *
  * Invalid: IPv4 in any spelling but four decimal octets without leading zeros (parsers disagree about `127.1`,
  * `0x7f.1`, `2130706433`), `0.0.0.0/8`, multicast and broadcast, the IPv6 unspecified and multicast addresses,
- * and names with an empty label.
+ * and names with an empty label or a character a hostname can't hold.
  */
 object HostClassifier {
     fun classify(host: String): HostClass =
@@ -108,6 +108,7 @@ internal object HostSyntax {
 
     private val NUMERIC_LABEL = Regex("""^(?:[0-9]+|0[xX][0-9a-fA-F]*)$""")
     private val DECIMAL_OCTET = Regex("""^(?:0|[1-9][0-9]{0,2})$""")
+    private val HOST_LABEL = Regex("""^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?$""", RegexOption.IGNORE_CASE)
     private val HEX_GROUP = Regex("""^[0-9a-fA-F]{1,4}$""")
 
     fun parse(host: String): Parsed =
@@ -141,7 +142,7 @@ internal object HostSyntax {
     private fun dotted(host: String): Parsed {
         val labels = host.split('.')
         return when {
-            labels.any { it.isEmpty() } -> Malformed
+            labels.any { !HOST_LABEL.matches(it) } -> Malformed
             NUMERIC_LABEL.matches(labels.last()) -> strictIpv4(labels)?.let(::Address) ?: Malformed
             else -> Name
         }
