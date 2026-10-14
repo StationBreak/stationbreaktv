@@ -183,6 +183,11 @@ class ServerAddressParserTest {
     }
 
     @Test
+    fun rejectsAnIpv6ZoneIdBecauseItNamesALocalInterfaceNotAServer() {
+        assertInvalid("[fe80::1%25eth0]:8096", "[fe80::1%eth0]", "http://[fe80::1%25en0]/")
+    }
+
+    @Test
     fun rejectsTheOtherCharactersAUrlParserWouldQuietlyAccept() {
         assertInvalid("host\\@evil.example", "http://host:8096@evil.example")
     }
