@@ -3,3 +3,10 @@ naming:
   FunctionNaming:
     # Compose functions are PascalCase by convention (the same exemption as ktlint's in .editorconfig).
     ignoreAnnotated: ['Composable']
+style:
+  ForbiddenImport:
+    active: true
+    # R18 (F0.3): HttpLoggingInterceptor prints URLs, headers and tokens. It exists in no build type, debug included.
+    forbiddenImports:
+      - value: 'okhttp3.logging.HttpLoggingInterceptor'
+        reason: 'It logs URLs, headers and tokens (F0.3 R18). Use AdapterLog; S3.6.1 builds the redacting logger.'

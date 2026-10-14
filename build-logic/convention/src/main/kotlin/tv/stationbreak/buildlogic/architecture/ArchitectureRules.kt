@@ -80,6 +80,11 @@ enum class Rule(
         "a [KMP] or [JVM] module other than data:jellyfin may not declare OkHttp (com.squareup.okhttp3:*), so no " +
             "OkHttp type reaches a port signature (ADR-0005)",
     ),
+    NO_HTTP_LOGGING(
+        "no-http-logging",
+        "no module may declare com.squareup.okhttp3:logging-interceptor, in any configuration: its " +
+            "HttpLoggingInterceptor prints URLs, headers and tokens (F0.3 R18)",
+    ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
 }
@@ -137,6 +142,7 @@ object ArchitectureRules {
     private const val DATA_JELLYFIN = ":data:jellyfin"
     private const val SDK_GROUP = "org.jellyfin.sdk"
     private const val OKHTTP_GROUP = "com.squareup.okhttp3"
+    private const val OKHTTP_LOGGING = "com.squareup.okhttp3:logging-interceptor"
 
     private val SCHEDULER_FORBIDDEN = setOf(":core:engine", ":core:rules")
 
@@ -176,6 +182,10 @@ object ArchitectureRules {
                     ANDROID_GROUPS.any { dependency.group == it || dependency.group.startsWith("$it.") } ||
                         dependency.key in ANDROID_ARTIFACTS
                 when {
+                    dependency.key == OKHTTP_LOGGING -> {
+                        Rule.NO_HTTP_LOGGING
+                    }
+
                     spec.platform == Platform.PURE && android -> {
                         Rule.NO_ANDROID_IN_PURE_MODULES
                     }
