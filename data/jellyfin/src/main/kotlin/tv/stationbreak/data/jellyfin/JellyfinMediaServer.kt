@@ -46,7 +46,7 @@ class JellyfinMediaServer internal constructor(
 ) : MediaServer {
     @Inject
     constructor(
-        baseClient: OkHttpClient,
+        @BaseHttpClient baseClient: OkHttpClient,
         identity: ClientIdentity,
         deviceIds: DeviceIdProvider,
         log: AdapterLog,
