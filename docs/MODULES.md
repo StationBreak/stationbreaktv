@@ -33,7 +33,7 @@ Source of truth: [`SPEC.md`](SPEC.md).
 stationbreaktv/
 ├── app/                         Android application. Hilt root, navigation, flavors.
 ├── build-logic/convention/      Gradle convention plugins (quality, android-app, android-lib, compose, kmp-lib, jvm-lib;
-│                                licensee, jvm-inject; hilt arrives with F0.3 Unit 3, where the app first wires @Inject)
+│                                licensee, jvm-inject; hilt arrives when the app first wires an @Inject class, in F0.3)
 │
 ├── core/
 │   ├── model/          [KMP]    Domain entities: Server, MediaItem, Channel, ScheduleBlock, ids, value types,

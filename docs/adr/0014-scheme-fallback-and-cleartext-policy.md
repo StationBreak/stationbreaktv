@@ -1,8 +1,8 @@
 # ADR-0014: Scheme fallback and the cleartext policy
 
-- **Status:** Accepted (the residual risk below is shown to the owner on the PR that introduces this ADR)
-- **Date:** 2026-10-13
-- **Decided by:** a technical decision under the owner's standing instruction, from the F0.3 spec and review by Angua (Security) (R5 to R8)
+- **Status:** Accepted
+- **Date:** 2026-10-13, amended 2026-10-14
+- **Decided by:** the owner for decisions 3 and 7 (2026-10-14: a fallback to `http` always asks, and the remaining bare-name risk is accepted); the rest is a technical decision under the owner's standing instruction, from the F0.3 spec and Angua's security review (findings R5 to R9 and R11)
 - **Revisit:** if a user is caught out by a single-label hostname that resolved publicly, if Tailscale-style addresses (carrier-grade NAT) turn out to be the common home setup, or if the adapter gains a DNS-aware network layer
 - **Informs:** F0.3 (S0.3.1), F0.5 (the connection screen), ADR-0006 (errors)
 
@@ -26,8 +26,11 @@ as `http://jellyfin:8096`, which is how most people address a server on their ow
    only if the `https` attempt (a) was refused, (b) found the network unreachable, or (c) got a **positively identified
    plaintext answer**: an `SSLException` whose message is one the TLS stack uses when the bytes it received were not a
    TLS record at all. Each TLS stack words (c) differently, so the markers are a checked-in table
-   (`PlaintextTlsMarkers`), each added only after a test observed it: the JDK's on the JVM, Conscrypt's on the API 25
-   emulator. Any other `SSLException` is a TLS error and never falls back: a handshake alert, a protocol or cipher
+   (`PlaintextTlsMarkers`), filled from what a test observed: the JDK's on the JVM, Conscrypt's on the API 25
+   emulator (`PlaintextTlsMarkerTest`, which passes on API 25 with the table as committed; the run does not record
+   which of the Conscrypt entries matched, and "Unable to parse TLS packet header", Conscrypt's wording on Android 10
+   and later, is taken from its source and still needs a device check). An unrecognised wording fails safe: it is a TLS
+   error and does not fall back. Any other `SSLException` is a TLS error and never falls back: a handshake alert, a protocol or cipher
    mismatch, a reset or EOF mid-handshake, anything unrecognised. A certificate problem (untrusted, expired, hostname
    mismatch), a timeout and a DNS failure never fall back either.
 2. **`discover` is setup-only.** It reports `resolvedByFallback`, so the screen can show a scheme the app chose
@@ -35,7 +38,8 @@ as `http://jellyfin:8096`, which is how most people address a server on their ow
    scheme and never downgrades. An explicit scheme in the input is honoured exactly and never probed the other way.
    Persisting the chosen scheme belongs to F0.4/F0.5 (`data:settings`); this ADR only guarantees the value carries it.
 3. **The real guard against a downgrade is the cleartext acknowledgement, not the fallback rule.** `http` to a host
-   that is not private (`ServerAddress.cleartextNeedsConfirmation`) needs a `CleartextAcknowledgement` built from
+   that is not private, or `http` reached by falling back (decision 7), needs
+   (`ServerAddress.cleartextNeedsConfirmation`) a `CleartextAcknowledgement` built from
    **that exact address**: host, port, scheme and subpath all have to match, or the adapter returns
    `CleartextNotConfirmed` without sending anything. The adapter enforces it before any request that carries a
    password, a Quick Connect secret or a token (and before `connect`), so it does not depend on a screen remembering.
@@ -52,18 +56,27 @@ as `http://jellyfin:8096`, which is how most people address a server on their ow
 6. **Numeric hosts are strict.** An IPv4 literal is recognised only as four decimal octets without leading zeros.
    `127.1`, `0x7f.1`, `2130706433` and octal spellings are `InvalidAddress`, because the URL parser, the resolver and the
    TLS stack can each read them differently. `0.0.0.0/8`, multicast, broadcast, and the IPv6 unspecified and multicast
-   addresses are `InvalidAddress`. One trailing dot is stripped; a second is an empty label.
+   addresses are `InvalidAddress`. One trailing dot is stripped (a single label keeps it: `ai.` is an absolute name, public); a second is an empty label.
+7. **`http` reached by fallback always asks, even for a private host** (owner decision, 2026-10-14). When `https`
+   failed and the app chose `http` itself (`resolvedByFallback`, carried on the address as `viaFallback`), the one-time
+   acknowledgement is required before any password or token is sent, on the home network too. An `http://` the user
+   typed for a private host keeps the no-prompt behaviour. The rule is one term in
+   `ServerAddress.cleartextNeedsConfirmation`, so it can be dropped by deleting that term. Without it, someone on the
+   same Wi-Fi could reset connections to port 443 and push the app onto `http` without a prompt.
 
-## Residual risk (for the owner)
+## Accepted risks (for the owner)
 
-A **single-label hostname** can in principle resolve to a public address: a search-domain suffix on the device or a
-hostile resolver can turn `jellyfin` into `jellyfin.attacker.example`. Cleartext to a single-label name therefore skips
-the confirmation prompt even though the traffic could leave the home network. Deciding "private" from text alone is a
-deliberate trade-off. The alternative, resolving the name and checking the address, depends on a resolver an attacker
-may influence, and would also fail offline. The trade-off was accepted in the security review (Angua (Security),
-2026-10-13) and is recorded here so it is a known risk, not a surprise. The mitigation is that this applies to
-`http` with a bare name only: `https` is unaffected, and anything with a dot that is not `.local` or `.home.arpa`
-still asks first.
+If you type a bare name such as `http://jellyfin:8096`, the app treats it as your home network and does not warn you.
+Normally that is true. But a phone or TV can be set up, or a hostile network can arrange, so that `jellyfin` quietly
+means a server on the internet. Your password and login token would then travel unencrypted to it, with no warning.
+The app cannot check, because looking the name up would trust the same network that might be lying, and would fail
+offline. Angua (Security) judged this acceptable on 2026-10-13, and the owner accepted it on 2026-10-14. The risk
+applies only to `http` that was typed with a bare name. `https`, any name with a dot (other than `.local` or
+`.home.arpa`), and any `http` the app reached by falling back from `https` still ask first.
+
+What the fallback prompt closes: someone on the same Wi-Fi can no longer force the app from `https` onto `http` without
+being noticed, because that downgrade now always asks. `.local` names can also be spoofed on the local network, which
+is why a name ending `.local` typed with `http://` is still a trust decision the user makes.
 
 ## Consequences
 
@@ -71,6 +84,8 @@ still asks first.
   handshake never turns into a cleartext request.
 - Two TLS stacks, two sets of markers: a new Android version or JDK can word the plaintext case differently. The
   marker tests on the emulator and the JVM are the check, and an unrecognised wording fails safe (a TLS error, no
-  fallback).
+  fallback). On Android 7.1 the table is filled and tested on the emulator; a Fire TV on Android 10 or later still
+  needs a device check of the Conscrypt engine wording, and until then a plain-HTTP LAN server there reports a TLS
+  error instead of falling back.
 - ADR-0006's note that the fallback triggers "only on connection refused" is amended to match, and so is S0.3.1 in the
   backlog.
