@@ -184,6 +184,34 @@ class ArchitectureRulesTest {
         )
     }
 
+    // The one carve-out: app's instrumented tests may use the SDK's own client, to pin the SLF4J binding it needs
+    // (ADR-0006). Nothing the APK ships can.
+    @Test
+    fun appMayDeclareTheJellyfinSdkInItsInstrumentedTestsOnly() {
+        for (configuration in listOf("androidTestImplementation", "githubDebugAndroidTestImplementation")) {
+            assertEquals(
+                emptyList(),
+                rulesBroken(":app", artifact(configuration, "org.jellyfin.sdk:jellyfin-core")),
+                configuration,
+            )
+        }
+        for (configuration in listOf("implementation", "runtimeOnly", "debugImplementation", "testFixturesApi")) {
+            assertEquals(
+                listOf(Rule.SDK_CONFINED),
+                rulesBroken(":app", artifact(configuration, "org.jellyfin.sdk:jellyfin-core")),
+                configuration,
+            )
+        }
+    }
+
+    @Test
+    fun noOtherModuleMayDeclareTheJellyfinSdkInATest() {
+        assertEquals(
+            listOf(Rule.SDK_CONFINED),
+            rulesBroken(":core:domain", artifact("testImplementation", "org.jellyfin.sdk:jellyfin-core")),
+        )
+    }
+
     @Test
     fun coreModelMayNotDeclareOkHttp() {
         assertEquals(

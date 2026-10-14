@@ -72,8 +72,8 @@ enum class Rule(
     ),
     SDK_CONFINED(
         "sdk-confined",
-        "only data:jellyfin may declare the Jellyfin SDK (org.jellyfin.sdk:*), so no SDK type reaches another module " +
-            "(ADR-0005)",
+        "only data:jellyfin (and app's instrumented tests) may declare the Jellyfin SDK (org.jellyfin.sdk:*), so no " +
+            "SDK type reaches another module (ADR-0005)",
     ),
     OKHTTP_CONFINED(
         "okhttp-confined",
@@ -157,6 +157,13 @@ object ArchitectureRules {
 
     fun isTestConfiguration(name: String): Boolean = TEST_CONFIGURATION.containsMatchIn(name)
 
+    // data:jellyfin, and app's instrumented tests, which use the SDK's own client to pin the SLF4J binding it needs
+    // (ADR-0006). Nothing the APK ships may declare it.
+    private fun mayDeclareSdk(
+        module: String,
+        configuration: String,
+    ): Boolean = module == DATA_JELLYFIN || (module == APP && isTestConfiguration(configuration))
+
     fun violations(
         module: String,
         edges: List<DeclaredEdge>,
@@ -190,7 +197,7 @@ object ArchitectureRules {
                         Rule.NO_ANDROID_IN_PURE_MODULES
                     }
 
-                    dependency.group == SDK_GROUP && module != DATA_JELLYFIN -> {
+                    dependency.group == SDK_GROUP && !mayDeclareSdk(module, edge.configuration) -> {
                         Rule.SDK_CONFINED
                     }
 

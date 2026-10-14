@@ -54,9 +54,10 @@ the core of the app is expected to fail the same way.
    correction). SDK upgrades land only after the CI contract matrix passes.
 3. At connect time, a server below 12.0 produces the typed "unsupported server version" error
    (S0.3.4), with a message telling the user to upgrade Jellyfin.
-4. The CI contract-test matrix (S0.3.6) runs the **oldest supported 12.x and the latest 12.x**. The
-   oldest supported version is **12.0** unless CI shows otherwise. The spike tested only 12.2.0, so
-   S0.3.6 records the exact versions that pass.
+4. The CI contract-test matrix (S0.3.6) runs the **two newest 12.x minors**, and never drops the minor the owner's
+   own server runs (amended 2026-10-14, owner decision; it first ran 12.0 as the oldest supported). Older 12.x minors
+   still connect (decision 1) but are untested. When a new minor ships, add it and drop the oldest in the same change,
+   unless that is the owner's version.
    The version matrix stays one line per entry, so a future 13.x can be added the same way.
 
 ## Consequences
@@ -91,3 +92,15 @@ the core of the app is expected to fail the same way.
 - **Logging:** the SDK logs each request's method and URL (with the token masked) through
   kotlin-logging. StationBreak routes that through its own logger, so S3.6.1 hostname redaction
   still applies.
+- **Contract suite (F0.3 Unit 3):** `:data:jellyfin:contractTest` passes on `12.1` (the owner's server version) and
+  `12.2`, and passed on `12.0` before the matrix was cut to the two newest minors (the images are pinned by digest in `.github/workflows/jellyfin-contract.yml`), directly and behind a subpath
+  proxy. Mixed-content libraries have no `CollectionType` at all on all of them. A disabled user's sign-in is `403`, as
+  the error mapper reads it.
+  On 12.2 (12.0: the same) the server streams a static video (`/Videos/{id}/stream?static=true`) to a request with no
+  `Authorization` header. That is the server's access control, not the app's: anyone who can reach the server and knows
+  an item ID can fetch the file. StationBreak still sends the header on every stream request and never puts a credential
+  in a URL (R2). Because the server accepts either form, the contract suite can't detect a missing header on the stream
+  path; the header is asserted client-side when F0.5/F1.x wires Media3. A stream URL or item ID together with the server
+  address is access-granting on such a server, so it is redacted like the address (S3.6.1).
+  Upstream tracks this as jellyfin/jellyfin#13984 (open); PR jellyfin/jellyfin#16664 proposes requiring authentication on
+  stream routes behind an experimental setting.

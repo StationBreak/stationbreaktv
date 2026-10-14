@@ -86,7 +86,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 An instrumented test validates a chain that terminates at Root X2 **without** the X1 cross-sign.
 
 **S0.3.6** As the maintainer, I want the adapter tested against every supported Jellyfin major so that server upgrades don't break users.
-- 🧪 A CI job starts Jellyfin **oldest supported 12.x** and **latest 12.x** containers (12.0+ only, ADR-0006), completes the startup wizard via API, seeds a small fixture library, and runs the adapter contract tests (auth, Quick Connect, libraries, items paging, PlaybackInfo, playback reporting) against both.
+- 🧪 A CI job starts Jellyfin **oldest supported 12.x** and **latest 12.x** containers (12.0+ only, ADR-0006; since 2026-10-14 the two newest 12.x minors, never dropping the owner's), completes the startup wizard via API, seeds a small fixture library, and runs the adapter contract tests (auth, Quick Connect, libraries, items paging, PlaybackInfo, playback reporting) against both.
 - 🧪 A version matrix in the workflow makes adding or dropping a major a one-line change.
 
 ## F0.4 Secure credential storage (M)

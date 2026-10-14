@@ -52,3 +52,23 @@ with small hand-written DTOs, not the SDK, because the one-header, no-redirect, 
 need full control of the client. The SDK stays for Unit 3's item types, and `ErrorMapper` still reads its exception
 types. The ADR-0006 `NoClassDefFoundError: org.slf4j.LoggerFactory` proof moves to Unit 3, the first call made through
 the SDK; `slf4j-nop` is already in `app`.
+
+## Amendment (2026-10-14, F0.3 Unit 3): the item calls read lenient local DTOs, not the SDK's models
+
+Unit 3's calls (`UserViews`, `Items`, `PlaybackInfo`, `Sessions/Playing*`) also go through the adapter's own transport
+(the cleartext gate, the token binding, the no-redirect client and the subpath helper apply to them), and they read
+answers into small hand-written DTOs instead of the SDK's models. Reasons: the SDK's models are strict (a value of an
+enum that a newer server adds, or a missing required field, fails the whole page: the 10.11 failure in ADR-0006), and
+the library mapping must tell an *absent* collection type (mixed content) from an *unknown* one (dropped), which the
+SDK's enums can't. The DTOs read only the fields the port needs, so `MediaSource.Path`, `TranscodingUrl` and any other
+server-supplied URL never exist in the adapter's memory (R2). `ErrorMapper` still reads the SDK's exception types.
+
+The SDK is therefore not on any production code path that makes a request. Whether to keep the dependency (LGPL-3.0,
+with its transitive dependencies) is a later decision; it is left in place for now, for example in case a future call
+needs the SDK's generated request types.
+
+The ADR-0006 proof moved here is recorded: `SdkLoggingBindingTest` makes one request through the SDK's own client on
+the API 25 emulator. With `slf4j-nop` left out of `app`'s runtime classpath it fails with
+`NoClassDefFoundError: Failed resolution of: Lorg/slf4j/LoggerFactory;`; with it, it passes. The base client is injected
+with a Hilt qualifier (`@BaseHttpClient`), as the Unit 1 note required.
+

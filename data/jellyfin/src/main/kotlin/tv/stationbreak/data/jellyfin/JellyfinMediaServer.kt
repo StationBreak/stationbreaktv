@@ -15,6 +15,11 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemPage
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.PlaybackInfo
+import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
@@ -31,6 +36,7 @@ import kotlin.time.Duration.Companion.seconds
  * follows none, carries exactly one `Authorization` header, and puts no credential in a URL (the one exception is
  * Quick Connect's single-use secret, see [QuickConnectRequests]).
  */
+@Suppress("TooManyFunctions") // The port's methods: one interface by decision (Granny's split is on hold).
 class JellyfinMediaServer internal constructor(
     baseClient: OkHttpClient,
     identity: ClientIdentity,
@@ -40,7 +46,7 @@ class JellyfinMediaServer internal constructor(
 ) : MediaServer {
     @Inject
     constructor(
-        baseClient: OkHttpClient,
+        @BaseHttpClient baseClient: OkHttpClient,
         identity: ClientIdentity,
         deviceIds: DeviceIdProvider,
         log: AdapterLog,
@@ -53,6 +59,7 @@ class JellyfinMediaServer internal constructor(
     private val transport = Transport(clients, deviceIds)
     private val calls = AuthorizedCall(transport, probe, log)
     private val authenticator = Authenticator(probe, transport, calls, log)
+    private val media = MediaCalls(calls)
     private val quickConnectFlow = QuickConnectFlow(authenticator, transport, tuning.quickConnect, log)
     private val adapterLog = log
     private val revokeTimeout = tuning.revokeTimeout
@@ -96,6 +103,35 @@ class JellyfinMediaServer internal constructor(
         )
         return result
     }
+
+    override suspend fun libraries(session: Session): ServerResult<List<Library>> = media.libraries(session)
+
+    override suspend fun items(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemPage> = media.items(session, library, startIndex, limit)
+
+    override suspend fun playbackInfo(
+        session: Session,
+        item: ItemId,
+    ): ServerResult<PlaybackInfo> = media.playbackInfo(session, item)
+
+    override suspend fun reportStart(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit> = media.report(session, "Sessions/Playing", report, withPaused = true)
+
+    override suspend fun reportProgress(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit> = media.report(session, "Sessions/Playing/Progress", report, withPaused = true)
+
+    override suspend fun reportStopped(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit> = media.report(session, "Sessions/Playing/Stopped", report, withPaused = false)
 }
 
 /** What a test may turn: timeouts, interceptors to watch or fail calls, and the Quick Connect and logout limits. */

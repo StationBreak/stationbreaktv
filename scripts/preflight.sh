@@ -2,13 +2,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
 # Runs CI's checks locally, so CI passes the first time. Run it from anywhere in the repo before marking a PR ready:
-#   scripts/preflight.sh [--emulator]
+#   scripts/preflight.sh [--emulator] [--contract]
 # It mirrors .github/workflows/ci.yml: the `checks` job (script tests, dependency verification guard, actionlint,
 # zizmor, gitleaks, DCO) and the `build` job's Gradle tasks. Keep the task lists and tool versions in step with it.
 # Every step runs even if an earlier one fails, then a PASS/FAIL summary lists them.
 #   --emulator  also run the instrumented tests on a local API 25 Android TV emulator (headless), as CI's `emulator`
 #               job does. If the SDK lacks the emulator or the system image, it prints the sdkmanager command to
 #               install them and exits 1; it installs nothing itself.
+#   --contract  also run the container contract suite (`:data:jellyfin:contractTest`) once per Jellyfin image in
+#               jellyfin-contract.yml's matrix, as that workflow does. Needs docker; Testcontainers starts its own
+#               containers on random ports and removes them. The first run pulls the images. Not part of the default
+#               run, because it takes a few minutes per image.
 # Needs: JDK 17, the Android SDK, docker, uvx (uv), jq, git. A missing tool fails its step with an install hint.
 # Toolchain: JAVA_HOME and ANDROID_HOME are used if set. Otherwise $HOME/.local/share/stationbreak-toolchain/jdk-17
 # and /android-sdk are used if they exist.
@@ -22,11 +26,13 @@ GITLEAKS_VERSION=8.30.1
 ZIZMOR_VERSION=1.30.1
 
 emulator=false
+contract=false
 for arg in "$@"; do
   case "$arg" in
     --emulator) emulator=true ;;
+    --contract) contract=true ;;
     *)
-      echo "usage: $0 [--emulator]" >&2
+      echo "usage: $0 [--emulator] [--contract]" >&2
       exit 2
       ;;
   esac
@@ -170,6 +176,31 @@ check_and_assemble() {
     --continue
 }
 
+# --- the `jellyfin-contract` workflow ---
+
+# One run of the suite per matrix line, with the image the workflow would use. The lines are read from the workflow, so
+# adding or dropping a version there changes this too.
+contract_tests() {
+  gradle_env || return 1
+  need docker "Install docker." || return 1
+  local workflow=.github/workflows/jellyfin-contract.yml line tag digest ran=0
+  while IFS= read -r line; do
+    tag="$(sed -n 's/.*tag: "\([^"]*\)".*/\1/p' <<<"$line")"
+    digest="$(sed -n 's/.*digest: "\(sha256:[0-9a-f]*\)".*/\1/p' <<<"$line")"
+    if [ -z "$tag" ] || [ -z "$digest" ]; then
+      echo "can't read a matrix line in $workflow: $line" >&2
+      return 1
+    fi
+    printf '\n-- Jellyfin %s (%s)\n' "$tag" "$digest"
+    JELLYFIN_IMAGE="ghcr.io/jellyfin/jellyfin@$digest" ./gradlew :data:jellyfin:contractTest || return 1
+    ran=$((ran + 1))
+  done < <(grep -E '^[[:space:]]*- \{ tag: ' "$workflow")
+  if [ "$ran" -eq 0 ]; then
+    echo "no matrix lines found in $workflow" >&2
+    return 1
+  fi
+}
+
 # --- the `emulator` job ---
 
 emulator_image='system-images;android-25;android-tv;x86'
@@ -271,6 +302,9 @@ step "Sign-offs (DCO, $base..HEAD)" dco
 step "Module dependency rules" module_rules
 step "KMP tests with no Android SDK" kmp_tests
 step "Check and assemble" check_and_assemble
+if [ "$contract" = true ]; then
+  step "Container contract tests (docker)" contract_tests
+fi
 if [ "$emulator" = true ]; then
   step "Instrumented tests (API 25 Android TV)" instrumented_tests
 fi

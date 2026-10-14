@@ -82,6 +82,14 @@ gradlePlugin {
             id = "stationbreak.licensee"
             implementationClass = "tv.stationbreak.buildlogic.LicenseePlugin"
         }
+        register("contractTest") {
+            id = "stationbreak.contract-test"
+            implementationClass = "tv.stationbreak.buildlogic.ContractTestPlugin"
+        }
+        register("hilt") {
+            id = "stationbreak.hilt"
+            implementationClass = "tv.stationbreak.buildlogic.HiltPlugin"
+        }
         register("jvmInject") {
             id = "stationbreak.jvm-inject"
             implementationClass = "tv.stationbreak.buildlogic.JvmInjectPlugin"

@@ -1,0 +1,3 @@
+// Stand-in for KSP's Gradle plugin: it creates the processor configurations the real one does.
+configurations.maybeCreate('ksp')
+configurations.maybeCreate('kspAndroidTest')

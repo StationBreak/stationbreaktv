@@ -5,6 +5,8 @@ plugins {
     id("stationbreak.jvm-inject")
     // The SDK's licenses are checked from the first PR, not only once `app` depends on this module (F0.3, D5).
     id("stationbreak.licensee")
+    // contractTest: the suite against real servers in Docker. `check` compiles it and never runs it (F0.3 D7).
+    id("stationbreak.contract-test")
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -23,4 +25,9 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.okhttp.tls)
+}
+
+// Test only: the contract suite starts the server (and a subpath proxy) with Testcontainers.
+dependencies {
+    "contractTestImplementation"(libs.testcontainers)
 }
