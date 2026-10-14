@@ -11,7 +11,7 @@
 #                     Gradle files (Kotlin or Groovy) and build-logic plugins, a Taskfile or Makefile, anything
 # Exempt from the scan, by exact path: this script, its test, .github/scripts/fixtures/device-proof/, the probe's own
 # sources under app/src/androidTest/, docs/ and CONTRIBUTING.md. They have to name the argument. A copy elsewhere is
-# not exempt. Build output, .git and .gradle are not scanned, and neither are binary files.
+# not exempt. .git, .gradle and each Gradle module's build/ output are not scanned, and neither are binary files.
 # A file or directory that cannot be read is an error (exit 2), never a pass.
 # A tripwire for mistakes, not a defence against a deliberate evasion.
 # Exit: 0 clean, 1 the rule failed, 2 usage error or an unreadable file.
@@ -36,7 +36,8 @@ scan() {
   local hits status=0
   hits="$(grep -nIiE 'serveraddress' "$1" 2>/dev/null)" || status=$?
   if [ "$status" -eq 0 ]; then
-    echo "FAIL address-argument: $1:$(head -n1 <<<"$hits")"
+    # File and line number only: the matched text could be a real address, and this goes to a CI log.
+    echo "FAIL address-argument: $1:$(head -n1 <<<"$hits" | cut -d: -f1)"
     failures=$((failures + 1))
   elif [ "$status" -ne 1 ]; then
     echo "cannot read: $1" >&2
@@ -44,7 +45,15 @@ scan() {
   fi
 }
 
-files="$(find . \( -name build -o -name .gradle -o -name .git -o -name node_modules \) -prune \
+# Gradle's own output: <module>/build next to a build.gradle(.kts). A directory merely named build is scanned.
+prune=()
+while IFS= read -r module_build_file; do
+  [ -n "$module_build_file" ] || continue
+  prune+=(-path "$(dirname "$module_build_file")/build" -o)
+done < <(find . \( -name .gradle -o -name .git -o -name node_modules \) -prune \
+  -o \( -name build.gradle -o -name build.gradle.kts \) -type f -print)
+
+files="$(find . \( "${prune[@]}" -name .gradle -o -name .git -o -name node_modules \) -prune \
   -o -type f \
   ! -path ./.github/scripts/device-proof-guard.sh ! -path ./.github/scripts/device-proof-guard.test.sh \
   ! -path './.github/scripts/fixtures/device-proof/*' ! -path './app/src/androidTest/*' \

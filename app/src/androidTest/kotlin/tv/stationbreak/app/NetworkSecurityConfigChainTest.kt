@@ -68,7 +68,8 @@ class NetworkSecurityConfigChainTest {
         val intermediate = asset("intermediate_e8_by_x2")
         // E8 is the last frozen intermediate X2 signed directly (retired for new issuance, valid until 2027-03-12), and
         // the only X2-signed certificate that doesn't share a subject with a bundled anchor. Once it expires nothing
-        // valid is left to present, so this test ends there; the X2 anchor is then covered by TrustAnchorsTest's pin.
+        // valid is left to present, so this test ends there. After that no chain test exercises the X2 anchor, only
+        // the pin and key checks in TrustAnchorsTest (CONTRIBUTING.md, "Bundled Let's Encrypt roots").
         if (Date().after(intermediate.notAfter)) return
         val validated = platformTrust().checkServerTrusted(arrayOf(intermediate), "ECDSA", host)
         assertEquals("E8", commonName(validated.first().subjectX500Principal))

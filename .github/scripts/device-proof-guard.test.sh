@@ -28,8 +28,8 @@ expect() {
   got=$?
   if [ "$got" -ne "$want" ]; then
     fail "$fixture" "exit $got, want $want" "$out"
-  elif [ "$want" -eq 1 ] && ! grep -q '^FAIL address-argument: ' <<<"$out"; then
-    fail "$fixture" "failed without naming the rule" "$out"
+  elif [ "$want" -eq 1 ] && ! grep -qE '^FAIL address-argument: [^ ]+:[0-9]+$' <<<"$out"; then
+    fail "$fixture" "failed without naming the rule, or printed more than file and line" "$out"
   else
     echo "ok   $fixture (exit $got)"
   fi
@@ -53,6 +53,10 @@ expect build-logic-names-argument 1
 expect groovy-names-argument 1
 expect taskfile-names-argument 1
 expect script-outside-github-names-argument 1
+
+# A directory that is merely named build is scanned; only a Gradle module's own build/ output is skipped.
+expect script-in-build-dir 1
+expect gradle-output-dir 0
 
 # Where the argument is allowed to be named: the docs, CONTRIBUTING and the probe test itself.
 expect exempt-paths 0

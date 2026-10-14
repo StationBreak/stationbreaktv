@@ -29,7 +29,8 @@ class NetworkSecurityConfigTest {
             .flatMap { sourceSet ->
                 File(sourceSet, "res").walkTopDown().filter { it.isFile && it.extension == "xml" }.toList()
             }.filter { it.parentFile?.name?.startsWith("xml") == true }
-            .filter { runCatching { parse(it).documentElement.tagName }.getOrNull() == "network-security-config" }
+            // A file that does not parse (a DOCTYPE, say) fails the test instead of being skipped.
+            .filter { parse(it).documentElement.tagName == "network-security-config" }
 
     private fun manifests(): List<File> = sourceSets().map { File(it, "AndroidManifest.xml") }.filter { it.isFile }
 

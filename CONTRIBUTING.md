@@ -121,9 +121,11 @@ add one):
 3. Update the fingerprint constants in `TrustAnchorsTest` and the table in the README together, and have the owner
    compare the new fingerprints with an independent source in the pull request.
 
-`NetworkSecurityConfigChainTest` checks the X2 anchor with a frozen Let's Encrypt intermediate that Root X2 signed
-(E8, valid until 2027-03-12). After that date the test ends early, because X2 signs nothing else that is valid; the
-Root YE test and the fingerprint pins keep covering the anchors.
+`NetworkSecurityConfigChainTest` exercises the X2 anchor with a frozen Let's Encrypt intermediate that Root X2 signed
+(E8, valid until 2027-03-12); the cross-signed Root YE test says nothing about X2, because a certificate that shares
+its subject and key with a bundled anchor is that anchor. After that date the test ends early and no chain test
+exercises the X2 anchor any more: only the fingerprint pin and the key and signature checks in `TrustAnchorsTest`
+remain. Before it expires, refresh the frozen chain from a certificate X2 still signs, or decide to drop the X2 anchor.
 
 A bundled root also comes out, not only gets refreshed, when it is distrusted: if a root program (Mozilla, Chrome,
 Apple, Microsoft) or the CA announces a distrusted or compromised root, a mis-issuance involving it, or a key
