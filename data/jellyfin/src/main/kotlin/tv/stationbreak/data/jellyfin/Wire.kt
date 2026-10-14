@@ -13,6 +13,12 @@ import java.nio.CharBuffer
 internal object Wire {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Encodes a request body. Nothing in the bodies built from this holds a credential. */
+    fun <T> encode(
+        serializer: KSerializer<T>,
+        value: T,
+    ): ByteArray = json.encodeToString(serializer, value).toByteArray(Charsets.UTF_8)
+
     /** Decodes an answer, or says the server isn't speaking Jellyfin's API. Never echoes the text. */
     fun <T> parse(
         text: String,
@@ -61,6 +67,67 @@ internal class InitiateDto(
 @Serializable
 internal class PollDto(
     @SerialName("Authenticated") val authenticated: Boolean = false,
+)
+
+// The media surface (Unit 3). Deliberately small and lenient: only the fields the port needs, every other field and
+// every value a newer server invents is ignored, so one odd item can't fail a page (the 10.11 decoding failure,
+// ADR-0006). Types are read as text, not as the SDK's enums, so an unknown one is an unknown value and never a
+// missing one.
+
+@Serializable
+internal class ViewsDto(
+    @SerialName("Items") val items: List<ViewDto> = emptyList(),
+)
+
+@Serializable
+internal class ViewDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String = "",
+    @SerialName("CollectionType") val collectionType: String? = null,
+)
+
+@Serializable
+internal class ItemsDto(
+    @SerialName("Items") val items: List<ItemDto> = emptyList(),
+    @SerialName("TotalRecordCount") val totalRecordCount: Int = 0,
+    @SerialName("StartIndex") val startIndex: Int = 0,
+)
+
+@Serializable
+internal class ItemDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String = "",
+    @SerialName("Type") val type: String = "",
+    @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
+    @SerialName("ParentId") val parentId: String? = null,
+)
+
+/** The answer to `PlaybackInfo`. `Path`, `TranscodingUrl` and the like are not here, so they can't be passed on. */
+@Serializable
+internal class PlaybackInfoDto(
+    @SerialName("MediaSources") val mediaSources: List<MediaSourceDto> = emptyList(),
+    @SerialName("PlaySessionId") val playSessionId: String? = null,
+    @SerialName("ErrorCode") val errorCode: String? = null,
+)
+
+@Serializable
+internal class MediaSourceDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String? = null,
+    @SerialName("Container") val container: String? = null,
+    @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
+    @SerialName("SupportsDirectPlay") val supportsDirectPlay: Boolean = false,
+    @SerialName("SupportsDirectStream") val supportsDirectStream: Boolean = false,
+)
+
+/** The body of `Sessions/Playing`, `/Progress` and `/Stopped`. `IsPaused` is left out of the last. */
+@Serializable
+internal class PlaybackReportDto(
+    @SerialName("ItemId") val itemId: String,
+    @SerialName("MediaSourceId") val mediaSourceId: String,
+    @SerialName("PositionTicks") val positionTicks: Long,
+    @SerialName("PlaySessionId") val playSessionId: String? = null,
+    @SerialName("IsPaused") val isPaused: Boolean? = null,
 )
 
 /** The `AuthenticateByName` body, written straight into a byte array so the caller can wipe the password. */

@@ -2,6 +2,8 @@
 package tv.stationbreak.core.domain
 
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
@@ -80,6 +82,10 @@ class CleartextGateTest {
                 SignInRequest::class.java,
                 StoredSession::class.java,
                 Session::class.java,
+                // The media calls (Unit 3) take a session, which carries the acknowledgement, plus plain values.
+                Library::class.java,
+                PlaybackReport::class.java,
+                Int::class.javaPrimitiveType,
                 kotlin.coroutines.Continuation::class.java,
             )
         for (method in MediaServer::class.java.methods.filterNot { it.isSynthetic }) {

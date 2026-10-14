@@ -3,6 +3,11 @@ package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemPage
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.PlaybackInfo
+import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.Session
@@ -30,6 +35,7 @@ data class ResolvedServer(
  * F0.5/F1.x): the header goes on the shared client, never into a URL or query string, because URLs leak through proxy
  * logs, history and diagnostics.
  */
+@Suppress("TooManyFunctions") // One port by decision (Granny's split of it is on hold).
 interface MediaServer {
     /**
      * Turns whatever the user typed into a verified Jellyfin 12 server, or says why not. With no scheme in [input] it
@@ -82,4 +88,58 @@ interface MediaServer {
      * Callers clear the stored session first ([SessionRepository.signOut]).
      */
     suspend fun revoke(session: Session): ServerResult<Unit>
+
+    /**
+     * The video-capable libraries the user can see (`GET /UserViews`): movies, TV shows, mixed content, home videos and
+     * music videos. Playlists, collections, music and anything else are left out.
+     */
+    suspend fun libraries(session: Session): ServerResult<List<Library>>
+
+    /**
+     * One page of [library]'s direct children, from [startIndex] (at least 0) with at most [limit] items (1 to
+     * [MAX_PAGE_SIZE]). The total count is the whole library's, so a caller can page. Throws
+     * [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the caller, not a server problem.
+     */
+    suspend fun items(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemPage>
+
+    /**
+     * Asks how [item] can be played, with a conservative static device profile (a placeholder until F1.6's capability
+     * probe). The result has the media sources, the play session to report under, and a URL builder. No URL, path or
+     * key the server supplied is passed on (R2).
+     */
+    suspend fun playbackInfo(
+        session: Session,
+        item: ItemId,
+    ): ServerResult<PlaybackInfo>
+
+    /** Tells the server playback of [report]'s item began (`POST /Sessions/Playing`). */
+    suspend fun reportStart(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit>
+
+    /** Tells the server how far playback has got (`POST /Sessions/Playing/Progress`). */
+    suspend fun reportProgress(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit>
+
+    /**
+     * Tells the server playback ended at [report]'s position (`POST /Sessions/Playing/Stopped`), which is what stores a
+     * resume point.
+     */
+    suspend fun reportStopped(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit>
+
+    companion object {
+        /** The most items one [items] call may ask for, so an answer stays well inside the adapter's size limit. */
+        const val MAX_PAGE_SIZE = 200
+    }
 }

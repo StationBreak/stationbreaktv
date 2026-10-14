@@ -5,6 +5,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemPage
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.PlaybackInfo
+import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
@@ -18,6 +23,10 @@ class FakeMediaServer : MediaServer {
     var resumeResult: ServerResult<Session> = ServerResult.Failure(MediaServerError.Unknown())
     var revokeResult: ServerResult<Unit> = ServerResult.Success(Unit)
     var quickConnectStates: List<QuickConnectState> = emptyList()
+    var librariesResult: ServerResult<List<Library>> = ServerResult.Failure(MediaServerError.Unknown())
+    var itemsResult: ServerResult<ItemPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var playbackInfoResult: ServerResult<PlaybackInfo> = ServerResult.Failure(MediaServerError.Unknown())
+    var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
     var onRevoke: () -> Unit = {}
@@ -32,6 +41,14 @@ class FakeMediaServer : MediaServer {
     val connectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
     val resumeCalls = mutableListOf<StoredSession>()
     val revokeCalls = mutableListOf<Session>()
+    val librariesCalls = mutableListOf<Session>()
+
+    /** The library, start index and limit of each [items] call. */
+    val itemsCalls = mutableListOf<Triple<Library, Int, Int>>()
+    val playbackInfoCalls = mutableListOf<ItemId>()
+
+    /** The reports sent, in order, as the call name and the report. */
+    val reports = mutableListOf<Pair<String, PlaybackReport>>()
     val quickConnectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
 
     /** The addresses and usernames of password sign-ins. Passwords are not kept. */
@@ -74,5 +91,52 @@ class FakeMediaServer : MediaServer {
         revokeGate?.await()
         revokeFinished.complete(Unit)
         return revokeResult
+    }
+
+    override suspend fun libraries(session: Session): ServerResult<List<Library>> {
+        librariesCalls += session
+        return librariesResult
+    }
+
+    override suspend fun items(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        itemsCalls += Triple(library, startIndex, limit)
+        return itemsResult
+    }
+
+    override suspend fun playbackInfo(
+        session: Session,
+        item: ItemId,
+    ): ServerResult<PlaybackInfo> {
+        playbackInfoCalls += item
+        return playbackInfoResult
+    }
+
+    override suspend fun reportStart(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit> = record("start", report)
+
+    override suspend fun reportProgress(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit> = record("progress", report)
+
+    override suspend fun reportStopped(
+        session: Session,
+        report: PlaybackReport,
+    ): ServerResult<Unit> = record("stopped", report)
+
+    private fun record(
+        name: String,
+        report: PlaybackReport,
+    ): ServerResult<Unit> {
+        reports += name to report
+        return reportResult
     }
 }

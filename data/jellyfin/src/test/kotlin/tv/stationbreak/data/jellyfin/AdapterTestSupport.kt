@@ -7,9 +7,16 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.domain.DeviceIdProvider
+import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.ServerInfo
+import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.UserId
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -100,3 +107,18 @@ internal fun authResult(
 ): String =
     "{\"User\":{\"Id\":\"$userId\",\"Name\":\"alice\",\"Policy\":{\"IsAdministrator\":$admin}}," +
         "\"AccessToken\":\"$token\",\"ServerId\":\"$serverId\"}"
+
+/** A signed-in session on [address] for tests of token-bearing calls; the adapter learns of its server on first use. */
+internal fun testSession(
+    address: ServerAddress,
+    token: String = fake("token"),
+    acknowledgement: CleartextAcknowledgement? = null,
+): Session =
+    Session(
+        UserId("user1"),
+        AccessToken(token),
+        ServerInfo("Home", ServerId(SERVER_ID), ServerVersion(12, 2, 1)),
+        address,
+        acknowledgement,
+        false,
+    )
