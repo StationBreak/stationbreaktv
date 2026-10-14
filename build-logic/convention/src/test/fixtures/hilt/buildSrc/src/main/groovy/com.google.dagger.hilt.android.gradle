@@ -1,0 +1,2 @@
+// Stand-in for Hilt's Gradle plugin: it only exists so `stationbreak.hilt` can apply it by ID.
+configurations.maybeCreate('androidTestImplementation')
