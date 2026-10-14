@@ -3,9 +3,11 @@ package tv.stationbreak.data.jellyfin
 
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.model.SignInRequest
+import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -35,5 +37,40 @@ class AdapterLogTest {
     @Test
     fun theDefaultSeamDoesNothing() {
         AdapterLog.NONE.log("anything")
+        AdapterLog.NONE.log("anything", IllegalStateException("anything"))
+    }
+
+    @Test
+    fun theRedactingDecoratorMasksTheLineBeforeTheSink() {
+        val seen = mutableListOf<String>()
+        val log = AdapterLog.redacting { seen += it }
+        log.log("GET /Items?api_key=dummy-token-0001&limit=5 failed")
+        assertEquals(listOf("GET /Items?api_key=<redacted>&limit=5 failed"), seen)
+    }
+
+    @Test
+    fun theRedactingDecoratorMasksTheThrowableMessageBeforeTheSink() {
+        val seen = mutableListOf<String>()
+        val log = AdapterLog.redacting { seen += it }
+        val error = IOException("Unable to resolve http://jf.example.test/Videos/a?ApiKey=dummy-token-0001")
+        log.log("stream failed", error)
+        assertEquals(1, seen.size)
+        assertFalse("dummy-token-0001" in seen.single(), seen.single())
+        assertTrue("IOException" in seen.single(), seen.single())
+        assertTrue("stream failed" in seen.single(), seen.single())
+    }
+
+    @Test
+    fun aPlainSinkGetsTheThrowableTypeAndMessageThroughTheDefault() {
+        val seen = mutableListOf<String>()
+        AdapterLog { seen += it }.log("boom", IllegalStateException("why"))
+        assertEquals(listOf("boom: IllegalStateException: why"), seen)
+    }
+
+    @Test
+    fun aThrowableWithNoMessageLogsItsTypeOnly() {
+        val seen = mutableListOf<String>()
+        AdapterLog { seen += it }.log("boom", IllegalStateException())
+        assertEquals(listOf("boom: IllegalStateException"), seen)
     }
 }

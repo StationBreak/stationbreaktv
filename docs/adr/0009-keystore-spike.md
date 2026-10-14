@@ -85,3 +85,30 @@ through that route on these devices.
   behind.
 - **Repository hygiene:** `spike/sp-3` is deleted before the repository goes public, along with the other
   spike branches (Q-REPO-1).
+
+## Amendment (2026-10-14, F0.4): what the secret store does
+
+F0.4 built `KeystoreSecretStore` in `:data:settings`. The spike's decision stands. These are the details it settled.
+Angua (Security) reviewed the spec and both implementation PRs.
+
+- **One blob per key name.** Each value is its own file under `noBackupFilesDir/keystore/`, named by the hex SHA-256 of
+  the key name, and written atomically. One AndroidKeyStore key (alias `tv.stationbreak.secrets.v1`) encrypts them all.
+- **The key name is part of the GCM AAD.** The AAD is the two header bytes followed by the UTF-8 key name, so a blob
+  copied to another name fails to decrypt.
+- **Blob-level faults wipe only that blob.** A bad tag, a bad length or an unknown version on load deletes that one
+  blob. Every other blob still loads. This supersedes the wipe bullet in decision 2 above, which wiped the key and the
+  blob for these faults: they are blob-level now.
+- **Key-level faults wipe the key and every blob, on load and on save.** That means a missing key, a
+  `KeyPermanentlyInvalidatedException` or an `UnrecoverableKeyException`. A save with no key is a first save: the stale
+  blobs are wiped first, then the key is created, so a blob made by a key that's gone can't linger.
+- **A mismatched or imported key under the alias is key-level.** `matchesSpec` checks all of these, and a key that
+  fails any of them is a fault: algorithm AES; key size 256; origin `ORIGIN_GENERATED` (so a key whose bytes were
+  imported is rejected); purposes exactly encrypt and decrypt; block mode exactly GCM; padding exactly none; user
+  authentication not required.
+- **Unlisted exceptions are transient.** Anything not named above, including `KeyStoreException`, `ProviderException`,
+  `IOException` and `IllegalStateException`, returns a failure and wipes nothing. No `Exception` escapes
+  except `CancellationException`.
+- **Load runs under the process-wide `Mutex`, like create, save and clear.** The fault a load acts on can't change
+  before the wipe, so a load never deletes what a concurrent first save just wrote.
+- **Redaction is a backstop.** `Redactor` (in `core:model`) masks credentials in free text, and `AdapterLog.redacting`
+  applies it to every adapter log line and error message before a sink sees them.
