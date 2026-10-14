@@ -236,11 +236,22 @@ class NoPlaintextOnDiskTest {
         saveEverything()
         // A positive control, so the check below can't pass on an empty dump.
         val control = "dummy-control-0003"
-        Log.d("NoPlaintextOnDiskTest", "control $control")
+        Log.i("NoPlaintextOnDiskTest", "control $control")
 
-        val dump = logcat()
+        // logd can lag behind the write on a slow device (the Insignia), so poll for the control before the checks.
+        val controlBytes = control.toByteArray()
+        var dump = logcat()
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (!dump.contains(controlBytes) && System.nanoTime() < deadline) {
+            Thread.sleep(250)
+            dump = logcat()
+        }
         assertTrue("the logcat dump is empty", dump.isNotEmpty())
-        assertTrue("logcat did not show the control line", dump.contains(control.toByteArray()))
+        val ownPid = dump.contains(" ${Process.myPid()} ".toByteArray())
+        assertTrue(
+            "logcat did not show the control line (dump bytes=${dump.size}, has a line from this pid=$ownPid)",
+            dump.contains(controlBytes),
+        )
         // The whole dump, not only this PID's lines: stricter, and the dummy values appear nowhere else.
         for ((label, value) in needles) {
             assertTrue("logcat holds the $label", forms(value).none { dump.contains(it) })
