@@ -31,10 +31,31 @@ class TrustSurfaceCheckTest {
     }
 
     @Test
-    fun theTrustPackageOfDataJellyfinPasses() {
-        val result = runner(":data:jellyfin:checkTrustSurface").build()
+    fun theRealTrustPackageOfDataJellyfinIsNotReportedButALookalikeIs() {
+        val result = runner(":data:jellyfin:checkTrustSurface").buildAndFail()
 
-        assertEquals(TaskOutcome.SUCCESS, result.task(":data:jellyfin:checkTrustSurface")?.outcome, result.output)
+        assertTrue("src/main/java/a/other/trust/Sneaky.java:4" in result.output, result.output)
+        assertTrue("a/trust/Ok.java" !in result.output, result.output)
+    }
+
+    @Test
+    fun everyBypassIsReportedWithItsFileAndLine() {
+        val result = runner("checkTrustSurface", "--continue").buildAndFail()
+
+        for (
+        hit in
+        listOf(
+            "src/main/java/b/HostnameVerifierCall.java:5",
+            "src/main/java/b/HostnameVerifierCall.java:6",
+            "src/main/java/b/Factories.java:4",
+            "src/main/java/b/Factories.java:5",
+            "src/main/java/b/Factories.java:6",
+            "src/main/java/a/other/trust/Sneaky.java:4",
+        )
+        ) {
+            assertTrue(hit in result.output, "$hit\n${result.output}")
+        }
+        assertEquals(TaskOutcome.FAILED, result.task(":data:jellyfin:checkTrustSurface")?.outcome, result.output)
     }
 
     @Test

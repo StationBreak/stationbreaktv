@@ -105,4 +105,70 @@ class TrustSurfaceRulesTest {
         val text = "override fun checkServerTrusted(c: Array<X509Certificate>?, a: String?): Unit = throw CertificateException()"
         assertEquals(emptyList(), violations(text, ":data:jellyfin", trustFile))
     }
+
+    @Test
+    fun theOtherWaysIntoTrustAreRefusedOutsideTheTrustPackage() {
+        val snippets =
+            listOf(
+                "builder.hostnameVerifier(v)",
+                "builder.hostnameVerifier { host, session -> host == session.peerHost }",
+                "builder.sslSocketFactory(factory, manager)",
+                "val f = TrustManagerFactory.getInstance(\"X.509\")",
+                "val f = SSLCertificateSocketFactory.getInsecure(0, null)",
+                "val f: SSLCertificateSocketFactory? = null",
+                "val m: Array<TrustManager> = emptyArray()",
+            )
+        for (snippet in snippets) {
+            assertTrue(violations(snippet).isNotEmpty(), "elsewhere: $snippet")
+            assertEquals(emptyList(), violations(snippet, ":data:jellyfin", trustFile), "in trust: $snippet")
+        }
+    }
+
+    @Test
+    fun aTypedLambdaThatAlwaysSaysYesIsATrustAllPattern() {
+        val patterns =
+            listOf(
+                "builder.hostnameVerifier { _: String?, _: SSLSession? -> true }",
+                "val v = HostnameVerifier { host: String, session: SSLSession -> true }",
+            )
+        for (pattern in patterns) {
+            assertTrue(violations(pattern, ":data:jellyfin", trustFile).isNotEmpty(), pattern)
+        }
+    }
+
+    @Test
+    fun theTrustPackageIsMatchedByItsFullPathNotByAnyDirectoryNamedTrust() {
+        val text = "val c = SSLContext.getInstance(\"TLS\")"
+        for (
+        path in
+        listOf(
+            "src/main/kotlin/x/trust/Sneaky.kt",
+            "src/main/kotlin/tv/stationbreak/data/jellyfin/other/trust/Sneaky.kt",
+            "src/main/kotlin/tv/stationbreak/data/jellyfin/trust2/Sneaky.kt",
+            "trust/Sneaky.kt",
+        )
+        ) {
+            assertEquals(1, violations(text, ":data:jellyfin", path).size, path)
+        }
+        for (set in listOf("main", "test", "androidTest", "testFixtures")) {
+            val path = "src/$set/kotlin/tv/stationbreak/data/jellyfin/trust/Ok.kt"
+            assertEquals(emptyList(), violations(text, ":data:jellyfin", path), path)
+        }
+    }
+
+    @Test
+    fun theAppModuleIsNoLongerExemptAsAWhole() {
+        val text = "val c = SSLContext.getInstance(\"TLS\")"
+        assertEquals(1, violations(text, ":app", "src/main/kotlin/tv/stationbreak/app/net/Other.kt").size)
+    }
+
+    @Test
+    fun onlyTheAppFilesNamedByExactPathAreExempt() {
+        val spelled = "val forbidden = Regex(\"X509TrustManager|HostnameVerifier|trustAll|TrustAllCerts\")"
+        val guardTest = "src/test/kotlin/tv/stationbreak/app/trust/NetworkSecurityConfigTest.kt"
+        assertEquals(emptyList(), violations(spelled, ":app", guardTest))
+        // The same file name anywhere else is not the exemption.
+        assertTrue(violations(spelled, ":app", "src/test/kotlin/other/NetworkSecurityConfigTest.kt").isNotEmpty())
+        assertTrue(violations(spelled, ":feature:x", guardTest).isNotEmpty())
+    }
 }
