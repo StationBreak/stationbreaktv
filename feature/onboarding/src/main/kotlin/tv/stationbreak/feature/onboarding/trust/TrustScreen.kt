@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +30,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
 import tv.stationbreak.feature.onboarding.server.BodySize
 import tv.stationbreak.feature.onboarding.server.DetailsSize
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -61,11 +61,11 @@ internal fun TrustScreen(
     onDontTrust: () -> Unit,
 ) {
     val dontTrustFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { dontTrustFocus.requestFocus() }
     Dialog(
         onDismissRequest = onDontTrust,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        RequestInitialDialogFocus(dontTrustFocus)
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(TrustTags.SCREEN),
         ) {

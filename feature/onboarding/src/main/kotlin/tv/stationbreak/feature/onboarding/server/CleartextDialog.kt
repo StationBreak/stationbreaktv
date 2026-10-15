@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +55,7 @@ import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
 
 private val DialogMaxWidth = 720.dp
 
@@ -70,8 +70,8 @@ internal fun CleartextDialog(
     onCancel: () -> Unit,
 ) {
     val cancelFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { cancelFocus.requestFocus() }
     Dialog(onDismissRequest = onCancel) {
+        RequestInitialDialogFocus(cancelFocus)
         Surface(
             modifier = Modifier.widthIn(max = DialogMaxWidth),
             shape = RoundedCornerShape(16.dp),
