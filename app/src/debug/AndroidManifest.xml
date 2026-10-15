@@ -3,12 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Debug builds only, for now: the instrumented tests open sockets (F0.3 task 1.16) and the on-device probe
-        (OnDeviceServerProbeTest) makes a network request from the debug app's process. The release manifest gets
-        INTERNET with the first screen that reaches a server (F0.5).
+        Debug builds only: the host activity for the instrumented tests. INTERNET, which those tests and the on-device
+        probe (OnDeviceServerProbeTest) also need, comes from the main manifest.
     -->
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <application>
         <!--
             The host for tests that set their own content under Hilt (SignInNavigationTest). Landscape and no

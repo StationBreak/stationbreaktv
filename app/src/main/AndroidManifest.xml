@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        The app talks to the user's own Jellyfin server, so it declares INTERNET itself. A library manifest merges it
+        into release builds too, but nothing should depend on that.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />

@@ -9,6 +9,11 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.ComposeNavigator
+import androidx.navigation.compose.DialogNavigator
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.Module
@@ -19,7 +24,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -29,6 +34,7 @@ import org.junit.runner.RunWith
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.nav.AppNavGraph
 import tv.stationbreak.app.nav.AppNavHost
+import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -61,7 +67,7 @@ private object Scripted {
  * The app's navigation between the server screen and sign-in, on API 25 under the real Hilt graph (the adapter and the
  * Keystore swapped for fakes): Continue opens sign-in, Back returns to the server screen with the address kept, a
  * finished sign-in hands the session to the next destination, and a sign-in restored without its server falls back to
- * the server screen.
+ * the server screen with nothing left under it.
  */
 @HiltAndroidTest
 @UninstallModules(MediaServerModule::class)
@@ -211,17 +217,63 @@ class SignInNavigationTest {
         compose.onNodeWithTag(SignInTags.NOT_ENCRYPTED).assertExists()
     }
 
-    @Test
-    fun aSignInRestoredWithoutItsServerFallsBackToTheServerScreen() {
-        // After process death the back stack comes back, but the in-memory hand-off does not.
+    /** After process death the back stack comes back, but the in-memory hand-off does not. */
+    private fun launchRestored(
+        navController: NavHostController,
+        startDestination: Any,
+    ) {
         compose.setContent {
-            StationBreakTheme { AppNavGraph(onSignedIn = { handedOver += it }, startDestination = SignInRoute) }
+            StationBreakTheme {
+                AppNavGraph(
+                    onSignedIn = { handedOver += it },
+                    startDestination = startDestination,
+                    navController = navController,
+                )
+            }
         }
+        compose.waitForIdle()
+    }
+
+    private fun newNavController() =
+        NavHostController(compose.activity).also {
+            it.navigatorProvider.addNavigator(ComposeNavigator())
+            it.navigatorProvider.addNavigator(DialogNavigator())
+        }
+
+    @Test
+    fun aRestoredServerAndSignInStackWithoutItsServerFallsBackToTheServerScreenAlone() {
+        val navController = newNavController()
+        launchRestored(navController, ServerRoute)
+        // [Server, SignIn], as a restored stack is, but nothing was handed over.
+        compose.runOnUiThread { navController.navigate(SignInRoute) }
         compose.waitForIdle()
 
         compose.onNodeWithTag(ServerTags.FIELD).assertExists()
         compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()
         assertTrue(handedOver.isEmpty())
-        assertNotNull(Scripted.server)
+        assertTrue(navController.currentDestination.isRoute<ServerRoute>())
+        // Nothing is left under the server screen: Back from it leaves the app.
+        assertNull(navController.previousBackStackEntry)
+    }
+
+    @Test
+    fun aRestoredSignInStackAloneIsReplacedByTheServerScreenSoBackExits() {
+        val navController = newNavController()
+        launchRestored(navController, SignInRoute)
+
+        compose.onNodeWithTag(ServerTags.FIELD).assertExists()
+        compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()
+        assertTrue(handedOver.isEmpty())
+        assertTrue(navController.currentDestination.isRoute<ServerRoute>())
+        assertNull("sign-in must not be left under the server screen", navController.previousBackStackEntry)
+
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(BACK_TIMEOUT_MS) { compose.activity.isFinishing }
+    }
+
+    private inline fun <reified T : Any> NavDestination?.isRoute(): Boolean = this?.hasRoute<T>() == true
+
+    private companion object {
+        const val BACK_TIMEOUT_MS = 5_000L
     }
 }

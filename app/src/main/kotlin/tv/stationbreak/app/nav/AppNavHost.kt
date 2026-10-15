@@ -3,6 +3,7 @@ package tv.stationbreak.app.nav
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -21,18 +22,19 @@ import tv.stationbreak.feature.onboarding.signin.SignInResult
 fun AppNavHost(onSignedIn: (SignInResult) -> Unit = ::continueToLibraries) = AppNavGraph(onSignedIn, ServerRoute)
 
 /**
- * The graph, with a start destination a test can choose: starting on [SignInRoute] is what a restored back stack
- * looks like after process death, when the in-memory server hand-off is gone.
+ * The graph, with a start destination and a [navController] a test can choose: starting on [SignInRoute] is what a
+ * restored back stack looks like after process death, when the in-memory server hand-off is gone.
  */
 @Composable
 internal fun AppNavGraph(
     onSignedIn: (SignInResult) -> Unit,
     startDestination: Any,
+    navController: NavHostController = rememberNavController(),
 ) {
-    val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
         composable<ServerRoute> {
-            ServerDestination(onContinue = { navController.navigate(SignInRoute) })
+            // Single top: a second Select can't stack a second sign-in screen.
+            ServerDestination(onContinue = { navController.navigate(SignInRoute) { launchSingleTop = true } })
         }
         composable<SignInRoute> {
             SignInDestination(
@@ -45,9 +47,15 @@ internal fun AppNavGraph(
     }
 }
 
-/** After process death the sign-in screen can be restored without its server: go back to where it is typed. */
+/**
+ * After process death the sign-in screen can be restored without its server: go back to where it is typed. When the
+ * server screen is on the stack it is popped back to; when it is not (the restored stack was only sign-in), the stack
+ * is replaced by it, so sign-in is never left underneath and Back from the server screen leaves the app.
+ */
 private fun NavController.backToServerScreen() {
-    if (!popBackStack(ServerRoute, inclusive = false)) navigate(ServerRoute)
+    if (!popBackStack(ServerRoute, inclusive = false)) {
+        navigate(ServerRoute) { popUpTo(graph.id) { inclusive = true } }
+    }
 }
 
 /**
