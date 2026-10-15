@@ -55,7 +55,13 @@ class SignInRecreationTest {
         val server = FakeMediaServer()
         val handOff = ServerHandOff()
         handOff.put(ConnectedServer(ResolvedServer(https, info), null))
-        val viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff, SignedInHandOff())
+        val viewModel =
+            SignInViewModel(
+                server,
+                SessionRepository(InMemorySecretStore(), server),
+                handOff,
+                SignedInHandOff(),
+            )
         Hosted.viewModel = viewModel
         ActivityScenario.launch(SignInHostActivity::class.java).use { scenario ->
             scenario.onActivity {

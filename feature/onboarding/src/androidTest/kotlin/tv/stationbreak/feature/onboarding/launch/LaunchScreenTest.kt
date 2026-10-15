@@ -42,7 +42,8 @@ class LaunchScreenTest {
     private var refused = 0
 
     private val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { (it * 5 + 1).toByte() })
-    private val certificate = CertificateEvidence(pin, selfSigned = true, notBeforeMillis = 1_700_000L, notAfterMillis = 1_800_000L)
+    private val certificate =
+        CertificateEvidence(pin, selfSigned = true, notBeforeMillis = 1_700_000L, notAfterMillis = 1_800_000L)
     private val address = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
 
     private fun show(initial: LaunchPhase) {

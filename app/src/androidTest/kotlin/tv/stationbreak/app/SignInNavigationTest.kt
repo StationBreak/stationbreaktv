@@ -126,7 +126,8 @@ class SignInNavigationTest {
                     .Unknown(),
             )
         Scripted.server.signInCalls.clear()
-        Scripted.server.librariesResult = ServerResult.Success(listOf(Library(ItemId("movies"), "Movies", LibraryKind.Movies)))
+        val movies = Library(ItemId("movies"), "Movies", LibraryKind.Movies)
+        Scripted.server.librariesResult = ServerResult.Success(listOf(movies))
         Scripted.store
             .snapshot()
             .keys

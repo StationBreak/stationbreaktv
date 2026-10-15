@@ -54,7 +54,12 @@ class SignedInScreenTest {
         val viewModel = SignedInViewModel(SessionRepository(InMemorySecretStore(), server), signedIn, handOff)
         compose.setContent {
             StationBreakTheme {
-                SignedInRoot(viewModel, onContinue = { continued++ }, onSwitchUser = { switched++ }, onMissingSession = { missing++ })
+                SignedInRoot(
+                    viewModel,
+                    onContinue = { continued++ },
+                    onSwitchUser = { switched++ },
+                    onMissingSession = { missing++ },
+                )
             }
         }
         compose.waitForIdle()

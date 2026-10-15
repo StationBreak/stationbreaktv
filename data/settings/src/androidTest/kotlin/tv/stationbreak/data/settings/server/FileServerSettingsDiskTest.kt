@@ -102,7 +102,7 @@ class FileServerSettingsDiskTest {
     fun aTornFileHasNoSelectionAndNoRecordUntilTheyAreSavedAgain() =
         runBlocking {
             dir.mkdirs()
-            File(dir, "server").writeText("version=1\nscheme=https\nhost=nas.example.test\nport=89")
+            File(dir, "server").writeText("version=1\nscheme=https\nhost=nas.example.test")
             assertNull(store().load())
             assertNull(store().loadLibraries())
             assertTrue(store().save(ServerRecord(address)))

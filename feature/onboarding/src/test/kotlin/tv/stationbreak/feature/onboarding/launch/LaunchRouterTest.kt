@@ -41,7 +41,6 @@ class LaunchRouterTest {
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
-    private val http = ServerAddress(Scheme.Http, "jellyfin.example.test", 8096)
     private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
 
     private fun router(settings: ServerSettings) = LaunchRouter(RecordingSettings(settings, events), sessions, server)
