@@ -102,6 +102,40 @@ class RedactorTest {
         assertFalse(dummy in out, out)
     }
 
+    // A certificate fingerprint is not a credential, but nothing logs one (spec 05, Unit 3): the form OkHttp prints in
+    // a hostname failure, a bare run of hex, and the grouped form the trust screen shows.
+    private val fingerprintHex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+
+    @Test
+    fun certificateFingerprintsAreMaskedInTheFormsTheyAppearIn() {
+        val grouped = fingerprintHex.chunked(4).joinToString(" ")
+        val colons = fingerprintHex.chunked(2).joinToString(":")
+        val base64 = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+        val messages =
+            listOf(
+                "Hostname nas.example not verified: certificate: sha256/$base64 DN: CN=x",
+                "pin $fingerprintHex seen",
+                "pin ${fingerprintHex.lowercase()} seen",
+                "pin $grouped seen",
+                "pin ${grouped.lowercase()} seen",
+                "pin $colons seen",
+            )
+        for (message in messages) {
+            val out = Redactor.redact(message)
+            assertFalse(base64 in out, out)
+            assertFalse(fingerprintHex.take(16) in out.uppercase(), out)
+            assertFalse(grouped.take(19) in out.uppercase(), out)
+            assertFalse(colons.take(23) in out.uppercase(), out)
+            assertEquals(out, Redactor.redact(out), "idempotent: $out")
+        }
+    }
+
+    @Test
+    fun shortHexAndOrdinaryNumbersAreNotMistakenForAFingerprint() {
+        val messages = listOf("device 0123abcd", "id 0123456789abcdef0123456789abcdef", "GET /Items 200 in 1234 ms")
+        for (message in messages) assertEquals(message, Redactor.redact(message))
+    }
+
     @Test
     fun redactionIsIdempotent() {
         val once = Redactor.redact("?api_key=$dummy {\"Pw\":\"$dummy\"} Token=\"$dummy\" Authorization: $dummy")
