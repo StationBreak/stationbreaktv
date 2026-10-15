@@ -789,6 +789,19 @@ class ServerViewModelTest {
         }
 
     @Test
+    fun continuingStoresTheServerEvenIfTheViewModelIsClearedAtOnce() {
+        runBlocking { settings.save(ServerRecord(https)) }
+        val other = ServerAddress(Scheme.Https, "other.example.test", 443)
+        val owner = ViewModelStore()
+        val vm = owner.host(viewModel(), ServerViewModel::class.java)
+
+        vm.onContinue(ConnectedServer(ResolvedServer(other, info), acknowledgement = null))
+        owner.clear()
+
+        assertEquals(ServerRecord(other), settings.current)
+    }
+
+    @Test
     fun continuingDropsASignInHeldFromAnEarlierPass() {
         val session = Session(UserId("u"), AccessToken("dummy-token-0001"), info, https, null, false)
         signedIn.put(SignInResult(session, persisted = true))

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
@@ -216,9 +217,11 @@ internal class ServerViewModel
 
         private fun clearPin(after: Job?) {
             pendingClear =
-                viewModelScope.launch(NonCancellable) {
-                    after?.join()
-                    if (settings.clearPin()) pinMayExist = false
+                viewModelScope.launch {
+                    withContext(NonCancellable) {
+                        after?.join()
+                        if (settings.clearPin()) pinMayExist = false
+                    }
                 }
         }
 
@@ -244,15 +247,17 @@ internal class ServerViewModel
             handOff.put(server)
             // Started before this screen can leave, so it is first in the settings' queue, ahead of anything sign-in or
             // the library picker writes; it runs to its end even if this view model is cleared at once.
-            viewModelScope.launch(NonCancellable) {
-                val address = server.server.address
-                val old = settings.load()?.address
-                if (old != address) {
-                    settings.save(ServerRecord(address))
-                    // The stored session belongs to the old server. It would be refused at the next restore anyway
-                    // (a token is only ever sent to the server that issued it), but the user has now chosen another
-                    // server, so it goes now rather than lingering.
-                    if (old != null && !address.bindsTo(old) && !old.bindsTo(address)) sessions.clear()
+            viewModelScope.launch {
+                withContext(NonCancellable) {
+                    val address = server.server.address
+                    val old = settings.load()?.address
+                    if (old != address) {
+                        settings.save(ServerRecord(address))
+                        // The stored session belongs to the old server. It would be refused at the next restore
+                        // anyway (a token is only ever sent to the server that issued it), but the user has now chosen
+                        // another server, so it goes now rather than lingering.
+                        if (old != null && !address.bindsTo(old) && !old.bindsTo(address)) sessions.clear()
+                    }
                 }
             }
         }
