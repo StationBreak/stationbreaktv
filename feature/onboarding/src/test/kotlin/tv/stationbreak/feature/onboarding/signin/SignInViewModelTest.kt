@@ -67,9 +67,9 @@ private class Sent(
 )
 
 /**
- * A [MediaServer] that records full sign-in requests, can hold one open, and can script the Quick Connect flow. Its gate
- * ignores cancellation, as a real response does when it arrives after the caller has gone: a race test is only worth
- * having if the late answer really arrives.
+ * A [MediaServer] that records full sign-in requests, can hold one open, and can script the Quick Connect flow. Its
+ * gate ignores cancellation, as a real response does when it arrives after the caller has gone: a race test is only
+ * worth having if the late answer really arrives.
  */
 private class RecordingServer(
     val fake: FakeMediaServer = FakeMediaServer(),
@@ -94,8 +94,10 @@ private class RecordingServer(
     override fun quickConnect(
         address: ServerAddress,
         acknowledgement: CleartextAcknowledgement?,
-    ): Flow<QuickConnectState> =
-        quickConnectQueue.removeFirstOrNull() ?: quickConnectFlow ?: fake.quickConnect(address, acknowledgement)
+    ): Flow<QuickConnectState> {
+        val scripted = quickConnectQueue.removeFirstOrNull() ?: quickConnectFlow
+        return scripted ?: fake.quickConnect(address, acknowledgement)
+    }
 }
 
 /**

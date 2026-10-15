@@ -53,6 +53,19 @@ class ContrastTest {
     }
 
     @Test
+    fun theErrorColourAlsoReadsAsTextOnThePage() {
+        // "Not encrypted (http)" is small text in the error colour, so it needs the text ratio, not the icon's.
+        assertAtLeast(4.5, colors.error, colors.surface, "error text on the page")
+    }
+
+    @Test
+    fun buttonLabelsReadOnTheirFills() {
+        assertAtLeast(4.5, colors.onPrimary, colors.primary, "label on the Sign in (primary) fill")
+        assertAtLeast(4.5, colors.surface, colors.onSurface, "label on the focused (inverted) fill")
+        assertAtLeast(4.5, colors.onSurfaceVariant, colors.surface, "label on the page-coloured resting fill")
+    }
+
+    @Test
     fun theHintAtItsAlphaStillReadsOnTheFieldFill() {
         val hint = colors.onSurfaceVariant.copy(alpha = HINT_ALPHA).compositeOver(colors.surfaceVariant)
         assertAtLeast(4.5, hint, colors.surfaceVariant, "hint")

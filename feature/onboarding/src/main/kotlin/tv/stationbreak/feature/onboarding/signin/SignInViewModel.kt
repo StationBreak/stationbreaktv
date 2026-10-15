@@ -56,13 +56,28 @@ internal sealed interface SignInPhase {
 
     /**
      * A problem the panel explains. [retypePassword] is true for a rejected username or password (401, 403): the next
-     * step is to type the password again, so there is no button and focus goes to the password field.
+     * step is to type the password again, so there is no button. Focus goes to the password field for those and for a
+     * problem that may pass on its own (see [focusesPassword]); for a problem with the address it goes to Edit address.
      */
     data class Failed(
         val error: MediaServerError,
         val copy: ErrorCopy,
         val retypePassword: Boolean,
-    ) : SignInPhase
+    ) : SignInPhase {
+        /**
+         * A timeout, an unreachable network, a server error or an unknown one is likely to pass: trying again means
+         * pressing Sign in, so focus stays on the password and Edit address waits below. Anything about the address
+         * itself (DNS, refused, not Jellyfin, not found, redirected, invalid, TLS, cleartext) puts focus on Edit
+         * address.
+         */
+        val focusesPassword: Boolean
+            get() =
+                retypePassword ||
+                    error is MediaServerError.Timeout ||
+                    error is MediaServerError.NetworkUnreachable ||
+                    error is MediaServerError.ServerError ||
+                    error is MediaServerError.Unknown
+    }
 
     /** Quick Connect is running. [code] is null until the server issues one. */
     data class QuickConnect(

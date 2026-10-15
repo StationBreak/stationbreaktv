@@ -81,7 +81,11 @@ internal fun TestingStatus() {
         delay(SPINNER_DELAY_MS)
         spinnerVisible = true
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(TightGap), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.testTag(ServerTags.TESTING).politeLiveRegion(),
+        horizontalArrangement = Arrangement.spacedBy(TightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (spinnerVisible) {
             ProgressSpinner(contentDescription = stringResource(R.string.server_progress_description))
         }
@@ -160,7 +164,10 @@ internal fun ErrorPanel(
     val copy = phase.copy
     val cause = ErrorCopyTable.causeText(phase.error)
     val details = stringResource(copy.details)
-    Column(modifier = Modifier.testTag(ServerTags.ERROR_PANEL), verticalArrangement = Arrangement.spacedBy(Gap)) {
+    Column(
+        modifier = Modifier.testTag(ServerTags.ERROR_PANEL).politeLiveRegion(),
+        verticalArrangement = Arrangement.spacedBy(Gap),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(TightGap), verticalAlignment = Alignment.Top) {
             ProblemIcon()
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

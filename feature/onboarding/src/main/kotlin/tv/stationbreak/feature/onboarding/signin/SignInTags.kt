@@ -17,5 +17,6 @@ object SignInTags {
     const val SIGNING_IN = "signin:signingIn"
     const val SIGNED_IN = "signin:signedIn"
     const val QUICK_CONNECT_CODE = "signin:quickConnectCode"
+    const val QUICK_CONNECT_WAITING = "signin:quickConnectWaiting"
     const val QUICK_CONNECT_CANCEL = "signin:quickConnectCancel"
 }

@@ -34,6 +34,10 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -45,6 +49,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
@@ -65,18 +70,38 @@ internal val ProblemIconSize = 32.dp
 internal val Gap = 20.dp
 internal val TightGap = 12.dp
 
-/** One button: the shared focus treatment, a target of about 56 dp and body-size text. */
+/**
+ * A message that appears on its own (an error, a status): a screen reader announces it when it shows, without cutting
+ * in on what it is already saying.
+ */
+internal fun Modifier.politeLiveRegion(): Modifier = semantics { liveRegion = LiveRegionMode.Polite }
+
+/**
+ * One button: the shared focus treatment, a target of about 56 dp and body-size text. The main action of a screen
+ * passes [emphasis] for a stronger fill; its focused look is the same as any button's. [description] is what a screen
+ * reader says when the visible [label] alone is not enough ("Show" beside a password field).
+ */
+@Suppress("LongParameterList") // The label and click, plus the optional look and spoken name.
 @Composable
 internal fun ServerButton(
     @StringRes label: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    emphasis: Boolean = false,
+    description: String? = null,
 ) {
+    val colors = MaterialTheme.colorScheme
     Button(
         onClick = onClick,
-        modifier = modifier,
+        modifier = if (description == null) modifier else modifier.semantics { contentDescription = description },
         enabled = enabled,
+        colors =
+            if (emphasis) {
+                ButtonDefaults.colors(containerColor = colors.primary, contentColor = colors.onPrimary)
+            } else {
+                ButtonDefaults.colors()
+            },
         border = FocusStyle.buttonBorder(),
         scale = FocusStyle.buttonScale(),
         contentPadding = ButtonPadding,

@@ -35,6 +35,7 @@ import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.messageText
+import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 
 private const val SPINNER_DELAY_MS = 400L
 private val CodeSize = 72.sp
@@ -49,7 +50,7 @@ internal fun SigningInStatus() {
         spinnerVisible = true
     }
     Row(
-        modifier = Modifier.testTag(SignInTags.SIGNING_IN),
+        modifier = Modifier.testTag(SignInTags.SIGNING_IN).politeLiveRegion(),
         horizontalArrangement = Arrangement.spacedBy(TightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -64,9 +65,21 @@ internal fun SigningInStatus() {
     }
 }
 
+/** "Signed in." Hands over to the library picker in Unit 4; until then the form is gone and this is all there is. */
+@Composable
+internal fun SignedInStatus() {
+    Text(
+        text = stringResource(R.string.signin_signed_in),
+        modifier = Modifier.testTag(SignInTags.SIGNED_IN).politeLiveRegion(),
+        fontSize = BodySize,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+}
+
 /**
  * A plain sentence, a small details line, and one next step (decision 5). A rejected username or password has no
- * button: the next step is to type the password again, and focus is already there. Any other error offers Edit address.
+ * button: the next step is to type the password again, and focus is already there. Any other error offers Edit
+ * address, which has focus only when the problem is with the address ([SignInPhase.Failed.focusesPassword]).
  */
 @Composable
 internal fun SignInErrorPanel(
@@ -76,7 +89,10 @@ internal fun SignInErrorPanel(
 ) {
     val cause = ErrorCopyTable.causeText(phase.error)
     val details = stringResource(phase.copy.details)
-    Column(modifier = Modifier.testTag(SignInTags.ERROR_PANEL), verticalArrangement = Arrangement.spacedBy(Gap)) {
+    Column(
+        modifier = Modifier.testTag(SignInTags.ERROR_PANEL).politeLiveRegion(),
+        verticalArrangement = Arrangement.spacedBy(Gap),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(TightGap), verticalAlignment = Alignment.Top) {
             ProblemIcon()
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -114,7 +130,7 @@ internal fun SignInNotice(
     details: String? = null,
 ) {
     Row(
-        modifier = Modifier.testTag(SignInTags.NOTICE),
+        modifier = Modifier.testTag(SignInTags.NOTICE).politeLiveRegion(),
         horizontalArrangement = Arrangement.spacedBy(TightGap),
         verticalAlignment = Alignment.Top,
     ) {
@@ -160,6 +176,7 @@ internal fun QuickConnectPanel(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Row(
+                modifier = Modifier.testTag(SignInTags.QUICK_CONNECT_WAITING).politeLiveRegion(),
                 horizontalArrangement = Arrangement.spacedBy(TightGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

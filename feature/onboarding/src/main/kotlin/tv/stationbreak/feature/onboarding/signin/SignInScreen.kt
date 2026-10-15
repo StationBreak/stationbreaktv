@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.signin
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -87,8 +91,14 @@ internal fun SignInRoot(
         return
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // Leaving the screen clears the password and stops Quick Connect.
-    DisposableEffect(viewModel) { onDispose { viewModel.onLeave() } }
+    // Leaving the screen clears the password and stops Quick Connect. A configuration change is not leaving:
+    // MainActivity declares no configChanges, so connecting a keyboard, changing the language or the display mode
+    // recreates it, and the composition is disposed and rebuilt around a view model that survives. Real exits clear
+    // the view model, which does the same in onCleared.
+    val activity = LocalContext.current.findActivity()
+    DisposableEffect(viewModel) {
+        onDispose { if (activity?.isChangingConfigurations != true) viewModel.onLeave() }
+    }
     LaunchedEffect(viewModel) { viewModel.signedIn.collect { onSignedIn(it) } }
     SignInScreen(
         state = state,
@@ -101,6 +111,13 @@ internal fun SignInRoot(
         onEditAddress = onEditAddress,
     )
 }
+
+private tailrec fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
 
 /** The stateless screen: everything it shows comes from [state], and every action goes back out as a callback. */
 @Suppress("LongMethod", "LongParameterList") // One screen's layout and its callbacks; splitting hides the focus flow.
@@ -154,6 +171,9 @@ internal fun SignInScreen(
                 if (state.cleartext) NotEncryptedNotice(SignInTags.NOT_ENCRYPTED)
                 if (quickConnecting != null) {
                     QuickConnectPanel(quickConnecting.code, focus.quickConnectCancel, onCancelQuickConnect)
+                } else if (phase == SignInPhase.SignedIn) {
+                    // Done: the form has nothing left to ask, so only the status stays.
+                    SignedInStatus()
                 } else {
                     Form(
                         state,
@@ -187,6 +207,7 @@ private fun Form(
     TvTextField(
         value = state.username,
         onValueChange = onUsernameChange,
+        label = stringResource(R.string.signin_username),
         hint = stringResource(R.string.signin_username_hint),
         fieldTag = SignInTags.USERNAME,
         inputTag = SignInTags.USERNAME_INPUT,
@@ -204,6 +225,7 @@ private fun Form(
         ServerButton(
             label = R.string.signin_sign_in,
             onClick = onSignIn,
+            emphasis = true,
             modifier =
                 Modifier
                     .focusProperties {
@@ -218,7 +240,7 @@ private fun Form(
             modifier =
                 Modifier
                     .focusProperties {
-                        up = focus.showPassword
+                        up = focus.password
                         left = focus.signIn
                     }.focusRequester(focus.quickConnect)
                     .testTag(SignInTags.QUICK_CONNECT),
@@ -238,6 +260,7 @@ private fun PasswordRow(
         TvTextField(
             value = state.password,
             onValueChange = onPasswordChange,
+            label = stringResource(R.string.signin_password),
             hint = stringResource(R.string.signin_password_hint),
             fieldTag = SignInTags.PASSWORD,
             inputTag = SignInTags.PASSWORD_INPUT,
@@ -256,6 +279,14 @@ private fun PasswordRow(
         )
         ServerButton(
             label = if (state.showPassword) R.string.signin_hide_password else R.string.signin_show_password,
+            description =
+                stringResource(
+                    if (state.showPassword) {
+                        R.string.signin_hide_password_description
+                    } else {
+                        R.string.signin_show_password_description
+                    },
+                ),
             onClick = onToggleShowPassword,
             modifier =
                 Modifier
@@ -281,15 +312,6 @@ private fun Outcome(
             SigningInStatus()
         }
 
-        SignInPhase.SignedIn -> {
-            Text(
-                text = stringResource(R.string.signin_signed_in),
-                modifier = Modifier.testTag(SignInTags.SIGNED_IN),
-                fontSize = BodySize,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-
         is SignInPhase.Failed -> {
             SignInErrorPanel(phase, focus.panelAction, onEditAddress)
         }
@@ -300,15 +322,15 @@ private fun Outcome(
         }
 
         is SignInPhase.QuickConnectEnded -> {
-            val message =
+            val (message, details) =
                 when (phase.reason) {
-                    QuickConnectEnd.Expired -> R.string.quick_connect_expired
-                    QuickConnectEnd.Denied -> R.string.quick_connect_denied
+                    QuickConnectEnd.Expired -> R.string.quick_connect_expired to R.string.quick_connect_expired_details
+                    QuickConnectEnd.Denied -> R.string.quick_connect_denied to R.string.quick_connect_denied_details
                 }
-            SignInNotice(stringResource(message))
+            SignInNotice(stringResource(message), stringResource(details))
         }
 
-        SignInPhase.Idle, is SignInPhase.InvalidInput, is SignInPhase.QuickConnect -> {
+        SignInPhase.Idle, SignInPhase.SignedIn, is SignInPhase.InvalidInput, is SignInPhase.QuickConnect -> {
             Unit
         }
     }
@@ -328,8 +350,8 @@ private class SignInFocus {
 /**
  * The screen opens with the username focused. After that, focus follows the phase (spec 05, Adorabelle's defaults):
  * Cancel while Quick Connect runs; back on the Quick Connect button after it is cancelled or ends; the password field
- * after a rejected password or when Quick Connect is off; the panel's action on any other error; the username when it
- * is blank.
+ * after a rejected password, a problem that may pass on its own, or when Quick Connect is off; Edit address after a
+ * problem with the address; the username when it is blank.
  */
 @Composable
 private fun FocusFollowsPhase(
@@ -342,10 +364,12 @@ private fun FocusFollowsPhase(
         val previous = shown
         shown = phase::class.java
         val target = focusTarget(phase, previous, focus) ?: return@LaunchedEffect
-        // When the focused node has just left the screen (the form for the Quick Connect panel and back), a focus
-        // request alone gives the new node focus that its focus ring doesn't show (seen on API 25 with tv-material).
-        // Clearing focus first makes the new node draw its focus treatment.
-        if (previous != null) focusManager.clearFocus()
+        // When the form is replaced by the Quick Connect panel, or the panel by the form, the focused node has just
+        // left the screen, and a focus request alone gives the new node focus that its focus ring doesn't show (seen
+        // on API 25 with tv-material, on Cancel and on the form's buttons). Clearing focus first makes the new node
+        // draw its focus treatment. No other change swaps the focused node out, so no other change does it.
+        val quickConnectClass = SignInPhase.QuickConnect::class.java
+        if (previous == quickConnectClass || phase::class.java == quickConnectClass) focusManager.clearFocus()
         target.requestFocus()
     }
 }
@@ -370,7 +394,8 @@ private fun focusTarget(
         }
 
         is SignInPhase.Failed -> {
-            if (phase.retypePassword) focus.password else focus.panelAction
+            // panelAction is the Edit address button, which the panel has for every error but a rejected password.
+            if (phase.focusesPassword) focus.password else focus.panelAction
         }
 
         is SignInPhase.QuickConnect -> {

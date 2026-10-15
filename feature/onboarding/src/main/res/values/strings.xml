@@ -9,6 +9,7 @@
 <resources>
     <!-- The server screen. One headline, no welcome screen (decision 8). -->
     <string name="server_headline">Connect to your Jellyfin server</string>
+    <string name="server_address_label">Server address</string>
     <string name="server_address_hint">For example, jellyfin.local:8096</string>
     <string name="server_test">Test</string>
     <string name="server_testing">Testing…</string>
@@ -82,9 +83,9 @@
     <string name="error_not_tls_details">Server did not speak TLS</string>
 
     <!-- Error table: errors that sign-in and restore produce. They are not expected from a Test, but every error has copy. -->
-    <string name="error_unauthorized_message">Wrong username or password. Check both, then choose Sign in.</string>
+    <string name="error_unauthorized_message">Wrong username or password. Check both, then sign in.</string>
     <string name="error_unauthorized_details">Unauthorized</string>
-    <string name="error_forbidden_message">The server, or something in front of it such as a proxy, refused this sign-in. Ask whoever runs the server whether this TV is allowed.</string>
+    <string name="error_forbidden_message">The server refused this sign-in. Ask whoever runs it to check that this account and this TV are allowed.</string>
     <string name="error_forbidden_details">Forbidden</string>
     <string name="error_cleartext_message">This address needs your confirmation before connecting without encryption.</string>
     <string name="error_cleartext_details">Unencrypted connection not confirmed</string>
@@ -103,6 +104,8 @@
     <string name="signin_password_hint">Your Jellyfin password</string>
     <string name="signin_show_password">Show</string>
     <string name="signin_hide_password">Hide</string>
+    <string name="signin_show_password_description">Show password</string>
+    <string name="signin_hide_password_description">Hide password</string>
     <string name="signin_sign_in">Sign in</string>
     <string name="signin_signing_in">Signing in…</string>
     <string name="signin_progress_description">Signing in</string>
@@ -112,14 +115,16 @@
     <string name="signin_blank_username_details">Username is empty</string>
 
     <!-- The Quick Connect screen: the code in large type, approved from a device that is already signed in. -->
-    <string name="quick_connect_headline">Approve this TV</string>
-    <string name="quick_connect_instructions">On another device that is signed in to Jellyfin, open Quick Connect and enter this code.</string>
+    <string name="quick_connect_headline">Sign in with Quick Connect</string>
+    <string name="quick_connect_instructions">On another device signed in to this Jellyfin server, open Quick Connect in its settings and enter this code.</string>
     <string name="quick_connect_getting_code">Getting a code…</string>
     <string name="quick_connect_waiting">Waiting for approval…</string>
     <string name="quick_connect_code_description">Quick Connect code %1$s</string>
     <string name="quick_connect_cancel">Cancel</string>
     <string name="quick_connect_expired">The code ran out of time before it was approved. Choose Quick Connect to get a new one.</string>
+    <string name="quick_connect_expired_details">Quick Connect code expired</string>
     <string name="quick_connect_denied">The sign-in was declined on the other device. Choose Quick Connect to get a new code.</string>
+    <string name="quick_connect_denied_details">Quick Connect declined</string>
 
     <!-- Prefix of the details line when the technical cause is known. -->
     <string name="error_details_with_cause">%1$s (%2$s)</string>

@@ -249,6 +249,7 @@ private fun AddressField(
     TvTextField(
         value = value,
         onValueChange = onValueChange,
+        label = stringResource(R.string.server_address_label),
         hint = stringResource(R.string.server_address_hint),
         fieldTag = ServerTags.FIELD,
         inputTag = ServerTags.FIELD_INPUT,

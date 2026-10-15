@@ -16,5 +16,15 @@
             android:screenOrientation="landscape"
             tools:ignore="DiscouragedApi,LockedOrientationActivity"
             android:exported="true" />
+        <!--
+            Sets its own content in onCreate and is recreated by a configuration change, as MainActivity is (it declares
+            no configChanges), for SignInRecreationTest. Landscape only so that CI's portrait emulator doesn't add a
+            rotation of its own.
+        -->
+        <activity
+            android:name="tv.stationbreak.feature.onboarding.signin.SignInHostActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
     </application>
 </manifest>

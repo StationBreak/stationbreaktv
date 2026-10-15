@@ -13,8 +13,14 @@ import tv.stationbreak.core.model.ServerVersion
 
 class ServerHandOffTest {
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
-    private val first = ConnectedServer(ResolvedServer(ServerAddress(Scheme.Https, "one.example.test", 443), info), null)
-    private val second = ConnectedServer(ResolvedServer(ServerAddress(Scheme.Https, "two.example.test", 443), info), null)
+
+    private fun connected(host: String): ConnectedServer {
+        val address = ServerAddress(Scheme.Https, host, 443)
+        return ConnectedServer(ResolvedServer(address, info), acknowledgement = null)
+    }
+
+    private val first = connected("one.example.test")
+    private val second = connected("two.example.test")
 
     @Test
     fun clearingWhatIsHeldEmptiesIt() {

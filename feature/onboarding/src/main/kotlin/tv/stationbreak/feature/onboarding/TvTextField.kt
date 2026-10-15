@@ -23,8 +23,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.password
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -50,14 +52,17 @@ private const val MASK_CHARACTER = '•'
  * opens the system keyboard, which never opens by itself. The IME action ([imeAction], run through [onImeAction]) ends
  * editing, so the caller can move focus on (Next on a username, Done on a password or an address).
  *
- * With [masked] the text is shown as dots while it is edited and while it rests, and the field is marked as a password
- * so the system keyboard treats it as one. [fieldTag] is on the focusable box and [inputTag] on the editable text.
+ * [label] is the field's name for a screen reader ("Username"); the hint is only a hint and goes when text is typed.
+ * An unmasked field also says its value as its state. With [masked] the text is shown as dots while it is edited and
+ * while it rests, and the field is marked as a password so the system keyboard treats it as one. [fieldTag] is on the
+ * focusable box and [inputTag] on the editable text.
  */
 @Suppress("LongParameterList") // One parameter each for value, hint, tags, keyboard and action.
 @Composable
 internal fun TvTextField(
     value: String,
     onValueChange: (String) -> Unit,
+    label: String,
     hint: String,
     fieldTag: String,
     inputTag: String,
@@ -79,7 +84,12 @@ internal fun TvTextField(
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = { editing = true },
-        modifier = modifier.fillMaxWidth().testTag(fieldTag),
+        modifier =
+            modifier.fillMaxWidth().testTag(fieldTag).semantics {
+                contentDescription = label
+                // A masked value is never spoken.
+                if (!masked && value.isNotEmpty()) stateDescription = value
+            },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
         colors =
             ClickableSurfaceDefaults.colors(
@@ -137,6 +147,8 @@ private fun TextInput(
     onLeave: () -> Unit,
 ) {
     var text by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    // The field keeps its own cursor, so a change that did not come from typing (a cleared password) is taken in here.
+    if (value != text.text) text = TextFieldValue(value, TextRange(value.length))
     var focusedOnce by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     var base = Modifier.fillMaxWidth()
