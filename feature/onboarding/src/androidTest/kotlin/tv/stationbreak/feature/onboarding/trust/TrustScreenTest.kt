@@ -131,7 +131,7 @@ class TrustScreenTest {
         val description = Fingerprint.text(pin)
         assertEquals(16, description.split(" ").size)
         assertTrue(description.split(" ").all { it.length == 4 })
-        for (line in Fingerprint.lines(pin)) compose.onNodeWithText(line).assertExists()
+        for (line in Fingerprint.lines(pin)) compose.onNodeWithText(line, useUnmergedTree = true).assertExists()
     }
 
     @Test

@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
@@ -179,8 +180,9 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
         )
         Column(
             modifier =
-                Modifier.testTag(TrustTags.FINGERPRINT).semantics {
-                    // One character at a time, so TalkBack doesn't read a group such as "1118" as a number.
+                Modifier.testTag(TrustTags.FINGERPRINT).clearAndSetSemantics {
+                    // One character at a time, so TalkBack doesn't read a group such as "1118" as a number. The
+                    // children's own text is cleared, or TalkBack would read the lines as well.
                     contentDescription = Fingerprint.spoken(certificate.spki)
                 },
         ) {
