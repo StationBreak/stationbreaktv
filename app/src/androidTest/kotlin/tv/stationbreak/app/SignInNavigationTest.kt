@@ -136,10 +136,13 @@ class SignInNavigationTest {
 
     /** Types an address on the server screen with the keyboard's text input, tests it and presses Continue. */
     private fun testAddressAndContinue(address: String = "jellyfin.example.test") {
+        // Each key goes to the node that should have focus by then; on a cold emulator focus can lag the first key.
+        awaitFocused(ServerTags.FIELD)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performTextInput(address)
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
+        awaitFocused(ServerTags.TEST)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitFocused(ServerTags.CONTINUE)
     }
