@@ -537,7 +537,11 @@ class KeystoreSecretStoreTest {
     @Test
     fun anUnlistedExceptionOnClearWipesNothing() =
         assertTransient(
-            { faultyFiles.deleteFault = IllegalStateException("dummy") },
+            // One-shot: a wipe after the fault would find the delete working, so a misclassified fault shows.
+            {
+                faultyFiles.deleteFaultOnce = true
+                faultyFiles.deleteFault = IllegalStateException("dummy")
+            },
             { faultyFiles.deleteFault = null },
         ) { it.clear("token") }
 
@@ -746,6 +750,15 @@ class KeystoreSecretStoreTest {
 
         @Volatile var deleteFault: Throwable? = null
 
+        // When set, the fault fires once and is then cleared.
+        @Volatile var deleteFaultOnce = false
+
+        private fun deleteFaulted() {
+            val fault = deleteFault ?: return
+            if (deleteFaultOnce) deleteFault = null
+            throw fault
+        }
+
         override fun read(name: String): ByteArray? {
             readFault?.let { throw it }
             return delegate.read(name)
@@ -760,12 +773,12 @@ class KeystoreSecretStoreTest {
         }
 
         override fun delete(name: String) {
-            deleteFault?.let { throw it }
+            deleteFaulted()
             delegate.delete(name)
         }
 
         override fun deleteAll() {
-            deleteFault?.let { throw it }
+            deleteFaulted()
             delegate.deleteAll()
         }
     }
