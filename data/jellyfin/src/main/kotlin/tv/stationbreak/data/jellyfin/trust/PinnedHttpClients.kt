@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin.trust
 
+import okhttp3.Call
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.model.ServerAddress
@@ -62,6 +63,13 @@ class PinnedHttpClients(
     private var built = build(emptyMap())
 
     override fun current(): OkHttpClient = built.client
+
+    /**
+     * For a library that keeps its [Call.Factory] (Media3's data source, Coil): every call is made on the client in
+     * force at that moment, so a kept factory never trusts what the pins no longer allow. Never hand such a library
+     * an [OkHttpClient] from [current].
+     */
+    val callFactory: Call.Factory = Call.Factory { request -> built.client.newCall(request) }
 
     @Synchronized
     override fun pin(

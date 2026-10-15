@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin.trust
 
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.tls.HeldCertificate
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
@@ -13,6 +16,7 @@ import tv.stationbreak.data.jellyfin.TlsFixture
 import java.io.IOException
 import java.net.Socket
 import java.security.cert.CertificateException
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLHandshakeException
@@ -315,6 +319,59 @@ class PinnedClientsTest {
         assertEquals(1, server.requests.size, "the new client must not reuse the old connection")
     }
 
+    // --- a kept Call.Factory follows the pins; a cleared pin ends calls already running ---
+
+    @Test
+    fun aKeptCallFactoryFollowsThePinsAndRefusesOnceThePinIsCleared() {
+        val cert = selfSignedFor(NAS)
+        val server = serving(cert)
+        val clients = pinnedClients()
+        val kept = clients.callFactory
+        clients.pin(server.address(), CertificateFacts.spki(cert.certificate))
+        val request = Request.Builder().url("https://$NAS:${server.port}/System/Info/Public").build()
+        assertEquals(200, kept.newCall(request).execute().use { it.code })
+
+        clients.unpin(server.address())
+
+        val failure = failureOf { kept.newCall(request).execute().close() }
+        assertEquals(Rejection.Untrusted, assertNotNull(rejection(failure)).kind)
+    }
+
+    @Test
+    fun clearingAPinCancelsACallThatIsAlreadyRunningOnTheOldClient() {
+        val cert = selfSignedFor(NAS)
+        val server = serving(cert)
+        val clients = pinnedClients()
+        clients.pin(server.address(), CertificateFacts.spki(cert.certificate))
+        server.answerDelayMillis = SLOW_ANSWER_MILLIS
+        val request = Request.Builder().url("https://$NAS:${server.port}/System/Info/Public").build()
+        val outcome = CompletableFuture<Throwable?>()
+        clients.current().newCall(request).enqueue(
+            object : Callback {
+                override fun onFailure(
+                    call: Call,
+                    e: IOException,
+                ) {
+                    outcome.complete(e)
+                }
+
+                override fun onResponse(
+                    call: Call,
+                    response: Response,
+                ) {
+                    response.close()
+                    outcome.complete(null)
+                }
+            },
+        )
+        while (server.requests.isEmpty()) Thread.sleep(POLL_MILLIS)
+
+        clients.unpin(server.address())
+
+        val failure = outcome.get(CANCEL_WAIT_SECONDS, TimeUnit.SECONDS)
+        assertNotNull(failure, "the running call must fail, not complete under the old trust")
+    }
+
     @Test
     fun aReplacedPinRefusesTheCertificateThatWasPinnedBefore() {
         val cert = selfSignedFor(NAS)
@@ -340,6 +397,16 @@ class PinnedClientsTest {
     }
 
     @Test
+    fun anUnknownHostIsRefusedBeforeSystemTrustIsAsked() {
+        var asked = false
+        val manager = PinningTrustManager({ _, _, _ -> asked = true }, PinPolicy(emptyMap()))
+        val chain = arrayOf(selfSignedFor(NAS).certificate)
+        // No handshake session, so no peer host: system trust must not be asked about "".
+        assertFailsWith<CertificateException> { manager.checkServerTrusted(chain, "RSA", null as SSLEngine?) }
+        assertFalse(asked, "system trust must not be asked about an empty host")
+    }
+
+    @Test
     fun aHandshakeRefusedByThePinsIsASslHandshakeFailureCarryingTheRejection() {
         val server = serving(selfSignedFor(NAS))
         val clients = pinnedClients()
@@ -362,3 +429,7 @@ class PinnedClientsTest {
         assertFalse(error.toString().contains(error.certificate!!.spki.hex))
     }
 }
+
+private const val SLOW_ANSWER_MILLIS = 20_000L
+private const val POLL_MILLIS = 10L
+private const val CANCEL_WAIT_SECONDS = 5L
