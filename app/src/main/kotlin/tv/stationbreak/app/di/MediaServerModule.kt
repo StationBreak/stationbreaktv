@@ -32,8 +32,8 @@ import kotlin.time.Clock
 
 /**
  * The bindings for the media server port (ADR-0005): the Jellyfin adapter behind [MediaServer], the pinned base client
- * it derives its own from, the stored server record, the Keystore-backed secret store (ADR-0009) and the system clock (ADR-0004). The `[KMP]` and
- * `[JVM]` modules hold no Hilt; they are wired here.
+ * it derives its own from, the stored server record, the Keystore-backed secret store (ADR-0009) and the system clock
+ * (ADR-0004). The `[KMP]` and `[JVM]` modules hold no Hilt; they are wired here.
  */
 @Module
 @InstallIn(SingletonComponent::class)

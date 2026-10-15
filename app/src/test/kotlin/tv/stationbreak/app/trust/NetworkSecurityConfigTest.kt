@@ -124,14 +124,38 @@ class NetworkSecurityConfigTest {
         assertTrue(suppressed.hasAttribute("cleartextTrafficPermitted"))
     }
 
+    /**
+     * The one file in `app` that may name the platform's trust API (spec 05, Unit 3, Angua (Security)): it only *asks*
+     * the Network Security Config's own trust manager through `X509TrustManagerExtensions`. The pinning trust manager
+     * and hostname verifier are in `data:jellyfin`, where their tests are.
+     */
+    private val platformTrustDelegate = File("src/main/kotlin/tv/stationbreak/app/net/AndroidSystemTrust.kt")
+
+    private fun mainSources(): List<File> {
+        val all = File("src/main/kotlin").walkTopDown()
+        return all.filter { it.isFile && it.extension == "kt" }.toList()
+    }
+
     @Test
     fun noCustomTrustMachineryInTheMainSources() {
         val forbidden = Regex("""X509TrustManager|HostnameVerifier|SSLSocketFactory|setDefaultHostnameVerifier""")
         val offenders =
-            File("src/main/kotlin")
-                .walkTopDown()
-                .filter { it.isFile && it.extension == "kt" && forbidden.containsMatchIn(it.readText()) }
-                .toList()
+            mainSources()
+                .filter { it.path != platformTrustDelegate.path && forbidden.containsMatchIn(it.readText()) }
         assertTrue("custom TLS code in $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun theOnePlatformTrustDelegateOnlyAsksTheSystemAndImplementsNoTrustManagerOrVerifier() {
+        assertTrue("the delegate moved: $platformTrustDelegate", platformTrustDelegate.isFile)
+        val text = platformTrustDelegate.readText()
+        // It may name `X509TrustManagerExtensions` and nothing else of the trust API: no verifier, no socket
+        // factory, and no class that is itself a trust manager.
+        val names = "HostnameVerifier|SSLSocketFactory|SSLContext|X509ExtendedTrustManager|setDefaultHostnameVerifier"
+        val subclasses = """:\s*X509TrustManager\b|object\s*:\s*X509TrustManager|TrustAllCerts|trustAll"""
+        val found = Regex("$names|$subclasses").findAll(text).map { it.value }.toList()
+        assertEquals("trust machinery in the delegate", emptyList<String>(), found)
+        assertTrue(text.contains("X509TrustManagerExtensions"))
+        assertTrue(text.contains("checkServerTrusted(chain, authType, host)"))
     }
 }

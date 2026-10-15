@@ -176,7 +176,8 @@ class PinnedTrustOnApi25Test {
     private fun clients(): PinnedHttpClients {
         val dns =
             Dns { name ->
-                if (name == NAS || name == OTHER) listOf(InetAddress.getByName(LOOPBACK)) else throw UnknownHostException(name)
+                if (name != NAS && name != OTHER) throw UnknownHostException(name)
+                listOf(InetAddress.getByName(LOOPBACK))
             }
         return PinnedHttpClients(AndroidSystemTrust(), OkHttpClient.Builder().dns(dns).build())
     }
@@ -251,12 +252,14 @@ class PinnedTrustOnApi25Test {
     fun anExpiredSelfSignedCertificateIsExpiredAndCanBePinned() =
         runBlocking<Unit> {
             val now = System.currentTimeMillis()
-            val cert = selfSignedFor(NAS, notBefore = now - TimeUnit.DAYS.toMillis(10), notAfter = now - TimeUnit.DAYS.toMillis(5))
+            val ended = now - TimeUnit.DAYS.toMillis(5)
+            val cert = selfSignedFor(NAS, notBefore = now - TimeUnit.DAYS.toMillis(10), notAfter = ended)
             val server = TlsServer(cert).closing()
             val adapter = adapter(clients())
 
             val refused = adapter.discover("$NAS:${server.port}")
-            assertTrue(refused.errorOrNull().toString(), refused.errorOrNull() is MediaServerError.TlsCertificateExpired)
+            val error = refused.errorOrNull()
+            assertTrue(error.toString(), error is MediaServerError.TlsCertificateExpired)
             val seen = assertNotNull(evidenceOf(refused))
             assertTrue(seen.selfSigned)
 
@@ -299,7 +302,8 @@ class PinnedTrustOnApi25Test {
 
             val trusted = adapter.trust("$NAS:${server.port}", shown)
 
-            assertTrue(trusted.errorOrNull().toString(), trusted.errorOrNull() is MediaServerError.TlsCertificateChanged)
+            val error = trusted.errorOrNull()
+            assertTrue(error.toString(), error is MediaServerError.TlsCertificateChanged)
             assertEquals(spkiOf(cert), assertNotNull(evidenceOf(trusted)).spki)
             assertTrue(server.requests.isEmpty())
             assertTrue(adapter.discover("$NAS:${server.port}").errorOrNull() is MediaServerError.TlsUntrusted)
