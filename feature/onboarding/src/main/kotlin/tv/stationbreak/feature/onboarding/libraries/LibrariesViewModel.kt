@@ -180,7 +180,13 @@ internal class LibrariesViewModel
             return settings.saveLibraries(ids) || (storable && settings.saveLibraries(ids))
         }
 
-        fun onBack(leave: () -> Unit) = leave()
+        /**
+         * Back: calls [leave] unless the choice is being stored. A Back mid-save would push the previous screen only
+         * for [LibrariesEvent.Finished] to replace it.
+         */
+        fun onBack(leave: () -> Unit) {
+            if (mutableState.value.phase != LibrariesPhase.Saving) leave()
+        }
 
         /** Retry, after a failed listing or when there is nothing to choose from: asks the server again. */
         fun onRetry() {
