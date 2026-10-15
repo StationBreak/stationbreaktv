@@ -141,7 +141,12 @@ class SignInNavigationTest {
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
+        awaitFocused(ServerTags.CONTINUE)
+    }
+
+    /** The Test runs off the main thread; on a cold emulator its result can land after the idle check. */
+    private fun awaitFocused(tag: String) {
+        compose.waitUntil(BACK_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
     }
 
     @Test
@@ -163,7 +168,7 @@ class SignInNavigationTest {
         press(KeyEvent.KEYCODE_BACK)
 
         compose.onNodeWithTag(ServerTags.FIELD).assert(hasText("jellyfin.example.test"))
-        compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
+        awaitFocused(ServerTags.CONTINUE)
         compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()
     }
 
@@ -211,7 +216,7 @@ class SignInNavigationTest {
         // The cleartext dialog opens on Cancel; Right reaches "Connect anyway".
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
+        awaitFocused(ServerTags.CONTINUE)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
 
         compose.onNodeWithTag(SignInTags.NOT_ENCRYPTED).assertExists()
