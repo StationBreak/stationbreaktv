@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.tv.material3.MaterialTheme
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -17,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.tv.material3.MaterialTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -206,7 +206,11 @@ class TrustScreenTest {
 
     private fun Int.isCloseTo(color: Color): Boolean {
         val expected = color.toArgb()
-        fun channel(value: Int, shift: Int) = (value shr shift) and 0xFF
+
+        fun channel(
+            value: Int,
+            shift: Int,
+        ) = (value shr shift) and 0xFF
         return listOf(0, 8, 16).all { kotlin.math.abs(channel(this, it) - channel(expected, it)) <= COLOUR_SLACK }
     }
 

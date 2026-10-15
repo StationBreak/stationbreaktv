@@ -29,7 +29,6 @@ internal class DiskBlobFiles(
 ) : BlobFiles {
     private val dir: File by lazy(dirProvider)
 
-
     override fun read(name: String): ByteArray? =
         try {
             AtomicFile(File(dir, name)).readFully()

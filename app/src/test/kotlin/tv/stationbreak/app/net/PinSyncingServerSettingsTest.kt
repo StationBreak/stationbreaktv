@@ -162,7 +162,11 @@ class PinSyncingServerSettingsTest {
                 (0 until RACE_CALLS)
                     .map { i ->
                         async(Dispatchers.Default) {
-                            if ((i + round) % 2 == 0) racing.save(ServerRecord(address, pins[i % 2])) else racing.clearPin()
+                            if ((i + round) % 2 == 0) {
+                                racing.save(ServerRecord(address, pins[i % 2]))
+                            } else {
+                                racing.clearPin()
+                            }
                         }
                     }.awaitAll()
 

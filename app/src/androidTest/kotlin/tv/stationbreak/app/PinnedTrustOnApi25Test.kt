@@ -206,8 +206,7 @@ class PinnedTrustOnApi25Test {
             .execute()
             .use { it.code }
 
-    private fun causeNames(error: Throwable): List<String> =
-        generateSequence(error) { it.cause }.map { it.javaClass.simpleName }.toList()
+    private fun causeNames(error: Throwable): List<String> = generateSequence(error) { it.cause }.map { it.javaClass.simpleName }.toList()
 
     private fun evidenceOf(result: ServerResult<*>): CertificateEvidence? =
         when (val error = result.errorOrNull()) {
