@@ -9,6 +9,9 @@ package tv.stationbreak.core.model
  *  - a JSON pair, plain or escaped (`{\"k\":\"v\"}`), with a string or bare value; a string with no closing quote
  *    is masked to the end of the input. The JSON key may contain a name anywhere (`NewPw`, `access_token`).
  *  - `Bearer VALUE`, wherever it appears
+ *  - a certificate fingerprint (spec 05, Unit 3): OkHttp's `sha256/BASE64` as it prints it in a hostname failure, 64
+ *    hex digits, and the same grouped in fours or twos with spaces, dashes or colons. A fingerprint is not a
+ *    credential, but nothing logs one.
  * The name `api_key` also matches `api%5Fkey`, and the `=` separator also matches `%3D`.
  *
  * The `=` form of `Authorization` and `X-Emby-Authorization` masks to the next `,`, `}`, `&`, quote or line end,
@@ -54,6 +57,12 @@ object Redactor {
 
     private val bearer = Regex("\\bBearer\\s+\\S+", RegexOption.IGNORE_CASE)
 
+    // Fixed repeat counts only, so each is linear in the input.
+    private val sha256Pin = Regex("\\bsha256/[A-Za-z0-9+/_-]+={0,2}", RegexOption.IGNORE_CASE)
+    private val hexFingerprint = Regex("\\b[0-9A-Fa-f]{64}\\b")
+    private val groupedFingerprint =
+        Regex("\\b(?:[0-9A-Fa-f]{4}[ :-]){15}[0-9A-Fa-f]{4}\\b|\\b(?:[0-9A-Fa-f]{2}[ :-]){31}[0-9A-Fa-f]{2}\\b")
+
     fun redact(text: String): String {
         if (text.isEmpty()) return text
         var out = text
@@ -63,6 +72,9 @@ object Redactor {
         out = query.replace(out) { it.groupValues[1] + MASK }
         out = headerLine.replace(out) { it.groupValues[1] + MASK }
         out = bearer.replace(out) { "Bearer $MASK" }
+        out = sha256Pin.replace(out) { "sha256/$MASK" }
+        out = hexFingerprint.replace(out, MASK)
+        out = groupedFingerprint.replace(out, MASK)
         return out
     }
 

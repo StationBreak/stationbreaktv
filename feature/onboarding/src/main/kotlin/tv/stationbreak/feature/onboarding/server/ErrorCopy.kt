@@ -5,7 +5,10 @@ import androidx.annotation.StringRes
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.feature.onboarding.R
 
-/** How an error is grouped on the screen. TLS is placeholder copy until the trust screen (Unit 3). */
+/**
+ * How an error is grouped on the screen. A TLS error here is a dead end: the trust screen (Unit 3) takes a self-signed
+ * certificate before it gets this far, so these offer Edit address only.
+ */
 internal enum class ErrorGroup { Network, NotUsable, Address, Tls, Other }
 
 /** The one next step an error offers (decision 5). Network errors also offer a second, [ErrorAction.EditAddress]. */
@@ -65,6 +68,16 @@ internal object ErrorCopyTable {
             ErrorAction.EditAddress,
         )
 
+    /** The user trusted a certificate but it could not be saved, so nothing is connected (not a [MediaServerError]). */
+    val trustNotSaved =
+        ErrorCopy(
+            R.string.error_trust_not_saved_message,
+            R.string.error_trust_not_saved_details,
+            ErrorGroup.Other,
+            ErrorAction.Retry,
+            ErrorAction.EditAddress,
+        )
+
     val entries: Map<Class<out MediaServerError>, ErrorCopy> =
         mapOf(
             MediaServerError.DnsFailure::class.java to network(R.string.error_dns_message, R.string.error_dns_details),
@@ -95,6 +108,10 @@ internal object ErrorCopyTable {
                 tls(R.string.error_tls_hostname_message, R.string.error_tls_hostname_details),
             MediaServerError.TlsCertificateExpired::class.java to
                 tls(R.string.error_tls_expired_message, R.string.error_tls_expired_details),
+            MediaServerError.TlsCertificateNotYetValid::class.java to
+                tls(R.string.error_tls_not_yet_valid_message, R.string.error_tls_not_yet_valid_details),
+            MediaServerError.TlsCertificateChanged::class.java to
+                tls(R.string.error_tls_changed_message, R.string.error_tls_changed_details),
             MediaServerError.TlsHandshakeFailed::class.java to
                 tls(R.string.error_tls_handshake_message, R.string.error_tls_handshake_details),
             MediaServerError.NotTls::class.java to tls(R.string.error_not_tls_message, R.string.error_not_tls_details),

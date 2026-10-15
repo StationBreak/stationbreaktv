@@ -3,6 +3,8 @@ package tv.stationbreak.data.jellyfin
 
 import org.jellyfin.sdk.api.client.exception.SecureConnectionException
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.data.jellyfin.trust.CertificateRejectedException
+import tv.stationbreak.data.jellyfin.trust.Rejection
 import java.security.cert.CertPathBuilderException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.CertificateException
@@ -20,10 +22,32 @@ internal object TlsErrors {
         chain: List<Throwable>,
         names: List<String>,
     ): MediaServerError? =
+        chain.filterIsInstance<CertificateRejectedException>().firstOrNull()?.let { rejected(it, names) }
+            ?: mapGeneric(chain, names)
+
+    // The pinning trust manager saw the leaf and said why it was refused; that beats anything the stack wrapped it in.
+    private fun rejected(
+        error: CertificateRejectedException,
+        names: List<String>,
+    ): MediaServerError =
+        when (error.kind) {
+            Rejection.Untrusted -> MediaServerError.TlsUntrusted(names, error.evidence)
+            Rejection.HostnameMismatch -> MediaServerError.TlsHostnameMismatch(names, error.evidence)
+            Rejection.Expired -> MediaServerError.TlsCertificateExpired(names, error.evidence)
+            Rejection.NotYetValid -> MediaServerError.TlsCertificateNotYetValid(names, error.evidence)
+            Rejection.Changed -> MediaServerError.TlsCertificateChanged(names, error.evidence)
+        }
+
+    private fun mapGeneric(
+        chain: List<Throwable>,
+        names: List<String>,
+    ): MediaServerError? =
         when {
             chain.none(::isTlsRelated) -> null
 
-            chain.any(::isExpired) -> MediaServerError.TlsCertificateExpired(names)
+            chain.any(::isNotYetValid) && chain.none(::isExpired) -> MediaServerError.TlsCertificateNotYetValid(names)
+
+            chain.any(::isExpired) || chain.any(::isNotYetValid) -> MediaServerError.TlsCertificateExpired(names)
 
             chain.any { it is SSLPeerUnverifiedException } -> MediaServerError.TlsHostnameMismatch(names)
 
@@ -44,9 +68,11 @@ internal object TlsErrors {
 
     private fun isExpired(error: Throwable): Boolean =
         error is CertificateExpiredException ||
-            error is CertificateNotYetValidException ||
-            (error as? CertPathValidatorException)?.reason in
-            listOf(CertPathValidatorException.BasicReason.EXPIRED, CertPathValidatorException.BasicReason.NOT_YET_VALID)
+            (error as? CertPathValidatorException)?.reason == CertPathValidatorException.BasicReason.EXPIRED
+
+    private fun isNotYetValid(error: Throwable): Boolean =
+        error is CertificateNotYetValidException ||
+            (error as? CertPathValidatorException)?.reason == CertPathValidatorException.BasicReason.NOT_YET_VALID
 
     private fun isUntrusted(error: Throwable): Boolean =
         error is CertPathValidatorException ||

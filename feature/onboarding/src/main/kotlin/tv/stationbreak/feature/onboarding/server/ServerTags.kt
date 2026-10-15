@@ -14,6 +14,7 @@ object ServerTags {
     const val ERROR_PANEL = "server:errorPanel"
     const val RETRY = "server:retry"
     const val EDIT_ADDRESS = "server:editAddress"
+    const val NOT_TRUSTED = "server:notTrusted"
     const val CLEARTEXT_CANCEL = "server:cleartextCancel"
     const val CLEARTEXT_CONFIRM = "server:cleartextConfirm"
 }

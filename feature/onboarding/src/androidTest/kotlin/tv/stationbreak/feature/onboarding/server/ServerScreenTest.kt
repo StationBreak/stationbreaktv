@@ -29,16 +29,23 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.trust.CertificateTrust
+import tv.stationbreak.feature.onboarding.trust.TrustTags
 
 /** A [MediaServer] whose `discover` can be held open. */
 private class GatedServer(
@@ -69,7 +76,9 @@ class ServerScreenTest {
     private lateinit var viewModel: ServerViewModel
 
     private fun launch() {
-        viewModel = ServerViewModel(server, ServerHandOff())
+        val settings = InMemoryServerSettings()
+        val certificateTrust = CertificateTrust(server, settings, SessionRepository(InMemorySecretStore(), server))
+        viewModel = ServerViewModel(server, ServerHandOff(), settings, certificateTrust)
         compose.setContent {
             StationBreakTheme {
                 val state by viewModel.state.collectAsState()
@@ -81,6 +90,8 @@ class ServerScreenTest {
                     onEditAddress = viewModel::onEditAddress,
                     onConfirmCleartext = viewModel::onConfirmCleartext,
                     onDismissCleartext = viewModel::onDismissCleartext,
+                    onTrustCertificate = viewModel::onTrustCertificate,
+                    onDontTrust = viewModel::onDontTrust,
                     onContinue = { continued += it },
                 )
             }
@@ -282,6 +293,107 @@ class ServerScreenTest {
         compose.onNodeWithTag(ServerTags.NOT_ENCRYPTED).assertDoesNotExist()
     }
 
+    // --- the trust screen inside the server screen (spec 05, Unit 3) ---
+
+    private val spki = SpkiPin(ByteArray(SpkiPin.SIZE) { (it + 1).toByte() })
+    private val selfSigned =
+        CertificateEvidence(spki, selfSigned = true, notBeforeMillis = 1_700_000L, notAfterMillis = 1_800_000L)
+
+    private fun untrusted(certificate: CertificateEvidence = selfSigned) =
+        ServerResult.Failure(MediaServerError.TlsUntrusted(certificate = certificate))
+
+    /** The trust screen is a window of its own and a cold emulator is slow to focus it: wait before each key. */
+    private fun awaitFocused(tag: String) {
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+    }
+
+    @Test
+    fun aSelfSignedCertificateOpensTheTrustScreenWithDontTrustFocused() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
+        compose.onNodeWithTag(TrustTags.SCREEN).assertExists()
+        compose.onNodeWithTag(TrustTags.SERVER_ADDRESS).assert(hasText("Server: jellyfin.example.test"))
+        assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun dontTrustShowsTheNotConnectedNoticeWithTheAddressKeptAndTestFocused() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitFocused(ServerTags.TEST)
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithTag(ServerTags.NOT_TRUSTED).assertExists()
+        compose.onNodeWithText("Not connected. You didn’t trust this server’s certificate.").assertExists()
+        assertEquals("jellyfin.example.test", viewModel.state.value.input)
+        assertEquals(ServerPhase.NotTrusted, viewModel.state.value.phase)
+        assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun theNotConnectedNoticeIsGoneAfterTheNextEditOrTest() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
+        press(KeyEvent.KEYCODE_BACK)
+        awaitFocused(ServerTags.TEST)
+        compose.onNodeWithTag(ServerTags.NOT_TRUSTED).assertExists()
+        compose.runOnIdle { viewModel.onInputChange("jellyfin.example.test:8921") }
+        compose.onNodeWithTag(ServerTags.NOT_TRUSTED).assertDoesNotExist()
+    }
+
+    @Test
+    fun backOnTheTrustScreenIsDontTrust() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
+        press(KeyEvent.KEYCODE_BACK)
+        awaitFocused(ServerTags.TEST)
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        assertEquals(ServerPhase.NotTrusted, viewModel.state.value.phase)
+        assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun trustingPinsTheCapturedSpkiAndLandsOnContinue() {
+        server.fake.discoverResult = untrusted()
+        server.fake.trustResult = found()
+        launch()
+        typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        awaitFocused(TrustTags.TRUST)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitFocused(ServerTags.CONTINUE)
+        assertEquals(listOf("jellyfin.example.test" to spki), server.fake.trustCalls)
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+    }
+
+    @Test
+    fun aCaChainedCertificateIsADeadEndWithNoTrustScreen() {
+        server.fake.discoverResult = untrusted(selfSigned.copy(selfSigned = false))
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithTag(ServerTags.ERROR_PANEL).assertExists()
+        compose.onNodeWithTag(ServerTags.EDIT_ADDRESS).assertIsFocused()
+    }
+
+    @Test
+    fun aHandshakeFailureHasNoTrustOption() {
+        server.fake.discoverResult = ServerResult.Failure(MediaServerError.TlsHandshakeFailed())
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithTag(ServerTags.ERROR_PANEL).assertExists()
+    }
+
     @Test
     fun backFromTheRootScreenExitsTheApp() {
         launch()
@@ -293,5 +405,9 @@ class ServerScreenTest {
             Thread.sleep(50)
         }
         assertEquals(Lifecycle.State.DESTROYED, scenario.state)
+    }
+
+    private companion object {
+        const val FOCUS_TIMEOUT_MS = 10_000L
     }
 }
