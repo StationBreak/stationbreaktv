@@ -29,16 +29,23 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.trust.CertificateTrust
+import tv.stationbreak.feature.onboarding.trust.TrustTags
 
 /** A [MediaServer] whose `discover` can be held open. */
 private class GatedServer(
@@ -69,7 +76,9 @@ class ServerScreenTest {
     private lateinit var viewModel: ServerViewModel
 
     private fun launch() {
-        viewModel = ServerViewModel(server, ServerHandOff())
+        val settings = InMemoryServerSettings()
+        val certificateTrust = CertificateTrust(server, settings, SessionRepository(InMemorySecretStore(), server))
+        viewModel = ServerViewModel(server, ServerHandOff(), settings, certificateTrust)
         compose.setContent {
             StationBreakTheme {
                 val state by viewModel.state.collectAsState()
@@ -81,6 +90,8 @@ class ServerScreenTest {
                     onEditAddress = viewModel::onEditAddress,
                     onConfirmCleartext = viewModel::onConfirmCleartext,
                     onDismissCleartext = viewModel::onDismissCleartext,
+                    onTrustCertificate = viewModel::onTrustCertificate,
+                    onDontTrust = viewModel::onDontTrust,
                     onContinue = { continued += it },
                 )
             }
@@ -280,6 +291,82 @@ class ServerScreenTest {
         launch()
         typeAndTest()
         compose.onNodeWithTag(ServerTags.NOT_ENCRYPTED).assertDoesNotExist()
+    }
+
+    // --- the trust screen inside the server screen (spec 05, Unit 3) ---
+
+    private val spki = SpkiPin(ByteArray(SpkiPin.SIZE) { (it + 1).toByte() })
+    private val selfSigned =
+        CertificateEvidence(spki, selfSigned = true, notBeforeMillis = 1_700_000L, notAfterMillis = 1_800_000L)
+
+    private fun untrusted(certificate: CertificateEvidence = selfSigned) =
+        ServerResult.Failure(MediaServerError.TlsUntrusted(certificate = certificate))
+
+    @Test
+    fun aSelfSignedCertificateOpensTheTrustScreenWithDontTrustFocused() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(TrustTags.SCREEN).assertExists()
+        compose.onNodeWithTag(TrustTags.DONT_TRUST).assertIsFocused()
+        assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun dontTrustGoesBackToTheServerScreenWithTheAddressKeptAndTestFocused() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithTag(ServerTags.TEST).assertIsFocused()
+        assertEquals("jellyfin.example.test", viewModel.state.value.input)
+        assertEquals(ServerPhase.Idle, viewModel.state.value.phase)
+        assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun backOnTheTrustScreenIsDontTrust() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        assertEquals(ServerPhase.Idle, viewModel.state.value.phase)
+        assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun trustingPinsTheCapturedSpkiAndLandsOnContinue() {
+        server.fake.discoverResult = untrusted()
+        server.fake.trustResult = found()
+        launch()
+        typeAndTest()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag(TrustTags.TRUST).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        assertEquals(listOf("jellyfin.example.test" to spki), server.fake.trustCalls)
+        compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+    }
+
+    @Test
+    fun aCaChainedCertificateIsADeadEndWithNoTrustScreen() {
+        server.fake.discoverResult = untrusted(selfSigned.copy(selfSigned = false))
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithTag(ServerTags.ERROR_PANEL).assertExists()
+        compose.onNodeWithTag(ServerTags.EDIT_ADDRESS).assertIsFocused()
+    }
+
+    @Test
+    fun aHandshakeFailureHasNoTrustOption() {
+        server.fake.discoverResult = ServerResult.Failure(MediaServerError.TlsHandshakeFailed())
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithTag(ServerTags.ERROR_PANEL).assertExists()
     }
 
     @Test

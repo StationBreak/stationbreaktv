@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,11 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.feature.onboarding.trust.CertificateTrust
+import tv.stationbreak.feature.onboarding.trust.TrustPrompt
+import tv.stationbreak.feature.onboarding.trust.toTrustPrompt
 import javax.inject.Inject
 
 /** A server that answered a Test, and the acknowledgement the user gave for cleartext to it, if one was needed. */
@@ -51,6 +56,16 @@ internal sealed interface ServerPhase {
         val server: ResolvedServer,
         val acknowledgement: CleartextAcknowledgement?,
     ) : ServerPhase
+
+    /**
+     * A self-signed certificate (or a changed one) the user may trust or refuse (spec 05, Unit 3). [input] is the text
+     * the failed Test used, so the pin is made for exactly that address. The state holds [prompt], whose `toString`
+     * shows nothing of the certificate.
+     */
+    data class TrustRequired(
+        val input: String,
+        val prompt: TrustPrompt,
+    ) : ServerPhase
 }
 
 internal data class ServerUiState(
@@ -58,13 +73,20 @@ internal data class ServerUiState(
     val phase: ServerPhase = ServerPhase.Idle,
 )
 
-/** The server screen (S0.5.1): tests the typed address with [MediaServer.discover] and explains what came back. */
+/**
+ * The server screen (S0.5.1): tests the typed address with [MediaServer.discover] and explains what came back. A
+ * self-signed certificate becomes a question for the user (S0.5.2): [onTrustCertificate] pins the SPKI the failed
+ * handshake carried and probes again before anything goes on; [onDontTrust] leaves things as they were.
+ */
 @HiltViewModel
+@Suppress("TooManyFunctions") // The screen's actions, one function each, like SignInViewModel.
 internal class ServerViewModel
     @Inject
     constructor(
         private val mediaServer: MediaServer,
         private val handOff: ServerHandOff,
+        private val settings: ServerSettings,
+        private val certificateTrust: CertificateTrust,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow(ServerUiState())
         val state: StateFlow<ServerUiState> = mutableState.asStateFlow()
@@ -73,6 +95,8 @@ internal class ServerViewModel
 
         fun onInputChange(text: String) {
             testJob?.cancel()
+            // Another address is another server: a pin is for one exact address and goes with the edit.
+            if (text != mutableState.value.input) clearPin()
             mutableState.value = ServerUiState(input = text)
         }
 
@@ -86,14 +110,22 @@ internal class ServerViewModel
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
             testJob =
                 viewModelScope.launch {
-                    val result = mediaServer.discover(typed)
-                    // A cancelled Test may still return a result if the callee ignores cancellation. Drop it, and
-                    // drop it too if the screen has moved on from Testing (a newer Test, typing, Edit address).
-                    ensureActive()
-                    mutableState.update {
-                        if (it.phase == ServerPhase.Testing) it.copy(phase = phaseFor(result)) else it
-                    }
+                    // A new Test starts without a pin: the certificate is asked about again, never assumed.
+                    settings.clearPin()
+                    finish(typed, mediaServer.discover(typed))
                 }
+        }
+
+        // A cancelled attempt may still return a result if the callee ignores cancellation. Drop it, and drop it too if
+        // the screen has moved on from Testing (a newer Test, typing, Edit address).
+        private suspend fun finish(
+            typed: String,
+            result: ServerResult<ResolvedServer>,
+        ) {
+            currentCoroutineContext().ensureActive()
+            mutableState.update {
+                if (it.phase == ServerPhase.Testing) it.copy(phase = phaseFor(typed, result)) else it
+            }
         }
 
         fun onCancel() {
@@ -105,7 +137,30 @@ internal class ServerViewModel
         /** Edit address: back to a quiet screen, with the typed text kept. */
         fun onEditAddress() {
             testJob?.cancel()
+            clearPin()
             mutableState.update { it.copy(phase = ServerPhase.Idle) }
+        }
+
+        /**
+         * Trust this certificate: pins the SPKI the failed handshake carried, and probes the address afresh on the
+         * client that now trusts it. Nothing is stored unless that probe succeeds, and no credential is involved.
+         */
+        fun onTrustCertificate() {
+            val asked = mutableState.value.phase as? ServerPhase.TrustRequired ?: return
+            mutableState.update { it.copy(phase = ServerPhase.Testing) }
+            testJob =
+                viewModelScope.launch {
+                    finish(asked.input, certificateTrust.confirm(asked.input, asked.prompt))
+                }
+        }
+
+        /** Don't trust, and Back from the trust screen: nothing was pinned, so this only goes back to the address. */
+        fun onDontTrust() {
+            if (mutableState.value.phase is ServerPhase.TrustRequired) onEditAddress()
+        }
+
+        private fun clearPin() {
+            viewModelScope.launch { settings.clearPin() }
         }
 
         fun onConfirmCleartext() {
@@ -122,7 +177,10 @@ internal class ServerViewModel
         /** Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]). */
         fun onContinue(server: ConnectedServer) = handOff.put(server)
 
-        private fun phaseFor(result: ServerResult<ResolvedServer>): ServerPhase =
+        private fun phaseFor(
+            typed: String,
+            result: ServerResult<ResolvedServer>,
+        ): ServerPhase =
             when (result) {
                 is ServerResult.Success -> {
                     val server = result.value
@@ -135,10 +193,11 @@ internal class ServerViewModel
 
                 is ServerResult.Failure -> {
                     val copy = ErrorCopyTable.copyFor(result.error)
-                    if (result.error is MediaServerError.InvalidAddress) {
-                        ServerPhase.InvalidInput(copy)
-                    } else {
-                        ServerPhase.Failed(result.error, copy)
+                    val prompt = result.error.toTrustPrompt()
+                    when {
+                        prompt != null -> ServerPhase.TrustRequired(typed, prompt)
+                        result.error is MediaServerError.InvalidAddress -> ServerPhase.InvalidInput(copy)
+                        else -> ServerPhase.Failed(result.error, copy)
                     }
                 }
             }

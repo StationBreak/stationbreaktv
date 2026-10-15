@@ -70,13 +70,17 @@
     <string name="error_invalid_address_message">That doesn’t look like a server address. Use a name or an IP address, with a port if the server needs one.</string>
     <string name="error_invalid_address_details">Address not valid</string>
 
-    <!-- Error table: TLS. Placeholder wording until the trust screen (Unit 3): no trust option is offered yet. -->
+    <!-- Error table: TLS. A dead end: a self-signed certificate gets the trust screen instead, so no trust option is offered here. -->
     <string name="error_tls_untrusted_message">This TV doesn’t trust the server’s security certificate.</string>
     <string name="error_tls_untrusted_details">Certificate not trusted</string>
     <string name="error_tls_hostname_message">The server’s security certificate is for a different name than the one you typed.</string>
     <string name="error_tls_hostname_details">Certificate name mismatch</string>
-    <string name="error_tls_expired_message">The server’s security certificate has expired, or this TV’s date and time are wrong.</string>
-    <string name="error_tls_expired_details">Certificate expired or not yet valid</string>
+    <string name="error_tls_expired_message">The server’s security certificate has expired, or this TV’s date and time are wrong. Renew the certificate on the server, or check the TV’s date and time.</string>
+    <string name="error_tls_expired_details">Certificate expired</string>
+    <string name="error_tls_not_yet_valid_message">The server’s security certificate isn’t valid yet. Check this TV’s date and time, and the server’s.</string>
+    <string name="error_tls_not_yet_valid_details">Certificate not yet valid</string>
+    <string name="error_tls_changed_message">The server’s security certificate is different from the one this TV trusted before, and it can’t be verified. Check the certificate on the server.</string>
+    <string name="error_tls_changed_details">Certificate changed</string>
     <string name="error_tls_handshake_message">This TV could not set up a secure connection. The server may use security settings this TV can’t use.</string>
     <string name="error_tls_handshake_details">Secure connection failed</string>
     <string name="error_not_tls_message">That address starts with https, but the server isn’t using encryption on that port. Check the port.</string>
@@ -125,6 +129,20 @@
     <string name="quick_connect_expired_details">Quick Connect code expired</string>
     <string name="quick_connect_denied">The sign-in was declined on the other device. Choose Quick Connect to get a new code.</string>
     <string name="quick_connect_denied_details">Quick Connect declined</string>
+
+    <!-- The trust screen (spec 05, Unit 3, Angua): the warning, then the fingerprint, then the buttons. Don't trust has default focus and is what Back means. -->
+    <string name="trust_title">Trust this server’s certificate?</string>
+    <string name="trust_title_changed">This server’s certificate has changed</string>
+    <string name="trust_warning_untrusted">This TV can’t check this server’s security certificate. The server signed it itself, and no certificate authority vouches for it. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_hostname">This certificate is for a different name than the address you typed, and the server signed it itself. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_expired">This certificate expired on %1$s, and the server signed it itself. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_not_yet_valid">This certificate isn’t valid until %1$s, or this TV’s date and time are wrong. The server signed it itself. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_changed">The server’s certificate is different from the one you trusted before. If you didn’t change it, someone may be intercepting the connection. Only trust the new one if you replaced it yourself.</string>
+    <string name="trust_fingerprint_label">SPKI SHA-256 fingerprint</string>
+    <string name="trust_fingerprint_note">This fingerprint is of the certificate’s public key, so it differs from the one a web browser shows.</string>
+    <string name="trust_validity">Valid from %1$s to %2$s</string>
+    <string name="trust_dont_trust">Don’t trust</string>
+    <string name="trust_trust">Trust this certificate</string>
 
     <!-- Prefix of the details line when the technical cause is known. -->
     <string name="error_details_with_cause">%1$s (%2$s)</string>

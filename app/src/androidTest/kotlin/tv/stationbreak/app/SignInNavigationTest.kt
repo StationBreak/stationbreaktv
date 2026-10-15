@@ -40,10 +40,12 @@ import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.Scheme
@@ -63,6 +65,7 @@ import javax.inject.Singleton
 private object Scripted {
     val server = FakeMediaServer()
     val store = InMemorySecretStore()
+    val settings = InMemoryServerSettings()
 }
 
 /**
@@ -95,6 +98,10 @@ class SignInNavigationTest {
         @Provides
         @Singleton
         fun secretStore(): SecretStore = Scripted.store
+
+        @Provides
+        @Singleton
+        fun serverSettings(): ServerSettings = Scripted.settings
 
         @Provides
         @Singleton

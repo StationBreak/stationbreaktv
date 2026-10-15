@@ -15,6 +15,10 @@ class InMemoryServerSettings(
     /** Every record saved, in order. */
     val saved = mutableListOf<ServerRecord>()
 
+    /** How many times [clearPin] was called, whether or not there was a pin to drop. */
+    var clearPinCalls = 0
+        private set
+
     /** How many times [clearPin] actually dropped a pin. */
     var pinsCleared = 0
         private set
@@ -31,6 +35,7 @@ class InMemoryServerSettings(
     }
 
     override suspend fun clearPin(): Boolean {
+        clearPinCalls++
         val held = record ?: return true
         if (held.pin == null) return true
         if (failSave) return false

@@ -58,6 +58,7 @@ import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.HINT_ALPHA
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.TvTextField
+import tv.stationbreak.feature.onboarding.trust.TrustScreen
 
 // Sizes only this screen uses.
 private val HeadlineSize = 40.sp
@@ -81,6 +82,8 @@ fun ServerDestination(onContinue: () -> Unit) {
         onEditAddress = viewModel::onEditAddress,
         onConfirmCleartext = viewModel::onConfirmCleartext,
         onDismissCleartext = viewModel::onDismissCleartext,
+        onTrustCertificate = viewModel::onTrustCertificate,
+        onDontTrust = viewModel::onDontTrust,
         onContinue = { connected ->
             // The server goes to sign-in in memory (see ServerHandOff), never through the route or saved state.
             viewModel.onContinue(connected)
@@ -100,6 +103,8 @@ internal fun ServerScreen(
     onEditAddress: () -> Unit,
     onConfirmCleartext: () -> Unit,
     onDismissCleartext: () -> Unit,
+    onTrustCertificate: () -> Unit,
+    onDontTrust: () -> Unit,
     onContinue: (ConnectedServer) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -187,6 +192,10 @@ internal fun ServerScreen(
             onCancel = onDismissCleartext,
         )
     }
+    if (phase is ServerPhase.TrustRequired) {
+        // Its own screen over this one: Don't trust has default focus, and Back is Don't trust (spec 05, Unit 3).
+        TrustScreen(prompt = phase.prompt, onTrust = onTrustCertificate, onDontTrust = onDontTrust)
+    }
 }
 
 /** The focus targets on the server screen. */
@@ -219,7 +228,7 @@ private fun FocusFollowsPhase(
             is ServerPhase.Failed -> focus.action.requestFocus()
             is ServerPhase.InvalidInput -> focus.field.requestFocus()
             ServerPhase.Idle -> focusAfterIdle(previous, focus)
-            is ServerPhase.ConfirmCleartext -> Unit
+            is ServerPhase.ConfirmCleartext, is ServerPhase.TrustRequired -> Unit
         }
     }
 }
@@ -230,7 +239,12 @@ private fun focusAfterIdle(
 ) {
     when (previous) {
         null -> focus.field.requestFocus()
-        ServerPhase.Testing::class.java, ServerPhase.ConfirmCleartext::class.java -> focus.test.requestFocus()
+
+        ServerPhase.Testing::class.java,
+        ServerPhase.ConfirmCleartext::class.java,
+        ServerPhase.TrustRequired::class.java,
+        -> focus.test.requestFocus()
+
         else -> Unit
     }
 }

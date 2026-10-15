@@ -5,7 +5,10 @@ import androidx.annotation.StringRes
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.feature.onboarding.R
 
-/** How an error is grouped on the screen. TLS is placeholder copy until the trust screen (Unit 3). */
+/**
+ * How an error is grouped on the screen. A TLS error here is a dead end: the trust screen (Unit 3) takes a self-signed
+ * certificate before it gets this far, so these offer Edit address only.
+ */
 internal enum class ErrorGroup { Network, NotUsable, Address, Tls, Other }
 
 /** The one next step an error offers (decision 5). Network errors also offer a second, [ErrorAction.EditAddress]. */
@@ -95,6 +98,10 @@ internal object ErrorCopyTable {
                 tls(R.string.error_tls_hostname_message, R.string.error_tls_hostname_details),
             MediaServerError.TlsCertificateExpired::class.java to
                 tls(R.string.error_tls_expired_message, R.string.error_tls_expired_details),
+            MediaServerError.TlsCertificateNotYetValid::class.java to
+                tls(R.string.error_tls_not_yet_valid_message, R.string.error_tls_not_yet_valid_details),
+            MediaServerError.TlsCertificateChanged::class.java to
+                tls(R.string.error_tls_changed_message, R.string.error_tls_changed_details),
             MediaServerError.TlsHandshakeFailed::class.java to
                 tls(R.string.error_tls_handshake_message, R.string.error_tls_handshake_details),
             MediaServerError.NotTls::class.java to tls(R.string.error_not_tls_message, R.string.error_not_tls_details),

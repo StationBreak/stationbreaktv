@@ -26,10 +26,7 @@ internal class DiskRecordFile(
         }
 
     override fun write(text: String) {
-        val directory = file.parentFile
-        if (directory != null && !directory.isDirectory && !directory.mkdirs() && !directory.isDirectory) {
-            throw IOException("cannot create the settings directory")
-        }
+        file.parentFile?.let(::ensureDirectory)
         val atomic = AtomicFile(file)
         val out = atomic.startWrite()
         try {
@@ -41,6 +38,12 @@ internal class DiskRecordFile(
             // Whatever went wrong, never leave a half-written file behind.
             atomic.failWrite(out)
             throw e
+        }
+    }
+
+    private fun ensureDirectory(directory: File) {
+        if (!directory.isDirectory && !directory.mkdirs() && !directory.isDirectory) {
+            throw IOException("cannot create the settings directory")
         }
     }
 }

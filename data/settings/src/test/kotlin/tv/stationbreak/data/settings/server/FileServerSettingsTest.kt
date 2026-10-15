@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.server
 
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,6 +13,7 @@ import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import java.io.IOException
+import java.util.concurrent.Executor
 
 /** The stored record behind the [tv.stationbreak.core.domain.ServerSettings] port, with the file faked. */
 class FileServerSettingsTest {
@@ -30,8 +31,10 @@ class FileServerSettingsTest {
         }
     }
 
+    // The caller's own thread: the faked file does no I/O.
+    private val inPlace = Executor(Runnable::run).asCoroutineDispatcher()
     private val file = MemoryFile()
-    private val settings = FileServerSettings(file, Dispatchers.Unconfined)
+    private val settings = FileServerSettings(file, inPlace)
     private val address = ServerAddress(Scheme.Https, "nas.example.test", 8920)
     private val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 11 })
 
@@ -42,7 +45,7 @@ class FileServerSettingsTest {
     fun aSavedRecordLoadsBackThroughANewStoreOnTheSameFile() =
         runBlocking {
             assertTrue(settings.save(ServerRecord(address, pin)))
-            val rebuilt = FileServerSettings(file, Dispatchers.Unconfined)
+            val rebuilt = FileServerSettings(file, inPlace)
             assertEquals(ServerRecord(address, pin), rebuilt.load())
         }
 
