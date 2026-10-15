@@ -248,10 +248,12 @@ jobs:
       - name: KMP tests with no Android SDK
         run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:model:jvmTest :core:scheduler:jvmTest
 
+      # No assembleAmazonDebug: nothing uploads or inspects that APK, and `check` already compiles, lints and
+      # unit-tests the variant. Its dex merge was the slowest task in the job.
       - name: Check and assemble
         run: >-
           ./gradlew check
-          assembleAmazonDebug assembleAmazonRelease
+          assembleAmazonRelease
           assembleGithubDebug assembleGithubRelease
           --continue
 
