@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         Debug builds only, for now: the instrumented tests open sockets (F0.3 task 1.16) and the on-device probe
@@ -7,5 +8,20 @@
         INTERNET with the first screen that reaches a server (F0.5).
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+        <!--
+            The host for tests that set their own content under Hilt (SignInNavigationTest). Landscape and no
+            recreation on orientation or keyboard changes, for the reason in
+            feature/onboarding/src/androidTest/AndroidManifest.xml: CI's API 25 emulator starts in portrait, rotates,
+            and recreates the host, which loses content set by compose.setContent(). A TV is always landscape.
+        -->
+        <activity
+            android:name=".HiltTestActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+    </application>
 
 </manifest>

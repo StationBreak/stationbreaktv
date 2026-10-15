@@ -39,17 +39,21 @@ internal class Seeded(
 /**
  * A running, fully set up Jellyfin (the image the workflow chose) that a suite can sign in to: wizard done, Quick
  * Connect on, a Movies, a TV and a mixed-content library of synthetic media, an admin that exists only in this
- * container, and a non-admin viewer plus a disabled user. Nothing is mounted from the host and no container log is
+ * container (signed in to as a user in its own right), and a non-admin viewer plus a disabled user. Nothing is
+ * mounted from the host and no container log is
  * read; the passwords are random per run.
  */
 internal class JellyfinServer private constructor(
     private val containers: List<AutoCloseable>,
     val address: ServerAddress,
     val http: Harness,
-    val viewer: Account,
-    val disabled: Account,
+    private val accounts: ServerSeeding.Accounts,
     val seeded: Seeded,
 ) : AutoCloseable {
+    val admin: Account get() = accounts.admin
+    val viewer: Account get() = accounts.viewer
+    val disabled: Account get() = accounts.disabled
+
     override fun close() = containers.asReversed().forEach { runCatching { it.close() } }
 
     companion object {
@@ -101,7 +105,7 @@ internal class JellyfinServer private constructor(
                 val accounts = ServerSeeding.Accounts()
                 val seeded = ServerSeeding.seed(jellyfin, http, accounts)
                 ready = true
-                return JellyfinServer(started, address, http, accounts.viewer, accounts.disabled, seeded)
+                return JellyfinServer(started, address, http, accounts, seeded)
             } finally {
                 if (!ready) started.asReversed().forEach { runCatching { it.close() } }
             }

@@ -65,7 +65,7 @@ class ServerScreenTest {
     private lateinit var viewModel: ServerViewModel
 
     private fun launch() {
-        viewModel = ServerViewModel(server)
+        viewModel = ServerViewModel(server, ServerHandOff())
         compose.setContent {
             StationBreakTheme {
                 val state by viewModel.state.collectAsState()

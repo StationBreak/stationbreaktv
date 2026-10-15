@@ -64,6 +64,7 @@ internal class ServerViewModel
     @Inject
     constructor(
         private val mediaServer: MediaServer,
+        private val handOff: ServerHandOff,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow(ServerUiState())
         val state: StateFlow<ServerUiState> = mutableState.asStateFlow()
@@ -117,6 +118,9 @@ internal class ServerViewModel
         fun onDismissCleartext() {
             if (mutableState.value.phase is ServerPhase.ConfirmCleartext) onEditAddress()
         }
+
+        /** Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]). */
+        fun onContinue(server: ConnectedServer) = handOff.put(server)
 
         private fun phaseFor(result: ServerResult<ResolvedServer>): ServerPhase =
             when (result) {

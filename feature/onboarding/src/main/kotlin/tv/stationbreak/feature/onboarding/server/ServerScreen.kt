@@ -57,11 +57,11 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.HINT_ALPHA
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.TvTextField
 
 // Sizes only this screen uses.
 private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
-private val FieldHeight = 56.dp
 private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
 
@@ -70,7 +70,7 @@ private const val TOP_OFFSET = 0.1f
  * cancels the cleartext dialog while that is open.
  */
 @Composable
-fun ServerDestination(onContinue: (ConnectedServer) -> Unit) {
+fun ServerDestination(onContinue: () -> Unit) {
     val viewModel: ServerViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     ServerScreen(
@@ -81,7 +81,11 @@ fun ServerDestination(onContinue: (ConnectedServer) -> Unit) {
         onEditAddress = viewModel::onEditAddress,
         onConfirmCleartext = viewModel::onConfirmCleartext,
         onDismissCleartext = viewModel::onDismissCleartext,
-        onContinue = onContinue,
+        onContinue = { connected ->
+            // The server goes to sign-in in memory (see ServerHandOff), never through the route or saved state.
+            viewModel.onContinue(connected)
+            onContinue()
+        },
     )
 }
 
@@ -232,8 +236,8 @@ private fun focusAfterIdle(
 }
 
 /**
- * The address box. It is focusable like any button; Select starts editing and opens the system keyboard, which never
- * opens by itself. Done on the keyboard ends editing and [onDone] moves focus on to Test.
+ * The address box: the shared remote-friendly field with the URI keyboard. Done on the keyboard ends editing and
+ * [onDone] moves focus on to Test.
  */
 @Composable
 private fun AddressField(
@@ -242,99 +246,15 @@ private fun AddressField(
     onDone: () -> Unit,
     fieldFocus: FocusRequester,
 ) {
-    var editing by remember { mutableStateOf(false) }
-    val inner = remember { FocusRequester() }
-    val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(editing) {
-        if (editing) {
-            inner.requestFocus()
-            keyboard?.show()
-        }
-    }
-    val colors = MaterialTheme.colorScheme
-    Surface(
-        onClick = { editing = true },
-        modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus).testTag(ServerTags.FIELD),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
-        colors =
-            ClickableSurfaceDefaults.colors(
-                containerColor = colors.surfaceVariant,
-                contentColor = colors.onSurfaceVariant,
-                focusedContainerColor = colors.surfaceVariant,
-                focusedContentColor = colors.onSurfaceVariant,
-                pressedContainerColor = colors.surfaceVariant,
-                pressedContentColor = colors.onSurfaceVariant,
-            ),
-        border = FocusStyle.surfaceBorder(),
-        scale = FocusStyle.surfaceScale(),
-    ) {
-        Column(
-            modifier = Modifier.heightIn(min = FieldHeight).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            if (editing) {
-                AddressInput(
-                    value = value,
-                    onValueChange = onValueChange,
-                    inner = inner,
-                    onDone = {
-                        editing = false
-                        onDone()
-                    },
-                    onLeave = { editing = false },
-                )
-            } else if (value.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.server_address_hint),
-                    fontSize = BodySize,
-                    color = colors.onSurfaceVariant.copy(alpha = HINT_ALPHA),
-                )
-            } else {
-                Text(text = value, fontSize = BodySize, color = colors.onSurface)
-            }
-        }
-    }
-}
-
-/** The editable text, shown only while editing: the URI keyboard, with Done moving on. */
-@Composable
-private fun AddressInput(
-    value: String,
-    onValueChange: (String) -> Unit,
-    inner: FocusRequester,
-    onDone: () -> Unit,
-    onLeave: () -> Unit,
-) {
-    var text by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
-    var focusedOnce by remember { mutableStateOf(false) }
-    val colors = MaterialTheme.colorScheme
-    BasicTextField(
-        value = text,
-        onValueChange = {
-            text = it
-            onValueChange(it.text)
-        },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = BodySize, color = colors.onSurface),
-        cursorBrush = SolidColor(colors.onSurface),
-        keyboardOptions =
-            KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                autoCorrectEnabled = false,
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Done,
-            ),
-        keyboardActions = KeyboardActions(onDone = { onDone() }),
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .focusRequester(inner)
-                .onFocusChanged {
-                    if (it.isFocused) {
-                        focusedOnce = true
-                    } else if (focusedOnce) {
-                        onLeave()
-                    }
-                }.testTag(ServerTags.FIELD_INPUT),
+    TvTextField(
+        value = value,
+        onValueChange = onValueChange,
+        hint = stringResource(R.string.server_address_hint),
+        fieldTag = ServerTags.FIELD,
+        inputTag = ServerTags.FIELD_INPUT,
+        keyboardType = KeyboardType.Uri,
+        imeAction = ImeAction.Done,
+        onImeAction = onDone,
+        modifier = Modifier.focusRequester(fieldFocus),
     )
 }
