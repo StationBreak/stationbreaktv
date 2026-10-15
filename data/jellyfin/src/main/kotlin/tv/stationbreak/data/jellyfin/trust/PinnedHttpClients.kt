@@ -3,6 +3,7 @@ package tv.stationbreak.data.jellyfin.trust
 
 import okhttp3.Call
 import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -44,10 +45,11 @@ interface PinRegistry {
  * The one pinned client (spec 05, Unit 3, Angua (Security)): the base the adapter derives every client from, and so the
  * trust that images, subtitles and the player share.
  *
- * Whenever the set of pins changes, it builds a new `SSLContext` (and with it a new TLS session cache), a new client
- * and a new connection pool, swaps them in, and evicts the old pool. A pooled connection or a resumed TLS session
- * made under the old pins is never used under the new ones. Callers ask [current] for every call and never keep the
- * client. [template] brings the timeouts, DNS and so on; its trust settings are replaced.
+ * Whenever the set of pins changes, it builds a new `SSLContext` (and with it a new TLS session cache), a new client,
+ * a new connection pool and a new dispatcher, swaps them in, evicts the old pool and cancels the old client's running
+ * calls. A pooled connection or a resumed TLS session made under the old pins is never used under the new ones.
+ * Callers ask [current] for every call and never keep the client. [template] brings the timeouts, DNS and so on; its
+ * trust settings are replaced.
  */
 class PinnedHttpClients(
     private val system: SystemTrust,
@@ -100,6 +102,9 @@ class PinnedHttpClients(
         val old = built
         built = build(pins)
         old.client.connectionPool.evictAll()
+        // evictAll() closes only idle connections; a call already running would finish under the old trust. The old
+        // client has a dispatcher of its own (see build), so this cancels exactly its calls and nobody else's.
+        old.client.dispatcher.cancelAll()
     }
 
     private fun build(pins: Map<PinKey, SpkiPin>): Built {
@@ -113,7 +118,16 @@ class PinnedHttpClients(
                 .sslSocketFactory(context.socketFactory, trustManager)
                 .hostnameVerifier(PinnedHostnameVerifier(policy))
                 .connectionPool(ConnectionPool())
+                .dispatcher(ownDispatcher())
                 .build()
         return Built(pins, client)
     }
+
+    // One dispatcher per build, so cancelling the old build's calls never touches the new one's (or a shared one's). It
+    // shares the template's thread pool and keeps its limits.
+    private fun ownDispatcher(): Dispatcher =
+        Dispatcher(template.dispatcher.executorService).also {
+            it.maxRequests = template.dispatcher.maxRequests
+            it.maxRequestsPerHost = template.dispatcher.maxRequestsPerHost
+        }
 }
