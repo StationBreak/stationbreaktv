@@ -78,8 +78,9 @@ class ServerScreenTest {
 
     private fun launch() {
         val settings = InMemoryServerSettings()
-        val certificateTrust = CertificateTrust(server, settings, SessionRepository(InMemorySecretStore(), server))
-        viewModel = ServerViewModel(server, ServerHandOff(), SignedInHandOff(), settings, certificateTrust)
+        val sessions = SessionRepository(InMemorySecretStore(), server)
+        val certificateTrust = CertificateTrust(server, settings, sessions)
+        viewModel = ServerViewModel(server, ServerHandOff(), SignedInHandOff(), settings, certificateTrust, sessions)
         compose.setContent {
             StationBreakTheme {
                 val state by viewModel.state.collectAsState()

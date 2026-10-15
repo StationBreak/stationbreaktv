@@ -263,7 +263,7 @@ class LibrariesViewModelTest {
     // Done failed
 
     @Test
-    fun aSaveThatFailsKeepsTheChoiceAndOffersRetry() =
+    fun aSaveThatFailsKeepsTheChoiceAndDoneTriesAgain() =
         runTest {
             settings.failSave = true
             val vm = viewModel()
@@ -278,8 +278,9 @@ class LibrariesViewModelTest {
             assertTrue(events.isEmpty())
             assertNotNull(handOff.peek())
 
+            assertTrue(vm.state.value.canFinish)
             settings.failSave = false
-            vm.onRetry()
+            vm.onDone()
 
             assertEquals(setOf(movies.id, shows.id, home.id, musicVideos.id), settings.currentLibraries)
             assertEquals(listOf(LibrariesEvent.Finished), events)
@@ -317,6 +318,56 @@ class LibrariesViewModelTest {
 
         assertEquals(LibrariesPhase.Choosing, vm.state.value.phase)
     }
+
+    @Test
+    fun doneStoresTheServerRecordWhenContinueCouldNotAndThenTheChoice() =
+        runTest {
+            val bare = InMemoryServerSettings()
+            val vm = LibrariesViewModel(server, sessions, bare, handOff)
+            val events = mutableListOf<LibrariesEvent>()
+            val job = backgroundScope.collect(vm, events)
+
+            vm.onDone()
+
+            assertEquals(ServerRecord(https), bare.current)
+            assertEquals(setOf(movies.id, shows.id, musicVideos.id), bare.currentLibraries)
+            assertEquals(listOf(LibrariesEvent.Finished), events)
+            job.cancel()
+        }
+
+    @Test
+    fun aRecordThatCouldNotBeStoredAtFirstIsStoredByTheDoneThatFollows() =
+        runTest {
+            val bare = InMemoryServerSettings()
+            bare.failSave = true
+            val vm = LibrariesViewModel(server, sessions, bare, handOff)
+            val events = mutableListOf<LibrariesEvent>()
+            val job = backgroundScope.collect(vm, events)
+
+            vm.onDone()
+            assertEquals(LibrariesPhase.SaveFailed, vm.state.value.phase)
+            assertTrue(events.isEmpty())
+
+            bare.failSave = false
+            vm.onDone()
+
+            assertEquals(ServerRecord(https), bare.current)
+            assertEquals(listOf(LibrariesEvent.Finished), events)
+            job.cancel()
+        }
+
+    @Test
+    fun doneNeverClobbersARecordThatIsThereWithItsPin() =
+        runTest {
+            val pin = tv.stationbreak.core.model.SpkiPin(ByteArray(tv.stationbreak.core.model.SpkiPin.SIZE) { 6 })
+            val pinned = InMemoryServerSettings(ServerRecord(https, pin))
+            val vm = LibrariesViewModel(server, sessions, pinned, handOff)
+
+            vm.onDone()
+
+            assertEquals(ServerRecord(https, pin), pinned.current)
+            assertTrue(pinned.saved.isEmpty())
+        }
 }
 
 /** A server whose library listing waits for [gate], to see the screen while it is still loading. */

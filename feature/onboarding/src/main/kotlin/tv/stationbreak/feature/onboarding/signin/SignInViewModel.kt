@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PersistOutcome
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
@@ -38,7 +39,10 @@ data class SignInResult(
     val session: Session,
     val persisted: Boolean,
     val username: String? = null,
-)
+) {
+    // The user's name is theirs, and the session holds the token: neither belongs in a log line or a crash report.
+    override fun toString(): String = "SignInResult(persisted=$persisted, session=<redacted>, username=<redacted>)"
+}
 
 /** Why a Quick Connect attempt ended without a session. The form is back, with a line saying which. */
 internal enum class QuickConnectEnd { Expired, Denied }
@@ -136,6 +140,7 @@ internal class SignInViewModel
         private val sessions: SessionRepository,
         private val handOff: ServerHandOff,
         private val signedInHandOff: SignedInHandOff,
+        private val settings: ServerSettings,
     ) : ViewModel() {
         private val connected: ConnectedServer? = handOff.peek()
 
@@ -320,6 +325,9 @@ internal class SignInViewModel
                     }
                     // A session that couldn't be saved must not leave an older one behind to be restored later.
                     if (saved == PersistOutcome.NotSaved) sessions.clear()
+                    // A new sign-in starts the library choice again: another user's choice is not this one's, and a
+                    // restart must ask for it instead of finding it done.
+                    settings.clearLibraries()
                     saved
                 } ?: return
             connected?.let(handOff::clear)

@@ -111,14 +111,15 @@ class ServerViewModelTest {
     private val handOff = ServerHandOff()
     private val signedIn = SignedInHandOff()
     private val settings = InMemoryServerSettings()
-    private val sessions = SessionRepository(InMemorySecretStore(), server)
+    private val store = InMemorySecretStore()
+    private val sessions = SessionRepository(store, server)
 
     private fun viewModel() = viewModelWith(server)
 
     private val gatedTrust = GatedTrustServer(server.fake)
 
     private fun viewModelWith(mediaServer: MediaServer) =
-        ServerViewModel(mediaServer, handOff, signedIn, settings, CertificateTrust(mediaServer, settings, sessions))
+        ServerViewModel(mediaServer, handOff, signedIn, settings, CertificateTrust(mediaServer, settings, sessions), sessions)
 
     private fun found(address: ServerAddress) = ServerResult.Success(ResolvedServer(address, info))
 
@@ -591,7 +592,7 @@ class ServerViewModelTest {
 
     private fun slowClearViewModel(gate: CompletableDeferred<Unit>): ServerViewModel {
         val slow = SlowClear(settings, gate)
-        return ServerViewModel(server, handOff, signedIn, slow, CertificateTrust(server, slow, sessions))
+        return ServerViewModel(server, handOff, signedIn, slow, CertificateTrust(server, slow, sessions), sessions)
     }
 
     @Test
@@ -744,6 +745,49 @@ class ServerViewModelTest {
         vm.onContinue(ConnectedServer(ResolvedServer(https, info), acknowledgement = null))
 
         assertNull(signedIn.peek())
+    }
+
+    @Test
+    fun aStoredServerIsPrefilledSoChangeServerAndBackFromSignInNeverShowABlankForm() {
+        runBlocking { settings.save(ServerRecord(https)) }
+
+        val vm = viewModel()
+
+        assertEquals(https.baseUrl, vm.state.value.input)
+        assertEquals(ServerPhase.Idle, vm.state.value.phase)
+    }
+
+    @Test
+    fun withNothingStoredTheFieldStaysBlank() {
+        assertEquals("", viewModel().state.value.input)
+    }
+
+    @Test
+    fun continuingToAnotherServerClearsTheOldServersSession() {
+        val old = Session(UserId("u"), AccessToken("dummy-token-0001"), info, https, null, false)
+        runBlocking {
+            settings.save(ServerRecord(https))
+            sessions.save(old)
+        }
+        val other = ServerAddress(Scheme.Https, "other.example.test", 443)
+
+        viewModel().onContinue(ConnectedServer(ResolvedServer(other, info), acknowledgement = null))
+
+        assertEquals(ServerRecord(other), settings.current)
+        assertEquals(emptySet<String>(), store.snapshot().keys)
+    }
+
+    @Test
+    fun continuingOnTheSameServerKeepsItsSession() {
+        val old = Session(UserId("u"), AccessToken("dummy-token-0001"), info, https, null, false)
+        runBlocking {
+            settings.save(ServerRecord(https))
+            sessions.save(old)
+        }
+
+        viewModel().onContinue(ConnectedServer(ResolvedServer(https, info), acknowledgement = null))
+
+        assertEquals(setOf(SessionRepository.SESSION_KEY), store.snapshot().keys)
     }
 }
 

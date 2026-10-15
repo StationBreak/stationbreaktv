@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.ResolvedServer
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
@@ -45,6 +46,7 @@ internal class SignedInViewModel
         private val sessions: SessionRepository,
         private val signedIn: SignedInHandOff,
         private val handOff: ServerHandOff,
+        private val settings: ServerSettings,
     ) : ViewModel() {
         private val held: SignInResult? = signedIn.peek()
 
@@ -80,8 +82,12 @@ internal class SignedInViewModel
             mutableState.update { it.copy(switching = true) }
             viewModelScope.launch {
                 val session = result.session
-                sessions.signOut(session)
+                // First: once the user has chosen to switch, nothing may find this session to use while the
+                // sign-out is still on its way (it runs to its end even if this screen is gone).
                 signedIn.clear()
+                sessions.signOut(session)
+                // The next user chooses their libraries afresh, so a restart can't find setup done for the last one.
+                settings.clearLibraries()
                 handOff.put(ConnectedServer(ResolvedServer(session.address, session.server), session.acknowledgement))
                 results.send(Unit)
             }

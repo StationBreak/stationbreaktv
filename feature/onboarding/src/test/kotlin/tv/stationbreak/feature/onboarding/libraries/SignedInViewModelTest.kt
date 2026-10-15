@@ -18,8 +18,11 @@ import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -38,6 +41,7 @@ class SignedInViewModelTest {
     private val sessions = SessionRepository(store, server)
     private val signedIn = SignedInHandOff()
     private val handOff = ServerHandOff()
+    private val settings = InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)), setOf(ItemId("movies")))
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
@@ -51,7 +55,7 @@ class SignedInViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = SignedInViewModel(sessions, signedIn, handOff)
+    private fun viewModel() = SignedInViewModel(sessions, signedIn, handOff, settings)
 
     @Test
     fun showsTheNameTheUserTypedAndTheServer() {
@@ -133,4 +137,50 @@ class SignedInViewModelTest {
 
         assertFalse("sam" in viewModel().state.value.toString())
     }
+
+    @Test
+    fun theHeldSessionIsGoneBeforeTheSignOutStartsSoNothingCanReuseItMidway() {
+        runBlocking { sessions.save(session) }
+        signedIn.put(SignInResult(session, persisted = true, username = "sam"))
+        server.revokeGate = kotlinx.coroutines.CompletableDeferred()
+        val vm = viewModel()
+
+        vm.onSwitchUser()
+
+        // The revoke is still waiting: whoever looks now finds no session to use.
+        assertNull(signedIn.peek())
+        server.revokeGate?.complete(Unit)
+    }
+
+    @Test
+    fun switchUserStartsTheLibraryChoiceAgainSoARestartAsksForItAndNotSetupComplete() =
+        runTest {
+            runBlocking { sessions.save(session) }
+            signedIn.put(SignInResult(session, persisted = true, username = "sam"))
+            val vm = viewModel()
+            val job = backgroundScope.launch(UnconfinedTestDispatcher()) { vm.switched.collect { } }
+
+            vm.onSwitchUser()
+
+            assertNull(settings.currentLibraries)
+            assertEquals(ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)), settings.current)
+            job.cancel()
+        }
+
+    @Test
+    fun aFailedRevokeShowsNothingAndStillSwitches() =
+        runTest {
+            runBlocking { sessions.save(session) }
+            server.revokeResult = tv.stationbreak.core.domain.ServerResult.Failure(tv.stationbreak.core.domain.MediaServerError.Timeout())
+            signedIn.put(SignInResult(session, persisted = true, username = "sam"))
+            val vm = viewModel()
+            var switched = 0
+            val job = backgroundScope.launch(UnconfinedTestDispatcher()) { vm.switched.collect { switched++ } }
+
+            vm.onSwitchUser()
+
+            assertEquals(1, switched)
+            assertTrue(store.snapshot().isEmpty())
+            job.cancel()
+        }
 }

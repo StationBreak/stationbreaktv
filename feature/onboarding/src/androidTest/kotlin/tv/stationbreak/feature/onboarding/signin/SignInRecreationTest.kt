@@ -11,6 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.Scheme
@@ -61,6 +62,7 @@ class SignInRecreationTest {
                 SessionRepository(InMemorySecretStore(), server),
                 handOff,
                 SignedInHandOff(),
+                InMemoryServerSettings(),
             )
         Hosted.viewModel = viewModel
         ActivityScenario.launch(SignInHostActivity::class.java).use { scenario ->

@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
@@ -103,17 +104,33 @@ internal class ServerViewModel
         private val signedIn: SignedInHandOff,
         private val settings: ServerSettings,
         private val certificateTrust: CertificateTrust,
+        private val sessions: SessionRepository,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow(ServerUiState())
         val state: StateFlow<ServerUiState> = mutableState.asStateFlow()
 
         private var testJob: Job? = null
 
+        // Typing wins over the stored address: it is only put in a field the user has not touched.
+        private var edited = false
+
+        init {
+            // The configured server is shown for changing, never a blank form: Change server on the launch screen and
+            // Back from a sign-in that launch routing opened both land here. First launch has nothing stored.
+            viewModelScope.launch {
+                val stored = settings.load()?.address ?: return@launch
+                mutableState.update {
+                    if (edited || it.input.isNotEmpty()) it else it.copy(input = stored.baseUrl)
+                }
+            }
+        }
+
         // The last "clear the pin" that was started. It runs to its end even if this view model is cleared (a pin that
         // outlives the screen that should have dropped it is exactly what it is for), and a new Test waits for it.
         private var pendingClear: Job? = null
 
         fun onInputChange(text: String) {
+            edited = true
             val running = testJob
             running?.cancel()
             // Another address is another server: a pin is for one exact address and goes with the edit.
@@ -217,7 +234,14 @@ internal class ServerViewModel
             // the library picker writes; it runs to its end even if this view model is cleared at once.
             viewModelScope.launch(NonCancellable) {
                 val address = server.server.address
-                if (settings.load()?.address != address) settings.save(ServerRecord(address))
+                val old = settings.load()?.address
+                if (old != address) {
+                    settings.save(ServerRecord(address))
+                    // The stored session belongs to the old server. It would be refused at the next restore anyway
+                    // (a token is only ever sent to the server that issued it), but the user has now chosen another
+                    // server, so it goes now rather than lingering.
+                    if (old != null && !address.bindsTo(old) && !old.bindsTo(address)) sessions.clear()
+                }
             }
         }
 

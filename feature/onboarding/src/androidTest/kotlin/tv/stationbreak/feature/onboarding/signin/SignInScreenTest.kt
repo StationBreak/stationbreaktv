@@ -35,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.QuickConnectState
@@ -106,6 +107,7 @@ class SignInScreenTest {
                 SessionRepository(InMemorySecretStore(), server),
                 handOff,
                 SignedInHandOff(),
+                InMemoryServerSettings(),
             )
         compose.setContent {
             StationBreakTheme {
@@ -499,6 +501,7 @@ class SignInScreenTest {
                 SessionRepository(InMemorySecretStore(), server),
                 handOff,
                 SignedInHandOff(),
+                InMemoryServerSettings(),
             )
         var visible by mutableStateOf(true)
         compose.setContent {

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
@@ -47,7 +48,7 @@ internal sealed interface LibrariesPhase {
     /** Done was pressed and the choice is being stored (or has been, and the screen is on its way out). */
     data object Saving : LibrariesPhase
 
-    /** The choice could not be stored. It is kept on screen, and Retry stores it again. */
+    /** The choice could not be stored. It is kept on screen, and Done (which still works) stores it again. */
     data object SaveFailed : LibrariesPhase
 }
 
@@ -60,8 +61,9 @@ internal data class LibrariesUiState(
     val libraries: List<Library> = emptyList(),
     val selected: Set<ItemId> = emptySet(),
 ) {
-    /** Done is available: the checklist is showing and something is ticked. */
-    val canFinish: Boolean get() = phase == LibrariesPhase.Choosing && selected.isNotEmpty()
+    /** Done is available: the checklist is showing and something is ticked. After a failed Done it is the retry. */
+    val canFinish: Boolean
+        get() = (phase == LibrariesPhase.Choosing || phase == LibrariesPhase.SaveFailed) && selected.isNotEmpty()
 
     override fun toString(): String = "LibrariesUiState(phase=${phase::class.simpleName}, libraries=${libraries.size})"
 }
@@ -157,7 +159,7 @@ internal class LibrariesViewModel
             if (!current.canFinish) return
             mutableState.update { it.copy(phase = LibrariesPhase.Saving) }
             viewModelScope.launch {
-                if (settings.saveLibraries(current.selected)) {
+                if (store(current.selected)) {
                     // Setup is saved: nothing needs the signed-in session held in memory any more.
                     signedIn.clear()
                     results.send(LibrariesEvent.Finished)
@@ -167,21 +169,22 @@ internal class LibrariesViewModel
             }
         }
 
-        /** Retry: asks the server again, or stores the choice again. */
+        /**
+         * Stores the choice. When there is no server record to attach it to (Continue could not write it), the record
+         * is stored first, from the address the session was issued for; a record that is there, with its pin, is never
+         * replaced.
+         */
+        private suspend fun store(ids: Set<ItemId>): Boolean {
+            if (settings.saveLibraries(ids)) return true
+            val held = session ?: return false
+            return settings.load() == null && settings.save(ServerRecord(held.address)) && settings.saveLibraries(ids)
+        }
+
+        /** Retry, after a failed listing or when there is nothing to choose from: asks the server again. */
         fun onRetry() {
             when (mutableState.value.phase) {
-                is LibrariesPhase.LoadFailed, LibrariesPhase.NoLibraries -> {
-                    load()
-                }
-
-                LibrariesPhase.SaveFailed -> {
-                    mutableState.update { it.copy(phase = LibrariesPhase.Choosing) }
-                    onDone()
-                }
-
-                else -> {
-                    Unit
-                }
+                is LibrariesPhase.LoadFailed, LibrariesPhase.NoLibraries -> load()
+                else -> Unit
             }
         }
     }

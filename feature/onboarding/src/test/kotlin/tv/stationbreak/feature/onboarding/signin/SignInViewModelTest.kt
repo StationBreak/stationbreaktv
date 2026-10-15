@@ -35,16 +35,19 @@ import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
 import tv.stationbreak.core.domain.SecretStoreResult
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -156,6 +159,7 @@ class SignInViewModelTest {
     private val repository = SessionRepository(gatedStore, server)
     private val handOff = ServerHandOff()
     private val signedIn = SignedInHandOff()
+    private val settings = InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)), setOf(ItemId("movies")))
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
@@ -176,7 +180,7 @@ class SignInViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = SignInViewModel(server, repository, handOff, signedIn)
+    private fun viewModel() = SignInViewModel(server, repository, handOff, signedIn, settings)
 
     /** A view model hosted in [owner], so `owner.clear()` is the platform clearing it. */
     private fun hosted(owner: ViewModelStore) = owner.host(viewModel(), SignInViewModel::class.java)
@@ -1019,5 +1023,41 @@ class SignInViewModelTest {
         server.gate!!.complete(ServerResult.Success(session(admin = false)))
 
         assertTrue("the array should be all zero characters", array.all { it == '\u0000' })
+    }
+
+    @Test
+    fun aNewSignInStartsTheLibraryChoiceAgain() =
+        runTest {
+            server.fake.signInResult = ServerResult.Success(session(admin = false))
+            val vm = viewModel()
+            vm.fill()
+
+            vm.onSignIn()
+
+            assertNull(settings.currentLibraries)
+            assertEquals(ServerRecord(https), settings.current)
+        }
+
+    @Test
+    fun aSessionThatWasCancelledAwayLeavesTheLibraryChoiceAlone() =
+        runTest {
+            val gate = CompletableDeferred<ServerResult<Session>>()
+            server.gate = gate
+            val vm = viewModel()
+            vm.fill()
+
+            vm.onSignIn()
+            vm.onLeave()
+            gate.complete(ServerResult.Success(session(admin = false)))
+
+            assertEquals(setOf(ItemId("movies")), settings.currentLibraries)
+        }
+
+    @Test
+    fun theHandOverShowsNeitherTheNameNorTheToken() {
+        val text = SignInResult(session(admin = false), persisted = true, username = "sam").toString()
+
+        assertFalse(text, "sam" in text)
+        assertFalse(text, "dummy-token" in text)
     }
 }
