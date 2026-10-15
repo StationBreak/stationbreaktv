@@ -13,6 +13,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -57,7 +58,9 @@ class ServerViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = ServerViewModel(server)
+    private val handOff = ServerHandOff()
+
+    private fun viewModel() = ServerViewModel(server, handOff)
 
     private fun found(address: ServerAddress) = ServerResult.Success(ResolvedServer(address, info))
 
@@ -348,6 +351,17 @@ class ServerViewModelTest {
                 }.map { it.name }
                 .toSet()
         assertEquals(setOf("input", "phase"), fields)
+    }
+
+    @Test
+    fun continuingHandsTheServerAndItsAcknowledgementToSignInInMemory() {
+        val vm = viewModel()
+        val ack = CleartextAcknowledgement(https)
+        val connected = ConnectedServer(ResolvedServer(https, info), ack)
+
+        vm.onContinue(connected)
+
+        assertSame(connected, handOff.peek())
     }
 }
 

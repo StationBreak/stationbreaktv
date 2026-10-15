@@ -5,9 +5,13 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -65,7 +69,7 @@ class ServerScreenTest {
     private lateinit var viewModel: ServerViewModel
 
     private fun launch() {
-        viewModel = ServerViewModel(server)
+        viewModel = ServerViewModel(server, ServerHandOff())
         compose.setContent {
             StationBreakTheme {
                 val state by viewModel.state.collectAsState()
@@ -107,6 +111,25 @@ class ServerScreenTest {
     fun theAddressStartsEmptyWithAnExampleHint() {
         launch()
         compose.onNodeWithTag(ServerTags.FIELD).assert(hasText("For example, jellyfin.local:8096"))
+    }
+
+    @Test
+    fun theFieldIsNamedForAScreenReader() {
+        launch()
+        compose.onNodeWithTag(ServerTags.FIELD).assert(hasContentDescription("Server address"))
+    }
+
+    @Test
+    fun theTestingLineAndAnErrorPanelAreLiveRegions() {
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = gate
+        launch()
+        typeAndTest()
+        val polite = SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite)
+        compose.onNodeWithTag(ServerTags.TESTING).assert(polite)
+        gate.complete(ServerResult.Failure(MediaServerError.Timeout()))
+        compose.waitForIdle()
+        compose.onNodeWithTag(ServerTags.ERROR_PANEL).assert(polite)
     }
 
     @Test

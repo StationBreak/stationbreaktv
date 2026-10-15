@@ -81,7 +81,11 @@ internal fun TestingStatus() {
         delay(SPINNER_DELAY_MS)
         spinnerVisible = true
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(TightGap), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.testTag(ServerTags.TESTING).politeLiveRegion(),
+        horizontalArrangement = Arrangement.spacedBy(TightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (spinnerVisible) {
             ProgressSpinner(contentDescription = stringResource(R.string.server_progress_description))
         }
@@ -118,24 +122,33 @@ internal fun ConnectedPanel(
             )
             if (phase.acknowledgement != null) {
                 // The user accepted cleartext (ADR-0014); the panel keeps saying so (icon too, not colour alone).
-                Row(
-                    modifier = Modifier.testTag(ServerTags.NOT_ENCRYPTED),
-                    horizontalArrangement = Arrangement.spacedBy(TightGap),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ProblemIcon()
-                    Text(
-                        text = stringResource(R.string.server_connected_cleartext),
-                        fontSize = DetailsSize,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+                NotEncryptedNotice(ServerTags.NOT_ENCRYPTED)
             }
         }
         ServerButton(
             label = R.string.server_continue,
             onClick = onContinue,
             modifier = Modifier.focusRequester(continueFocus).testTag(ServerTags.CONTINUE),
+        )
+    }
+}
+
+/**
+ * "Not encrypted (http)": the error colour plus the Problem icon, so it is never colour alone. Shown wherever the user
+ * has accepted cleartext (ADR-0014): after Test, and on sign-in, where the password is typed.
+ */
+@Composable
+internal fun NotEncryptedNotice(tag: String) {
+    Row(
+        modifier = Modifier.testTag(tag),
+        horizontalArrangement = Arrangement.spacedBy(TightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ProblemIcon()
+        Text(
+            text = stringResource(R.string.server_connected_cleartext),
+            fontSize = DetailsSize,
+            color = MaterialTheme.colorScheme.error,
         )
     }
 }
@@ -151,7 +164,10 @@ internal fun ErrorPanel(
     val copy = phase.copy
     val cause = ErrorCopyTable.causeText(phase.error)
     val details = stringResource(copy.details)
-    Column(modifier = Modifier.testTag(ServerTags.ERROR_PANEL), verticalArrangement = Arrangement.spacedBy(Gap)) {
+    Column(
+        modifier = Modifier.testTag(ServerTags.ERROR_PANEL).politeLiveRegion(),
+        verticalArrangement = Arrangement.spacedBy(Gap),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(TightGap), verticalAlignment = Alignment.Top) {
             ProblemIcon()
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -197,7 +213,7 @@ private fun ActionButton(
 // stringResource takes the format arguments as a vararg, so the spread is the API's shape.
 @Suppress("SpreadOperator")
 @Composable
-private fun messageText(
+internal fun messageText(
     error: MediaServerError,
     copy: ErrorCopy,
 ): String = stringResource(copy.message, *ErrorCopyTable.messageArgs(error).toTypedArray())

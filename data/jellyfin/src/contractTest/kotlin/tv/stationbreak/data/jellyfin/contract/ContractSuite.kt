@@ -163,6 +163,20 @@ abstract class ContractSuite {
     }
 
     @Test
+    fun anAdminAndANonAdminBothSignInAndTheRightsAreRecorded() {
+        runBlocking {
+            // Spec 05, decision 9: any account may sign in, and the app only records what rights it has.
+            val admin = signIn(adapter(), server.admin)
+            assertIs<ServerResult.Success<Session>>(admin, "admin sign-in: ${admin.errorOrNull()}")
+            assertEquals(true, admin.value.isAdministrator)
+
+            val viewer = signIn(adapter(), server.viewer)
+            assertIs<ServerResult.Success<Session>>(viewer, "non-admin sign-in: ${viewer.errorOrNull()}")
+            assertEquals(false, viewer.value.isAdministrator)
+        }
+    }
+
+    @Test
     fun aDisabledUserIsForbidden() {
         runBlocking {
             val result = signIn(adapter(), server.disabled)

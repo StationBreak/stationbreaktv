@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredDeviceIdProvider
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.data.jellyfin.AdapterLog
@@ -64,6 +65,14 @@ internal interface MediaServerModule {
         fun secretStore(
             @ApplicationContext context: Context,
         ): SecretStore = KeystoreSecretStore(context)
+
+        /** The one stored session (F0.4): sign-in saves through it, and launch routing (task 4.0) restores via it. */
+        @Provides
+        @Singleton
+        fun sessionRepository(
+            store: SecretStore,
+            server: MediaServer,
+        ): SessionRepository = SessionRepository(store, server)
 
         @Provides
         @Singleton
