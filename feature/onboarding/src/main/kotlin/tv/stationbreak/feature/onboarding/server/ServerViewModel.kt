@@ -129,12 +129,16 @@ internal class ServerViewModel
         // outlives the screen that should have dropped it is exactly what it is for), and a new Test waits for it.
         private var pendingClear: Job? = null
 
+        // False once a clear has succeeded and nothing has been trusted since, so typing stops asking the disk to clear
+        // a pin that is already gone. True at the start (a stored one is unknown) and from the moment a trust is begun.
+        private var pinMayExist = true
+
         fun onInputChange(text: String) {
             edited = true
             val running = testJob
             running?.cancel()
             // Another address is another server: a pin is for one exact address and goes with the edit.
-            if (text != mutableState.value.input) clearPin(after = running)
+            if (text != mutableState.value.input && pinMayExist) clearPin(after = running)
             mutableState.value = ServerUiState(input = text)
         }
 
@@ -152,6 +156,7 @@ internal class ServerViewModel
                     pendingClear?.join()
                     // A pin that is still on disk would come back at the next load: stop rather than connect.
                     val cleared = settings.clearPin()
+                    if (cleared) pinMayExist = false
                     finish(if (cleared) phaseFor(typed, mediaServer.discover(typed)) else pinNotCleared())
                 }
         }
@@ -192,6 +197,7 @@ internal class ServerViewModel
         fun onTrustCertificate() {
             val asked = mutableState.value.phase as? ServerPhase.TrustRequired ?: return
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
+            pinMayExist = true
             testJob =
                 viewModelScope.launch {
                     finish(phaseFor(asked.input, certificateTrust.confirm(asked.input, asked.prompt)))
@@ -212,7 +218,7 @@ internal class ServerViewModel
             pendingClear =
                 viewModelScope.launch(NonCancellable) {
                     after?.join()
-                    settings.clearPin()
+                    if (settings.clearPin()) pinMayExist = false
                 }
         }
 
