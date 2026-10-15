@@ -190,7 +190,8 @@ jobs:
     # Not skipped when a check fails: the build still reports. Skipped for docs-only PRs (see `checks`).
     if: ${{ !cancelled() && needs.checks.outputs.build == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A change to build-logic invalidates most of the build cache, and a cold build can run past 20 minutes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
