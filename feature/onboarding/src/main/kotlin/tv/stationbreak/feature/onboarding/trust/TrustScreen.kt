@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -61,13 +62,21 @@ internal fun TrustScreen(
     onDontTrust: () -> Unit,
 ) {
     val dontTrustFocus = remember { FocusRequester() }
+    // The window's name for TalkBack: the screen is announced as this when it opens.
+    val title =
+        stringResource(if (prompt.reason == TrustReason.Changed) R.string.trust_title_changed else R.string.trust_title)
     Dialog(
         onDismissRequest = onDontTrust,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         RequestInitialDialogFocus(dontTrustFocus)
         BoxWithConstraints(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(TrustTags.SCREEN),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .semantics { paneTitle = title }
+                    .testTag(TrustTags.SCREEN),
         ) {
             // A 5% safe area on every side, inside the scroll area so a focused, scaled button isn't clipped.
             Column(
@@ -93,6 +102,8 @@ internal fun TrustScreen(
                         ServerButton(
                             label = R.string.trust_dont_trust,
                             onClick = onDontTrust,
+                            // The safe answer carries the weight; Trust never gets the primary fill.
+                            emphasis = true,
                             modifier = Modifier.focusRequester(dontTrustFocus).testTag(TrustTags.DONT_TRUST),
                         )
                         ServerButton(
@@ -169,7 +180,8 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
         Column(
             modifier =
                 Modifier.testTag(TrustTags.FINGERPRINT).semantics {
-                    contentDescription = Fingerprint.text(certificate.spki)
+                    // One character at a time, so TalkBack doesn't read a group such as "1118" as a number.
+                    contentDescription = Fingerprint.spoken(certificate.spki)
                 },
         ) {
             // One line per row of groups, so the full 64 digits fit at the size a 10-foot screen needs.
@@ -183,20 +195,21 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
             }
         }
         Text(
-            text = stringResource(R.string.trust_fingerprint_note),
-            fontSize = DetailsSize,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
             text =
                 stringResource(
                     R.string.trust_validity,
                     formatDate(certificate.notBeforeMillis),
                     formatDate(certificate.notAfterMillis),
                 ),
-            fontSize = DetailsSize,
+            fontSize = BodySize,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(TrustTags.VALIDITY),
+        )
+        Text(
+            text = stringResource(R.string.trust_fingerprint_note),
+            fontSize = DetailsSize,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(TrustTags.FINGERPRINT_NOTE),
         )
     }
 }

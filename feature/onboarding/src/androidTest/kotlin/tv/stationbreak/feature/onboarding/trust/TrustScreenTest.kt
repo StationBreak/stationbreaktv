@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -187,11 +188,11 @@ class TrustScreenTest {
         show()
         awaitFocused(TrustTags.DONT_TRUST)
         // Focus on Don't trust gives it the focus look, so Trust shows its own resting fill.
-        assertTrue("Trust has the primary fill", !fillOf(TrustTags.TRUST).isCloseTo(primary))
+        assertFalse("Trust must not have the primary fill", fillOf(TrustTags.TRUST).isCloseTo(primary))
         press(KeyEvent.KEYCODE_DPAD_RIGHT, TrustTags.DONT_TRUST)
         awaitFocused(TrustTags.TRUST)
-        // Focus on Trust gives Don't trust its resting fill.
-        assertTrue("Don't trust is not primary", fillOf(TrustTags.DONT_TRUST).isCloseTo(primary))
+        // Focus on Trust gives Don't trust its resting fill. The fill eases in, so wait for it.
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(primary) }
     }
 
     // The dialog is a window of its own and captureToImage can't capture one below API 28, so read the screen. The
