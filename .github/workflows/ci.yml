@@ -218,8 +218,9 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-build-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-build-v1-${{ runner.os }}-
+            !~/.gradle/caches/build-cache-1
+          key: gradle-build-v2-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-v2-${{ runner.os }}-
 
       # Kotlin/Native's compiler bundle and toolchain (LLVM, sysroot) for the linuxX64 canary: about 30 s to fetch and
       # unpack. Keyed on the Kotlin version alone, so PRs that change build files still reuse it (the Gradle cache's
@@ -237,6 +238,17 @@ jobs:
         with:
           path: ~/.konan
           key: konan-v1-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
+
+      # Gradle's build cache (org.gradle.caching): task outputs, so a PR reuses main's work for the modules it didn't
+      # change. Kept out of the dependency cache above (its path excludes build-cache-1) because it changes on every
+      # push: main saves it every time under its commit's key, and everything restores main's newest. Only main
+      # writes, so a PR can't change what main restores. Gradle drops entries unused for 7 days.
+      - name: Restore Gradle build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-outputs-build-v1-${{ runner.os }}-${{ github.sha }}
+          restore-keys: gradle-outputs-build-v1-${{ runner.os }}-
 
       # MODULES.md's dependency rules and the tools:overrideLibrary guard, first and on their own: an edge that breaks
       # the rules (a [JVM] module depending on an Android module, say) can also fail the full build earlier, with a
@@ -257,14 +269,15 @@ jobs:
           assembleGithubDebug assembleGithubRelease
           --continue
 
-      # After the Gradle steps, on main, when the build files changed (a new key). The daemon is stopped first so it
-      # isn't writing to the cache while it's archived. The size is logged so growth is visible; each new key's
-      # entry starts from the previous one. To reset the chain, bump the vN in the cache key prefixes.
+      # After the Gradle steps, on main: the dependency cache when the build files changed (a new key), the build cache
+      # every time. The daemon is stopped first so it isn't writing to the caches while they're archived. The sizes
+      # are logged so growth is visible; each new key's entry starts from the previous one. To reset a chain, bump
+      # the vN in its cache key prefix.
       - name: Stop Gradle
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           ./gradlew --stop
-          du -sh ~/.gradle/caches ~/.gradle/wrapper || true
+          du -sh ~/.gradle/caches ~/.gradle/wrapper ~/.gradle/caches/build-cache-1 || true
 
       - name: Save Gradle caches
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
@@ -273,7 +286,15 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-1
           key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+
+      - name: Save Gradle build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-outputs-build-v1-${{ runner.os }}-${{ github.sha }}
 
       - name: Save Kotlin/Native
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.konan.outputs.cache-hit != 'true'
@@ -394,8 +415,9 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-emulator-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-emulator-v1-${{ runner.os }}-
+            !~/.gradle/caches/build-cache-1
+          key: gradle-emulator-v2-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-emulator-v2-${{ runner.os }}-
 
       # The emulator needs about 7.4 GB free to create its userdata partition and exits at launch without it; some
       # runners have had only 7.0 GB. These preinstalled toolchains are unused here.
@@ -434,6 +456,15 @@ jobs:
           echo "assemble=$assemble" >> "$GITHUB_OUTPUT"
           echo "connected=$connected" >> "$GITHUB_OUTPUT"
 
+      # The build cache, as in the build job, with this job's own entries. After the disk is freed: the emulator needs
+      # that space.
+      - name: Restore Gradle build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-outputs-emulator-v1-${{ runner.os }}-${{ github.sha }}
+          restore-keys: gradle-outputs-emulator-v1-${{ runner.os }}-
+
       # Built before the emulator boots, so a compile error fails here rather than inside the emulator step.
       - name: Build the app and test APKs
         env:
@@ -460,14 +491,15 @@ jobs:
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 
-      # After the Gradle steps, on main, when the build files changed (a new key). The daemon is stopped first so it
-      # isn't writing to the cache while it's archived. The size is logged so growth is visible; each new key's
-      # entry starts from the previous one. To reset the chain, bump the vN in the cache key prefixes.
+      # After the Gradle steps, on main: the dependency cache when the build files changed (a new key), the build cache
+      # every time. The daemon is stopped first so it isn't writing to the caches while they're archived. The sizes
+      # are logged so growth is visible; each new key's entry starts from the previous one. To reset a chain, bump
+      # the vN in its cache key prefix.
       - name: Stop Gradle
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           ./gradlew --stop
-          du -sh ~/.gradle/caches ~/.gradle/wrapper || true
+          du -sh ~/.gradle/caches ~/.gradle/wrapper ~/.gradle/caches/build-cache-1 || true
 
       - name: Save Gradle caches
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
@@ -476,7 +508,15 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-1
           key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+
+      - name: Save Gradle build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-outputs-emulator-v1-${{ runner.os }}-${{ github.sha }}
 
       # Gradle's console output doesn't name the tests or show a failure's exception; the JUnit XML does.
       - name: Instrumented test results
