@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.signin
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
@@ -17,6 +22,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,6 +39,8 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
+import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SecretStoreResult
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
@@ -58,23 +66,83 @@ private class Sent(
     val acknowledgement: CleartextAcknowledgement?,
 )
 
-/** A [MediaServer] that records full sign-in requests, can hold one open, and can script the Quick Connect flow. */
+/**
+ * A [MediaServer] that records full sign-in requests, can hold one open, and can script the Quick Connect flow. Its gate
+ * ignores cancellation, as a real response does when it arrives after the caller has gone: a race test is only worth
+ * having if the late answer really arrives.
+ */
 private class RecordingServer(
     val fake: FakeMediaServer = FakeMediaServer(),
 ) : MediaServer by fake {
     val sent = mutableListOf<Sent>()
+
+    /** The very arrays the view model passed, so a test can see them wiped afterwards. */
+    val passwordArrays = mutableListOf<CharArray>()
     var gate: CompletableDeferred<ServerResult<Session>>? = null
     var quickConnectFlow: Flow<QuickConnectState>? = null
 
+    /** One flow per Quick Connect call, in order, before [quickConnectFlow]. */
+    val quickConnectQueue = ArrayDeque<Flow<QuickConnectState>>()
+
     override suspend fun signIn(request: SignInRequest): ServerResult<Session> {
         sent += Sent(request.address, request.username, String(request.password), request.acknowledgement)
-        return gate?.await() ?: fake.signIn(request)
+        passwordArrays += request.password
+        val held = gate ?: return fake.signIn(request)
+        return withContext(NonCancellable) { held.await() }
     }
 
     override fun quickConnect(
         address: ServerAddress,
         acknowledgement: CleartextAcknowledgement?,
-    ): Flow<QuickConnectState> = quickConnectFlow ?: fake.quickConnect(address, acknowledgement)
+    ): Flow<QuickConnectState> =
+        quickConnectQueue.removeFirstOrNull() ?: quickConnectFlow ?: fake.quickConnect(address, acknowledgement)
+}
+
+/**
+ * A hand-written flow that ignores cancellation until released, then emits [update] and finishes. `flow { }` would
+ * throw at its next `emit` once cancelled, hiding a missing guard in the view model; this does not.
+ */
+private class StubbornFlow(
+    private val update: QuickConnectState,
+) : Flow<QuickConnectState> {
+    val gate = CompletableDeferred<Unit>()
+
+    override suspend fun collect(collector: FlowCollector<QuickConnectState>) {
+        withContext(NonCancellable) { gate.await() }
+        collector.emit(update)
+    }
+}
+
+/** A [SecretStore] whose save can be held open, ignoring cancellation, to cancel or leave in the middle of it. */
+private class GatedStore(
+    private val inner: SecretStore,
+) : SecretStore {
+    var saveGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun save(
+        key: String,
+        value: String,
+    ): SecretStoreResult<Unit> {
+        saveGate?.let { gate -> withContext(NonCancellable) { gate.await() } }
+        return inner.save(key, value)
+    }
+
+    override suspend fun load(key: String) = inner.load(key)
+
+    override suspend fun clear(key: String) = inner.clear(key)
+}
+
+/** Builds [viewModel] inside a [ViewModelStore], so clearing the store clears it the way the platform does. */
+private fun <T : ViewModel> ViewModelStore.host(
+    viewModel: T,
+    type: Class<T>,
+): T {
+    val factory =
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <V : ViewModel> create(modelClass: Class<V>): V = viewModel as V
+        }
+    return ViewModelProvider.create(this, factory)[type]
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -82,12 +150,14 @@ private class RecordingServer(
 class SignInViewModelTest {
     private val server = RecordingServer()
     private val store = InMemorySecretStore()
-    private val repository = SessionRepository(store, server)
+    private val gatedStore = GatedStore(store)
+    private val repository = SessionRepository(gatedStore, server)
     private val handOff = ServerHandOff()
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val http = ServerAddress(Scheme.Http, "jellyfin.example.test", 8096)
+    private val connected = ConnectedServer(ResolvedServer(https, info), acknowledgement = null)
 
     private fun session(
         admin: Boolean,
@@ -97,13 +167,16 @@ class SignInViewModelTest {
     @Before
     fun setMain() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        handOff.put(ConnectedServer(ResolvedServer(https, info), acknowledgement = null))
+        handOff.put(connected)
     }
 
     @After
     fun resetMain() = Dispatchers.resetMain()
 
     private fun viewModel() = SignInViewModel(server, repository, handOff)
+
+    /** A view model hosted in [owner], so `owner.clear()` is the platform clearing it. */
+    private fun hosted(owner: ViewModelStore) = owner.host(viewModel(), SignInViewModel::class.java)
 
     private fun SignInViewModel.fill(
         name: String = "sam",
@@ -408,7 +481,7 @@ class SignInViewModelTest {
 
     @Test
     fun withNothingHandedOverTheScreenIsMissingItsServerAndSendsNothing() {
-        handOff.clear()
+        handOff.clear(connected)
         val vm = viewModel()
 
         assertTrue(vm.missingServer)
@@ -551,17 +624,21 @@ class SignInViewModelTest {
     }
 
     @Test
-    fun anApprovalThatArrivesAfterCancelIsIgnored() {
-        val updates = MutableSharedFlow<QuickConnectState>()
-        server.quickConnectFlow = updates
+    fun anApprovalThatArrivesAfterCancelIsIgnoredAndTheTokenItIssuedIsRevoked() {
+        // The flow does not stop when cancelled (a response already in flight), so only the view model's guard keeps
+        // the late approval off the screen.
+        val late = StubbornFlow(QuickConnectState.SignedIn(session(admin = false)))
+        server.quickConnectFlow = late
         val vm = viewModel()
         vm.onQuickConnect()
         vm.onCancelQuickConnect()
 
-        runBlocking { updates.emit(QuickConnectState.SignedIn(session(admin = false))) }
+        late.gate.complete(Unit)
 
         assertEquals(SignInPhase.Idle, vm.state.value.phase)
         assertTrue(store.writtenKeys.isEmpty())
+        assertEquals(1, server.fake.revokeCalls.size)
+        assertNotNull(handOff.peek())
     }
 
     @Test
@@ -574,5 +651,300 @@ class SignInViewModelTest {
         vm.onLeave()
 
         assertTrue(stopped)
+    }
+
+    // A session is saved only if the user is still waiting (Angua M1, Nobby L1)
+
+    @Test
+    fun quickConnectCancelledDuringTheSaveIsRevokedNotKept() =
+        runTest {
+            gatedStore.saveGate = CompletableDeferred()
+            server.quickConnectFlow =
+                flow {
+                    emit(QuickConnectState.CodeIssued("123456"))
+                    emit(QuickConnectState.SignedIn(session(admin = false)))
+                    awaitCancellation()
+                }
+            val vm = viewModel()
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+            vm.onQuickConnect()
+
+            vm.onCancelQuickConnect()
+            gatedStore.saveGate!!.complete(Unit)
+
+            assertEquals(SignInPhase.Idle, vm.state.value.phase)
+            assertTrue(handed.isEmpty())
+            assertTrue("the stored session should be gone", store.snapshot().isEmpty())
+            assertEquals(listOf(SessionRepository.SESSION_KEY), store.clearedKeys)
+            assertEquals(1, server.fake.revokeCalls.size)
+            assertNotNull("the user is back on the form, so the server stays handed over", handOff.peek())
+            job.cancel()
+        }
+
+    @Test
+    fun aPasswordSignInLeftDuringTheSaveIsRevokedNotKept() =
+        runTest {
+            gatedStore.saveGate = CompletableDeferred()
+            server.fake.signInResult = ServerResult.Success(session(admin = false))
+            val owner = ViewModelStore()
+            val vm = hosted(owner)
+            vm.fill()
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+            vm.onSignIn()
+
+            vm.onLeave()
+            owner.clear()
+            gatedStore.saveGate!!.complete(Unit)
+
+            assertTrue(handed.isEmpty())
+            assertNotEquals(SignInPhase.SignedIn, vm.state.value.phase)
+            assertTrue("the stored session should be gone", store.snapshot().isEmpty())
+            assertEquals(1, server.fake.revokeCalls.size)
+            job.cancel()
+        }
+
+    @Test
+    fun aViewModelClearedDuringTheSaveRevokesWhatItWasAboutToKeep() =
+        runTest {
+            gatedStore.saveGate = CompletableDeferred()
+            server.fake.signInResult = ServerResult.Success(session(admin = false))
+            val owner = ViewModelStore()
+            val vm = hosted(owner)
+            vm.fill()
+            vm.onSignIn()
+
+            owner.clear()
+            gatedStore.saveGate!!.complete(Unit)
+
+            assertTrue(store.snapshot().isEmpty())
+            assertEquals(1, server.fake.revokeCalls.size)
+        }
+
+    @Test
+    fun aSignInThatIsStillWaitedForIsKeptAndNotRevoked() =
+        runTest {
+            gatedStore.saveGate = CompletableDeferred()
+            server.fake.signInResult = ServerResult.Success(session(admin = false))
+            val vm = viewModel()
+            vm.fill()
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+            vm.onSignIn()
+
+            gatedStore.saveGate!!.complete(Unit)
+
+            assertEquals(1, handed.size)
+            assertEquals(listOf(SessionRepository.SESSION_KEY), store.writtenKeys)
+            assertTrue(server.fake.revokeCalls.isEmpty())
+            job.cancel()
+        }
+
+    @Test
+    fun aSessionThatCouldNotBeSavedAlsoClearsAnOlderStoredOne() =
+        runTest {
+            runBlocking { store.save(SessionRepository.SESSION_KEY, "older-stored-session") }
+            store.failSave = true
+            server.fake.signInResult = ServerResult.Success(session(admin = false))
+            val vm = viewModel()
+            vm.fill()
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+
+            vm.onSignIn()
+
+            assertFalse(handed.single().persisted)
+            assertTrue("an older session must not be restorable later", store.snapshot().isEmpty())
+            job.cancel()
+        }
+
+    // The hand-off
+
+    @Test
+    fun anOldViewModelClearedAfterANewServerWasHandedOverLeavesTheNewOneAlone() {
+        val owner = ViewModelStore()
+        hosted(owner)
+        val newer = ConnectedServer(ResolvedServer(http, info), CleartextAcknowledgement(http))
+        handOff.put(newer)
+
+        owner.clear()
+
+        assertSame(newer, handOff.peek())
+    }
+
+    @Test
+    fun aViewModelThatIsClearedDropsItsOwnHandedOverServer() {
+        val owner = ViewModelStore()
+        hosted(owner)
+        assertSame(connected, handOff.peek())
+
+        owner.clear()
+
+        assertNull(handOff.peek())
+    }
+
+    // Quick Connect attempts (Nobby M1)
+
+    @Test
+    fun anOldQuickConnectThatAnswersAfterARestartChangesNothing() {
+        val old = StubbornFlow(QuickConnectState.CodeIssued("111111"))
+        val fresh = MutableSharedFlow<QuickConnectState>()
+        server.quickConnectQueue.addLast(old)
+        server.quickConnectQueue.addLast(fresh)
+        val vm = viewModel()
+        vm.onQuickConnect()
+        vm.onCancelQuickConnect()
+        vm.onQuickConnect()
+        runBlocking { fresh.emit(QuickConnectState.CodeIssued("222222")) }
+
+        old.gate.complete(Unit)
+
+        assertEquals(SignInPhase.QuickConnect(code = "222222"), vm.state.value.phase)
+    }
+
+    @Test
+    fun anOldApprovalThatArrivesAfterARestartIsRevokedAndTheNewAttemptCarriesOn() =
+        runTest {
+            val old = StubbornFlow(QuickConnectState.SignedIn(session(admin = false)))
+            val fresh = MutableSharedFlow<QuickConnectState>()
+            server.quickConnectQueue.addLast(old)
+            server.quickConnectQueue.addLast(fresh)
+            val vm = viewModel()
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+            vm.onQuickConnect()
+            vm.onCancelQuickConnect()
+            vm.onQuickConnect()
+            runBlocking { fresh.emit(QuickConnectState.CodeIssued("222222")) }
+
+            old.gate.complete(Unit)
+
+            assertEquals(SignInPhase.QuickConnect(code = "222222"), vm.state.value.phase)
+            assertTrue(handed.isEmpty())
+            assertTrue(store.writtenKeys.isEmpty())
+            assertEquals(1, server.fake.revokeCalls.size)
+            job.cancel()
+        }
+
+    // Password races (Nobby M3)
+
+    @Test
+    fun leavingWhileSigningInEndsTheWaitAndKeepsNoPassword() {
+        server.gate = CompletableDeferred()
+        val vm = viewModel()
+        vm.fill()
+        vm.onSignIn()
+
+        vm.onLeave()
+
+        assertEquals(SignInPhase.Idle, vm.state.value.phase)
+        assertEquals("", vm.state.value.password)
+        server.gate!!.complete(ServerResult.Failure(MediaServerError.HttpUnauthorized()))
+    }
+
+    @Test
+    fun aViewModelClearedWhileSigningInKeepsNoPassword() {
+        server.gate = CompletableDeferred()
+        val owner = ViewModelStore()
+        val vm = hosted(owner)
+        vm.fill()
+        vm.onSignIn()
+
+        owner.clear()
+
+        assertEquals("", vm.state.value.password)
+        server.gate!!.complete(ServerResult.Failure(MediaServerError.HttpUnauthorized()))
+    }
+
+    @Test
+    fun aSuccessThatArrivesAfterLeavingIsRevokedNotSaved() =
+        runTest {
+            server.gate = CompletableDeferred()
+            val vm = viewModel()
+            vm.fill()
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+            vm.onSignIn()
+            vm.onLeave()
+
+            server.gate!!.complete(ServerResult.Success(session(admin = false)))
+
+            assertTrue(handed.isEmpty())
+            assertTrue(store.writtenKeys.isEmpty())
+            assertEquals(1, server.fake.revokeCalls.size)
+            assertEquals(SignInPhase.Idle, vm.state.value.phase)
+            job.cancel()
+        }
+
+    @Test
+    fun aFailureThatArrivesAfterLeavingDoesNotBringBackAPanel() {
+        server.gate = CompletableDeferred()
+        val vm = viewModel()
+        vm.fill()
+        vm.onSignIn()
+        vm.onLeave()
+
+        server.gate!!.complete(ServerResult.Failure(MediaServerError.HttpUnauthorized()))
+
+        assertEquals(SignInPhase.Idle, vm.state.value.phase)
+    }
+
+    @Test
+    fun aFailureThatArrivesDuringANewQuickConnectDoesNotReplaceIt() {
+        server.gate = CompletableDeferred()
+        server.quickConnectFlow = MutableSharedFlow()
+        val vm = viewModel()
+        vm.fill()
+        vm.onSignIn()
+        vm.onLeave()
+        vm.onQuickConnect()
+
+        server.gate!!.complete(ServerResult.Failure(MediaServerError.Timeout()))
+
+        assertEquals(SignInPhase.QuickConnect(code = null), vm.state.value.phase)
+    }
+
+    @Test
+    fun aFailureThatArrivesAfterTheUserTypedStillShowsAndKeepsWhatWasTyped() {
+        server.gate = CompletableDeferred()
+        val vm = viewModel()
+        vm.fill()
+        vm.onSignIn()
+        vm.onPasswordChange("dummy-pass-0002")
+
+        server.gate!!.complete(ServerResult.Failure(MediaServerError.HttpUnauthorized()))
+
+        assertTrue(vm.state.value.phase is SignInPhase.Failed)
+        assertEquals("dummy-pass-0002", vm.state.value.password)
+    }
+
+    @Test
+    fun theSubmittedPasswordArrayIsWipedOnceTheRequestEnds() {
+        server.gate = CompletableDeferred()
+        val vm = viewModel()
+        vm.fill()
+        vm.onSignIn()
+        val array = server.passwordArrays.single()
+        assertEquals("dummy-pass-0001", String(array))
+
+        server.gate!!.complete(ServerResult.Failure(MediaServerError.HttpUnauthorized()))
+
+        assertTrue("the array should be all zero characters", array.all { it == '\u0000' })
+    }
+
+    @Test
+    fun theSubmittedPasswordArrayIsWipedWhenTheViewModelIsClearedFirst() {
+        server.gate = CompletableDeferred()
+        val owner = ViewModelStore()
+        val vm = hosted(owner)
+        vm.fill()
+        vm.onSignIn()
+        val array = server.passwordArrays.single()
+
+        owner.clear()
+        server.gate!!.complete(ServerResult.Success(session(admin = false)))
+
+        assertTrue("the array should be all zero characters", array.all { it == '\u0000' })
     }
 }

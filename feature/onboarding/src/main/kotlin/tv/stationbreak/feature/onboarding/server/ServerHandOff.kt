@@ -21,13 +21,19 @@ internal class ServerHandOff
         @Volatile
         private var held: ConnectedServer? = null
 
+        @Synchronized
         fun put(server: ConnectedServer) {
             held = server
         }
 
         fun peek(): ConnectedServer? = held
 
-        fun clear() {
-            held = null
+        /**
+         * Drops what is held, but only if it is still [expected]: a sign-in screen that is going away must not wipe a
+         * server a newer one was just handed.
+         */
+        @Synchronized
+        fun clear(expected: ConnectedServer) {
+            if (held === expected) held = null
         }
     }

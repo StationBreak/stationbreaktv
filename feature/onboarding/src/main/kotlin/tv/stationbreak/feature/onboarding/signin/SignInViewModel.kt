@@ -139,6 +139,13 @@ internal class SignInViewModel
         private var signInJob: Job? = null
         private var quickConnectJob: Job? = null
 
+        /**
+         * Names the attempt the user is waiting for. Every Sign in and Quick Connect takes the next number, and Cancel
+         * and leaving move it on, so an answer that arrives later sees its own number is no longer current and is
+         * dropped (or, if it carries a session, revoked) instead of changing a screen it no longer belongs to.
+         */
+        private var attempt = 0
+
         fun onUsernameChange(text: String) = mutableState.update { it.copy(username = text, phase = settled(it.phase)) }
 
         fun onPasswordChange(text: String) = mutableState.update { it.copy(password = text, phase = settled(it.phase)) }
@@ -156,14 +163,15 @@ internal class SignInViewModel
             }
             // The password leaves the state before the request starts, and the array is wiped when the call ends.
             val password = current.password.toCharArray()
+            val id = ++attempt
             mutableState.update { it.copy(password = "", phase = SignInPhase.SigningIn) }
             signInJob =
                 viewModelScope.launch {
                     try {
                         val request = SignInRequest(server.server.address, username, password, server.acknowledgement)
                         when (val result = mediaServer.signIn(request)) {
-                            is ServerResult.Success -> complete(result.value)
-                            is ServerResult.Failure -> fail(result.error, SignInPhase.SigningIn)
+                            is ServerResult.Success -> complete(result.value, id)
+                            is ServerResult.Failure -> fail(result.error, id)
                         }
                     } finally {
                         password.fill('\u0000')
@@ -174,35 +182,55 @@ internal class SignInViewModel
         fun onQuickConnect() {
             val server = connected ?: return
             if (mutableState.value.phase.isBusy) return
+            quickConnectJob?.cancel()
+            val id = ++attempt
             mutableState.update { it.copy(phase = SignInPhase.QuickConnect(code = null)) }
             quickConnectJob =
                 viewModelScope.launch {
                     mediaServer
                         .quickConnect(server.server.address, server.acknowledgement)
-                        .collect { applyQuickConnect(it) }
+                        .collect { applyQuickConnect(it, id) }
                 }
         }
 
         /** Cancel on the Quick Connect panel (and Back): the flow stops and the form is back. */
         fun onCancelQuickConnect() {
             if (mutableState.value.phase !is SignInPhase.QuickConnect) return
+            attempt++
             quickConnectJob?.cancel()
             mutableState.update { it.copy(phase = SignInPhase.Idle) }
         }
 
-        /** The screen is being left: nothing keeps running, and no password is kept. */
+        /**
+         * The screen is being left: nothing keeps running, no password is kept, and an answer still on its way is no
+         * longer wanted (a session in it is revoked, not saved).
+         */
         fun onLeave() {
+            attempt++
             quickConnectJob?.cancel()
             mutableState.update {
-                it.copy(password = "", phase = if (it.phase is SignInPhase.QuickConnect) SignInPhase.Idle else it.phase)
+                val waiting = it.phase == SignInPhase.SigningIn || it.phase is SignInPhase.QuickConnect
+                it.copy(password = "", phase = if (waiting) SignInPhase.Idle else it.phase)
             }
         }
 
-        override fun onCleared() = onLeave()
+        override fun onCleared() {
+            onLeave()
+            // Only what this screen was given: a newer screen's server stays.
+            connected?.let(handOff::clear)
+        }
 
-        private suspend fun applyQuickConnect(update: QuickConnectState) {
-            // Only the running Quick Connect may change the screen; a stale step is dropped.
-            if (mutableState.value.phase !is SignInPhase.QuickConnect) return
+        private suspend fun applyQuickConnect(
+            update: QuickConnectState,
+            id: Int,
+        ) {
+            // A session is acted on whatever the screen is doing: complete() saves it or revokes it. Anything else
+            // from an attempt that is no longer the current one is dropped.
+            if (update is QuickConnectState.SignedIn) {
+                complete(update.session, id)
+                return
+            }
+            if (id != attempt) return
             when (update) {
                 is QuickConnectState.CodeIssued -> {
                     mutableState.update { it.copy(phase = SignInPhase.QuickConnect(update.code)) }
@@ -213,7 +241,7 @@ internal class SignInViewModel
                 }
 
                 is QuickConnectState.SignedIn -> {
-                    complete(update.session)
+                    Unit
                 }
 
                 QuickConnectState.Expired -> {
@@ -228,7 +256,7 @@ internal class SignInViewModel
                     if (update.error is MediaServerError.QuickConnectDisabled) {
                         mutableState.update { it.copy(phase = SignInPhase.QuickConnectDisabled) }
                     } else {
-                        fail(update.error, mutableState.value.phase)
+                        fail(update.error, id)
                     }
                 }
             }
@@ -238,22 +266,46 @@ internal class SignInViewModel
             mutableState.update { it.copy(phase = SignInPhase.QuickConnectEnded(reason)) }
         }
 
-        /** Saves the session, even if the screen is being left (the token is already issued), then hands it on. */
-        private suspend fun complete(session: Session) {
-            val outcome = withContext(NonCancellable) { sessions.save(session) }
-            handOff.clear()
+        /**
+         * Saves the session only if the user is still waiting for it, then hands it on. If they cancelled, left or the
+         * screen is gone (checked before and again after the save, which cannot be interrupted: the token is already
+         * issued), the session is signed out instead: the store is cleared and the server revokes the token. Nothing
+         * is handed over and the screen is not moved to [SignInPhase.SignedIn].
+         */
+        private suspend fun complete(
+            session: Session,
+            id: Int,
+        ) {
+            val outcome =
+                withContext(NonCancellable) {
+                    // Leaving, cancelling and the view model being cleared (onCleared leaves) all move [attempt] on.
+                    fun waiting() = id == attempt
+                    if (!waiting()) {
+                        sessions.signOut(session)
+                        return@withContext null
+                    }
+                    val saved = sessions.save(session)
+                    if (!waiting()) {
+                        sessions.signOut(session)
+                        return@withContext null
+                    }
+                    // A session that couldn't be saved must not leave an older one behind to be restored later.
+                    if (saved == PersistOutcome.NotSaved) sessions.clear()
+                    saved
+                } ?: return
+            connected?.let(handOff::clear)
             mutableState.update { it.copy(password = "", phase = SignInPhase.SignedIn) }
             results.send(SignInResult(session, persisted = outcome == PersistOutcome.Saved))
         }
 
         private fun fail(
             error: MediaServerError,
-            from: SignInPhase,
+            id: Int,
         ) {
             val retype = error is MediaServerError.HttpUnauthorized || error is MediaServerError.HttpForbidden
             val failed = SignInPhase.Failed(error, ErrorCopyTable.copyFor(error), retypePassword = retype)
-            // Drop a late answer if the screen has moved on from what asked.
-            mutableState.update { if (it.phase == from) it.copy(phase = failed) else it }
+            // Drop a late answer if the user has cancelled, left or started something else since.
+            if (id == attempt) mutableState.update { it.copy(phase = failed) }
         }
 
         /** Typing is the user's own move: it clears a message about the last attempt. */
