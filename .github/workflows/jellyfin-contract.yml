@@ -82,8 +82,9 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-build-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-build-v1-${{ runner.os }}-
+            !~/.gradle/caches/build-cache-1
+          key: gradle-build-v2-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-v2-${{ runner.os }}-
 
       - name: Image under test
         run: echo "Jellyfin ${MATRIX_TAG} = ${JELLYFIN_IMAGE}"
@@ -123,8 +124,9 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-build-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-build-v1-${{ runner.os }}-
+            !~/.gradle/caches/build-cache-1
+          key: gradle-build-v2-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-build-v2-${{ runner.os }}-
 
       - name: Contract tests against latest
         run: ./gradlew :data:jellyfin:contractTest
