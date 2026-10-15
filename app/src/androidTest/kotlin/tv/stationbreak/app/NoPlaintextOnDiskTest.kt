@@ -90,6 +90,9 @@ class NoPlaintextOnDiskTest {
         }
     }
 
+    // The scanner's own Base64 forms. The positive control in theScannerFindsEachFormInEachKindOfDirectory encodes its
+    // files separately (Base64.encode of the padded control), so the two are independent encoders: don't read one as
+    // the other.
     // Base64 of the needle at each of the three byte alignments it can have inside a larger encoded value. The chars
     // that mix with a neighbouring byte are dropped, so what is left appears whatever surrounds the needle.
     private fun base64Forms(bytes: ByteArray): List<ByteArray> =

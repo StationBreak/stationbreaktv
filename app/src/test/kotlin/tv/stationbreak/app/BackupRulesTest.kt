@@ -123,6 +123,39 @@ class BackupRulesTest {
         assertTrue("main declares a backupAgent", !mainApplication.hasAttributeNS(androidNamespace, "backupAgent"))
     }
 
+    // The manifest after every library's manifest is merged in (the variant's processMainManifest output). The source
+    // manifests above can't see what a dependency adds.
+    private val mergedManifest: Document
+        get() {
+            val path = System.getProperty("mergedManifest")
+            assertTrue("the build did not pass the merged manifest's path", !path.isNullOrEmpty())
+            val file = File(path!!)
+            assertTrue("the merged manifest is missing: $path", file.isFile)
+            return parse(file)
+        }
+
+    private fun allElements(document: Document): List<Element> {
+        val nodes = document.getElementsByTagName("*")
+        return (0 until nodes.length).map { nodes.item(it) as Element }
+    }
+
+    @Test
+    fun theMergedManifestHasNoBackupAgentOnAnyElement() {
+        val withAgent =
+            allElements(mergedManifest).filter { it.hasAttributeNS(androidNamespace, "backupAgent") }.map { it.tagName }
+        assertEquals("a merged manifest element declares a backupAgent", emptyList<String>(), withAgent)
+    }
+
+    @Test
+    fun theMergedManifestKeepsTheBackupAttributesOfTheApp() {
+        val apps = allElements(mergedManifest).filter { it.tagName == "application" }
+        assertEquals(1, apps.size)
+        val app = apps.single()
+        assertEquals("false", app.getAttributeNS(androidNamespace, "allowBackup"))
+        assertEquals("@xml/backup_rules", app.getAttributeNS(androidNamespace, "fullBackupContent"))
+        assertEquals("@xml/data_extraction_rules", app.getAttributeNS(androidNamespace, "dataExtractionRules"))
+    }
+
     @Test
     fun theManifestPointsAtBothRuleFiles() {
         assertEquals("@xml/backup_rules", mainApplication.getAttributeNS(androidNamespace, "fullBackupContent"))
