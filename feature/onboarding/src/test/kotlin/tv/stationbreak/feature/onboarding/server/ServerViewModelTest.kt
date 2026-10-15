@@ -586,6 +586,22 @@ class ServerViewModelTest {
         assertTrue(settings.saved.isEmpty())
     }
 
+    // A pin that could not be dropped from disk would come back at the next load, so Test must not go on to connect
+    // as if the certificate were being asked about afresh (#234 L4).
+    @Test
+    fun aTestStopsWhenTheStoredPinCannotBeCleared() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        settings.failSave = true
+        server.fake.discoverResult = found(nas)
+        val vm = viewModel()
+
+        vm.test("nas.example.test:8920")
+
+        assertTrue(server.fake.discoverCalls.isEmpty())
+        val phase = vm.phase() as ServerPhase.Failed
+        assertTrue(phase.error is MediaServerError.Unknown)
+    }
+
     /** Waits for [gate] before it clears a pin, to hold a clear open. */
     private class SlowClear(
         private val inner: InMemoryServerSettings,

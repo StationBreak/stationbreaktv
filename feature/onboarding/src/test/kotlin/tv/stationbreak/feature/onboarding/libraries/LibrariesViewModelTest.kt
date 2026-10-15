@@ -201,6 +201,29 @@ class LibrariesViewModelTest {
         assertEquals(1, settings.savedLibraries.size)
     }
 
+    // Back (#234 L3)
+
+    @Test
+    fun backIsIgnoredWhileTheChoiceIsBeingSaved() {
+        val vm = viewModel()
+        vm.onDone()
+        var left = 0
+
+        vm.onBack { left++ }
+
+        assertEquals(0, left)
+    }
+
+    @Test
+    fun backLeavesWhenNothingIsBeingSaved() {
+        val vm = viewModel()
+        var left = 0
+
+        vm.onBack { left++ }
+
+        assertEquals(1, left)
+    }
+
     // Zero libraries
 
     @Test

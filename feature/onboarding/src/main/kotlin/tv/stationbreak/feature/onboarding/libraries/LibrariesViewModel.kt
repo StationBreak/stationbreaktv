@@ -180,6 +180,8 @@ internal class LibrariesViewModel
             return settings.saveLibraries(ids) || (storable && settings.saveLibraries(ids))
         }
 
+        fun onBack(leave: () -> Unit) = leave()
+
         /** Retry, after a failed listing or when there is nothing to choose from: asks the server again. */
         fun onRetry() {
             when (mutableState.value.phase) {
