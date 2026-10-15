@@ -15,9 +15,10 @@ import java.io.IOException
 
 /**
  * The [ServerSettings] on one small file in `noBackupFilesDir`: the address and its pin as a single record, with the
- * library selection beside them, replaced atomically as a whole (spec 05, Units 3 and 4). It is out of backup on purpose, so a restore onto another device asks about the
- * certificate again instead of carrying a trust decision over. No secret is kept here (the session is in the Keystore
- * store). Faults come back as `false` or `null`, never as an exception, and the store logs nothing.
+ * library selection beside them, replaced atomically as a whole (spec 05, Units 3 and 4). It is out of backup on
+ * purpose, so a restore onto another device asks about the certificate again instead of carrying a trust decision
+ * over. No secret is kept here (the session is in the Keystore store). Faults come back as `false` or `null`, never as
+ * an exception, and the store logs nothing.
  */
 class FileServerSettings internal constructor(
     private val file: RecordFile,

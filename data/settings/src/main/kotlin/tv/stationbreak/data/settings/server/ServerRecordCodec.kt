@@ -47,15 +47,18 @@ internal object ServerRecordCodec {
                 .lines()
                 .filter { '=' in it }
                 .associate { it.substringBefore('=') to it.substringAfter('=') }
-        if (values["version"] != VERSION) return null
-        val record = recordOf(values) ?: return null
+        val record = if (values["version"] == VERSION) recordOf(values) else null
         // A selection that can't be read is as good as none: the picker asks again. The record is still good.
-        return StoredSettings(record, values["libraries"]?.let(::librariesOf))
+        return record?.let { StoredSettings(it, values["libraries"]?.let(::librariesOf)) }
     }
 
     private fun librariesOf(text: String): Set<ItemId>? =
         try {
-            text.split(',').map(::ItemId).toSet().takeIf { it.isNotEmpty() }
+            text
+                .split(',')
+                .map(::ItemId)
+                .toSet()
+                .takeIf { it.isNotEmpty() }
         } catch (_: IllegalArgumentException) {
             null
         }
