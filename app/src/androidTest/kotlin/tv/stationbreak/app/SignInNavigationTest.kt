@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -139,12 +140,30 @@ class SignInNavigationTest {
         // Each key goes to the node that should have focus by then; on a cold emulator focus can lag the first key.
         awaitFocused(ServerTags.FIELD)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(ServerTags.FIELD_INPUT).performTextInput(address)
+        typeIntoField(address)
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
         awaitFocused(ServerTags.TEST)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitFocused(ServerTags.CONTINUE)
+    }
+
+    /**
+     * On a cold emulator the first text input can reach the IME before its connection is active ("commitText on
+     * inactive InputConnection" in logcat) and is dropped, so Test then runs on a blank field. Type until it lands.
+     */
+    private fun typeIntoField(address: String) {
+        val input = compose.onNodeWithTag(ServerTags.FIELD_INPUT)
+        repeat(TYPE_ATTEMPTS) {
+            input.performTextInput(address)
+            val landed =
+                runCatching {
+                    compose.waitUntil(TYPE_TIMEOUT_MS) { runCatching { input.assert(hasText(address)) }.isSuccess }
+                }.isSuccess
+            if (landed) return
+            input.performTextClearance()
+        }
+        input.assert(hasText(address))
     }
 
     /** The Test runs off the main thread; on a cold emulator its result can land after the idle check. */
@@ -287,6 +306,8 @@ class SignInNavigationTest {
 
     private companion object {
         const val BACK_TIMEOUT_MS = 5_000L
+        const val TYPE_ATTEMPTS = 3
+        const val TYPE_TIMEOUT_MS = 2_000L
         const val POLL_MS = 50L
     }
 }
