@@ -3,6 +3,7 @@ package tv.stationbreak.data.jellyfin
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.domain.CleartextGate
@@ -89,9 +90,17 @@ class JellyfinMediaServer internal constructor(
     /**
      * The client for calls that carry credentials but aren't API calls (images, subtitles, Media3): the one the API
      * uses, with its pinned trust, no redirect and the `Authorization` header added from the request's tag. It is
-     * replaced whenever a pin changes, so ask again for every use and never keep it.
+     * replaced whenever a pin changes, so ask again for every use and never keep it. A long-lived consumer (Media3,
+     * Coil) must not call this once and keep the result: it takes [credentialedCallFactory] instead.
      */
     fun credentialedHttpClient(): OkHttpClient = clients.credentialed
+
+    /**
+     * The only handle a long-lived consumer (Media3's data source, Coil) may keep: it makes each call on the
+     * [credentialedHttpClient] in force at that moment, so a pin change or clear reaches calls made later even though
+     * the consumer was built before it.
+     */
+    val credentialedCallFactory: Call.Factory = Call.Factory { request -> clients.credentialed.newCall(request) }
 
     override suspend fun discover(input: String): ServerResult<ResolvedServer> =
         when (val parsed = AddressParser.parse(input)) {
