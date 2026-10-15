@@ -45,6 +45,9 @@ internal object Fingerprint {
 
     fun text(pin: SpkiPin): String = groups(pin).joinToString(" ")
 
+    /** Placeholder until the spoken form is written. */
+    fun spoken(pin: SpkiPin): String = text(pin)
+
     /** The same groups in lines of eight, for a screen that reads at ten feet. */
     fun lines(pin: SpkiPin): List<String> = groups(pin).chunked(GROUPS_PER_LINE).map { it.joinToString(" ") }
 }

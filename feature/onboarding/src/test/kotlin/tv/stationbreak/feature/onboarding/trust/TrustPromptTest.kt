@@ -76,6 +76,16 @@ class TrustPromptTest {
     }
 
     @Test
+    fun theSpokenFingerprintSpellsEveryDigitAndPausesBetweenGroups() {
+        val spoken = Fingerprint.spoken(pin)
+        assertTrue(spoken.startsWith("0 0 0 1, 0 2 0 3, 0 4 0 5"))
+        assertTrue(spoken.endsWith("1 C 1 D, 1 E 1 F"))
+        // Every digit on its own: no run of two hex digits that a screen reader would say as a number.
+        assertTrue(spoken.split(", ").all { group -> group.split(" ").let { it.size == 4 && it.all { c -> c.length == 1 } } })
+        assertEquals(pin.hex, spoken.filter { it != ' ' && it != ',' })
+    }
+
+    @Test
     fun theFingerprintIsShownInTwoLinesOfEightGroups() {
         val lines = Fingerprint.lines(pin)
         assertEquals(2, lines.size)
