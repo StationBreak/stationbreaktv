@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -25,6 +26,10 @@ data class ServerRecord(
  *
  * Editing the address, or testing it again, clears the pin ([clearPin]); signing out does not touch it, because the
  * address is kept.
+ *
+ * The library selection (S0.5.4) lives beside the record and is written with it, so the two can never disagree about
+ * which server the choice was made on: [save] keeps the selection when the address is the same one and drops it when
+ * the address is another server's, and [clearPin] keeps it.
  */
 interface ServerSettings {
     /** The stored record, or null when none was saved (or it couldn't be read). */
@@ -35,4 +40,20 @@ interface ServerSettings {
 
     /** Keeps the address and drops its pin, in one atomic write. A no-op when there is no pin. */
     suspend fun clearPin(): Boolean
+
+    /** The libraries the user chose on the stored server, or null when none was saved (or it couldn't be read). */
+    suspend fun loadLibraries(): Set<ItemId>?
+
+    /**
+     * Stores [ids] as the chosen libraries, in one atomic write with the record. Returns true when it was stored.
+     * Returns false, storing nothing, when there is no record to attach it to, when [ids] is empty (a selection is
+     * never empty), or when the write failed.
+     */
+    suspend fun saveLibraries(ids: Set<ItemId>): Boolean
+
+    /**
+     * Drops the library selection and keeps the record and its pin, in one atomic write. True when it was dropped or
+     * there was nothing to drop. A new sign-in or a switch of user starts the choice again (S0.5.4).
+     */
+    suspend fun clearLibraries(): Boolean
 }

@@ -35,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.QuickConnectState
@@ -100,7 +101,14 @@ class SignInScreenTest {
 
     private fun launch(connected: ConnectedServer? = ConnectedServer(ResolvedServer(https, info), null)) {
         if (connected != null) handOff.put(connected)
-        viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff)
+        viewModel =
+            SignInViewModel(
+                server,
+                SessionRepository(InMemorySecretStore(), server),
+                handOff,
+                SignedInHandOff(),
+                InMemoryServerSettings(),
+            )
         compose.setContent {
             StationBreakTheme {
                 SignInRoot(
@@ -487,7 +495,14 @@ class SignInScreenTest {
     @Test
     fun leavingTheScreenClearsAPasswordThatWasTyped() {
         handOff.put(ConnectedServer(ResolvedServer(https, info), null))
-        viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff)
+        viewModel =
+            SignInViewModel(
+                server,
+                SessionRepository(InMemorySecretStore(), server),
+                handOff,
+                SignedInHandOff(),
+                InMemoryServerSettings(),
+            )
         var visible by mutableStateOf(true)
         compose.setContent {
             StationBreakTheme {

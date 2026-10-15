@@ -12,13 +12,17 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import java.io.File
 import java.util.UUID
 
-/** The record on a real disk on the API 25 emulator: it survives a rebuilt store, and a rewrite is a replace. */
+/**
+ * The record and the library selection on a real disk on the API 25 emulator: both survive a rebuilt store, and a
+ * rewrite is an atomic replace of the one file.
+ */
 @RunWith(AndroidJUnit4::class)
 class FileServerSettingsDiskTest {
     private lateinit var dir: File
@@ -72,5 +76,46 @@ class FileServerSettingsDiskTest {
             assertNull(store().load())
             assertTrue(store().save(ServerRecord(address)))
             assertEquals(ServerRecord(address), store().load())
+        }
+
+    @Test
+    fun theLibrarySelectionSurvivesARebuiltStoreBesideTheRecord() =
+        runBlocking {
+            store().save(ServerRecord(address, pin))
+            assertTrue(store().saveLibraries(setOf(ItemId("movies"), ItemId("shows"))))
+            assertEquals(setOf(ItemId("movies"), ItemId("shows")), store().loadLibraries())
+            assertEquals(ServerRecord(address, pin), store().load())
+        }
+
+    @Test
+    fun aSelectionWriteIsAnAtomicReplaceThatLeavesOneFileAndTheRecordWhole() =
+        runBlocking {
+            store().save(ServerRecord(address, pin))
+            store().saveLibraries(setOf(ItemId("movies")))
+            store().saveLibraries(setOf(ItemId("shows")))
+            assertEquals(setOf(ItemId("shows")), store().loadLibraries())
+            assertEquals(ServerRecord(address, pin), store().load())
+            assertEquals(listOf("server"), dir.list().orEmpty().toList())
+        }
+
+    @Test
+    fun aTornFileHasNoSelectionAndNoRecordUntilTheyAreSavedAgain() =
+        runBlocking {
+            dir.mkdirs()
+            File(dir, "server").writeText("version=1\nscheme=https\nhost=nas.example.test")
+            assertNull(store().load())
+            assertNull(store().loadLibraries())
+            assertTrue(store().save(ServerRecord(address)))
+            assertTrue(store().saveLibraries(setOf(ItemId("movies"))))
+            assertEquals(setOf(ItemId("movies")), store().loadLibraries())
+        }
+
+    @Test
+    fun anotherServerStartsWithoutTheOldSelectionOnDisk() =
+        runBlocking {
+            store().save(ServerRecord(address))
+            store().saveLibraries(setOf(ItemId("movies")))
+            store().save(ServerRecord(ServerAddress(Scheme.Https, "other.example.test", 443)))
+            assertNull(store().loadLibraries())
         }
 }

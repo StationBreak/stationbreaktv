@@ -16,19 +16,27 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
 import tv.stationbreak.feature.onboarding.trust.TrustOutcome
 import tv.stationbreak.feature.onboarding.trust.TrustPrompt
 import tv.stationbreak.feature.onboarding.trust.toTrustPrompt
 import javax.inject.Inject
 
-/** A server that answered a Test, and the acknowledgement the user gave for cleartext to it, if one was needed. */
+/**
+ * A server that answered a Test, and the acknowledgement the user gave for cleartext to it, if one was needed.
+ * [signedOutBecause] is set only by launch routing, when a stored session was refused (`SessionExpired`,
+ * `ServerMismatch`): sign-in says so in one line.
+ */
 data class ConnectedServer(
     val server: ResolvedServer,
     val acknowledgement: CleartextAcknowledgement?,
+    val signedOutBecause: MediaServerError? = null,
 )
 
 /** Where the server screen is. There is never a password or token here: Unit 1 sends none. */
@@ -93,19 +101,36 @@ internal class ServerViewModel
     constructor(
         private val mediaServer: MediaServer,
         private val handOff: ServerHandOff,
+        private val signedIn: SignedInHandOff,
         private val settings: ServerSettings,
         private val certificateTrust: CertificateTrust,
+        private val sessions: SessionRepository,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow(ServerUiState())
         val state: StateFlow<ServerUiState> = mutableState.asStateFlow()
 
         private var testJob: Job? = null
 
+        // Typing wins over the stored address: it is only put in a field the user has not touched.
+        private var edited = false
+
+        init {
+            // The configured server is shown for changing, never a blank form: Change server on the launch screen and
+            // Back from a sign-in that launch routing opened both land here. First launch has nothing stored.
+            viewModelScope.launch {
+                val stored = settings.load()?.address ?: return@launch
+                mutableState.update {
+                    if (edited || it.input.isNotEmpty()) it else it.copy(input = stored.baseUrl)
+                }
+            }
+        }
+
         // The last "clear the pin" that was started. It runs to its end even if this view model is cleared (a pin that
         // outlives the screen that should have dropped it is exactly what it is for), and a new Test waits for it.
         private var pendingClear: Job? = null
 
         fun onInputChange(text: String) {
+            edited = true
             val running = testJob
             running?.cancel()
             // Another address is another server: a pin is for one exact address and goes with the edit.
@@ -196,8 +221,29 @@ internal class ServerViewModel
             if (mutableState.value.phase is ServerPhase.ConfirmCleartext) onEditAddress()
         }
 
-        /** Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]). */
-        fun onContinue(server: ConnectedServer) = handOff.put(server)
+        /**
+         * Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]), and stores it as the
+         * configured server (spec 05, Unit 4) so a later launch finds it. The pin a trust screen stored for this very
+         * address stays; any other address is saved without one, because the Test cleared it. A sign-in held from an
+         * earlier pass is not this server's any more.
+         */
+        fun onContinue(server: ConnectedServer) {
+            signedIn.clear()
+            handOff.put(server)
+            // Started before this screen can leave, so it is first in the settings' queue, ahead of anything sign-in or
+            // the library picker writes; it runs to its end even if this view model is cleared at once.
+            viewModelScope.launch(NonCancellable) {
+                val address = server.server.address
+                val old = settings.load()?.address
+                if (old != address) {
+                    settings.save(ServerRecord(address))
+                    // The stored session belongs to the old server. It would be refused at the next restore anyway
+                    // (a token is only ever sent to the server that issued it), but the user has now chosen another
+                    // server, so it goes now rather than lingering.
+                    if (old != null && !address.bindsTo(old) && !old.bindsTo(address)) sessions.clear()
+                }
+            }
+        }
 
         private fun phaseFor(
             typed: String,

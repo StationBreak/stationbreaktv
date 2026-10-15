@@ -152,4 +152,40 @@
 
     <!-- Prefix of the details line when the technical cause is known. -->
     <string name="error_details_with_cause">%1$s (%2$s)</string>
+
+    <!-- Launch routing (spec 05, Unit 4). A plain progress screen while the stored setup is checked. -->
+    <string name="launch_checking">Checking your server…</string>
+    <string name="launch_progress_description">Checking your server</string>
+    <string name="launch_unavailable_title">Can’t connect to your server</string>
+    <string name="launch_change_server">Change server</string>
+
+    <!-- The library picker (S0.5.4). DRAFT wording for Adorabelle. Home videos start unselected (decision 7). -->
+    <string name="libraries_headline">Choose your libraries</string>
+    <string name="libraries_subtitle">StationBreak will only use the libraries you select.</string>
+    <string name="libraries_loading">Loading your libraries…</string>
+    <string name="libraries_progress_description">Loading your libraries</string>
+    <string name="libraries_done">Done</string>
+    <string name="libraries_none_ticked">Select at least one library to continue.</string>
+    <string name="libraries_kind_movies">Movies</string>
+    <string name="libraries_kind_tv_shows">TV shows</string>
+    <string name="libraries_kind_mixed">Mixed content</string>
+    <string name="libraries_kind_home_videos">Home videos</string>
+    <string name="libraries_kind_music_videos">Music videos</string>
+    <string name="libraries_none_message">This server has no libraries StationBreak can use. Add a movie or TV library in Jellyfin, then choose Retry.</string>
+    <string name="libraries_none_details">No usable libraries</string>
+    <string name="libraries_save_failed_message">Couldn’t save your choice on this TV. Choose Done to try again.</string>
+    <string name="libraries_save_failed_details">Settings not saved</string>
+
+    <!-- Back from the library picker: who is signed in. DRAFT wording for Adorabelle. -->
+    <string name="signed_in_as">Signed in as %1$s</string>
+    <string name="signed_in_to">Signed in to %1$s</string>
+    <string name="signed_in_plain">Signed in</string>
+    <string name="signed_in_continue">Continue</string>
+    <string name="signed_in_switch_user">Switch user</string>
+    <string name="signed_in_switching">Signing out…</string>
+    <string name="signed_in_progress_description">Signing out</string>
+
+    <!-- The placeholder shown after setup, until the first real screen exists (F1.x). No actions. -->
+    <string name="setup_complete_headline">Setup complete</string>
+    <string name="setup_complete_body">Your server and libraries are saved. There’s nothing to watch yet, because StationBreak is still being built.</string>
 </resources>

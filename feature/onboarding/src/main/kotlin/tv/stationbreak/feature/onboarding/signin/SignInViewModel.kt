@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PersistOutcome
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
@@ -37,7 +38,11 @@ import javax.inject.Inject
 data class SignInResult(
     val session: Session,
     val persisted: Boolean,
-)
+    val username: String? = null,
+) {
+    // The user's name is theirs, and the session holds the token: neither belongs in a log line or a crash report.
+    override fun toString(): String = "SignInResult(persisted=$persisted, session=<redacted>, username=<redacted>)"
+}
 
 /** Why a Quick Connect attempt ended without a session. The form is back, with a line saying which. */
 internal enum class QuickConnectEnd { Expired, Denied }
@@ -90,8 +95,16 @@ internal sealed interface SignInPhase {
         val reason: QuickConnectEnd,
     ) : SignInPhase
 
-    /** Signed in and saved. The next destination does not exist yet (Unit 4), so the screen waits. */
+    /** Signed in and saved. The library picker takes over from here; until it does, the screen shows the status. */
     data object SignedIn : SignInPhase
+
+    /**
+     * Launch routing found the stored session refused (expired, or another server's). One line says why; typing
+     * clears it, like any message about an attempt.
+     */
+    data class SessionEnded(
+        val copy: ErrorCopy,
+    ) : SignInPhase
 }
 
 /**
@@ -126,6 +139,8 @@ internal class SignInViewModel
         private val mediaServer: MediaServer,
         private val sessions: SessionRepository,
         private val handOff: ServerHandOff,
+        private val signedInHandOff: SignedInHandOff,
+        private val settings: ServerSettings,
     ) : ViewModel() {
         private val connected: ConnectedServer? = handOff.peek()
 
@@ -142,6 +157,9 @@ internal class SignInViewModel
                             ?.name
                             .orEmpty(),
                     cleartext = connected?.acknowledgement != null,
+                    phase =
+                        connected?.signedOutBecause?.let { SignInPhase.SessionEnded(ErrorCopyTable.copyFor(it)) }
+                            ?: SignInPhase.Idle,
                 ),
             )
         val state: StateFlow<SignInUiState> = mutableState.asStateFlow()
@@ -185,7 +203,7 @@ internal class SignInViewModel
                     try {
                         val request = SignInRequest(server.server.address, username, password, server.acknowledgement)
                         when (val result = mediaServer.signIn(request)) {
-                            is ServerResult.Success -> complete(result.value, id)
+                            is ServerResult.Success -> complete(result.value, id, username)
                             is ServerResult.Failure -> fail(result.error, id)
                         }
                     } finally {
@@ -242,7 +260,7 @@ internal class SignInViewModel
             // A session is acted on whatever the screen is doing: complete() saves it or revokes it. Anything else
             // from an attempt that is no longer the current one is dropped.
             if (update is QuickConnectState.SignedIn) {
-                complete(update.session, id)
+                complete(update.session, id, username = null)
                 return
             }
             if (id != attempt) return
@@ -290,6 +308,7 @@ internal class SignInViewModel
         private suspend fun complete(
             session: Session,
             id: Int,
+            username: String?,
         ) {
             val outcome =
                 withContext(NonCancellable) {
@@ -306,11 +325,17 @@ internal class SignInViewModel
                     }
                     // A session that couldn't be saved must not leave an older one behind to be restored later.
                     if (saved == PersistOutcome.NotSaved) sessions.clear()
+                    // A new sign-in starts the library choice again: another user's choice is not this one's, and a
+                    // restart must ask for it instead of finding it done.
+                    settings.clearLibraries()
                     saved
                 } ?: return
             connected?.let(handOff::clear)
+            val result = SignInResult(session, persisted = outcome == PersistOutcome.Saved, username = username)
+            // In memory, for the library picker and for "Signed in as" (see SignedInHandOff).
+            signedInHandOff.put(result)
             mutableState.update { it.copy(password = "", phase = SignInPhase.SignedIn) }
-            results.send(SignInResult(session, persisted = outcome == PersistOutcome.Saved))
+            results.send(result)
         }
 
         private fun fail(
@@ -329,6 +354,7 @@ internal class SignInViewModel
                 is SignInPhase.InvalidInput,
                 is SignInPhase.Failed,
                 is SignInPhase.QuickConnectEnded,
+                is SignInPhase.SessionEnded,
                 SignInPhase.QuickConnectDisabled,
                 -> SignInPhase.Idle
 

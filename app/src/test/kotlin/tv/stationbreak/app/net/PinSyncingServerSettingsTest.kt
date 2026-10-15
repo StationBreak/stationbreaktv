@@ -15,6 +15,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -145,5 +146,29 @@ class PinSyncingServerSettingsTest {
 
             assertEquals(stored.current?.pin, clients.pinFor(address))
             assertNull(stored.current?.pin)
+        }
+
+    @Test
+    fun theLibrarySelectionPassesThroughAndLeavesTheClientAlone() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            val built = clients.current()
+            assertTrue(settings.saveLibraries(setOf(ItemId("movies"))))
+            assertEquals(setOf(ItemId("movies")), settings.loadLibraries())
+            assertEquals(setOf(ItemId("movies")), stored.currentLibraries)
+            assertSame(built, clients.current())
+        }
+
+    @Test
+    fun clearingTheSelectionPassesThroughAndLeavesTheClientAlone() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            settings.saveLibraries(setOf(ItemId("movies")))
+            val built = clients.current()
+
+            assertTrue(settings.clearLibraries())
+
+            assertNull(stored.currentLibraries)
+            assertSame(built, clients.current())
         }
 }
