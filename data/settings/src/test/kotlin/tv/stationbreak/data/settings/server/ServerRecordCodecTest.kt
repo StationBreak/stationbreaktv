@@ -4,6 +4,7 @@ package tv.stationbreak.data.settings.server
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.model.ItemId
@@ -99,6 +100,25 @@ class ServerRecordCodecTest {
             val decoded = ServerRecordCodec.decodeStored(good.replace("libraries=movies", bad))
             assertEquals(bad, ServerRecord(address, pin), decoded?.record)
             assertNull(bad, decoded?.libraries)
+        }
+    }
+
+    // The address refuses these already; the codec checks again, so a hole in either can't write a forged line.
+    @Test
+    fun aFieldWithALineBreakIsNeverWritten() {
+        for (bad in listOf("a\nb", "a\rb", "x\npin=00")) {
+            assertThrows(bad, IllegalArgumentException::class.java) { ServerRecordCodec.checked(bad) }
+        }
+        assertEquals("/jelly-fin", ServerRecordCodec.checked("/jelly-fin"))
+    }
+
+    // '=' in a value is harmless: a line is split on its first '='. A real URL can have one in its path.
+    @Test
+    fun anEqualsSignInTheSubpathRoundTrips() {
+        for (subpath in listOf("/jelly=fin", "/a=b=c", "/=")) {
+            val record = ServerRecord(ServerAddress(Scheme.Https, "nas.example.test", 443, subpath), pin)
+            assertEquals(subpath, record.address.subpath, subpath)
+            assertEquals(record, ServerRecordCodec.decode(ServerRecordCodec.encode(record)))
         }
     }
 }

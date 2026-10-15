@@ -106,6 +106,9 @@ class FileServerSettings internal constructor(
             true
         } catch (_: IOException) {
             false
+        } catch (_: IllegalArgumentException) {
+            // The codec refused a field it could not store safely: a failed write, like any other.
+            false
         }
 
     private companion object {

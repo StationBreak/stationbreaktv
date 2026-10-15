@@ -4,6 +4,9 @@ package tv.stationbreak.feature.onboarding.launch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
@@ -80,6 +84,9 @@ internal class LaunchViewModel
         /** Fires once when routing has decided. */
         val targets: Flow<LaunchTarget> = results.receiveAsFlow()
 
+        // The route in flight. A new one cancels it, so a late answer from the old one can't move the app on.
+        private var routeJob: Job? = null
+
         init {
             route()
         }
@@ -88,33 +95,35 @@ internal class LaunchViewModel
         fun onRetry() = route()
 
         private fun route() {
+            routeJob?.cancel()
             mutableState.value = LaunchPhase.Routing
-            viewModelScope.launch {
-                when (val route = router.route()) {
-                    LaunchRoute.NoServer -> {
-                        results.send(LaunchTarget.NoServer)
-                    }
+            routeJob =
+                viewModelScope.launch {
+                    when (val route = router.route()) {
+                        LaunchRoute.NoServer -> {
+                            results.send(LaunchTarget.NoServer)
+                        }
 
-                    is LaunchRoute.SignIn -> {
-                        serverHandOff.put(route.server)
-                        results.send(LaunchTarget.SignIn)
-                    }
+                        is LaunchRoute.SignIn -> {
+                            serverHandOff.put(route.server)
+                            results.send(LaunchTarget.SignIn)
+                        }
 
-                    is LaunchRoute.Libraries -> {
-                        // Restored from the secret store, so it is persisted. No name is known for it.
-                        signedIn.put(SignInResult(route.session, persisted = true, username = null))
-                        results.send(LaunchTarget.Libraries)
-                    }
+                        is LaunchRoute.Libraries -> {
+                            // Restored from the secret store, so it is persisted. No name is known for it.
+                            signedIn.put(SignInResult(route.session, persisted = true, username = null))
+                            results.send(LaunchTarget.Libraries)
+                        }
 
-                    LaunchRoute.SetupComplete -> {
-                        results.send(LaunchTarget.SetupComplete)
-                    }
+                        LaunchRoute.SetupComplete -> {
+                            results.send(LaunchTarget.SetupComplete)
+                        }
 
-                    is LaunchRoute.Unavailable -> {
-                        mutableState.value = unavailable(route.error, route.address)
+                        is LaunchRoute.Unavailable -> {
+                            mutableState.value = unavailable(route.error, route.address)
+                        }
                     }
                 }
-            }
         }
 
         private fun unavailable(
@@ -134,7 +143,7 @@ internal class LaunchViewModel
             val asked = mutableState.value as? LaunchPhase.Trust ?: return
             mutableState.value = LaunchPhase.Trusting
             viewModelScope.launch {
-                when (val outcome = certificateTrust.confirm(asked.input, asked.prompt)) {
+                when (val outcome = confirmed(asked)) {
                     is TrustOutcome.Trusted -> {
                         serverHandOff.put(ConnectedServer(outcome.server, acknowledgement = null))
                         results.send(LaunchTarget.SignIn)
@@ -151,6 +160,19 @@ internal class LaunchViewModel
                 }
             }
         }
+
+        // Runs to its end even if this view model is cleared: the pin and the record are stored together or taken back
+        // together, never left half-done by a cancellation. A bug or a failing store ends in the plain error, not in
+        // Trusting for good.
+        private suspend fun confirmed(asked: LaunchPhase.Trust): TrustOutcome =
+            try {
+                withContext(NonCancellable) { certificateTrust.confirm(asked.input, asked.prompt) }
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                if (e is CancellationException) throw e
+                TrustOutcome.Refused(MediaServerError.Unknown())
+            }
 
         /** Don't trust, and Back from the trust screen: nothing is pinned, and the error stays with Retry. */
         fun onDontTrust() {

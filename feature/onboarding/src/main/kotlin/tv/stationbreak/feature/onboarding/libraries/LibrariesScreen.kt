@@ -112,7 +112,7 @@ internal fun LibrariesRoot(
             }
         }
     }
-    BackHandler(onBack = onBack)
+    BackHandler { viewModel.onBack(onBack) }
     LibrariesScreen(
         state = state,
         onToggle = viewModel::onToggle,

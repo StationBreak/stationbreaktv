@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.launch
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -310,6 +315,53 @@ class LaunchViewModelTest {
         assertEquals(setOf(SessionRepository.SESSION_KEY), store.snapshot().keys)
     }
 
+    // #234 L1: a second route cancels the first, so a late answer from the first can't move the app on.
+    @Test
+    fun aNewRouteCancelsTheOneStillRunning() =
+        runTest {
+            runBlocking { sessions.save(session) }
+            val gate = CompletableDeferred<ServerResult<Session>>()
+            val server = FirstResumeGated(fake, gate)
+            val targets = mutableListOf<LaunchTarget>()
+            val vm = viewModel(InMemoryServerSettings(ServerRecord(https), setOf(ItemId("movies"))), server)
+            val job = backgroundScope.collect(vm, targets)
+            fake.resumeResult = ServerResult.Failure(MediaServerError.Timeout())
+
+            vm.onRetry()
+            gate.complete(ServerResult.Success(session))
+
+            assertTrue(vm.state.value is LaunchPhase.Unavailable)
+            assertTrue("the first route's late answer moved the app on: $targets", targets.isEmpty())
+            job.cancel()
+        }
+
+    // #234 L2
+    @Test
+    fun aConfirmationThatThrowsLeavesTrustingWithRetry() {
+        changedCertificate()
+        val vm = viewModel(InMemoryServerSettings(ServerRecord(https, spki)), ThrowingTrust(fake))
+
+        vm.onTrust()
+
+        assertTrue(vm.state.value is LaunchPhase.Unavailable)
+        assertTrue(targetsOf(vm).isEmpty())
+    }
+
+    @Test
+    fun aTrustThatIsInFlightWhenTheViewModelIsClearedStillEndsWithThePinStored() {
+        changedCertificate()
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        val settings = InMemoryServerSettings(ServerRecord(https, SpkiPin(ByteArray(SpkiPin.SIZE) { 1 })))
+        val owner = ViewModelStore()
+        val vm = owner.host(viewModel(settings, GatedTrust(fake, gate)), LaunchViewModel::class.java)
+
+        vm.onTrust()
+        owner.clear()
+        gate.complete(ServerResult.Success(ResolvedServer(https, info)))
+
+        assertEquals(ServerRecord(https, spki), settings.current)
+    }
+
     @Test
     fun onTrustOrDontTrustWithNothingAskedDoesNothing() {
         val vm = viewModel(InMemoryServerSettings())
@@ -327,4 +379,55 @@ private class SlowResume(
     private val gate: CompletableDeferred<ServerResult<Session>>,
 ) : MediaServer by fake {
     override suspend fun resume(stored: tv.stationbreak.core.model.StoredSession): ServerResult<Session> = gate.await()
+}
+
+/** Waits for [gate] on the first resume only; later ones answer from [fake]. Both ignore cancellation. */
+private class FirstResumeGated(
+    private val fake: FakeMediaServer,
+    private val gate: CompletableDeferred<ServerResult<Session>>,
+) : MediaServer by fake {
+    private var first = true
+
+    override suspend fun resume(stored: tv.stationbreak.core.model.StoredSession): ServerResult<Session> {
+        if (!first) return fake.resume(stored)
+        first = false
+        return gate.await()
+    }
+}
+
+/** A server whose `trust` breaks, as a bug or a failing store would. */
+private class ThrowingTrust(
+    private val fake: FakeMediaServer,
+) : MediaServer by fake {
+    override suspend fun trust(
+        input: String,
+        pin: SpkiPin,
+    ): ServerResult<ResolvedServer> = error("boom")
+}
+
+/** A server whose `trust` waits for [gate] and ignores cancellation, to clear the view model in the middle of it. */
+private class GatedTrust(
+    private val fake: FakeMediaServer,
+    private val gate: CompletableDeferred<ServerResult<ResolvedServer>>,
+) : MediaServer by fake {
+    override suspend fun trust(
+        input: String,
+        pin: SpkiPin,
+    ): ServerResult<ResolvedServer> {
+        fake.trustCalls += input to pin
+        return withContext(NonCancellable) { gate.await() }
+    }
+}
+
+/** Builds [viewModel] inside a [ViewModelStore], so clearing the store clears it the way the platform does. */
+private fun <T : ViewModel> ViewModelStore.host(
+    viewModel: T,
+    type: Class<T>,
+): T {
+    val factory =
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <V : ViewModel> create(modelClass: Class<V>): V = viewModel as V
+        }
+    return ViewModelProvider.create(this, factory)[type]
 }

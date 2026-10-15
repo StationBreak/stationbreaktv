@@ -28,6 +28,17 @@ class ArchitecturePlugin : Plugin<Project> {
                     report.set(layout.buildDirectory.file("reports/architecture/violations.txt"))
                 }
             tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkArchitecture) }
+
+            val checkTrustSurface =
+                tasks.register<TrustSurfaceCheck>("checkTrustSurface") {
+                    group = LifecycleBasePlugin.VERIFICATION_GROUP
+                    description = "Fails if the TLS trust API is named outside :data:jellyfin's trust package."
+                    modulePath.set(projectPath)
+                    moduleDir.set(layout.projectDirectory)
+                    sources.from(fileTree("src") { include("**/*.kt", "**/*.java") })
+                    report.set(layout.buildDirectory.file("reports/architecture/trust-surface.txt"))
+                }
+            tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkTrustSurface) }
         }
 
     /**

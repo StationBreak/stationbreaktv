@@ -150,9 +150,15 @@ internal class ServerViewModel
                 viewModelScope.launch {
                     // A new Test starts without a pin: the certificate is asked about again, never assumed.
                     pendingClear?.join()
-                    settings.clearPin()
-                    finish(phaseFor(typed, mediaServer.discover(typed)))
+                    // A pin that is still on disk would come back at the next load: stop rather than connect.
+                    val cleared = settings.clearPin()
+                    finish(if (cleared) phaseFor(typed, mediaServer.discover(typed)) else pinNotCleared())
                 }
+        }
+
+        private fun pinNotCleared(): ServerPhase {
+            val error = MediaServerError.Unknown()
+            return ServerPhase.Failed(error, ErrorCopyTable.copyFor(error))
         }
 
         // A cancelled attempt may still return a result if the callee ignores cancellation. Drop it, and drop it too if

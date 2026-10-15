@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStoreResult
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.Scheme
@@ -122,6 +123,19 @@ class CertificateTrustTest {
             val outcome = trust.confirm("nas.example.test:8920", prompt())
             assertEquals(TrustOutcome.NotSaved, outcome)
             assertTrue(settings.clearPinCalls >= 1)
+        }
+
+    @Test
+    fun aSaveThatThrowsIsNotSavedAndTheTrustIsWithdrawn() =
+        runBlocking {
+            server.trustResult = ServerResult.Success(resolved)
+            val throwing =
+                object : ServerSettings by settings {
+                    override suspend fun save(record: ServerRecord): Boolean = throw IllegalArgumentException("boom")
+                }
+            val outcome = CertificateTrust(server, throwing, sessions).confirm("nas.example.test:8920", prompt())
+            assertEquals(TrustOutcome.NotSaved, outcome)
+            assertEquals(1, settings.clearPinCalls)
         }
 
     @Test

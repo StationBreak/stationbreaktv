@@ -22,6 +22,7 @@ class FileServerSettingsTest {
         var text: String? = null
         var failWrites = false
         var failReads = false
+        var rejectWrites = false
         var writes = 0
 
         override fun read(): String? {
@@ -31,6 +32,7 @@ class FileServerSettingsTest {
 
         override fun write(text: String) {
             if (failWrites) throw IOException("disk full")
+            require(!rejectWrites) { "not storable" }
             writes++
             this.text = text
         }
@@ -85,6 +87,17 @@ class FileServerSettingsTest {
         runBlocking {
             settings.save(ServerRecord(address, pin))
             file.failWrites = true
+            assertFalse(settings.save(ServerRecord(address)))
+            assertFalse(settings.clearPin())
+            assertEquals(ServerRecord(address, pin), settings.load())
+        }
+
+    // The store never throws for a fault (the port's contract), whatever refused the write.
+    @Test
+    fun aWriteRefusedWithAnIllegalArgumentReportsFalseAndKeepsTheOldRecord() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            file.rejectWrites = true
             assertFalse(settings.save(ServerRecord(address)))
             assertFalse(settings.clearPin())
             assertEquals(ServerRecord(address, pin), settings.load())
@@ -175,6 +188,19 @@ class FileServerSettingsTest {
             file.text = ServerRecordCodec.encode(ServerRecord(address, pin))
             assertNull(settings.loadLibraries())
             assertTrue(settings.saveLibraries(setOf(movies)))
+            assertEquals(ServerRecord(address, pin), settings.load())
+        }
+
+    @Test
+    fun aCorruptSelectionLineIsDroppedAndTheRecordWithItsPinIsKept() =
+        runBlocking {
+            val good = ServerRecordCodec.encode(StoredSettings(ServerRecord(address, pin), setOf(movies)))
+            file.text = good.replace("libraries=movies", "libraries=a b,,")
+            assertNull(settings.loadLibraries())
+            assertEquals(ServerRecord(address, pin), settings.load())
+            // The picker asks again, and the new choice is stored beside the record that survived.
+            assertTrue(settings.saveLibraries(setOf(movies)))
+            assertEquals(setOf(movies), settings.loadLibraries())
             assertEquals(ServerRecord(address, pin), settings.load())
         }
 

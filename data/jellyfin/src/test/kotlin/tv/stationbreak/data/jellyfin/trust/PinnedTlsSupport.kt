@@ -105,6 +105,10 @@ internal class TlsJellyfin(
     @Volatile
     var redirectTo: String? = null
 
+    /** How long the server waits before it answers: a request that is in flight while the test acts. */
+    @Volatile
+    var answerDelayMillis = 0L
+
     init {
         server.useHttps(factory)
         server.dispatcher =
@@ -122,6 +126,7 @@ internal class TlsJellyfin(
                         MockResponse
                             .Builder()
                             .code(200)
+                            .headersDelay(answerDelayMillis, TimeUnit.MILLISECONDS)
                             .body(JELLYFIN_BODY)
                             .build()
                     }

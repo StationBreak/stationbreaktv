@@ -24,19 +24,28 @@ internal data class StoredSettings(
 internal object ServerRecordCodec {
     private const val VERSION = "1"
 
+    /**
+     * [value] if it can sit in a `key=value` line without forging another: no line break. Defence in depth, since the
+     * address and the item IDs refuse these already. An `=` in a value is harmless: a line is split on its first one.
+     */
+    fun checked(value: String): String {
+        require(value.none { it == '\n' || it == '\r' }) { "Not storable" }
+        return value
+    }
+
     fun encode(record: ServerRecord): String = encode(StoredSettings(record))
 
     fun encode(stored: StoredSettings): String =
         buildList {
             val record = stored.record
             add("version=$VERSION")
-            add("scheme=${record.address.scheme.text}")
-            add("host=${record.address.host}")
+            add("scheme=${checked(record.address.scheme.text)}")
+            add("host=${checked(record.address.host)}")
             add("port=${record.address.port}")
-            add("subpath=${record.address.subpath}")
+            add("subpath=${checked(record.address.subpath)}")
             add("viaFallback=${record.address.viaFallback}")
             record.pin?.let { add("pin=${it.hex}") }
-            stored.libraries?.let { ids -> add("libraries=${ids.joinToString(",") { it.value }}") }
+            stored.libraries?.let { ids -> add("libraries=${ids.joinToString(",") { checked(it.value) }}") }
         }.joinToString("\n")
 
     fun decode(text: String): ServerRecord? = decodeStored(text)?.record

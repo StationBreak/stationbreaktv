@@ -28,6 +28,37 @@ class ServerAddressTest {
         assertEquals("/jellyfin", address.subpath)
     }
 
+    // Defence in depth for the stored record, whose text is `key=value` lines (#232 L7, #234 L6): a subpath of
+    // "/x\npin=<hex>" would inject a pin, and none of these can come from a real URL.
+    @Test
+    fun aSubpathWithAControlCharacterIsRefused() {
+        val bad = listOf("/a\nb", "/a\rb", "/a\u0000b", "/a\tb", "/a\u007fb", "/a\u0085b", "/x\npin=00")
+        for (subpath in bad) {
+            assertFailsWith<IllegalArgumentException>(subpath) { address(subpath = subpath) }
+        }
+    }
+
+    @Test
+    fun aHostWithAControlCharacterOrAnEqualsSignIsRefused() {
+        val bad = listOf("nas\nhost", "nas\rhost", "nas\u0000", "nas\thost", "nas=host", "=", "nas\u007f")
+        for (host in bad) {
+            assertFailsWith<IllegalArgumentException>(host) { address(host = host) }
+        }
+    }
+
+    // OkHttp leaves '=' unencoded in a path, so a real URL like https://nas.lan/jelly=fin reaches here. The stored
+    // record splits a line on its first '=', so one in a value is harmless.
+    @Test
+    fun anEqualsSignInASubpathIsAccepted() {
+        assertEquals("/a=b", address(subpath = "/a=b").subpath)
+        assertEquals("/=", address(subpath = "/=").subpath)
+    }
+
+    @Test
+    fun anOrdinaryPercentEncodedSubpathStillPasses() {
+        assertEquals("/media%20server/jelly-fin_1.0~x", address(subpath = "/media%20server/jelly-fin_1.0~x").subpath)
+    }
+
     @Test
     fun defaultPortsComeFromTheScheme() {
         assertEquals(80, Scheme.Http.defaultPort)

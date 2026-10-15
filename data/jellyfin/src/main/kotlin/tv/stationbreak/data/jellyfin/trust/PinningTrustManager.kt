@@ -81,20 +81,25 @@ internal class PinningTrustManager(
         session: SSLSession?,
     ) {
         if (chain.isNullOrEmpty() || authType == null) throw CertificateException("No certificate chain")
-        val host = session?.peerHost
+        val host = knownHost(session)
         val port = session?.peerPort ?: -1
         try {
-            system.check(chain, authType, host.orEmpty())
+            system.check(chain, authType, host)
             return
         } catch (_: CertificateException) {
             // Not trusted by the system: only an exact pin can still accept it.
         }
-        val key = if (host != null && port in VALID_PORTS) PinKey.https(host, port) else null
+        val key = if (port in VALID_PORTS) PinKey.https(host, port) else null
         when (val verdict = policy.judge(chain[0], key, host, clock())) {
             PinVerdict.Accepted -> Unit
             is PinVerdict.Rejected -> throw CertificateRejectedException(verdict.kind, verdict.evidence)
         }
     }
+
+    // No host, no trust: system trust is asked about a name, and "" is not one.
+    private fun knownHost(session: SSLSession?): String =
+        session?.peerHost?.takeIf { it.isNotBlank() }
+            ?: throw CertificateException("The host is unknown, so nothing can be trusted")
 
     override fun checkClientTrusted(
         chain: Array<X509Certificate>?,

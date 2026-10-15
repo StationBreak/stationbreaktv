@@ -68,6 +68,12 @@ class ServerAddressParserTest {
     }
 
     @Test
+    fun anEqualsSignInThePathIsKeptNotACrash() {
+        val expected = ServerAddress(Scheme.Https, "nas.lan", 443, "/jelly=fin")
+        assertParses(expected, "https://nas.lan/jelly=fin")
+    }
+
+    @Test
     fun anIpv6LiteralWithAPort() {
         assertParses(ServerAddress(Scheme.Https, "fd00::1", 8096), "[fd00::1]:8096")
         assertParses(ServerAddress(Scheme.Http, "fd00::1", 8096), "http://[FD00::1]:8096/")
