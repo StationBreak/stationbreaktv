@@ -171,7 +171,7 @@ kmp_tests() {
 check_and_assemble() {
   gradle_env || return 1
   ./gradlew check \
-    assembleAmazonDebug assembleAmazonRelease \
+    assembleAmazonRelease \
     assembleGithubDebug assembleGithubRelease \
     --continue
 }
