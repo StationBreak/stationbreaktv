@@ -4,6 +4,7 @@ package tv.stationbreak.data.settings.server
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.model.ItemId
@@ -100,5 +101,14 @@ class ServerRecordCodecTest {
             assertEquals(bad, ServerRecord(address, pin), decoded?.record)
             assertNull(bad, decoded?.libraries)
         }
+    }
+
+    // The address refuses these already; the codec checks again, so a hole in either can't write a forged line.
+    @Test
+    fun aFieldWithANewlineOrAnEqualsSignIsNeverWritten() {
+        for (bad in listOf("a\nb", "a\rb", "a=b", "x\npin=00", "=")) {
+            assertThrows(bad, IllegalArgumentException::class.java) { ServerRecordCodec.checked(bad) }
+        }
+        assertEquals("/jelly-fin", ServerRecordCodec.checked("/jelly-fin"))
     }
 }

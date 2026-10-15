@@ -24,6 +24,8 @@ internal data class StoredSettings(
 internal object ServerRecordCodec {
     private const val VERSION = "1"
 
+    fun checked(value: String): String = value
+
     fun encode(record: ServerRecord): String = encode(StoredSettings(record))
 
     fun encode(stored: StoredSettings): String =

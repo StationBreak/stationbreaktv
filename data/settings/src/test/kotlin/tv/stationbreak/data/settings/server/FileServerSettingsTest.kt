@@ -179,6 +179,19 @@ class FileServerSettingsTest {
         }
 
     @Test
+    fun aCorruptSelectionLineIsDroppedAndTheRecordWithItsPinIsKept() =
+        runBlocking {
+            val good = ServerRecordCodec.encode(StoredSettings(ServerRecord(address, pin), setOf(movies)))
+            file.text = good.replace("libraries=movies", "libraries=a b,,")
+            assertNull(settings.loadLibraries())
+            assertEquals(ServerRecord(address, pin), settings.load())
+            // The picker asks again, and the new choice is stored beside the record that survived.
+            assertTrue(settings.saveLibraries(setOf(movies)))
+            assertEquals(setOf(movies), settings.loadLibraries())
+            assertEquals(ServerRecord(address, pin), settings.load())
+        }
+
+    @Test
     fun theStoreShowsNothingInToString() {
         assertEquals("FileServerSettings", settings.toString())
     }
