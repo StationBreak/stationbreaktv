@@ -63,8 +63,8 @@ private const val TOP_OFFSET = 0.1f
  *
  * @param onEditAddress go back to the server screen to change the address.
  * @param onMissingServer the server screen's hand-off is gone (process death): go back to the server screen.
- * @param onSignedIn the session was saved. What it hands over is pinned by `SignInViewModelTest`; the library picker
- *   (Unit 4) is the next destination and does not exist yet.
+ * @param onSignedIn the session was saved and is waiting in the in-memory sign-in hand-off; the library picker is the
+ *   next destination. What it carries is pinned by `SignInViewModelTest`.
  */
 @Composable
 fun SignInDestination(
@@ -330,6 +330,10 @@ private fun Outcome(
             SignInNotice(stringResource(message), stringResource(details))
         }
 
+        is SignInPhase.SessionEnded -> {
+            SignInNotice(stringResource(phase.copy.message), stringResource(phase.copy.details))
+        }
+
         SignInPhase.Idle, SignInPhase.SignedIn, is SignInPhase.InvalidInput, is SignInPhase.QuickConnect -> {
             Unit
         }
@@ -387,6 +391,11 @@ private fun focusTarget(
                 SignInPhase.QuickConnect::class.java -> focus.quickConnect
                 else -> null
             }
+        }
+
+        // The form is the same as ever and the username has focus, with a line above it saying why.
+        is SignInPhase.SessionEnded -> {
+            focus.username
         }
 
         is SignInPhase.InvalidInput -> {

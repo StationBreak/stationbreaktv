@@ -100,7 +100,7 @@ class SignInScreenTest {
 
     private fun launch(connected: ConnectedServer? = ConnectedServer(ResolvedServer(https, info), null)) {
         if (connected != null) handOff.put(connected)
-        viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff)
+        viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff, SignedInHandOff())
         compose.setContent {
             StationBreakTheme {
                 SignInRoot(
@@ -487,7 +487,7 @@ class SignInScreenTest {
     @Test
     fun leavingTheScreenClearsAPasswordThatWasTyped() {
         handOff.put(ConnectedServer(ResolvedServer(https, info), null))
-        viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff)
+        viewModel = SignInViewModel(server, SessionRepository(InMemorySecretStore(), server), handOff, SignedInHandOff())
         var visible by mutableStateOf(true)
         compose.setContent {
             StationBreakTheme {

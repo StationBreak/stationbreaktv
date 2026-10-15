@@ -155,6 +155,7 @@ class SignInViewModelTest {
     private val gatedStore = GatedStore(store)
     private val repository = SessionRepository(gatedStore, server)
     private val handOff = ServerHandOff()
+    private val signedIn = SignedInHandOff()
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
@@ -175,7 +176,7 @@ class SignInViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = SignInViewModel(server, repository, handOff)
+    private fun viewModel() = SignInViewModel(server, repository, handOff, signedIn)
 
     /** A view model hosted in [owner], so `owner.clear()` is the platform clearing it. */
     private fun hosted(owner: ViewModelStore) = owner.host(viewModel(), SignInViewModel::class.java)
@@ -339,6 +340,76 @@ class SignInViewModelTest {
             assertEquals(SignInPhase.SignedIn, vm.state.value.phase)
             job.cancel()
         }
+
+    @Test
+    fun aPasswordSignInKeepsTheTypedNameForSignedInAsAndHoldsTheSessionInMemory() =
+        runTest {
+            val signed = session(admin = false)
+            server.fake.signInResult = ServerResult.Success(signed)
+            val vm = viewModel()
+            vm.fill("  sam  ")
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+
+            vm.onSignIn()
+
+            assertEquals("sam", handed.single().username)
+            assertSame(handed.single(), signedIn.peek())
+            job.cancel()
+        }
+
+    @Test
+    fun quickConnectKnowsNoNameSoSignedInAsHasNoneToShow() =
+        runTest {
+            val signed = session(admin = false)
+            server.fake.quickConnectStates = listOf(QuickConnectState.SignedIn(signed))
+            val vm = viewModel()
+            vm.onUsernameChange("left over from an earlier try")
+            val handed = mutableListOf<SignInResult>()
+            val job = backgroundScope.collectHandOver(vm, handed)
+
+            vm.onQuickConnect()
+
+            assertNull(handed.single().username)
+            assertSame(signed, signedIn.peek()?.session)
+            job.cancel()
+        }
+
+    @Test
+    fun aSessionThatWasCancelledAwayIsNeverHeldForTheLibraryPicker() =
+        runTest {
+            val gate = CompletableDeferred<ServerResult<Session>>()
+            server.gate = gate
+            val vm = viewModel()
+            vm.fill()
+
+            vm.onSignIn()
+            vm.onLeave()
+            gate.complete(ServerResult.Success(session(admin = false)))
+
+            assertNull(signedIn.peek())
+        }
+
+    @Test
+    fun aStoredSessionTheServerRefusedStartsTheFormWithOneLineSayingWhy() {
+        handOff.put(ConnectedServer(ResolvedServer(https, info), null, MediaServerError.SessionExpired()))
+        val vm = viewModel()
+
+        val phase = vm.state.value.phase
+        assertTrue(phase is SignInPhase.SessionEnded)
+        assertEquals(R.string.error_session_expired_message, (phase as SignInPhase.SessionEnded).copy.message)
+        vm.onUsernameChange("s")
+        assertEquals(SignInPhase.Idle, vm.state.value.phase)
+    }
+
+    @Test
+    fun aServerThatChangedUnderTheStoredSessionSaysSoToo() {
+        handOff.put(ConnectedServer(ResolvedServer(https, info), null, MediaServerError.ServerMismatch()))
+
+        val phase = viewModel().state.value.phase as SignInPhase.SessionEnded
+
+        assertEquals(R.string.error_server_mismatch_message, phase.copy.message)
+    }
 
     @Test
     fun theHandOverCarriesTheAdministratorFlagAsRecorded() =

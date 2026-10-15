@@ -16,19 +16,26 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
 import tv.stationbreak.feature.onboarding.trust.TrustOutcome
 import tv.stationbreak.feature.onboarding.trust.TrustPrompt
 import tv.stationbreak.feature.onboarding.trust.toTrustPrompt
 import javax.inject.Inject
 
-/** A server that answered a Test, and the acknowledgement the user gave for cleartext to it, if one was needed. */
+/**
+ * A server that answered a Test, and the acknowledgement the user gave for cleartext to it, if one was needed.
+ * [signedOutBecause] is set only by launch routing, when a stored session was refused (`SessionExpired`,
+ * `ServerMismatch`): sign-in says so in one line.
+ */
 data class ConnectedServer(
     val server: ResolvedServer,
     val acknowledgement: CleartextAcknowledgement?,
+    val signedOutBecause: MediaServerError? = null,
 )
 
 /** Where the server screen is. There is never a password or token here: Unit 1 sends none. */
@@ -93,6 +100,7 @@ internal class ServerViewModel
     constructor(
         private val mediaServer: MediaServer,
         private val handOff: ServerHandOff,
+        private val signedIn: SignedInHandOff,
         private val settings: ServerSettings,
         private val certificateTrust: CertificateTrust,
     ) : ViewModel() {
@@ -196,8 +204,22 @@ internal class ServerViewModel
             if (mutableState.value.phase is ServerPhase.ConfirmCleartext) onEditAddress()
         }
 
-        /** Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]). */
-        fun onContinue(server: ConnectedServer) = handOff.put(server)
+        /**
+         * Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]), and stores it as the
+         * configured server (spec 05, Unit 4) so a later launch finds it. The pin a trust screen stored for this very
+         * address stays; any other address is saved without one, because the Test cleared it. A sign-in held from an
+         * earlier pass is not this server's any more.
+         */
+        fun onContinue(server: ConnectedServer) {
+            signedIn.clear()
+            handOff.put(server)
+            // Started before this screen can leave, so it is first in the settings' queue, ahead of anything sign-in or
+            // the library picker writes; it runs to its end even if this view model is cleared at once.
+            viewModelScope.launch(NonCancellable) {
+                val address = server.server.address
+                if (settings.load()?.address != address) settings.save(ServerRecord(address))
+            }
+        }
 
         private fun phaseFor(
             typed: String,

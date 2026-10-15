@@ -44,6 +44,7 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
 import tv.stationbreak.feature.onboarding.trust.TrustTags
 
@@ -78,7 +79,7 @@ class ServerScreenTest {
     private fun launch() {
         val settings = InMemoryServerSettings()
         val certificateTrust = CertificateTrust(server, settings, SessionRepository(InMemorySecretStore(), server))
-        viewModel = ServerViewModel(server, ServerHandOff(), settings, certificateTrust)
+        viewModel = ServerViewModel(server, ServerHandOff(), SignedInHandOff(), settings, certificateTrust)
         compose.setContent {
             StationBreakTheme {
                 val state by viewModel.state.collectAsState()
