@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -85,6 +86,8 @@ class CleartextGateTest {
                 // The media calls (Unit 3) take a session, which carries the acknowledgement, plus plain values.
                 Library::class.java,
                 PlaybackReport::class.java,
+                // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.
+                SpkiPin::class.java,
                 Int::class.javaPrimitiveType,
                 kotlin.coroutines.Continuation::class.java,
             )

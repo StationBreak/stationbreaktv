@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.core.model.SpkiPin
 import java.lang.reflect.ParameterizedType
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,6 +21,8 @@ class PortErrorShapeTest {
             "TlsUntrusted",
             "TlsHostnameMismatch",
             "TlsCertificateExpired",
+            "TlsCertificateNotYetValid",
+            "TlsCertificateChanged",
             "TlsHandshakeFailed",
             "NotTls",
             "HttpUnauthorized",
@@ -75,7 +79,8 @@ class PortErrorShapeTest {
             for (field in variant.declaredFields) {
                 val allowed =
                     field.type == List::class.java ||
-                        field.type == ServerVersion::class.java
+                        field.type == ServerVersion::class.java ||
+                        field.type == CertificateEvidence::class.java
                 assertTrue(allowed, "${variant.simpleName}.${field.name} is a ${field.type.name}")
             }
         }
@@ -118,5 +123,26 @@ class PortErrorShapeTest {
         assertEquals(null, ok.errorOrNull())
         assertEquals(6, ok.map { it * 2 }.getOrNull())
         assertEquals(failed, failed.map { it * 2 })
+    }
+
+    @Test
+    fun anErrorThatCarriesACertificateShowsNoneOfItInToString() {
+        val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 0x5A })
+        val evidence =
+            CertificateEvidence(pin, selfSigned = true, notBeforeMillis = 111_222_333L, notAfterMillis = 444_555_666L)
+        val errors =
+            listOf(
+                MediaServerError.TlsUntrusted(listOf("javax.net.ssl.SSLHandshakeException"), evidence),
+                MediaServerError.TlsHostnameMismatch(emptyList(), evidence),
+                MediaServerError.TlsCertificateExpired(emptyList(), evidence),
+                MediaServerError.TlsCertificateNotYetValid(emptyList(), evidence),
+                MediaServerError.TlsCertificateChanged(emptyList(), evidence),
+            )
+        for (error in errors) {
+            val text = error.toString()
+            for (secret in listOf(pin.hex, pin.hex.lowercase(), "5A5A", "5a5a", "111222333", "444555666")) {
+                assertFalse(secret in text, "$text shows $secret")
+            }
+        }
     }
 }

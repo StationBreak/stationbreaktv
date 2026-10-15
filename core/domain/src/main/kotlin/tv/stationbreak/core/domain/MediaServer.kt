@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
 
 /**
@@ -54,6 +55,20 @@ interface MediaServer {
     suspend fun connect(
         address: ServerAddress,
         acknowledgement: CleartextAcknowledgement? = null,
+    ): ServerResult<ResolvedServer>
+
+    /**
+     * Trusts exactly [pin] for the `https` address [input] names (`https` unless the input says otherwise, and the
+     * typed or default port), then probes that address afresh, credential-free, on the client that now trusts it.
+     * [pin] is the SPKI a failed handshake carried (`CertificateEvidence.spki`), never one fetched again. On success
+     * the pin stays in force for every later request to that exact scheme, host and port, and the result's address is
+     * the one to store with it. On any failure, including a different certificate than [pin]
+     * (`TlsCertificateChanged`), or when the caller is cancelled, the pin is removed again. An `http` [input] or one
+     * that isn't an address is `InvalidAddress`: a pin is never made over cleartext.
+     */
+    suspend fun trust(
+        input: String,
+        pin: SpkiPin,
     ): ServerResult<ResolvedServer>
 
     /**

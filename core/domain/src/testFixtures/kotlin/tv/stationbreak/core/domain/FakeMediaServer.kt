@@ -13,12 +13,14 @@ import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
 
 /** A scripted [MediaServer] for tests of code that uses the port (ADR-0004). Not thread-safe. */
 class FakeMediaServer : MediaServer {
     var discoverResult: ServerResult<ResolvedServer> = ServerResult.Failure(MediaServerError.Unknown())
     var connectResult: ServerResult<ResolvedServer> = ServerResult.Failure(MediaServerError.Unknown())
+    var trustResult: ServerResult<ResolvedServer> = ServerResult.Failure(MediaServerError.Unknown())
     var signInResult: ServerResult<Session> = ServerResult.Failure(MediaServerError.Unknown())
     var resumeResult: ServerResult<Session> = ServerResult.Failure(MediaServerError.Unknown())
     var revokeResult: ServerResult<Unit> = ServerResult.Success(Unit)
@@ -38,6 +40,7 @@ class FakeMediaServer : MediaServer {
     val revokeFinished = CompletableDeferred<Unit>()
 
     val discoverCalls = mutableListOf<String>()
+    val trustCalls = mutableListOf<Pair<String, SpkiPin>>()
     val connectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
     val resumeCalls = mutableListOf<StoredSession>()
     val revokeCalls = mutableListOf<Session>()
@@ -65,6 +68,14 @@ class FakeMediaServer : MediaServer {
     ): ServerResult<ResolvedServer> {
         connectCalls += address to acknowledgement
         return connectResult
+    }
+
+    override suspend fun trust(
+        input: String,
+        pin: SpkiPin,
+    ): ServerResult<ResolvedServer> {
+        trustCalls += input to pin
+        return trustResult
     }
 
     override suspend fun signIn(request: SignInRequest): ServerResult<Session> {
