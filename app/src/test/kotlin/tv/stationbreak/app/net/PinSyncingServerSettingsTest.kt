@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app.net
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -100,5 +106,44 @@ class PinSyncingServerSettingsTest {
             val before = clients.current()
             assertEquals(null, settings.load())
             assertSame(before, clients.current())
+        }
+
+    @Test
+    fun aFailedSaveLeavesTheClientTrustingOnlyWhatIsStored() =
+        runBlocking {
+            val before = clients.current()
+            stored.failSave = true
+            assertFalse(settings.save(ServerRecord(address, pin)))
+            // Nothing was stored, so the pin is not in force (the client may be rebuilt, but holds no pin).
+            assertNull(clients.pinFor(address))
+            assertSame(before.sslSocketFactory, clients.current().sslSocketFactory)
+        }
+
+    /** Writes at once, then waits for [gate] before answering: the window in which another operation can slip in. */
+    private class SlowSave(
+        private val inner: InMemoryServerSettings,
+        val gate: CompletableDeferred<Unit>,
+    ) : ServerSettings by inner {
+        override suspend fun save(record: ServerRecord): Boolean {
+            val written = inner.save(record)
+            gate.await()
+            return written
+        }
+    }
+
+    @Test
+    fun aClearRacingASaveCannotLeaveTheClientTrustingWhatTheDiskDropped() =
+        runBlocking {
+            val gate = CompletableDeferred<Unit>()
+            val racing = PinSyncingServerSettings(SlowSave(stored, gate), clients)
+
+            val saving = launch(start = CoroutineStart.UNDISPATCHED) { racing.save(ServerRecord(address, pin)) }
+            val clearing = launch(start = CoroutineStart.UNDISPATCHED) { racing.clearPin() }
+            gate.complete(Unit)
+            saving.join()
+            clearing.join()
+
+            assertEquals(stored.current?.pin, clients.pinFor(address))
+            assertNull(stored.current?.pin)
         }
 }
