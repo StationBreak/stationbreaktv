@@ -17,7 +17,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -207,6 +206,9 @@ class PinnedTrustOnApi25Test {
             .execute()
             .use { it.code }
 
+    private fun causeNames(error: Throwable): List<String> =
+        generateSequence(error) { it.cause }.map { it.javaClass.simpleName }.toList()
+
     private fun evidenceOf(result: ServerResult<*>): CertificateEvidence? =
         when (val error = result.errorOrNull()) {
             is MediaServerError.TlsUntrusted -> error.certificate
@@ -351,7 +353,12 @@ class PinnedTrustOnApi25Test {
             get(following, NAS, origin.port)
             fail("the redirect target was trusted: the pin was inherited")
         } catch (expected: IOException) {
-            // Refused at the handshake with the other host.
+            // Refused at the handshake with the other host, by the pinning trust manager and for want of a pin there
+            // (the certificate does cover the host, so a name mismatch or a dead connection would not be this).
+            assertTrue(
+                "expected the pin policy's rejection in the cause chain, got ${causeNames(expected)}",
+                generateSequence<Throwable>(expected) { it.cause }.any { it.javaClass.simpleName == REJECTED },
+            )
         }
         assertEquals(1, origin.requests.size)
         assertTrue("the redirect target saw a request", elsewhere.requests.isEmpty())
@@ -437,11 +444,17 @@ class PinnedTrustOnApi25Test {
             trust.check(arrayOf(asset("unknown_root_lookalike")), "ECDSA", "example.test")
             fail("a chain from an unknown root was accepted")
         } catch (expected: CertificateException) {
-            assertNull(expected.message?.takeIf { it.isEmpty() })
+            // The platform says why, in a message or a cause, rather than failing blind.
+            assertFalse(
+                "the rejection carries no reason",
+                expected.message.isNullOrBlank() && expected.cause == null,
+            )
         }
     }
 
     private companion object {
+        // PinPolicy's CertificateRejectedException is internal to :data:jellyfin, so it is matched by name.
+        const val REJECTED = "CertificateRejectedException"
         const val NAS = "nas.test"
         const val OTHER = "other.test"
         const val LOOPBACK = "127.0.0.1"
