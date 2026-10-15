@@ -81,8 +81,15 @@ Every other module is created by the first story that needs it, for example `dat
 It depends on `core:domain`, `core:model` and `core:ui` only, and applies the `hilt` convention plugin for `@HiltViewModel` (see
 "Hilt in pure modules"). `app` hosts its navigation graph and wires the adapters it consumes.
 
-`data:settings` exists since F0.4 and holds only `KeystoreSecretStore` (the `SecretStore` implementation) for now.
-`app` binds it to `SecretStore` in `MediaServerModule`. The DataStore settings arrive with the stories that need them.
+`data:settings` exists since F0.4 and holds `KeystoreSecretStore` (the `SecretStore` implementation) and, since F0.5
+task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configured address and its certificate pin as one
+atomically replaced file in `noBackupFilesDir`). `app` binds both in `MediaServerModule`. The DataStore settings arrive with
+the stories that need them.
+
+Per-server certificate trust (F0.5 task 3.0, S0.5.2) is in `data:jellyfin`'s `trust` package: `PinnedHttpClients` builds the
+one base client the adapter derives every client from, and rebuilds its `SSLContext`, client and connection pool whenever a
+pin changes. Its trust manager asks the platform first (`SystemTrust`, supplied by `app` as the Network Security Config's trust
+through `X509TrustManagerExtensions`) and accepts a refused chain only on an exact scheme, host and port SPKI pin.
 
 `[KMP]` means Kotlin Multiplatform (`commonMain`; `jvm()` + `linuxX64()` canary). `[JVM]` means a pure Kotlin/JVM module with no Android plugin. `[Android]` means an Android library module.
 
