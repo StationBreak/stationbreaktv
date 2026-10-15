@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">StationBreak</string>
-    <!-- Placeholder labels for the hello-world screen (S0.2.2); deleted with it. -->
-    <string name="hello_world_first">Hello</string>
-    <string name="hello_world_second">World</string>
 </resources>

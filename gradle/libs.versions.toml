@@ -19,6 +19,12 @@ composeBom = "2026.09.00"
 # tv-material 1.1.0 stable (2026-05-06); minSdk 23, so fine on API 25.
 tvMaterial = "1.1.0"
 activityCompose = "1.13.0"
+# Navigation 2.10.2 is the latest stable (checked 2026-10-14); typed routes need the kotlinx-serialization plugin in `app`.
+navigation = "2.10.2"
+# Lifecycle 2.11.0 is the latest stable (2.12 is still alpha, checked 2026-10-14): ViewModels and lifecycle-aware collection.
+lifecycle = "2.11.0"
+# hilt-navigation-compose 1.4.0 is the latest stable (checked 2026-10-14): hiltViewModel() for @HiltViewModel.
+hiltNavigationCompose = "1.4.0"
 
 # jellyfin-sdk-kotlin 1.9.2 (checked 2026-10-13): the 12.0+ line, the version ADR-0006 tested. Upgrade only through the
 # contract matrix (F0.3 Unit 3).
@@ -63,7 +69,13 @@ androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "tvMa
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+# Debug only: registers the empty ComponentActivity that Compose UI tests of a library module launch.
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 jellyfin-sdk-core = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfinSdk" }
 jellyfin-sdk-api-okhttp = { module = "org.jellyfin.sdk:jellyfin-api-okhttp", version.ref = "jellyfinSdk" }

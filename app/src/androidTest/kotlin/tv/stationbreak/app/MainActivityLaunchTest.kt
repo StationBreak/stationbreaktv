@@ -5,14 +5,22 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.DayOfWeek
 import java.time.LocalDate
 
+// MainActivity is a Hilt entry point now (the server screen's ViewModel is injected), so it launches under Hilt.
+@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class MainActivityLaunchTest {
+    @get:Rule
+    val hilt = HiltAndroidRule(this)
+
     @Test
     fun launchReachesResumed() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

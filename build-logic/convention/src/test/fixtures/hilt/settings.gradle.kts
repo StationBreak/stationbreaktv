@@ -3,7 +3,7 @@
 // TestKit fixture: the catalog is declared here, not read from the repository's, so the test needs no network.
 rootProject.name = "hilt"
 
-include(":app", ":kmp")
+include(":app", ":feature", ":kmp")
 
 dependencyResolutionManagement {
     versionCatalogs {

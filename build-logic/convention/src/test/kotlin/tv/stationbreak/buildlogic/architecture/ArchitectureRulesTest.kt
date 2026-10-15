@@ -113,6 +113,24 @@ class ArchitectureRulesTest {
         )
     }
 
+    @Test
+    fun androidFeatureModuleMayUseHiltAndItsNavigationAndViewModelLibraries() {
+        // F0.5: an Android feature:* module may apply stationbreak.hilt for @HiltViewModel. The pure modules still may not.
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":feature:onboarding",
+                artifact("implementation", "com.google.dagger:hilt-android"),
+                artifact("implementation", "androidx.hilt:hilt-navigation-compose"),
+                artifact("implementation", "androidx.lifecycle:lifecycle-viewmodel-compose"),
+                project("implementation", ":core:domain"),
+                project("implementation", ":core:model"),
+                project("implementation", ":core:ui"),
+                project("testImplementation", ":core:domain", testFixtures = true),
+            ),
+        )
+    }
+
     // core:scheduler needs only core:model.
 
     @Test
