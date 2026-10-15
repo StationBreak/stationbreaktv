@@ -11,9 +11,9 @@ import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
  * Keeps the pinned client in step with the stored record (spec 05, Unit 3, Angua (Security)). After every operation the
  * client holds exactly the pin of the record that is **stored**, read back inside one lock, so two operations racing
  * can't leave the client trusting what the disk no longer says. A clear withdraws trust from the client first, whether
- * or not the write reaches disk: trust is withdrawn before it is forgotten. A [load] applies the stored pin, so a caller
- * that reads the settings before it connects has the pin in force by then. (Nothing in main code reads the settings
- * yet: launch routing, task 4.0, will.)
+ * or not the write reaches disk: trust is withdrawn before it is forgotten. A [load] applies the stored pin, so a
+ * caller that reads the settings before it connects has the pin in force by then. (Nothing in main code reads the
+ * settings yet: launch routing, task 4.0, will.)
  */
 internal class PinSyncingServerSettings(
     private val stored: ServerSettings,
