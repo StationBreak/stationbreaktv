@@ -19,12 +19,29 @@ import kotlin.time.toJavaDuration
  * doesn't survive a cross-host redirect even there.
  */
 internal class ClientFactory(
-    base: OkHttpClient,
-    header: AuthHeaderBuilder,
-    timeouts: ProbeTimeouts,
-    testInterceptors: List<Interceptor> = emptyList(),
+    source: HttpClientSource,
+    private val header: AuthHeaderBuilder,
+    private val timeouts: ProbeTimeouts,
+    private val testInterceptors: List<Interceptor> = emptyList(),
 ) {
-    private val common =
+    constructor(
+        base: OkHttpClient,
+        header: AuthHeaderBuilder,
+        timeouts: ProbeTimeouts,
+        testInterceptors: List<Interceptor> = emptyList(),
+    ) : this(HttpClientSource { base }, header, timeouts, testInterceptors)
+
+    // The base is the pinned client, replaced whenever a pin changes: both are derived again from whatever is current,
+    // so a pin change reaches every client at once and none keeps the trust it had.
+    private val credentialedClient = Derived(source) { derive(it).redirects(false) }
+
+    private val followingClient = Derived(source) { derive(it).redirects(true) }
+
+    val credentialed: OkHttpClient get() = credentialedClient.get()
+
+    val following: OkHttpClient get() = followingClient.get()
+
+    private fun derive(base: OkHttpClient): OkHttpClient =
         base
             .newBuilder()
             .apply {
@@ -39,10 +56,7 @@ internal class ClientFactory(
             .connectTimeout(timeouts.connect.toJavaDuration())
             .readTimeout(timeouts.read.toJavaDuration())
             .callTimeout(timeouts.call.toJavaDuration())
-
-    val credentialed: OkHttpClient = common.build().redirects(false)
-
-    val following: OkHttpClient = common.build().redirects(true)
+            .build()
 
     private fun OkHttpClient.redirects(follow: Boolean): OkHttpClient =
         newBuilder().followRedirects(follow).followSslRedirects(follow).build()

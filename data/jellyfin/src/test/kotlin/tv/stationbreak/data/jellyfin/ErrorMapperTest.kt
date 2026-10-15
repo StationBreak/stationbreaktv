@@ -92,7 +92,8 @@ class ErrorMapperTest {
     @Test
     fun expiredCertificate() {
         assertIs<MediaServerError.TlsCertificateExpired>(map(handshake(CertificateExpiredException("NotAfter: Mon"))))
-        assertIs<MediaServerError.TlsCertificateExpired>(map(handshake(CertificateNotYetValidException("NotBefore"))))
+        val notYet = map(handshake(CertificateNotYetValidException("NotBefore")))
+        assertIs<MediaServerError.TlsCertificateNotYetValid>(notYet)
     }
 
     @Test

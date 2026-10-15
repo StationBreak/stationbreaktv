@@ -41,14 +41,23 @@ internal data class ProbeTimeouts(
  * started from. The answer is size-limited before it is parsed ([ProbeChecks]).
  */
 internal class ServerProbe(
-    baseClient: OkHttpClient,
-    timeouts: ProbeTimeouts = ProbeTimeouts(),
-    testInterceptors: List<Interceptor> = emptyList(),
+    source: HttpClientSource,
+    private val timeouts: ProbeTimeouts = ProbeTimeouts(),
+    private val testInterceptors: List<Interceptor> = emptyList(),
 ) {
+    constructor(
+        baseClient: OkHttpClient,
+        timeouts: ProbeTimeouts = ProbeTimeouts(),
+        testInterceptors: List<Interceptor> = emptyList(),
+    ) : this(HttpClientSource { baseClient }, timeouts, testInterceptors)
+
     // Only the base client's trust configuration is inherited. Its interceptors, cookie jar and authenticators could
     // add a credential to a request that must carry none (Angua (Security) R9), so they are dropped. `testInterceptors`
-    // is the seam for tests to observe or fail calls.
-    private val client =
+    // is the seam for tests to observe or fail calls. The base is the pinned client, replaced whenever a pin changes,
+    // so this one is derived again from whatever is current.
+    private val derived = Derived(source) { base -> derive(base) }
+
+    private fun derive(baseClient: OkHttpClient): OkHttpClient =
         baseClient
             .newBuilder()
             .apply {
@@ -125,7 +134,11 @@ internal class ServerProbe(
                 .get()
                 .build()
         return try {
-            client.newCall(request).await().use(::read)
+            derived
+                .get()
+                .newCall(request)
+                .await()
+                .use(::read)
         } catch (error: IOException) {
             Answer.Failed(ErrorMapper.map(error, secure = address.scheme == Scheme.Https))
         }

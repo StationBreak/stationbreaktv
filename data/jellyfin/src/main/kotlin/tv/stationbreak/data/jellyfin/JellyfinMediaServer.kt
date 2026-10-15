@@ -20,17 +20,21 @@ import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import tv.stationbreak.data.jellyfin.trust.PinRegistry
 import javax.inject.Inject
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The Jellyfin implementation of [MediaServer] (ADR-0005). It takes the app's base [OkHttpClient] and derives its own
- * variants from it, so one trust configuration covers everything. No SDK type appears in a signature of this class.
+ * The Jellyfin implementation of [MediaServer] (ADR-0005). It takes the app's base client as an [HttpClientSource] and
+ * derives its own variants from whatever that hands out, so one trust configuration covers everything and a pin change
+ * reaches every client at once. No SDK type appears in a signature of this class.
  *
  * The probe is credential-free and follows the redirects [RedirectPolicy] allows. Every other call is on a client that
  * follows none, carries exactly one `Authorization` header, and puts no credential in a URL (the one exception is
@@ -38,24 +42,42 @@ import kotlin.time.Duration.Companion.seconds
  */
 @Suppress("TooManyFunctions") // The port's methods: one interface by decision (Granny's split is on hold).
 class JellyfinMediaServer internal constructor(
-    baseClient: OkHttpClient,
+    source: HttpClientSource,
     identity: ClientIdentity,
     deviceIds: DeviceIdProvider,
     log: AdapterLog,
     tuning: AdapterTuning,
+    private val pins: PinRegistry,
 ) : MediaServer {
     @Inject
     constructor(
-        @BaseHttpClient baseClient: OkHttpClient,
+        @BaseHttpClient source: HttpClientSource,
+        pins: PinRegistry,
         identity: ClientIdentity,
         deviceIds: DeviceIdProvider,
         log: AdapterLog,
-    ) : this(baseClient, identity, deviceIds, log, AdapterTuning())
+    ) : this(source, identity, deviceIds, log, AdapterTuning(), pins)
 
-    private val probe = ServerProbe(baseClient, tuning.timeouts, tuning.testInterceptors)
+    /** An adapter on one fixed client with no pinning: for smoke tests and the contract suite. */
+    constructor(
+        baseClient: OkHttpClient,
+        identity: ClientIdentity,
+        deviceIds: DeviceIdProvider,
+        log: AdapterLog,
+    ) : this(HttpClientSource { baseClient }, identity, deviceIds, log, AdapterTuning(), PinRegistry.NONE)
+
+    internal constructor(
+        baseClient: OkHttpClient,
+        identity: ClientIdentity,
+        deviceIds: DeviceIdProvider,
+        log: AdapterLog,
+        tuning: AdapterTuning,
+    ) : this(HttpClientSource { baseClient }, identity, deviceIds, log, tuning, PinRegistry.NONE)
+
+    private val probe = ServerProbe(source, tuning.timeouts, tuning.testInterceptors)
     private val schemes = SchemeResolver(probe)
     private val clients =
-        ClientFactory(baseClient, AuthHeaderBuilder(identity), tuning.timeouts, tuning.testInterceptors)
+        ClientFactory(source, AuthHeaderBuilder(identity), tuning.timeouts, tuning.testInterceptors)
     private val transport = Transport(clients, deviceIds)
     private val calls = AuthorizedCall(transport, probe, log)
     private val authenticator = Authenticator(probe, transport, calls, log)
@@ -64,11 +86,45 @@ class JellyfinMediaServer internal constructor(
     private val adapterLog = log
     private val revokeTimeout = tuning.revokeTimeout
 
+    /**
+     * The client for calls that carry credentials but aren't API calls (images, subtitles, Media3): the one the API
+     * uses, with its pinned trust, no redirect and the `Authorization` header added from the request's tag. It is
+     * replaced whenever a pin changes, so ask again for every use and never keep it.
+     */
+    fun credentialedHttpClient(): OkHttpClient = clients.credentialed
+
     override suspend fun discover(input: String): ServerResult<ResolvedServer> =
         when (val parsed = AddressParser.parse(input)) {
             is ServerResult.Success -> schemes.discover(parsed.value)
             is ServerResult.Failure -> parsed
         }
+
+    override suspend fun trust(
+        input: String,
+        pin: SpkiPin,
+    ): ServerResult<ResolvedServer> =
+        when (val parsed = AddressParser.parse(input)) {
+            is ServerResult.Success -> trustAt(parsed.value.explicit ?: parsed.value.at(Scheme.Https), pin)
+            is ServerResult.Failure -> parsed
+        }
+
+    private suspend fun trustAt(
+        address: ServerAddress,
+        pin: SpkiPin,
+    ): ServerResult<ResolvedServer> {
+        // A pin is never made over cleartext, and nothing is probed for an address that can't hold one.
+        if (address.scheme != Scheme.Https) return ServerResult.Failure(MediaServerError.InvalidAddress())
+        pins.pin(address, pin)
+        var kept = false
+        try {
+            val result = probe.probe(address)
+            kept = result is ServerResult.Success
+            return result
+        } finally {
+            // A failure, a different certificate than the one confirmed, or a cancelled caller all take the pin back.
+            if (!kept) pins.unpin(address)
+        }
+    }
 
     override suspend fun connect(
         address: ServerAddress,
