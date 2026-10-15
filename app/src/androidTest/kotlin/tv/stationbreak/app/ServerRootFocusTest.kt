@@ -28,21 +28,34 @@ class ServerRootFocusTest {
 
     private fun pressDpad(key: Key) = compose.onRoot().performKeyInput { pressKey(key) }
 
+    // The app opens on launch routing, which finds nothing stored and replaces itself with the server screen; wait for
+    // that screen's field to have focus before any key.
+    private fun awaitFocused(tag: String) {
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+    }
+
     @Test
     fun theAddressFieldHasFocusAtLaunch() {
-        compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
+        awaitFocused(ServerTags.FIELD)
     }
 
     @Test
     fun dpadDownMovesFocusToTest() {
+        awaitFocused(ServerTags.FIELD)
         pressDpad(Key.DirectionDown)
         compose.onNodeWithTag(ServerTags.TEST).assertIsFocused()
     }
 
     @Test
     fun dpadUpMovesFocusBackToTheField() {
+        awaitFocused(ServerTags.FIELD)
         pressDpad(Key.DirectionDown)
+        awaitFocused(ServerTags.TEST)
         pressDpad(Key.DirectionUp)
-        compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
+        awaitFocused(ServerTags.FIELD)
+    }
+
+    private companion object {
+        const val FOCUS_TIMEOUT_MS = 10_000L
     }
 }

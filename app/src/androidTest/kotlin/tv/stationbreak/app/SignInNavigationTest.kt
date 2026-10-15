@@ -27,7 +27,6 @@ import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -35,7 +34,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.nav.AppNavGraph
-import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
 import tv.stationbreak.core.domain.FakeMediaServer
@@ -44,10 +42,14 @@ import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -56,8 +58,8 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
 import tv.stationbreak.feature.onboarding.server.ServerTags
-import tv.stationbreak.feature.onboarding.signin.SignInResult
 import tv.stationbreak.feature.onboarding.signin.SignInTags
 import javax.inject.Singleton
 
@@ -65,7 +67,7 @@ import javax.inject.Singleton
 private object Scripted {
     val server = FakeMediaServer()
     val store = InMemorySecretStore()
-    val settings = InMemoryServerSettings()
+    var settings = InMemoryServerSettings()
 }
 
 /**
@@ -114,7 +116,6 @@ class SignInNavigationTest {
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val http = ServerAddress(Scheme.Http, "jellyfin.example.test", 8096)
-    private val handedOver = mutableListOf<SignInResult>()
 
     @Before
     fun script() {
@@ -125,11 +126,13 @@ class SignInNavigationTest {
                     .Unknown(),
             )
         Scripted.server.signInCalls.clear()
+        Scripted.server.librariesResult = ServerResult.Success(listOf(Library(ItemId("movies"), "Movies", LibraryKind.Movies)))
         Scripted.store
             .snapshot()
             .keys
             .forEach { key -> kotlinx.coroutines.runBlocking { Scripted.store.clear(key) } }
         Scripted.store.writtenKeys.clear()
+        Scripted.settings = InMemoryServerSettings()
         hilt.inject()
     }
 
@@ -139,7 +142,8 @@ class SignInNavigationTest {
     }
 
     private fun launchApp() {
-        compose.setContent { StationBreakTheme { AppNavHost(onSignedIn = { handedOver += it }) } }
+        // The graph from the server screen, as a first launch reaches it. LaunchNavigationTest covers launch routing.
+        compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute) } }
         compose.waitForIdle()
     }
 
@@ -225,7 +229,7 @@ class SignInNavigationTest {
     }
 
     @Test
-    fun aFinishedSignInHandsTheSessionToTheNextDestination() {
+    fun aFinishedSignInOpensTheLibraryPickerAndStoresTheServer() {
         val token = AccessToken("dummy-token-0001")
         val session = Session(UserId("user1"), token, info, https, null, isAdministrator = true)
         Scripted.server.signInResult = ServerResult.Success(session)
@@ -246,14 +250,13 @@ class SignInNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitForIdle()
 
-        // What the stub hands over: the session as signed in (the admin flag recorded, not acted on), and whether it
-        // reached the store. The library picker (task 4.0) takes exactly this.
-        assertEquals(1, handedOver.size)
-        assertSame(session, handedOver.single().session)
-        assertTrue(handedOver.single().session.isAdministrator)
-        assertTrue(handedOver.single().persisted)
+        // The library picker asked the server about the session that signed in (the admin flag recorded, not acted on),
+        // the session reached the store, and Continue stored the server as the configured one.
+        awaitFocused(LibrariesTags.row("movies"))
+        assertEquals(listOf(session), Scripted.server.librariesCalls)
         assertEquals(listOf(SessionRepository.SESSION_KEY), Scripted.store.writtenKeys)
         assertEquals(listOf(https to "sam"), Scripted.server.signInCalls)
+        assertEquals(ServerRecord(https), Scripted.settings.current)
     }
 
     @Test
@@ -281,11 +284,7 @@ class SignInNavigationTest {
     ) {
         compose.setContent {
             StationBreakTheme {
-                AppNavGraph(
-                    onSignedIn = { handedOver += it },
-                    startDestination = startDestination,
-                    navController = navController,
-                )
+                AppNavGraph(startDestination = startDestination, navController = navController)
             }
         }
         compose.waitForIdle()
@@ -307,7 +306,6 @@ class SignInNavigationTest {
 
         compose.onNodeWithTag(ServerTags.FIELD).assertExists()
         compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()
-        assertTrue(handedOver.isEmpty())
         assertTrue(navController.currentDestination.isRoute<ServerRoute>())
         // Nothing is left under the server screen: Back from it leaves the app.
         assertNull(navController.previousBackStackEntry)
@@ -320,7 +318,6 @@ class SignInNavigationTest {
 
         compose.onNodeWithTag(ServerTags.FIELD).assertExists()
         compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()
-        assertTrue(handedOver.isEmpty())
         assertTrue(navController.currentDestination.isRoute<ServerRoute>())
         assertNull("sign-in must not be left under the server screen", navController.previousBackStackEntry)
 

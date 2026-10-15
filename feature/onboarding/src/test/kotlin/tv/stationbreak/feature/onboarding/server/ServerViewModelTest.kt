@@ -737,7 +737,8 @@ class ServerViewModelTest {
 
     @Test
     fun continuingDropsASignInHeldFromAnEarlierPass() {
-        signedIn.put(SignInResult(Session(UserId("u"), AccessToken("dummy-token-0001"), info, https, null, false), true))
+        val session = Session(UserId("u"), AccessToken("dummy-token-0001"), info, https, null, false)
+        signedIn.put(SignInResult(session, persisted = true))
         val vm = viewModel()
 
         vm.onContinue(ConnectedServer(ResolvedServer(https, info), acknowledgement = null))
