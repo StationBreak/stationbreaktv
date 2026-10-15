@@ -10,22 +10,29 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import tv.stationbreak.app.net.AndroidSystemTrust
+import tv.stationbreak.app.net.PinSyncingServerSettings
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredDeviceIdProvider
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.BaseHttpClient
+import tv.stationbreak.data.jellyfin.HttpClientSource
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
+import tv.stationbreak.data.jellyfin.trust.PinRegistry
+import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
 import tv.stationbreak.data.settings.keystore.KeystoreSecretStore
+import tv.stationbreak.data.settings.server.FileServerSettings
 import javax.inject.Singleton
 import kotlin.time.Clock
 
 /**
- * The bindings for the media server port (ADR-0005): the Jellyfin adapter behind [MediaServer], the base client it
- * derives its own from, the Keystore-backed secret store (ADR-0009) and the system clock (ADR-0004). The `[KMP]` and
+ * The bindings for the media server port (ADR-0005): the Jellyfin adapter behind [MediaServer], the pinned base client
+ * it derives its own from, the stored server record, the Keystore-backed secret store (ADR-0009) and the system clock (ADR-0004). The `[KMP]` and
  * `[JVM]` modules hold no Hilt; they are wired here.
  */
 @Module
@@ -36,13 +43,32 @@ internal interface MediaServerModule {
 
     companion object {
         /**
-         * System trust only. F0.5 replaces this with the per-server pinned client (S0.5.2); the adapter drops this
-         * client's interceptors, cookie jar and authenticators and keeps its trust configuration.
+         * The one pinned client (S0.5.2, Angua (Security)): system trust through the Network Security Config's trust
+         * manager, plus an exact-host SPKI pin when the user has trusted a self-signed certificate. The adapter drops
+         * its interceptors, cookie jar and authenticators and keeps its trust configuration. It is replaced whenever a
+         * pin changes, so it is handed out through [HttpClientSource], never as a client to keep.
          */
         @Provides
         @Singleton
+        fun pinnedHttpClients(): PinnedHttpClients = PinnedHttpClients(AndroidSystemTrust(), OkHttpClient())
+
+        @Provides
         @BaseHttpClient
-        fun baseHttpClient(): OkHttpClient = OkHttpClient()
+        fun baseHttpClient(clients: PinnedHttpClients): HttpClientSource = clients
+
+        @Provides
+        fun pinRegistry(clients: PinnedHttpClients): PinRegistry = clients
+
+        /**
+         * The stored server record (address and pin), on a file out of backup. It keeps the pinned client in step with
+         * what is stored, and its first read applies the stored pin.
+         */
+        @Provides
+        @Singleton
+        fun serverSettings(
+            @ApplicationContext context: Context,
+            clients: PinnedHttpClients,
+        ): ServerSettings = PinSyncingServerSettings(FileServerSettings(context), clients)
 
         @Provides
         fun clock(): Clock = Clock.System
