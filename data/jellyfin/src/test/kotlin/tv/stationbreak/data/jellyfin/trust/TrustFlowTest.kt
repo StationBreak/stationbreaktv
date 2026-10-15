@@ -16,10 +16,12 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.PlaintextServer
+import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -274,6 +276,21 @@ class TrustFlowTest {
         val derived = pinned.newBuilder().build()
         assertSame(pinned.sslSocketFactory, derived.sslSocketFactory)
         assertSame(pinned.hostnameVerifier, derived.hostnameVerifier)
+    }
+
+    @Test
+    fun aKeptCredentialedCallFactoryFollowsAPinClear() {
+        val cert = selfSignedFor(NAS)
+        val server = TlsJellyfin(cert).closing()
+        val clients = pinnedClients()
+        val kept = adapterOn(clients).credentialedCallFactory
+        clients.pin(server.address(), CertificateFacts.spki(cert.certificate))
+        val request = Request.Builder().url("https://$NAS:${server.port}/System/Info/Public").build()
+        assertEquals(200, kept.newCall(request).execute().use { it.code })
+
+        clients.unpin(server.address())
+
+        assertFailsWith<IOException> { kept.newCall(request).execute().close() }
     }
 
     @Test
