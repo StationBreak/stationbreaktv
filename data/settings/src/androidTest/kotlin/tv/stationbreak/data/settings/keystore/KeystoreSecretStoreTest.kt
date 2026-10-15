@@ -61,7 +61,7 @@ class KeystoreSecretStoreTest {
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         dir = File(context.noBackupFilesDir, "keystore-test-${UUID.randomUUID()}")
-        disk = DiskBlobFiles(dir)
+        disk = DiskBlobFiles { dir }
         faultyFiles = FaultyFiles(disk)
         AndroidKeyAccess.delete()
     }
@@ -132,6 +132,25 @@ class KeystoreSecretStoreTest {
         }
 
     @Test
+    fun clearOfAnAbsentNameCreatesNoKey() =
+        runBlocking {
+            assertEquals(SecretStoreResult.Success(Unit), newStore().clear("token"))
+
+            assertFalse(keyExists())
+            assertEquals(0, keys.createCount.get())
+        }
+
+    @Test
+    fun theDiskBlobFilesDirectoryIsResolvedOnFirstUseNotAtConstruction() {
+        var resolved = 0
+        val lazyFiles = DiskBlobFiles { resolved++.let { dir } }
+
+        assertEquals(0, resolved)
+        assertNull(lazyFiles.read("none"))
+        assertEquals(1, resolved)
+    }
+
+    @Test
     fun twoSavesOfOneValueGiveDifferentBlobs() =
         runBlocking {
             val store = newStore()
@@ -140,7 +159,9 @@ class KeystoreSecretStoreTest {
             store.save("token", token)
             val second = blobOf("token")
 
-            assertFalse(first.contentEquals(second))
+            // The IV is bytes 2..14 (version, IV length, then the IV). Comparing the whole blob would pass on the
+            // ciphertext alone, which is no proof the Keystore made a fresh IV.
+            assertFalse(first.copyOfRange(2, 14).contentEquals(second.copyOfRange(2, 14)))
             assertEquals(first.size, second.size)
         }
 
@@ -492,6 +513,39 @@ class KeystoreSecretStoreTest {
     }
 
     @Test
+    fun anIllegalBlockSizeOnLoadIsBlobLevelAndWipesOnlyThatBlob() =
+        runBlocking {
+            val store = newStore()
+            store2Entries(store)
+            keys.getFault = javax.crypto.IllegalBlockSizeException("dummy")
+
+            assertFailure(store.load("token"))
+
+            keys.getFault = null
+            assertTrue(keyExists())
+            assertEquals(listOf(BlobCodec.fileName("device")), blobNames())
+            assertEquals(SecretStoreResult.Success(deviceId), store.load("device"))
+        }
+
+    @Test
+    fun anIllegalBlockSizeOnSaveIsTransient() =
+        assertTransient(
+            { keys.getFault = javax.crypto.IllegalBlockSizeException("dummy") },
+            { keys.getFault = null },
+        ) { it.save("token", "dummy-2") }
+
+    @Test
+    fun anUnlistedExceptionOnClearWipesNothing() =
+        assertTransient(
+            // One-shot: a wipe after the fault would find the delete working, so a misclassified fault shows.
+            {
+                faultyFiles.deleteFaultOnce = true
+                faultyFiles.deleteFault = IllegalStateException("dummy")
+            },
+            { faultyFiles.deleteFault = null },
+        ) { it.clear("token") }
+
+    @Test
     fun aFaultCreatingTheKeyKeepsTheBlobsAndThrowsNothing() =
         runBlocking {
             keys.createFault = ProviderException("dummy")
@@ -696,6 +750,15 @@ class KeystoreSecretStoreTest {
 
         @Volatile var deleteFault: Throwable? = null
 
+        // When set, the fault fires once and is then cleared.
+        @Volatile var deleteFaultOnce = false
+
+        private fun deleteFaulted() {
+            val fault = deleteFault ?: return
+            if (deleteFaultOnce) deleteFault = null
+            throw fault
+        }
+
         override fun read(name: String): ByteArray? {
             readFault?.let { throw it }
             return delegate.read(name)
@@ -710,12 +773,12 @@ class KeystoreSecretStoreTest {
         }
 
         override fun delete(name: String) {
-            deleteFault?.let { throw it }
+            deleteFaulted()
             delegate.delete(name)
         }
 
         override fun deleteAll() {
-            deleteFault?.let { throw it }
+            deleteFaulted()
             delegate.deleteAll()
         }
     }

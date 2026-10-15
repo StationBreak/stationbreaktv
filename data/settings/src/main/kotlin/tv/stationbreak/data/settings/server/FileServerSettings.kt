@@ -19,6 +19,11 @@ import java.io.IOException
  * purpose, so a restore onto another device asks about the certificate again instead of carrying a trust decision
  * over. No secret is kept here (the session is in the Keystore store). Faults come back as `false` or `null`, never as
  * an exception, and the store logs nothing.
+ *
+ * Cancellation: a caller cancelled while waiting for the lock does nothing, and the call throws
+ * `CancellationException`. A caller cancelled after its write has begun still completes the write (the file work is
+ * not interruptible), then sees `CancellationException` instead of the `Boolean`, so it can't tell whether the write
+ * landed. A caller that must know, or must not leave a half-done sequence, runs the call in `NonCancellable`.
  */
 @Suppress("TooManyFunctions") // The port's functions, one each, over the one locked file.
 class FileServerSettings internal constructor(

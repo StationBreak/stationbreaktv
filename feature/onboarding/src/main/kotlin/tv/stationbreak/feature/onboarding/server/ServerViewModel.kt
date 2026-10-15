@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.server
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
@@ -129,12 +131,20 @@ internal class ServerViewModel
         // outlives the screen that should have dropped it is exactly what it is for), and a new Test waits for it.
         private var pendingClear: Job? = null
 
+        // False once a clear has succeeded and nothing has been trusted since, so typing stops asking the disk to clear
+        // a pin that is already gone. True at the start (a stored one is unknown) and from the moment a trust is begun.
+        private var pinMayExist = true
+
+        // Counts the clears and trusts started. Only the latest clear may write the flag: an older one that finishes
+        // late would otherwise mark a pin gone that a newer trust has since stored.
+        private var clearGeneration = 0
+
         fun onInputChange(text: String) {
             edited = true
             val running = testJob
             running?.cancel()
             // Another address is another server: a pin is for one exact address and goes with the edit.
-            if (text != mutableState.value.input) clearPin(after = running)
+            if (text != mutableState.value.input && pinMayExist) clearPin(after = running)
             mutableState.value = ServerUiState(input = text)
         }
 
@@ -146,12 +156,14 @@ internal class ServerViewModel
                 return
             }
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
+            val generation = ++clearGeneration
             testJob =
                 viewModelScope.launch {
                     // A new Test starts without a pin: the certificate is asked about again, never assumed.
                     pendingClear?.join()
                     // A pin that is still on disk would come back at the next load: stop rather than connect.
                     val cleared = settings.clearPin()
+                    if (cleared && generation == clearGeneration) pinMayExist = false
                     finish(if (cleared) phaseFor(typed, mediaServer.discover(typed)) else pinNotCleared())
                 }
         }
@@ -192,6 +204,8 @@ internal class ServerViewModel
         fun onTrustCertificate() {
             val asked = mutableState.value.phase as? ServerPhase.TrustRequired ?: return
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
+            pinMayExist = true
+            clearGeneration++
             testJob =
                 viewModelScope.launch {
                     finish(phaseFor(asked.input, certificateTrust.confirm(asked.input, asked.prompt)))
@@ -209,10 +223,14 @@ internal class ServerViewModel
         }
 
         private fun clearPin(after: Job?) {
+            val generation = ++clearGeneration
+            // Undispatched, so the body starts at once and runs to its end even if the scope is cancelled first.
             pendingClear =
-                viewModelScope.launch(NonCancellable) {
-                    after?.join()
-                    settings.clearPin()
+                viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    withContext(NonCancellable) {
+                        after?.join()
+                        if (settings.clearPin() && generation == clearGeneration) pinMayExist = false
+                    }
                 }
         }
 
@@ -238,15 +256,17 @@ internal class ServerViewModel
             handOff.put(server)
             // Started before this screen can leave, so it is first in the settings' queue, ahead of anything sign-in or
             // the library picker writes; it runs to its end even if this view model is cleared at once.
-            viewModelScope.launch(NonCancellable) {
-                val address = server.server.address
-                val old = settings.load()?.address
-                if (old != address) {
-                    settings.save(ServerRecord(address))
-                    // The stored session belongs to the old server. It would be refused at the next restore anyway
-                    // (a token is only ever sent to the server that issued it), but the user has now chosen another
-                    // server, so it goes now rather than lingering.
-                    if (old != null && !address.bindsTo(old) && !old.bindsTo(address)) sessions.clear()
+            viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                withContext(NonCancellable) {
+                    val address = server.server.address
+                    val old = settings.load()?.address
+                    if (old != address) {
+                        settings.save(ServerRecord(address))
+                        // The stored session belongs to the old server. It would be refused at the next restore
+                        // anyway (a token is only ever sent to the server that issued it), but the user has now chosen
+                        // another server, so it goes now rather than lingering.
+                        if (old != null && !address.bindsTo(old) && !old.bindsTo(address)) sessions.clear()
+                    }
                 }
             }
         }

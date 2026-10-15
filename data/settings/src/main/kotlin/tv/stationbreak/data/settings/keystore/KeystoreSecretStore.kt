@@ -33,13 +33,13 @@ class KeystoreSecretStore internal constructor(
     private val files: BlobFiles,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : SecretStore {
-    constructor(context: Context) : this(AndroidKeyAccess, DiskBlobFiles(File(context.noBackupFilesDir, DIR_NAME)))
+    constructor(context: Context) : this(AndroidKeyAccess, DiskBlobFiles { File(context.noBackupFilesDir, DIR_NAME) })
 
     override suspend fun save(
         key: String,
         value: String,
     ): SecretStoreResult<Unit> =
-        guarded(blobFile = null) {
+        guarded(Op.Write) {
             // A missing key on save is a first save. Any blob left over was made by a key that's gone, so it goes
             // first: a vendor Keystore may answer a wrong-key decrypt with an exception that counts as transient,
             // and such a blob would never heal. A key that isn't ours is a fault.
@@ -53,7 +53,7 @@ class KeystoreSecretStore internal constructor(
 
     override suspend fun load(key: String): SecretStoreResult<String?> {
         val file = BlobCodec.fileName(key)
-        return guarded(blobFile = file) {
+        return guarded(Op.Decrypt(file)) {
             // No blob means nothing to decrypt: don't touch, let alone create, the key.
             val blob = files.read(file) ?: return@guarded null
             val decoded = BlobCodec.decode(blob) ?: throw BlobFault()
@@ -63,7 +63,7 @@ class KeystoreSecretStore internal constructor(
 
     override suspend fun clear(key: String): SecretStoreResult<Unit> {
         val file = BlobCodec.fileName(key)
-        return guarded(blobFile = null) { files.delete(file) }
+        return guarded(Op.Write) { files.delete(file) }
     }
 
     // A constant: nothing about the contents may reach a log through this.
@@ -72,10 +72,10 @@ class KeystoreSecretStore internal constructor(
     /**
      * Runs [block] under the process-wide lock, on a background dispatcher. The whole of a load holds the lock, so the
      * fault it acts on can't change before the wipe: a load can never delete a key or blob a concurrent save just
-     * wrote. [blobFile] is the blob a blob-level fault deletes, or null for a call that never decrypts.
+     * wrote. [op] says whether the call decrypts, and so which blob a blob-level fault deletes.
      */
     private suspend fun <T> guarded(
-        blobFile: String?,
+        op: Op,
         block: () -> T,
     ): SecretStoreResult<T> =
         withContext(io) {
@@ -89,9 +89,9 @@ class KeystoreSecretStore internal constructor(
                     @Suppress("TooGenericExceptionCaught") e: Exception,
                 ) {
                     // Every fault, listed or not, ends in Failure (spec 04): a vendor Keystore throws odd things.
-                    when (classify(e, blobFile != null)) {
+                    when (classify(e, op is Op.Decrypt)) {
                         Severity.KEY -> wipeKeyAndBlobs()
-                        Severity.BLOB -> blobFile?.let(::wipeBlob)
+                        Severity.BLOB -> if (op is Op.Decrypt) wipeBlob(op.blobFile)
                         Severity.TRANSIENT -> Unit
                     }
                     SecretStoreResult.Failure
@@ -165,6 +165,16 @@ class KeystoreSecretStore internal constructor(
         } finally {
             plain.fill(0)
         }
+    }
+
+    /** What a guarded call does. Only a decrypting call can meet a blob-level fault, and it names the blob. */
+    private sealed interface Op {
+        /** A call that never decrypts: save and clear. */
+        data object Write : Op
+
+        class Decrypt(
+            val blobFile: String,
+        ) : Op
     }
 
     private enum class Severity { KEY, BLOB, TRANSIENT }

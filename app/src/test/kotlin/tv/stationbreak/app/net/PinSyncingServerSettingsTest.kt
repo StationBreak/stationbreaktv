@@ -2,7 +2,12 @@
 package tv.stationbreak.app.net
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -21,6 +26,7 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
 import tv.stationbreak.data.jellyfin.trust.SystemTrust
+import java.util.concurrent.Executors
 
 /**
  * The stored pin and the pinned client move together (spec 05, Unit 3): a pin that is saved, replaced or cleared
@@ -149,6 +155,35 @@ class PinSyncingServerSettingsTest {
         }
 
     @Test
+    fun clearsAndSavesRacingOnRealThreadsLeaveTheClientPinsEqualToTheStoredPins() =
+        Executors.newFixedThreadPool(RACE_CALLS).asCoroutineDispatcher().use { threads ->
+            runBlocking { raceRounds(threads) }
+        }
+
+    private suspend fun raceRounds(threads: CoroutineDispatcher) {
+        coroutineScope {
+            repeat(RACE_ROUNDS) { round ->
+                val racingStore = InMemoryServerSettings()
+                val racingClients = PinnedHttpClients(SystemTrust { _, _, _ -> })
+                val racing = PinSyncingServerSettings(racingStore, racingClients)
+                val pins = listOf(pin, other)
+                (0 until RACE_CALLS)
+                    .map { i ->
+                        async(threads) {
+                            if ((i + round) % 2 == 0) {
+                                racing.save(ServerRecord(address, pins[i % 2]))
+                            } else {
+                                racing.clearPin()
+                            }
+                        }
+                    }.awaitAll()
+
+                assertEquals("round $round", racingStore.current?.pin, racingClients.pinFor(address))
+            }
+        }
+    }
+
+    @Test
     fun theLibrarySelectionPassesThroughAndLeavesTheClientAlone() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
@@ -171,4 +206,9 @@ class PinSyncingServerSettingsTest {
             assertNull(stored.currentLibraries)
             assertSame(built, clients.current())
         }
+
+    private companion object {
+        const val RACE_ROUNDS = 200
+        const val RACE_CALLS = 8
+    }
 }

@@ -3,6 +3,8 @@ package tv.stationbreak.feature.onboarding.trust
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
@@ -14,7 +16,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.tv.material3.MaterialTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -40,9 +44,12 @@ class TrustScreenTest {
     private var trusted = 0
     private var refused = 0
 
+    private var primary = Color.Unspecified
+
     private fun show(reason: TrustReason = TrustReason.Untrusted) {
         compose.setContent {
             StationBreakTheme {
+                primary = MaterialTheme.colorScheme.primary
                 TrustScreen(
                     prompt = TrustPrompt(reason, certificate),
                     serverAddress = "jellyfin.example.test:8920",
@@ -118,12 +125,13 @@ class TrustScreenTest {
     fun theFingerprintIsTheFullSpkiInGroupsOfFourAndLabelled() {
         show()
         compose.onNodeWithText("SPKI SHA-256 fingerprint").assertExists()
-        val description = Fingerprint.text(pin)
-        compose.onNodeWithTag(TrustTags.FINGERPRINT).assert(hasContentDescription(description))
+        // TalkBack reads the digits one at a time, not as numbers (A9): the description is spelled out.
+        compose.onNodeWithTag(TrustTags.FINGERPRINT).assert(hasContentDescription(Fingerprint.spoken(pin)))
         // Sixteen groups of four digits, and each line of eight groups is on screen as text.
+        val description = Fingerprint.text(pin)
         assertEquals(16, description.split(" ").size)
         assertTrue(description.split(" ").all { it.length == 4 })
-        for (line in Fingerprint.lines(pin)) compose.onNodeWithText(line).assertExists()
+        for (line in Fingerprint.lines(pin)) compose.onNodeWithText(line, useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -134,6 +142,77 @@ class TrustScreenTest {
         val buttons = compose.onNodeWithTag(TrustTags.DONT_TRUST).getUnclippedBoundsInRoot()
         assertTrue("warning ${warning.top} above fingerprint ${fingerprint.top}", warning.top < fingerprint.top)
         assertTrue("fingerprint ${fingerprint.top} above buttons ${buttons.top}", fingerprint.top < buttons.top)
+    }
+
+    @Test
+    fun theValidityLineIsDirectlyUnderTheFingerprintAndAboveItsNote() {
+        show()
+        val fingerprint = compose.onNodeWithTag(TrustTags.FINGERPRINT).getUnclippedBoundsInRoot()
+        val validity = compose.onNodeWithTag(TrustTags.VALIDITY).getUnclippedBoundsInRoot()
+        val note = compose.onNodeWithTag(TrustTags.FINGERPRINT_NOTE).getUnclippedBoundsInRoot()
+        val under = validity.top >= fingerprint.bottom
+        assertTrue("validity ${validity.top} under fingerprint ${fingerprint.bottom}", under)
+        assertTrue("validity ${validity.bottom} above note ${note.top}", validity.bottom <= note.top)
+    }
+
+    @Test
+    fun theDialogRootHasAPaneTitleSoTalkBackAnnouncesTheScreen() {
+        show()
+        val config = compose.onNodeWithTag(TrustTags.SCREEN).fetchSemanticsNode().config
+        assertEquals("Trust this server’s certificate?", config[SemanticsProperties.PaneTitle])
+    }
+
+    @Test
+    fun theChangedCertificatePaneTitleSaysItChanged() {
+        show(TrustReason.Changed)
+        val config = compose.onNodeWithTag(TrustTags.SCREEN).fetchSemanticsNode().config
+        assertEquals("This server’s certificate has changed", config[SemanticsProperties.PaneTitle])
+    }
+
+    @Test
+    fun dontTrustIsFocusedOnOpenAndKeepsFocusOnceTheDialogHasSettled() {
+        show()
+        awaitFocused(TrustTags.DONT_TRUST)
+        // Focus must not move away late, as a dialog's own focus handling can on a slow device. No click, no key:
+        // nothing but the dialog opening gave Don't trust its focus.
+        repeat(SETTLE_CHECKS) {
+            Thread.sleep(SETTLE_STEP_MS)
+            compose.waitForIdle()
+            compose.onNodeWithTag(TrustTags.DONT_TRUST).assertIsFocused()
+        }
+        assertEquals(0, refused)
+        assertEquals(0, trusted)
+    }
+
+    @Test
+    fun dontTrustHasThePrimaryFillAndTrustNeverDoes() {
+        show()
+        awaitFocused(TrustTags.DONT_TRUST)
+        // Focus on Don't trust gives it the focus look, so Trust shows its own resting fill.
+        assertFalse("Trust must not have the primary fill", fillOf(TrustTags.TRUST).isCloseTo(primary))
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, TrustTags.DONT_TRUST)
+        awaitFocused(TrustTags.TRUST)
+        // Focus on Trust gives Don't trust its resting fill. The fill eases in, so wait for it.
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(primary) }
+    }
+
+    // The dialog is a window of its own and captureToImage can't capture one below API 28, so read the screen. The
+    // dialog fills it, so a node's bounds in its root are screen pixels.
+    private fun fillOf(tag: String): Int {
+        val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        // Just inside the button's left edge, on its vertical middle: the container, clear of the label.
+        return screen.getPixel((bounds.left + bounds.width / PADDING_DIVISOR).toInt(), bounds.center.y.toInt())
+    }
+
+    private fun Int.isCloseTo(color: Color): Boolean {
+        val expected = color.toArgb()
+
+        fun channel(
+            value: Int,
+            shift: Int,
+        ) = (value shr shift) and 0xFF
+        return listOf(0, 8, 16).all { kotlin.math.abs(channel(this, it) - channel(expected, it)) <= COLOUR_SLACK }
     }
 
     @Test
@@ -188,5 +267,9 @@ class TrustScreenTest {
 
     private companion object {
         const val FOCUS_TIMEOUT_MS = 10_000L
+        const val SETTLE_CHECKS = 10
+        const val SETTLE_STEP_MS = 100L
+        const val PADDING_DIVISOR = 10
+        const val COLOUR_SLACK = 6
     }
 }

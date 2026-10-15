@@ -96,3 +96,21 @@ tasks.withType<Test>().configureEach {
         .withPropertyName("manifestAndXmlRules")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
+
+// BackupRulesTest also reads the merged manifest of the variant under test: a library's manifest could merge in a
+// backupAgent or loosen a backup attribute, and only the merge shows it. The unit test task for each variant depends on
+// that variant's manifest merge and gets the merged file's path.
+tasks.withType<Test>().configureEach {
+    val variant = name.removePrefix("test").removeSuffix("UnitTest")
+    if (variant.isNotEmpty() && variant != name) {
+        val mergeTask = tasks.named("process${variant}MainManifest")
+        val merged =
+            layout.buildDirectory.file(
+                "intermediates/merged_manifest/${variant.replaceFirstChar { it.lowercase() }}/" +
+                    "process${variant}MainManifest/AndroidManifest.xml",
+            )
+        dependsOn(mergeTask)
+        inputs.file(merged).withPropertyName("mergedManifest").withPathSensitivity(PathSensitivity.NONE)
+        systemProperty("mergedManifest", merged.get().asFile.absolutePath)
+    }
+}

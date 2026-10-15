@@ -45,6 +45,12 @@ internal object Fingerprint {
 
     fun text(pin: SpkiPin): String = groups(pin).joinToString(" ")
 
+    /**
+     * What a screen reader says: every character on its own, with a comma between groups for a pause. Read as
+     * written, a group such as "1118" comes out as a number.
+     */
+    fun spoken(pin: SpkiPin): String = groups(pin).joinToString(", ") { it.toList().joinToString(" ") }
+
     /** The same groups in lines of eight, for a screen that reads at ten feet. */
     fun lines(pin: SpkiPin): List<String> = groups(pin).chunked(GROUPS_PER_LINE).map { it.joinToString(" ") }
 }

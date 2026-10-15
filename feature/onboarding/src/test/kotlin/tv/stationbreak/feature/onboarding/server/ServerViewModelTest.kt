@@ -97,6 +97,7 @@ private class GatedTrustServer(
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass") // One function per behaviour of the screen's view model.
 class ServerViewModelTest {
     private val server = GatedServer()
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
@@ -618,6 +619,42 @@ class ServerViewModelTest {
         return ServerViewModel(server, handOff, signedIn, slow, CertificateTrust(server, slow, sessions), sessions)
     }
 
+    /** Refuses the first [failures] clears, as a write that fails. */
+    private class FailingClear(
+        private val inner: InMemoryServerSettings,
+        private var failures: Int,
+    ) : ServerSettings by inner {
+        var calls = 0
+
+        override suspend fun clearPin(): Boolean {
+            calls++
+            if (failures > 0) {
+                failures--
+                return false
+            }
+            return inner.clearPin()
+        }
+    }
+
+    @Test
+    fun aFailedClearKeepsTheFlagUpSoTheNextKeystrokeClearsAgain() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val failing = FailingClear(settings, failures = 1)
+        val trust = CertificateTrust(server, failing, sessions)
+        val vm = ServerViewModel(server, handOff, signedIn, failing, trust, sessions)
+
+        vm.onInputChange("a")
+        assertEquals(1, failing.calls)
+        assertEquals(spki, settings.current?.pin)
+
+        vm.onInputChange("ab")
+        assertEquals(2, failing.calls)
+        assertEquals(null, settings.current?.pin)
+
+        vm.onInputChange("abc")
+        assertEquals("cleared, so no further clear", 2, failing.calls)
+    }
+
     @Test
     fun aPinClearStartedByTheViewModelFinishesEvenIfTheViewModelIsCleared() {
         runBlocking { settings.save(ServerRecord(nas, spki)) }
@@ -695,6 +732,34 @@ class ServerViewModelTest {
     }
 
     @Test
+    fun typingClearsThePinOnceNotOnEveryKeystroke() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val vm = viewModel()
+
+        "nas.example.test:8921".forEachIndexed { i, _ -> vm.onInputChange("nas.example.test:8921".take(i + 1)) }
+
+        assertEquals(ServerRecord(nas, null), settings.current)
+        assertEquals("one clear for the whole edit", 1, settings.clearPinCalls)
+    }
+
+    @Test
+    fun aPinStoredAfterTheLastClearIsClearedByTheNextEdit() {
+        server.fake.discoverResult = fails(MediaServerError.TlsUntrusted(certificate = selfSigned))
+        val vm = viewModel()
+        vm.onInputChange("nas.example.test:8920")
+        vm.onInputChange("nas.example.test:892")
+        vm.test("nas.example.test:8920")
+        vm.onTrustCertificate()
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val before = settings.clearPinCalls
+
+        vm.onInputChange("nas.example.test:8921")
+
+        assertEquals(before + 1, settings.clearPinCalls)
+        assertEquals(ServerRecord(nas, null), settings.current)
+    }
+
+    @Test
     fun editAddressClearsThePin() {
         runBlocking { settings.save(ServerRecord(nas, spki)) }
         val vm = viewModel()
@@ -758,6 +823,19 @@ class ServerViewModelTest {
             assertEquals(ServerRecord(other), settings.current)
             assertNull(settings.currentLibraries)
         }
+
+    @Test
+    fun continuingStoresTheServerEvenIfTheViewModelIsClearedAtOnce() {
+        runBlocking { settings.save(ServerRecord(https)) }
+        val other = ServerAddress(Scheme.Https, "other.example.test", 443)
+        val owner = ViewModelStore()
+        val vm = owner.host(viewModel(), ServerViewModel::class.java)
+
+        vm.onContinue(ConnectedServer(ResolvedServer(other, info), acknowledgement = null))
+        owner.clear()
+
+        assertEquals(ServerRecord(other), settings.current)
+    }
 
     @Test
     fun continuingDropsASignInHeldFromAnEarlierPass() {

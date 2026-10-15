@@ -23,9 +23,12 @@ internal interface BlobFiles {
     fun deleteAll()
 }
 
+/** [dirProvider] runs on first use, on the calling (background) thread, not at construction. */
 internal class DiskBlobFiles(
-    private val dir: File,
+    dirProvider: () -> File,
 ) : BlobFiles {
+    private val dir: File by lazy(dirProvider)
+
     override fun read(name: String): ByteArray? =
         try {
             AtomicFile(File(dir, name)).readFully()
