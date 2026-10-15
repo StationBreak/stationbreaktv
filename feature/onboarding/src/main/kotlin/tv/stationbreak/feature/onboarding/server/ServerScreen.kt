@@ -157,6 +157,7 @@ internal fun ServerScreen(
                     enabled = phase != ServerPhase.Testing,
                     modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
                 )
+                if (phase == ServerPhase.NotTrusted) NotTrustedNotice()
                 if (phase == ServerPhase.Testing) {
                     TestingStatus()
                     ServerButton(
@@ -194,7 +195,12 @@ internal fun ServerScreen(
     }
     if (phase is ServerPhase.TrustRequired) {
         // Its own screen over this one: Don't trust has default focus, and Back is Don't trust (spec 05, Unit 3).
-        TrustScreen(prompt = phase.prompt, onTrust = onTrustCertificate, onDontTrust = onDontTrust)
+        TrustScreen(
+            prompt = phase.prompt,
+            serverAddress = phase.input,
+            onTrust = onTrustCertificate,
+            onDontTrust = onDontTrust,
+        )
     }
 }
 
@@ -224,10 +230,18 @@ private fun FocusFollowsPhase(
         shown = phase::class.java
         when (phase) {
             ServerPhase.Testing -> focus.cancel.requestFocus()
+
             is ServerPhase.Connected -> focus.continueButton.requestFocus()
+
             is ServerPhase.Failed -> focus.action.requestFocus()
+
             is ServerPhase.InvalidInput -> focus.field.requestFocus()
+
             ServerPhase.Idle -> focusAfterIdle(previous, focus)
+
+            // The user refused a certificate: focus stays where the dialog was opened from, on Test.
+            ServerPhase.NotTrusted -> focus.test.requestFocus()
+
             is ServerPhase.ConfirmCleartext, is ServerPhase.TrustRequired -> Unit
         }
     }

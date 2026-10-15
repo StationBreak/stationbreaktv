@@ -7,12 +7,30 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.model.SpkiPin
 import javax.inject.Inject
+
+/** How a confirmation ended. */
+internal sealed interface TrustOutcome {
+    /** The pin is in force and the address and pin are stored. */
+    data class Trusted(
+        val server: ResolvedServer,
+    ) : TrustOutcome
+
+    /** The probe failed, or showed another certificate than the one confirmed. No pin was kept. */
+    data class Refused(
+        val error: MediaServerError,
+    ) : TrustOutcome
+
+    /** The probe passed but the record could not be stored, so the pin was taken back. Nothing is connected. */
+    data object NotSaved : TrustOutcome
+}
 
 /**
  * The user said yes to a certificate (spec 05, Unit 3, Angua (Security)). It trusts exactly the SPKI the failed
@@ -20,8 +38,8 @@ import javax.inject.Inject
  * and the pin as one record. No second fetch decides what is trusted, and nothing here sends a credential: sign-in
  * comes after, on a connection that has already been checked.
  *
- * Accepting a **changed** certificate also drops the stored session, because a token must not follow a server whose
- * identity changed (the user signs in again).
+ * **Every** confirmation drops the stored session first, before the trust is even tried: a token must not follow a
+ * server whose certificate the user is now vouching for, and the user signs in again.
  */
 internal class CertificateTrust
     @Inject
@@ -34,22 +52,28 @@ internal class CertificateTrust
         suspend fun confirm(
             input: String,
             prompt: TrustPrompt,
-        ): ServerResult<ResolvedServer> {
+        ): TrustOutcome {
+            withContext(NonCancellable) { sessions.clear() }
             val pin = prompt.certificate.spki
-            val result = server.trust(input, pin)
-            if (result is ServerResult.Success) {
-                // The pin is in force now. Either it is recorded or it is taken back, even if the caller has gone.
-                val stillWanted = currentCoroutineContext().isActive
-                withContext(NonCancellable) {
-                    if (stillWanted) {
-                        if (prompt.reason == TrustReason.Changed) sessions.clear()
-                        settings.save(ServerRecord(result.value.address, pin))
-                    } else {
-                        settings.clearPin()
-                    }
-                }
-                currentCoroutineContext().ensureActive()
+            return when (val result = server.trust(input, pin)) {
+                is ServerResult.Failure -> TrustOutcome.Refused(result.error)
+                is ServerResult.Success -> record(result.value, pin)
             }
-            return result
+        }
+
+        // The pin is in force now. Either it is recorded or it is taken back, even if the caller has gone.
+        private suspend fun record(
+            trusted: ResolvedServer,
+            pin: SpkiPin,
+        ): TrustOutcome {
+            val stillWanted = currentCoroutineContext().isActive
+            val saved =
+                withContext(NonCancellable) {
+                    val written = stillWanted && settings.save(ServerRecord(trusted.address, pin))
+                    if (!written) settings.clearPin()
+                    written
+                }
+            currentCoroutineContext().ensureActive()
+            return if (saved) TrustOutcome.Trusted(trusted) else TrustOutcome.NotSaved
         }
     }

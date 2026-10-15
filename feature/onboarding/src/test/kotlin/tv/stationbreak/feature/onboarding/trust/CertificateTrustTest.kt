@@ -41,13 +41,14 @@ class CertificateTrustTest {
     private val certificate = CertificateEvidence(spki, selfSigned = true, notBeforeMillis = 1L, notAfterMillis = 2L)
     private val address = ServerAddress(Scheme.Https, "nas.example.test", 8920)
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
+    private val resolved = ResolvedServer(address, info)
 
     private fun prompt(reason: TrustReason = TrustReason.Untrusted) = TrustPrompt(reason, certificate)
 
     @Test
     fun itTrustsExactlyTheCapturedSpkiForTheTypedInput() =
         runBlocking {
-            server.trustResult = ServerResult.Success(ResolvedServer(address, info))
+            server.trustResult = ServerResult.Success(resolved)
             trust.confirm("nas.example.test:8920", prompt())
             assertEquals(listOf("nas.example.test:8920" to spki), server.trustCalls)
         }
@@ -55,18 +56,19 @@ class CertificateTrustTest {
     @Test
     fun onSuccessTheAddressAndThePinAreStoredTogether() =
         runBlocking {
-            server.trustResult = ServerResult.Success(ResolvedServer(address, info))
-            val result = trust.confirm("nas.example.test:8920", prompt())
-            assertEquals(ServerResult.Success(ResolvedServer(address, info)), result)
+            server.trustResult = ServerResult.Success(resolved)
+            val outcome = trust.confirm("nas.example.test:8920", prompt())
+            assertEquals(TrustOutcome.Trusted(resolved), outcome)
             assertEquals(listOf(ServerRecord(address, spki)), settings.saved)
         }
 
     @Test
     fun noCredentialIsEverSentAndNothingIsStoredOnAFailure() =
         runBlocking {
-            server.trustResult = ServerResult.Failure(MediaServerError.TlsCertificateChanged(certificate = certificate))
-            val result = trust.confirm("nas.example.test:8920", prompt())
-            assertTrue(result is ServerResult.Failure)
+            val error = MediaServerError.TlsCertificateChanged(certificate = certificate)
+            server.trustResult = ServerResult.Failure(error)
+            val outcome = trust.confirm("nas.example.test:8920", prompt())
+            assertEquals(TrustOutcome.Refused(error), outcome)
             assertTrue(settings.saved.isEmpty())
             assertNull(settings.current)
             assertTrue(server.signInCalls.isEmpty())
@@ -74,30 +76,52 @@ class CertificateTrustTest {
         }
 
     @Test
-    fun acceptingAChangedCertificateDropsTheStoredSession() =
+    fun anyConfirmationDropsTheStoredSessionNotOnlyAChangedCertificate() =
+        runBlocking {
+            for (reason in TrustReason.entries) {
+                store.save(SessionRepository.SESSION_KEY, "stored")
+                server.trustResult = ServerResult.Success(resolved)
+                trust.confirm("nas.example.test:8920", prompt(reason))
+                assertEquals(reason.name, SecretStoreResult.Success(null), store.load(SessionRepository.SESSION_KEY))
+            }
+        }
+
+    @Test
+    fun aRefusedConfirmationAlsoDropsTheStoredSession() =
         runBlocking {
             store.save(SessionRepository.SESSION_KEY, "stored")
-            server.trustResult = ServerResult.Success(ResolvedServer(address, info))
-            trust.confirm("nas.example.test:8920", prompt(TrustReason.Changed))
+            server.trustResult = ServerResult.Failure(MediaServerError.Timeout())
+            trust.confirm("nas.example.test:8920", prompt())
             assertEquals(SecretStoreResult.Success(null), store.load(SessionRepository.SESSION_KEY))
         }
 
     @Test
-    fun aFirstTimePinKeepsAnyStoredSession() =
+    fun theSessionIsGoneBeforeTrustIsCalled() =
         runBlocking {
             store.save(SessionRepository.SESSION_KEY, "stored")
-            server.trustResult = ServerResult.Success(ResolvedServer(address, info))
-            trust.confirm("nas.example.test:8920", prompt(TrustReason.Untrusted))
-            assertEquals(SecretStoreResult.Success("stored"), store.load(SessionRepository.SESSION_KEY))
+            var sessionWhenTrustRan: SecretStoreResult<String?>? = null
+            val watching =
+                object : MediaServer by server {
+                    override suspend fun trust(
+                        input: String,
+                        pin: SpkiPin,
+                    ): ServerResult<ResolvedServer> {
+                        sessionWhenTrustRan = store.load(SessionRepository.SESSION_KEY)
+                        return ServerResult.Success(resolved)
+                    }
+                }
+            CertificateTrust(watching, settings, sessions).confirm("nas.example.test:8920", prompt())
+            assertEquals(SecretStoreResult.Success(null), sessionWhenTrustRan)
         }
 
     @Test
-    fun aRefusedChangedCertificateKeepsTheStoredSession() =
+    fun aRecordThatCouldNotBeSavedIsNotConnectedAndTheTrustIsWithdrawn() =
         runBlocking {
-            store.save(SessionRepository.SESSION_KEY, "stored")
-            server.trustResult = ServerResult.Failure(MediaServerError.TlsCertificateChanged(certificate = certificate))
-            trust.confirm("nas.example.test:8920", prompt(TrustReason.Changed))
-            assertEquals(SecretStoreResult.Success("stored"), store.load(SessionRepository.SESSION_KEY))
+            server.trustResult = ServerResult.Success(resolved)
+            settings.failSave = true
+            val outcome = trust.confirm("nas.example.test:8920", prompt())
+            assertEquals(TrustOutcome.NotSaved, outcome)
+            assertTrue(settings.clearPinCalls >= 1)
         }
 
     @Test
@@ -108,7 +132,7 @@ class CertificateTrustTest {
             val gated = CertificateTrust(held, settings, sessions)
             val job = launch(start = CoroutineStart.UNDISPATCHED) { gated.confirm("nas.example.test:8920", prompt()) }
             job.cancel()
-            gate.complete(ServerResult.Success(ResolvedServer(address, info)))
+            gate.complete(ServerResult.Success(resolved))
             job.join()
             assertTrue(settings.saved.isEmpty())
             assertEquals(1, settings.clearPinCalls)

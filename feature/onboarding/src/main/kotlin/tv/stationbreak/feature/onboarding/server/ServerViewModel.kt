@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
+import tv.stationbreak.feature.onboarding.trust.TrustOutcome
 import tv.stationbreak.feature.onboarding.trust.TrustPrompt
 import tv.stationbreak.feature.onboarding.trust.toTrustPrompt
 import javax.inject.Inject
@@ -32,6 +34,12 @@ data class ConnectedServer(
 /** Where the server screen is. There is never a password or token here: Unit 1 sends none. */
 internal sealed interface ServerPhase {
     data object Idle : ServerPhase
+
+    /**
+     * Idle after the user refused a certificate (Don't trust, or Back): the screen says it isn't connected and why. It
+     * ends with the next Test or the next edit of the address.
+     */
+    data object NotTrusted : ServerPhase
 
     /** `discover` is running. The screen shows this at once and offers Cancel. */
     data object Testing : ServerPhase
@@ -93,10 +101,15 @@ internal class ServerViewModel
 
         private var testJob: Job? = null
 
+        // The last "clear the pin" that was started. It runs to its end even if this view model is cleared (a pin that
+        // outlives the screen that should have dropped it is exactly what it is for), and a new Test waits for it.
+        private var pendingClear: Job? = null
+
         fun onInputChange(text: String) {
-            testJob?.cancel()
+            val running = testJob
+            running?.cancel()
             // Another address is another server: a pin is for one exact address and goes with the edit.
-            if (text != mutableState.value.input) clearPin()
+            if (text != mutableState.value.input) clearPin(after = running)
             mutableState.value = ServerUiState(input = text)
         }
 
@@ -111,33 +124,33 @@ internal class ServerViewModel
             testJob =
                 viewModelScope.launch {
                     // A new Test starts without a pin: the certificate is asked about again, never assumed.
+                    pendingClear?.join()
                     settings.clearPin()
-                    finish(typed, mediaServer.discover(typed))
+                    finish(phaseFor(typed, mediaServer.discover(typed)))
                 }
         }
 
         // A cancelled attempt may still return a result if the callee ignores cancellation. Drop it, and drop it too if
         // the screen has moved on from Testing (a newer Test, typing, Edit address).
-        private suspend fun finish(
-            typed: String,
-            result: ServerResult<ResolvedServer>,
-        ) {
+        private suspend fun finish(phase: ServerPhase) {
             currentCoroutineContext().ensureActive()
-            mutableState.update {
-                if (it.phase == ServerPhase.Testing) it.copy(phase = phaseFor(typed, result)) else it
-            }
+            mutableState.update { if (it.phase == ServerPhase.Testing) it.copy(phase = phase) else it }
         }
 
         fun onCancel() {
             if (mutableState.value.phase != ServerPhase.Testing) return
-            testJob?.cancel()
+            val running = testJob
+            running?.cancel()
+            // A trust attempt that is cancelled may still have pinned in its last moments: clear once it has ended.
+            clearPin(after = running)
             mutableState.update { it.copy(phase = ServerPhase.Idle) }
         }
 
         /** Edit address: back to a quiet screen, with the typed text kept. */
         fun onEditAddress() {
-            testJob?.cancel()
-            clearPin()
+            val running = testJob
+            running?.cancel()
+            clearPin(after = running)
             mutableState.update { it.copy(phase = ServerPhase.Idle) }
         }
 
@@ -150,17 +163,26 @@ internal class ServerViewModel
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
             testJob =
                 viewModelScope.launch {
-                    finish(asked.input, certificateTrust.confirm(asked.input, asked.prompt))
+                    finish(phaseFor(asked.input, certificateTrust.confirm(asked.input, asked.prompt)))
                 }
         }
 
-        /** Don't trust, and Back from the trust screen: nothing was pinned, so this only goes back to the address. */
+        /**
+         * Don't trust, and Back from the trust screen: nothing was pinned. The screen says it isn't connected and why,
+         * with the address kept and focus on Test.
+         */
         fun onDontTrust() {
-            if (mutableState.value.phase is ServerPhase.TrustRequired) onEditAddress()
+            if (mutableState.value.phase !is ServerPhase.TrustRequired) return
+            clearPin(after = null)
+            mutableState.update { it.copy(phase = ServerPhase.NotTrusted) }
         }
 
-        private fun clearPin() {
-            viewModelScope.launch { settings.clearPin() }
+        private fun clearPin(after: Job?) {
+            pendingClear =
+                viewModelScope.launch(NonCancellable) {
+                    after?.join()
+                    settings.clearPin()
+                }
         }
 
         fun onConfirmCleartext() {
@@ -176,6 +198,16 @@ internal class ServerViewModel
 
         /** Continue: keeps the server for the sign-in screen, in memory only (see [ServerHandOff]). */
         fun onContinue(server: ConnectedServer) = handOff.put(server)
+
+        private fun phaseFor(
+            typed: String,
+            outcome: TrustOutcome,
+        ): ServerPhase =
+            when (outcome) {
+                is TrustOutcome.Trusted -> phaseFor(typed, ServerResult.Success(outcome.server))
+                is TrustOutcome.Refused -> phaseFor(typed, ServerResult.Failure(outcome.error))
+                TrustOutcome.NotSaved -> ServerPhase.Failed(MediaServerError.Unknown(), ErrorCopyTable.trustNotSaved)
+            }
 
         private fun phaseFor(
             typed: String,

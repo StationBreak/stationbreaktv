@@ -133,16 +133,22 @@
     <!-- The trust screen (spec 05, Unit 3, Angua): the warning, then the fingerprint, then the buttons. Don't trust has default focus and is what Back means. -->
     <string name="trust_title">Trust this server’s certificate?</string>
     <string name="trust_title_changed">This server’s certificate has changed</string>
-    <string name="trust_warning_untrusted">This TV can’t check this server’s security certificate. The server signed it itself, and no certificate authority vouches for it. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_untrusted">This TV can’t verify this server’s security certificate. The server signed it itself. Only trust it if you set up this server yourself.</string>
     <string name="trust_warning_hostname">This certificate is for a different name than the address you typed, and the server signed it itself. Only trust it if you set up this server yourself.</string>
-    <string name="trust_warning_expired">This certificate expired on %1$s, and the server signed it itself. Only trust it if you set up this server yourself.</string>
-    <string name="trust_warning_not_yet_valid">This certificate isn’t valid until %1$s, or this TV’s date and time are wrong. The server signed it itself. Only trust it if you set up this server yourself.</string>
-    <string name="trust_warning_changed">The server’s certificate is different from the one you trusted before. If you didn’t change it, someone may be intercepting the connection. Only trust the new one if you replaced it yourself.</string>
+    <string name="trust_warning_expired">This certificate expired on %1$s, or this TV’s date and time are wrong. The server signed it itself. Check the TV’s date and time first. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_not_yet_valid">This certificate isn’t valid until %1$s. If that date has passed, this TV’s date and time are wrong. The server signed it itself. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_changed">The server’s certificate is different from the one you trusted before. If you didn’t change it, someone may be intercepting the connection. Only trust the new one if you replaced it yourself. You will need to sign in again.</string>
     <string name="trust_fingerprint_label">SPKI SHA-256 fingerprint</string>
-    <string name="trust_fingerprint_note">This fingerprint is of the certificate’s public key, so it differs from the one a web browser shows.</string>
+    <string name="trust_fingerprint_note">Compare this with your server’s public-key fingerprint. It won’t match the one a browser shows.</string>
     <string name="trust_validity">Valid from %1$s to %2$s</string>
     <string name="trust_dont_trust">Don’t trust</string>
     <string name="trust_trust">Trust this certificate</string>
+    <string name="trust_trust_changed">Trust the new certificate</string>
+    <string name="trust_server_address">Server: %1$s</string>
+    <!-- After Don't trust or Back: the server screen says so, until the next Test or edit. -->
+    <string name="server_not_trusted">Not connected. You didn’t trust this server’s certificate.</string>
+    <string name="error_trust_not_saved_message">This TV couldn’t save that you trust this certificate, so it didn’t connect. Try again.</string>
+    <string name="error_trust_not_saved_details">Settings not saved</string>
 
     <!-- Prefix of the details line when the technical cause is known. -->
     <string name="error_details_with_cause">%1$s (%2$s)</string>

@@ -56,6 +56,7 @@ private const val TOP_OFFSET = 0.04f
 @Composable
 internal fun TrustScreen(
     prompt: TrustPrompt,
+    serverAddress: String,
     onTrust: () -> Unit,
     onDontTrust: () -> Unit,
 ) {
@@ -86,7 +87,7 @@ internal fun TrustScreen(
                     modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(Gap),
                 ) {
-                    WarningBlock(prompt)
+                    WarningBlock(prompt, serverAddress)
                     FingerprintBlock(prompt)
                     Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
                         ServerButton(
@@ -95,7 +96,12 @@ internal fun TrustScreen(
                             modifier = Modifier.focusRequester(dontTrustFocus).testTag(TrustTags.DONT_TRUST),
                         )
                         ServerButton(
-                            label = R.string.trust_trust,
+                            label =
+                                if (prompt.reason == TrustReason.Changed) {
+                                    R.string.trust_trust_changed
+                                } else {
+                                    R.string.trust_trust
+                                },
                             onClick = onTrust,
                             modifier = Modifier.testTag(TrustTags.TRUST),
                         )
@@ -107,7 +113,10 @@ internal fun TrustScreen(
 }
 
 @Composable
-private fun WarningBlock(prompt: TrustPrompt) {
+private fun WarningBlock(
+    prompt: TrustPrompt,
+    serverAddress: String,
+) {
     val certificate = prompt.certificate
     val notAfter = formatDate(certificate.notAfterMillis)
     val notBefore = formatDate(certificate.notBeforeMillis)
@@ -124,6 +133,13 @@ private fun WarningBlock(prompt: TrustPrompt) {
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
+        // Which server this is about, so a wrong address is noticed before anything is trusted.
+        Text(
+            text = stringResource(R.string.trust_server_address, serverAddress),
+            fontSize = BodySize,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.testTag(TrustTags.SERVER_ADDRESS),
+        )
         Text(
             text =
                 when (prompt.reason) {

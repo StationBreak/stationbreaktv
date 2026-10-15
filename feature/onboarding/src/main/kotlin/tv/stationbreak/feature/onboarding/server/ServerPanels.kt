@@ -73,6 +73,23 @@ internal fun FieldError(copy: ErrorCopy) {
     }
 }
 
+/** After Don't trust or Back: one line, like an error (icon and words), saying nothing is connected and why. */
+@Composable
+internal fun NotTrustedNotice() {
+    Row(
+        modifier = Modifier.testTag(ServerTags.NOT_TRUSTED).politeLiveRegion(),
+        horizontalArrangement = Arrangement.spacedBy(TightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ProblemIcon()
+        Text(
+            text = stringResource(R.string.server_not_trusted),
+            fontSize = BodySize,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
 @Composable
 internal fun TestingStatus() {
     // The status text is there at once; the spinner joins it if the Test takes more than about 400 ms.

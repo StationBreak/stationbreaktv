@@ -68,6 +68,16 @@ internal object ErrorCopyTable {
             ErrorAction.EditAddress,
         )
 
+    /** The user trusted a certificate but it could not be saved, so nothing is connected (not a [MediaServerError]). */
+    val trustNotSaved =
+        ErrorCopy(
+            R.string.error_trust_not_saved_message,
+            R.string.error_trust_not_saved_details,
+            ErrorGroup.Other,
+            ErrorAction.Retry,
+            ErrorAction.EditAddress,
+        )
+
     val entries: Map<Class<out MediaServerError>, ErrorCopy> =
         mapOf(
             MediaServerError.DnsFailure::class.java to network(R.string.error_dns_message, R.string.error_dns_details),

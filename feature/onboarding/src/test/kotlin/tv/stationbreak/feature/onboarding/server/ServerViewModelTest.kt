@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.server
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +30,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.CleartextAcknowledgement
@@ -55,6 +59,19 @@ private class GatedServer(
         fake.discoverCalls += input
         return withContext(NonCancellable) { held.await() }
     }
+}
+
+/** Builds [viewModel] inside a [ViewModelStore], so clearing the store clears it the way the platform does. */
+private fun <T : ViewModel> ViewModelStore.host(
+    viewModel: T,
+    type: Class<T>,
+): T {
+    val factory =
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <V : ViewModel> create(modelClass: Class<V>): V = viewModel as V
+        }
+    return ViewModelProvider.create(this, factory)[type]
 }
 
 /** A [MediaServer] whose `trust` can be held open, ignoring cancellation, as [GatedServer] does for `discover`. */
@@ -507,17 +524,116 @@ class ServerViewModelTest {
     }
 
     @Test
-    fun notTrustingGoesBackToIdleWithTheAddressKeptAndStoresNothing() {
+    fun notTrustingShowsTheNotConnectedNoticeWithTheAddressKeptAndStoresNothing() {
         server.fake.discoverResult = fails(MediaServerError.TlsUntrusted(certificate = selfSigned))
         val vm = viewModel()
         vm.test("nas.example.test:8920")
 
         vm.onDontTrust()
 
-        assertEquals(ServerPhase.Idle, vm.phase())
+        assertEquals(ServerPhase.NotTrusted, vm.phase())
         assertEquals("nas.example.test:8920", vm.state.value.input)
         assertTrue(server.fake.trustCalls.isEmpty())
         assertTrue(settings.saved.isEmpty())
+    }
+
+    @Test
+    fun theNotConnectedNoticeEndsWithTheNextTestOrTheNextEdit() {
+        server.fake.discoverResult = fails(MediaServerError.TlsUntrusted(certificate = selfSigned))
+        val vm = viewModel()
+        vm.test("nas.example.test:8920")
+        vm.onDontTrust()
+        vm.onInputChange("nas.example.test:8921")
+        assertEquals(ServerPhase.Idle, vm.phase())
+
+        vm.test("nas.example.test:8920")
+        vm.onDontTrust()
+        vm.onTest()
+        assertTrue(vm.phase() is ServerPhase.TrustRequired)
+
+        vm.onDontTrust()
+        vm.onEditAddress()
+        assertEquals(ServerPhase.Idle, vm.phase())
+    }
+
+    @Test
+    fun aRecordThatCouldNotBeSavedShowsAPlainErrorAndIsNotConnected() {
+        server.fake.discoverResult = fails(MediaServerError.TlsUntrusted(certificate = selfSigned))
+        val vm = viewModel()
+        vm.test("nas.example.test:8920")
+        server.fake.trustResult = found(nas)
+        settings.failSave = true
+
+        vm.onTrustCertificate()
+
+        val phase = vm.phase() as ServerPhase.Failed
+        assertEquals(ErrorCopyTable.trustNotSaved, phase.copy)
+        assertTrue(settings.saved.isEmpty())
+    }
+
+    /** Waits for [gate] before it clears a pin, to hold a clear open. */
+    private class SlowClear(
+        private val inner: InMemoryServerSettings,
+        val gate: CompletableDeferred<Unit>,
+    ) : ServerSettings by inner {
+        override suspend fun clearPin(): Boolean {
+            gate.await()
+            return inner.clearPin()
+        }
+    }
+
+    private fun slowClearViewModel(gate: CompletableDeferred<Unit>): ServerViewModel {
+        val slow = SlowClear(settings, gate)
+        return ServerViewModel(server, handOff, slow, CertificateTrust(server, slow, sessions))
+    }
+
+    @Test
+    fun aPinClearStartedByTheViewModelFinishesEvenIfTheViewModelIsCleared() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val gate = CompletableDeferred<Unit>()
+        val owner = ViewModelStore()
+        val vm = owner.host(slowClearViewModel(gate), ServerViewModel::class.java)
+
+        vm.onEditAddress()
+        owner.clear()
+        gate.complete(Unit)
+
+        assertEquals(ServerRecord(nas, null), settings.current)
+    }
+
+    @Test
+    fun theNextTestWaitsForAPinClearThatIsStillRunning() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        server.fake.discoverResult = found(nas)
+        val gate = CompletableDeferred<Unit>()
+        val vm = slowClearViewModel(gate)
+
+        vm.onEditAddress()
+        vm.test("nas.example.test:8920")
+        assertTrue(server.fake.discoverCalls.isEmpty())
+
+        gate.complete(Unit)
+        assertEquals(1, server.fake.discoverCalls.size)
+        assertEquals(ServerRecord(nas, null), settings.current)
+    }
+
+    @Test
+    fun cancellingATrustAttemptClearsThePinOnlyAfterTheAttemptHasEnded() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        server.fake.discoverResult = fails(MediaServerError.TlsUntrusted(certificate = selfSigned))
+        val held = CompletableDeferred<ServerResult<ResolvedServer>>()
+        gatedTrust.gate = held
+        val vm = viewModelWith(gatedTrust)
+        vm.test("nas.example.test:8920")
+        val clearsBefore = settings.clearPinCalls
+        vm.onTrustCertificate()
+
+        vm.onCancel()
+        assertEquals("the clear must wait for the attempt", clearsBefore, settings.clearPinCalls)
+
+        held.complete(found(nas))
+        assertTrue(settings.clearPinCalls > clearsBefore)
+        assertEquals(null, settings.current?.pin)
     }
 
     @Test
