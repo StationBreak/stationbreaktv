@@ -32,3 +32,15 @@ Storing an admin-level credential on a TV contradicts the spec's advice to use a
 - S0.3.2 drops API-key mode. Quick Connect moves into Phase 0.
 - If Quick Connect is disabled on the server, the app offers password login.
 - Revisit this ADR if Jellyfin ships scoped API keys (#13992).
+
+## Amendments
+
+- **2026-10-15, owner decision 9.** Decision 2 above (the app's primary account is a normal, non-admin user) is now a
+  suggestion nobody has to follow: there is one sign-in, and the account that signs in is the app's user, admin or not.
+  `Session.isAdministrator` is recorded and nothing acts on it (BACKLOG S0.5.3, dropped). The token is still scoped
+  only to that account's own rights, so an admin account's token carries admin rights; the rest of this ADR (no
+  API-key login, revocable user tokens, a non-admin service user for the companion container) stands.
+- **2026-10-15, accepted residual.** Jellyfin has no endpoint to withdraw a Quick Connect request. When the user
+  cancels on the TV, or leaves the screen, the app stops asking and, if an approval still arrives, signs that token out
+  again (clears the store and revokes it). But a code that was already approved on the other device stays approved on
+  the server until the server expires it. Nothing on the TV holds it; the server's own expiry is the bound.

@@ -65,7 +65,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 Numeric hosts are strict dotted-decimal (`127.1`, `0x7f.1` and `2130706433` are rejected); user-info in the address is rejected.
 - 🧪 Subpaths are preserved on every request (verified against a mock engine).
 
-**S0.3.2** As a user, I want to sign in with username/password or Quick Connect so that the TV holds only a scoped, revocable token for a non-admin user ([ADR-0001](adr/0001-client-authentication.md)).
+**S0.3.2** As a user, I want to sign in with username/password or Quick Connect so that the TV holds only a revocable, Keystore-encrypted token for the signed-in account (admin or not, decision 9) ([ADR-0001](adr/0001-client-authentication.md)).
 - 🧪 `AuthenticateByName` returns a token + userId and is persisted via `SecretStore`.
 - 🧪 The client offers **no** dashboard-API-key login. Those keys are admin-level and not user-scoped (ADR-0001).
 - 🧪 Every request after the probe sends exactly one `Authorization: MediaBrowser Client=…, Device=…, DeviceId=…, Version=…` header (values percent-encoded; plus `Token=…` once signed in), and no credential is placed in a URL. DeviceId is generated once per install and kept across sign-out.
@@ -319,7 +319,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F3.4 Guided onboarding (M for E3 gate)
 
 **S3.4.1** As a first-time user who isn't technical, I want onboarding that explains each step so that I succeed without help.
-- 📺 Welcome → server (with examples of URL formats) → sign in (non-admin advice) → libraries → "Here are your channels" → first tune.
+- 📺 Welcome → server (with examples of URL formats) → sign in → libraries → "Here are your channels" → first tune.
 - 📺 A companion "set up from your phone" path is a candidate (QR code + local web form) to avoid typing URLs with a remote; see Q-UX-5.
 
 ## F3.5 Watch-state options (S)

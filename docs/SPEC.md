@@ -120,7 +120,7 @@ Channels are stored as portable JSON rules, not generated schedules, so they can
 **Security**
 
 - Store tokens in Android Keystore-backed storage, never plain prefs.
-- Recommend a dedicated, non-admin Jellyfin user in onboarding.
+- ~~Recommend a dedicated, non-admin Jellyfin user in onboarding.~~ Dropped by owner decision 9 (2026-10-15): one sign-in, admin or not (BACKLOG S0.5.3).
 - No telemetry by default; any crash reporting is opt-in.
 
 ## Roadmap
