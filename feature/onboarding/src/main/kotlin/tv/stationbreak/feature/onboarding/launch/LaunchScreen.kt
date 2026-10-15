@@ -59,9 +59,10 @@ fun LaunchDestination(
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
     onSetupComplete: () -> Unit,
+    onChangeServer: () -> Unit,
 ) {
     val viewModel: LaunchViewModel = hiltViewModel()
-    LaunchRoot(viewModel, onNoServer, onSignIn, onLibraries, onSetupComplete)
+    LaunchRoot(viewModel, onNoServer, onSignIn, onLibraries, onSetupComplete, onChangeServer)
 }
 
 /** [LaunchDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -72,6 +73,7 @@ internal fun LaunchRoot(
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
     onSetupComplete: () -> Unit,
+    onChangeServer: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
@@ -89,6 +91,7 @@ internal fun LaunchRoot(
         onRetry = viewModel::onRetry,
         onTrust = viewModel::onTrust,
         onDontTrust = viewModel::onDontTrust,
+        onChangeServer = onChangeServer,
     )
 }
 
@@ -99,6 +102,7 @@ internal fun LaunchScreen(
     onRetry: () -> Unit,
     onTrust: () -> Unit,
     onDontTrust: () -> Unit,
+    onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -123,7 +127,7 @@ internal fun LaunchScreen(
             ) {
                 when (state) {
                     LaunchPhase.Routing, LaunchPhase.Trusting, is LaunchPhase.Trust -> Progress()
-                    is LaunchPhase.Unavailable -> Unavailable(state.error, state.copy, onRetry)
+                    is LaunchPhase.Unavailable -> Unavailable(state.error, state.copy, onRetry, onChangeServer)
                 }
             }
         }
@@ -150,12 +154,16 @@ private fun Progress() {
     }
 }
 
-/** The plain-language error with Retry, and nothing that sends the user back through setup. */
+/**
+ * The plain-language error with Retry, which has default focus, and Change server beside it: that opens the server
+ * screen with the stored address filled in. The stored session and pin stay until another server is confirmed.
+ */
 @Composable
 private fun Unavailable(
     error: MediaServerError,
     copy: ErrorCopy,
     onRetry: () -> Unit,
+    onChangeServer: () -> Unit,
 ) {
     val retryFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { retryFocus.requestFocus() }
@@ -190,10 +198,17 @@ private fun Unavailable(
                 )
             }
         }
-        ServerButton(
-            label = R.string.server_retry,
-            onClick = onRetry,
-            modifier = Modifier.focusRequester(retryFocus).testTag(LaunchTags.RETRY),
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
+            ServerButton(
+                label = R.string.server_retry,
+                onClick = onRetry,
+                modifier = Modifier.focusRequester(retryFocus).testTag(LaunchTags.RETRY),
+            )
+            ServerButton(
+                label = R.string.launch_change_server,
+                onClick = onChangeServer,
+                modifier = Modifier.testTag(LaunchTags.CHANGE_SERVER),
+            )
+        }
     }
 }

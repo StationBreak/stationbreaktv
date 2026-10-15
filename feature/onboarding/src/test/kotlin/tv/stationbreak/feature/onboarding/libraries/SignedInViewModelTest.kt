@@ -41,7 +41,11 @@ class SignedInViewModelTest {
     private val sessions = SessionRepository(store, server)
     private val signedIn = SignedInHandOff()
     private val handOff = ServerHandOff()
-    private val settings = InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)), setOf(ItemId("movies")))
+    private val settings =
+        InMemoryServerSettings(
+            ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)),
+            setOf(ItemId("movies")),
+        )
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
@@ -171,7 +175,12 @@ class SignedInViewModelTest {
     fun aFailedRevokeShowsNothingAndStillSwitches() =
         runTest {
             runBlocking { sessions.save(session) }
-            server.revokeResult = tv.stationbreak.core.domain.ServerResult.Failure(tv.stationbreak.core.domain.MediaServerError.Timeout())
+            server.revokeResult =
+                tv.stationbreak.core.domain.ServerResult
+                    .Failure(
+                        tv.stationbreak.core.domain.MediaServerError
+                            .Timeout(),
+                    )
             signedIn.put(SignInResult(session, persisted = true, username = "sam"))
             val vm = viewModel()
             var switched = 0

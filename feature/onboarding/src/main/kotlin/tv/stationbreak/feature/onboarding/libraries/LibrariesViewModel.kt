@@ -175,9 +175,9 @@ internal class LibrariesViewModel
          * replaced.
          */
         private suspend fun store(ids: Set<ItemId>): Boolean {
-            if (settings.saveLibraries(ids)) return true
-            val held = session ?: return false
-            return settings.load() == null && settings.save(ServerRecord(held.address)) && settings.saveLibraries(ids)
+            val held = session
+            val storable = held != null && settings.load() == null && settings.save(ServerRecord(held.address))
+            return settings.saveLibraries(ids) || (storable && settings.saveLibraries(ids))
         }
 
         /** Retry, after a failed listing or when there is nothing to choose from: asks the server again. */

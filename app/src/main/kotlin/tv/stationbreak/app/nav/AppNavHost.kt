@@ -39,6 +39,9 @@ internal fun AppNavGraph(
                 onSignIn = { navController.replaceAll(SignInRoute) },
                 onLibraries = { navController.replaceAll(LibrariesRoute) },
                 onSetupComplete = { navController.replaceAll(SetupCompleteRoute) },
+                // The stored session and pin stay: the server screen shows the stored address, and only a Continue
+                // (or a trust) on another address replaces them.
+                onChangeServer = { navController.replaceAll(ServerRoute) },
             )
         }
         composable<ServerRoute> {
@@ -53,9 +56,9 @@ internal fun AppNavGraph(
                 // Back and Edit address are the same step: up to the server screen, whose address was kept.
                 onEditAddress = { navController.upToServerScreen() },
                 onMissingServer = { navController.backToServerScreen() },
-                // The session waits in the in-memory sign-in hand-off. Sign-in is replaced, so Back from the picker
-                // goes to "Signed in as", never to a finished sign-in form.
-                onSignedIn = { navController.navigate(LibrariesRoute) { popUpTo(SignInRoute) { inclusive = true } } },
+                // The session waits in the in-memory sign-in hand-off. Everything before it is replaced, so the
+                // stack is the same however the picker was reached, and Back from it goes to "Signed in as".
+                onSignedIn = { navController.replaceAll(LibrariesRoute) },
             )
         }
         composable<LibrariesRoute> {

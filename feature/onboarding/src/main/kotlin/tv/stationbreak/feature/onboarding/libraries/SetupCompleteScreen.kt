@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
@@ -60,7 +62,8 @@ internal fun SetupCompleteScreen(modifier: Modifier = Modifier) {
             ) {
                 Text(
                     text = stringResource(R.string.setup_complete_headline),
-                    modifier = Modifier.testTag(SetupCompleteTags.HEADLINE),
+                    // A heading, so a screen reader has something to land on: the screen has no focusable control.
+                    modifier = Modifier.testTag(SetupCompleteTags.HEADLINE).semantics { heading() },
                     style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
                     color = MaterialTheme.colorScheme.onSurface,
                 )

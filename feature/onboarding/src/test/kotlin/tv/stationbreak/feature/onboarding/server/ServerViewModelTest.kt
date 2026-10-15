@@ -119,7 +119,14 @@ class ServerViewModelTest {
     private val gatedTrust = GatedTrustServer(server.fake)
 
     private fun viewModelWith(mediaServer: MediaServer) =
-        ServerViewModel(mediaServer, handOff, signedIn, settings, CertificateTrust(mediaServer, settings, sessions), sessions)
+        ServerViewModel(
+            mediaServer,
+            handOff,
+            signedIn,
+            settings,
+            CertificateTrust(mediaServer, settings, sessions),
+            sessions,
+        )
 
     private fun found(address: ServerAddress) = ServerResult.Success(ResolvedServer(address, info))
 

@@ -110,7 +110,10 @@ internal fun SignedInScreen(
                 Text(
                     text =
                         state.name?.let { stringResource(R.string.signed_in_as, it) }
-                            ?: stringResource(R.string.signed_in_to, state.serverName),
+                            ?: state.serverName
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { stringResource(R.string.signed_in_to, it) }
+                            ?: stringResource(R.string.signed_in_plain),
                     modifier = Modifier.testTag(SignedInTags.HEADLINE),
                     style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
                     color = MaterialTheme.colorScheme.onSurface,
@@ -118,15 +121,15 @@ internal fun SignedInScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
                     ServerButton(
                         label = R.string.signed_in_continue,
-                        onClick = onContinue,
-                        enabled = !state.switching,
+                        // Both buttons stay focusable while signing out, so focus is never dropped; Continue does
+                        // nothing then (the screen is about to be replaced) and a repeat of Switch user is ignored.
+                        onClick = { if (!state.switching) onContinue() },
                         emphasis = true,
                         modifier = Modifier.focusRequester(continueFocus).testTag(SignedInTags.CONTINUE),
                     )
                     ServerButton(
                         label = R.string.signed_in_switch_user,
                         onClick = onSwitchUser,
-                        enabled = !state.switching,
                         modifier = Modifier.testTag(SignedInTags.SWITCH_USER),
                     )
                 }

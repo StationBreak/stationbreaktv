@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -40,6 +41,7 @@ class LaunchScreenTest {
     private var retried = 0
     private var trusted = 0
     private var refused = 0
+    private var changed = 0
 
     private val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { (it * 5 + 1).toByte() })
     private val certificate =
@@ -50,7 +52,13 @@ class LaunchScreenTest {
         phase.value = initial
         compose.setContent {
             StationBreakTheme {
-                LaunchScreen(phase.value, onRetry = { retried++ }, onTrust = { trusted++ }, onDontTrust = { refused++ })
+                LaunchScreen(
+                    phase.value,
+                    onRetry = { retried++ },
+                    onTrust = { trusted++ },
+                    onDontTrust = { refused++ },
+                    onChangeServer = { changed++ },
+                )
             }
         }
         compose.waitForIdle()
@@ -143,5 +151,22 @@ class LaunchScreenTest {
 
     private companion object {
         const val FOCUS_TIMEOUT_MS = 5_000L
+    }
+
+    @Test
+    fun changeServerIsOnePressToTheRightOfRetryAndRetryKeepsDefaultFocus() {
+        show(unavailable)
+        awaitFocused(LaunchTags.RETRY)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, LaunchTags.RETRY)
+        awaitFocused(LaunchTags.CHANGE_SERVER)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LaunchTags.CHANGE_SERVER)
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { changed == 1 }
+        assertEquals(0, retried)
+    }
+
+    @Test
+    fun theTitleSaysItCannotConnect() {
+        show(unavailable)
+        compose.onNodeWithText("Can’t connect to your server").assertExists()
     }
 }

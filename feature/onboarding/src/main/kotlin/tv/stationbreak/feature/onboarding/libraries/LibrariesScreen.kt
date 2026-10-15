@@ -37,7 +37,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
@@ -205,14 +204,6 @@ private fun Content(
 
         LibrariesPhase.Choosing, LibrariesPhase.Saving, LibrariesPhase.SaveFailed -> {
             Checklist(state, focus, onToggle, onDone)
-            if (phase == LibrariesPhase.SaveFailed) {
-                Problem(
-                    message = stringResource(R.string.libraries_save_failed_message),
-                    details = stringResource(R.string.libraries_save_failed_details),
-                    retryFocus = focus.retry,
-                    onRetry = onRetry,
-                )
-            }
         }
     }
 }
@@ -239,7 +230,7 @@ private fun Problem(
     message: String,
     details: String,
     retryFocus: FocusRequester,
-    onRetry: () -> Unit,
+    onRetry: (() -> Unit)?,
 ) {
     Column(
         modifier = Modifier.testTag(LibrariesTags.ERROR_PANEL).politeLiveRegion(),
@@ -252,11 +243,14 @@ private fun Problem(
                 Text(text = details, fontSize = DetailsSize, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        ServerButton(
-            label = R.string.server_retry,
-            onClick = onRetry,
-            modifier = Modifier.focusRequester(retryFocus).testTag(LibrariesTags.RETRY),
-        )
+        // After a failed Done there is no Retry of its own: Done, right below, is the retry.
+        if (onRetry != null) {
+            ServerButton(
+                label = R.string.server_retry,
+                onClick = onRetry,
+                modifier = Modifier.focusRequester(retryFocus).testTag(LibrariesTags.RETRY),
+            )
+        }
     }
 }
 
@@ -281,6 +275,15 @@ private fun Checklist(
             )
         }
     }
+    if (state.phase == LibrariesPhase.SaveFailed) {
+        // Directly above Done, so the message and the action it points to are on screen together.
+        Problem(
+            message = stringResource(R.string.libraries_save_failed_message),
+            details = stringResource(R.string.libraries_save_failed_details),
+            retryFocus = focus.retry,
+            onRetry = null,
+        )
+    }
     if (state.selected.isEmpty()) {
         Row(
             modifier = Modifier.testTag(LibrariesTags.REASON).politeLiveRegion(),
@@ -298,9 +301,11 @@ private fun Checklist(
     ServerButton(
         label = R.string.libraries_done,
         onClick = onDone,
-        enabled = state.canFinish,
+        // Off while nothing is selected (with the reason above it). While saving it stays focusable but does
+        // nothing, so focus is never dropped from it; the view model ignores a press that isn't allowed.
+        enabled = state.canFinish || state.phase == LibrariesPhase.Saving,
         emphasis = true,
-        modifier = Modifier.testTag(LibrariesTags.DONE),
+        modifier = Modifier.focusRequester(focus.done).testTag(LibrariesTags.DONE),
     )
 }
 
@@ -313,7 +318,7 @@ private fun LibraryRow(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val tickedText = stringResource(if (ticked) R.string.libraries_row_ticked else R.string.libraries_row_unticked)
+    val kind = stringResource(kindLabel(library.kind))
     Surface(
         onClick = onToggle,
         modifier =
@@ -323,7 +328,6 @@ private fun LibraryRow(
                 .semantics(mergeDescendants = true) {
                     role = Role.Checkbox
                     toggleableState = ToggleableState(ticked)
-                    stateDescription = tickedText
                 },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
         colors =
@@ -346,11 +350,10 @@ private fun LibraryRow(
             TickBox(ticked)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(text = library.name, fontSize = BodySize, color = colors.onSurface)
-                Text(
-                    text = stringResource(kindLabel(library.kind)),
-                    fontSize = DetailsSize,
-                    color = colors.onSurfaceVariant,
-                )
+                // A library named after its kind ("Movies") says it once: the line would be read out twice.
+                if (!kind.equals(library.name, ignoreCase = true)) {
+                    Text(text = kind, fontSize = DetailsSize, color = colors.onSurfaceVariant)
+                }
             }
         }
     }
@@ -396,12 +399,13 @@ private fun kindLabel(kind: LibraryKind): Int =
 private class LibrariesFocus {
     val firstRow = FocusRequester()
     val retry = FocusRequester()
+    val done = FocusRequester()
 }
 
 /**
  * Focus follows the phase (spec 05, Adorabelle's defaults): the first row when the list appears (also after Retry,
- * which may skip the Loading phase), Retry when there is nothing to choose from or Done failed. Ticking a row after a
- * failed Done is the user's own move, so focus stays.
+ * which may skip the Loading phase), Retry when there is nothing to choose from, Done after it failed. Ticking a
+ * row after a failed Done is the user's own move, so focus stays.
  */
 @Composable
 private fun FocusFollowsPhase(
@@ -419,8 +423,13 @@ private fun FocusFollowsPhase(
                 if (!editing) focus.firstRow.requestFocus()
             }
 
-            is LibrariesPhase.LoadFailed, LibrariesPhase.NoLibraries, LibrariesPhase.SaveFailed -> {
+            is LibrariesPhase.LoadFailed, LibrariesPhase.NoLibraries -> {
                 focus.retry.requestFocus()
+            }
+
+            // Done is the retry, right under the message.
+            LibrariesPhase.SaveFailed -> {
+                focus.done.requestFocus()
             }
 
             LibrariesPhase.Loading, LibrariesPhase.Saving -> {

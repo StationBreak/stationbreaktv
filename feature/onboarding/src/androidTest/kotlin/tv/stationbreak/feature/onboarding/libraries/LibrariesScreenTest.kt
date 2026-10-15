@@ -3,12 +3,14 @@ package tv.stationbreak.feature.onboarding.libraries
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -189,19 +191,40 @@ class LibrariesScreenTest {
     }
 
     @Test
-    fun aFailedDoneKeepsTheChoiceAndPutsFocusOnRetry() {
+    fun aFailedDoneKeepsTheChoiceAndFocusStaysOnDoneWhichIsTheRetry() {
         launch()
         settings.failSave = true
         goToDone()
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
-        awaitFocused(LibrariesTags.RETRY)
-        compose.onNodeWithTag(LibrariesTags.ERROR_PANEL).assertExists()
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(LibrariesTags.ERROR_PANEL).assertExists() }.isSuccess }
+        awaitFocused(LibrariesTags.DONE)
+        // No second button: the message points at Done, which is right below it and still on.
+        compose.onNodeWithTag(LibrariesTags.RETRY).assertDoesNotExist()
+        compose.onNodeWithTag(LibrariesTags.DONE).assertIsEnabled()
         compose.onNodeWithTag(row(movies)).assertIsOn()
         assertEquals(0, finished)
 
         settings.failSave = false
-        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.RETRY)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
         compose.waitUntil(FOCUS_TIMEOUT_MS) { finished == 1 }
+    }
+
+    @Test
+    fun aLibraryNamedAfterItsKindShowsTheNameOnceAndAnotherShowsBoth() {
+        val concerts = Library(ItemId("concerts"), "Concerts", LibraryKind.MusicVideos)
+        launch(libraries = listOf(movies, concerts))
+        awaitFocused(row(movies))
+        compose.onAllNodesWithText("Movies", useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithText("Concerts", useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithText("Music videos", useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun aRowCarriesItsStateAsTheToggleAloneWithNoSecondDescription() {
+        launch()
+        awaitFocused(row(movies))
+        val config = compose.onNodeWithTag(row(movies)).fetchSemanticsNode().config
+        assertTrue(!config.contains(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
     }
 
     @Test

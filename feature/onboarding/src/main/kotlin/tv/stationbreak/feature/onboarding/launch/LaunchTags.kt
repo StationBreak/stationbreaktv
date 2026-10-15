@@ -7,4 +7,5 @@ object LaunchTags {
     const val PROGRESS = "launch:progress"
     const val ERROR_PANEL = "launch:errorPanel"
     const val RETRY = "launch:retry"
+    const val CHANGE_SERVER = "launch:changeServer"
 }

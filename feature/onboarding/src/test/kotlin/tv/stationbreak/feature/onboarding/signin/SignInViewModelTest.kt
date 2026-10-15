@@ -159,7 +159,11 @@ class SignInViewModelTest {
     private val repository = SessionRepository(gatedStore, server)
     private val handOff = ServerHandOff()
     private val signedIn = SignedInHandOff()
-    private val settings = InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)), setOf(ItemId("movies")))
+    private val settings =
+        InMemoryServerSettings(
+            ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)),
+            setOf(ItemId("movies")),
+        )
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)

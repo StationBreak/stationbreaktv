@@ -264,6 +264,8 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_BACK)
 
         awaitFocused(ServerTags.FIELD)
+        // Never a blank form: the stored address is there to be changed.
+        compose.onNodeWithTag(ServerTags.FIELD).assert(hasText(https.baseUrl))
     }
 
     @Test
@@ -403,5 +405,23 @@ class LaunchNavigationTest {
     private companion object {
         const val TIMEOUT_MS = 10_000L
         const val POLL_MS = 50L
+    }
+
+    @Test
+    fun changeServerOpensTheServerScreenWithTheStoredAddressAndKeepsTheSessionAndPin() {
+        storeSession()
+        Launched.server.fake.resumeResult = ServerResult.Failure(MediaServerError.Timeout())
+        val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 2 })
+        Launched.settings = InMemoryServerSettings(ServerRecord(https, pin), setOf(movies.id))
+        launchApp()
+        awaitFocused(LaunchTags.RETRY)
+
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, LaunchTags.RETRY)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LaunchTags.CHANGE_SERVER)
+
+        awaitFocused(ServerTags.FIELD)
+        compose.onNodeWithTag(ServerTags.FIELD).assert(hasText(https.baseUrl))
+        assertEquals(setOf(SessionRepository.SESSION_KEY), Launched.store.snapshot().keys)
+        assertEquals(ServerRecord(https, pin), Launched.settings.current)
     }
 }

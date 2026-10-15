@@ -20,6 +20,7 @@ import java.io.IOException
  * over. No secret is kept here (the session is in the Keystore store). Faults come back as `false` or `null`, never as
  * an exception, and the store logs nothing.
  */
+@Suppress("TooManyFunctions") // The port's functions, one each, over the one locked file.
 class FileServerSettings internal constructor(
     private val file: RecordFile,
     private val io: CoroutineDispatcher = Dispatchers.IO,

@@ -359,7 +359,9 @@ class LibrariesViewModelTest {
     @Test
     fun doneNeverClobbersARecordThatIsThereWithItsPin() =
         runTest {
-            val pin = tv.stationbreak.core.model.SpkiPin(ByteArray(tv.stationbreak.core.model.SpkiPin.SIZE) { 6 })
+            val pin =
+                tv.stationbreak.core.model
+                    .SpkiPin(ByteArray(tv.stationbreak.core.model.SpkiPin.SIZE) { 6 })
             val pinned = InMemoryServerSettings(ServerRecord(https, pin))
             val vm = LibrariesViewModel(server, sessions, pinned, handOff)
 

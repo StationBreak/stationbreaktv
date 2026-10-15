@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.libraries
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -125,5 +126,28 @@ class SignedInScreenTest {
 
     private companion object {
         const val FOCUS_TIMEOUT_MS = 5_000L
+    }
+
+    @Test
+    fun withNoNameAndNoServerNameItSaysJustSignedIn() {
+        compose.setContent { StationBreakTheme { SignedInScreen(SignedInUiState(null, ""), onContinue = {}, onSwitchUser = {}) } }
+        awaitFocused(SignedInTags.CONTINUE)
+        compose.onNodeWithTag(SignedInTags.HEADLINE).assert(hasText("Signed in"))
+    }
+
+    @Test
+    fun bothButtonsStayFocusableWhileSigningOutAndContinueDoesNothingThen() {
+        var carried = 0
+        compose.setContent {
+            StationBreakTheme {
+                SignedInScreen(SignedInUiState("sam", "Home Server", switching = true), onContinue = { carried++ }, onSwitchUser = {})
+            }
+        }
+        awaitFocused(SignedInTags.CONTINUE)
+        compose.onNodeWithTag(SignedInTags.CONTINUE).assertIsEnabled()
+        compose.onNodeWithTag(SignedInTags.SWITCH_USER).assertIsEnabled()
+        press(KeyEvent.KEYCODE_DPAD_CENTER, SignedInTags.CONTINUE)
+        assertEquals(0, carried)
+        awaitFocused(SignedInTags.CONTINUE)
     }
 }

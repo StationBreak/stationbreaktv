@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.nav.AppNavGraph
+import tv.stationbreak.app.nav.LibrariesRoute
 import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
 import tv.stationbreak.core.domain.FakeMediaServer
@@ -258,6 +259,31 @@ class SignInNavigationTest {
         assertEquals(listOf(SessionRepository.SESSION_KEY), Scripted.store.writtenKeys)
         assertEquals(listOf(https to "sam"), Scripted.server.signInCalls)
         assertEquals(ServerRecord(https), Scripted.settings.current)
+    }
+
+    @Test
+    fun theLibraryPickerReachedFromServerThenSignInHasNothingUnderIt() {
+        val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, isAdministrator = false)
+        Scripted.server.signInResult = ServerResult.Success(session)
+        val navController = newNavController()
+        launchRestored(navController, ServerRoute)
+        testAddressAndContinue()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performTextInput("sam")
+        compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
+        compose.waitForIdle()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performTextInput("dummy-pass-0001")
+        compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
+        compose.waitForIdle()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        awaitFocused(LibrariesTags.row("movies"))
+        // The same stack however the picker was reached: neither the server screen nor sign-in is left beneath it.
+        assertTrue(navController.currentDestination.isRoute<LibrariesRoute>())
+        assertNull(navController.previousBackStackEntry)
     }
 
     @Test
