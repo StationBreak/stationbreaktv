@@ -263,7 +263,8 @@ class SignInNavigationTest {
 
     @Test
     fun theLibraryPickerReachedFromServerThenSignInHasNothingUnderIt() {
-        val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, isAdministrator = false)
+        val token = AccessToken("dummy-token-0001")
+        val session = Session(UserId("user1"), token, info, https, null, isAdministrator = false)
         Scripted.server.signInResult = ServerResult.Success(session)
         val navController = newNavController()
         launchRestored(navController, ServerRoute)

@@ -53,7 +53,8 @@ class SignedInScreenTest {
 
     private fun launch(username: String? = "sam") {
         signedIn.put(SignInResult(session, persisted = true, username = username))
-        val viewModel = SignedInViewModel(SessionRepository(InMemorySecretStore(), server), signedIn, handOff, InMemoryServerSettings())
+        val sessions = SessionRepository(InMemorySecretStore(), server)
+        val viewModel = SignedInViewModel(sessions, signedIn, handOff, InMemoryServerSettings())
         compose.setContent {
             StationBreakTheme {
                 SignedInRoot(
@@ -115,7 +116,8 @@ class SignedInScreenTest {
 
     @Test
     fun noSignInHeldHandsBackToLaunchRouting() {
-        val viewModel = SignedInViewModel(SessionRepository(InMemorySecretStore(), server), signedIn, handOff, InMemoryServerSettings())
+        val sessions = SessionRepository(InMemorySecretStore(), server)
+        val viewModel = SignedInViewModel(sessions, signedIn, handOff, InMemoryServerSettings())
         compose.setContent {
             StationBreakTheme {
                 SignedInRoot(viewModel, onContinue = {}, onSwitchUser = {}, onMissingSession = { missing++ })
@@ -130,7 +132,8 @@ class SignedInScreenTest {
 
     @Test
     fun withNoNameAndNoServerNameItSaysJustSignedIn() {
-        compose.setContent { StationBreakTheme { SignedInScreen(SignedInUiState(null, ""), onContinue = {}, onSwitchUser = {}) } }
+        val state = SignedInUiState(null, "")
+        compose.setContent { StationBreakTheme { SignedInScreen(state, onContinue = {}, onSwitchUser = {}) } }
         awaitFocused(SignedInTags.CONTINUE)
         compose.onNodeWithTag(SignedInTags.HEADLINE).assert(hasText("Signed in"))
     }
@@ -140,7 +143,8 @@ class SignedInScreenTest {
         var carried = 0
         compose.setContent {
             StationBreakTheme {
-                SignedInScreen(SignedInUiState("sam", "Home Server", switching = true), onContinue = { carried++ }, onSwitchUser = {})
+                val state = SignedInUiState("sam", "Home Server", switching = true)
+                SignedInScreen(state, onContinue = { carried++ }, onSwitchUser = {})
             }
         }
         awaitFocused(SignedInTags.CONTINUE)

@@ -196,7 +196,9 @@ class LibrariesScreenTest {
         settings.failSave = true
         goToDone()
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(LibrariesTags.ERROR_PANEL).assertExists() }.isSuccess }
+        compose.waitUntil(FOCUS_TIMEOUT_MS) {
+            runCatching { compose.onNodeWithTag(LibrariesTags.ERROR_PANEL).assertExists() }.isSuccess
+        }
         awaitFocused(LibrariesTags.DONE)
         // No second button: the message points at Done, which is right below it and still on.
         compose.onNodeWithTag(LibrariesTags.RETRY).assertDoesNotExist()

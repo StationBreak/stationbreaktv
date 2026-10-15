@@ -31,7 +31,8 @@ class SetupCompleteScreenTest {
             .onNodeWithTag(SetupCompleteTags.BODY)
             .assert(
                 hasText(
-                    "Your server and libraries are saved. There’s nothing to watch yet, because StationBreak is still being built.",
+                    "Your server and libraries are saved. " +
+                        "There’s nothing to watch yet, because StationBreak is still being built.",
                 ),
             )
     }

@@ -66,6 +66,7 @@ fun LaunchDestination(
 }
 
 /** [LaunchDestination] without Hilt, so a test can bring its own ViewModel. */
+@Suppress("LongParameterList") // One callback for each place launch routing can send the app.
 @Composable
 internal fun LaunchRoot(
     viewModel: LaunchViewModel,
@@ -96,6 +97,7 @@ internal fun LaunchRoot(
 }
 
 /** The stateless screen: everything it shows comes from [state], and every action goes back out as a callback. */
+@Suppress("LongParameterList") // The state, and one callback for each action the screen offers.
 @Composable
 internal fun LaunchScreen(
     state: LaunchPhase,
