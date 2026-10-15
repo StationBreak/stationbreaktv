@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.trust
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -69,11 +70,25 @@ internal class CertificateTrust
             val stillWanted = currentCoroutineContext().isActive
             val saved =
                 withContext(NonCancellable) {
-                    val written = stillWanted && settings.save(ServerRecord(trusted.address, pin))
+                    val written = stillWanted && saved(trusted, pin)
                     if (!written) settings.clearPin()
                     written
                 }
             currentCoroutineContext().ensureActive()
             return if (saved) TrustOutcome.Trusted(trusted) else TrustOutcome.NotSaved
         }
+
+        // A store that breaks its contract and throws is the same as one that failed: not saved, so the pin goes.
+        private suspend fun saved(
+            trusted: ResolvedServer,
+            pin: SpkiPin,
+        ): Boolean =
+            try {
+                settings.save(ServerRecord(trusted.address, pin))
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                if (e is CancellationException) throw e
+                false
+            }
     }

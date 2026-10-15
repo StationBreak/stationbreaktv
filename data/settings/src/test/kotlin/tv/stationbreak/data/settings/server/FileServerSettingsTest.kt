@@ -32,7 +32,7 @@ class FileServerSettingsTest {
 
         override fun write(text: String) {
             if (failWrites) throw IOException("disk full")
-            if (rejectWrites) throw IllegalArgumentException("not storable")
+            require(!rejectWrites) { "not storable" }
             writes++
             this.text = text
         }
