@@ -399,8 +399,9 @@ private class LibrariesFocus {
 }
 
 /**
- * Focus follows the phase (spec 05, Adorabelle's defaults): the first row when the list appears, Retry when there is
- * nothing to choose from or Done failed. Ticking a row after a failed Done is the user's own move, so focus stays.
+ * Focus follows the phase (spec 05, Adorabelle's defaults): the first row when the list appears (also after Retry,
+ * which may skip the Loading phase), Retry when there is nothing to choose from or Done failed. Ticking a row after a
+ * failed Done is the user's own move, so focus stays.
  */
 @Composable
 private fun FocusFollowsPhase(
@@ -413,7 +414,9 @@ private fun FocusFollowsPhase(
         shown = phase::class.java
         when (phase) {
             LibrariesPhase.Choosing -> {
-                if (previous == null || previous == LibrariesPhase.Loading::class.java) focus.firstRow.requestFocus()
+                // Not after a failed Done: ticking a row then is the user's own move, and focus is already there.
+                val editing = previous == LibrariesPhase.SaveFailed::class.java
+                if (!editing) focus.firstRow.requestFocus()
             }
 
             is LibrariesPhase.LoadFailed, LibrariesPhase.NoLibraries, LibrariesPhase.SaveFailed -> {
