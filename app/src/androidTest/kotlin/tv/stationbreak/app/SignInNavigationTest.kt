@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextClearance
@@ -144,9 +145,31 @@ class SignInNavigationTest {
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
         awaitFocused(ServerTags.TEST)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        pressTestUntilItRuns()
         awaitFocused(ServerTags.CONTINUE)
     }
+
+    /**
+     * On a cold emulator the soft keyboard can still hold the window after the field's action and swallow the first
+     * select key, leaving Test focused and never run. Press again only while that is still so: no Cancel (Test is not
+     * running) and Continue not focused (it has not finished), so a retry can never land on Cancel. A click is no
+     * substitute, because it puts the emulator in touch mode, where focus cannot move to Continue.
+     */
+    private fun pressTestUntilItRuns() {
+        repeat(TYPE_ATTEMPTS) {
+            press(KeyEvent.KEYCODE_DPAD_CENTER)
+            val ran =
+                runCatching {
+                    compose.waitUntil(TYPE_TIMEOUT_MS) {
+                        isFocused(ServerTags.CONTINUE) ||
+                            compose.onAllNodesWithTag(ServerTags.CANCEL).fetchSemanticsNodes().isNotEmpty()
+                    }
+                }.isSuccess
+            if (ran || !isFocused(ServerTags.TEST)) return
+        }
+    }
+
+    private fun isFocused(tag: String): Boolean = runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess
 
     /**
      * On a cold emulator the first text input can reach the IME before its connection is active ("commitText on
