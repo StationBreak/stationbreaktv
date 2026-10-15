@@ -105,10 +105,20 @@ class ServerRecordCodecTest {
 
     // The address refuses these already; the codec checks again, so a hole in either can't write a forged line.
     @Test
-    fun aFieldWithANewlineOrAnEqualsSignIsNeverWritten() {
-        for (bad in listOf("a\nb", "a\rb", "a=b", "x\npin=00", "=")) {
+    fun aFieldWithALineBreakIsNeverWritten() {
+        for (bad in listOf("a\nb", "a\rb", "x\npin=00")) {
             assertThrows(bad, IllegalArgumentException::class.java) { ServerRecordCodec.checked(bad) }
         }
         assertEquals("/jelly-fin", ServerRecordCodec.checked("/jelly-fin"))
+    }
+
+    // '=' in a value is harmless: a line is split on its first '='. A real URL can have one in its path.
+    @Test
+    fun anEqualsSignInTheSubpathRoundTrips() {
+        for (subpath in listOf("/jelly=fin", "/a=b=c", "/=")) {
+            val record = ServerRecord(ServerAddress(Scheme.Https, "nas.example.test", 443, subpath), pin)
+            assertEquals(subpath, record.address.subpath, subpath)
+            assertEquals(record, ServerRecordCodec.decode(ServerRecordCodec.encode(record)))
+        }
     }
 }
