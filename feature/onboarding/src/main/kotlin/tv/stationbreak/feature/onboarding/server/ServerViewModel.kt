@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,24 +79,31 @@ internal class ServerViewModel
             if (mutableState.value.phase == ServerPhase.Testing) return
             val typed = mutableState.value.input.trim()
             if (typed.isEmpty()) {
-                mutableState.update { it.copy(phase = ServerPhase.InvalidInput(invalidAddressCopy)) }
+                mutableState.update { it.copy(phase = ServerPhase.InvalidInput(ErrorCopyTable.blankAddress)) }
                 return
             }
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
             testJob =
                 viewModelScope.launch {
-                    val phase = phaseFor(mediaServer.discover(typed))
-                    mutableState.update { it.copy(phase = phase) }
+                    val result = mediaServer.discover(typed)
+                    // A cancelled Test may still return a result if the callee ignores cancellation. Drop it, and
+                    // drop it too if the screen has moved on from Testing (a newer Test, typing, Edit address).
+                    ensureActive()
+                    mutableState.update {
+                        if (it.phase == ServerPhase.Testing) it.copy(phase = phaseFor(result)) else it
+                    }
                 }
         }
 
         fun onCancel() {
+            if (mutableState.value.phase != ServerPhase.Testing) return
             testJob?.cancel()
             mutableState.update { it.copy(phase = ServerPhase.Idle) }
         }
 
         /** Edit address: back to a quiet screen, with the typed text kept. */
         fun onEditAddress() {
+            testJob?.cancel()
             mutableState.update { it.copy(phase = ServerPhase.Idle) }
         }
 
@@ -130,8 +138,4 @@ internal class ServerViewModel
                     }
                 }
             }
-
-        private companion object {
-            val invalidAddressCopy = ErrorCopyTable.copyFor(MediaServerError.InvalidAddress())
-        }
     }

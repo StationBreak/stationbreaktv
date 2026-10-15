@@ -116,6 +116,21 @@ internal fun ConnectedPanel(
                 fontSize = DetailsSize,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (phase.acknowledgement != null) {
+                // The user accepted cleartext (ADR-0014); the panel keeps saying so (icon too, not colour alone).
+                Row(
+                    modifier = Modifier.testTag(ServerTags.NOT_ENCRYPTED),
+                    horizontalArrangement = Arrangement.spacedBy(TightGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProblemIcon()
+                    Text(
+                        text = stringResource(R.string.server_connected_cleartext),
+                        fontSize = DetailsSize,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         }
         ServerButton(
             label = R.string.server_continue,

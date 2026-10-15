@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -60,6 +61,7 @@ import tv.stationbreak.feature.onboarding.R
 internal val BodySize = 20.sp
 internal val DetailsSize = 18.sp
 internal val ButtonPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp)
+internal val ProblemIconSize = 32.dp
 internal val Gap = 20.dp
 internal val TightGap = 12.dp
 
@@ -87,6 +89,7 @@ internal fun ServerButton(
 @Composable
 internal fun ProblemIcon() {
     Icon(
+        modifier = Modifier.size(ProblemIconSize),
         painter = painterResource(R.drawable.ic_problem),
         contentDescription = stringResource(R.string.server_problem_icon),
         tint = MaterialTheme.colorScheme.error,

@@ -8,6 +8,7 @@ object ServerTags {
     const val FIELD_ERROR = "server:fieldError"
     const val TEST = "server:test"
     const val CANCEL = "server:cancel"
+    const val NOT_ENCRYPTED = "server:notEncrypted"
     const val CONTINUE = "server:continue"
     const val ERROR_PANEL = "server:errorPanel"
     const val RETRY = "server:retry"

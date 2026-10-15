@@ -106,7 +106,7 @@ class ServerScreenTest {
     @Test
     fun theAddressStartsEmptyWithAnExampleHint() {
         launch()
-        compose.onNodeWithTag(ServerTags.FIELD).assert(hasText("jellyfin.example.test:8096"))
+        compose.onNodeWithTag(ServerTags.FIELD).assert(hasText("For example, jellyfin.local:8096"))
     }
 
     @Test
@@ -174,8 +174,10 @@ class ServerScreenTest {
         typeAndTest()
         compose.onNodeWithTag(ServerTags.EDIT_ADDRESS).assertIsFocused()
         compose
-            .onNodeWithText("This Jellyfin server is version 10.11.8. StationBreak needs version 12.0 or newer.")
-            .assertExists()
+            .onNodeWithText(
+                "This Jellyfin server is version 10.11.8. StationBreak needs 12.0 or newer, " +
+                    "so the server needs updating.",
+            ).assertExists()
         compose.onNodeWithTag(ServerTags.RETRY).assertDoesNotExist()
     }
 
@@ -185,8 +187,34 @@ class ServerScreenTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(ServerTags.FIELD_ERROR).assertExists()
+        compose.onNodeWithText("Type your server", substring = true).assertExists()
         compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
         assertTrue(server.fake.discoverCalls.isEmpty())
+    }
+
+    @Test
+    fun testingABlankFieldAgainBringsFocusBackToTheField() {
+        launch()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
+        // The second press produces the same state, so only the click itself can move focus.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithTag(ServerTags.TEST).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
+        assertTrue(server.fake.discoverCalls.isEmpty())
+    }
+
+    @Test
+    fun continueHandsTheConnectedServerToTheCaller() {
+        // Continue goes nowhere yet (task 2.0 adds sign-in); this pins what it hands over.
+        server.fake.discoverResult = found()
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        assertEquals(listOf(ConnectedServer(ResolvedServer(https, info), acknowledgement = null)), continued)
     }
 
     @Test
@@ -206,7 +234,7 @@ class ServerScreenTest {
         server.fake.discoverResult = found(ServerAddress(Scheme.Http, "192.0.2.10", 8096, viaFallback = true))
         launch()
         typeAndTest("192.0.2.10:8096")
-        compose.onNodeWithText("StationBreak could not connect securely", substring = true).assertExists()
+        compose.onNodeWithText("so it tried http", substring = true).assertExists()
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
     }
 
@@ -219,6 +247,16 @@ class ServerScreenTest {
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
+        compose.onNodeWithTag(ServerTags.NOT_ENCRYPTED).assertExists()
+        compose.onNodeWithText("Not encrypted (http)").assertExists()
+    }
+
+    @Test
+    fun aPlainSuccessDoesNotSayNotEncrypted() {
+        server.fake.discoverResult = found()
+        launch()
+        typeAndTest()
+        compose.onNodeWithTag(ServerTags.NOT_ENCRYPTED).assertDoesNotExist()
     }
 
     @Test

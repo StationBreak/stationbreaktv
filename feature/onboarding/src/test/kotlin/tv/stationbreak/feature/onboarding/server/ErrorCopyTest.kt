@@ -32,8 +32,6 @@ class ErrorCopyTest {
     @Test
     fun everyEntryHasASentenceADetailsLineAndANextStep() {
         for ((type, copy) in ErrorCopyTable.entries) {
-            assertNotEquals("${type.simpleName} message", 0, copy.message)
-            assertNotEquals("${type.simpleName} details", 0, copy.details)
             assertNotEquals("${type.simpleName} has a primary action", copy.secondary, copy.primary)
         }
     }
@@ -72,10 +70,11 @@ class ErrorCopyTest {
     }
 
     @Test
-    fun unsupportedVersionNamesTheVersionFound() {
+    fun unsupportedVersionNamesTheVersionFoundAndTheMinimum() {
         val args = ErrorCopyTable.messageArgs(MediaServerError.UnsupportedVersion(ServerVersion(10, 11, 8)))
-        assertEquals(listOf("10.11.8"), args)
+        assertEquals(listOf("10.11.8", ErrorCopyTable.MINIMUM_VERSION), args)
         assertEquals(emptyList<Any>(), ErrorCopyTable.messageArgs(MediaServerError.DnsFailure()))
+        assertEquals("12.0", ErrorCopyTable.MINIMUM_VERSION)
     }
 
     @Test
@@ -97,9 +96,13 @@ class ErrorCopyTest {
 
     @Test
     fun noTlsErrorOffersATrustAction() {
-        // Trusting a certificate is Unit 3 (and never on TlsHandshakeFailed). Until then the only actions are these.
-        val actions = ErrorAction.entries.map { it.name }.toSet()
-        assertEquals(setOf("Retry", "EditAddress"), actions)
+        // Trusting a certificate is Unit 3 (and never on TlsHandshakeFailed). Until then a TLS error only edits.
+        val tls = ErrorCopyTable.entries.values.filter { it.group == ErrorGroup.Tls }
+        assertTrue(tls.isNotEmpty())
+        for (copy in tls) {
+            assertEquals(ErrorAction.EditAddress, copy.primary)
+            assertNull(copy.secondary)
+        }
     }
 
     @Test

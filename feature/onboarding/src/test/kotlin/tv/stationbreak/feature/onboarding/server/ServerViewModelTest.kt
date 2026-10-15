@@ -4,9 +4,11 @@ package tv.stationbreak.feature.onboarding.server
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -25,8 +27,12 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.feature.onboarding.R
 
-/** A [MediaServer] whose `discover` can be held open, to test the in-progress state and Cancel. */
+/**
+ * A [MediaServer] whose `discover` can be held open, to test the in-progress state and Cancel. It does NOT cooperate
+ * with cancellation (the wait is non-cancellable), so a test passes only if the ViewModel itself drops a stale result.
+ */
 private class GatedServer(
     val fake: FakeMediaServer = FakeMediaServer(),
 ) : MediaServer by fake {
@@ -35,7 +41,7 @@ private class GatedServer(
     override suspend fun discover(input: String): ServerResult<ResolvedServer> {
         val held = gate ?: return fake.discover(input)
         fake.discoverCalls += input
-        return held.await()
+        return withContext(NonCancellable) { held.await() }
     }
 }
 
@@ -115,6 +121,63 @@ class ServerViewModelTest {
     }
 
     @Test
+    fun cancelThenTestAgainIgnoresTheOldResult() {
+        val first = CompletableDeferred<ServerResult<ResolvedServer>>()
+        val second = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = first
+        val vm = viewModel()
+        vm.test("jellyfin.example.test")
+        vm.onCancel()
+        server.gate = second
+        vm.onTest()
+        first.complete(found(https))
+        assertEquals(ServerPhase.Testing, vm.phase())
+        second.complete(fails(MediaServerError.Timeout()))
+        assertTrue(vm.phase() is ServerPhase.Failed)
+    }
+
+    @Test
+    fun typingDuringTestingGoesBackToIdleAndTheOldResultIsIgnored() {
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = gate
+        val vm = viewModel()
+        vm.test("jellyfin.example.test")
+        vm.onInputChange("jellyfin.example.tes")
+        gate.complete(found(https))
+        assertEquals(ServerPhase.Idle, vm.phase())
+        assertEquals("jellyfin.example.tes", vm.state.value.input)
+    }
+
+    @Test
+    fun cancelOnlyActsWhileTesting() {
+        server.fake.discoverResult = found(https)
+        val vm = viewModel()
+        vm.test("jellyfin.example.test")
+        vm.onCancel()
+        assertTrue(vm.phase() is ServerPhase.Connected)
+        server.fake.discoverResult = fails(MediaServerError.Timeout())
+        vm.onInputChange("jellyfin.example.test")
+        vm.onTest()
+        vm.onCancel()
+        assertTrue(vm.phase() is ServerPhase.Failed)
+    }
+
+    @Test
+    fun editAddressCancelsARunningTest() {
+        val first = CompletableDeferred<ServerResult<ResolvedServer>>()
+        val second = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = first
+        val vm = viewModel()
+        vm.test("jellyfin.example.test")
+        vm.onEditAddress()
+        assertEquals(ServerPhase.Idle, vm.phase())
+        server.gate = second
+        vm.onTest()
+        first.complete(found(https))
+        assertEquals(ServerPhase.Testing, vm.phase())
+    }
+
+    @Test
     fun aSecondTestWhileTestingDoesNotSendASecondRequest() {
         server.gate = CompletableDeferred()
         val vm = viewModel()
@@ -129,6 +192,8 @@ class ServerViewModelTest {
         vm.test("   ")
         val phase = vm.phase() as ServerPhase.InvalidInput
         assertEquals(ErrorGroup.Address, phase.copy.group)
+        assertEquals(R.string.server_blank_message, phase.copy.message)
+        assertEquals(R.string.server_blank_details, phase.copy.details)
         assertTrue(server.fake.discoverCalls.isEmpty())
     }
 
@@ -137,7 +202,8 @@ class ServerViewModelTest {
         server.fake.discoverResult = fails(MediaServerError.InvalidAddress())
         val vm = viewModel()
         vm.test("http://")
-        assertTrue(vm.phase() is ServerPhase.InvalidInput)
+        val phase = vm.phase() as ServerPhase.InvalidInput
+        assertEquals(R.string.error_invalid_address_message, phase.copy.message)
     }
 
     @Test
@@ -159,7 +225,7 @@ class ServerViewModelTest {
         vm.test("jellyfin.example.test")
         val phase = vm.phase() as ServerPhase.Failed
         assertEquals(ErrorGroup.NotUsable, phase.copy.group)
-        assertEquals(listOf("10.11.8"), ErrorCopyTable.messageArgs(phase.error))
+        assertEquals(listOf("10.11.8", "12.0"), ErrorCopyTable.messageArgs(phase.error))
     }
 
     @Test

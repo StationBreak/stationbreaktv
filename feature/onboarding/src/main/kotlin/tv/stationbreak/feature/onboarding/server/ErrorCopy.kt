@@ -50,6 +50,21 @@ internal object ErrorCopyTable {
         primary: ErrorAction = ErrorAction.EditAddress,
     ) = ErrorCopy(message, details, ErrorGroup.Other, primary)
 
+    /**
+     * The oldest Jellyfin version StationBreak works with (ADR-0006), shown in the "server too old" message. It
+     * mirrors the adapter's `MIN_MAJOR` check in `:data:jellyfin`, which a feature module can't see.
+     */
+    const val MINIMUM_VERSION = "12.0"
+
+    /** A blank field. No request was sent, so this isn't a [MediaServerError]; it has its own words. */
+    val blankAddress =
+        ErrorCopy(
+            R.string.server_blank_message,
+            R.string.server_blank_details,
+            ErrorGroup.Address,
+            ErrorAction.EditAddress,
+        )
+
     val entries: Map<Class<out MediaServerError>, ErrorCopy> =
         mapOf(
             MediaServerError.DnsFailure::class.java to network(R.string.error_dns_message, R.string.error_dns_details),
@@ -107,10 +122,10 @@ internal object ErrorCopyTable {
     fun copyFor(error: MediaServerError): ErrorCopy =
         entries[error::class.java] ?: error("No error copy for ${error::class.java.simpleName}")
 
-    /** The arguments the error's message needs: only [MediaServerError.UnsupportedVersion] names its version. */
+    /** The arguments the error's message needs: only [MediaServerError.UnsupportedVersion] has any (found, minimum). */
     fun messageArgs(error: MediaServerError): List<Any> =
         when (error) {
-            is MediaServerError.UnsupportedVersion -> listOf(error.found.toString())
+            is MediaServerError.UnsupportedVersion -> listOf(error.found.toString(), MINIMUM_VERSION)
             else -> emptyList()
         }
 

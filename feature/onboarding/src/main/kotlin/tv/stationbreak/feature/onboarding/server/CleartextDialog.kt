@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.onboarding.server
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -54,6 +56,8 @@ import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.feature.onboarding.R
+
+private val DialogMaxWidth = 720.dp
 
 /**
  * The cleartext confirmation (ADR-0014). Cancel is the safe choice and has default focus; Back cancels. The fallback
@@ -68,7 +72,12 @@ internal fun CleartextDialog(
     val cancelFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { cancelFocus.requestFocus() }
     Dialog(onDismissRequest = onCancel) {
-        Surface(shape = RoundedCornerShape(16.dp), colors = SurfaceDefaults.colors()) {
+        Surface(
+            modifier = Modifier.widthIn(max = DialogMaxWidth),
+            shape = RoundedCornerShape(16.dp),
+            colors = SurfaceDefaults.colors(),
+            border = Border(BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceVariant)),
+        ) {
             Column(modifier = Modifier.padding(32.dp), verticalArrangement = Arrangement.spacedBy(Gap)) {
                 Text(
                     text = stringResource(R.string.cleartext_title),

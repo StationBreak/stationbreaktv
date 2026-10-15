@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +55,7 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.HINT_ALPHA
 import tv.stationbreak.feature.onboarding.R
 
 // Sizes only this screen uses.
@@ -103,60 +106,72 @@ internal fun ServerScreen(
     BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         // A 5% safe area on every side (overscan). The content starts at a fixed height, so the headline and the field
         // don't move when a result appears below them.
+        // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area, so a
+        // focused, scaled button can grow into it instead of being clipped.
         Column(
             modifier =
                 Modifier
-                    .align(Alignment.TopCenter)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(
                         start = maxWidth * OVERSCAN,
                         end = maxWidth * OVERSCAN,
                         top = maxHeight * TOP_OFFSET,
                         bottom = maxHeight * OVERSCAN,
-                    ).widthIn(max = ContentWidth)
-                    .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(Gap),
+                    ),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = stringResource(R.string.server_headline),
-                style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            AddressField(
-                value = state.input,
-                onValueChange = onInputChange,
-                onDone = { focus.test.requestFocus() },
-                fieldFocus = focus.field,
-            )
-            (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
-            ServerButton(
-                label = R.string.server_test,
-                onClick = onTest,
-                enabled = phase != ServerPhase.Testing,
-                modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
-            )
-            if (phase == ServerPhase.Testing) {
+            Column(
+                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Gap),
+            ) {
+                Text(
+                    text = stringResource(R.string.server_headline),
+                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                AddressField(
+                    value = state.input,
+                    onValueChange = onInputChange,
+                    onDone = { focus.test.requestFocus() },
+                    fieldFocus = focus.field,
+                )
+                (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
                 ServerButton(
-                    label = R.string.server_cancel,
-                    onClick = onCancel,
-                    modifier = Modifier.focusRequester(focus.cancel).testTag(ServerTags.CANCEL),
-                )
-                TestingStatus()
-            }
-            if (phase is ServerPhase.Connected) {
-                ConnectedPanel(phase, focus.continueButton) {
-                    onContinue(ConnectedServer(phase.server, phase.acknowledgement))
-                }
-            }
-            if (phase is ServerPhase.Failed) {
-                ErrorPanel(
-                    phase = phase,
-                    actionFocus = focus.action,
-                    onRetry = onTest,
-                    onEditAddress = {
-                        onEditAddress()
-                        focus.field.requestFocus()
+                    label = R.string.server_test,
+                    onClick = {
+                        // A blank field gives the same state again, which StateFlow drops, so the field would not get
+                        // focus back from the state alone. Take it here.
+                        if (state.input.isBlank()) focus.field.requestFocus()
+                        onTest()
                     },
+                    enabled = phase != ServerPhase.Testing,
+                    modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
                 )
+                if (phase == ServerPhase.Testing) {
+                    TestingStatus()
+                    ServerButton(
+                        label = R.string.server_cancel,
+                        onClick = onCancel,
+                        modifier = Modifier.focusRequester(focus.cancel).testTag(ServerTags.CANCEL),
+                    )
+                }
+                if (phase is ServerPhase.Connected) {
+                    ConnectedPanel(phase, focus.continueButton) {
+                        onContinue(ConnectedServer(phase.server, phase.acknowledgement))
+                    }
+                }
+                if (phase is ServerPhase.Failed) {
+                    ErrorPanel(
+                        phase = phase,
+                        actionFocus = focus.action,
+                        onRetry = onTest,
+                        onEditAddress = {
+                            onEditAddress()
+                            focus.field.requestFocus()
+                        },
+                    )
+                }
             }
         }
     }
@@ -269,7 +284,11 @@ private fun AddressField(
                     onLeave = { editing = false },
                 )
             } else if (value.isEmpty()) {
-                Text(text = stringResource(R.string.server_address_hint), fontSize = BodySize)
+                Text(
+                    text = stringResource(R.string.server_address_hint),
+                    fontSize = BodySize,
+                    color = colors.onSurfaceVariant.copy(alpha = HINT_ALPHA),
+                )
             } else {
                 Text(text = value, fontSize = BodySize, color = colors.onSurface)
             }
