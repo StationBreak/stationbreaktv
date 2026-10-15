@@ -14,8 +14,7 @@ import javax.net.ssl.SSLSession
  */
 internal class PinnedHostnameVerifier(
     private val policy: PinPolicy,
-    // OkHttp's default verifier, through the public API (its implementation class is internal).
-    private val standard: HostnameVerifier = OkHttpClient().hostnameVerifier,
+    private val standard: HostnameVerifier = OKHTTP_DEFAULT,
 ) : HostnameVerifier {
     override fun verify(
         hostname: String?,
@@ -43,5 +42,8 @@ internal class PinnedHostnameVerifier(
 
     private companion object {
         const val MAX_PORT = 65_535
+
+        // OkHttp's default verifier through the public API (its implementation class is internal), built once.
+        val OKHTTP_DEFAULT: HostnameVerifier = OkHttpClient().hostnameVerifier
     }
 }

@@ -96,7 +96,8 @@ class PinnedHttpClients(
         replace(pins.mapNotNull { (address, pin) -> PinKey.of(address)?.let { it to pin } }.toMap())
     }
 
-    // Callers hold the monitor.
+    // Callers hold the monitor. A call created on the old client but not yet executed when cancelAll() runs can still
+    // go ahead under the old trust: a window of microseconds that is accepted, not closed.
     private fun replace(pins: Map<PinKey, SpkiPin>) {
         if (pins == built.pins) return
         val old = built
