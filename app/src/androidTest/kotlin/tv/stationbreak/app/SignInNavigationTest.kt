@@ -267,13 +267,18 @@ class SignInNavigationTest {
         assertTrue(navController.currentDestination.isRoute<ServerRoute>())
         assertNull("sign-in must not be left under the server screen", navController.previousBackStackEntry)
 
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(BACK_TIMEOUT_MS) { compose.activity.isFinishing }
+        // The activity goes away, so nothing below may touch the compose rule again.
+        val activity = compose.activity
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        val deadline = System.currentTimeMillis() + BACK_TIMEOUT_MS
+        while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
+        assertTrue("Back from the server screen should leave the app", activity.isFinishing)
     }
 
     private inline fun <reified T : Any> NavDestination?.isRoute(): Boolean = this?.hasRoute<T>() == true
 
     private companion object {
         const val BACK_TIMEOUT_MS = 5_000L
+        const val POLL_MS = 50L
     }
 }
