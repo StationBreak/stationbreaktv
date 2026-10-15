@@ -35,7 +35,7 @@ class TrustSurfaceCheckTest {
         val result = runner(":data:jellyfin:checkTrustSurface").buildAndFail()
 
         assertTrue("src/main/java/a/other/trust/Sneaky.java:4" in result.output, result.output)
-        assertTrue("a/trust/Ok.java" !in result.output, result.output)
+        assertTrue("data/jellyfin/trust/Ok.java" !in result.output, result.output)
     }
 
     @Test

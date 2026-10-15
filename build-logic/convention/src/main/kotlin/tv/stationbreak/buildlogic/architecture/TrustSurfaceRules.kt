@@ -2,24 +2,53 @@
 package tv.stationbreak.buildlogic.architecture
 
 /**
- * Where the TLS trust API may be named (spec 05, Unit 3, Angua (Security); #232 L5). A source-text tripwire, not a
- * parser: it reads one file with its comments removed.
- * - `X509TrustManager`, `X509ExtendedTrustManager`, `HostnameVerifier` and `SSLContext` only in the `trust` package of
- *   `:data:jellyfin`, the one place that decides what is trusted. The app module is exempt: its own tests
- *   (`NetworkSecurityConfigTest`) already hold its trust delegate to `X509TrustManagerExtensions` alone.
- * - Trust-all patterns and `CertificatePinner` nowhere, the trust package and the app included.
+ * Where the TLS trust API may be named (spec 05, Unit 3, Angua (Security); #232 L5, #236 L4). A source-text tripwire,
+ * not a parser: it reads one file with its comments removed.
+ * - The trust API (`X509TrustManager`, `X509ExtendedTrustManager`, `TrustManager`, `TrustManagerFactory`,
+ *   `HostnameVerifier`, `SSLContext`, `SSLCertificateSocketFactory`, and the `.hostnameVerifier(` and
+ *   `.sslSocketFactory(` calls) only in the `trust` package of `:data:jellyfin`, the one place that decides what is
+ *   trusted, matched by its full path. A few app files that need the platform's side of it are exempt by exact path.
+ * - Trust-all patterns and `CertificatePinner` nowhere, the trust package included.
  * A name that merely contains one of these (`X509TrustManagerExtensions`) is not a match.
  */
 object TrustSurfaceRules {
     private const val APP = ":app"
     private const val TRUST_MODULE = ":data:jellyfin"
 
-    // The one file that has to spell the banned patterns, as strings to look for: the app's own trust guard test.
-    private const val APP_GUARD_TEST_NAME = "NetworkSecurityConfigTest.kt"
+    // The trust package, by its full path in every source set: not any directory that happens to be called `trust`.
+    private val trustPackage = Regex("""^src/[^/]+/(?:kotlin|java)/tv/stationbreak/data/jellyfin/trust/[^/]+$""")
+
+    // Files that may name the restricted API, by module and exact path. Nothing else in a module is exempt.
+    private val restrictedExemptions =
+        setOf(
+            // The platform's own trust, asked through X509TrustManagerExtensions.
+            APP to "src/main/kotlin/tv/stationbreak/app/net/AndroidSystemTrust.kt",
+            // These tests exercise the real Conscrypt stack and the network security config.
+            APP to "src/test/kotlin/tv/stationbreak/app/trust/NetworkSecurityConfigTest.kt",
+            APP to "src/androidTest/kotlin/tv/stationbreak/app/NetworkSecurityConfigChainTest.kt",
+            APP to "src/androidTest/kotlin/tv/stationbreak/app/PinnedTrustOnApi25Test.kt",
+            // A test that hands the adapter's clients a socket factory of its own.
+            TRUST_MODULE to "src/test/kotlin/tv/stationbreak/data/jellyfin/SchemeResolutionTest.kt",
+        )
+
+    // The app's trust guard test spells the banned patterns as strings to look for, so the ban skips it too.
+    private val bannedExemptions =
+        setOf(APP to "src/test/kotlin/tv/stationbreak/app/trust/NetworkSecurityConfigTest.kt")
 
     private val restricted =
-        listOf("X509TrustManager", "X509ExtendedTrustManager", "HostnameVerifier", "SSLContext")
-            .map { it to Regex("""\b$it\b""") }
+        listOf(
+            "X509TrustManager",
+            "X509ExtendedTrustManager",
+            "TrustManager",
+            "TrustManagerFactory",
+            "HostnameVerifier",
+            "SSLContext",
+            "SSLCertificateSocketFactory",
+        ).map { it to Regex("""\b$it\b""") } +
+            listOf(
+                "hostnameVerifier()" to Regex("""\.hostnameVerifier\s*[({]"""),
+                "sslSocketFactory()" to Regex("""\.sslSocketFactory\s*\("""),
+            )
 
     private val banned =
         listOf(
@@ -27,7 +56,7 @@ object TrustSurfaceRules {
             "a trust-all manager" to Regex("""(?i)trust[_-]?all"""),
             "a trust-all hostname verifier" to Regex("""ALLOW_ALL_HOSTNAME_VERIFIER"""),
             "a hostname verifier that always says yes" to
-                Regex("""(?:HostnameVerifier|hostnameVerifier)\s*[({]\s*(?:\{\s*)?(?:[\w, ]*->\s*)?true\s*[)}]"""),
+                Regex("""(?:HostnameVerifier|hostnameVerifier)\s*[({]\s*(?:\{\s*)?(?:[\w,:?<>. ]*->\s*)?true\s*[)}]"""),
             "a process-wide verifier or socket factory" to
                 Regex("""\bsetDefault(?:HostnameVerifier|SSLSocketFactory)\b"""),
             "a checkServerTrusted that checks nothing" to
@@ -43,11 +72,13 @@ object TrustSurfaceRules {
         relativePath: String,
         text: String,
     ): List<String> {
-        if (relativePath.substringAfterLast('/') == APP_GUARD_TEST_NAME && modulePath == APP) return emptyList()
+        val file = modulePath to relativePath
+        if (file in bannedExemptions) return emptyList()
         val code = withoutComments(text)
-        val inTrustPackage = modulePath == TRUST_MODULE && "trust" in relativePath.split('/').dropLast(1)
+        val mayNameTrustApi =
+            (modulePath == TRUST_MODULE && trustPackage.matches(relativePath)) || file in restrictedExemptions
         val findings = mutableListOf<Pair<Int, String>>()
-        if (modulePath != APP && !inTrustPackage) {
+        if (!mayNameTrustApi) {
             for ((name, pattern) in restricted) {
                 findings +=
                     matches(code, pattern).map {

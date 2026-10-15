@@ -149,9 +149,10 @@ Enforcement: the `checkArchitecture` task, which every module's convention plugi
 if a module's declared dependencies break these rules. Its allowlist is `ArchitectureRules.kt` in
 `build-logic/convention` (package `tv.stationbreak.buildlogic.architecture`) and must match this section; a module
 not listed in this file's module tree fails until it's added to both. Android modules also run
-`checkOverrideLibrary`. Every module also runs `checkTrustSurface` (`TrustSurfaceRules.kt`), which fails the build if
-`X509TrustManager`, `X509ExtendedTrustManager`, `HostnameVerifier` or `SSLContext` is named outside the `trust` package
-of `data:jellyfin` (the app module is exempt), or a trust-all pattern or `CertificatePinner` is named anywhere.
+`checkOverrideLibrary`. Every module also runs `checkTrustSurface` (`TrustSurfaceRules.kt`), which fails the build if the TLS trust API
+(`X509TrustManager`, `TrustManager`, `TrustManagerFactory`, `HostnameVerifier`, `SSLContext`,
+`SSLCertificateSocketFactory`, `.hostnameVerifier(`, `.sslSocketFactory(`) is named outside the `trust` package of
+`data:jellyfin` (a few files are exempt by exact path), or a trust-all pattern or `CertificatePinner` is named anywhere.
 Together they fail the build if
 - a `[KMP]` or `[JVM]` module gains an Android dependency,
 - a `java.*` import appears in `commonMain` (enforced by the compiler via the canary target; scaffold acceptance test),
