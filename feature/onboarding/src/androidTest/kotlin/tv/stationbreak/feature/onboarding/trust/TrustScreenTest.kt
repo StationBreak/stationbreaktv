@@ -150,7 +150,8 @@ class TrustScreenTest {
         val fingerprint = compose.onNodeWithTag(TrustTags.FINGERPRINT).getUnclippedBoundsInRoot()
         val validity = compose.onNodeWithTag(TrustTags.VALIDITY).getUnclippedBoundsInRoot()
         val note = compose.onNodeWithTag(TrustTags.FINGERPRINT_NOTE).getUnclippedBoundsInRoot()
-        assertTrue("validity ${validity.top} under fingerprint ${fingerprint.bottom}", validity.top >= fingerprint.bottom)
+        val under = validity.top >= fingerprint.bottom
+        assertTrue("validity ${validity.top} under fingerprint ${fingerprint.bottom}", under)
         assertTrue("validity ${validity.bottom} above note ${note.top}", validity.bottom <= note.top)
     }
 

@@ -97,6 +97,7 @@ private class GatedTrustServer(
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass") // One function per behaviour of the screen's view model.
 class ServerViewModelTest {
     private val server = GatedServer()
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
