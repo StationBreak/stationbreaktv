@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The host activity for createAndroidComposeRule<ComponentActivity>() comes from ui-test-manifest with no orientation.
+    CI's API 25 emulator has no TV device profile, so its display defaults to portrait: starting that activity rotated
+    the screen, the activity was recreated, and content set by compose.setContent() was lost with the first instance
+    ("No compose hierarchies found", on different tests each run). A TV is always landscape, and an orientation or
+    keyboard change must not recreate the host, so pin both here.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
+            android:exported="true" />
+    </application>
+</manifest>
