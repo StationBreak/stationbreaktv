@@ -27,7 +27,7 @@ class TrustSurfaceCheckTest {
         val result = runner("checkTrustSurface", "--continue").buildAndFail()
 
         assertEquals(TaskOutcome.FAILED, result.task(":feature:bad:checkTrustSurface")?.outcome, result.output)
-        assertTrue("src/main/kotlin/b/Bad.kt:3" in result.output, result.output)
+        assertTrue("src/main/java/b/Bad.java:4" in result.output, result.output)
     }
 
     @Test
