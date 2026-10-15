@@ -11,6 +11,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.hasText
@@ -266,6 +267,59 @@ class ServerScreenTest {
     }
 
     @Test
+    fun theCleartextDialogFocusesCancelWhenItOpensOverTheTestingScreen() {
+        // The device path: Test takes time, focus sits on the screen's own Cancel while it runs, and the dialog then
+        // opens on top of it. Dialog focus must not be left to the focus search from that spot.
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = gate
+        launch()
+        typeAndTest("http://jellyfin.example.test")
+        compose.onNodeWithTag(ServerTags.CANCEL).assertIsFocused()
+        gate.complete(found(ServerAddress(Scheme.Http, "jellyfin.example.test", 80)))
+        compose.waitForIdle()
+        Thread.sleep(SETTLE_MILLIS)
+        compose.waitForIdle()
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsNotFocused()
+    }
+
+    @Test
+    fun theCleartextDialogKeepsFocusOnCancelOnceItHasSettled() {
+        // The first frame can be right while the dialog window is still gaining focus; wait it out, then look again.
+        server.fake.discoverResult = found(ServerAddress(Scheme.Http, "jellyfin.example.test", 80))
+        launch()
+        typeAndTest("http://jellyfin.example.test")
+        Thread.sleep(SETTLE_MILLIS)
+        compose.waitForIdle()
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsNotFocused()
+        // One press right reaches Connect anyway and one left comes back: Cancel really is the left-most stop.
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
+    }
+
+    @Test
+    fun theCleartextDialogFocusesCancelEachTimeItOpens() {
+        // Cancel, then Test again from the Test button the dialog took focus from: every opening starts on Cancel.
+        server.fake.discoverResult = found(ServerAddress(Scheme.Http, "jellyfin.example.test", 80))
+        launch()
+        typeAndTest("http://jellyfin.example.test")
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertDoesNotExist()
+        repeat(2) {
+            press(KeyEvent.KEYCODE_DPAD_DOWN)
+            press(KeyEvent.KEYCODE_DPAD_CENTER)
+            Thread.sleep(SETTLE_MILLIS)
+            compose.waitForIdle()
+            compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
+            press(KeyEvent.KEYCODE_BACK)
+        }
+    }
+
+    @Test
     fun theFallbackCleartextDialogHasItsOwnWording() {
         server.fake.discoverResult = found(ServerAddress(Scheme.Http, "192.0.2.10", 8096, viaFallback = true))
         launch()
@@ -411,5 +465,6 @@ class ServerScreenTest {
 
     private companion object {
         const val FOCUS_TIMEOUT_MS = 10_000L
+        const val SETTLE_MILLIS = 1_000L
     }
 }
