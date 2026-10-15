@@ -100,11 +100,21 @@ script_tests() {
   bash .github/scripts/osv-issues.test.sh
   bash .github/scripts/verification-guard.test.sh
   bash .github/scripts/device-proof-guard.test.sh
+  bash scripts/guard-tree.test.sh
 }
 
+# The guards walk the tree they are given. On the repo root that includes agent worktrees under .claude/, each a full
+# checkout of its own, so they run on a copy of the repo's files without them (scripts/guard-tree.sh).
 verification_guard() {
-  bash .github/scripts/verification-guard.sh .
-  bash .github/scripts/device-proof-guard.sh .
+  local tree status=0
+  tree="$(mktemp -d)"
+  bash scripts/guard-tree.sh "$tree" || status=1
+  if [ "$status" -eq 0 ]; then
+    bash .github/scripts/verification-guard.sh "$tree" || status=1
+    bash .github/scripts/device-proof-guard.sh "$tree" || status=1
+  fi
+  rm -rf "$tree"
+  return "$status"
 }
 
 actionlint() {
