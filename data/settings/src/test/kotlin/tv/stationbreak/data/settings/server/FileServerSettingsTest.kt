@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -106,6 +107,75 @@ class FileServerSettingsTest {
             file.text = null
             file.failReads = true
             assertFalse(settings.clearPin())
+        }
+
+    private val movies = ItemId("movies")
+    private val shows = ItemId("shows")
+
+    @Test
+    fun theSelectionIsOneWriteAndLoadsBackThroughANewStoreOnTheSameFile() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            val before = file.writes
+            assertTrue(settings.saveLibraries(setOf(movies, shows)))
+            assertEquals(before + 1, file.writes)
+            val rebuilt = FileServerSettings(file, inPlace)
+            assertEquals(setOf(movies, shows), rebuilt.loadLibraries())
+            assertEquals(ServerRecord(address, pin), rebuilt.load())
+        }
+
+    @Test
+    fun aSelectionNeedsARecordAndIsNeverEmpty() =
+        runBlocking {
+            assertFalse(settings.saveLibraries(setOf(movies)))
+            assertNull(file.text)
+            settings.save(ServerRecord(address))
+            assertFalse(settings.saveLibraries(emptySet()))
+            assertNull(settings.loadLibraries())
+        }
+
+    @Test
+    fun clearingThePinAndSavingTheSameAddressKeepTheSelection() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            settings.saveLibraries(setOf(movies))
+            assertTrue(settings.clearPin())
+            assertEquals(setOf(movies), settings.loadLibraries())
+            assertTrue(settings.save(ServerRecord(address, pin)))
+            assertEquals(setOf(movies), settings.loadLibraries())
+        }
+
+    @Test
+    fun savingAnotherAddressDropsTheSelectionInTheSameWrite() =
+        runBlocking {
+            settings.save(ServerRecord(address))
+            settings.saveLibraries(setOf(movies))
+            val before = file.writes
+            val other = ServerAddress(Scheme.Https, "other.example.test", 443)
+            assertTrue(settings.save(ServerRecord(other)))
+            assertEquals(before + 1, file.writes)
+            assertEquals(ServerRecord(other), settings.load())
+            assertNull(settings.loadLibraries())
+        }
+
+    @Test
+    fun aFailedSelectionWriteKeepsTheOldRecordAndSelection() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            settings.saveLibraries(setOf(movies))
+            file.failWrites = true
+            assertFalse(settings.saveLibraries(setOf(shows)))
+            assertEquals(setOf(movies), settings.loadLibraries())
+            assertEquals(ServerRecord(address, pin), settings.load())
+        }
+
+    @Test
+    fun aFileWrittenBeforeSelectionsExistedHasNoneAndKeepsItsRecord() =
+        runBlocking {
+            file.text = ServerRecordCodec.encode(ServerRecord(address, pin))
+            assertNull(settings.loadLibraries())
+            assertTrue(settings.saveLibraries(setOf(movies)))
+            assertEquals(ServerRecord(address, pin), settings.load())
         }
 
     @Test

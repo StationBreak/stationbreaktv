@@ -9,12 +9,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.model.ItemId
 import java.io.File
 import java.io.IOException
 
 /**
- * The [ServerSettings] on one small file in `noBackupFilesDir`: the address and its pin as a single record, replaced
- * atomically (spec 05, Unit 3). It is out of backup on purpose, so a restore onto another device asks about the
+ * The [ServerSettings] on one small file in `noBackupFilesDir`: the address and its pin as a single record, with the
+ * library selection beside them, replaced atomically as a whole (spec 05, Units 3 and 4). It is out of backup on purpose, so a restore onto another device asks about the
  * certificate again instead of carrying a trust decision over. No secret is kept here (the session is in the Keystore
  * store). Faults come back as `false` or `null`, never as an exception, and the store logs nothing.
  */
@@ -27,9 +28,23 @@ class FileServerSettings internal constructor(
     // One writer at a time, and a read never sees half of a read-modify-write.
     private val lock = Mutex()
 
-    override suspend fun load(): ServerRecord? = locked { read() }
+    override suspend fun load(): ServerRecord? = locked { read()?.record }
 
-    override suspend fun save(record: ServerRecord): Boolean = locked { write(record) }
+    override suspend fun save(record: ServerRecord): Boolean =
+        locked {
+            // A choice of libraries belongs to the server it was made on: another address starts without one. A file
+            // that can't be read has nothing worth keeping.
+            val kept = read()?.takeIf { it.record.address == record.address }?.libraries
+            write(StoredSettings(record, kept))
+        }
+
+    override suspend fun loadLibraries(): Set<ItemId>? = locked { read()?.libraries }
+
+    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean =
+        locked {
+            val held = read()
+            if (held == null || ids.isEmpty()) false else write(held.copy(libraries = ids))
+        }
 
     override suspend fun clearPin(): Boolean =
         locked {
@@ -41,14 +56,14 @@ class FileServerSettings internal constructor(
                 }
             // No record: nothing to clear. A record that can't be read may still hold a pin and can't be rewritten
             // without it, so that is a failure, not a success.
-            if (text == null) true else clearIn(ServerRecordCodec.decode(text))
+            if (text == null) true else clearIn(ServerRecordCodec.decodeStored(text))
         }
 
-    private fun clearIn(record: ServerRecord?): Boolean =
+    private fun clearIn(held: StoredSettings?): Boolean =
         when {
-            record == null -> false
-            record.pin == null -> true
-            else -> write(record.copy(pin = null))
+            held == null -> false
+            held.record.pin == null -> true
+            else -> write(held.copy(record = held.record.copy(pin = null)))
         }
 
     // A constant: nothing about the contents may reach a log through this.
@@ -56,16 +71,16 @@ class FileServerSettings internal constructor(
 
     private suspend fun <T> locked(block: () -> T): T = lock.withLock { withContext(io) { block() } }
 
-    private fun read(): ServerRecord? =
+    private fun read(): StoredSettings? =
         try {
-            file.read()?.let(ServerRecordCodec::decode)
+            file.read()?.let(ServerRecordCodec::decodeStored)
         } catch (_: IOException) {
             null
         }
 
-    private fun write(record: ServerRecord): Boolean =
+    private fun write(stored: StoredSettings): Boolean =
         try {
-            file.write(ServerRecordCodec.encode(record))
+            file.write(ServerRecordCodec.encode(stored))
             true
         } catch (_: IOException) {
             false

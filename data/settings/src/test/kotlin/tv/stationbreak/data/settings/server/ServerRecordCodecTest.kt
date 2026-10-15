@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -75,5 +76,29 @@ class ServerRecordCodecTest {
         val text = ServerRecordCodec.encode(ServerRecord(address, pin))
         assertFalse(text.contains("token", ignoreCase = true))
         assertFalse(text.contains("password", ignoreCase = true))
+    }
+
+    @Test
+    fun aSelectionRoundTripsWithTheRecordInOneText() {
+        val stored = StoredSettings(ServerRecord(address, pin), setOf(ItemId("movies"), ItemId("tv-shows_2")))
+        assertEquals(stored, ServerRecordCodec.decodeStored(ServerRecordCodec.encode(stored)))
+        assertEquals(stored.record, ServerRecordCodec.decode(ServerRecordCodec.encode(stored)))
+    }
+
+    @Test
+    fun noSelectionIsNoLine() {
+        val text = ServerRecordCodec.encode(ServerRecord(address))
+        assertFalse("libraries" in text)
+        assertNull(ServerRecordCodec.decodeStored(text)?.libraries)
+    }
+
+    @Test
+    fun aSelectionThatCannotBeReadIsDroppedButTheRecordSurvives() {
+        val good = ServerRecordCodec.encode(StoredSettings(ServerRecord(address, pin), setOf(ItemId("movies"))))
+        for (bad in listOf("libraries=", "libraries=a,,b", "libraries=a b", "libraries=a/b")) {
+            val decoded = ServerRecordCodec.decodeStored(good.replace("libraries=movies", bad))
+            assertEquals(bad, ServerRecord(address, pin), decoded?.record)
+            assertNull(bad, decoded?.libraries)
+        }
     }
 }

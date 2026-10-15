@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -67,5 +68,53 @@ class ServerSettingsTest {
             assertFalse(settings.save(ServerRecord(https)))
             assertFalse(settings.clearPin())
             assertEquals(ServerRecord(https, pin), settings.load())
+        }
+
+    private val movies = ItemId("movies")
+    private val shows = ItemId("shows")
+
+    @Test
+    fun theLibrarySelectionIsStoredWithTheRecordAndLoadsBack() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(https))
+            assertNull(settings.loadLibraries())
+            assertTrue(settings.saveLibraries(setOf(movies, shows)))
+            assertEquals(setOf(movies, shows), settings.loadLibraries())
+        }
+
+    @Test
+    fun aSelectionNeedsARecordAndIsNeverEmpty() =
+        runBlocking {
+            assertFalse(InMemoryServerSettings().saveLibraries(setOf(movies)))
+            val settings = InMemoryServerSettings(ServerRecord(https))
+            assertFalse(settings.saveLibraries(emptySet()))
+            assertNull(settings.loadLibraries())
+        }
+
+    @Test
+    fun theSelectionSurvivesClearingThePinAndSavingTheSameAddress() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(https, pin), setOf(movies))
+            assertTrue(settings.clearPin())
+            assertEquals(setOf(movies), settings.loadLibraries())
+            assertTrue(settings.save(ServerRecord(https, pin)))
+            assertEquals(setOf(movies), settings.loadLibraries())
+        }
+
+    @Test
+    fun theSelectionIsDroppedWhenAnotherServerIsSaved() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(https), setOf(movies))
+            assertTrue(settings.save(ServerRecord(ServerAddress(Scheme.Https, "other.example.test", 443))))
+            assertNull(settings.loadLibraries())
+        }
+
+    @Test
+    fun aFailedSelectionWriteKeepsTheOldSelection() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(https), setOf(movies))
+            settings.failSave = true
+            assertFalse(settings.saveLibraries(setOf(shows)))
+            assertEquals(setOf(movies), settings.loadLibraries())
         }
 }

@@ -5,6 +5,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
 
 /**
@@ -12,8 +13,8 @@ import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
  * client holds exactly the pin of the record that is **stored**, read back inside one lock, so two operations racing
  * can't leave the client trusting what the disk no longer says. A clear withdraws trust from the client first, whether
  * or not the write reaches disk: trust is withdrawn before it is forgotten. A [load] applies the stored pin, so a
- * caller that reads the settings before it connects has the pin in force by then. (Nothing in main code reads the
- * settings yet: launch routing, task 4.0, will.)
+ * caller that reads the settings before it connects has the pin in force by then: launch routing reads them first
+ * thing. The library selection passes straight through, under the same lock; it has no bearing on trust.
  */
 internal class PinSyncingServerSettings(
     private val stored: ServerSettings,
@@ -36,6 +37,10 @@ internal class PinSyncingServerSettings(
             clients.setPins(emptyMap())
             stored.clearPin()
         }
+
+    override suspend fun loadLibraries(): Set<ItemId>? = lock.withLock { stored.loadLibraries() }
+
+    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean = lock.withLock { stored.saveLibraries(ids) }
 
     private fun apply(record: ServerRecord?) {
         val pin = record?.pin
