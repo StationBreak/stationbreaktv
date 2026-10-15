@@ -619,6 +619,42 @@ class ServerViewModelTest {
         return ServerViewModel(server, handOff, signedIn, slow, CertificateTrust(server, slow, sessions), sessions)
     }
 
+    /** Refuses the first [failures] clears, as a write that fails. */
+    private class FailingClear(
+        private val inner: InMemoryServerSettings,
+        private var failures: Int,
+    ) : ServerSettings by inner {
+        var calls = 0
+
+        override suspend fun clearPin(): Boolean {
+            calls++
+            if (failures > 0) {
+                failures--
+                return false
+            }
+            return inner.clearPin()
+        }
+    }
+
+    @Test
+    fun aFailedClearKeepsTheFlagUpSoTheNextKeystrokeClearsAgain() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val failing = FailingClear(settings, failures = 1)
+        val trust = CertificateTrust(server, failing, sessions)
+        val vm = ServerViewModel(server, handOff, signedIn, failing, trust, sessions)
+
+        vm.onInputChange("a")
+        assertEquals(1, failing.calls)
+        assertEquals(spki, settings.current?.pin)
+
+        vm.onInputChange("ab")
+        assertEquals(2, failing.calls)
+        assertEquals(null, settings.current?.pin)
+
+        vm.onInputChange("abc")
+        assertEquals("cleared, so no further clear", 2, failing.calls)
+    }
+
     @Test
     fun aPinClearStartedByTheViewModelFinishesEvenIfTheViewModelIsCleared() {
         runBlocking { settings.save(ServerRecord(nas, spki)) }

@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.server
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -134,6 +135,10 @@ internal class ServerViewModel
         // a pin that is already gone. True at the start (a stored one is unknown) and from the moment a trust is begun.
         private var pinMayExist = true
 
+        // Counts the clears and trusts started. Only the latest clear may write the flag: an older one that finishes
+        // late would otherwise mark a pin gone that a newer trust has since stored.
+        private var clearGeneration = 0
+
         fun onInputChange(text: String) {
             edited = true
             val running = testJob
@@ -151,13 +156,14 @@ internal class ServerViewModel
                 return
             }
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
+            val generation = ++clearGeneration
             testJob =
                 viewModelScope.launch {
                     // A new Test starts without a pin: the certificate is asked about again, never assumed.
                     pendingClear?.join()
                     // A pin that is still on disk would come back at the next load: stop rather than connect.
                     val cleared = settings.clearPin()
-                    if (cleared) pinMayExist = false
+                    if (cleared && generation == clearGeneration) pinMayExist = false
                     finish(if (cleared) phaseFor(typed, mediaServer.discover(typed)) else pinNotCleared())
                 }
         }
@@ -199,6 +205,7 @@ internal class ServerViewModel
             val asked = mutableState.value.phase as? ServerPhase.TrustRequired ?: return
             mutableState.update { it.copy(phase = ServerPhase.Testing) }
             pinMayExist = true
+            clearGeneration++
             testJob =
                 viewModelScope.launch {
                     finish(phaseFor(asked.input, certificateTrust.confirm(asked.input, asked.prompt)))
@@ -216,11 +223,13 @@ internal class ServerViewModel
         }
 
         private fun clearPin(after: Job?) {
+            val generation = ++clearGeneration
+            // Undispatched, so the body starts at once and runs to its end even if the scope is cancelled first.
             pendingClear =
-                viewModelScope.launch {
+                viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
                     withContext(NonCancellable) {
                         after?.join()
-                        if (settings.clearPin()) pinMayExist = false
+                        if (settings.clearPin() && generation == clearGeneration) pinMayExist = false
                     }
                 }
         }
@@ -247,7 +256,7 @@ internal class ServerViewModel
             handOff.put(server)
             // Started before this screen can leave, so it is first in the settings' queue, ahead of anything sign-in or
             // the library picker writes; it runs to its end even if this view model is cleared at once.
-            viewModelScope.launch {
+            viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
                 withContext(NonCancellable) {
                     val address = server.server.address
                     val old = settings.load()?.address
