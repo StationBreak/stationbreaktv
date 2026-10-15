@@ -45,7 +45,7 @@ private val TitleSize = 36.sp
 private val FingerprintSize = 28.sp
 private val ContentWidth = 760.dp
 private const val OVERSCAN = 0.05f
-private const val TOP_OFFSET = 0.08f
+private const val TOP_OFFSET = 0.04f
 
 /**
  * The trust screen (spec 05, Unit 3, Angua (Security)): the warning first, then the fingerprint, then the buttons.
