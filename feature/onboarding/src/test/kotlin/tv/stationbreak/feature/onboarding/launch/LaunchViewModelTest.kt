@@ -402,7 +402,7 @@ private class ThrowingTrust(
     override suspend fun trust(
         input: String,
         pin: SpkiPin,
-    ): ServerResult<ResolvedServer> = throw IllegalStateException("boom")
+    ): ServerResult<ResolvedServer> = error("boom")
 }
 
 /** A server whose `trust` waits for [gate] and ignores cancellation, to clear the view model in the middle of it. */
