@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 private const val MIN_PORT = 1
 private const val MAX_PORT = 65_535
 
-private fun isForbidden(char: Char): Boolean = char.isISOControl() || char == '='
+private fun isForbidden(char: Char): Boolean = char.isISOControl()
 
 /**
  * One canonical, validated media server address. It is a plain value: equality compares every part, which is what
@@ -16,7 +16,7 @@ private fun isForbidden(char: Char): Boolean = char.isISOControl() || char == '=
  * the dot is what makes it an absolute name such as `ai.`). [port] is always explicit (the scheme's default when the
  * user typed none). [subpath] is empty or starts with `/` and has no trailing `/`. [viaFallback] is true when the
  * `http` scheme was chosen by falling back after `https` failed, not typed.
- * Neither [host] nor [subpath] holds a control character or `=`.
+ * Neither [host] nor [subpath] holds a control character, and [host] no `=`.
  * The adapter builds these (`AddressParser`), but an address restored from storage or built by a fake is held to the
  * same rules: [HostClassifier] must not call the host invalid, so no ambiguous numeric spelling reaches a request.
  *
@@ -34,9 +34,11 @@ data class ServerAddress(
         require(host.isNotEmpty() && host == host.lowercase()) { "An address needs a lower-case host" }
         require(HostClassifier.classify(host) != HostClass.Invalid) { "Not a usable host" }
         require(port in MIN_PORT..MAX_PORT) { "Port out of range" }
-        // The record is stored as `key=value` lines: a newline or '=' in a part could forge another line (defence in
-        // depth; a real URL's host and encoded path hold neither).
+        // The record is stored as `key=value` lines: a line break in a part could forge another line (defence in depth;
+        // a real URL's host and encoded path hold none). '=' is fine in a value, which is split on its first '=', and
+        // OkHttp leaves it unencoded in a path.
         require(host.none(::isForbidden)) { "Not a usable host" }
+        require('=' !in host) { "Not a usable host" }
         require(subpath.none(::isForbidden)) { "Malformed subpath" }
         require(subpath.isEmpty() || (subpath.startsWith("/") && !subpath.endsWith("/"))) { "Malformed subpath" }
     }

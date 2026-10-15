@@ -25,11 +25,11 @@ internal object ServerRecordCodec {
     private const val VERSION = "1"
 
     /**
-     * [value] if it can sit in a `key=value` line without forging another: no line break and no `=`. Defence in depth,
-     * since the address and the item IDs refuse these already.
+     * [value] if it can sit in a `key=value` line without forging another: no line break. Defence in depth, since the
+     * address and the item IDs refuse these already. An `=` in a value is harmless: a line is split on its first one.
      */
     fun checked(value: String): String {
-        require(value.none { it == '\n' || it == '\r' || it == '=' }) { "Not storable" }
+        require(value.none { it == '\n' || it == '\r' }) { "Not storable" }
         return value
     }
 
