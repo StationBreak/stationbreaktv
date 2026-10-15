@@ -302,27 +302,49 @@ class ServerScreenTest {
     private fun untrusted(certificate: CertificateEvidence = selfSigned) =
         ServerResult.Failure(MediaServerError.TlsUntrusted(certificate = certificate))
 
+    /** The trust screen is a window of its own and a cold emulator is slow to focus it: wait before each key. */
+    private fun awaitFocused(tag: String) {
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+    }
+
     @Test
     fun aSelfSignedCertificateOpensTheTrustScreenWithDontTrustFocused() {
         server.fake.discoverResult = untrusted()
         launch()
         typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
         compose.onNodeWithTag(TrustTags.SCREEN).assertExists()
-        compose.onNodeWithTag(TrustTags.DONT_TRUST).assertIsFocused()
+        compose.onNodeWithTag(TrustTags.SERVER_ADDRESS).assert(hasText("Server: jellyfin.example.test"))
         assertTrue(server.fake.trustCalls.isEmpty())
     }
 
     @Test
-    fun dontTrustGoesBackToTheServerScreenWithTheAddressKeptAndTestFocused() {
+    fun dontTrustShowsTheNotConnectedNoticeWithTheAddressKeptAndTestFocused() {
         server.fake.discoverResult = untrusted()
         launch()
         typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitFocused(ServerTags.TEST)
         compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
-        compose.onNodeWithTag(ServerTags.TEST).assertIsFocused()
+        compose.onNodeWithTag(ServerTags.NOT_TRUSTED).assertExists()
+        compose.onNodeWithText("Not connected. You didn’t trust this server’s certificate.").assertExists()
         assertEquals("jellyfin.example.test", viewModel.state.value.input)
-        assertEquals(ServerPhase.Idle, viewModel.state.value.phase)
+        assertEquals(ServerPhase.NotTrusted, viewModel.state.value.phase)
         assertTrue(server.fake.trustCalls.isEmpty())
+    }
+
+    @Test
+    fun theNotConnectedNoticeIsGoneAfterTheNextEditOrTest() {
+        server.fake.discoverResult = untrusted()
+        launch()
+        typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
+        press(KeyEvent.KEYCODE_BACK)
+        awaitFocused(ServerTags.TEST)
+        compose.onNodeWithTag(ServerTags.NOT_TRUSTED).assertExists()
+        compose.runOnIdle { viewModel.onInputChange("jellyfin.example.test:8921") }
+        compose.onNodeWithTag(ServerTags.NOT_TRUSTED).assertDoesNotExist()
     }
 
     @Test
@@ -330,9 +352,11 @@ class ServerScreenTest {
         server.fake.discoverResult = untrusted()
         launch()
         typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
         press(KeyEvent.KEYCODE_BACK)
+        awaitFocused(ServerTags.TEST)
         compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
-        assertEquals(ServerPhase.Idle, viewModel.state.value.phase)
+        assertEquals(ServerPhase.NotTrusted, viewModel.state.value.phase)
         assertTrue(server.fake.trustCalls.isEmpty())
     }
 
@@ -342,11 +366,12 @@ class ServerScreenTest {
         server.fake.trustResult = found()
         launch()
         typeAndTest()
+        awaitFocused(TrustTags.DONT_TRUST)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        compose.onNodeWithTag(TrustTags.TRUST).assertIsFocused()
+        awaitFocused(TrustTags.TRUST)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitFocused(ServerTags.CONTINUE)
         assertEquals(listOf("jellyfin.example.test" to spki), server.fake.trustCalls)
-        compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
         compose.onNodeWithTag(TrustTags.SCREEN).assertDoesNotExist()
     }
 
@@ -380,5 +405,9 @@ class ServerScreenTest {
             Thread.sleep(50)
         }
         assertEquals(Lifecycle.State.DESTROYED, scenario.state)
+    }
+
+    private companion object {
+        const val FOCUS_TIMEOUT_MS = 10_000L
     }
 }

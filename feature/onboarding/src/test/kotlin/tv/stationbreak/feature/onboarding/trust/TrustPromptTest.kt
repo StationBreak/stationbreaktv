@@ -76,11 +76,11 @@ class TrustPromptTest {
     }
 
     @Test
-    fun theFingerprintIsShownInFourLinesOfFourGroups() {
+    fun theFingerprintIsShownInTwoLinesOfEightGroups() {
         val lines = Fingerprint.lines(pin)
-        assertEquals(4, lines.size)
-        assertEquals("0001 0203 0405 0607", lines[0])
-        assertEquals("1819 1A1B 1C1D 1E1F", lines[3])
+        assertEquals(2, lines.size)
+        assertEquals("0001 0203 0405 0607 0809 0A0B 0C0D 0E0F", lines[0])
+        assertEquals("1011 1213 1415 1617 1819 1A1B 1C1D 1E1F", lines[1])
         assertEquals(Fingerprint.text(pin), lines.joinToString(" "))
     }
 

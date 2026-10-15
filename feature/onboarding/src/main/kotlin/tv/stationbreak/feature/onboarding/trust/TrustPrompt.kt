@@ -39,12 +39,12 @@ internal fun MediaServerError.toTrustPrompt(): TrustPrompt? {
 /** The SPKI SHA-256 as the screen writes it: upper-case hex in groups of four (decision 4). */
 internal object Fingerprint {
     private const val GROUP_SIZE = 4
-    private const val GROUPS_PER_LINE = 4
+    private const val GROUPS_PER_LINE = 8
 
     fun groups(pin: SpkiPin): List<String> = pin.hex.chunked(GROUP_SIZE)
 
     fun text(pin: SpkiPin): String = groups(pin).joinToString(" ")
 
-    /** The same groups in lines of four, for a screen that reads at ten feet. */
+    /** The same groups in lines of eight, for a screen that reads at ten feet. */
     fun lines(pin: SpkiPin): List<String> = groups(pin).chunked(GROUPS_PER_LINE).map { it.joinToString(" ") }
 }

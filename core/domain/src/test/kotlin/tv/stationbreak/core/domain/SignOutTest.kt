@@ -13,6 +13,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +28,21 @@ class SignOutTest {
     private val address = ServerAddress(Scheme.Https, "jellyfin.example", 443)
     private val session =
         Session(UserId("u"), AccessToken("fake-token"), info, address, null, false)
+
+    @Test
+    fun signingOutLeavesTheServerSettingsAndItsPinAlone() =
+        runBlocking {
+            val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 4 })
+            val settings = InMemoryServerSettings(ServerRecord(address, pin))
+            repository.save(session)
+
+            repository.signOut(session)
+
+            // The address is kept, so its pin is: signing out is about the account, not the certificate.
+            assertEquals(ServerRecord(address, pin), settings.current)
+            assertEquals(0, settings.clearPinCalls)
+            assertTrue(settings.saved.isEmpty())
+        }
 
     @Test
     fun aCancelledCallerStillClearsAndStillFinishesTheRevoke() =
