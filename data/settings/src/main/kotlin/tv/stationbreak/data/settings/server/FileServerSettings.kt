@@ -33,8 +33,22 @@ class FileServerSettings internal constructor(
 
     override suspend fun clearPin(): Boolean =
         locked {
-            val held = read()
-            if (held?.pin == null) true else write(held.copy(pin = null))
+            val text =
+                try {
+                    file.read()
+                } catch (_: IOException) {
+                    return@locked false
+                }
+            // No record: nothing to clear. A record that can't be read may still hold a pin and can't be rewritten
+            // without it, so that is a failure, not a success.
+            if (text == null) true else clearIn(ServerRecordCodec.decode(text))
+        }
+
+    private fun clearIn(record: ServerRecord?): Boolean =
+        when {
+            record == null -> false
+            record.pin == null -> true
+            else -> write(record.copy(pin = null))
         }
 
     // A constant: nothing about the contents may reach a log through this.

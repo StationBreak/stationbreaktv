@@ -229,6 +229,30 @@ class TrustFlowTest {
     }
 
     @Test
+    fun aRejectedConfirmationRestoresThePinThatWasThereNotNone() {
+        val cert = selfSignedFor(NAS)
+        val server = TlsJellyfin(cert).closing()
+        val clients = pinnedClients()
+        val adapter = adapterOn(clients)
+        val good = CertificateFacts.spki(cert.certificate)
+        clients.pin(server.address(), good)
+
+        val result = blocking { adapter.trust("$NAS:${server.port}", SpkiPin(ByteArray(SpkiPin.SIZE) { 0x42 })) }
+
+        assertIs<MediaServerError.TlsCertificateChanged>(result.errorOrNull())
+        assertEquals(good, clients.pinFor(server.address()))
+        assertNotNull(blocking { adapter.connect(server.address()) }.getOrNull())
+    }
+
+    @Test
+    fun aRejectedConfirmationWithNoEarlierPinLeavesNone() {
+        val server = TlsJellyfin(selfSignedFor(NAS)).closing()
+        val clients = pinnedClients()
+        blocking { adapterOn(clients).trust("$NAS:${server.port}", SpkiPin(ByteArray(SpkiPin.SIZE))) }
+        assertEquals(null, clients.pinFor(server.address()))
+    }
+
+    @Test
     fun theCredentialedClientSharesThePinnedTrustAndFollowsEveryPinChange() {
         val cert = selfSignedFor(NAS)
         val server = TlsJellyfin(cert).closing()

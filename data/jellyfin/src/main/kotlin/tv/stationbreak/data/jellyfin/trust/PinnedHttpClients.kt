@@ -20,6 +20,9 @@ interface PinRegistry {
     /** Removes the pin for [address], in a new client. A no-op when there is none. */
     fun unpin(address: ServerAddress)
 
+    /** The pin in force for exactly [address], or null (always for `http`). */
+    fun pinFor(address: ServerAddress): SpkiPin?
+
     companion object {
         /** A registry that holds nothing: for an adapter on a client that does no pinning. */
         val NONE: PinRegistry =
@@ -30,6 +33,8 @@ interface PinRegistry {
                 ) = Unit
 
                 override fun unpin(address: ServerAddress) = Unit
+
+                override fun pinFor(address: ServerAddress): SpkiPin? = null
             }
     }
 }
@@ -72,6 +77,8 @@ class PinnedHttpClients(
         val key = PinKey.of(address) ?: return
         replace(built.pins - key)
     }
+
+    override fun pinFor(address: ServerAddress): SpkiPin? = PinKey.of(address)?.let { built.pins[it] }
 
     /** Makes [pins] exactly the pins in force: a stored record applied at launch, or a cleared one. */
     @Synchronized

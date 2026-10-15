@@ -114,6 +114,7 @@ class JellyfinMediaServer internal constructor(
     ): ServerResult<ResolvedServer> {
         // A pin is never made over cleartext, and nothing is probed for an address that can't hold one.
         if (address.scheme != Scheme.Https) return ServerResult.Failure(MediaServerError.InvalidAddress())
+        val previous = pins.pinFor(address)
         pins.pin(address, pin)
         var kept = false
         try {
@@ -121,8 +122,9 @@ class JellyfinMediaServer internal constructor(
             kept = result is ServerResult.Success
             return result
         } finally {
-            // A failure, a different certificate than the one confirmed, or a cancelled caller all take the pin back.
-            if (!kept) pins.unpin(address)
+            // A failure, a different certificate than the one confirmed, or a cancelled caller all put things back as
+            // they were: the pin that was in force for this place, or none.
+            if (!kept) previous?.let { pins.pin(address, it) } ?: pins.unpin(address)
         }
     }
 

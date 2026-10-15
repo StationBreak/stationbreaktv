@@ -20,9 +20,13 @@ class FileServerSettingsTest {
     private class MemoryFile : RecordFile {
         var text: String? = null
         var failWrites = false
+        var failReads = false
         var writes = 0
 
-        override fun read(): String? = text
+        override fun read(): String? {
+            if (failReads) throw IOException("unreadable")
+            return text
+        }
 
         override fun write(text: String) {
             if (failWrites) throw IOException("disk full")
@@ -92,6 +96,16 @@ class FileServerSettingsTest {
             assertNull(settings.load())
             assertTrue(settings.save(ServerRecord(address)))
             assertEquals(ServerRecord(address), settings.load())
+        }
+
+    @Test
+    fun clearingWhenTheFileCannotBeReadOrParsedReportsFalseNotSuccess() =
+        runBlocking {
+            file.text = "version=1\nscheme=https\nho"
+            assertFalse(settings.clearPin())
+            file.text = null
+            file.failReads = true
+            assertFalse(settings.clearPin())
         }
 
     @Test
