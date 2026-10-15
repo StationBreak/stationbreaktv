@@ -80,6 +80,9 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    // The pinned-trust tests (spec 05, Unit 3) run local TLS servers with generated test certificates on the emulator.
+    androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.okhttp.tls)
 
     // The pin-sync tests (spec 05, Unit 3) use the in-memory settings fake and the pinned client's JVM seams.
     testImplementation(testFixtures(project(":core:domain")))

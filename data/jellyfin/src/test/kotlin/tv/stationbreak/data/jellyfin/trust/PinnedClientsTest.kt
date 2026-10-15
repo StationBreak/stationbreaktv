@@ -94,15 +94,16 @@ class PinnedClientsTest {
     @Test
     fun aRotatedCertificateOnTheSamePortIsACertificateChange() {
         val first = selfSignedFor(NAS)
-        val server = TlsJellyfin(first)
+        val server = serving(first)
         val port = server.port
         val clients = pinnedClients()
         clients.pin(server.address(), CertificateFacts.spki(first.certificate))
         assertEquals(200, get(clients.current(), NAS, port))
-        server.close()
 
+        // The server restarts with a new certificate: its old connections are gone.
         val second = selfSignedFor(NAS)
-        TlsJellyfin(second, port).closing()
+        server.rotateTo(second)
+        clients.current().connectionPool.evictAll()
         val rejected = assertNotNull(rejection(failureOf { get(clients.current(), NAS, port) }))
         assertEquals(Rejection.Changed, rejected.kind)
         assertEquals(CertificateFacts.spki(second.certificate), rejected.evidence.spki)

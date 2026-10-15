@@ -25,8 +25,10 @@ import tv.stationbreak.data.jellyfin.TEST_DEVICE_ID
 import tv.stationbreak.data.jellyfin.TEST_IDENTITY
 import tv.stationbreak.data.jellyfin.loopbackDns
 import java.net.InetAddress
+import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLSocketFactory
 import kotlin.time.Duration.Companion.seconds
 
 internal const val NAS = "nas.test"
@@ -45,25 +47,66 @@ internal fun selfSignedFor(
         .validityInterval(notBefore, notAfter)
         .build()
 
-/** A TLS Jellyfin on the loopback presenting [cert], that records its requests and can redirect them. */
+/** Hands each new TLS handshake to whichever certificate is current, so a server can rotate without rebinding. */
+internal class RotatingSocketFactory(
+    @Volatile var current: SSLSocketFactory,
+) : SSLSocketFactory() {
+    override fun getDefaultCipherSuites(): Array<String> = current.defaultCipherSuites
+
+    override fun getSupportedCipherSuites(): Array<String> = current.supportedCipherSuites
+
+    override fun createSocket(
+        socket: Socket,
+        host: String?,
+        port: Int,
+        autoClose: Boolean,
+    ): Socket = current.createSocket(socket, host, port, autoClose)
+
+    override fun createSocket(
+        host: String?,
+        port: Int,
+    ): Socket = current.createSocket(host, port)
+
+    override fun createSocket(
+        host: String?,
+        port: Int,
+        localHost: InetAddress?,
+        localPort: Int,
+    ): Socket = current.createSocket(host, port, localHost, localPort)
+
+    override fun createSocket(
+        host: InetAddress?,
+        port: Int,
+    ): Socket = current.createSocket(host, port)
+
+    override fun createSocket(
+        address: InetAddress?,
+        port: Int,
+        localAddress: InetAddress?,
+        localPort: Int,
+    ): Socket = current.createSocket(address, port, localAddress, localPort)
+}
+
+private fun socketFactoryFor(cert: HeldCertificate): SSLSocketFactory =
+    HandshakeCertificates
+        .Builder()
+        .heldCertificate(cert)
+        .build()
+        .sslSocketFactory()
+
+/** A TLS Jellyfin on the loopback presenting a certificate, that records its requests and can redirect them. */
 internal class TlsJellyfin(
     cert: HeldCertificate,
-    port: Int = 0,
 ) : AutoCloseable {
     private val server = MockWebServer()
+    private val factory = RotatingSocketFactory(socketFactoryFor(cert))
     val requests = CopyOnWriteArrayList<RecordedRequest>()
 
     @Volatile
     var redirectTo: String? = null
 
     init {
-        server.useHttps(
-            HandshakeCertificates
-                .Builder()
-                .heldCertificate(cert)
-                .build()
-                .sslSocketFactory(),
-        )
+        server.useHttps(factory)
         server.dispatcher =
             object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
@@ -84,31 +127,17 @@ internal class TlsJellyfin(
                     }
                 }
             }
-        start(port)
-    }
-
-    // A rotation test re-binds the port a closed server just freed, which can take a moment.
-    private fun start(port: Int) {
-        var attempts = 0
-        while (true) {
-            try {
-                server.start(InetAddress.getByName(LOOPBACK), port)
-                return
-            } catch (error: java.net.BindException) {
-                if (port == 0 || ++attempts > REBIND_ATTEMPTS) throw error
-                Thread.sleep(REBIND_PAUSE_MS)
-            }
-        }
-    }
-
-    private companion object {
-        const val REBIND_ATTEMPTS = 50
-        const val REBIND_PAUSE_MS = 100L
+        server.start(InetAddress.getByName(LOOPBACK), 0)
     }
 
     val port: Int get() = server.port
 
     fun address(host: String = NAS) = ServerAddress(Scheme.Https, host, port)
+
+    /** From the next handshake on, the server presents [cert]. Connections already open keep what they negotiated. */
+    fun rotateTo(cert: HeldCertificate) {
+        factory.current = socketFactoryFor(cert)
+    }
 
     override fun close() = server.close()
 }

@@ -3,16 +3,20 @@ package tv.stationbreak.app
 
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import tv.stationbreak.app.net.PinSyncingServerSettings
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.data.jellyfin.BaseHttpClient
+import tv.stationbreak.data.jellyfin.HttpClientSource
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
+import tv.stationbreak.data.jellyfin.trust.PinRegistry
+import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
 import javax.inject.Inject
 import kotlin.time.Clock
 
@@ -29,7 +33,13 @@ class MediaServerInjectionTest {
     @Inject lateinit var mediaServer: MediaServer
 
     @Inject @BaseHttpClient
-    lateinit var baseClient: OkHttpClient
+    lateinit var baseClient: HttpClientSource
+
+    @Inject lateinit var pinRegistry: PinRegistry
+
+    @Inject lateinit var serverSettings: ServerSettings
+
+    @Inject lateinit var pinnedClients: PinnedHttpClients
 
     @Inject lateinit var clock: Clock
 
@@ -42,9 +52,16 @@ class MediaServerInjectionTest {
     }
 
     @Test
-    fun theBaseClientHasSystemTrustAndNoInterceptorsOfItsOwn() {
-        assertNotNull(baseClient.sslSocketFactory)
-        assertEquals(emptyList<Any>(), baseClient.interceptors)
+    fun theBaseClientIsThePinnedClientWithNoInterceptorsOfItsOwn() {
+        assertTrue(baseClient === pinnedClients)
+        assertNotNull(baseClient.current().sslSocketFactory)
+        assertEquals(emptyList<Any>(), baseClient.current().interceptors)
+    }
+
+    @Test
+    fun thePinRegistryAndTheStoredPinAreTheSameClient() {
+        assertTrue(pinRegistry === pinnedClients)
+        assertTrue("ServerSettings is $serverSettings", serverSettings is PinSyncingServerSettings)
     }
 
     @Test

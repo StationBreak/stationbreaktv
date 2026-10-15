@@ -113,16 +113,17 @@ class TrustFlowTest {
     @Test
     fun aCertificateThatRotatesAfterBeingPinnedIsReportedAsChanged() {
         val first = selfSignedFor(NAS)
-        val server = TlsJellyfin(first)
+        val server = TlsJellyfin(first).closing()
         val port = server.port
         val clients = pinnedClients()
         val adapter = adapterOn(clients)
         val spki = evidence(blocking { adapter.discover("$NAS:$port") }).spki
         assertNotNull(blocking { adapter.trust("$NAS:$port", spki) }.getOrNull())
-        server.close()
 
+        // The server restarts with a new certificate: its old connections are gone.
         val second = selfSignedFor(NAS)
-        TlsJellyfin(second, port).closing()
+        server.rotateTo(second)
+        clients.current().connectionPool.evictAll()
         val result = blocking { adapter.connect(ServerAddress(Scheme.Https, NAS, port)) }
 
         assertIs<MediaServerError.TlsCertificateChanged>(result.errorOrNull())
@@ -132,14 +133,15 @@ class TrustFlowTest {
     @Test
     fun confirmingTheNewCertificateAfterAChangeReplacesThePin() {
         val first = selfSignedFor(NAS)
-        val server = TlsJellyfin(first)
+        val server = TlsJellyfin(first).closing()
         val port = server.port
-        val adapter = adapterOn(pinnedClients())
+        val clients = pinnedClients()
+        val adapter = adapterOn(clients)
         val spki = evidence(blocking { adapter.discover("$NAS:$port") }).spki
         assertNotNull(blocking { adapter.trust("$NAS:$port", spki) }.getOrNull())
-        server.close()
         val second = selfSignedFor(NAS)
-        TlsJellyfin(second, port).closing()
+        server.rotateTo(second)
+        clients.current().connectionPool.evictAll()
         val changed = evidence(blocking { adapter.connect(ServerAddress(Scheme.Https, NAS, port)) })
 
         assertNotNull(blocking { adapter.trust("$NAS:$port", changed.spki) }.getOrNull())
