@@ -117,4 +117,31 @@ class ServerSettingsTest {
             assertFalse(settings.saveLibraries(setOf(shows)))
             assertEquals(setOf(movies), settings.loadLibraries())
         }
+
+    @Test
+    fun clearingTheSelectionKeepsTheRecordAndItsPin() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(https, pin), setOf(movies))
+
+            assertTrue(settings.clearLibraries())
+
+            assertNull(settings.loadLibraries())
+            assertEquals(ServerRecord(https, pin), settings.load())
+        }
+
+    @Test
+    fun clearingWithNoSelectionOrNoRecordIsAnAnswerOfYes() =
+        runBlocking {
+            assertTrue(InMemoryServerSettings().clearLibraries())
+            assertTrue(InMemoryServerSettings(ServerRecord(https)).clearLibraries())
+        }
+
+    @Test
+    fun aFailedClearKeepsTheSelection() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(https), setOf(movies))
+            settings.failSave = true
+            assertFalse(settings.clearLibraries())
+            assertEquals(setOf(movies), settings.loadLibraries())
+        }
 }

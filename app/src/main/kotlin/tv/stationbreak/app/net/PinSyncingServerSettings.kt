@@ -42,6 +42,8 @@ internal class PinSyncingServerSettings(
 
     override suspend fun saveLibraries(ids: Set<ItemId>): Boolean = lock.withLock { stored.saveLibraries(ids) }
 
+    override suspend fun clearLibraries(): Boolean = lock.withLock { stored.clearLibraries() }
+
     private fun apply(record: ServerRecord?) {
         val pin = record?.pin
         clients.setPins(if (record != null && pin != null) mapOf(record.address to pin) else emptyMap())

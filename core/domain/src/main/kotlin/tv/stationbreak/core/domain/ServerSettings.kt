@@ -50,4 +50,10 @@ interface ServerSettings {
      * never empty), or when the write failed.
      */
     suspend fun saveLibraries(ids: Set<ItemId>): Boolean
+
+    /**
+     * Drops the library selection and keeps the record and its pin, in one atomic write. True when it was dropped or
+     * there was nothing to drop. A new sign-in or a switch of user starts the choice again (S0.5.4).
+     */
+    suspend fun clearLibraries(): Boolean
 }

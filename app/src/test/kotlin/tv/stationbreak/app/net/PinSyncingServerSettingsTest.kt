@@ -158,4 +158,17 @@ class PinSyncingServerSettingsTest {
             assertEquals(setOf(ItemId("movies")), stored.currentLibraries)
             assertSame(built, clients.current())
         }
+
+    @Test
+    fun clearingTheSelectionPassesThroughAndLeavesTheClientAlone() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            settings.saveLibraries(setOf(ItemId("movies")))
+            val built = clients.current()
+
+            assertTrue(settings.clearLibraries())
+
+            assertNull(stored.currentLibraries)
+            assertSame(built, clients.current())
+        }
 }

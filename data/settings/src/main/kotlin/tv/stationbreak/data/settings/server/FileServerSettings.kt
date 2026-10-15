@@ -47,6 +47,26 @@ class FileServerSettings internal constructor(
             if (held == null || ids.isEmpty()) false else write(held.copy(libraries = ids))
         }
 
+    override suspend fun clearLibraries(): Boolean =
+        locked {
+            val text =
+                try {
+                    file.read()
+                } catch (_: IOException) {
+                    return@locked false
+                }
+            // No file: nothing to clear. A file that can't be read may still hold a selection and can't be rewritten
+            // without the record, so that is a failure, not a success.
+            if (text == null) true else dropSelection(ServerRecordCodec.decodeStored(text))
+        }
+
+    private fun dropSelection(held: StoredSettings?): Boolean =
+        when {
+            held == null -> false
+            held.libraries == null -> true
+            else -> write(held.copy(libraries = null))
+        }
+
     override suspend fun clearPin(): Boolean =
         locked {
             val text =

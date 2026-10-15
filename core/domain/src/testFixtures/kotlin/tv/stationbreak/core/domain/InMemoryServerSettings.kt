@@ -57,6 +57,13 @@ class InMemoryServerSettings(
 
     override suspend fun loadLibraries(): Set<ItemId>? = libraries
 
+    override suspend fun clearLibraries(): Boolean {
+        if (libraries == null) return true
+        if (failSave) return false
+        libraries = null
+        return true
+    }
+
     override suspend fun saveLibraries(ids: Set<ItemId>): Boolean {
         if (failSave || record == null || ids.isEmpty()) return false
         libraries = ids

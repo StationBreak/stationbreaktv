@@ -182,4 +182,38 @@ class FileServerSettingsTest {
     fun theStoreShowsNothingInToString() {
         assertEquals("FileServerSettings", settings.toString())
     }
+
+    @Test
+    fun clearingTheSelectionIsOneWriteThatKeepsTheRecordAndPin() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            settings.saveLibraries(setOf(movies))
+            val before = file.writes
+
+            assertTrue(settings.clearLibraries())
+
+            assertEquals(before + 1, file.writes)
+            assertNull(settings.loadLibraries())
+            assertEquals(ServerRecord(address, pin), settings.load())
+        }
+
+    @Test
+    fun clearingWithNothingToClearWritesNothing() =
+        runBlocking {
+            assertTrue(settings.clearLibraries())
+            settings.save(ServerRecord(address))
+            val before = file.writes
+            assertTrue(settings.clearLibraries())
+            assertEquals(before, file.writes)
+        }
+
+    @Test
+    fun aFailedClearReportsFalseAndKeepsTheSelection() =
+        runBlocking {
+            settings.save(ServerRecord(address))
+            settings.saveLibraries(setOf(movies))
+            file.failWrites = true
+            assertFalse(settings.clearLibraries())
+            assertEquals(setOf(movies), settings.loadLibraries())
+        }
 }
