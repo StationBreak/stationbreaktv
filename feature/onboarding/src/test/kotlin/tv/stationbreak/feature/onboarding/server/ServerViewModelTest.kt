@@ -695,6 +695,34 @@ class ServerViewModelTest {
     }
 
     @Test
+    fun typingClearsThePinOnceNotOnEveryKeystroke() {
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val vm = viewModel()
+
+        "nas.example.test:8921".forEachIndexed { i, _ -> vm.onInputChange("nas.example.test:8921".take(i + 1)) }
+
+        assertEquals(ServerRecord(nas, null), settings.current)
+        assertEquals("one clear for the whole edit", 1, settings.clearPinCalls)
+    }
+
+    @Test
+    fun aPinStoredAfterTheLastClearIsClearedByTheNextEdit() {
+        server.fake.discoverResult = fails(MediaServerError.TlsUntrusted(certificate = selfSigned))
+        val vm = viewModel()
+        vm.onInputChange("nas.example.test:8920")
+        vm.onInputChange("nas.example.test:892")
+        vm.test("nas.example.test:8920")
+        vm.onTrustCertificate()
+        runBlocking { settings.save(ServerRecord(nas, spki)) }
+        val before = settings.clearPinCalls
+
+        vm.onInputChange("nas.example.test:8921")
+
+        assertEquals(before + 1, settings.clearPinCalls)
+        assertEquals(ServerRecord(nas, null), settings.current)
+    }
+
+    @Test
     fun editAddressClearsThePin() {
         runBlocking { settings.save(ServerRecord(nas, spki)) }
         val vm = viewModel()
