@@ -290,6 +290,67 @@ class ArchitectureRulesTest {
         assertEquals(emptyList(), rulesBroken(":app", artifact("implementation", "com.squareup.okhttp3:okhttp")))
     }
 
+    // Room and WorkManager belong to data:library (F0.6, T20). core:* stays portable.
+
+    @Test
+    fun coreModuleMayNotDeclareRoom() {
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:domain", artifact("implementation", "androidx.room:room-runtime")),
+        )
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:model", artifact("commonMainImplementation", "androidx.room:room-common")),
+        )
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:engine", artifact("ksp", "androidx.room:room-compiler")),
+        )
+    }
+
+    @Test
+    fun coreModuleMayNotDeclareRoom3() {
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:scheduler", artifact("implementation", "androidx.room3:room3-runtime")),
+        )
+    }
+
+    @Test
+    fun coreModuleMayNotDeclareWorkManager() {
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:domain", artifact("implementation", "androidx.work:work-runtime")),
+        )
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:ui", artifact("implementation", "androidx.work:work-runtime-ktx")),
+        )
+    }
+
+    @Test
+    fun coreModuleTestsMayNotDeclareRoomEither() {
+        assertEquals(
+            listOf(Rule.NO_ROOM_OR_WORK_IN_CORE),
+            rulesBroken(":core:rules", artifact("jvmTestImplementation", "androidx.room:room-testing")),
+        )
+    }
+
+    @Test
+    fun dataLibraryMayDeclareRoomAndWorkManager() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":data:library",
+                artifact("implementation", "androidx.room:room-runtime"),
+                artifact("ksp", "androidx.room:room-compiler"),
+                artifact("implementation", "androidx.work:work-runtime"),
+                project("implementation", ":core:domain"),
+                project("implementation", ":core:model"),
+            ),
+        )
+    }
+
     // The allowlist.
 
     @Test
