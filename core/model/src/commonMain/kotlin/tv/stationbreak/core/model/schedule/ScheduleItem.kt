@@ -35,7 +35,16 @@ data class ScheduleItem(
         require(premiereDate == null || DATE.matches(premiereDate)) { "A premiere date is YYYY-MM-DD" }
         require(seasonNumber == null || seasonNumber >= 0) { "A season number is not negative" }
         require(episodeNumber == null || episodeNumber >= 0) { "An episode number is not negative" }
+        require(kind != ScheduleItemKind.Movie || (seriesId == null && seasonNumber == null && episodeNumber == null)) {
+            "A movie has no series, season or episode number"
+        }
     }
+
+    /**
+     * The group a chronological order keeps together: the series of an episode, or the item's own ID for a movie and
+     * for an episode with no series (a group of one).
+     */
+    val groupId: CanonicalId get() = seriesId ?: id
 
     private companion object {
         val DATE = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")

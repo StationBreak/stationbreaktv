@@ -271,7 +271,8 @@ Items are put in air-date order, and the episodes of a series stay in season and
 1. **Undated flag**: `0` if the item has a date, `1` if not. Undated items come after all dated ones.
 2. **Date**: the item's premiere (air) date, as a calendar date `YYYY-MM-DD` in UTC, compared as text. If an item has no
    premiere date but has a production year, its date is `YYYY-01-01`. If it has neither, it is undated.
-3. **Group ID**: the canonical ID of the series, for an episode. For a movie, its own canonical ID.
+3. **Group ID**: the canonical ID of the series, for an episode. For a movie, its own canonical ID. An episode with no
+   series is a group of one, like a movie.
 4. **Season number**: for an episode. Season `0` (specials) is an ordinary season number: a special sorts by its own date
    like any other episode, and before season 1 when dates are equal. A missing season number sorts after every present
    one. A movie has none.
