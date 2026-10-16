@@ -51,6 +51,7 @@
 
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:ignore="MissingClass"
             tools:node="remove" />
     </application>
 
