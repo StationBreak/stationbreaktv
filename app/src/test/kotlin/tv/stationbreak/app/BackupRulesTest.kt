@@ -186,7 +186,7 @@ class BackupRulesTest {
         }
     }
 
-    // The merged manifest's allowlist (Angua L1, PR #250): every permission and every component another app could reach.
+    // The merged manifest's allowlist (Angua L1, PR #250): every permission and component another app could reach.
     // A new dependency that adds one fails here, so it is read and either removed or added to these lists on purpose.
 
     private fun nameOf(element: Element) = element.getAttributeNS(androidNamespace, "name")
