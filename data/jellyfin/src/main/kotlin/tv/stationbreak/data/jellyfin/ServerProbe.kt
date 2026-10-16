@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import okhttp3.Authenticator
 import okhttp3.Call
 import okhttp3.Callback
@@ -44,12 +47,14 @@ internal class ServerProbe(
     source: HttpClientSource,
     private val timeouts: ProbeTimeouts = ProbeTimeouts(),
     private val testInterceptors: List<Interceptor> = emptyList(),
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     constructor(
         baseClient: OkHttpClient,
         timeouts: ProbeTimeouts = ProbeTimeouts(),
         testInterceptors: List<Interceptor> = emptyList(),
-    ) : this(HttpClientSource { baseClient }, timeouts, testInterceptors)
+        io: CoroutineDispatcher = Dispatchers.IO,
+    ) : this(HttpClientSource { baseClient }, timeouts, testInterceptors, io)
 
     // Only the base client's trust configuration is inherited. Its interceptors, cookie jar and authenticators could
     // add a credential to a request that must carry none (Angua (Security) R9), so they are dropped. `testInterceptors`
@@ -134,11 +139,15 @@ internal class ServerProbe(
                 .get()
                 .build()
         return try {
-            derived
-                .get()
-                .newCall(request)
-                .await()
-                .use(::read)
+            // Main-safe: `await` resumes on the caller's dispatcher and the body is read from the socket after that, so
+            // the call and the read both run on `io` (a body that follows its headers was read on Main).
+            withContext(io) {
+                derived
+                    .get()
+                    .newCall(request)
+                    .await()
+                    .use(::read)
+            }
         } catch (error: IOException) {
             Answer.Failed(ErrorMapper.map(error, secure = address.scheme == Scheme.Https))
         }
