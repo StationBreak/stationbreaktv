@@ -197,7 +197,7 @@ CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/de
 - `splitmix64`, `fnv1a64`, `CanonicalId` and `Seed` live in **`core:model`**, because `core:scheduler` may not depend on
   `core:rules`. `core:rules` keeps the types, the reader and writer, the rating ladder and the automatic-channel seed
   derivation. The per-epoch seed, the bounded-integer step and the key ordering are implemented by the scheduler (F1.1); their
-  vectors are published here already.
+  vectors are published with F1.1's definitions.
 
 ## Build flavors
 

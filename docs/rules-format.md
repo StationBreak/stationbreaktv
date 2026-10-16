@@ -14,8 +14,8 @@ The words **must**, **must not**, **should** and **may** are used as described i
 only when they are written in bold.
 
 Worked numbers are published as test vectors in `docs/rules-format/vectors/` (see Files). Sections marked "specified by
-F1.1" are not written yet: they are the scheduler's part of the contract (see Building the schedule), and the vectors for
-what the scheduler runs (the per-epoch seed, bounded integers and the key order) are published here and executed there.
+F1.1" are not written yet: they are the scheduler's part of the contract (see Building the schedule). Vectors for what the
+scheduler runs (the per-epoch seed, bounded integers and the key order) will be published with F1.1's definitions.
 
 ## Overview and file layout
 
@@ -259,10 +259,8 @@ The hash-keyed order, in numbered steps:
 Removing one item from the pool leaves the relative order of every other item unchanged. That is the reason the order is
 a hash key and not a shuffle that depends on the size of the pool.
 
-`docs/rules-format/examples/ordering-shuffle.json` selects it. `docs/rules-format/vectors/key-order.json` has worked keys:
-three seeds and epochs with twelve IDs each (keys, hashes and the resulting order, with high-bit keys among them), and
-`sortCases` that give keys directly so that the unsigned comparison and a tie are tested on their own. The scheduler (F1.1)
-runs them; this document only publishes them.
+`docs/rules-format/examples/ordering-shuffle.json` selects it. Vectors for the keys and the resulting order, with a
+key that has the high bit set and a tie, will be published with F1.1's definitions.
 
 ### `chronological`
 
@@ -332,7 +330,7 @@ then it starts again: B1 A1 C1 B2 A2 A3 ...
 
 Where in this walk epoch `n` starts is specified by F1.1. `docs/rules-format/examples/ordering-random-in-order.json`
 selects it. The key of a group is the same function with the group's canonical ID (the series ID) hashed in place of an
-item's, so the same `key-order.json` vectors cover group keys. The scheduler (F1.1) runs them.
+item's. Worked group keys will be published with F1.1's definitions.
 
 ## Timing
 
@@ -572,7 +570,8 @@ Every item ID in a rules file is in **canonical form**: exactly 32 lower-case he
 to `f`) with no hyphens, no braces and no other characters. Some Jellyfin endpoints return IDs with hyphens
 (`8-4-4-4-12`) or in upper case.
 
-- A client that gets an ID from the server must normalise it to canonical form first: remove any hyphens and braces, then
+- A client that gets an ID from the server must normalise it to canonical form first: remove any hyphens, remove one
+  surrounding pair of braces `{` `}` (a doubled or unmatched brace is not removed, so the ID is invalid), then
   convert to lower case. If anything other than 32 hex characters is left, it is not an ID.
 - A reader of a rules file must **reject** a file that carries a non-canonical ID (hyphenated, upper case, wrong length).
   The reader does not repair it.
@@ -622,10 +621,8 @@ is a bug that only shows for keys with the high bit set, so the vectors include 
 bytes, unsigned, ascending.
 
 Vectors: `docs/rules-format/vectors/splitmix64.json` and `fnv1a64.json` (the primitives, with the published anchor
-values), `epoch-seed.json` (the per-epoch seed, including negative epochs and a seed with the high bit set) and
-`key-order.json`. The scheduler (F1.1) implements and runs the last two; they are published here. `bounded-int.json`
-publishes the rejection-sampling step (threshold `2^64 mod bound`, accept a draw at or above it, result `draw mod bound`)
-that F1.1 is expected to use; it is **provisional** until F1.1 confirms the function.
+values). Vectors for the per-epoch seed, the bounded-integer step and the key order will be published with F1.1's
+definitions.
 
 ## String matching
 
@@ -722,8 +719,7 @@ Everything below is in this repository, under `docs/`:
   points, `betweenEveryN` without `every`).
 - `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
   `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
-  filter and the series rule, built on Jellyfin 12.1's own table), and, for the scheduler (F1.1) to run, `epoch-seed.json`,
-  `key-order.json` and the provisional `bounded-int.json`.
+  filter and the series rule, built on Jellyfin 12.1's own table). Vectors for the scheduler's functions come with F1.1.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

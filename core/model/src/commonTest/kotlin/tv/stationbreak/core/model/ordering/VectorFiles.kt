@@ -471,6 +471,31 @@ internal object VectorFiles {
               "strict": null
             },
             {
+              "input": "{{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
+              "normalised": null,
+              "strict": null
+            },
+            {
+              "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "normalised": null,
+              "strict": null
+            },
+            {
+              "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+              "normalised": null,
+              "strict": null
+            },
+            {
+              "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
+              "normalised": null,
+              "strict": null
+            },
+            {
+              "input": "{}",
+              "normalised": null,
+              "strict": null
+            },
+            {
               "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
               "normalised": null,
               "strict": null
