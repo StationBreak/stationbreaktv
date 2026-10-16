@@ -119,6 +119,7 @@ class ForgottenAccountTest {
             assertThrows(AccountNotActiveException::class.java) {
                 runBlocking { repository.revive(ALICE, listOf(item("a").id)) }
             }
+            Unit
         }
 
     // Who is signed in.
