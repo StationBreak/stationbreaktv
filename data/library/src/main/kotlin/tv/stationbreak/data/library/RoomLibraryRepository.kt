@@ -3,6 +3,7 @@ package tv.stationbreak.data.library
 
 import android.content.Context
 import androidx.room.RoomDatabase
+import androidx.room.useReaderConnection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -235,6 +236,15 @@ class RoomLibraryRepository internal constructor(
             StoredItem(it.toItem(), ItemId(it.item.libraryId), it.item.deletedAtMs?.let(Instant::fromEpochMilliseconds))
         }
     }
+
+    /** The `secure_delete` setting of the open database: 1 when freed pages are overwritten. */
+    internal suspend fun pragmaSecureDelete(): Int =
+        db.useReaderConnection { connection ->
+            connection.usePrepared("PRAGMA secure_delete") { statement ->
+                check(statement.step()) { "PRAGMA secure_delete returned no row" }
+                statement.getLong(0).toInt()
+            }
+        }
 
     internal suspend fun rowCounts() =
         RowCounts(

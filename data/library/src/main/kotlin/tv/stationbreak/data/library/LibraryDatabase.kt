@@ -5,6 +5,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 
 /**
  * The saved library's database. It is a cache: it can be deleted and fetched again, so a schema change drops and
@@ -31,6 +33,16 @@ internal abstract class LibraryDatabase : RoomDatabase() {
     }
 }
 
+/**
+ * Overwrites freed pages with zeros, so a deleted library's titles are not left in the database file (Angua review).
+ * `secure_delete` needs SQLite 3.6.18, and API 25 has 3.9.
+ */
+private object SecureDeleteCallback : RoomDatabase.Callback() {
+    override fun onOpen(connection: SQLiteConnection) {
+        connection.execSQL("PRAGMA secure_delete = ON")
+    }
+}
+
 internal object LibraryDatabases {
     /**
      * A builder for the database [name] (in the app's `databases` directory), or an in-memory one when [name] is null.
@@ -47,6 +59,7 @@ internal object LibraryDatabases {
                 Room.databaseBuilder(context, LibraryDatabase::class.java, name)
             }
         return base
+            .addCallback(SecureDeleteCallback)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
     }

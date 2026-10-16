@@ -44,11 +44,17 @@ internal abstract class LibraryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract suspend fun insertLibraries(rows: List<LibraryEntity>)
 
-    @Query("DELETE FROM library WHERE serverId = :serverId AND userId = :userId AND libraryId NOT IN (:keep)")
-    abstract suspend fun deleteLibrariesNotIn(
+    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun libraryIds(
         serverId: String,
         userId: String,
-        keep: List<String>,
+    ): List<String>
+
+    @Query("DELETE FROM library WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:ids)")
+    abstract suspend fun deleteLibrariesIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
     )
 
     @Query("DELETE FROM library WHERE serverId = :serverId AND userId = :userId")
@@ -96,7 +102,7 @@ internal abstract class LibraryDao {
             "AND deletedAtMs IS NULL AND createdAtMs IS NOT NULL AND createdAtMs < :beforeMs " +
             "AND runtimeNanos IS NOT NULL AND runtimeNanos > 0 ORDER BY itemId",
     )
-    abstract suspend fun snapshot(
+    protected abstract suspend fun snapshotChunk(
         serverId: String,
         userId: String,
         libraries: List<String>,
@@ -107,7 +113,7 @@ internal abstract class LibraryDao {
         "SELECT COUNT(*) FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:libraries) " +
             "AND deletedAtMs IS NULL AND (runtimeNanos IS NULL OR runtimeNanos <= 0)",
     )
-    abstract suspend fun excludedCount(
+    protected abstract suspend fun excludedChunk(
         serverId: String,
         userId: String,
         libraries: List<String>,
@@ -278,8 +284,13 @@ internal abstract class LibraryDao {
         userId: String,
         chosen: List<String>,
     ) {
-        deleteLibrariesNotIn(serverId, userId, chosen)
-        insertLibraries(chosen.map { LibraryEntity(serverId, userId, it, fetched = false) })
+        // A "NOT IN" list can't be chunked, so find the libraries to drop here and delete them in chunks.
+        val keep = chosen.toSet()
+        libraryIds(serverId, userId).filter { it !in keep }.chunked(MAX_VARIABLES).forEach {
+            deleteLibrariesIn(serverId, userId, it)
+        }
+        val rows = chosen.map { LibraryEntity(serverId, userId, it, fetched = false) }
+        rows.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
     }
 
     /** [serverId] and [userId] are signed in: every other account's rows go. */
@@ -391,7 +402,21 @@ internal abstract class LibraryDao {
         userId: String,
         libraries: List<String>,
         beforeMs: Long,
-    ): List<ItemRows> = withSideTables(serverId, userId, snapshot(serverId, userId, libraries, beforeMs))
+    ): List<ItemRows> {
+        val items =
+            libraries
+                .chunked(MAX_VARIABLES)
+                .flatMap { snapshotChunk(serverId, userId, it, beforeMs) }
+                .sortedBy { it.itemId }
+        return withSideTables(serverId, userId, items)
+    }
+
+    /** How many live items of [libraries] have no usable running time. [libraries] may be any length. */
+    open suspend fun excludedCount(
+        serverId: String,
+        userId: String,
+        libraries: List<String>,
+    ): Int = libraries.chunked(MAX_VARIABLES).sumOf { excludedChunk(serverId, userId, it) }
 
     /** Every item of the account, with its genres and tags. */
     @Transaction

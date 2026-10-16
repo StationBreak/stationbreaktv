@@ -84,12 +84,15 @@ class SessionRepository(
         val stored = decode(raw)
         return when {
             stored == null -> {
+                // No account is known from an unreadable blob, so there is nothing to forget by name; the next
+                // sign-in's useAccount deletes any other account's rows.
                 clear()
                 RestoreOutcome.SignedOut
             }
 
             !stored.address.bindsTo(configured) && !configured.bindsTo(stored.address) -> {
                 clear()
+                library.forget(stored.libraryAccount())
                 RestoreOutcome.Rejected(MediaServerError.ServerMismatch())
             }
 
@@ -108,7 +111,7 @@ class SessionRepository(
             }
 
             is ServerResult.Failure -> {
-                if (onServerError(result.error)) {
+                if (onServerError(result.error, stored.libraryAccount())) {
                     RestoreOutcome.Rejected(result.error)
                 } else {
                     RestoreOutcome.Unavailable(result.error)
@@ -116,10 +119,24 @@ class SessionRepository(
             }
         }
 
-    /** Clears the stored session if [error] says it can't be used (`SessionExpired`, `ServerMismatch`). */
-    suspend fun onServerError(error: MediaServerError): Boolean {
+    /**
+     * Clears the stored session if [error] says it can't be used (`SessionExpired`, `ServerMismatch`), and the saved
+     * library of [session]'s account with it, so rows don't outlive a rejected session.
+     */
+    suspend fun onServerError(
+        error: MediaServerError,
+        session: Session? = null,
+    ): Boolean = onServerError(error, session?.libraryAccount())
+
+    private suspend fun onServerError(
+        error: MediaServerError,
+        account: LibraryAccount?,
+    ): Boolean {
         val fatal = error is MediaServerError.SessionExpired || error is MediaServerError.ServerMismatch
-        if (fatal) clear()
+        if (fatal) {
+            clear()
+            account?.let { library.forget(it) }
+        }
         return fatal
     }
 
@@ -198,6 +215,8 @@ class SessionRepository(
 }
 
 private fun Session.libraryAccount() = LibraryAccount(this.server.id, this.userId)
+
+private fun StoredSession.libraryAccount() = LibraryAccount(this.serverId, this.userId)
 
 /**
  * Tells the saved library about sign-in and sign-out without ever failing the caller. A sign-in or sign-out must not
