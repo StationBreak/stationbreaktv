@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.launch
 
+import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.hasFinished
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
@@ -27,7 +29,10 @@ internal sealed interface LaunchRoute {
         val session: Session,
     ) : LaunchRoute
 
-    /** A restored session and a saved choice: the placeholder "Setup complete" screen. */
+    /** A restored session and a saved choice, but the account's first sync has not ended: the progress screen. */
+    data object FirstSync : LaunchRoute
+
+    /** A restored session, a saved choice and a finished first sync: the placeholder "Setup complete" screen. */
     data object SetupComplete : LaunchRoute
 
     /** The server could not be asked. [address] is the stored one, for a certificate question about it. */
@@ -42,7 +47,8 @@ internal sealed interface LaunchRoute {
  * certificate pin in force (`PinSyncingServerSettings.load` applies it) before the first request of the run.
  *
  * - no stored server: [LaunchRoute.NoServer];
- * - a restored session: the setup is complete when a library choice is stored, otherwise the picker;
+ * - a restored session: the picker when no library choice is stored; with one, the first-sync progress screen until
+ *   the account's first sync has ended (spec 06, owner answer 3), and then "Setup complete";
  * - signed out, or the session was refused: sign-in for the stored server, after a credential-free `connect` that
  *   names it and checks it is still there. A refused session is explained in one line;
  * - the server can't be asked: [LaunchRoute.Unavailable], whose Retry asks again. A changed certificate is one of
@@ -57,6 +63,7 @@ internal class LaunchRouter
         private val settings: ServerSettings,
         private val sessions: SessionRepository,
         private val mediaServer: MediaServer,
+        private val firstSync: FirstSync = FirstSync.Finished,
     ) {
         suspend fun route(): LaunchRoute {
             val record = settings.load() ?: return LaunchRoute.NoServer
@@ -70,7 +77,11 @@ internal class LaunchRouter
         }
 
         private suspend fun restoredRoute(session: Session): LaunchRoute =
-            if (settings.loadLibraries().isNullOrEmpty()) LaunchRoute.Libraries(session) else LaunchRoute.SetupComplete
+            when {
+                settings.loadLibraries().isNullOrEmpty() -> LaunchRoute.Libraries(session)
+                firstSync.hasFinished() -> LaunchRoute.SetupComplete
+                else -> LaunchRoute.FirstSync
+            }
 
         private suspend fun signIn(
             address: ServerAddress,

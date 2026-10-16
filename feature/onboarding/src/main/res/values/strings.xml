@@ -188,4 +188,19 @@
     <!-- The placeholder shown after setup, until the first real screen exists (F1.x). No actions. -->
     <string name="setup_complete_headline">Setup complete</string>
     <string name="setup_complete_body">Your server and libraries are saved. There’s nothing to watch yet, because StationBreak is still being built.</string>
+
+    <!--
+      The first-sync progress screen (spec 06, Unit 3; owner answer 3: only for the very first sync, later syncs are
+      quiet). DRAFT wording for Adorabelle, who finalises it before the screenshots are taken. A headline, one reassuring
+      line, a bar, and a count. Nothing on the screen takes focus while it syncs. On failure the error comes from the
+      error table above, with Retry.
+    -->
+    <string name="first_sync_headline">Getting your library ready</string>
+    <string name="first_sync_second_line">This only happens once and can take a few minutes.</string>
+    <string name="first_sync_starting">Getting started…</string>
+    <string name="first_sync_count">%1$s of %2$s</string>
+    <string name="first_sync_count_only">%1$s so far</string>
+    <string name="first_sync_progress_description">Getting your library ready: %1$s of %2$s</string>
+    <string name="first_sync_progress_description_starting">Getting your library ready</string>
+    <string name="first_sync_failed_headline">Your library isn’t ready yet</string>
 </resources>

@@ -130,6 +130,7 @@ class FirstSyncProgressViewModelTest {
             runCurrent()
             assertEquals(FirstSyncPhase.Starting, vm.state.value)
             firstSync.current = running(0, null)
+            advanceTimeBy(500)
             runCurrent()
 
             assertEquals(1, firstSync.ensureCalls)
@@ -292,7 +293,7 @@ class FirstSyncProgressViewModelTest {
             owner.clear()
             runCurrent()
 
-            // Nothing was cancelled or restarted: the port has no way to stop the sync, and only one start was asked for.
+            // Nothing was cancelled or restarted: the port cannot stop the sync, and only one start was asked for.
             assertEquals(1, firstSync.ensureCalls)
             assertEquals(0, firstSync.retryCalls)
             assertTrue(vm.state.value is FirstSyncPhase.Syncing)
