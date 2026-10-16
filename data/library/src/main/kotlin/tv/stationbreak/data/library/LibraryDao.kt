@@ -139,6 +139,16 @@ internal abstract class LibraryDao {
     ): List<String>
 
     @Query(
+        "SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
+            "AND deletedAtMs IS NOT NULL ORDER BY itemId",
+    )
+    abstract suspend fun tombstonedItemIds(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ): List<String>
+
+    @Query(
         "UPDATE item SET deletedAtMs = :atMs WHERE serverId = :serverId AND userId = :userId " +
             "AND itemId IN (:ids) AND deletedAtMs IS NULL",
     )
@@ -426,6 +436,19 @@ internal abstract class LibraryDao {
         val old = state(serverId, userId)
         val failed = AccountStateEntity.STATE_FAILED
         saveState(AccountStateEntity(serverId, userId, failed, old?.total, failure, old?.lastSuccessMs))
+    }
+
+    /** A failure is cleared and the account is idle again; the total and the last success are kept. */
+    @Transaction
+    open suspend fun clearFailure(
+        serverId: String,
+        userId: String,
+    ) {
+        requireActive(serverId, userId)
+        val old = state(serverId, userId) ?: return
+        if (old.state != AccountStateEntity.STATE_FAILED) return
+        val idle = AccountStateEntity.STATE_IDLE
+        saveState(AccountStateEntity(serverId, userId, idle, old.total, null, old.lastSuccessMs))
     }
 
     /** Marks [ids] deleted at [atMs] (an existing tombstone keeps its time). */
