@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -49,8 +50,9 @@ internal fun buildDayCounting(
     if (cycle.isEmpty()) {
         return Day(n, start, end, listOf(ScheduleBlock(start, end, ScheduleContent.Slate)), 0, 0, 0, onCompare)
     }
-    val layout = Timeline.layout(settings, cycle, 0, start, end)
-    return Day(n, start, end, layout.blocks, 0, layout.runsStarted, cycle.size, onCompare)
+    val startRun = Timeline.startRun(settings, cycle, start)
+    val layout = Timeline.layout(settings, cycle, startRun, start, end)
+    return Day(n, start, end, layout.blocks, startRun, layout.runsStarted, cycle.size, onCompare)
 }
 
 /** The day's layout, step by step (spec 08, Unit 3). Pure functions of their inputs. */
@@ -77,6 +79,31 @@ internal object Timeline {
         pool: List<ScheduleItem>,
         seedN: ULong,
     ): List<Run> = Runs.cycle(settings, pool, seedN).filter { slotMs(settings, it) <= settings.epochMs }
+
+    /**
+     * The run a day starts at. `shuffle` starts at run 0, because each day has its own seed. The other modes start at
+     * the run of the channel's continuous playout (the cycle repeated forever, each run taking its slot, from the
+     * origin `-offsetMs`) that contains [dayStart]: with the prefix sums `Q[0] = 0 < ... < Q[B] = C` of the slots and
+     * `pos = floorMod(dayStart + offsetMs, C)`, the largest `j` with `Q[j] <= pos`, found by binary search.
+     */
+    fun startRun(
+        settings: SchedulerSettings,
+        cycle: List<Run>,
+        dayStart: Long,
+    ): Int {
+        if (settings.orderingMode == OrderingMode.Shuffle) return 0
+        val prefix = LongArray(cycle.size + 1)
+        for (i in cycle.indices) prefix[i + 1] = prefix[i] + slotMs(settings, cycle[i])
+        val pos = (dayStart + settings.offsetMs).mod(prefix[cycle.size])
+        // The largest j in [0, B - 1] with prefix[j] <= pos. prefix[0] = 0 <= pos always holds.
+        var low = 0
+        var high = cycle.size - 1
+        while (low < high) {
+            val mid = (low + high + 1) ushr 1
+            if (prefix[mid] <= pos) low = mid else high = mid - 1
+        }
+        return low
+    }
 
     /** The first grid mark at or after [t] when aligned, else [t]. */
     fun startAtOrAfter(
