@@ -36,7 +36,9 @@ class SyncSecretScanTest {
     val folder = TemporaryFolder()
 
     private val clock = FakeClock()
-    private val repository = TestLibraries.onDisk(folder.root, "scan.db", clock)
+
+    // Built on first use: the temporary folder exists only once the rule has run.
+    private val repository by lazy { TestLibraries.onDisk(folder.root, "scan.db", clock) }
 
     @After
     fun close() = repository.close()
@@ -44,13 +46,16 @@ class SyncSecretScanTest {
     private val fake = FakeMediaServer()
     private val server = PagedMediaServer(listOf(movies), mapOf(MOVIES to SyncWorld.source("m", 260)), fake)
     private val store = InMemorySecretStore()
-    private val sessions = SessionRepository(store, server, repository)
+    private val sessions by lazy { SessionRepository(store, server, repository) }
     private val settings = InMemoryServerSettings(ServerRecord(session.address), setOf(MOVIES))
 
     private fun containsToken(bytes: ByteArray) = String(bytes, Charsets.ISO_8859_1).contains(TOKEN)
 
     private fun databaseFiles(): List<File> =
-        folder.root.listFiles { file -> file.name.startsWith("scan.db") }.orEmpty().toList()
+        folder.root
+            .listFiles { file -> file.name.startsWith("scan.db") }
+            .orEmpty()
+            .toList()
 
     /** Everything printed to the console or logged through java.util.logging while [block] runs. */
     private fun captured(block: () -> Unit): String {

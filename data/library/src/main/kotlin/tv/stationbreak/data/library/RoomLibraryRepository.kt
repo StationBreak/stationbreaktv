@@ -338,7 +338,9 @@ class RoomLibraryRepository internal constructor(
             clock: Clock = Clock.System,
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
-            return RoomLibraryRepository(builder.build(), clock)
+            // Sign-in and sign-out cancel the unique first-sync work through WorkManager, asked for only when they do.
+            val sync = WorkManagerSyncControl(WorkManagerEnqueuer(context))
+            return RoomLibraryRepository(builder.build(), clock, sync)
         }
 
         /** For tests: a database from a builder the test configured (a JVM driver, a file or memory). */
