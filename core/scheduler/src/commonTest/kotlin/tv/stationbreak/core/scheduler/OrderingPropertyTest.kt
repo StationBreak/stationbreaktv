@@ -160,11 +160,28 @@ class OrderingPropertyTest {
     fun removingTheLastItemOfAGroupLeavesTheOthersInTheSameRandomInOrderOrder() {
         forAllCases("randomInOrder removal", baseSeed = 0x5249uL) { gen ->
             val case = gen.case()
-            val full = Orderings.randomInOrder(case.pool, case.seed, case.blockLength)
+            val full = Orderings.randomInOrderTurns(case.pool, case.seed, case.blockLength)
             val groups = Orderings.groups(case.pool, case.seed)
             for (removed in groups.map { it.items.last() }) {
-                val rest = Orderings.randomInOrder(case.pool.without(removed), case.seed, case.blockLength)
-                assertEquals(full.without(removed).ids(), rest.ids(), "removed ${removed.id}")
+                val rest = Orderings.randomInOrderTurns(case.pool.without(removed), case.seed, case.blockLength)
+                // The order of the items, and the turns: drop the item from its turn, and a turn left empty.
+                assertEquals(full.flatten().without(removed).ids(), rest.flatten().ids(), "removed ${removed.id}")
+                val expectedTurns = full.map { turn -> turn.without(removed).ids() }.filter { it.isNotEmpty() }
+                assertEquals(expectedTurns, rest.map { it.ids() }, "turns after removing ${removed.id}")
+            }
+        }
+    }
+
+    @Test
+    fun removingAWholeGroupLeavesEveryOtherGroupsTurnsUnchanged() {
+        forAllCases("randomInOrder group removal", baseSeed = 0x4752_4Fu.toULong()) { gen ->
+            val case = gen.case()
+            val full = Orderings.randomInOrderTurns(case.pool, case.seed, case.blockLength)
+            for (group in Orderings.groups(case.pool, case.seed)) {
+                val rest = case.pool.filter { it.groupId != group.groupId }
+                val turns = Orderings.randomInOrderTurns(rest, case.seed, case.blockLength)
+                val expected = full.filter { it.first().groupId != group.groupId }.map { it.ids() }
+                assertEquals(expected, turns.map { it.ids() }, "removed group ${group.groupId}")
             }
         }
     }
