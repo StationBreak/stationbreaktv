@@ -9,7 +9,7 @@ import tv.stationbreak.core.model.schedule.SchedulerSettings
  * A run: the `blockLength` group of items played back to back as one or more blocks. The format calls it a run so that
  * the word "block" means one thing, a `ScheduleBlock`.
  */
-class Run(
+data class Run(
     val items: List<ScheduleItem>,
 ) {
     /** The sum of the items' runtimes: they play back to back. */

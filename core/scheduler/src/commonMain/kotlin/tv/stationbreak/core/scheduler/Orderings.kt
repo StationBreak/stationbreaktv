@@ -40,35 +40,64 @@ object Orderings {
     }
 
     /**
-     * The `chronological` order of [pool]: ascending by the six-part key (see [chronologicalComparator]). The key is a
-     * total order, because its last part is the canonical ID.
+     * The `chronological` order of [pool]: ascending by [chronologicalKey]. The key is a total order, because its last
+     * part is the canonical ID.
      */
-    fun chronological(pool: List<ScheduleItem>): List<ScheduleItem> {
-        val byKey = chronologicalComparator(withGroup = true)
-        return pool.sortedWith(byKey)
-    }
+    fun chronological(pool: List<ScheduleItem>): List<ScheduleItem> = pool.sortedWith(chronologicalKey)
 
     /**
-     * The `chronological` key as a comparator, compared from left to right:
+     * The `chronological` key, compared from left to right:
      * 1. the undated flag (a dated item first);
      * 2. the date, as text; an undated item's date part is equal to every other undated item's;
-     * 3. the group ID, `seriesId ?: id` (left out when [withGroup] is false, as `randomInOrder` does inside a group);
+     * 3. the group ID, `seriesId ?: id`;
      * 4. the season number, a missing one after every present one; two missing seasons tie;
      * 5. the episode number, the same way;
      * 6. the canonical ID bytes.
      */
-    internal fun chronologicalComparator(withGroup: Boolean): Comparator<ScheduleItem> =
+    internal val chronologicalKey: Comparator<ScheduleItem> =
         Comparator { a, b ->
             val dateA = dateOf(a)
             val dateB = dateOf(b)
             when {
                 (dateA == null) != (dateB == null) -> if (dateA == null) 1 else -1
                 dateA != null && dateB != null && dateA != dateB -> dateA.compareTo(dateB)
-                withGroup && a.groupId != b.groupId -> a.groupId.value.compareTo(b.groupId.value)
+                a.groupId != b.groupId -> a.groupId.value.compareTo(b.groupId.value)
                 a.seasonNumber != b.seasonNumber -> compareMissingLast(a.seasonNumber, b.seasonNumber)
                 a.episodeNumber != b.episodeNumber -> compareMissingLast(a.episodeNumber, b.episodeNumber)
                 else -> a.id.value.compareTo(b.id.value)
             }
+        }
+
+    /**
+     * The order of the items inside one `randomInOrder` group: **the numbering decides, not the air date**, compared
+     * from left to right:
+     * 1. the season class: a regular season (1 or more) is 0, specials (season 0) are 1, a missing season is 2, so
+     *    specials play after the last season and a missing season after the specials;
+     * 2. the season number;
+     * 3. the episode number, a missing one last; two missing episodes tie;
+     * 4. the undated flag (a dated item first);
+     * 5. the date, as text (an undated item's date part is equal to every other undated item's);
+     * 6. the canonical ID bytes.
+     */
+    internal val inGroupKey: Comparator<ScheduleItem> =
+        Comparator { a, b ->
+            val dateA = dateOf(a)
+            val dateB = dateOf(b)
+            when {
+                seasonClass(a) != seasonClass(b) -> seasonClass(a).compareTo(seasonClass(b))
+                a.seasonNumber != b.seasonNumber -> compareMissingLast(a.seasonNumber, b.seasonNumber)
+                a.episodeNumber != b.episodeNumber -> compareMissingLast(a.episodeNumber, b.episodeNumber)
+                (dateA == null) != (dateB == null) -> if (dateA == null) 1 else -1
+                dateA != null && dateB != null && dateA != dateB -> dateA.compareTo(dateB)
+                else -> a.id.value.compareTo(b.id.value)
+            }
+        }
+
+    private fun seasonClass(item: ScheduleItem): Int =
+        when (val season = item.seasonNumber) {
+            null -> SEASON_CLASS_MISSING
+            0 -> SEASON_CLASS_SPECIALS
+            else -> if (season >= 1) SEASON_CLASS_REGULAR else SEASON_CLASS_MISSING
         }
 
     /** One `randomInOrder` group: a series, or a movie (or a series-less episode) on its own. */
@@ -76,7 +105,7 @@ object Orderings {
         val groupId: CanonicalId,
         /** `splitmix64(seed + fnv1a64(groupIdBytes))`, with the channel seed. */
         val key: ULong,
-        /** The group's items in chronological order, without the group part of the key. */
+        /** The group's items in [inGroupKey] order: the numbering decides. */
         val items: List<ScheduleItem>,
     )
 
@@ -91,19 +120,16 @@ object Orderings {
 
     /**
      * The groups of [pool] in key order: ascending by [groupKey] as unsigned numbers, a tie to the smaller group ID
-     * bytes. Each group's items are in the chronological order without its group part (date first, then season,
-     * episode and ID).
+     * bytes. Each group's items are in [inGroupKey] order (season class, season, episode, then date and ID).
      */
     fun groups(
         pool: List<ScheduleItem>,
         seed: Seed,
-    ): List<OrderGroup> {
-        val inGroup = chronologicalComparator(withGroup = false)
-        return pool
+    ): List<OrderGroup> =
+        pool
             .groupBy { it.groupId }
-            .map { (groupId, items) -> OrderGroup(groupId, groupKey(seed, groupId), items.sortedWith(inGroup)) }
+            .map { (groupId, items) -> OrderGroup(groupId, groupKey(seed, groupId), items.sortedWith(inGroupKey)) }
             .sortedWith(compareBy<OrderGroup> { it.key }.thenBy { it.groupId.value })
-    }
 
     /**
      * The `randomInOrder` walk of one cycle, as **turns**. In each round, every group in key order takes up to
@@ -159,4 +185,7 @@ object Orderings {
         }
 
     private const val YEAR_DIGITS = 4
+    private const val SEASON_CLASS_REGULAR = 0
+    private const val SEASON_CLASS_SPECIALS = 1
+    private const val SEASON_CLASS_MISSING = 2
 }

@@ -7,6 +7,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The order of episodes inside a `randomInOrder` group (owner decision Q3): the numbering decides, not the air date.
@@ -77,13 +78,20 @@ class InGroupOrderTest {
         val e1 = episode('a', 1, 1, "2020-03-01")
         val e2 = episode('b', 1, 2, "2020-01-01")
         assertEquals(listOf('b', 'a'), Orderings.chronological(listOf(e1, e2)).map { it.id.value.first() })
-        assertEquals(1, Orderings.chronologicalKey.compare(e2, e1))
-        assertEquals(-1, Orderings.inGroupKey.compare(e1, e2))
+        assertTrue(Orderings.chronologicalKey.compare(e2, e1) < 0)
+        assertTrue(Orderings.inGroupKey.compare(e1, e2) < 0)
     }
 
     @Test
     fun aMovieIsAGroupOfOne() {
         val movie = testItem(CanonicalId.parse("9".repeat(32)))
-        assertEquals(listOf('9'), Orderings.groups(listOf(movie), Seed(1uL)).single().items.map { it.id.value.first() })
+        assertEquals(
+            listOf('9'),
+            Orderings
+                .groups(listOf(movie), Seed(1uL))
+                .single()
+                .items
+                .map { it.id.value.first() },
+        )
     }
 }
