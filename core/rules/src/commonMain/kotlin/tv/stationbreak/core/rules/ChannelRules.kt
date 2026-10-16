@@ -79,7 +79,7 @@ data class Timing(
     }
 
     val effectiveBlockLength: Int get() = blockLength ?: DEFAULT_BLOCK_LENGTH
-    val effectiveAlignToGrid: Boolean get() = alignToGrid ?: true
+    val effectiveAlignToGrid: Boolean get() = alignToGrid ?: DEFAULT_ALIGN_TO_GRID
     val effectiveEpochHours: Int get() = epochHours ?: DEFAULT_EPOCH_HOURS
 
     /** The grace window G in hours: how long before an epoch starts a new item must have been added to air in it. */
@@ -90,6 +90,7 @@ data class Timing(
 
     private companion object {
         const val DEFAULT_BLOCK_LENGTH = 1
+        const val DEFAULT_ALIGN_TO_GRID = true
         const val DEFAULT_EPOCH_HOURS = 24
         const val DEFAULT_GRACE_HOURS = 6
         const val DEFAULT_GRID_MINUTES = 30
