@@ -26,7 +26,7 @@ class WhatsOnStepsTest {
         minimumBlocks: Int,
     ) {
         val settings =
-            testSettings(orderingMode = mode, alignToGrid = false, epochHours = 24, startMinuteOfDay = 360)
+            testSettings(orderingMode = mode, alignToGrid = false, epochHours = 24, startMinuteOfDay = 360, minRuntimeMs = 1_000L)
         var comparisons = 0
         // A day long after every item was created, so the whole library is in the pool.
         val day = buildDayCounting(settings, items, 30_000L, onCompare = { comparisons++ })

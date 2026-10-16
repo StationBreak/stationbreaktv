@@ -74,15 +74,28 @@ class EpochPoolTest {
     }
 
     @Test
-    fun aRuntimeThatIsNotPositiveIsOut() {
+    fun aRuntimeBelowTheMinimumIsOutAndTheMinimumItselfIsIn() {
+        // The default minimum is 60 s (testSettings): 59,999 ms is out, 60,000 and 60,001 are in.
         val ids =
             poolIds(
                 testItem(idOf('1'), runtimeMs = 0L),
                 testItem(idOf('2'), runtimeMs = -1L),
-                testItem(idOf('3'), runtimeMs = 1L),
-                testItem(idOf('4'), runtimeMs = Long.MIN_VALUE),
+                testItem(idOf('3'), runtimeMs = 59_999L),
+                testItem(idOf('4'), runtimeMs = 60_000L),
+                testItem(idOf('5'), runtimeMs = 60_001L),
+                testItem(idOf('6'), runtimeMs = Long.MIN_VALUE),
             )
-        assertEquals(listOf('3'), ids)
+        assertEquals(listOf('4', '5'), ids)
+    }
+
+    @Test
+    fun theMinimumIsTheSettingsOwn() {
+        val oneSecond = testSettings(minRuntimeMs = 1_000L)
+        val items = listOf(testItem(idOf('1'), runtimeMs = 999L), testItem(idOf('2'), runtimeMs = 1_000L))
+        assertEquals(listOf('2'), EpochPool.build(oneSecond, items, 0L).map { it.id.value.first() })
+        val oneHour = testSettings(minRuntimeMs = 3_600_000L)
+        val longer = listOf(testItem(idOf('1'), runtimeMs = 3_599_999L), testItem(idOf('2'), runtimeMs = 3_600_000L))
+        assertEquals(listOf('2'), EpochPool.build(oneHour, longer, 0L).map { it.id.value.first() })
     }
 
     @Test

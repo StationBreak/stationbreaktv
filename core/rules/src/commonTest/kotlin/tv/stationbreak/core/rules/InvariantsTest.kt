@@ -68,6 +68,8 @@ class InvariantsTest {
         rejects { base.timing.copy(epochHours = 5) }
         rejects { base.timing.copy(graceHours = -1) }
         rejects { base.timing.copy(graceHours = 49) }
+        rejects { base.timing.copy(minRuntimeSeconds = 0) }
+        rejects { base.timing.copy(minRuntimeSeconds = 3601) }
         rejects { base.timing.copy(gridMinutes = 20) }
         rejects { base.timing.copy(gridMinutes = 0) }
         rejects { base.timing.copy(gridMinutes = 60, broadcastDay = base.timing.broadcastDay.copy(start = "06:30")) }

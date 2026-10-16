@@ -72,8 +72,11 @@ class RulesRoundTripTest {
         assertEquals(null, rules.timing.gridMinutes)
         assertEquals(6, rules.timing.effectiveGraceHours)
         assertEquals(30, rules.timing.effectiveGridMinutes)
+        assertEquals(null, rules.timing.minRuntimeSeconds)
+        assertEquals(60, rules.timing.effectiveMinRuntimeSeconds)
         val written = RulesWriter.write(rules)
         assertTrue(!written.contains("graceHours") && !written.contains("gridMinutes"))
+        assertTrue(!written.contains("minRuntimeSeconds"))
     }
 
     @Test
@@ -82,6 +85,7 @@ class RulesRoundTripTest {
         val rules = readOk(text)
         assertEquals(12, rules.timing.graceHours)
         assertEquals(60, rules.timing.gridMinutes)
+        assertEquals(90, rules.timing.minRuntimeSeconds)
         assertEquals(12, rules.timing.effectiveGraceHours)
         assertEquals(60, rules.timing.effectiveGridMinutes)
         assertEquals(emptySet(), rules.timing.extras.keys)

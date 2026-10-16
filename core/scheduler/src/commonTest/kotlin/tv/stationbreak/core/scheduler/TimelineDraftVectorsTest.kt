@@ -52,6 +52,7 @@ class TimelineDraftVectorsTest {
             utcOffsetMinutes = getValue("utcOffsetMinutes").jsonPrimitive.content.toInt(),
             startMinuteOfDay = hours * 60 + minutes,
             graceHours = getValue("graceHours").jsonPrimitive.content.toInt(),
+            minRuntimeMs = 60_000L,
         )
     }
 

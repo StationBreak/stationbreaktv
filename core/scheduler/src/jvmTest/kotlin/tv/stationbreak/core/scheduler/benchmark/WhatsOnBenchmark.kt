@@ -31,6 +31,7 @@ class WhatsOnBenchmark {
                 alignToGrid = false,
                 epochHours = 24,
                 startMinuteOfDay = 360,
+                minRuntimeMs = 1_000L,
             )
         val dayNumber = 30_000L
         // buildDay is timed too, for information: the caller builds a day once and then asks it many times.

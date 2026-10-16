@@ -37,6 +37,13 @@ class RulesFormatDocTest {
     }
 
     @Test
+    fun theTimingTableHasARowForTheMinimumRuntime() {
+        val rows = doc.lines().filter { it.startsWith("| `minRuntimeSeconds` |") }
+        assertEquals(1, rows.size, "one Timing table row for minRuntimeSeconds: $rows")
+        assertTrue("`60`" in rows.single() && "1 to 3600" in rows.single(), "minRuntimeSeconds: default 60, 1 to 3600")
+    }
+
+    @Test
     fun theGridIsDescribedByGridMinutesNotByHalfHours() {
         val align = doc.lines().single { it.startsWith("| `alignToGrid` |") }
         assertTrue(":00 and :30" !in align && "half-hour" !in align, "alignToGrid row names a fixed grid: $align")

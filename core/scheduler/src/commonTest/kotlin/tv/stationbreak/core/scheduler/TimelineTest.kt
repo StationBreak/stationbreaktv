@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -163,6 +164,29 @@ class TimelineTest {
         val items = listOf(movie('1', 70), movie('2', 60))
         val built = day(items, alignToGrid = false, epochHours = 2, blockLength = 2)
         assertEquals(listOf("0-120:slate"), built.describe())
+    }
+
+    @Test
+    fun aDayOfOneSecondProgramsBuildsEightySixThousandFourHundredBlocks() {
+        // minRuntimeSeconds = 1, unaligned, 24 hours: the largest number of blocks a day can have.
+        val items =
+            (0 until 50).map {
+                testItem(CanonicalId.parse(it.toString(16).padStart(32, '0')), runtimeMs = 1_000L, createdAtMs = LONG_AGO)
+            }
+        val s =
+            testSettings(
+                orderingMode = OrderingMode.Chronological,
+                alignToGrid = false,
+                epochHours = 24,
+                startMinuteOfDay = 0,
+                minRuntimeMs = 1_000L,
+            )
+        val built = buildDay(s, items, 0L)
+        assertEquals(86_400, built.blocks.size)
+        assertTrue(built.blocks.all { it.lengthMs == 1_000L })
+        assertEquals(0L, built.blocks.first().startMs)
+        assertEquals(MS_DAY, built.blocks.last().endMs)
+        assertEquals(1_000L, built.whatsOn(MS_DAY - 1, 3).block.lengthMs)
     }
 
     @Test

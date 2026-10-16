@@ -45,6 +45,16 @@ class FieldRangesTest {
     }
 
     @Test
+    fun minRuntimeSecondsIsAWholeNumberFromOneToThirtySixHundred() {
+        for (n in listOf(1, 60, 3599, 3600)) ok(timing("minRuntimeSeconds" to JsonPrimitive(n)))
+        for (n in listOf(0, -1, 3601, 1_000_000)) bad(timing("minRuntimeSeconds" to JsonPrimitive(n)))
+        bad(timing("minRuntimeSeconds" to JsonPrimitive("60")))
+        bad(timing("minRuntimeSeconds" to JsonPrimitive(1.5)))
+        bad(timing("minRuntimeSeconds" to JsonPrimitive(60.0)))
+        bad(timing("minRuntimeSeconds" to JsonNull))
+    }
+
+    @Test
     fun graceHoursIsAWholeNumberFromZeroToFortyEight() {
         for (n in listOf(0, 1, 6, 47, 48)) ok(timing("graceHours" to JsonPrimitive(n)))
         for (n in listOf(-1, 49, 100, 1_000_000)) bad(timing("graceHours" to JsonPrimitive(n)))
