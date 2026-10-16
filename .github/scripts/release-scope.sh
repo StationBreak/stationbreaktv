@@ -10,6 +10,9 @@
 #   stdin: the changed file names, one per line (git diff --name-only).
 #   PATCH_FILE (optional): the unified diff (git diff -U0), searched for serialization and keep annotations.
 # Prints `true` or `false`, and on stderr the first reason for `true`.
+#
+# Limit: R8 is not enabled today (no isMinifyEnabled). Once it is, an edit inside an existing @Serializable class or a
+# new reflective lookup (Class.forName and the like) won't trigger this; revisit the content rule then.
 set -uo pipefail
 
 patch="${1:-}"
@@ -22,9 +25,10 @@ rules=(
   '(^|/)AndroidManifest\.xml$|manifest: the merged manifest differs per build type'
   '(^|/)src/[A-Za-z]*[Rr]elease/|release source sets: only the release variants compile them'
   '\.(jks|keystore|p12|pfx)$|(^|/)signing|signing: key stores and signing configuration'
-  '^app/trust-anchors/|(^|/)res/xml/|trust anchors and the network security config, packaged into the release APK'
+  '^app/trust-anchors/|(^|/)res/(xml|raw)/|trust anchors (res/raw) and the network security config (res/xml), packaged into the release APK'
   '^config/(lint|detekt)/|gate configuration: a changed rule set gets the full gate'
   '^\.github/workflows/ci\.yml$|^\.github/scripts/release-scope|this decision itself'
+  '^"|a file name git had to quote: the anchored rules above cannot be trusted on it'
 )
 
 reason=""

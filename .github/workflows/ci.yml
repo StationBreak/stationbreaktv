@@ -63,7 +63,10 @@ jobs:
           emulator=true
           deps=true
           release=true
-          if [ "$EVENT_NAME" = pull_request ] && files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")" && [ -n "$files" ]; then
+          # --no-renames: a move lists both its old and new path, so moving a file out of a release-only place is seen.
+          if [ "$EVENT_NAME" = pull_request ] &&
+            files="$(git -c core.quotePath=false diff --name-only --no-renames "${BASE_SHA}...${HEAD_SHA}")" &&
+            [ -n "$files" ]; then
             printf 'Changed files:\n%s\n' "$files"
             if ! grep -qvE '^(docs/|LICENSE|.*\.md$)' <<<"$files"; then
               build=false
@@ -74,9 +77,11 @@ jobs:
             if ! grep -qE '^(gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|build-logic/)' <<<"$files"; then
               deps=false
             fi
-            # The patch is only for the script's content rule. If it can't be read, that rule just doesn't fire.
-            git diff -U0 "${BASE_SHA}...${HEAD_SHA}" > "$RUNNER_TEMP/pr.patch" || : > "$RUNNER_TEMP/pr.patch"
-            release="$(bash .github/scripts/release-scope.sh "$RUNNER_TEMP/pr.patch" <<<"$files")"
+            # The patch feeds the script's content rule. If it can't be read, run the release build, as for an
+            # unreadable file list.
+            if git diff -U0 --no-renames "${BASE_SHA}...${HEAD_SHA}" > "$RUNNER_TEMP/pr.patch"; then
+              release="$(bash .github/scripts/release-scope.sh "$RUNNER_TEMP/pr.patch" <<<"$files")"
+            fi
           fi
           # No build means no emulator, even if the pattern matched.
           if [ "$build" = false ]; then emulator=false; fi
@@ -452,7 +457,8 @@ jobs:
           DEBUG_APK: ${{ steps.apk.outputs.path }}
           # One release APK per flavor (amazon, github). Update when a flavor is added (play, F4.3). None when the
           # release variants weren't built (see `checks`).
-          EXPECTED_RELEASE_APKS: ${{ needs.checks.outputs.release == 'false' && 0 || 2 }}
+          # Strings, not numbers: in an expression the number 0 is falsy, so `&& 0 || 2` would always give 2.
+          EXPECTED_RELEASE_APKS: ${{ needs.checks.outputs.release == 'false' && '0' || '2' }}
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
           echo "::group::apksigner verify --print-certs (github debug)"

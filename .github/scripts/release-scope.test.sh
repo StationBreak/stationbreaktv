@@ -56,7 +56,10 @@ expect true "release source set" $'app/src/githubRelease/kotlin/X.kt'
 expect true "plain release source set" $'app/src/release/kotlin/X.kt'
 expect true "keystore" $'keys/upload.jks'
 expect true "network security config" $'app/src/main/res/xml/network_security_config.xml'
-expect true "trust anchors" $'app/trust-anchors/isrg-root-x1.pem'
+expect true "trust anchor pem" $'app/src/main/res/raw/isrg_root_x2.pem'
+expect true "trust anchors readme" $'app/trust-anchors/README.md'
+expect true "moved out of a release source set" $'app/src/githubRelease/kotlin/X.kt\napp/src/debug/kotlin/X.kt'
+expect true "quoted file name" $'"app/src/main/kotlin/caf\\303\\251.kt"'
 
 # Gates and this decision.
 expect true "lint config" $'config/lint/lint.xml'
