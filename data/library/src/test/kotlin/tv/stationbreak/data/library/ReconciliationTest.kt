@@ -8,6 +8,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.LibrarySource
+import tv.stationbreak.core.domain.ListLibrarySource
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.SyncFailure
@@ -43,9 +45,13 @@ class ReconciliationTest {
 
     private fun engine() = StayCurrentWorld.engine(repository, server, clock)
 
+    // What the last reconcile() did.
+    private var summary = ReconcileSummary()
+
     private suspend fun reconcile(engine: StayCurrentEngine = engine()): SyncOutcome {
-        val chosen = setOf(MOVIES)
-        return engine.reconcile(session, ALICE, chosen)
+        val result = engine.reconcile(session, ALICE, setOf(MOVIES))
+        summary = result.summary
+        return result.outcome
     }
 
     private suspend fun stored() = repository.stored(ALICE).associateBy { it.item.id.value }
@@ -65,7 +71,7 @@ class ReconciliationTest {
             assertEquals(setOf(gone.id.value), tombstones())
             assertEquals(clock.now(), stored().getValue(gone.id.value).deletedAt)
             assertEquals(299, repository.snapshot(ALICE, setOf(MOVIES), EPOCH).size)
-            assertEquals(ReconcileSummary(tombstoned = 1, revived = 0, fetched = 0), engine.reconciled)
+            assertEquals(ReconcileSummary(tombstoned = 1, revived = 0, fetched = 0), summary)
             assertTrue("only IDs were read", server.calls.all { it.idsOnly })
         }
 
@@ -83,7 +89,7 @@ class ReconciliationTest {
 
             assertTrue(tombstones().isEmpty())
             assertEquals(300, repository.snapshot(ALICE, setOf(MOVIES), EPOCH).size)
-            assertEquals(ReconcileSummary(tombstoned = 0, revived = 1, fetched = 0), engine.reconciled)
+            assertEquals(ReconcileSummary(tombstoned = 0, revived = 1, fetched = 0), summary)
         }
 
     @Test
@@ -169,7 +175,7 @@ class ReconciliationTest {
             shows.items.clear()
 
             val engine = StayCurrentWorld.engine(repository, both, clock)
-            val outcome = engine.reconcile(session, ALICE, setOf(MOVIES, SHOWS))
+            val outcome = engine.reconcile(session, ALICE, setOf(MOVIES, SHOWS)).outcome
 
             assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), outcome)
             // The movies list was complete and sound, so its deletion stands; the shows are untouched.
@@ -227,7 +233,7 @@ class ReconciliationTest {
             val neighbour = stored().getValue("m-00100")
             assertNull(neighbour.deletedAt)
             assertEquals(ItemId("m-00100"), neighbour.item.id)
-            assertEquals(ReconcileSummary(tombstoned = 1, revived = 0, fetched = 1), engine.reconciled)
+            assertEquals(ReconcileSummary(tombstoned = 1, revived = 0, fetched = 1), summary)
             assertEquals(299, repository.snapshot(ALICE, setOf(MOVIES), EPOCH).size)
         }
 
@@ -275,5 +281,151 @@ class ReconciliationTest {
 
             assertEquals(SyncOutcome.Cancelled, outcome)
             assertEquals(RowCounts.NONE, repository.rowCounts())
+        }
+
+    // The second review round: a shift that leaves the size unchanged, the order of reads, endless lists, the gap fetch.
+
+    @Test
+    fun anItemRenamedAcrossTheCursorMidReadCausesNoWrongTombstone() =
+        runBlocking {
+            firstSyncDone()
+            var changed = false
+            server.respond = { call ->
+                if (call.idsOnly && call.startIndex == 100 && !changed) {
+                    changed = true
+                    // Renamed so it sorts at the end: it moves from before the cursor to after it. Same size.
+                    val moved = library.items.removeAt(10).copy(name = "Renamed to sort last")
+                    library.items += moved
+                }
+                null
+            }
+
+            reconcile()
+            assertEquals(emptySet<String>(), tombstones())
+            server.respond = { null }
+            reconcile()
+            assertEquals(emptySet<String>(), tombstones())
+        }
+
+    @Test
+    fun aDeleteBeforeTheCursorAndAnAddAfterItTombstonesOnlyTheRealDelete() =
+        runBlocking {
+            firstSyncDone()
+            var changed = false
+            server.respond = { call ->
+                if (call.idsOnly && call.startIndex == 100 && !changed) {
+                    changed = true
+                    library.items.removeAt(10)
+                    library.items += SyncWorld.item("new", 1)
+                }
+                null
+            }
+
+            reconcile()
+
+            // The size is unchanged (300 listed, 300 read), so the first list looks sound; the second read settles it.
+            assertEquals(setOf("m-00010"), tombstones())
+        }
+
+    @Test
+    fun anItemSavedByAnotherPassWhileTheListIsReadIsNotTombstoned() =
+        runBlocking {
+            firstSyncDone()
+            var saved = false
+            server.respond = { call ->
+                if (call.idsOnly && call.startIndex == 100 && !saved) {
+                    saved = true
+                    runBlocking { repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("late", 1))) }
+                }
+                null
+            }
+
+            reconcile()
+
+            assertEquals(emptySet<String>(), tombstones())
+        }
+
+    @Test
+    fun aListThatKeepsRepeatingTheSamePageFailsTheReadAndChangesNothing() =
+        runBlocking {
+            firstSyncDone()
+            val stuck =
+                object : LibrarySource by library {
+                    override fun page(
+                        startIndex: Int,
+                        limit: Int,
+                    ) = library.page(0, limit)
+                }
+            val stuckServer = PagedMediaServer(listOf(movies), mapOf(MOVIES to stuck))
+            val engine = StayCurrentWorld.engine(repository, stuckServer, clock)
+
+            val result = engine.reconcile(session, ALICE, setOf(MOVIES))
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertTrue(tombstones().isEmpty())
+        }
+
+    @Test
+    fun aListThatNeverEndsFailsTheReadOnceItPassesTheTotal() =
+        runBlocking {
+            firstSyncDone()
+            val endless =
+                object : LibrarySource by library {
+                    override fun page(
+                        startIndex: Int,
+                        limit: Int,
+                    ) = (startIndex until startIndex + limit).map { SyncWorld.item("e", it) }
+                }
+            val endlessServer = PagedMediaServer(listOf(movies), mapOf(MOVIES to endless))
+            val engine = StayCurrentWorld.engine(repository, endlessServer, clock)
+
+            val result = engine.reconcile(session, ALICE, setOf(MOVIES))
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertTrue("bounded: ${endlessServer.calls.size} calls", endlessServer.calls.size <= 6)
+            assertTrue(tombstones().isEmpty())
+        }
+
+    @Test
+    fun anIdListedButAbsentFromTheItemPagesCostsOneBoundedWalkThenNoneWhileTheListIsUnchanged() =
+        runBlocking {
+            firstSyncDone()
+            val ghost = SyncWorld.item("ghost", 1)
+            library.items += ghost
+            server.hiddenFromItems = setOf(ghost.id)
+            val unfindable = UnfindableIds()
+            val chosen = setOf(MOVIES)
+
+            StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable).reconcile(session, ALICE, chosen)
+            val walkCalls = server.itemCalls.size
+            assertTrue("one bounded walk: $walkCalls item calls", walkCalls in 1..6)
+
+            server.calls.clear()
+            StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable).reconcile(session, ALICE, chosen)
+            assertTrue("no walk the second time", server.itemCalls.isEmpty())
+
+            // The list changes (another item appears): the ghost is looked for again.
+            library.items += SyncWorld.item("other", 1)
+            server.calls.clear()
+            StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable).reconcile(session, ALICE, chosen)
+            assertTrue("the changed list is walked", server.itemCalls.isNotEmpty())
+        }
+
+    @Test
+    fun theSameIdInTwoLibrariesIsNotWalkedForOnTheSecondReconcile() =
+        runBlocking {
+            val shared = (0 until 5).map { SyncWorld.item("shared", it) }
+            val first = ListLibrarySource(shared.toMutableList())
+            val second = ListLibrarySource(shared.toMutableList())
+            val both = SyncWorld.server(movies to first, SyncWorld.shows to second)
+            repository.useAccount(ALICE)
+            SyncWorld.engine(repository, both, clock).run(session, ALICE, setOf(MOVIES, SHOWS))
+            both.calls.clear()
+            val engine = StayCurrentWorld.engine(repository, both, clock)
+
+            val result = engine.reconcile(session, ALICE, setOf(MOVIES, SHOWS))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertTrue("only IDs were read", both.calls.all { it.idsOnly })
         }
 }

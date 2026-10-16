@@ -2,6 +2,7 @@
 package tv.stationbreak.data.library
 
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -174,6 +175,43 @@ class StayCurrentRunnerTest {
 
             runCatching { rig.runner.run(both) }
 
+            assertFalse(rig.runner.isRunning)
+        }
+
+    @Test
+    fun anExceptionFromThePassIsRecordedAsAServerFailureAndTheFlagIsCleared() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            val recorded = rig.repository.activeStatus().first()?.lastSuccess
+            server.respond = { throw IllegalStateException("a surprise") }
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Failure, verdict)
+            val status = rig.repository.activeStatus().first()!!
+            assertEquals(SyncState.LastSyncFailed(SyncFailure.Server), status.state)
+            assertEquals(recorded, status.lastSuccess)
+            assertFalse(rig.runner.isRunning)
+        }
+
+    @Test
+    fun aCancelledRunIsNotRecordedAsAFailureAndLeavesTheMomentAndTheFlagAlone() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            val before = rig.repository.activeStatus().first()
+            lateinit var job: kotlinx.coroutines.Job
+            server.respond = { call ->
+                if (call.number == 1) job.cancel()
+                null
+            }
+
+            job = launch { rig.runner.run(both) }
+            job.join()
+
+            assertTrue(job.isCancelled)
+            assertEquals(before, rig.repository.activeStatus().first())
             assertFalse(rig.runner.isRunning)
         }
 }

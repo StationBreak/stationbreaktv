@@ -21,7 +21,8 @@ internal object StayCurrentWorld {
         server: PagedMediaServer,
         clock: Clock,
         pageSize: Int = 100,
-    ) = StayCurrentEngine(repository, server, clock, pageSize = pageSize)
+        unfindable: UnfindableIds = UnfindableIds(),
+    ) = StayCurrentEngine(repository, server, clock, pageSize = pageSize, unfindable = unfindable)
 }
 
 /** A [WorkEnqueuer] and [PeriodicEnqueuer] that record what they were asked and do nothing else. */

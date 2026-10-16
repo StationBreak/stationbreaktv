@@ -81,6 +81,13 @@ class SyncTriggerPolicyTest {
     }
 
     @Test
+    fun aLastSuccessInTheFutureCountsAsStale() {
+        // The TV clock was set back: a recorded moment ahead of "now" cannot be trusted, so the incremental pass runs.
+        assertEquals(SyncPlan.Both, policy.onOpen(idle(clock.now() + 1.hours), syncRunning = false))
+        assertEquals(SyncPlan.Both, policy.onOpen(idle(clock.now() + 30.days), syncRunning = false))
+    }
+
+    @Test
     fun thePeriodicJobDoesBoth() {
         assertEquals(SyncPlan.Both, policy.periodic())
     }
@@ -111,7 +118,7 @@ class SyncTriggerPolicyTest {
 
             assertEquals(listOf(reconcileOnly), plansEnqueued())
             assertEquals(listOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first })
-            assertEquals(listOf(ExistingWorkPolicy.KEEP), enqueuer.enqueued.map { it.second })
+            assertEquals(listOf(ExistingWorkPolicy.APPEND_OR_REPLACE), enqueuer.enqueued.map { it.second })
         }
 
     @Test
@@ -126,14 +133,14 @@ class SyncTriggerPolicyTest {
         }
 
     @Test
-    fun everyOpenAsksAndWorkManagersKeepPolicyIsWhatStopsADuplicate() =
+    fun everyOpenAsksAndTheAppendPolicyKeepsALaterBothPlanBehindAQueuedOne() =
         runBlocking {
             rig.firstSyncDone()
 
             stayCurrent.onOpen()
             stayCurrent.onOpen()
 
-            assertEquals(listOf(ExistingWorkPolicy.KEEP, ExistingWorkPolicy.KEEP), enqueuer.enqueued.map { it.second })
+            assertEquals(listOf(ExistingWorkPolicy.APPEND_OR_REPLACE, ExistingWorkPolicy.APPEND_OR_REPLACE), enqueuer.enqueued.map { it.second })
             assertEquals(setOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first }.toSet())
         }
 

@@ -67,14 +67,14 @@ class IncrementalSyncTest {
             library.saved[renamed.id] = clock.now() - 1.minutes
 
             val engine = engine()
-            val outcome = engine.incremental(session, ALICE, setOf(MOVIES))
+            val result = engine.incremental(session, ALICE, setOf(MOVIES))
 
-            assertEquals(SyncOutcome.Completed, outcome)
+            assertEquals(SyncOutcome.Completed, result.outcome)
             val names = storedNames()
             assertEquals(301, names.size)
             assertEquals("Renamed on the server", names["m-00007"])
             assertEquals("Name of new 1", names["new-00001"])
-            assertEquals(PassSummary(inserted = 1, updated = 1, unchanged = 0), engine.summary)
+            assertEquals(PassSummary(inserted = 1, updated = 1, unchanged = 0), result.summary)
         }
 
     @Test
@@ -85,10 +85,9 @@ class IncrementalSyncTest {
             // Saved five minutes before the last pass began: inside the margin, so it comes back, identical.
             library.saved[library.items[3].id] = EPOCH - 5.minutes
 
-            val engine = engine()
-            engine.incremental(session, ALICE, setOf(MOVIES))
+            val result = engine().incremental(session, ALICE, setOf(MOVIES))
 
-            assertEquals(PassSummary(inserted = 0, updated = 0, unchanged = 1), engine.summary)
+            assertEquals(PassSummary(inserted = 0, updated = 0, unchanged = 1), result.summary)
             val asked = server.itemCalls.single { it.startIndex == 0 }
             assertEquals(EPOCH - 10.minutes, asked.changedSince)
         }
@@ -149,7 +148,7 @@ class IncrementalSyncTest {
             library.items += newItem(1)
             server.respond = { MediaServerError.Timeout() }
 
-            val outcome = engine().incremental(session, ALICE, setOf(MOVIES))
+            val outcome = engine().incremental(session, ALICE, setOf(MOVIES)).outcome
 
             assertEquals(SyncOutcome.Failed(SyncFailure.Network), outcome)
             val status = repository.activeStatus().first()!!
@@ -182,7 +181,7 @@ class IncrementalSyncTest {
         runBlocking {
             repository.useAccount(ALICE)
 
-            val outcome = engine().incremental(session, ALICE, setOf(MOVIES))
+            val outcome = engine().incremental(session, ALICE, setOf(MOVIES)).outcome
 
             assertEquals(SyncOutcome.Cancelled, outcome)
             assertTrue(server.calls.isEmpty())
@@ -216,5 +215,22 @@ class IncrementalSyncTest {
             SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
 
             assertEquals(EPOCH, lastSuccess())
+        }
+
+    @Test
+    fun aLastSuccessInTheFutureStillCoversTheWindowAndIsReplacedByTheRealStart() =
+        runBlocking {
+            firstSyncDone()
+            // The TV clock was set back: the recorded moment is ten hours ahead of "now".
+            clock.instant -= 10.hours
+            val now = clock.now()
+            val changed = rename(12, "Saved a minute ago")
+            library.saved[changed.id] = now - 1.minutes
+
+            engine().incremental(session, ALICE, setOf(MOVIES))
+
+            assertEquals("Saved a minute ago", storedNames()["m-00012"])
+            // The older of the two moments is recorded, so the window never stays in the future.
+            assertEquals(now, lastSuccess())
         }
 }
