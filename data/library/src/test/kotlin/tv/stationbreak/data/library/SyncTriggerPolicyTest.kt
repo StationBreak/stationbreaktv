@@ -101,50 +101,55 @@ class SyncTriggerPolicyTest {
     @After
     fun close() = rig.close()
 
-    private fun plansEnqueued() =
-        enqueuer.enqueued.map {
-            val data = it.third.workSpec.input
-            val incremental = data.getBoolean(StayCurrentWork.KEY_INCREMENTAL, false)
-            SyncPlan(incremental, data.getBoolean(StayCurrentWork.KEY_RECONCILE, false))
-        }
-
     @Test
-    fun anOpenSoonAfterAPassAsksForTheReconciliationAlone() =
+    fun anOpenQueuesOneOnOpenWorkWithNoPlanAndKeepsAnExistingOne() =
         runBlocking {
             rig.firstSyncDone()
             clock.instant += 1.hours
 
             stayCurrent.onOpen()
 
-            assertEquals(listOf(reconcileOnly), plansEnqueued())
             assertEquals(listOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first })
-            assertEquals(listOf(ExistingWorkPolicy.APPEND_OR_REPLACE), enqueuer.enqueued.map { it.second })
+            assertEquals(listOf(ExistingWorkPolicy.KEEP), enqueuer.enqueued.map { it.second })
+            // The worker decides the plan when it runs, so the request carries nothing.
+            assertTrue(enqueuer.enqueued.single().third.workSpec.input.keyValueMap.isEmpty())
         }
 
     @Test
-    fun anOpenAfterSevenHoursAsksForBoth() =
+    fun everyOpenAsksAndKeepIsWhatStopsAPileUp() =
         runBlocking {
             rig.firstSyncDone()
+
+            stayCurrent.onOpen()
+            stayCurrent.onOpen()
+
+            assertEquals(List(2) { ExistingWorkPolicy.KEEP }, enqueuer.enqueued.map { it.second })
+            assertEquals(setOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first }.toSet())
+        }
+
+    @Test
+    fun aQueuedOpenThatRunsSoonAfterAPassOnlyReconciles() =
+        runBlocking {
+            rig.firstSyncDone()
+            clock.instant += 1.hours
+
+            stayCurrent.runOpen()
+
+            assertTrue(rig.server.calls.isNotEmpty() && rig.server.calls.all { it.idsOnly })
+        }
+
+    @Test
+    fun aQueuedOpenThatRunsMoreThanSixHoursAfterTheLastSuccessAlsoRunsTheIncrementalPass() =
+        runBlocking {
+            rig.firstSyncDone()
+            // Queued while the last pass was fresh, but it only gets to run (the network came back) much later.
+            stayCurrent.onOpen()
             clock.instant += 7.hours
 
-            stayCurrent.onOpen()
+            stayCurrent.runOpen()
 
-            assertEquals(listOf(SyncPlan.Both), plansEnqueued())
-        }
-
-    @Test
-    fun everyOpenAsksAndTheAppendPolicyKeepsALaterBothPlanBehindAQueuedOne() =
-        runBlocking {
-            rig.firstSyncDone()
-
-            stayCurrent.onOpen()
-            stayCurrent.onOpen()
-
-            assertEquals(
-                listOf(ExistingWorkPolicy.APPEND_OR_REPLACE, ExistingWorkPolicy.APPEND_OR_REPLACE),
-                enqueuer.enqueued.map { it.second },
-            )
-            assertEquals(setOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first }.toSet())
+            assertTrue(rig.server.calls.any { !it.idsOnly && it.changedSince != null })
+            assertTrue(rig.server.calls.any { it.idsOnly })
         }
 
     @Test

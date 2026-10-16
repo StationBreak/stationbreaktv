@@ -150,14 +150,15 @@ class StayCurrentWorkTest {
     // The work in the real WorkManager.
 
     @Test
-    fun twoOpensQueueOneWorkThenAppendTheSecondBehindIt() =
+    fun threeOpensWhileOfflineLeaveExactlyOneQueuedWork() =
         runBlocking {
             stayCurrent.onOpen()
             stayCurrent.onOpen()
+            stayCurrent.onOpen()
 
-            val states = infos(StayCurrentWork.OPEN_NAME).map { it.state }.sortedBy { it.name }
-            // The first waits for its network constraint; the second is chained behind it, not dropped.
-            assertEquals(listOf(WorkInfo.State.BLOCKED, WorkInfo.State.ENQUEUED), states)
+            val states = infos(StayCurrentWork.OPEN_NAME).map { it.state }
+            // The network constraint is unmet, so the first waits; the others find it there and add nothing.
+            assertEquals(listOf(WorkInfo.State.ENQUEUED), states)
         }
 
     @Test
@@ -186,6 +187,17 @@ class StayCurrentWorkTest {
             server.calls.clear()
             worker(incremental = false, reconcile = false).doWork()
             assertTrue(server.calls.isEmpty())
+        }
+
+    @Test
+    fun anOpenWorkerWithNoFlagsPicksItsPlanWhenItRuns() =
+        runBlocking {
+            val noFlags = TestListenableWorkerBuilder<StayCurrentWorker>(provider).build()
+
+            noFlags.doWork()
+
+            // A fresh first sync: only the reconciliation is due.
+            assertTrue(server.calls.isNotEmpty() && server.calls.all { it.idsOnly })
         }
 
     @Test

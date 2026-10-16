@@ -50,18 +50,12 @@ class PeriodicWorkSchedulingTest {
     }
 
     @Test
-    fun theOnOpenWorkNeedsTheNetworkAndCarriesOnlyTheTwoFlags() {
-        val spec = StayCurrentWork.openRequest(SyncPlan(incremental = false, reconcile = true)).workSpec
+    fun theOnOpenWorkNeedsTheNetworkAndCarriesNothingBecauseTheWorkerPicksItsPlanWhenItRuns() {
+        val spec = StayCurrentWork.openRequest().workSpec
 
         assertFalse(spec.isPeriodic)
         assertEquals(NetworkType.CONNECTED, spec.constraints.requiredNetworkType)
-        assertEquals(setOf(StayCurrentWork.KEY_INCREMENTAL, StayCurrentWork.KEY_RECONCILE), spec.input.keyValueMap.keys)
-        assertTrue(
-            spec.input.keyValueMap.values
-                .all { it is Boolean },
-        )
-        assertFalse(spec.input.getBoolean(StayCurrentWork.KEY_INCREMENTAL, true))
-        assertTrue(spec.input.getBoolean(StayCurrentWork.KEY_RECONCILE, false))
+        assertTrue(spec.input.keyValueMap.isEmpty())
     }
 
     @Test
