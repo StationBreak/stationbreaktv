@@ -26,7 +26,8 @@ class WrongTypeFieldsTest {
 
     private val badForInt = listOf(aNull, aBool, aString, aFraction, anArray, anObject)
     private val badForString = listOf(aNull, aBool, aNumber, anArray, anObject)
-    private val badForBoolean = listOf(aNull, aString, JsonPrimitive("true"), aNumber, JsonPrimitive(0), anArray, anObject)
+    private val badForBoolean =
+        listOf(aNull, aString, JsonPrimitive("true"), aNumber, JsonPrimitive(0), anArray, anObject)
     private val badForObject = listOf(aNull, aBool, aNumber, aString, anArray)
     private val badForArray = listOf(aNull, aBool, aNumber, aString, anObject)
 
@@ -36,7 +37,7 @@ class WrongTypeFieldsTest {
     private fun withSource(vararg fields: Pair<String, JsonElement>) =
         minimalRules().with("sources", JsonArray(listOf(JsonObject(mapOf(*fields)))))
 
-    private fun filler(vararg fields: Pair<String, JsonElement>) = minimalRules().with("filler", JsonObject(mapOf(*fields)))
+    private fun filler(vararg fields: Pair<String, JsonElement>) = minimalRules().with("filler", obj(*fields))
 
     private fun fillerSource() = source("library", "id" to JsonPrimitive(PLACEHOLDER_ID))
 
@@ -112,7 +113,8 @@ class WrongTypeFieldsTest {
             filler("mode" to JsonPrimitive("padToGrid"), "source" to it)
         }
         rejectsAll("filler.source.type", badForString) {
-            filler("mode" to JsonPrimitive("padToGrid"), "source" to obj("type" to it, "id" to JsonPrimitive(PLACEHOLDER_ID)))
+            val source = obj("type" to it, "id" to JsonPrimitive(PLACEHOLDER_ID))
+            filler("mode" to JsonPrimitive("padToGrid"), "source" to source)
         }
     }
 
@@ -135,7 +137,9 @@ class WrongTypeFieldsTest {
 
     @Test
     fun theInvalidExamplesForTheGeneralRuleAreInvalid() {
-        for (name in listOf("block-length-0.json", "block-length-101.json", "max-rating-null.json", "align-to-grid-string.json")) {
+        val stems = listOf("block-length-0", "block-length-101", "max-rating-null", "align-to-grid-string")
+        val names = stems.map { "$it.json" }
+        for (name in names) {
             val result = RulesReader.read(ExampleFiles.invalid.getValue(name))
             assertTrue(result is RulesResult.Invalid, "$name should be invalid, got $result")
         }
