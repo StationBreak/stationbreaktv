@@ -8,6 +8,8 @@ import kotlinx.serialization.json.JsonPrimitive
 // Small readers for the fields of a rules file. A wrong shape throws InvalidRules, which RulesReader turns into
 // RulesResult.Invalid. The reasons name the field and never hold file content.
 
+private val WHOLE_NUMBER = Regex("^-?(0|[1-9][0-9]*)$")
+
 internal class InvalidRules(
     val reason: String,
 ) : Exception(reason)
@@ -64,8 +66,9 @@ internal fun int(
     path: String,
 ): Int {
     val primitive = element as? JsonPrimitive
-    val value = if (primitive != null && !primitive.isString) primitive.content.toIntOrNull() else null
-    return value ?: invalid("$path must be a whole number")
+    val content = if (primitive != null && !primitive.isString) primitive.content else null
+    val strict = content != null && content != "-0" && WHOLE_NUMBER.matches(content)
+    return (if (strict) content.toIntOrNull() else null) ?: invalid("$path must be a whole number")
 }
 
 internal fun ranged(

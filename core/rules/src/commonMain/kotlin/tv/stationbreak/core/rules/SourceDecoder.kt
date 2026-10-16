@@ -9,8 +9,6 @@ import tv.stationbreak.core.model.CanonicalId
 private val SOURCE_KINDS = setOf("library", "genre", "collection", "tag", "yearRange", "series")
 private val FILLER_SOURCE_KINDS = setOf("library", "collection", "tag")
 private const val MAX_LIST = RulesLimits.MAX_LIST_ENTRIES
-private const val MIN_YEAR = 1
-private const val MAX_YEAR = 9999
 
 /** Reads sources, exclusions and filler sources. An unknown kind is recorded in [unsupported] and skipped. */
 internal class SourceDecoder(
@@ -70,8 +68,8 @@ internal class SourceDecoder(
         obj: JsonObject,
         path: String,
     ): Source.YearRange {
-        val from = ranged(required(obj, "from", path), "$path.from", MIN_YEAR, MAX_YEAR)
-        val to = ranged(required(obj, "to", path), "$path.to", MIN_YEAR, MAX_YEAR)
+        val from = ranged(required(obj, "from", path), "$path.from", RulesVocabulary.MIN_YEAR, RulesVocabulary.MAX_YEAR)
+        val to = ranged(required(obj, "to", path), "$path.to", RulesVocabulary.MIN_YEAR, RulesVocabulary.MAX_YEAR)
         if (to < from) invalid("$path.to must not be lower than $path.from")
         return Source.YearRange(from, to, extras(obj, setOf("type", "from", "to")))
     }

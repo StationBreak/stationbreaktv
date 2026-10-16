@@ -37,7 +37,7 @@ class InvariantsTest {
 
     @Test
     fun extrasCannotCollideWithKnownKeys() {
-        for (key in listOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")) {
+        for (key in RulesVocabulary.TOP_LEVEL) {
             rejects { base.copy(extras = extras(key)) }
         }
         rejects { Source.Library(id, extras("type")) }

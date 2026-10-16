@@ -6,28 +6,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.Seed
 
-private val RATINGS =
-    setOf(
-        "TV-Y",
-        "TV-G",
-        "G",
-        "Approved",
-        "TV-Y7",
-        "TV-Y7-FV",
-        "TV-PG",
-        "PG",
-        "PG-13",
-        "TV-14",
-        "R",
-        "TV-MA",
-        "NC-17",
-        "TV-X",
-        "TV-AO",
-    )
-private val TOP_LEVEL =
-    setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")
-private const val MAX_EVERY = 1000
-
 /**
  * Builds [ChannelRules] from the JSON of a version 1 file. Throws [InvalidRules] for a wrong shape; an unknown kind is
  * recorded in [unsupported] and the rest of the file is still checked.
@@ -47,7 +25,7 @@ internal class RulesDecoder {
             ordering = root["ordering"]?.let { ordering(it) },
             timing = TimingDecoder.timing(required(root, "timing")),
             filler = root["filler"]?.let { filler(it) },
-            extras = extras(root, TOP_LEVEL),
+            extras = extras(root, RulesVocabulary.TOP_LEVEL),
         )
 
     private fun seed(root: JsonObject): Seed {
@@ -58,7 +36,7 @@ internal class RulesDecoder {
 
     private fun maxRating(element: JsonElement): String {
         val text = string(element, "maxRating")
-        if (text !in RATINGS) invalid("maxRating is not a rating on the ladder")
+        if (text !in RulesVocabulary.RATINGS) invalid("maxRating is not a rating on the ladder")
         return text
     }
 
@@ -82,7 +60,7 @@ internal class RulesDecoder {
         mode: FillerMode,
         obj: JsonObject,
     ): Filler {
-        val every = obj["every"]?.let { ranged(it, "filler.every", 1, MAX_EVERY) }
+        val every = obj["every"]?.let { ranged(it, "filler.every", 1, RulesVocabulary.MAX_EVERY) }
         val source = obj["source"]?.let { sources.source(it, "filler.source", filler = true) }
         if (mode == FillerMode.BetweenEveryN && every == null) invalid("filler.every is required for betweenEveryN")
         val missingSource = mode != FillerMode.None && source == null && unsupported.reason == null

@@ -18,13 +18,34 @@ import kotlinx.serialization.json.JsonPrimitive
 object RulesReader {
     private const val BAD_TEXT = "The file has a character that is not valid text"
     private const val BELOW_ONE = "formatVersion must be 1 or more"
-    private val WHOLE_NUMBER = Regex("^-?[0-9]+$")
+    private val WHOLE_NUMBER = Regex("^-?(0|[1-9][0-9]*)$")
 
-    fun read(bytes: ByteArray): RulesResult = read(bytes.decodeToString()) // stub, red
+    /**
+     * Reads a file given as bytes: the size limit is checked before anything is decoded, and the bytes must be valid
+     * UTF-8. Callers should hand over at most [RulesLimits.MAX_BYTES] plus one byte (read that much and no more), so an
+     * oversized or endless source is never held in memory.
+     */
+    fun read(bytes: ByteArray): RulesResult {
+        val text =
+            if (bytes.size > RulesLimits.MAX_BYTES) {
+                null
+            } else {
+                try {
+                    bytes.decodeToString(throwOnInvalidSequence = true)
+                } catch (_: CharacterCodingException) {
+                    null
+                }
+            }
+        return when {
+            bytes.size > RulesLimits.MAX_BYTES -> RulesResult.Invalid(RulesLimits.TOO_BIG)
+            text == null -> RulesResult.Invalid("The file is not valid UTF-8")
+            else -> read(text)
+        }
+    }
 
     fun read(text: String): RulesResult {
-        val tooBig = RulesLimits.check(text)
-        return if (tooBig != null) RulesResult.Invalid(tooBig) else readJson(text)
+        val problem = RulesLimits.check(text) ?: JsonProfile.problem(text)
+        return if (problem != null) RulesResult.Invalid(problem) else readJson(text)
     }
 
     private fun readJson(text: String): RulesResult {
@@ -68,6 +89,11 @@ object RulesReader {
             }
         } catch (e: InvalidRules) {
             RulesResult.Invalid(e.reason)
+        } catch (e: IllegalArgumentException) {
+            // The types check themselves too. A file whose unknown kinds were skipped can fail that check (no sources
+            // left): it is then unsupported, not invalid.
+            val unsupported = decoder.unsupported.reason
+            if (unsupported != null) RulesResult.Unsupported(unsupported) else RulesResult.Invalid(e.message.orEmpty())
         }
     }
 
@@ -111,22 +137,12 @@ object RulesReader {
         }
     }
 
+    private fun bad(text: String): Boolean = RulesLimits.hasUnpairedSurrogate(text)
+
     private fun hasUnpairedSurrogate(element: JsonElement): Boolean =
         when (element) {
-            is JsonObject -> element.any { (key, value) -> unpaired(key) || hasUnpairedSurrogate(value) }
+            is JsonObject -> element.any { (key, value) -> bad(key) || hasUnpairedSurrogate(value) }
             is JsonArray -> element.any { hasUnpairedSurrogate(it) }
-            is JsonPrimitive -> element.isString && unpaired(element.content)
+            is JsonPrimitive -> element.isString && RulesLimits.hasUnpairedSurrogate(element.content)
         }
-
-    private fun unpaired(text: String): Boolean {
-        var i = 0
-        var found = false
-        while (i < text.length && !found) {
-            val c = text[i]
-            val paired = c.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()
-            found = c.isSurrogate() && !paired
-            i += if (paired) 2 else 1
-        }
-        return found
-    }
 }

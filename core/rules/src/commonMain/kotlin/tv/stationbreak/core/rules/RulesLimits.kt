@@ -7,6 +7,7 @@ object RulesLimits {
     const val SUPPORTED_FORMAT_VERSION: Long = 1
 
     const val MAX_BYTES: Int = 256 * 1024
+    internal const val TOO_BIG = "The file is larger than 256 KiB"
     const val MAX_DEPTH: Int = 16
     const val MAX_LIST_ENTRIES: Int = 256
     const val MAX_NAME_CODE_POINTS: Int = 100
@@ -15,7 +16,7 @@ object RulesLimits {
     /** Null when [text] is inside the size and nesting limits, otherwise a plain reason. Looks at nothing else. */
     internal fun check(text: String): String? =
         when {
-            text.length > MAX_BYTES || text.encodeToByteArray().size > MAX_BYTES -> "The file is larger than 256 KiB"
+            text.length > MAX_BYTES || text.encodeToByteArray().size > MAX_BYTES -> TOO_BIG
             nestingDepth(text) > MAX_DEPTH -> "The file is nested more than $MAX_DEPTH levels deep"
             else -> null
         }
@@ -54,5 +55,18 @@ object RulesLimits {
             count++
         }
         return count
+    }
+
+    /** True when [text] has a surrogate that is not half of a pair. */
+    internal fun hasUnpairedSurrogate(text: String): Boolean {
+        var i = 0
+        var found = false
+        while (i < text.length && !found) {
+            val c = text[i]
+            val paired = c.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()
+            found = c.isSurrogate() && !paired
+            i += if (paired) 2 else 1
+        }
+        return found
     }
 }
