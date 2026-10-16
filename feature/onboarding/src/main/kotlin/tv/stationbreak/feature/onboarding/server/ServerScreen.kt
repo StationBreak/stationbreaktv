@@ -31,6 +31,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -65,6 +67,14 @@ private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
+
+/**
+ * [size] grown by the system font scale in a straight line. Compose scales large sp text less than small text (a curve
+ * that flattens as the size grows), so a 40sp headline hardly grew at 1.3 while the buttons did.
+ */
+@Composable
+private fun linearSp(size: TextUnit): TextUnit =
+    with(LocalDensity.current) { (size.value * fontScale).dp.toSp() }
 
 /**
  * The server screen as the app shows it. Back is the platform's: from this root screen it leaves the app, and it
@@ -134,9 +144,11 @@ internal fun ServerScreen(
                 modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Gap),
             ) {
+                val headlineSize = linearSp(HeadlineSize)
                 Text(
                     text = stringResource(R.string.server_headline),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    style =
+                        MaterialTheme.typography.headlineLarge.copy(fontSize = headlineSize, lineHeight = headlineSize),
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 AddressField(
