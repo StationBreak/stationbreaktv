@@ -53,6 +53,37 @@ class RulesFormatDocTest {
     }
 
     @Test
+    fun hasTheScopeSectionsAndBanner() {
+        assertTrue("Draft — v1 is final once F1.1 completes the scheduling section and the vectors land." in doc)
+        for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
+            assertTrue(headings.any { h in it }, "no section heading mentions: $h")
+        }
+        assertTrue("specified by F1.1" in doc)
+    }
+
+    @Test
+    fun statesTheReaderAndWriterRules() {
+        for (
+        needle in
+        listOf(
+            "A writer must write the lowest `formatVersion` whose features the file uses.",
+            "code points",
+            "standard (non-daylight-saving) offset",
+            "Provisional until checked against Jellyfin",
+            "RFC 2119",
+            "RFC 8174",
+            "unsupported",
+            "unpaired surrogate",
+        )
+        ) {
+            assertTrue(needle in doc, "missing statement: $needle")
+        }
+        assertTrue("RANDOM_IN_ORDER" !in doc && "SHUFFLE" !in doc, "ordering modes are lowerCamel")
+        assertTrue("between-every-N" !in doc && "pad-to-grid" !in doc, "filler modes are lowerCamel")
+        assertTrue("Bounded integers" !in doc, "bounded integers belong to F1.1")
+    }
+
+    @Test
     fun mentionsEveryExampleFile() {
         val files = RulesFormatFiles.valid.keys
         assertTrue(files.isNotEmpty(), "no files in examples/")

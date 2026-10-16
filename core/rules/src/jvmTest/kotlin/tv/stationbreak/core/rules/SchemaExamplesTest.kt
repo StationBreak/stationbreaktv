@@ -78,6 +78,30 @@ class SchemaExamplesTest {
 
     @Test fun betweenEveryNWithoutN() = rejects("filler-between-every-n-missing-n.json")
 
+    @Test fun missingTiming() = rejects("missing-timing.json")
+
+    @Test fun missingUtcOffset() = rejects("missing-utc-offset.json")
+
+    @Test fun offsetNotAMultipleOf15() = rejects("offset-not-multiple-of-15.json")
+
+    @Test fun offsetOutOfRange() = rejects("offset-out-of-range.json")
+
+    @Test fun epochHoursNotOnTheList() = rejects("epoch-hours-5.json")
+
+    @Test fun startNotOnTheHalfHour() = rejects("start-not-on-grid.json")
+
+    @Test fun upperCaseOrderingMode() = rejects("ordering-mode-upper-case.json")
+
+    @Test fun upperCaseFillerMode() = rejects("filler-mode-kebab-case.json")
+
+    @Test fun nameOf101CodePoints() = rejects("name-101-code-points.json")
+
+    @Test
+    fun nameOf100AstralCodePointsIsValid() {
+        val text = RulesFormatFiles.valid.getValue("name-100-code-points.json")
+        assertTrue(errors(text).isEmpty())
+    }
+
     private companion object {
         val invalidCases =
             listOf(
@@ -94,6 +118,15 @@ class SchemaExamplesTest {
                 "unknown-source-kind.json",
                 "no-sources.json",
                 "filler-between-every-n-missing-n.json",
+                "missing-timing.json",
+                "missing-utc-offset.json",
+                "offset-not-multiple-of-15.json",
+                "offset-out-of-range.json",
+                "epoch-hours-5.json",
+                "start-not-on-grid.json",
+                "ordering-mode-upper-case.json",
+                "filler-mode-kebab-case.json",
+                "name-101-code-points.json",
             )
     }
 }

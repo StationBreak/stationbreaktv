@@ -30,13 +30,13 @@ class ExampleCoverageTest {
     @Test
     fun everyOrderingModeIsShown() {
         val modes = docs.mapNotNull { (it["ordering"] as? Map<*, *>)?.get("mode") }.toSet()
-        assertEquals(setOf("SHUFFLE", "CHRONOLOGICAL", "RANDOM_IN_ORDER"), modes)
+        assertEquals(setOf("shuffle", "chronological", "randomInOrder"), modes)
     }
 
     @Test
     fun everyFillerModeIsShownWithEachFillerSource() {
         val fillers = docs.mapNotNull { it["filler"] as? Map<*, *> }
-        assertEquals(setOf("none", "pad-to-grid", "between-every-N"), fillers.map { it["mode"] }.toSet())
+        assertEquals(setOf("none", "padToGrid", "betweenEveryN"), fillers.map { it["mode"] }.toSet())
         val sources = fillers.mapNotNull { (it["source"] as? Map<*, *>)?.get("type") }.toSet()
         assertEquals(setOf("library", "collection", "tag"), sources)
     }
@@ -52,6 +52,25 @@ class ExampleCoverageTest {
                 day?.get("utcOffsetMinutes")
             }
         assertTrue(offsets.any { it != 0 })
+    }
+
+    @Test
+    fun aQuarterHourOffsetIsShown() {
+        val offsets =
+            docs.mapNotNull {
+                val timing = it["timing"] as? Map<*, *>
+                (timing?.get("broadcastDay") as? Map<*, *>)?.get("utcOffsetMinutes") as? Int
+            }
+        assertTrue(offsets.any { it == 345 })
+    }
+
+    @Test
+    fun everyExampleStatesItsBroadcastDayOffset() {
+        for ((name, text) in RulesFormatFiles.valid) {
+            val m = asMap(RulesFormatFiles.parse(text))
+            val day = (m["timing"] as? Map<*, *>)?.get("broadcastDay") as? Map<*, *>
+            assertTrue(day?.get("utcOffsetMinutes") != null, "$name has no timing.broadcastDay.utcOffsetMinutes")
+        }
     }
 
     @Test
