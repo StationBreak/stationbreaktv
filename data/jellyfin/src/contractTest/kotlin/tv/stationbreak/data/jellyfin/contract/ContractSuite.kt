@@ -637,12 +637,12 @@ abstract class ContractSuite {
                 val changed = adapter.libraryItems(session, library, 0, BIG_PAGE, everything).getOrNull()
                 assertTrue(changed?.items.orEmpty().none { it.id.value == doomed }, "a deleted item is not returned")
 
-                // Open question 5: a file put back. The design (revive a returning ID, fetch a new one) works either way.
+                // Open question 5: a file put back. Revive a returning ID, fetch a new one: either way works.
                 churn.addFile("Churn B")
                 churn.refresh()
                 val restored = awaitIds(adapter, session, library, "the restore") { it.size == 3 }
                 finding("restored file keeps its ID = ${doomed in restored}")
-                assertEquals(3, restored.size)
+                assertEquals(CHURN_FILES, restored.size)
             }
         }
     }
@@ -679,6 +679,7 @@ abstract class ContractSuite {
     }
 
     private companion object {
+        const val CHURN_FILES = 3
         const val CHURN_WAIT_SECONDS = 120
         const val CHURN_POLL_MS = 2_000L
         const val SUPPORTED_MAJOR = 12

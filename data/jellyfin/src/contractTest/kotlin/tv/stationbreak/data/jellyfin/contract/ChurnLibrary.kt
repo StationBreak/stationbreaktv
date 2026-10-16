@@ -36,7 +36,8 @@ internal class ChurnLibrary(
                 }
             }
         val query = listOf("name" to NAME, "collectionType" to "movies", "refreshLibrary" to "false")
-        server.http.expectOk("churn library", server.http.post("Library/VirtualFolders", options.toString(), admin, query))
+        val create = server.http.post("Library/VirtualFolders", options.toString(), admin, query)
+        server.http.expectOk("churn library", create)
         created = true
         val folders =
             server.http
@@ -53,7 +54,10 @@ internal class ChurnLibrary(
     }
 
     /** Puts a file called [name] in the library's folder (a copy of a seeded movie). Run [refresh] to see it. */
-    fun addFile(name: String) = sh("add $name", "mkdir -p '${dir(name)}' && cp '$SOURCE' '${dir(name)}/$name ($YEAR).mp4'")
+    fun addFile(name: String) {
+        val target = "${dir(name)}/$name ($YEAR).mp4"
+        sh("add $name", "mkdir -p '${dir(name)}' && cp '$SOURCE' '$target'")
+    }
 
     /** Takes the file called [name] away. Run [refresh] to see it go. */
     fun removeFile(name: String) = sh("remove $name", "rm -rf '${dir(name)}'")
