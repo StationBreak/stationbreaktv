@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonPrimitive
+import tv.stationbreak.core.scheduler.vectors.VectorFiles
+import tv.stationbreak.core.scheduler.vectors.VectorJson
+import tv.stationbreak.core.scheduler.vectors.VectorJson.array
+import tv.stationbreak.core.scheduler.vectors.VectorJson.obj
+import tv.stationbreak.core.scheduler.vectors.VectorJson.objects
+import tv.stationbreak.core.scheduler.vectors.VectorJson.string
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -120,6 +128,28 @@ class EpochMathTest {
                     }
                 }
             }
+        }
+    }
+
+    @Test
+    fun theIndependentReferenceAgrees() {
+        // epoch-math.json: cases computed by an independent Python reference from the format text.
+        val rows = VectorJson.parse(VectorFiles.epochMath).array("vectors").objects()
+        assertTrue(rows.size >= 100, "the file has ${rows.size} cases")
+        for (row in rows) {
+            val input = row.obj("input")
+            val (hours, minutes) = input.string("start").split(":").map { it.toInt() }
+            val s =
+                testSettings(
+                    utcOffsetMinutes = input.getValue("utcOffsetMinutes").jsonPrimitive.int,
+                    startMinuteOfDay = hours * 60 + minutes,
+                    epochHours = input.getValue("epochHours").jsonPrimitive.int,
+                )
+            val t = input.string("t").toLong()
+            val out = row.obj("output")
+            val name = row.string("name")
+            assertEquals(out.string("n").toLong(), Epochs.epochNumber(s, t), "n: $name")
+            assertEquals(out.string("epochStart").toLong(), Epochs.epochStart(s, Epochs.epochNumber(s, t)), "epochStart: $name")
         }
     }
 
