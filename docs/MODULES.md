@@ -41,9 +41,9 @@ stationbreaktv/
 │   │                            and the hash primitives `splitmix64` and `fnv1a64` (`ordering` package)
 │   ├── rules/          [KMP]    Portable channel-rules JSON format: schema, versioning, migrations, (de)serialization
 │   ├── engine/         [KMP]    Channel engine: evaluate source rules against a library snapshot, then produce
-│   │                            a canonical base order; default-channel generation (per library / genre / collection)
+│   │                            the channel's items (the scheduler orders them); default-channel generation (per library / genre / collection)
 │   ├── scheduler/      [KMP]    Deterministic scheduler: ordering modes, epochs, filler packing,
-│   │                            "what's on at time T, at what offset". Input is an ordered item list, not rules.
+│   │                            "what's on at time T, at what offset". Input is the scheduler settings and an item list (any order), not rules.
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
 │   │                            SecretStore, ProEntitlement), use cases, and the built-in
 │   │                            ScheduleSource (engine + scheduler)
@@ -139,10 +139,10 @@ The Android side still gets OkHttp's TLS stack. That's where the self-signed cer
 
 ### Why the engine and the scheduler are separate modules
 
-- `core:engine` answers *"which items belong to this channel, and in what base order?"* The input is rules plus a
+- `core:engine` answers *"which items belong to this channel, and with what fields?"* The scheduler decides the order. The input is rules plus a
   library snapshot.
-- `core:scheduler` answers *"what airs at time T, and at what offset?"* The input is the ordered item
-  list, seed, epoch, and filler.
+- `core:scheduler` answers *"what airs at time T, and at what offset?"* The input is the settings (from the rules), the
+  item list, the day number, and filler.
 
 The Phase 5 XMLTV adapter replaces the scheduler as a `ScheduleSource` but keeps no engine. Keeping them
 separate stops the XMLTV path from dragging in rule evaluation, and it keeps each module's golden

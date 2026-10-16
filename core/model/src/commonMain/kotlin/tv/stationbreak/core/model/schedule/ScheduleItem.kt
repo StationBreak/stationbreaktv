@@ -32,7 +32,9 @@ data class ScheduleItem(
     val episodeNumber: Int?,
 ) {
     init {
-        require(premiereDate == null || DATE.matches(premiereDate)) { "A premiere date is YYYY-MM-DD" }
+        require(premiereDate == null || (DATE.matches(premiereDate) && !premiereDate.startsWith("0000-"))) {
+            "A premiere date is YYYY-MM-DD, with a year from 0001 to 9999"
+        }
         require(productionYear == null || productionYear in 1..MAX_YEAR) { "A production year is 1 to 9999" }
         require(seasonNumber == null || seasonNumber >= 0) { "A season number is not negative" }
         require(episodeNumber == null || episodeNumber >= 0) { "An episode number is not negative" }

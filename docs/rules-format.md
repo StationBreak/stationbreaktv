@@ -139,6 +139,9 @@ that breaks any of these rules as invalid, and a writer **must not** produce one
   fraction and no exponent, so `1.0` and `1e2` are invalid, and `-0` is invalid. (The JSON Schema's `integer` accepts `1.0`.
   The schema is an aid for tests and tools. This document is the rule, and a reader follows it.)
 
+A known field whose value has the wrong JSON type, is `null`, is outside the range or list this document gives, or breaks a
+rule stated for it, makes the file invalid. A reader never clamps, rounds, or replaces a bad value with the default.
+
 Unknown fields may hold any valid JSON, including numbers. When a file is written again an unknown value is kept as the same
 JSON value, not as the same bytes: an escape may be written differently, and a number such as `1e2` may be written as
 `100.0`. Writing the shipped examples gives back the same bytes.
@@ -167,7 +170,10 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    in version 1.
 2. **Matching a source.** An item matches:
    - `library`: if it is anywhere inside the library with that ID;
-   - `collection`: if it is a member of the collection, or an episode of a series that is a member;
+   - `collection`: if it is a **member movie**, a **member episode**, an **episode of a member series**, or an **episode of
+     a member season**. A member that is itself a collection selects nothing: collections are not followed (no recursion).
+     A member season selects only its own episodes, and a season's own genres and tags are never used (see `genre` and
+     `tag` below);
    - `series`: if it is an episode of that series;
    - `genre` or `tag`: if the item has it, **or if it is an episode and its series has it**. Jellyfin keeps genres and tags
      mostly on the series and the movie, not on each episode, so without this rule a genre channel made of TV shows would
@@ -184,6 +190,25 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. Rules 1 to 4 pick
    the items from it. Which of those items count for which epoch (the creation time, the deletion time and the runtime) is
    decided by The pool of an epoch, in Building the schedule. The format only says what is looked up in the snapshot.
+
+### Scheduler inputs from the server
+
+The scheduler's item fields (see Building the schedule, Inputs and outputs) come from the server's item like this. A client
+**must** follow every line, because a different conversion gives a different lineup:
+
+- `kind` **must** come from `Type`: `Movie` is a movie and `Episode` is an episode. Nothing else is an item.
+- `runtimeMs` **must** be `floorDiv(RunTimeTicks, 10000)` (Jellyfin's ticks are 100 nanoseconds). An item with a missing or
+  `null` `RunTimeTicks` **must** be left out of the pool.
+- `createdAt` **must** be `floorDiv(T, 10000)`, where `T` is `DateCreated` as ticks of 100 nanoseconds since
+  1970-01-01T00:00:00Z. The result is the server's creation time as milliseconds since the Unix epoch.
+- The premiere date **must** be the UTC calendar date of `PremiereDate`, as `YYYY-MM-DD`. An item with no `PremiereDate` has
+  no premiere date.
+- `ProductionYear` **must** be used as it is, and `SeriesId` **must** be used as the series ID (in canonical form). The
+  season number **must** be `ParentIndexNumber` and the episode number **must** be `IndexNumber`.
+- A collection's members **must** be read as rule 2 says (member movies, member episodes, episodes of member series and
+  episodes of member seasons, with no recursion into nested collections).
+
+`deletedAt` is not a server field: see The pool of an epoch.
 
 ## Sources
 
@@ -538,22 +563,28 @@ minRuntimeMs = minRuntimeSeconds * 1000
 **Items.** The items that match the rules (sources, exclusions and the rating ceiling: see Items and the pool). Each item
 has:
 
-- its canonical ID;
-- its kind, movie or episode;
-- `runtimeMs`: its runtime, in whole milliseconds. A runtime of 0 or less is not an error: it is below the minimum, so the
-  item is left out of the pool. (From Jellyfin's ticks of 100 nanoseconds, truncating `ticks / 10000` is
-  recommended. The scheduler uses the number it is given, and it decides whether an item right at `minRuntimeSeconds` counts.)
+- its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error;
+- its kind, `Movie` or `Episode`. Any other kind is an input error;
+- `runtimeMs`: its runtime, in whole milliseconds, from `RunTimeTicks` as Scheduler inputs from the server says
+  (`floorDiv(RunTimeTicks, 10000)`; no runtime, no item). A runtime of 0 or less is not an error: it is below the minimum,
+  so the item is left out of the pool.
 - `createdAt`: when the server created the item, in milliseconds since 1970-01-01T00:00:00Z;
 - `deletedAt`: absent, or the time this client first saw the item was gone (see The pool of an epoch);
-- the premiere date, or none: exactly `YYYY-MM-DD` (UTC), with a four-digit year, a month `01` to `12` and a day `01` to
+- the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from
+  `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to
   `31`. The shape is all that is checked: there is no check against a real calendar (`2020-02-31` is accepted and compared
-  as text). Anything else is an input error;
+  as text). Anything else is an input error, including leading or trailing whitespace and a time part;
 - the production year, or none: a whole number from 1 to 9999. Any other value is an input error;
 - for an episode: its series ID, or none, and its season number and episode number (each a whole number of 0 or more, or
-  none). A negative number is an input error. A movie that has a series ID, a season number or an episode number is an
-  input error.
+  none). A series ID is a canonical ID, like the item's own. A negative number is an input error. A movie that has a
+  series ID, a season number or an episode number is an input error.
 
-Two items with the same canonical ID are an input error, whether or not either is kept. The scheduler rejects the input
+The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an
+input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1. (A rules reader has normally refused
+such a file already.)
+
+Two items with the same canonical ID (the same 32 characters, compared as exact strings) are an input error, whether or
+not either is kept. `deletedAt` before `createdAt` is accepted: each is tested against the cut-off on its own. The scheduler rejects the input
 and builds no day.
 
 **Output.** A **day**: the epoch number `n`, its start `S = epochStart(n)`, its end `E = S + epochMs` (which is
@@ -574,10 +605,16 @@ every remainder is `floorMod` (see Timing).
   that range is an **input error**: building the day **rejects the whole input** and builds nothing. This includes any item
   whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is
   out of range. Filtering bad items is the caller's job (the library layer), not the scheduler's. In this range `t + offsetMs - startMs` and `n * epochMs` cannot overflow 64 bits, and they are also
-  exact in a double-precision float.
+  exact in a double-precision float. `S` and `E` are always multiples of 900,000 ms (15 minutes), so they can never equal
+  `-2^52` or `2^52`: the inclusive bounds matter only for item times and `t`.
 - **Sums.** A day holds at most `epochMs / minRuntimeMs` programs, and the sum of the slots of a cycle is at most the
   number of items times `epochMs`. So the list of input items must hold **fewer than 2^26 items** (67,108,864); that many or
-  more is an **input error** (the whole input is rejected), and below it that sum is below 2^53.
+  more is an **input error** (the whole input is rejected), and below it that sum is below 2^53. The limit counts the list as given, before duplicates are looked for and before
+  any filtering.
+- **Runtimes.** `runtimeMs` must fit a signed 64-bit integer; that is the caller's job. Any value larger than `epochMs` is
+  simply outside the pool (rule 4 of The pool of an epoch).
+- **Errors.** An input error, and a `whatsOn` time outside the day, are both **errors**: the call fails, and builds or
+  returns nothing. A port may use its own kind of error. The vectors assert only that the call fails.
 - **BrightScript** has 32-bit plain integers: use `LongInteger` for every time, runtime, slot and sum, and for each 64-bit
   hash use the two-32-bit-halves method of Primitives. Its `\` and `MOD` truncate: write `floorDiv` and `floorMod`.
 - **JavaScript** numbers are exact for whole numbers up to `2^53`, so times, slots and sums fit in a `Number`, but its `%`
@@ -631,6 +668,12 @@ An item is in the pool of day `n` if and only if **all four** hold:
    a few milliseconds would make millions of blocks a day.
 4. **A program fits in an epoch.** A longer item could never play without running over `E`, so it is left out.
 
+**Edits.** Day `n` is built from each item's fields as this client held them before `S - G`. A change first seen at or after
+`S - G` takes effect from the next day whose cut-off is after it. A client with no earlier copy (a new install) uses the
+oldest copy it has. Devices can disagree about day `n` only when an edit or deletion falls in `[S - 2G, S - G)`. This
+covers every field the scheduler reads, a runtime edit among them, and a deletion is the same case (the item then stays in
+the pool with the runtime it had, as item 2 says). Keeping the earlier copy is the library layer's job.
+
 **What `deletedAt` means.** `deletedAt` is the time at which **this client** first saw that the item was gone from the
 server. Jellyfin gives no deletion time, so it is a local observation and it differs between devices: TV A may see the
 item gone at 20:00 and TV B at 23:30. Items that are still present have no `deletedAt`.
@@ -643,7 +686,7 @@ device sync at least every `G`. An item deleted on the server at time `d` is fir
 - if `d < S - 2G`, every device has `deletedAt < S - G`, and the item is out everywhere;
 - if `S - 2G <= d < S - G`, it depends on when the device looked: **devices can disagree about day `n`**.
 
-So two devices agree on a day unless an item was deleted in `[S - 2G, S - G)`.
+So two devices agree on a day unless an item was deleted, or edited (see Edits), in `[S - 2G, S - G)`.
 
 Worked example, with the default `G` of 6 hours (21,600,000 ms), 24-hour epochs and `minRuntimeSeconds` 60 (so
 `minRuntimeMs` is 60,000 and `epochMs` is 86,400,000). The cut-off is `S - 21600000`:
@@ -805,7 +848,7 @@ For `chronological` and `randomInOrder`, with an **unchanged pool** (the same cy
 - **Nothing is skipped when every slot is the same length and that length divides `epochMs`.** The runs of the day then fill
   it exactly, so the last one ends at `E`, the next day starts at the next run, and `delta` does not matter. Example:
   60-minute slots in a 4-hour epoch with a `:30` start give `delta = 30` minutes, and still skip nothing. Equal slots that
-  do **not** divide `epochMs` can skip (worked example 1 below: 90-minute slots in a 4-hour epoch). Also, when
+  do **not** divide `epochMs` can skip (worked example 1 above: 90-minute slots in a 4-hour epoch). Also, when
   `delta_n = 0` nothing is skipped: for example half-hour episodes in runs of 1 on a 30-minute grid have `C` a multiple of
   `gridMs`, so `pos` is too.
 
@@ -949,6 +992,9 @@ so a version 1 reader treats every file whose filler `mode` is anything other th
 "update required"), in the same way as for an unknown kind (see Unknown fields and unsupported kinds). It does not
 play the channel without the filler. A writer should not write a filler mode other than `none` until a version of the
 apps schedules it. The examples below are valid files, and a version 1 reader keeps them, but it does not schedule them.
+
+How a filler mode other than `none` is scheduled is defined by a later `formatVersion`, and a file that uses one is written
+with that version.
 
 - `none`: no filler. `docs/rules-format/examples/filler-none.json`.
 - `padToGrid`: fill the time before the next grid mark. `docs/rules-format/examples/filler-pad-to-grid.json`, with a
@@ -1256,12 +1302,13 @@ Everything below is in this repository, under `docs/`:
   `formatVersion` 0, a missing or malformed seed, a hyphenated or upper-case ID, a rating off the ladder, an unknown
   source kind, no sources, a missing `timing` or offset, an offset that is not a multiple of 15, an `epochHours` not on
   the list, a `start` off the half hour, an upper-case ordering mode, a kebab-case filler mode, a name of 101 code
-  points, `betweenEveryN` without `every`).
+  points, `betweenEveryN` without `every`, a `blockLength` of 0 or 101, a `null` `maxRating`, an `alignToGrid` that is a
+  string).
 - `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
   `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
   filter and the series rule, built on Jellyfin 12.1's own table), `epoch-seed.json` (`seed_n`, including negative `n`) and
   `epoch-math.json` (the epoch number and `epochStart` for many offsets, starts and epoch lengths), `key-order.json` (the three
-  orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (82 whole
+  orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (whole
   days: the rules the scheduler reads, the items, the day number `n`, every block of the day, and queries giving the block
   that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors).
 

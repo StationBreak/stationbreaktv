@@ -1050,5 +1050,85 @@ internal object ExampleFiles {
                   }
                 }
                 """.trimIndent() + "\n",
+            "block-length-0.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "blockLength": 0,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "block-length-101.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "blockLength": 101,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "max-rating-null.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "maxRating": null,
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "align-to-grid-string.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "alignToGrid": "yes",
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
         )
 }
