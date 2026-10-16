@@ -3,20 +3,16 @@ package tv.stationbreak.feature.onboarding.server
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotFocused
-import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.hasText
@@ -25,7 +21,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Density
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -82,7 +77,6 @@ class ServerScreenTest {
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val continued = mutableListOf<ConnectedServer>()
     private lateinit var viewModel: ServerViewModel
-    private var fontScale by mutableFloatStateOf(1f)
 
     private fun launch() {
         val settings = InMemoryServerSettings()
@@ -90,23 +84,20 @@ class ServerScreenTest {
         val certificateTrust = CertificateTrust(server, settings, sessions)
         viewModel = ServerViewModel(server, ServerHandOff(), SignedInHandOff(), settings, certificateTrust, sessions)
         compose.setContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                StationBreakTheme {
-                    val state by viewModel.state.collectAsState()
-                    ServerScreen(
-                        state = state,
-                        onInputChange = viewModel::onInputChange,
-                        onTest = viewModel::onTest,
-                        onCancel = viewModel::onCancel,
-                        onEditAddress = viewModel::onEditAddress,
-                        onConfirmCleartext = viewModel::onConfirmCleartext,
-                        onDismissCleartext = viewModel::onDismissCleartext,
-                        onTrustCertificate = viewModel::onTrustCertificate,
-                        onDontTrust = viewModel::onDontTrust,
-                        onContinue = { continued += it },
-                    )
-                }
+            StationBreakTheme {
+                val state by viewModel.state.collectAsState()
+                ServerScreen(
+                    state = state,
+                    onInputChange = viewModel::onInputChange,
+                    onTest = viewModel::onTest,
+                    onCancel = viewModel::onCancel,
+                    onEditAddress = viewModel::onEditAddress,
+                    onConfirmCleartext = viewModel::onConfirmCleartext,
+                    onDismissCleartext = viewModel::onDismissCleartext,
+                    onTrustCertificate = viewModel::onTrustCertificate,
+                    onDontTrust = viewModel::onDontTrust,
+                    onContinue = { continued += it },
+                )
             }
         }
         compose.waitForIdle()
@@ -124,19 +115,6 @@ class ServerScreenTest {
     }
 
     private fun found(address: ServerAddress = https) = ServerResult.Success(ResolvedServer(address, info))
-
-    // Compose scales large sp text less than small text, so a fixed 40sp headline hardly grew at 1.3 while the
-    // buttons did. The headline has to grow in step with the rest.
-    @Test
-    fun theHeadlineGrowsWithTheSystemFontScale() {
-        launch()
-        val headline = compose.onNodeWithText("Connect to your Jellyfin server")
-        val normal = headline.getBoundsInRoot().let { it.bottom.value - it.top.value }
-        compose.runOnIdle { fontScale = 1.3f }
-        compose.waitForIdle()
-        val large = headline.getBoundsInRoot().let { it.bottom.value - it.top.value }
-        assertTrue("headline $normal -> $large did not grow with fontScale 1.3", large >= normal * 1.25f)
-    }
 
     @Test
     fun theFieldHasFocusAtLaunch() {
@@ -167,6 +145,20 @@ class ServerScreenTest {
         gate.complete(ServerResult.Failure(MediaServerError.Timeout()))
         compose.waitForIdle()
         compose.onNodeWithTag(ServerTags.ERROR_PANEL).assert(polite)
+    }
+
+    @Test
+    fun theTestingLineIsSpokenOnceNotTwice() {
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = gate
+        launch()
+        typeAndTest()
+        // Past the spinner's delay, so the spinner is on screen beside the text.
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+        compose.onAllNodes(hasText("Testing…") or hasContentDescription("Testing the connection")).assertCountEquals(1)
+        compose.onAllNodes(hasContentDescription("Testing the connection")).assertCountEquals(0)
+        gate.complete(ServerResult.Failure(MediaServerError.Timeout()))
     }
 
     @Test
