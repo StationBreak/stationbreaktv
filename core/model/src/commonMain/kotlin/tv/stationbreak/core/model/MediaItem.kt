@@ -46,3 +46,21 @@ data class ItemPage(
     val startIndex: Int,
     val items: List<MediaItem>,
 )
+
+/**
+ * One page of a library's video items for the cache (F0.6). [totalCount] is the whole library's count and is present
+ * only on the first page ([startIndex] 0), because the server is asked for it once. [items] are in a stable order, so
+ * a page boundary never skips or repeats an item.
+ */
+data class LibraryItemsPage(
+    val startIndex: Int,
+    val totalCount: Int?,
+    val items: List<MediaItem>,
+)
+
+/** One page of item IDs, for finding what the server no longer has (F0.6). [totalCount] is as for [LibraryItemsPage]. */
+data class ItemIdPage(
+    val startIndex: Int,
+    val totalCount: Int?,
+    val ids: List<ItemId>,
+)

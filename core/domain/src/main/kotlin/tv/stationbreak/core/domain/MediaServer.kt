@@ -4,8 +4,10 @@ package tv.stationbreak.core.domain
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
@@ -14,6 +16,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import kotlin.time.Instant
 
 /**
  * A server found at [address], and what it said about itself. [resolvedByFallback] is true when the address was
@@ -121,6 +124,35 @@ interface MediaServer {
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemPage>
+
+    /**
+     * One page of every video item under [library], at any depth (movies, episodes, videos and music videos; not
+     * series, seasons or folders), for the library cache. The items carry the fields the cache needs and come in a
+     * stable order by ID, so paging by [startIndex] can neither skip nor repeat an item. [limit] is 1 to
+     * [MAX_PAGE_SIZE]. The total count is asked for, and returned, on the first page ([startIndex] 0) only.
+     *
+     * With [changedSince] the call returns only items the server saved at or after that UTC moment (`MinDateLastSaved`).
+     * Throws [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the caller, not a server
+     * problem.
+     */
+    suspend fun libraryItems(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant? = null,
+    ): ServerResult<LibraryItemsPage>
+
+    /**
+     * One page of the IDs of the same items [libraryItems] returns, with nothing else, for finding what the server no
+     * longer has. Paging and the total count work as for [libraryItems], and the argument rules are the same.
+     */
+    suspend fun libraryItemIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage>
 
     /**
      * Asks how [item] can be played, with a conservative static device profile (a placeholder until F1.6's capability

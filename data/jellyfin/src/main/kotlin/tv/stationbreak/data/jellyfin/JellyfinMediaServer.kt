@@ -17,8 +17,10 @@ import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.Scheme
@@ -31,6 +33,7 @@ import tv.stationbreak.data.jellyfin.trust.PinRegistry
 import javax.inject.Inject
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /**
  * The Jellyfin implementation of [MediaServer] (ADR-0005). It takes the app's base client as an [HttpClientSource] and
@@ -179,6 +182,21 @@ class JellyfinMediaServer internal constructor(
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemPage> = media.items(session, library, startIndex, limit)
+
+    override suspend fun libraryItems(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<LibraryItemsPage> = media.libraryItems(session, library, startIndex, limit, changedSince)
+
+    override suspend fun libraryItemIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> = media.libraryItemIds(session, library, startIndex, limit)
 
     override suspend fun playbackInfo(
         session: Session,

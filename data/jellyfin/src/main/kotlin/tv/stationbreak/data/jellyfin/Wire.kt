@@ -100,6 +100,29 @@ internal class ItemDto(
     @SerialName("Type") val type: String = "",
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("ParentId") val parentId: String? = null,
+    // Dates stay text here and are read leniently in the mapper, so an odd one is absent, not a failed page.
+    @SerialName("DateCreated") val dateCreated: String? = null,
+    @SerialName("DateLastSaved") val dateLastSaved: String? = null,
+    @SerialName("ProductionYear") val productionYear: Int? = null,
+    @SerialName("OfficialRating") val officialRating: String? = null,
+    @SerialName("Genres") val genres: List<String>? = null,
+    @SerialName("Tags") val tags: List<String>? = null,
+    @SerialName("SeriesId") val seriesId: String? = null,
+    @SerialName("ParentIndexNumber") val seasonNumber: Int? = null,
+    @SerialName("IndexNumber") val episodeNumber: Int? = null,
+)
+
+/** An ID-only listing: the answer carries more, but only the ID is read. */
+@Serializable
+internal class ItemIdsDto(
+    @SerialName("Items") val items: List<ItemIdDto> = emptyList(),
+    @SerialName("TotalRecordCount") val totalRecordCount: Int = 0,
+    @SerialName("StartIndex") val startIndex: Int = 0,
+)
+
+@Serializable
+internal class ItemIdDto(
+    @SerialName("Id") val id: String,
 )
 
 /** The answer to `PlaybackInfo`. `Path`, `TranscodingUrl` and the like are not here, so they can't be passed on. */
