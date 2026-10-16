@@ -219,6 +219,7 @@ contract_tests() {
 
 emulator_image='system-images;android-25;android-tv;x86'
 emulator_port=5580
+emulator_lock_fd=""
 emulator_pid=""
 avd_home=""
 
@@ -269,10 +270,31 @@ instrumented_tests() {
   # shellcheck disable=SC2086
   ./gradlew $assemble
 
-  avd_home="$(mktemp -d)"
+  # One emulator at a time on this machine: runs from other worktrees wait here for their turn. The lock is held
+  # until this script exits. A local emulator is heavy, and the host may be serving other things.
+  local lock_dir="${XDG_CACHE_HOME:-$HOME/.cache}/stationbreak"
+  mkdir -p "$lock_dir"
+  exec {emulator_lock_fd}>"$lock_dir/emulator.lock"
+  if ! flock -n "$emulator_lock_fd"; then
+    echo "Another preflight is using the emulator; waiting for it to finish..."
+    flock "$emulator_lock_fd"
+  fi
+  # A run started outside this lock (an older copy of this script) may still hold the port.
+  local waited_port=0
+  while ss -ltnH "( sport = :$emulator_port or sport = :$((emulator_port + 1)) )" 2>/dev/null | grep -q .; do
+    if [ "$waited_port" -ge 1800 ]; then
+      echo "Port $emulator_port is still in use after 30 minutes." >&2
+      return 1
+    fi
+    sleep 10
+    waited_port=$((waited_port + 10))
+  done
+
+  # On disk, not in TMPDIR: /tmp is often RAM-backed, and the AVD's data partition is several GB.
+  avd_home="$(mktemp -d "$lock_dir/avd.XXXXXX")"
   export ANDROID_AVD_HOME="$avd_home"
   echo no | "$sdk/cmdline-tools/latest/bin/avdmanager" create avd --force -n preflight -k "$emulator_image" -d tv_1080p
-  "$sdk/emulator/emulator" -avd preflight -port "$emulator_port" -no-snapshot -no-window -no-audio -no-boot-anim \
+  nice -n 10 "$sdk/emulator/emulator" -avd preflight -port "$emulator_port" -no-snapshot -no-window -no-audio -no-boot-anim \
     -gpu swiftshader_indirect -camera-back none >"$avd_home/emulator.log" 2>&1 &
   emulator_pid=$!
 
