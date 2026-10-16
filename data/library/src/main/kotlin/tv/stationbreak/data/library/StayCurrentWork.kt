@@ -131,7 +131,10 @@ class StayCurrent internal constructor(
         schedulePeriodic()
         val plan = policy.onOpen(library.activeStatus().first(), runner.isRunning)
         if (plan.isEmpty) return
-        enqueuer.enqueueUnique(StayCurrentWork.OPEN_NAME, ExistingWorkPolicy.KEEP, StayCurrentWork.openRequest(plan))
+        // Appended, not kept: a Both plan must not be dropped behind a queued reconcile-only one. The runner's mutex
+        // serialises the work, and the policy already starts nothing while a sync is running.
+        val request = StayCurrentWork.openRequest(plan)
+        enqueuer.enqueueUnique(StayCurrentWork.OPEN_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
     /** Makes sure the unique periodic job exists. An existing one is kept, so this may be called every time. */

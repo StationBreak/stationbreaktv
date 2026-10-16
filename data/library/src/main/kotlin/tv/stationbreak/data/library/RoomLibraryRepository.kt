@@ -304,6 +304,12 @@ class RoomLibraryRepository internal constructor(
         return dao.tombstonedItemIds(server, user, library.value).map(::ItemId)
     }
 
+    /** The IDs of every row the account has, live or tombstoned, in any library. */
+    internal suspend fun allItemIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return dao.allItemIds(server, user).map(::ItemId)
+    }
+
     /** Deletes every tombstone more than [TOMBSTONE_LIFETIME_DAYS] days old, for every account. Returns how many. */
     internal suspend fun purgeTombstones(): Int {
         val cutoff = (clock.now() - TOMBSTONE_LIFETIME_DAYS.days).toEpochMilliseconds()

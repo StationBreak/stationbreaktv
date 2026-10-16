@@ -138,6 +138,13 @@ internal abstract class LibraryDao {
         libraryId: String,
     ): List<String>
 
+    // Every row the account has, live or tombstoned, in any library: the primary key's own prefix.
+    @Query("SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun allItemIds(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
     @Query(
         "SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
             "AND deletedAtMs IS NOT NULL ORDER BY itemId",

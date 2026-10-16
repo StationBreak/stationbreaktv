@@ -183,7 +183,11 @@ class StayCurrentRunnerTest {
         runBlocking {
             rig.firstSyncDone()
             rig.clock.instant += 7.hours
-            val recorded = rig.repository.activeStatus().first()?.lastSuccess
+            val recorded =
+                rig.repository
+                    .activeStatus()
+                    .first()
+                    ?.lastSuccess
             server.respond = { throw IllegalStateException("a surprise") }
 
             val verdict = rig.runner.run(both)

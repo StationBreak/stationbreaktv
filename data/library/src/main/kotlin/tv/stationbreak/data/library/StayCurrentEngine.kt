@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -8,7 +10,9 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.Session
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -35,11 +39,64 @@ internal data class ReconcileSummary(
         ReconcileSummary(tombstoned + other.tombstoned, revived + other.revived, fetched + other.fetched)
 }
 
-/** The complete ID list of one library: [trusted] is false when the library changed size while it was being read. */
+/** How a pass ended and what it did. Returned, not kept in the engine, so nothing mutable is shared. */
+internal data class StayResult<S>(
+    val outcome: SyncOutcome,
+    val summary: S,
+)
+
+/**
+ * The IDs a library lists but a walk of its item pages could not find (they would not decode, or are listed and never
+ * returned), remembered in this process only. While a library's ID list is exactly as it was when they were given
+ * up on, they are not looked for again, so one open never costs a full walk twice. A changed list forgets them. It is
+ * not persisted: a new process tries once more.
+ */
+internal class UnfindableIds {
+    private class Remembered(
+        val fingerprint: Int,
+        val ids: Set<ItemId>,
+    )
+
+    private val byLibrary = ConcurrentHashMap<Pair<LibraryAccount, ItemId>, Remembered>()
+
+    /** The IDs to leave out of the next walk of [library], given the [fingerprint] of the list it has now. */
+    fun skip(
+        account: LibraryAccount,
+        library: ItemId,
+        fingerprint: Int,
+    ): Set<ItemId> = byLibrary[account to library]?.takeIf { it.fingerprint == fingerprint }?.ids.orEmpty()
+
+    /** Gives up on [ids] for as long as the list keeps [fingerprint]; an empty set forgets the library. */
+    fun remember(
+        account: LibraryAccount,
+        library: ItemId,
+        fingerprint: Int,
+        ids: Set<ItemId>,
+    ) {
+        val key = account to library
+        if (ids.isEmpty()) byLibrary.remove(key) else byLibrary[key] = Remembered(fingerprint, ids)
+    }
+}
+
+/** The complete ID list of one library: [trusted] is false when the library changed while it was being read. */
 private class IdList(
     val ids: Set<ItemId>,
     val trusted: Boolean,
-)
+) {
+    // A cheap summary of the list: the same IDs give the same number, in any order.
+    val fingerprint: Int get() = 31 * ids.size + ids.hashCode()
+}
+
+/** How reading one library's IDs ended. */
+private sealed interface IdsRead {
+    class Complete(
+        val list: IdList,
+    ) : IdsRead
+
+    class Failed(
+        val error: MediaServerError,
+    ) : IdsRead
+}
 
 /**
  * Keeps the saved library current after the first sync (spec 06, Unit 4): the incremental pass picks up what changed on
@@ -48,7 +105,8 @@ private class IdList(
  * The incremental pass asks for the items saved since the last pass **began**, less [margin]. Jellyfin never sends a
  * per-item save time, so the moment a pass records is its own start on our clock, taken before the first request and
  * recorded only if the pass succeeds: whatever the server saved while the pass ran is fetched next time, and a pass
- * that dies leaves the window as it was. Pages are written with the same idempotent upsert the first sync uses, so an
+ * that dies leaves the window as it was. If the clock went back (the last success is ahead of now) the window counts
+ * from now, and now is what is recorded. Pages are written with the same idempotent upsert the first sync uses, so an
  * item that comes back unchanged is not rewritten. Nothing here takes a token apart: the [Session] is only handed to
  * the [MediaServer].
  */
@@ -59,18 +117,11 @@ internal class StayCurrentEngine(
     private val pageSize: Int = MediaServer.MAX_PAGE_SIZE,
     private val margin: Duration = FirstSyncEngine.DEFAULT_MARGIN,
     private val maxSkippedItems: Int = FirstSyncEngine.MAX_SKIPPED_ITEMS,
+    private val unfindable: UnfindableIds = UnfindableIds(),
 ) {
     init {
         require(pageSize in 1..MediaServer.MAX_PAGE_SIZE) { "pageSize must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
     }
-
-    /** What the last incremental pass wrote. For tests and diagnostics: nothing is shown to the user. */
-    var summary = PassSummary()
-        private set
-
-    /** What the last reconciliation did. For tests and diagnostics: nothing is shown to the user. */
-    var reconciled = ReconcileSummary()
-        private set
 
     /**
      * Fetches what changed in [chosen] since the last successful pass (less the margin) for [account] and saves it.
@@ -81,93 +132,119 @@ internal class StayCurrentEngine(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
-    ): SyncOutcome =
+    ): StayResult<PassSummary> =
         try {
             val last = repository.lastSuccess(account)
-            if (last == null) SyncOutcome.Cancelled else Pass(session, account, clock.now()).incremental(chosen, last)
+            if (last == null) {
+                StayResult(SyncOutcome.Cancelled, PassSummary())
+            } else {
+                Pass(session, account).incremental(chosen, last, clock.now())
+            }
         } catch (_: AccountNotActiveException) {
-            SyncOutcome.Cancelled
+            StayResult(SyncOutcome.Cancelled, PassSummary())
         }
 
     /**
      * Lists every item ID of each ticked library and brings the saved library in line with it (owner answer 1: on every
-     * open). An ID the server lacks gets a tombstone, a tombstoned ID that is back is revived, and an ID the cache
-     * never got (an item that shifted across a page boundary while the first walk ran, and so was never asked for) is
-     * fetched. A library is acted on only after its **complete** list was read, so a failed or cut-short list changes
-     * nothing; an empty list for a library that had items is suspect and rejected; and a library that changed size
-     * while its list was read tombstones nothing this time. It never moves the recorded moment of the last pass.
+     * open). An ID the server lacks gets a tombstone, a tombstoned ID that is back is revived, and an ID the account
+     * has no row for (an item that shifted across a page boundary while the first walk ran, and so was never asked
+     * for) is fetched. A library is acted on only after its **complete** list was read: a failed, cut-short, stuck or
+     * endless list changes nothing, an empty list for a library that had items is suspect and rejected, and a list
+     * whose size or count does not match what the server said tombstones nothing. Even a list that looks sound is
+     * read a second time before anything is tombstoned, and only what both reads lack is. The cache is read before
+     * the server, so what another pass saves meanwhile cannot look deleted. It never moves the recorded moment.
      */
     suspend fun reconcile(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
-    ): SyncOutcome =
+    ): StayResult<ReconcileSummary> =
         try {
-            Pass(session, account, clock.now()).reconcile(chosen)
+            Pass(session, account).reconcile(chosen)
         } catch (_: AccountNotActiveException) {
-            SyncOutcome.Cancelled
+            StayResult(SyncOutcome.Cancelled, ReconcileSummary())
         }
 
     @Suppress("ReturnCount", "TooManyFunctions") // Early returns carry a failure out of the loops.
     private inner class Pass(
         private val session: Session,
         private val account: LibraryAccount,
-        private val started: Instant,
     ) {
         private var skipped = 0
+        private var passed = PassSummary()
+        private var reconciled = ReconcileSummary()
 
         suspend fun incremental(
             chosen: Set<ItemId>,
             last: Instant,
-        ): SyncOutcome {
-            summary = PassSummary()
+            started: Instant,
+        ): StayResult<PassSummary> {
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
-                    is ServerResult.Failure -> return fail(listed.error)
+                    is ServerResult.Failure -> return StayResult(fail(listed.error), passed)
                 }
-            val since = last - margin
+            // A last success ahead of now means the clock went back: count from the older of the two.
+            val since = minOf(last, started) - margin
             for (library in libraries) {
-                changedSince(library, since)?.let { return it }
+                val failed =
+                    walk(library, since) { items ->
+                        passed += repository.upsertItems(account, library.id, items)
+                        true
+                    }
+                if (failed != null) return StayResult(failed, passed)
             }
+            currentCoroutineContext().ensureActive()
             repository.finishSync(account, started)
-            return SyncOutcome.Completed
+            return StayResult(SyncOutcome.Completed, passed)
         }
 
-        suspend fun reconcile(chosen: Set<ItemId>): SyncOutcome {
-            reconciled = ReconcileSummary()
+        suspend fun reconcile(chosen: Set<ItemId>): StayResult<ReconcileSummary> {
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
-                    is ServerResult.Failure -> return fail(listed.error)
+                    is ServerResult.Failure -> return StayResult(fail(listed.error), reconciled)
                 }
             for (library in libraries) {
-                reconcile(library)?.let { return it }
+                val failed = reconcile(library)
+                if (failed != null) return StayResult(failed, reconciled)
             }
+            currentCoroutineContext().ensureActive()
             repository.clearFailure(account)
-            return SyncOutcome.Completed
+            return StayResult(SyncOutcome.Completed, reconciled)
         }
 
         private suspend fun reconcile(library: Library): SyncOutcome? {
+            // The cache first, then the server: whatever another pass saves while the list is read is not "gone".
+            val live = repository.liveItemIds(account, library.id).toSet()
+            val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
+            val known = repository.allItemIds(account).toSet()
             val list =
                 when (val read = readIds(library)) {
                     is IdsRead.Failed -> return fail(read.error)
                     is IdsRead.Complete -> read.list
                 }
-            val live = repository.liveItemIds(account, library.id).toSet()
             // Nothing at all, for a library that had items, is more likely a server fault than an emptied library.
             if (list.ids.isEmpty() && live.isNotEmpty()) return suspect()
-            val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
-            val gone = if (list.trusted) live - list.ids else emptySet()
+            var gone = if (list.trusted) live - list.ids else emptySet()
+            if (gone.isNotEmpty()) {
+                // A shift that leaves the size unchanged looks sound once: only what a second read also lacks is gone.
+                val again =
+                    when (val read = readIds(library)) {
+                        is IdsRead.Failed -> return fail(read.error)
+                        is IdsRead.Complete -> read.list
+                    }
+                if (again.ids.isEmpty()) return suspect()
+                gone = if (again.trusted) gone - again.ids else emptySet()
+            }
             val returning = tombstoned intersect list.ids
-            val missing = list.ids - live - tombstoned
             if (gone.isNotEmpty()) repository.tombstone(account, gone)
             if (returning.isNotEmpty()) repository.revive(account, returning)
             reconciled += ReconcileSummary(tombstoned = gone.size, revived = returning.size)
-            return if (missing.isEmpty()) null else fetchMissing(library, missing.toMutableSet())
+            return fetchMissing(library, list, list.ids - known)
         }
 
-        // The whole list or nothing: a failure part way discards what was read.
+        // The whole list or nothing: a failure part way, a page that adds nothing, or a list far past its total fails.
         private suspend fun readIds(library: Library): IdsRead {
             val ids = LinkedHashSet<ItemId>()
             var read = 0
@@ -180,55 +257,61 @@ internal class StayCurrentEngine(
 
                     is ServerResult.Success -> {
                         if (read == 0) total = page.value.totalCount
-                        if (page.value.ids.isEmpty()) return IdsRead.Complete(IdList(ids, trusted = total == read))
-                        read += page.value.ids.size
-                        ids += page.value.ids
-                    }
-                }
-            }
-        }
-
-        // Walks the library for the items the cache lacks and saves only those, stopping when it has them all.
-        private suspend fun fetchMissing(
-            library: Library,
-            wanted: MutableSet<ItemId>,
-        ): SyncOutcome? {
-            val limit = PageLimit(pageSize)
-            var next = 0
-            while (wanted.isNotEmpty()) {
-                when (val fetched = server.fetchPage(session, library, next, null, limit)) {
-                    is Fetched.Failed -> {
-                        return fail(fetched.error)
-                    }
-
-                    Fetched.Malformed -> {
-                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
-                        next += 1
-                    }
-
-                    is Fetched.Page -> {
-                        if (fetched.items.isEmpty()) return null
-                        next += fetched.items.size
-                        val found = fetched.items.filter { it.id in wanted }
-                        if (found.isNotEmpty()) {
-                            repository.upsertItems(account, library.id, found)
-                            wanted -= found.map { it.id }.toSet()
-                            reconciled += ReconcileSummary(fetched = found.size)
+                        val listed = page.value.ids
+                        if (listed.isEmpty()) {
+                            val sound = total != null && ids.size == total && read == total
+                            return IdsRead.Complete(IdList(ids, trusted = sound))
+                        }
+                        val before = ids.size
+                        ids += listed
+                        read += listed.size
+                        if (ids.size == before || read > (total ?: 0) + pageSize) {
+                            return IdsRead.Failed(MediaServerError.ServerError())
                         }
                     }
                 }
             }
-            return null
         }
 
-        private suspend fun suspect(): SyncOutcome {
-            repository.failSync(account, SyncFailure.Suspect)
-            return SyncOutcome.Failed(SyncFailure.Suspect)
-        }
-
-        private suspend fun changedSince(
+        // Walks the library for the items the account lacks and saves only those, stopping when it has them all. What
+        // the walk cannot find is remembered, so the next reconcile of the same list does not walk again.
+        private suspend fun fetchMissing(
             library: Library,
-            since: Instant,
+            list: IdList,
+            missing: Set<ItemId>,
+        ): SyncOutcome? {
+            val wanted = (missing - unfindable.skip(account, library.id, list.fingerprint)).toMutableSet()
+            if (wanted.isEmpty()) return null
+            val order = list.ids.toList()
+            val given = mutableSetOf<ItemId>()
+            val failed =
+                walk(
+                    library,
+                    since = null,
+                    onMalformed = { index -> order.getOrNull(index)?.let { if (wanted.remove(it)) given += it } },
+                ) { items ->
+                    val found = items.filter { it.id in wanted }
+                    if (found.isNotEmpty()) {
+                        repository.upsertItems(account, library.id, found)
+                        wanted -= found.map { it.id }.toSet()
+                        reconciled += ReconcileSummary(fetched = found.size)
+                    }
+                    wanted.isNotEmpty()
+                }
+            if (failed == null) unfindable.remember(account, library.id, list.fingerprint, wanted + given)
+            return failed
+        }
+
+        /**
+         * Reads [library]'s item pages from the start (all of them, or those saved since [since]) and gives each to
+         * [onPage], which says whether to go on. A page that will not decode is skipped item by item ([onMalformed]
+         * is told the position), up to the limit. Null when the walk ended, or the failure that stopped it.
+         */
+        private suspend fun walk(
+            library: Library,
+            since: Instant?,
+            onMalformed: (Int) -> Unit = {},
+            onPage: suspend (List<MediaItem>) -> Boolean,
         ): SyncOutcome? {
             val limit = PageLimit(pageSize)
             var next = 0
@@ -240,16 +323,22 @@ internal class StayCurrentEngine(
 
                     Fetched.Malformed -> {
                         if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        onMalformed(next)
                         next += 1
                     }
 
                     is Fetched.Page -> {
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
-                        summary += repository.upsertItems(account, library.id, fetched.items)
+                        if (!onPage(fetched.items)) return null
                     }
                 }
             }
+        }
+
+        private suspend fun suspect(): SyncOutcome {
+            repository.failSync(account, SyncFailure.Suspect)
+            return SyncOutcome.Failed(SyncFailure.Suspect)
         }
 
         private suspend fun fail(error: MediaServerError): SyncOutcome {
@@ -258,15 +347,4 @@ internal class StayCurrentEngine(
             return SyncOutcome.Failed(failure)
         }
     }
-}
-
-/** How reading one library's IDs ended. */
-private sealed interface IdsRead {
-    class Complete(
-        val list: IdList,
-    ) : IdsRead
-
-    class Failed(
-        val error: MediaServerError,
-    ) : IdsRead
 }

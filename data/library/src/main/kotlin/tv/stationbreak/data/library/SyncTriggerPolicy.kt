@@ -29,9 +29,19 @@ class SyncTriggerPolicy(
     ): SyncPlan {
         val lastSuccess = status?.lastSuccess
         return when {
-            syncRunning || lastSuccess == null -> SyncPlan.None
-            status.state is SyncState.FirstSyncRunning -> SyncPlan.None
-            else -> SyncPlan(incremental = clock.now() - lastSuccess > interval, reconcile = true)
+            syncRunning || lastSuccess == null -> {
+                SyncPlan.None
+            }
+
+            status.state is SyncState.FirstSyncRunning -> {
+                SyncPlan.None
+            }
+
+            else -> {
+                // A last success ahead of now (the clock went back) cannot be trusted, so it counts as stale.
+                val now = clock.now()
+                SyncPlan(incremental = lastSuccess > now || now - lastSuccess > interval, reconcile = true)
+            }
         }
     }
 

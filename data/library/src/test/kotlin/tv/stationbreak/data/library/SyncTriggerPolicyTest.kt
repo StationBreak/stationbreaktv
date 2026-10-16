@@ -140,7 +140,10 @@ class SyncTriggerPolicyTest {
             stayCurrent.onOpen()
             stayCurrent.onOpen()
 
-            assertEquals(listOf(ExistingWorkPolicy.APPEND_OR_REPLACE, ExistingWorkPolicy.APPEND_OR_REPLACE), enqueuer.enqueued.map { it.second })
+            assertEquals(
+                listOf(ExistingWorkPolicy.APPEND_OR_REPLACE, ExistingWorkPolicy.APPEND_OR_REPLACE),
+                enqueuer.enqueued.map { it.second },
+            )
             assertEquals(setOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first }.toSet())
         }
 

@@ -283,7 +283,7 @@ class ReconciliationTest {
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
 
-    // The second review round: a shift that leaves the size unchanged, the order of reads, endless lists, the gap fetch.
+    // The review round: a shift that keeps the size, the order of reads, endless lists, the gap fetch.
 
     @Test
     fun anItemRenamedAcrossTheCursorMidReadCausesNoWrongTombstone() =
@@ -308,7 +308,7 @@ class ReconciliationTest {
         }
 
     @Test
-    fun aDeleteBeforeTheCursorAndAnAddAfterItTombstonesOnlyTheRealDelete() =
+    fun aDeleteBeforeTheCursorAndAnAddAfterItNeverTombstonesTheItemThatOnlyShifted() =
         runBlocking {
             firstSyncDone()
             var changed = false
@@ -323,7 +323,12 @@ class ReconciliationTest {
 
             reconcile()
 
-            // The size is unchanged (300 listed, 300 read), so the first list looks sound; the second read settles it.
+            // The size is unchanged (300 listed, 300 read), so the first list looks sound and lacks the item that
+            // shifted (m-00100); the second read finds it, so it is not tombstoned. The real delete was read before it
+            // happened, so it waits for the next open.
+            assertEquals(emptySet<String>(), tombstones())
+            server.respond = { null }
+            reconcile()
             assertEquals(setOf("m-00010"), tombstones())
         }
 
@@ -386,6 +391,14 @@ class ReconciliationTest {
             assertTrue(tombstones().isEmpty())
         }
 
+    private suspend fun reconcileWith(
+        unfindable: UnfindableIds,
+        chosen: Set<ItemId>,
+    ) {
+        val engine = StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable)
+        engine.reconcile(session, ALICE, chosen)
+    }
+
     @Test
     fun anIdListedButAbsentFromTheItemPagesCostsOneBoundedWalkThenNoneWhileTheListIsUnchanged() =
         runBlocking {
@@ -396,18 +409,18 @@ class ReconciliationTest {
             val unfindable = UnfindableIds()
             val chosen = setOf(MOVIES)
 
-            StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable).reconcile(session, ALICE, chosen)
+            reconcileWith(unfindable, chosen)
             val walkCalls = server.itemCalls.size
             assertTrue("one bounded walk: $walkCalls item calls", walkCalls in 1..6)
 
             server.calls.clear()
-            StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable).reconcile(session, ALICE, chosen)
+            reconcileWith(unfindable, chosen)
             assertTrue("no walk the second time", server.itemCalls.isEmpty())
 
             // The list changes (another item appears): the ghost is looked for again.
             library.items += SyncWorld.item("other", 1)
             server.calls.clear()
-            StayCurrentWorld.engine(repository, server, clock, unfindable = unfindable).reconcile(session, ALICE, chosen)
+            reconcileWith(unfindable, chosen)
             assertTrue("the changed list is walked", server.itemCalls.isNotEmpty())
         }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
@@ -54,6 +55,9 @@ class StayCurrentRunner(
 ) {
     private val gate = Mutex()
 
+    // What a walk could not find, kept across runs in this process.
+    private val unfindable = UnfindableIds()
+
     /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
     val isRunning: Boolean get() = gate.isLocked
 
@@ -91,7 +95,7 @@ class StayCurrentRunner(
         val firstSyncOpen = repository.lastSuccess(account) == null || repository.isFirstSyncRunning(account)
         if (firstSyncOpen) return SyncOutcome.Cancelled
         return when (val restored = sessions.verify(record.address)) {
-            is RestoreOutcome.Restored -> passes(restored.session, account, chosen, plan)
+            is RestoreOutcome.Restored -> safely(account) { passes(restored.session, account, chosen, plan) }
             RestoreOutcome.SignedOut -> SyncOutcome.Cancelled
             is RestoreOutcome.Rejected -> record(account, SyncFailure.SessionExpired)
             is RestoreOutcome.Unavailable -> record(account, restored.error.toSyncFailure())
@@ -107,13 +111,29 @@ class StayCurrentRunner(
     ): SyncOutcome {
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
-        val engine = StayCurrentEngine(repository, server, clock)
+        val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         if (plan.incremental) {
-            val incremental = engine.incremental(session, account, chosen)
+            val incremental = engine.incremental(session, account, chosen).outcome
             if (incremental != SyncOutcome.Completed) return incremental
         }
-        return if (plan.reconcile) engine.reconcile(session, account, chosen) else SyncOutcome.Completed
+        return if (plan.reconcile) engine.reconcile(session, account, chosen).outcome else SyncOutcome.Completed
     }
+
+    // Anything unexpected is a server failure for the record, never a crash; cancellation and a sign-out pass through.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun safely(
+        account: LibraryAccount,
+        block: suspend () -> SyncOutcome,
+    ): SyncOutcome =
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (signedOut: AccountNotActiveException) {
+            throw signedOut
+        } catch (_: Exception) {
+            record(account, SyncFailure.Server)
+        }
 
     // The server could not be asked, or rejected the session: the saved library keeps what it has, and says why.
     private suspend fun record(
