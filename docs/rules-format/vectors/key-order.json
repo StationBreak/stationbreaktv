@@ -1,5 +1,5 @@
 {
-  "description": "Orderings of the pool and run formation, one case per mode and pool. Every case has the pool in items (in the order given, which does not matter), blockLength, and the expected order and runs; order is the item IDs of one cycle, runs is that order cut into runs. item fields: id (canonical, 32 lower-case hex), kind (movie or episode), optional seriesId, premiere (UTC calendar date YYYY-MM-DD), year, season, episode. groupId = seriesId if present, else id. date = premiere, else the production year as YYYY-01-01 with the year zero-padded to four digits, else undated. shuffle: key = splitmix64(seedN + fnv1a64(idBytes)); sort ascending by key as unsigned 64-bit, ties by canonical ID bytes ascending. seedN is given (cases that also give seed and n have seedN = splitmix64(seed + n * gamma)). chronological: key = (undated flag, date as text, groupId bytes, season, episode, id bytes) with a missing season or episode after every present one; keys lists the parts. randomInOrder: group items by groupId; inside a group sort by the chronological key without the groupId part; group key = splitmix64(seed + fnv1a64(groupIdBytes)) with the CHANNEL seed (not seed_n), sorted ascending as unsigned, ties by group ID bytes; walk in rounds, each turn taking up to blockLength next items of one group and skipping used-up groups until all are used (one cycle); groups lists the groups in key order. Runs: for shuffle and chronological, blockLength consecutive items counted from the first item of the cycle, the last run possibly shorter; for randomInOrder, one turn is one run. Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits).",
+  "description": "Orderings of the pool and run formation, one case per mode and pool. Every case has the pool in items (in the order given, which does not matter), blockLength, and the expected order and runs; order is the item IDs of one cycle, runs is that order cut into runs. item fields: id (canonical, 32 lower-case hex), kind (movie or episode), optional seriesId, premiere (UTC calendar date YYYY-MM-DD), year, season, episode. groupId = seriesId if present, else id. date = premiere, else the production year as YYYY-01-01 with the year zero-padded to four digits, else undated. shuffle: key = splitmix64(seedN + fnv1a64(idBytes)); sort ascending by key as unsigned 64-bit, ties by canonical ID bytes ascending. seedN is given (cases that also give seed and n have seedN = splitmix64(seed + n * gamma)). chronological: key = (undated flag, date as text, groupId bytes, season, episode, id bytes) with a missing season or episode after every present one; keys lists the parts. randomInOrder: group items by groupId; inside a group sort by the in-group key (season class: regular seasons 0, specials i.e. season 0 = 1, missing season = 2; then season number; then episode number, missing last, two missing tie; then undated flag, date, ID bytes); group key = splitmix64(seed + fnv1a64(groupIdBytes)) with the CHANNEL seed (not seed_n), sorted ascending as unsigned, ties by group ID bytes; walk in rounds, each turn taking up to blockLength next items of one group and skipping used-up groups until all are used (one cycle); groups lists the groups in key order. Runs: for shuffle and chronological, blockLength consecutive items counted from the first item of the cycle, the last run possibly shorter; for randomInOrder, one turn is one run. Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits).",
   "source": "Computed with an independent Python reference written from the format doc and spec 08 only, without reading any Kotlin. The tie IDs (b3b828bb3655e2a7 and bf13eaba83dea434, each followed by 0123456789abcdef) were found by a Pollard-rho search for an FNV-1a 64 collision and verified with the reference fnv1a64. The IDs are synthetic.",
   "vectors": [
     {
@@ -3505,6 +3505,1311 @@
         ],
         [
           "00000000000000000000000000000005"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder, dates disagree with the numbering: plays by number",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "note": "S1E1 is dated latest, S2E1 earliest; the numbering decides: S1E1, S1E2, S2E1.",
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2001-01-01",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2005-05-05",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "1999-09-09",
+          "season": 2,
+          "episode": 1
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001b59",
+          "key": {
+            "dec": "15321070181654287496",
+            "hex": "d49f6027dc555488",
+            "hi": "d49f6027",
+            "lo": "dc555488"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b03"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b03"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder, an undated S1E1 among dated episodes plays first",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2001-01-02",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2001-01-03",
+          "season": 1,
+          "episode": 3
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001b59",
+          "key": {
+            "dec": "15321070181654287496",
+            "hex": "d49f6027dc555488",
+            "hi": "d49f6027",
+            "lo": "dc555488"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b03"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b03"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder, specials (season 0) play after the last season",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "note": "Specials are dated before season 1 but come after seasons 1 and 2.",
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2000-01-01",
+          "season": 0,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2000-01-02",
+          "season": 0,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2010-01-01",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2011-01-01",
+          "season": 2,
+          "episode": 5
+        },
+        {
+          "id": "00000000000000000000000000001b05",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2012-01-01",
+          "season": 2,
+          "episode": 1
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001b59",
+          "key": {
+            "dec": "15321070181654287496",
+            "hex": "d49f6027dc555488",
+            "hi": "d49f6027",
+            "lo": "dc555488"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b05",
+            "00000000000000000000000000001b04",
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b05",
+        "00000000000000000000000000001b04",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b05"
+        ],
+        [
+          "00000000000000000000000000001b04"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder, a missing season plays after the specials",
+      "mode": "randomInOrder",
+      "blockLength": 2,
+      "note": "Missing season is class 2. Three such items: episode 1 (dated), episode 1 (undated), no episode; the one with no episode sorts last.",
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2000-01-01",
+          "season": 0,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2000-01-02",
+          "season": 0,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2010-01-01",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2011-01-01",
+          "season": 2,
+          "episode": 5
+        },
+        {
+          "id": "00000000000000000000000000001b05",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "2012-01-01",
+          "season": 2,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b06",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "1990-01-01",
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b07",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "premiere": "1990-01-01"
+        },
+        {
+          "id": "00000000000000000000000000001b08",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001b59",
+          "episode": 1
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001b59",
+          "key": {
+            "dec": "15321070181654287496",
+            "hex": "d49f6027dc555488",
+            "hi": "d49f6027",
+            "lo": "dc555488"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b05",
+            "00000000000000000000000000001b04",
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b06",
+            "00000000000000000000000000001b08",
+            "00000000000000000000000000001b07"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b05",
+        "00000000000000000000000000001b04",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b06",
+        "00000000000000000000000000001b08",
+        "00000000000000000000000000001b07"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b03",
+          "00000000000000000000000000001b05"
+        ],
+        [
+          "00000000000000000000000000001b04",
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b02",
+          "00000000000000000000000000001b06"
+        ],
+        [
+          "00000000000000000000000000001b08",
+          "00000000000000000000000000001b07"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, before: three groups of 3, 2 and 4, blockLength 1",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b04"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbd",
+          "key": {
+            "dec": "18186317971648536402",
+            "hex": "fc62c7d70869df52",
+            "hi": "fc62c7d7",
+            "lo": "0869df52"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b04"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, before: same pool, blockLength 2",
+      "mode": "randomInOrder",
+      "blockLength": 2,
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b04"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbd",
+          "key": {
+            "dec": "18186317971648536402",
+            "hex": "fc62c7d70869df52",
+            "hi": "fc62c7d7",
+            "lo": "0869df52"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b03",
+          "00000000000000000000000000001b04"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, after removing the whole 2-item group, blockLength 1",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "note": "The other groups' order and each group's own order are unchanged.",
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b04"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b04"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, after removing the whole 2-item group, blockLength 2",
+      "mode": "randomInOrder",
+      "blockLength": 2,
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b04"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b03",
+          "00000000000000000000000000001b04"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, after removing the last item of the 3-item group, blockLength 1",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "note": "Removing a group's last item leaves every other item's place unchanged.",
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b04"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbd",
+          "key": {
+            "dec": "18186317971648536402",
+            "hex": "fc62c7d70869df52",
+            "hi": "fc62c7d7",
+            "lo": "0869df52"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b01"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b04"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, after removing the last item of the 3-item group, blockLength 2",
+      "mode": "randomInOrder",
+      "blockLength": 2,
+      "items": [
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b01",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b04"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbd",
+          "key": {
+            "dec": "18186317971648536402",
+            "hex": "fc62c7d70869df52",
+            "hi": "fc62c7d7",
+            "lo": "0869df52"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b01",
+            "00000000000000000000000000001b02"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b01",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b01",
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b04"
+        ]
+      ]
+    },
+    {
+      "name": "randomInOrder removal, after removing the FIRST item of the 3-item group, blockLength 1",
+      "mode": "randomInOrder",
+      "blockLength": 1,
+      "note": "An earlier item removed: a later episode can move to an earlier round, but group order and each group's own order stay.",
+      "items": [
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbc",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbd",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b02",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000001b03",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000001b04",
+          "kind": "episode",
+          "seriesId": "00000000000000000000000000001bbe",
+          "season": 1,
+          "episode": 4
+        }
+      ],
+      "seed": {
+        "dec": "21",
+        "hex": "0000000000000015",
+        "hi": "00000000",
+        "lo": "00000015"
+      },
+      "groups": [
+        {
+          "groupId": "00000000000000000000000000001bbc",
+          "key": {
+            "dec": "70203487171603996",
+            "hex": "00f969b31adb6e1c",
+            "hi": "00f969b3",
+            "lo": "1adb6e1c"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbe",
+          "key": {
+            "dec": "9350610333666462709",
+            "hex": "81c40a8e8b494bf5",
+            "hi": "81c40a8e",
+            "lo": "8b494bf5"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b02",
+            "00000000000000000000000000001b03",
+            "00000000000000000000000000001b04"
+          ]
+        },
+        {
+          "groupId": "00000000000000000000000000001bbd",
+          "key": {
+            "dec": "18186317971648536402",
+            "hex": "fc62c7d70869df52",
+            "hi": "fc62c7d7",
+            "lo": "0869df52"
+          },
+          "itemIds": [
+            "00000000000000000000000000001b02"
+          ]
+        }
+      ],
+      "order": [
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b02",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b03",
+        "00000000000000000000000000001b04"
+      ],
+      "runs": [
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b02"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b03"
+        ],
+        [
+          "00000000000000000000000000001b04"
         ]
       ]
     },
