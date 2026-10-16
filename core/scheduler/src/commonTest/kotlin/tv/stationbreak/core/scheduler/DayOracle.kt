@@ -52,13 +52,18 @@ internal object DayOracle {
             if (shuffle) List(flat.size) { flat[(firstItem + it) % flat.size] } else flat.drop(firstItem)
         val blocked = mutableSetOf<CanonicalId>()
         while (true) {
-            val at =
-                candidates.indexOfFirst { item ->
-                    (shuffle || item.groupId !in blocked) &&
-                        markAtOrAfter(settings, cursor) + item.runtimeMs <= dayEnd
+            // The first candidate that is eligible and fits now. Every candidate before it was passed over, and that
+            // blocks its group for the later ones (the group rule), including later ones in this same scan.
+            var at = -1
+            for ((i, candidate) in candidates.withIndex()) {
+                if (!shuffle && candidate.groupId in blocked) continue
+                if (markAtOrAfter(settings, cursor) + candidate.runtimeMs <= dayEnd) {
+                    at = i
+                    break
                 }
+                if (!shuffle) blocked.add(candidate.groupId)
+            }
             if (at < 0) break
-            if (!shuffle) candidates.take(at).forEach { blocked.add(it.groupId) }
             val item = candidates[at]
             val start = markAtOrAfter(settings, cursor)
             if (start > cursor) out.add(ScheduleBlock(cursor, start, ScheduleContent.Slate))

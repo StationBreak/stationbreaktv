@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
@@ -111,6 +112,10 @@ internal object Timeline {
         t: Long,
     ): Long = if (settings.alignToGrid) t + (-(t + settings.offsetMs)).mod(settings.gridMs) else t
 
+    /**
+     * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's end
+     * when aligned, and the end of the day planned by [fillEnd] when the next run would end after [dayEnd].
+     */
     fun layout(
         settings: SchedulerSettings,
         cycle: List<Run>,
@@ -122,10 +127,14 @@ internal object Timeline {
         var cursor = dayStart
         var index = startRun
         var started = 0
+        var unstarted = -1
         while (cursor < dayEnd) {
             val run = cycle[index]
             val runStart = startAtOrAfter(settings, cursor)
-            if (runStart + run.runtimeMs > dayEnd) break
+            if (runStart + run.runtimeMs > dayEnd) {
+                unstarted = index
+                break
+            }
             if (runStart > cursor) blocks.add(ScheduleBlock(cursor, runStart, ScheduleContent.Slate))
             cursor = runStart
             for (item in run.items) {
@@ -135,7 +144,46 @@ internal object Timeline {
             started++
             index = (index + 1) % cycle.size
         }
+        if (unstarted >= 0) cursor = fillEnd(settings, cycle, unstarted, cursor, dayEnd, blocks)
         if (cursor < dayEnd) blocks.add(ScheduleBlock(cursor, dayEnd, ScheduleContent.Slate))
         return Layout(blocks, started)
+    }
+
+    /**
+     * The planned end of the day (single pass). Starting at the first item of the run that would not fit
+     * ([unstarted]), visits at most `N` items of the cycle (`N` counts only the runs that were not left out). `shuffle`
+     * wraps; the other modes stop at the cycle's end, so an earlier episode is never replayed after a later one. Each
+     * item starts at the end of the previous block, moved to the next grid mark when aligned, and is placed when its
+     * start plus its actual runtime is no later than [dayEnd]. For the other modes, once an item of a group has been
+     * passed over no later item of that group is eligible. Returns the end of the last placed block; the caller adds
+     * the closing slate.
+     */
+    private fun fillEnd(
+        settings: SchedulerSettings,
+        cycle: List<Run>,
+        unstarted: Int,
+        from: Long,
+        dayEnd: Long,
+        blocks: MutableList<ScheduleBlock>,
+    ): Long {
+        val items = cycle.flatMap { it.items }
+        val firstItem = (0 until unstarted).sumOf { cycle[it].items.size }
+        val wraps = settings.orderingMode == OrderingMode.Shuffle
+        val visits = if (wraps) items.size else items.size - firstItem
+        val passedOver = HashSet<CanonicalId>()
+        var cursor = from
+        for (visit in 0 until visits) {
+            val item = items[(firstItem + visit) % items.size]
+            if (!wraps && item.groupId in passedOver) continue
+            val start = startAtOrAfter(settings, cursor)
+            if (start + item.runtimeMs <= dayEnd) {
+                if (start > cursor) blocks.add(ScheduleBlock(cursor, start, ScheduleContent.Slate))
+                blocks.add(ScheduleBlock(start, start + item.runtimeMs, ScheduleContent.Program(item.id)))
+                cursor = start + item.runtimeMs
+            } else if (!wraps) {
+                passedOver.add(item.groupId)
+            }
+        }
+        return cursor
     }
 }
