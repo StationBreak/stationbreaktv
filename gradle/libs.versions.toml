@@ -101,6 +101,8 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 androidx-sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.ref = "androidxSqlite" }
 # The first-sync worker (a CoroutineWorker) in data:library only.
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
+# The WorkManager test driver (checked 2026-10-16, same 2.12.0 line): instrumented tests of the sync work only, never in an APK.
+androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
 
 jellyfin-sdk-core = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfinSdk" }
 jellyfin-sdk-api-okhttp = { module = "org.jellyfin.sdk:jellyfin-api-okhttp", version.ref = "jellyfinSdk" }

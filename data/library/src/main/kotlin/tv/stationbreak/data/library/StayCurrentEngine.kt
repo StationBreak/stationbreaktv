@@ -110,6 +110,7 @@ private sealed interface IdsRead {
  * item that comes back unchanged is not rewritten. Nothing here takes a token apart: the [Session] is only handed to
  * the [MediaServer].
  */
+@Suppress("LongParameterList") // The same knobs the first-sync engine has, plus what a walk cannot find.
 internal class StayCurrentEngine(
     private val repository: RoomLibraryRepository,
     private val server: MediaServer,

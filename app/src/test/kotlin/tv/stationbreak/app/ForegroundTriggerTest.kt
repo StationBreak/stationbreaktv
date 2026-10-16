@@ -24,6 +24,7 @@ class ForegroundTriggerTest {
         override val lifecycle: Lifecycle get() = registry
     }
 
+    @Suppress("InjectDispatcher") // A test: nothing to inject into; Unconfined runs the open where it is fired.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     private var opens = 0
     private val process = Owner()
