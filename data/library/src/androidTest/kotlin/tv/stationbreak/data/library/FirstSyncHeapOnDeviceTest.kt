@@ -120,14 +120,16 @@ class FirstSyncHeapOnDeviceTest {
             assertEquals(SyncOutcome.Completed, outcome)
             assertEquals(15_000, repository.rowCounts().items)
             val growthMb = (peak - baseline) / MB
-            println("heap growth while syncing 15,000 items on the device: $growthMb MB (pages alive at most: $mostPagesAlive)")
+            val numbers = "baseline ${baseline / KB} KB, peak ${peak / KB} KB, growth ${(peak - baseline) / KB} KB"
+            println("HEAP on the device: $numbers; pages alive at most: $mostPagesAlive")
             assertTrue("heap grew by $growthMb MB, the limit is $LIMIT_MB", growthMb < LIMIT_MB)
             assertTrue("$mostPagesAlive pages were alive at once", mostPagesAlive <= 1)
         }
 
     private companion object {
         const val GCS = 2
-        const val MB = 1024L * 1024L
+        const val KB = 1024L
+        const val MB = KB * KB
         const val LIMIT_MB = 64L
         const val HEX = 16
     }

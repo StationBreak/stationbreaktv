@@ -53,6 +53,7 @@ private const val TOP_OFFSET = 0.1f
  * never flashes, then on to wherever [LaunchRouter] decided. A server that can't be reached stays here, with the error
  * and Retry; a changed certificate shows the trust screen of Unit 3 over it.
  */
+@Suppress("LongParameterList") // One callback for each place launch routing can send the app.
 @Composable
 fun LaunchDestination(
     onNoServer: () -> Unit,

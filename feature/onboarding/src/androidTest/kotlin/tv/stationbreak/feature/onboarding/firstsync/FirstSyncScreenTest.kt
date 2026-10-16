@@ -57,7 +57,9 @@ class FirstSyncScreenTest {
         show(FirstSyncPhase.Syncing(copied = 12_500, total = 15_000))
 
         compose.onNodeWithTag(FirstSyncTags.HEADLINE).assert(hasText("Getting your library ready"))
-        compose.onNodeWithTag(FirstSyncTags.SECOND_LINE).assert(hasText("This only happens once and can take a few minutes."))
+        compose
+            .onNodeWithTag(FirstSyncTags.SECOND_LINE)
+            .assert(hasText("This only happens once and can take a few minutes."))
     }
 
     @Test
@@ -123,7 +125,8 @@ class FirstSyncScreenTest {
         show(failed)
 
         compose.onNodeWithTag(FirstSyncTags.ERROR_PANEL).assertExists()
-        compose.onNodeWithText("This TV can’t reach the network. Check its Wi-Fi or Ethernet connection.").assertExists()
+        val message = "This TV can’t reach the network. Check its Wi-Fi or Ethernet connection."
+        compose.onNodeWithText(message).assertExists()
         compose.onNodeWithText("Network unreachable").assertExists()
     }
 
@@ -131,7 +134,9 @@ class FirstSyncScreenTest {
     fun retryHasDefaultFocusInTheFailureStateAndRunsTheSyncAgain() {
         show(failed)
 
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(FirstSyncTags.RETRY).assertIsFocused() }.isSuccess }
+        compose.waitUntil(FOCUS_TIMEOUT_MS) {
+            runCatching { compose.onNodeWithTag(FirstSyncTags.RETRY).assertIsFocused() }.isSuccess
+        }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
 
         assertEquals(1, retried)

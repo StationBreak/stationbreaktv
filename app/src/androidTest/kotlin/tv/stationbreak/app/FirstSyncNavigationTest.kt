@@ -72,14 +72,14 @@ private object Syncing {
     val server = FakeMediaServer()
     val store = InMemorySecretStore()
     var settings = InMemoryServerSettings()
-    val firstSync = InMemoryFirstSync()
+    var firstSync = InMemoryFirstSync()
 }
 
 /**
  * The first-sync progress screen inside the whole app graph on API 25 (spec 06 task 3.9), beside
- * [LaunchNavigationTest], which is unchanged: the saved library's first-sync status is scripted, so the test decides when
- * the sync starts, runs, fails and ends. It checks the routes into the screen and out of it, that nothing takes focus
- * while it syncs, and that Back leaves the app with the sync still going.
+ * [LaunchNavigationTest], which is unchanged: the saved library's first-sync status is scripted, so the test decides
+ * when the sync starts, runs, fails and ends. It checks the routes into the screen and out of it, that nothing takes
+ * focus while it syncs, and that Back leaves the app with the sync still going.
  */
 @HiltAndroidTest
 @UninstallModules(MediaServerModule::class, LibraryModule::class)
@@ -92,7 +92,7 @@ class FirstSyncNavigationTest {
     @get:Rule(order = 1)
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
-    /** Nested, so it applies to this test only. The saved library is scripted, the rest as in [LaunchNavigationTest]. */
+    /** Nested, so it applies to this test only. The saved library is scripted; the rest is as in the launch test. */
     @Module
     @InstallIn(SingletonComponent::class)
     object SyncingModule {
@@ -127,7 +127,10 @@ class FirstSyncNavigationTest {
             settings: ServerSettings,
             sessions: SessionRepository,
             server: MediaServer,
-        ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, RoomLibraryRepository.create(context), Clock.System)
+        ): FirstSyncRunner {
+            val repository = RoomLibraryRepository.create(context)
+            return FirstSyncRunner(settings, sessions, server, repository, Clock.System)
+        }
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
@@ -146,7 +149,8 @@ class FirstSyncNavigationTest {
     @Before
     fun script() {
         Syncing.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
-        Syncing.firstSync.current = null
+        // A fresh one for each test, so the calls it counts are this test's.
+        Syncing.firstSync = InMemoryFirstSync()
         with(Syncing.server) {
             resumeResult = ServerResult.Success(session)
             connectResult = ServerResult.Success(ResolvedServer(https, info))
