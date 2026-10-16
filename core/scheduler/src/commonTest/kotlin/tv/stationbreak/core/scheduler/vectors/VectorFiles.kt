@@ -3984,5 +3984,6 @@ internal object VectorFiles {
         mapOf(
             "epoch-seed.json" to epochSeed,
             "epoch-math.json" to epochMath,
+            "key-order.json" to KeyOrderVectorFile.text,
         )
 }
