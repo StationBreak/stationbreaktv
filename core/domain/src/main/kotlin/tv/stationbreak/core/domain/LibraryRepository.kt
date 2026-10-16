@@ -92,6 +92,12 @@ interface LibraryRepository : AccountCache {
     fun status(account: LibraryAccount): Flow<LibraryStatus>
 
     /**
+     * The status of the account signed in now (the one [AccountCache.useAccount] last named), or null while nobody is.
+     * It follows a change of account, and ends up null again when the active account signs out.
+     */
+    fun activeStatus(): Flow<LibraryStatus?>
+
+    /**
      * The usable items of the [libraries] created before [createdBefore], ordered by item ID. An item that is deleted
      * (a tombstone), has no creation date, or has a missing, zero or negative running time is left out (S0.6.3): the
      * scheduler only ever sees items it can trust. F1.1 passes `epochStart - grace`.
