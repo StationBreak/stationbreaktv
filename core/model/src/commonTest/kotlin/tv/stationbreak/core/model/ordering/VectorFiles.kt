@@ -2,15 +2,15 @@
 package tv.stationbreak.core.model.ordering
 
 /**
- * Kotlin copies of `docs/rules-format/vectors/` for the primitives. `VectorFilesInSyncTest` fails if they differ from
- * the files.
+ * Kotlin copies of `docs/rules-format/vectors/` for the primitives (`VectorFilesInSyncTest` fails if they differ
+ * from the files).
  */
 @Suppress("LargeClass") // Data only: one entry per vector file.
 internal object VectorFiles {
     val splitmix64: String =
         """
         {
-          "description": "splitmix64(x): z = x + 0x9E3779B97F4A7C15; z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9; z = (z ^ (z >> 27)) * 0x94D049BB133111EB; return z ^ (z >> 31), all wrapping modulo 2^64. Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step.",
+          "description": "splitmix64(x): z = x + 0x9E3779B97F4A7C15; z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9; z = (z ^ (z >> 27)) * 0x94D049BB133111EB; return z ^ (z >> 31), all wrapping modulo 2^64. Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
           "source": "Computed with an independent Python reference and cross-checked against a C port of Vigna's splitmix64.c. The inputs 0, 0x9E3779B97F4A7C15, 2*gamma and 3*gamma give the four published first outputs of SplitMix64 seeded with 0.",
           "vectors": [
             {
@@ -263,7 +263,7 @@ internal object VectorFiles {
     val fnv1a64: String =
         """
         {
-          "description": "fnv1a64(bytes): h = 0xcbf29ce484222325; for each byte b: h = (h ^ b) * 0x100000001b3 (wrapping). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step.",
+          "description": "fnv1a64(bytes): h = 0xcbf29ce484222325; for each byte b: h = (h ^ b) * 0x100000001b3 (wrapping). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
           "source": "Computed with an independent Python reference and cross-checked against a C port. The empty string, a, foo and foobar match the published FNV-1a 64 test values.",
           "vectors": [
             {
@@ -383,7 +383,7 @@ internal object VectorFiles {
     val canonicalId: String =
         """
         {
-          "description": "Item IDs. normalised: what a client does with an ID from the server (remove hyphens, remove one surrounding pair of braces, lower-case; null if anything other than 32 hex characters is left). strict: what a rules-file reader accepts (the input unchanged if it is already 32 lower-case hex characters, else null; nothing is repaired). Placeholder IDs only.",
+          "description": "Item IDs. normalised: what a client does with an ID from the server, in this order: (1) if the string starts with { and ends with }, remove those two characters; (2) remove every hyphen, wherever it is; (3) lower-case; null if anything other than 32 hex characters is left). strict: what a rules-file reader accepts (the input unchanged if it is already 32 lower-case hex characters, else null; nothing is repaired). Placeholder IDs only. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
           "vectors": [
             {
               "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -462,6 +462,36 @@ internal object VectorFiles {
             },
             {
               "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ",
+              "normalised": null,
+              "strict": null
+            },
+            {
+              "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "strict": null
+            },
+            {
+              "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-",
+              "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "strict": null
+            },
+            {
+              "input": "aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-",
+              "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "strict": null
+            },
+            {
+              "input": "{a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+              "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "strict": null
+            },
+            {
+              "input": "-{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+              "normalised": null,
+              "strict": null
+            },
+            {
+              "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}-",
               "normalised": null,
               "strict": null
             },

@@ -2,15 +2,15 @@
 package tv.stationbreak.core.rules
 
 /**
- * Kotlin copies of `docs/rules-format/vectors/rating.json` and `auto-seed.json`. `RatingVectorsInSyncTest` fails if
- * they differ from the files.
+ * Kotlin copies of `docs/rules-format/vectors/rating.json` and `auto-seed.json` (`RatingVectorsInSyncTest` fails if
+ * they differ from the files).
  */
 @Suppress("LargeClass") // Data only: one entry per vector file.
 internal object RatingVectorFiles {
     val rating: String =
         """
         {
-          "description": "Rating ladder and fail-closed filter (docs/rules-format.md, 'Maximum rating and the rating ladder'). normalise: trim U+0020 from both ends, upper-case ASCII a-z only, look the result up on the ladder (Approved counts as G); otherwise a TV-PG-, TV-14- or TV-MA- rating followed by one descriptor group counts as its base rating, where the group is a non-empty run of D, L, S, V in that order, each at most once (TV-MA: L, S, V only). 'normalised' is the ladder spelling or null; 'rank' is 0 to 7 or null (no rank: blocked under any ceiling).",
+          "description": "Rating ladder and fail-closed filter (docs/rules-format.md, 'Maximum rating and the rating ladder'). normalise: trim U+0020 from both ends, upper-case ASCII a-z only, look the result up on the ladder (Approved is the ladder name Approved, rank 0, the same tier as G); otherwise a TV-PG-, TV-14- or TV-MA- rating followed by one descriptor group counts as its base rating, where the group is a non-empty run of D, L, S, V in that order, each at most once (TV-MA: L, S, V only). 'normalised' is the ladder spelling or null; 'rank' is 0 to 7 or null (no rank: blocked under any ceiling). Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen; this file is all ASCII.",
           "source": "Expected values come from an independent Python reference that reads Jellyfin v12.1 Emby.Server.Implementations/Localization/Ratings/us.json: every Jellyfin US string appears in 'normalise' with the tier Jellyfin gives it, and Jellyfin's score maps to our rank (0->0, 7->1, 10->2, 13->3, 14->4, 17 sub-score 0->5, 17 sub-score 1->6, 18->7). Strings Jellyfin resolves by other means (country prefixes, 'Rated ', plain numbers, '/' lists) have no rank here on purpose: the filter fails closed.",
           "ladder": [
             {
@@ -546,12 +546,12 @@ internal object RatingVectorFiles {
               "rank": null
             },
             {
-              "input": "PG ",
+              "input": "PG\u00a0",
               "normalised": null,
               "rank": null
             },
             {
-              "input": "ＰＧ",
+              "input": "\uff30\uff27",
               "normalised": null,
               "rank": null
             },
@@ -1074,7 +1074,7 @@ internal object RatingVectorFiles {
     val autoSeed: String =
         """
         {
-          "description": "Automatic-channel seed: seed = splitmix64(fnv1a64(bytes)), bytes = ASCII server ID (32 lower-case hex) || 0x00 || ASCII kind (library, genre or collection) || 0x00 || key. The key is the 32 ASCII hex characters of the canonical ID for a library or a collection, and the exact UTF-8 bytes of the name for a genre, with no case folding and no Unicode normalisation (the last two genre rows are the same word in another case and in another normalisation form: different seeds). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Placeholder IDs only.",
+          "description": "Automatic-channel seed: seed = splitmix64(fnv1a64(bytes)), bytes = ASCII server ID (32 lower-case hex) || 0x00 || ASCII kind (library, genre or collection) || 0x00 || key. The key is the 32 ASCII hex characters of the canonical ID for a library or a collection, and the exact UTF-8 bytes of the name for a genre, with no case folding and no Unicode normalisation (the last two genre rows are the same word in another case and in another normalisation form: different seeds). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Placeholder IDs only. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
           "vectors": [
             {
               "serverId": "11111111111111111111111111111111",

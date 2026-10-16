@@ -546,8 +546,8 @@ looking a string up:
 
 1. Trim spaces (U+0020) from both ends. Nothing else is trimmed: a tab, a line break or a non-breaking space is not a
    space, and the string then has no rank.
-2. Convert the ASCII letters `a` to `z` to upper case (nothing else: no locale). `Approved` becomes `APPROVED`, and is
-   accepted as `G`.
+2. Convert the ASCII letters `a` to `z` to upper case (nothing else: no locale). `Approved` becomes `APPROVED`, which is
+   the ladder name `Approved` (rank 0, the same tier as `G`).
 3. Look the result up on the ladder. If it is there, that is its rank.
 4. Otherwise, accept it if it is `TV-PG-`, `TV-14-` or `TV-MA-` followed by **one** descriptor group: a non-empty run of
    the letters `D`, `L`, `S` and `V`, in that order, each at most once, for example `-V`, `-DL` or `-DLSV`. For `TV-MA`
@@ -570,9 +570,10 @@ Every item ID in a rules file is in **canonical form**: exactly 32 lower-case he
 to `f`) with no hyphens, no braces and no other characters. Some Jellyfin endpoints return IDs with hyphens
 (`8-4-4-4-12`) or in upper case.
 
-- A client that gets an ID from the server must normalise it to canonical form first: remove any hyphens, remove one
-  surrounding pair of braces `{` `}` (a doubled or unmatched brace is not removed, so the ID is invalid), then
-  convert to lower case. If anything other than 32 hex characters is left, it is not an ID.
+- A client that gets an ID from the server must normalise it to canonical form first, in this order: (1) if the string
+  starts with `{` and ends with `}`, remove those two characters; (2) remove every hyphen, wherever it is; (3) convert to
+  lower case. If anything other than 32 hex characters is left, it is not an ID. So `-{<32 hex>}` and `{<32 hex>}-` are not
+  IDs (the braces are not at the ends, and are not removed), while hyphens in odd places are simply removed.
 - A reader of a rules file must **reject** a file that carries a non-canonical ID (hyphenated, upper case, wrong length).
   The reader does not repair it.
 
@@ -617,7 +618,7 @@ the ordering hash is the **32 ASCII bytes** of the canonical ID, not UTF-16 text
 
 **Hash key.** The key of an item (or, for `randomInOrder`, of a group) in epoch `n` is
 `splitmix64(seed_n + fnv1a64(canonicalIdAsAsciiBytes))`. Keys are compared **as unsigned numbers**. A signed comparison
-is a bug that only shows for keys with the high bit set, so the vectors include one. Ties are broken by the canonical ID
+is a bug that only shows for keys with the high bit set, so the F1.1 key-order vectors will include one. Ties are broken by the canonical ID
 bytes, unsigned, ascending.
 
 Vectors: `docs/rules-format/vectors/splitmix64.json` and `fnv1a64.json` (the primitives, with the published anchor

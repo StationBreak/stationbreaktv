@@ -92,7 +92,7 @@
       "strict": null
     },
     {
-      "input": "a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-",
+      "input": "aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-",
       "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "strict": null
     },
