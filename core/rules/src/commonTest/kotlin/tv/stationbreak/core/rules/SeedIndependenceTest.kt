@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.CanonicalId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 
 /**
@@ -16,6 +17,7 @@ import kotlin.test.assertNotNull
  * failure repeats exactly. (The stream is local to this test; the real primitives are task 3.0.)
  */
 class SeedIndependenceTest {
+    // TODO(3.0): replace this hand-rolled splitmix64 with the real one from core:model when task 3.0 adds it.
     private class Stream(
         private var state: ULong,
     ) {
@@ -129,9 +131,11 @@ class SeedIndependenceTest {
     }
 
     @Test
-    fun anExtraFieldNamedSeedCannotReplaceTheSeed() {
+    fun anExtraFieldNamedSeedCannotBeBuilt() {
         val base = readOk(minimalRules().with("seed", "18446744073709551614").text())
-        val tricked = base.copy(extras = JsonObject(mapOf("seed" to JsonPrimitive("1"))))
-        assertEquals("18446744073709551614", seedText(RulesWriter.write(tricked)))
+        assertFailsWith<IllegalArgumentException> {
+            base.copy(extras = JsonObject(mapOf("seed" to JsonPrimitive("1"))))
+        }
+        assertEquals("18446744073709551614", seedText(RulesWriter.write(base)))
     }
 }

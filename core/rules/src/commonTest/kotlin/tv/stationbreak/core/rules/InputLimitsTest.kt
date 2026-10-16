@@ -129,6 +129,28 @@ class InputLimitsTest {
         invalid(file("ok", extraKey = "\\ud800"))
     }
 
+    private fun withNote(value: String): String =
+        "{\"formatVersion\":1,\"seed\":\"1\",\"sources\":[{\"type\":\"library\",\"id\":\"$PLACEHOLDER_ID\"}]," +
+            "\"timing\":{\"broadcastDay\":{\"utcOffsetMinutes\":0}},\"note\":$value}"
+
+    @Test
+    fun anEscapedBackslashBeforeTheClosingQuoteEndsTheString() {
+        // The text is ["\\"] repeated inside lists: the string ends at the quote after \\, so the next ] counts.
+        val inner = "\"\\\\\""
+        val atLimit = withNote("[".repeat(RulesLimits.MAX_DEPTH - 1) + inner + "]".repeat(RulesLimits.MAX_DEPTH - 1))
+        assertIs<RulesResult.Ok>(RulesReader.read(atLimit))
+        val over = withNote("[".repeat(RulesLimits.MAX_DEPTH) + inner + "]".repeat(RulesLimits.MAX_DEPTH))
+        invalid(over)
+        assertIs<RulesResult.Ok>(RulesReader.read(withNote("[\"\\\\\",[\"\\\\\"]]")))
+    }
+
+    @Test
+    fun anUnpairedSurrogateInsideAnExtraFieldIsInvalid() {
+        invalid(withNote("[[\"\\ud800\"]]"))
+        invalid(withNote("{\"deep\":{\"\\udc00\":1}}"))
+        assertIs<RulesResult.Ok>(RulesReader.read(withNote("[[\"\\ud83d\\ude00\"]]")))
+    }
+
     @Test
     fun aPairOfSurrogateEscapesIsOneCharacter() {
         assertEquals("\uD83D\uDE00", readOk(file("\\ud83d\\ude00")).name)

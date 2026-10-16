@@ -20,6 +20,8 @@ object RulesReader {
     private const val BELOW_ONE = "formatVersion must be 1 or more"
     private val WHOLE_NUMBER = Regex("^-?[0-9]+$")
 
+    fun read(bytes: ByteArray): RulesResult = read(bytes.decodeToString()) // stub, red
+
     fun read(text: String): RulesResult {
         val tooBig = RulesLimits.check(text)
         return if (tooBig != null) RulesResult.Invalid(tooBig) else readJson(text)
