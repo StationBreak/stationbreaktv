@@ -13,9 +13,9 @@ steps that have to match bit for bit (the hash, the shuffle order and the chrono
 The words **must**, **must not**, **should** and **may** are used as described in RFC 2119 and RFC 8174, and mean that
 only when they are written in bold.
 
-Places marked `TODO(vectors)` point at worked numbers that will be published as test vectors in
-`docs/rules-format/vectors/`. Sections marked "specified by F1.1" are not written yet: they are the scheduler's part
-of the contract (see Building the schedule).
+Worked numbers are published as test vectors in `docs/rules-format/vectors/` (see Files). Sections marked "specified by
+F1.1" are not written yet: they are the scheduler's part of the contract (see Building the schedule). Vectors for what the
+scheduler runs (the per-epoch seed, bounded integers and the key order) will be published with F1.1's definitions.
 
 ## Overview and file layout
 
@@ -149,7 +149,8 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
    matches **any** exclusion (with the same matching rules) is removed.
 4. **Rating ceiling.** If `maxRating` is present, an item stays only if it passes the rating rule (see Maximum rating
-   and the rating ladder). An episode with no rating of its own uses its series' rating.
+   and the rating ladder). An episode with no rating of its own (none, or the empty string) uses its series' rating; any
+   other own rating, even `NR` or a blank, is used as it is.
 5. **The library snapshot.** The pool is worked out from the *library snapshot*: the cached set of items, and their
    genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. Which snapshot is
    used for which epoch, and when it is taken, is part of "Building the schedule" (specified by F1.1). The format only
@@ -258,8 +259,8 @@ The hash-keyed order, in numbered steps:
 Removing one item from the pool leaves the relative order of every other item unchanged. That is the reason the order is
 a hash key and not a shuffle that depends on the size of the pool.
 
-`docs/rules-format/examples/ordering-shuffle.json` selects it. `TODO(vectors)`: worked keys, including one with the high
-bit set and one tie.
+`docs/rules-format/examples/ordering-shuffle.json` selects it. Vectors for the keys and the resulting order, with a
+key that has the high bit set and a tie, will be published with F1.1's definitions.
 
 ### `chronological`
 
@@ -328,7 +329,8 @@ then it starts again: B1 A1 C1 B2 A2 A3 ...
 ```
 
 Where in this walk epoch `n` starts is specified by F1.1. `docs/rules-format/examples/ordering-random-in-order.json`
-selects it. `TODO(vectors)`: worked group keys.
+selects it. The key of a group is the same function with the group's canonical ID (the series ID) hashed in place of an
+item's. Worked group keys will be published with F1.1's definitions.
 
 ## Timing
 
@@ -486,8 +488,18 @@ this section to *create* a channel.
 
   `seed = splitmix64(fnv1a64(bytes))`, written as an unsigned decimal string. The functions are defined in Primitives.
 
-  `TODO(vectors)`: a worked example for a library, a collection and a non-ASCII genre, with the hash and the seed in
-  decimal and hex, including a seed with the high bit set.
+  Worked examples (server ID `11111111111111111111111111111111`; all in `docs/rules-format/vectors/auto-seed.json`, which
+  also lists the exact bytes and the 32-bit halves):
+
+  | Kind | Key | `fnv1a64` (hex) | Seed (decimal) | Seed (hex) |
+  | --- | --- | --- | --- | --- |
+  | `library` | `22222222222222222222222222222222` | `d22a74589ce8af26` | `16427903836559823302` | `e3fba380266cd1c6` |
+  | `collection` | `33333333333333333333333333333333` | `1559bdec1b2bb6cd` | `1052978938816395171` | `0e9ceec4141e77a3` |
+  | `genre` | `Animé` | `edd5cb810fd750ff` | `182484535837226886` | `028850b7ef947786` |
+  | `genre` | `科幻` | `28f84939c584258a` | `12794934325292202904` | `b190bcfa777e7b98` |
+
+  The library and the `科幻` seeds have the high bit set. `animé` (lower case) and `Animé` written as `Anime` plus a
+  combining acute accent are different genre names and give different seeds: nothing is folded or normalised.
 
 - **Reseeding** a channel, and **duplicating** one, give the new channel a fresh random seed (a custom channel's rule).
 - **Importing** a rules file keeps the seed byte for byte.
@@ -527,20 +539,25 @@ scale). Ratings on the same rank are the same tier. A ceiling allows an item who
 
 ### Normalising an item's rating
 
-**Provisional until checked against Jellyfin (task 3.x).** The steps below are the working assumption and are being
-checked against Jellyfin's own rating parsing. The ladder above does not change if the check finds a difference; these
-steps would.
+The server gives each item a free-form rating string (or none). The steps below were checked against the rating table and
+lookup in Jellyfin 12.1 (`Localization/Ratings/us.json` and `LocalizationManager.GetRatingScore`): every United States
+string in that table gets the tier below, and Jellyfin's lookup is also case-insensitive and trims the string. Before
+looking a string up:
 
-The server gives each item a free-form rating string (or none). Before looking it up:
-
-1. Trim spaces from both ends.
-2. Convert the ASCII letters `a` to `z` to upper case (nothing else: no locale). `Approved` becomes `APPROVED`, and is
-   accepted as `G`.
+1. Trim spaces (U+0020) from both ends. Nothing else is trimmed: a tab, a line break or a non-breaking space is not a
+   space, and the string then has no rank.
+2. Convert the ASCII letters `a` to `z` to upper case (nothing else: no locale). `Approved` becomes `APPROVED`, which is
+   the ladder name `Approved` (rank 0, the same tier as `G`).
 3. Look the result up on the ladder. If it is there, that is its rank.
-4. Otherwise, if it starts with `TV-`, remove one trailing content-descriptor group (a hyphen followed by one or more of
-   the letters `D`, `L`, `S`, `V` and `F`, for example `-V` or `-DLSV`) and look up what is left. A descriptor never
-   changes the age tier: `TV-14-V` is `TV-14`.
-5. Anything else has no rank.
+4. Otherwise, accept it if it is `TV-PG-`, `TV-14-` or `TV-MA-` followed by **one** descriptor group: a non-empty run of
+   the letters `D`, `L`, `S` and `V`, in that order, each at most once, for example `-V`, `-DL` or `-DLSV`. For `TV-MA`
+   the letters are `L`, `S` and `V` only. These are exactly the strings Jellyfin lists for those tiers. A descriptor never
+   changes the age tier: `TV-14-V` is `TV-14`, and `TV-MA-LSV` is `TV-MA`. (`TV-Y7-FV` is already on the ladder.)
+5. Anything else has no rank. That includes `TV-14-VD` (letters out of order), `TV-MA-D`, `TV-G-V` and `TV-14-`.
+
+Jellyfin also understands strings this format does not: a country prefix such as `US:PG-13`, a leading `Rated `, a plain
+number such as `13` or `16+`, and a list such as `TV-14/TV-MA`. They have no rank here, so they are blocked under a ceiling.
+That is on purpose: this format fails closed, and a client that wants them must map them to a ladder name first.
 
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
 with no rating, a blank rating, `NR`, `Unrated`, or any rating that is not on the ladder (for example a British or German
@@ -553,8 +570,10 @@ Every item ID in a rules file is in **canonical form**: exactly 32 lower-case he
 to `f`) with no hyphens, no braces and no other characters. Some Jellyfin endpoints return IDs with hyphens
 (`8-4-4-4-12`) or in upper case.
 
-- A client that gets an ID from the server must normalise it to canonical form first: remove any hyphens and braces, then
-  convert to lower case. If anything other than 32 hex characters is left, it is not an ID.
+- A client that gets an ID from the server must normalise it to canonical form first, in this order: (1) if the string
+  starts with `{` and ends with `}`, remove those two characters; (2) remove every hyphen, wherever it is; (3) convert to
+  lower case. If anything other than 32 hex characters is left, it is not an ID. So `-{<32 hex>}` and `{<32 hex>}-` are not
+  IDs (the braces are not at the ends, and are not removed), while hyphens in odd places are simply removed.
 - A reader of a rules file must **reject** a file that carries a non-canonical ID (hyphenated, upper case, wrong length).
   The reader does not repair it.
 
@@ -599,10 +618,12 @@ the ordering hash is the **32 ASCII bytes** of the canonical ID, not UTF-16 text
 
 **Hash key.** The key of an item (or, for `randomInOrder`, of a group) in epoch `n` is
 `splitmix64(seed_n + fnv1a64(canonicalIdAsAsciiBytes))`. Keys are compared **as unsigned numbers**. A signed comparison
-is a bug that only shows for keys with the high bit set, so the vectors include one. Ties are broken by the canonical ID
+is a bug that only shows for keys with the high bit set, so the F1.1 key-order vectors will include one. Ties are broken by the canonical ID
 bytes, unsigned, ascending.
 
-`TODO(vectors)`: published vectors for the per-epoch seed and key order.
+Vectors: `docs/rules-format/vectors/splitmix64.json` and `fnv1a64.json` (the primitives, with the published anchor
+values). Vectors for the per-epoch seed, the bounded-integer step and the key order will be published with F1.1's
+definitions.
 
 ## String matching
 
@@ -657,7 +678,8 @@ size; the extra byte is how it knows the file is too big. An endless source must
 
 ## Verify your client
 
-Before you trust your implementation, check these. Each value can be checked now; more will come with the vectors.
+Before you trust your implementation, check these. The files in `docs/rules-format/vectors/` have many more values of the
+same kinds, each written in decimal, in hex and as 32-bit halves.
 
 1. **Schema.** Every file in `docs/rules-format/examples/` validates against the schema, and every file in
    `docs/rules-format/examples/invalid/` fails.
@@ -677,6 +699,9 @@ Before you trust your implementation, check these. Each value can be checked now
 9. **Version gate.** A file with `formatVersion` 2 is not scheduled, even when the rest of it is unreadable.
 10. **JSON profile.** A repeated member name (also in an unknown field), a byte-order mark, `01`, `1.0` or `1e2` where a whole
     number is expected, and `NaN` are all rejected.
+11. **Automatic seed.** For server ID `11111111111111111111111111111111` and the library
+    `22222222222222222222222222222222`, the bytes hash to `fnv1a64` `0xd22a74589ce8af26` and the seed is
+    `"16427903836559823302"`. For the genre `Animé` on the same server it is `"182484535837226886"`.
 
 ## Files
 
@@ -693,7 +718,9 @@ Everything below is in this repository, under `docs/`:
   source kind, no sources, a missing `timing` or offset, an offset that is not a multiple of 15, an `epochHours` not on
   the list, a `start` off the half hour, an upper-case ordering mode, a kebab-case filler mode, a name of 101 code
   points, `betweenEveryN` without `every`).
-- `docs/rules-format/vectors/`: test vectors for the primitives (added with the test-vector work).
+- `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
+  `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
+  filter and the series rule, built on Jellyfin 12.1's own table). Vectors for the scheduler's functions come with F1.1.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

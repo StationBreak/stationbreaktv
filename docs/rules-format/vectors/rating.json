@@ -1,0 +1,1060 @@
+{
+  "description": "Rating ladder and fail-closed filter (docs/rules-format.md, 'Maximum rating and the rating ladder'). normalise: trim U+0020 from both ends, upper-case ASCII a-z only, look the result up on the ladder (Approved is the ladder name Approved, rank 0, the same tier as G); otherwise a TV-PG-, TV-14- or TV-MA- rating followed by one descriptor group counts as its base rating, where the group is a non-empty run of D, L, S, V in that order, each at most once (TV-MA: L, S, V only). 'normalised' is the ladder spelling or null; 'rank' is 0 to 7 or null (no rank: blocked under any ceiling). Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen; this file is all ASCII.",
+  "source": "Expected values come from an independent Python reference that reads Jellyfin v12.1 Emby.Server.Implementations/Localization/Ratings/us.json: every Jellyfin US string appears in 'normalise' with the tier Jellyfin gives it, and Jellyfin's score maps to our rank (0->0, 7->1, 10->2, 13->3, 14->4, 17 sub-score 0->5, 17 sub-score 1->6, 18->7). Strings Jellyfin resolves by other means (country prefixes, 'Rated ', plain numbers, '/' lists) have no rank here on purpose: the filter fails closed.",
+  "ladder": [
+    {
+      "rank": 0,
+      "ratings": [
+        "TV-Y",
+        "TV-G",
+        "G",
+        "Approved"
+      ]
+    },
+    {
+      "rank": 1,
+      "ratings": [
+        "TV-Y7",
+        "TV-Y7-FV"
+      ]
+    },
+    {
+      "rank": 2,
+      "ratings": [
+        "TV-PG",
+        "PG"
+      ]
+    },
+    {
+      "rank": 3,
+      "ratings": [
+        "PG-13"
+      ]
+    },
+    {
+      "rank": 4,
+      "ratings": [
+        "TV-14"
+      ]
+    },
+    {
+      "rank": 5,
+      "ratings": [
+        "R"
+      ]
+    },
+    {
+      "rank": 6,
+      "ratings": [
+        "TV-MA",
+        "NC-17"
+      ]
+    },
+    {
+      "rank": 7,
+      "ratings": [
+        "TV-X",
+        "TV-AO"
+      ]
+    }
+  ],
+  "normalise": [
+    {
+      "input": "Approved",
+      "normalised": "Approved",
+      "rank": 0
+    },
+    {
+      "input": "G",
+      "normalised": "G",
+      "rank": 0
+    },
+    {
+      "input": "TV-G",
+      "normalised": "TV-G",
+      "rank": 0
+    },
+    {
+      "input": "TV-Y",
+      "normalised": "TV-Y",
+      "rank": 0
+    },
+    {
+      "input": "TV-Y7",
+      "normalised": "TV-Y7",
+      "rank": 1
+    },
+    {
+      "input": "TV-Y7-FV",
+      "normalised": "TV-Y7-FV",
+      "rank": 1
+    },
+    {
+      "input": "PG",
+      "normalised": "PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-D",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-L",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-S",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-V",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DL",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DS",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-LS",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-LV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-SV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DLS",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DLV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DSV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-LSV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "TV-PG-DLSV",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "PG-13",
+      "normalised": "PG-13",
+      "rank": 3
+    },
+    {
+      "input": "TV-14",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-D",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-L",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-S",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-V",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DL",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DS",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-LS",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-LV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-SV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DLS",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DLV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DSV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-LSV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "TV-14-DLSV",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "R",
+      "normalised": "R",
+      "rank": 5
+    },
+    {
+      "input": "NC-17",
+      "normalised": "NC-17",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-L",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-S",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-V",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-LS",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-LV",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-SV",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-MA-LSV",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "TV-X",
+      "normalised": "TV-X",
+      "rank": 7
+    },
+    {
+      "input": "TV-AO",
+      "normalised": "TV-AO",
+      "rank": 7
+    },
+    {
+      "input": "tv-14-v",
+      "normalised": "TV-14",
+      "rank": 4
+    },
+    {
+      "input": "Tv-Pg-DlSv",
+      "normalised": "TV-PG",
+      "rank": 2
+    },
+    {
+      "input": "approved",
+      "normalised": "Approved",
+      "rank": 0
+    },
+    {
+      "input": "APPROVED",
+      "normalised": "Approved",
+      "rank": 0
+    },
+    {
+      "input": "pg-13",
+      "normalised": "PG-13",
+      "rank": 3
+    },
+    {
+      "input": "nc-17",
+      "normalised": "NC-17",
+      "rank": 6
+    },
+    {
+      "input": "  PG  ",
+      "normalised": "PG",
+      "rank": 2
+    },
+    {
+      "input": " TV-MA-LSV ",
+      "normalised": "TV-MA",
+      "rank": 6
+    },
+    {
+      "input": "tv-y7-fv",
+      "normalised": "TV-Y7-FV",
+      "rank": 1
+    },
+    {
+      "input": "NR",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "Unrated",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "Not Rated",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "N/A",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": " ",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "FSK 16",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "Rated PG",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "US:PG-13",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "US-PG",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "13",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "16+",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "M",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "X",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "GP",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14/TV-MA",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "PG-14",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-MA-D",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-MA-DL",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-G-V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-Y-FV",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-Y7-V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-Y7-FV-V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14-VD",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14-VV",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14-DLSVV",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14-",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14--V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14-X",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-14 V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-PG-F",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "TV-X-V",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "\tPG",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "PG\u00a0",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "\uff30\uff27",
+      "normalised": null,
+      "rank": null
+    },
+    {
+      "input": "tv-14-v\n",
+      "normalised": null,
+      "rank": null
+    }
+  ],
+  "eligibilityNote": "For each ceiling, ratings in 'eligible' pass and ratings in 'blocked' do not (a rank at or below the ceiling's rank passes; no rank never passes). A null rating is an item with no rating at all.",
+  "eligibility": [
+    {
+      "maxRating": "TV-Y",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved"
+      ],
+      "blocked": [
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-G",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved"
+      ],
+      "blocked": [
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "G",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved"
+      ],
+      "blocked": [
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "Approved",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved"
+      ],
+      "blocked": [
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-Y7",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV"
+      ],
+      "blocked": [
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-Y7-FV",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV"
+      ],
+      "blocked": [
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-PG",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG"
+      ],
+      "blocked": [
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "PG",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG"
+      ],
+      "blocked": [
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "PG-13",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13"
+      ],
+      "blocked": [
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-14",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14"
+      ],
+      "blocked": [
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "R",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R"
+      ],
+      "blocked": [
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-MA",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17"
+      ],
+      "blocked": [
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "NC-17",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17"
+      ],
+      "blocked": [
+        "TV-X",
+        "TV-AO",
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-X",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO"
+      ],
+      "blocked": [
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    },
+    {
+      "maxRating": "TV-AO",
+      "eligible": [
+        "TV-Y",
+        "G",
+        "Approved",
+        "TV-Y7",
+        "TV-Y7-FV",
+        "tv-pg-v",
+        "PG",
+        "PG-13",
+        "TV-14-DLSV",
+        "TV-14",
+        "R",
+        "TV-MA-S",
+        "NC-17",
+        "TV-X",
+        "TV-AO"
+      ],
+      "blocked": [
+        "NR",
+        "Unrated",
+        "",
+        "FSK 16",
+        null
+      ]
+    }
+  ],
+  "inheritanceNote": "An episode whose own rating is absent (null or the empty string) uses its series' rating; any other own rating, including NR or a blank ' ', is used as it is. With maxRating null, every item is eligible.",
+  "inheritance": [
+    {
+      "own": null,
+      "series": "G",
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": "",
+      "series": "G",
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": null,
+      "series": "R",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "series": "R",
+      "maxRating": "R",
+      "eligible": true
+    },
+    {
+      "own": null,
+      "series": null,
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "series": null,
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": "TV-14",
+      "series": "G",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "series": "R",
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": "NR",
+      "series": "G",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": " ",
+      "series": "G",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "FSK 16",
+      "series": "G",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "series": "NR",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "series": "TV-PG-V",
+      "maxRating": "TV-PG",
+      "eligible": true
+    },
+    {
+      "own": null,
+      "series": "TV-14-V",
+      "maxRating": "TV-PG",
+      "eligible": false
+    },
+    {
+      "own": "",
+      "series": "",
+      "maxRating": "G",
+      "eligible": false
+    },
+    {
+      "own": "PG-13",
+      "series": null,
+      "maxRating": null,
+      "eligible": true
+    }
+  ]
+}

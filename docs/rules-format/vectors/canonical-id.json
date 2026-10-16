@@ -1,0 +1,165 @@
+{
+  "description": "Item IDs. normalised: what a client does with an ID from the server, in this order: (1) if the string starts with { and ends with }, remove those two characters; (2) remove every hyphen, wherever it is; (3) lower-case; null if anything other than 32 hex characters is left). strict: what a rules-file reader accepts (the input unchanged if it is already 32 lower-case hex characters, else null; nothing is repaired). Placeholder IDs only. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
+  "vectors": [
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "0123456789abcdef0123456789abcdef",
+      "normalised": "0123456789abcdef0123456789abcdef",
+      "strict": "0123456789abcdef0123456789abcdef"
+    },
+    {
+      "input": "0123456789ABCDEF0123456789ABCDEF",
+      "normalised": "0123456789abcdef0123456789abcdef",
+      "strict": null
+    },
+    {
+      "input": "01234567-89ab-cdef-0123-456789abcdef",
+      "normalised": "0123456789abcdef0123456789abcdef",
+      "strict": null
+    },
+    {
+      "input": "0123456789ABCdef0123456789abCDEF",
+      "normalised": "0123456789abcdef0123456789abcdef",
+      "strict": null
+    },
+    {
+      "input": "00000000000000000000000000000001",
+      "normalised": "00000000000000000000000000000001",
+      "strict": "00000000000000000000000000000001"
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "gggggggggggggggggggggggggggggggg",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaag",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-aa-",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "{a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "-{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}-",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": " aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "--------------------------------",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": null,
+      "strict": null
+    }
+  ]
+}

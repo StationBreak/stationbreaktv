@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ordering.splitmix64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -14,20 +15,14 @@ import kotlin.test.assertNotNull
 /**
  * Property test (a hand-written loop, no framework): editing any field except the seed, then writing and reading the
  * file again, never changes the seed or the text of the seed. The cases come from a fixed SplitMix64 stream, so a
- * failure repeats exactly. (The stream is local to this test; the real primitives are task 3.0.)
+ * failure repeats exactly.
  */
 class SeedIndependenceTest {
-    // TODO(3.0): replace this hand-rolled splitmix64 with the real one from core:model when task 3.0 adds it.
+    // Vigna's SplitMix64 generator: draw k is splitmix64(state + (k - 1) * gamma), using the real primitive.
     private class Stream(
         private var state: ULong,
     ) {
-        fun next(): ULong {
-            state += 0x9E3779B97F4A7C15uL
-            var z = state
-            z = (z xor (z shr 30)) * 0xBF58476D1CE4E5B9uL
-            z = (z xor (z shr 27)) * 0x94D049BB133111EBuL
-            return z xor (z shr 31)
-        }
+        fun next(): ULong = splitmix64(state).also { state += 0x9E3779B97F4A7C15uL }
 
         fun below(bound: Int): Int = (next() % bound.toULong()).toInt()
 

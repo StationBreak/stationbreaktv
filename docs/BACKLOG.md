@@ -158,7 +158,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S1.1.1** As a user signed in on several TVs (home, Grandma's), I want each to show the same thing on the same channel at the same time so that it feels like real broadcast.
 - 🧪 Schedule = f(rules, library snapshot visible to the account, seed, epoch). No device-local state, randomness, or locale enters it. Scope: same account → same lineup ([ADR-0002](adr/0002-determinism-scope.md)).
-- 🧪 The PRNG is specified exactly and implemented in `core:scheduler`, using unsigned 64-bit arithmetic. Kotlin's `Random(seed)` and `java.util.Random` are **not** used, so that other platforms can re-implement it bit-for-bit.
+- 🧪 The seed is a **required** field of the channel rules (a decimal string of an unsigned 64-bit number; a file without one is invalid), so it travels with the rules and is never worked out again from other fields ([rules format](rules-format.md#seed)).
+- 🧪 The PRNG is specified exactly, using unsigned 64-bit arithmetic. `splitmix64` and `fnv1a64` are implemented in `core:model` (so that `core:scheduler`, which may not depend on `core:rules`, can use them); the per-epoch seed, bounded integers and key ordering are implemented in `core:scheduler`. Kotlin's `Random(seed)` and `java.util.Random` are **not** used, so that other platforms can re-implement it bit-for-bit.
   - Per-epoch seed: `seed_n = splitmix64(seed + n · 0x9E3779B97F4A7C15)`. Never `seed XOR n`, which correlates neighbouring epochs.
   - Bounded integers use rejection sampling, not modulo.
 - 🧪 Base order before any shuffle: a canonical sort by item ID as bytes. Never sort by title, because collation depends on locale.
@@ -177,7 +178,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 `chronological`: by air date / series-season-episode, continuing across epochs. The starting cursor for epoch *n* is **closed-form** from epoch *n*'s snapshot (not replayed from the origin), so it's O(1) to compute and stable.
 - 🧪 `randomInOrder`: picks series in hash-keyed order and plays each series' next episode in order. Per-series cursors are closed-form from `(seed_n, snapshot_n)`.
 - 🧪 **Ordering primitives (exact spec):** item ID canonical form = 32 lowercase hex ASCII chars with no hyphens, normalised on ingest (some Jellyfin endpoints return hyphenated GUIDs) and used everywhere (base sort, hash, tie-break). `fnv1a64` uses offset `0xcbf29ce484222325` and prime `0x100000001b3`. All arithmetic wraps mod 2^64 with logical shifts. Keys compare **unsigned**, and ties compare canonical ID bytes unsigned. `randomInOrder` keys on series ID. When the pool runs out within an epoch, the same order repeats.
-- 🧪 Golden vectors cover `splitmix64`, `fnv1a64`, and key ordering **separately** (so ports built from 32-bit halves, e.g. BrightScript, can verify each primitive), including at least one key with the high bit set to catch signed sorting. Property tests cover item removal and insertion.
+- 🧪 Golden vectors for the primitives live in `docs/rules-format/vectors/` (`splitmix64.json`, `fnv1a64.json` now; the per-epoch seed, bounded-integer and key-order vectors are added with F1.1; computed with an independent reference, with 32-bit halves) and are run by `core:model` and `core:scheduler` tests. They cover `splitmix64`, `fnv1a64`, and key ordering **separately** (so ports built from 32-bit halves, e.g. BrightScript, can verify each primitive), including at least one key with the high bit set to catch signed sorting. Property tests cover item removal and insertion.
 - 🧪 `blockLength` (e.g. play 2 episodes of a series per block) is honoured. Blocks start on the :00/:30 grid when `alignToGrid=true`, **the default** (Q-SCH-2). Before F3.1 filler exists, the gap before the next grid slot is a station ID slate (a non-item `ScheduleBlock`). Golden vectors cover aligned and unaligned channels.
 
 **S1.1.4** As the player, I need `whatsOn(channel, T)` to be fast so that tune-in fits the 2 s budget.
@@ -189,7 +190,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S1.2.1** As a new user, I want channels generated automatically so that I can start watching without configuring anything.
 - 🧪 Defaults: one channel per selected library, one per genre with ≥ N items (default 10), and one per collection (BoxSet) with ≥ N items.
-- 🧪 Generation is deterministic: the same library gives the same channels with the same numbers and seeds. The default seed = hash(serverId, channel rules).
+- 🧪 Generation is deterministic: the same library gives the same channels with the same numbers and seeds. The default seed of an automatic channel is `splitmix64(fnv1a64(bytes))`, where the bytes are the 32 ASCII characters of the server ID, `0x00`, the kind (`library`, `genre` or `collection`), `0x00`, and the key (the canonical 32-hex ID for a library or collection, the exact UTF-8 genre name otherwise, with no case folding or normalisation). The channel's own ID and its other rules are never inputs. It is written into the rules the app generates ([rules format](rules-format.md#seed), `core:rules` `AutoSeed`).
 - 🧪 Channels with zero schedulable items are not created.
 - 📺 More than 50 auto channels is capped/grouped (see Q-UX-1).
 
@@ -280,6 +281,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S2.3.3** As a user, I want to edit and delete custom channels and reseed shuffle so that I can fix a lineup I don't like.
 - 🧪 Editing the rules or seed regenerates ScheduleBlocks from the current epoch onward.
+- 🧪 Seed lifecycle ([rules format](rules-format.md#seed)): a **new custom channel** gets 64 random bits from the platform's secure random source; **reseed** and **duplicate** give a fresh random seed; **import** keeps the seed of the file byte for byte; **editing** an automatic channel makes it a custom channel and keeps its seed; changing the name or any field other than `seed` never changes the seed.
 
 ## F2.4 Channel management (M)
 

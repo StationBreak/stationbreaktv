@@ -37,7 +37,8 @@ stationbreaktv/
 │
 ├── core/
 │   ├── model/          [KMP]    Domain entities: Server, MediaItem, Channel, ScheduleBlock, ids, value types,
-│   │                            and scheduler inputs (OrderingMode, Seed, BlockLength, FillerSpec)
+│   │                            and scheduler inputs (OrderingMode, Seed, BlockLength, FillerSpec), `CanonicalId`,
+│   │                            and the hash primitives `splitmix64` and `fnv1a64` (`ordering` package)
 │   ├── rules/          [KMP]    Portable channel-rules JSON format: schema, versioning, migrations, (de)serialization
 │   ├── engine/         [KMP]    Channel engine: evaluate source rules against a library snapshot, then produce
 │   │                            a canonical base order; default-channel generation (per library / genre / collection)
@@ -46,7 +47,9 @@ stationbreaktv/
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
 │   │                            SecretStore, ProEntitlement), use cases, and the built-in
 │   │                            ScheduleSource (engine + scheduler)
-│   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors.
+│   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors for the
+│   │                            scheduler's lineups. (The vectors for the rules format and the primitives are canonical in
+│   │                            `docs/rules-format/vectors/`; see "Golden vectors" below.)
 │   │                            (Port fakes live in core:domain testFixtures.)
 │   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers
 │   └── playback/       [Android] Media3 wrapper: tune-at-offset, direct-play vs transcode decision,
@@ -184,6 +187,17 @@ ViewModels inject. `[KMP]` and `[JVM]` modules still may not apply it (`checkArc
 **Portability guard:** the `linuxX64()` canary makes the compiler reject `java.*` in `commonMain`. A detekt
 forbidden-import rule was the backstop until the "`import java.io.File` fails the build" acceptance test passed in
 CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/detekt/kmp.yml`, ADR-0004).
+
+### Golden vectors and the rules-format primitives
+
+- **Golden vectors for the rules format and its primitives are canonical in `docs/rules-format/vectors/`** (JSON, with decimal,
+  hex and 32-bit halves), not in `core:testing`. They are public so that other clients can check themselves against them.
+  Each test module keeps a Kotlin copy in `commonTest` (the `linuxX64` tests cannot read files), and a `jvmTest` fails if a
+  copy differs from the file. `core:testing` keeps the scheduler's own lineup fixtures.
+- `splitmix64`, `fnv1a64`, `CanonicalId` and `Seed` live in **`core:model`**, because `core:scheduler` may not depend on
+  `core:rules`. `core:rules` keeps the types, the reader and writer, the rating ladder and the automatic-channel seed
+  derivation. The per-epoch seed, the bounded-integer step and the key ordering are implemented by the scheduler (F1.1); their
+  vectors are published with F1.1's definitions.
 
 ## Build flavors
 
