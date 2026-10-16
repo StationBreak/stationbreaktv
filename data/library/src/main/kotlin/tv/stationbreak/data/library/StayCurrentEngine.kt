@@ -5,6 +5,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
@@ -23,6 +24,22 @@ internal data class PassSummary(
         return PassSummary(added, updated + write.updated, unchanged + write.unchanged)
     }
 }
+
+/** What a reconciliation did: items tombstoned, tombstones cleared, and items the cache lacked that were fetched. */
+internal data class ReconcileSummary(
+    val tombstoned: Int = 0,
+    val revived: Int = 0,
+    val fetched: Int = 0,
+) {
+    operator fun plus(other: ReconcileSummary) =
+        ReconcileSummary(tombstoned + other.tombstoned, revived + other.revived, fetched + other.fetched)
+}
+
+/** The complete ID list of one library: [trusted] is false when the library changed size while it was being read. */
+private class IdList(
+    val ids: Set<ItemId>,
+    val trusted: Boolean,
+)
 
 /**
  * Keeps the saved library current after the first sync (spec 06, Unit 4): the incremental pass picks up what changed on
@@ -51,6 +68,10 @@ internal class StayCurrentEngine(
     var summary = PassSummary()
         private set
 
+    /** What the last reconciliation did. For tests and diagnostics: nothing is shown to the user. */
+    var reconciled = ReconcileSummary()
+        private set
+
     /**
      * Fetches what changed in [chosen] since the last successful pass (less the margin) for [account] and saves it.
      * Ends as [SyncOutcome.Cancelled] when there is nothing to top up (the first sync has not finished) or the account
@@ -68,7 +89,26 @@ internal class StayCurrentEngine(
             SyncOutcome.Cancelled
         }
 
-    @Suppress("ReturnCount") // Early returns carry a failure out of the loops.
+    /**
+     * Lists every item ID of each ticked library and brings the saved library in line with it (owner answer 1: on every
+     * open). An ID the server lacks gets a tombstone, a tombstoned ID that is back is revived, and an ID the cache
+     * never got (an item that shifted across a page boundary while the first walk ran, and so was never asked for) is
+     * fetched. A library is acted on only after its **complete** list was read, so a failed or cut-short list changes
+     * nothing; an empty list for a library that had items is suspect and rejected; and a library that changed size
+     * while its list was read tombstones nothing this time. It never moves the recorded moment of the last pass.
+     */
+    suspend fun reconcile(
+        session: Session,
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+    ): SyncOutcome =
+        try {
+            Pass(session, account, clock.now()).reconcile(chosen)
+        } catch (_: AccountNotActiveException) {
+            SyncOutcome.Cancelled
+        }
+
+    @Suppress("ReturnCount", "TooManyFunctions") // Early returns carry a failure out of the loops.
     private inner class Pass(
         private val session: Session,
         private val account: LibraryAccount,
@@ -92,6 +132,98 @@ internal class StayCurrentEngine(
             }
             repository.finishSync(account, started)
             return SyncOutcome.Completed
+        }
+
+        suspend fun reconcile(chosen: Set<ItemId>): SyncOutcome {
+            reconciled = ReconcileSummary()
+            val libraries =
+                when (val listed = server.libraries(session)) {
+                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
+                    is ServerResult.Failure -> return fail(listed.error)
+                }
+            for (library in libraries) {
+                reconcile(library)?.let { return it }
+            }
+            repository.clearFailure(account)
+            return SyncOutcome.Completed
+        }
+
+        private suspend fun reconcile(library: Library): SyncOutcome? {
+            val list =
+                when (val read = readIds(library)) {
+                    is IdsRead.Failed -> return fail(read.error)
+                    is IdsRead.Complete -> read.list
+                }
+            val live = repository.liveItemIds(account, library.id).toSet()
+            // Nothing at all, for a library that had items, is more likely a server fault than an emptied library.
+            if (list.ids.isEmpty() && live.isNotEmpty()) return suspect()
+            val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
+            val gone = if (list.trusted) live - list.ids else emptySet()
+            val returning = tombstoned intersect list.ids
+            val missing = list.ids - live - tombstoned
+            if (gone.isNotEmpty()) repository.tombstone(account, gone)
+            if (returning.isNotEmpty()) repository.revive(account, returning)
+            reconciled += ReconcileSummary(tombstoned = gone.size, revived = returning.size)
+            return if (missing.isEmpty()) null else fetchMissing(library, missing.toMutableSet())
+        }
+
+        // The whole list or nothing: a failure part way discards what was read.
+        private suspend fun readIds(library: Library): IdsRead {
+            val ids = LinkedHashSet<ItemId>()
+            var read = 0
+            var total: Int? = null
+            while (true) {
+                when (val page = server.libraryItemIds(session, library, read, pageSize)) {
+                    is ServerResult.Failure -> {
+                        return IdsRead.Failed(page.error)
+                    }
+
+                    is ServerResult.Success -> {
+                        if (read == 0) total = page.value.totalCount
+                        if (page.value.ids.isEmpty()) return IdsRead.Complete(IdList(ids, trusted = total == read))
+                        read += page.value.ids.size
+                        ids += page.value.ids
+                    }
+                }
+            }
+        }
+
+        // Walks the library for the items the cache lacks and saves only those, stopping when it has them all.
+        private suspend fun fetchMissing(
+            library: Library,
+            wanted: MutableSet<ItemId>,
+        ): SyncOutcome? {
+            val limit = PageLimit(pageSize)
+            var next = 0
+            while (wanted.isNotEmpty()) {
+                when (val fetched = server.fetchPage(session, library, next, null, limit)) {
+                    is Fetched.Failed -> {
+                        return fail(fetched.error)
+                    }
+
+                    Fetched.Malformed -> {
+                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        next += 1
+                    }
+
+                    is Fetched.Page -> {
+                        if (fetched.items.isEmpty()) return null
+                        next += fetched.items.size
+                        val found = fetched.items.filter { it.id in wanted }
+                        if (found.isNotEmpty()) {
+                            repository.upsertItems(account, library.id, found)
+                            wanted -= found.map { it.id }.toSet()
+                            reconciled += ReconcileSummary(fetched = found.size)
+                        }
+                    }
+                }
+            }
+            return null
+        }
+
+        private suspend fun suspect(): SyncOutcome {
+            repository.failSync(account, SyncFailure.Suspect)
+            return SyncOutcome.Failed(SyncFailure.Suspect)
         }
 
         private suspend fun changedSince(
@@ -126,4 +258,15 @@ internal class StayCurrentEngine(
             return SyncOutcome.Failed(failure)
         }
     }
+}
+
+/** How reading one library's IDs ended. */
+private sealed interface IdsRead {
+    class Complete(
+        val list: IdList,
+    ) : IdsRead
+
+    class Failed(
+        val error: MediaServerError,
+    ) : IdsRead
 }

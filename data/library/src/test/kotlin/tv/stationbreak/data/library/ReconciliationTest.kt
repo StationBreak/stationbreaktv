@@ -43,7 +43,10 @@ class ReconciliationTest {
 
     private fun engine() = StayCurrentWorld.engine(repository, server, clock)
 
-    private suspend fun reconcile(engine: StayCurrentEngine = engine()): SyncOutcome = engine.reconcile(session, ALICE, setOf(MOVIES))
+    private suspend fun reconcile(engine: StayCurrentEngine = engine()): SyncOutcome {
+        val chosen = setOf(MOVIES)
+        return engine.reconcile(session, ALICE, chosen)
+    }
 
     private suspend fun stored() = repository.stored(ALICE).associateBy { it.item.id.value }
 
