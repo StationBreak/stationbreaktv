@@ -36,6 +36,7 @@ jobs:
       build: ${{ steps.scope.outputs.build }}
       emulator: ${{ steps.scope.outputs.emulator }}
       deps: ${{ steps.scope.outputs.deps }}
+      release: ${{ steps.scope.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,7 +48,10 @@ jobs:
       # changes the app, the modules, or the build. Anything not matched below counts as a build change, and if the
       # diff can't be read both jobs run. A skipped job still reports as skipped, not pending, so this is safe to
       # make a required check later (unlike workflow-level paths-ignore). `deps` says whether osv-scanner is needed:
-      # the PR touches the dependency files or the build logic.
+      # the PR touches the dependency files or the build logic. `release` says whether the release variants are built
+      # and checked: always on main, and on a PR only when it touches what R8, the manifest merger, signing or the
+      # release dependencies depend on (.github/scripts/release-scope.sh lists them, with tests). Other PRs check and
+      # assemble the debug variants only; the debug APK is built either way, for the device tests.
       - name: Decide what to run
         id: scope
         env:
@@ -58,7 +62,11 @@ jobs:
           build=true
           emulator=true
           deps=true
-          if [ "$EVENT_NAME" = pull_request ] && files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")" && [ -n "$files" ]; then
+          release=true
+          # --no-renames: a move lists both its old and new path, so moving a file out of a release-only place is seen.
+          if [ "$EVENT_NAME" = pull_request ] &&
+            files="$(git -c core.quotePath=false diff --name-only --no-renames "${BASE_SHA}...${HEAD_SHA}")" &&
+            [ -n "$files" ]; then
             printf 'Changed files:\n%s\n' "$files"
             if ! grep -qvE '^(docs/|LICENSE|.*\.md$)' <<<"$files"; then
               build=false
@@ -69,6 +77,11 @@ jobs:
             if ! grep -qE '^(gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|build-logic/)' <<<"$files"; then
               deps=false
             fi
+            # The patch feeds the script's content rule. If it can't be read, run the release build, as for an
+            # unreadable file list.
+            if git diff -U0 --no-renames "${BASE_SHA}...${HEAD_SHA}" > "$RUNNER_TEMP/pr.patch"; then
+              release="$(bash .github/scripts/release-scope.sh "$RUNNER_TEMP/pr.patch" <<<"$files")"
+            fi
           fi
           # No build means no emulator, even if the pattern matched.
           if [ "$build" = false ]; then emulator=false; fi
@@ -76,6 +89,7 @@ jobs:
             echo "build=$build"
             echo "emulator=$emulator"
             echo "deps=$deps"
+            echo "release=$release"
           } >> "$GITHUB_OUTPUT"
 
       # Every commit in a PR needs a Signed-off-by: trailer (ADR-0003). Only a GitHub-verified renovate[bot] commit is
@@ -104,6 +118,10 @@ jobs:
       # The emulator job's retry decision: only an infrastructure failure is ever retried.
       - name: Test the instrumented infra classifier
         run: bash .github/scripts/instrumented-infra.test.sh
+
+      # Which PRs also build the release variants (the `release` output above).
+      - name: Test the release-scope classifier
+        run: bash .github/scripts/release-scope.test.sh
 
       # ADR-0013: fails if the dependency verification file or its settings are loosened, or a workflow turns
       # verification off or rewrites the file. The tests run first, so a broken guard can't pass the real check.
@@ -278,8 +296,22 @@ jobs:
         run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:model:jvmTest :core:scheduler:jvmTest
 
       # Lint, detekt, spotless and the unit tests of every module. The assembles are the `assemble` job's.
+      # A PR that doesn't need the release build (see `checks`) excludes exactly the release-variant tasks that
+      # `check` pulls in: detekt's type-resolving task per release variant, and licensee's per release variant. Those
+      # make Gradle compile every Android module's release variant a second time; nothing else differs. `check`
+      # already lints and unit-tests only the debug variants, and the KMP, JVM, spotless, architecture and
+      # trust-surface tasks are untouched. Main and risky PRs run the full `check`.
       - name: Check
-        run: ./gradlew check --continue
+        env:
+          RELEASE: ${{ needs.checks.outputs.release }}
+        run: |
+          skip=()
+          # Only an explicit false narrows it; an empty output runs everything.
+          if [ "$RELEASE" = false ]; then
+            skip=(-x detektRelease -x detektAmazonRelease -x detektGithubRelease
+                  -x licenseeAndroidAmazonRelease -x licenseeAndroidGithubRelease)
+          fi
+          ./gradlew check --continue "${skip[@]}"
 
       # After the Gradle steps, on main: the dependency cache when the build files changed (a new key), the build cache
       # every time. The daemon is stopped first so it isn't writing to the caches while they're archived. The sizes
@@ -364,12 +396,18 @@ jobs:
 
       # No assembleAmazonDebug: nothing uploads or inspects that APK, and `check` (in `verify`) already compiles,
       # lints and unit-tests the variant. Its dex merge was the slowest task in the old combined job.
+      # The release variants are built only on main and for a PR that can change what they contain (see `checks`);
+      # the github debug APK is built every time, for the device tests.
       - name: Assemble
-        run: >-
-          ./gradlew
-          assembleAmazonRelease
-          assembleGithubDebug assembleGithubRelease
-          --continue
+        env:
+          RELEASE: ${{ needs.checks.outputs.release }}
+        run: |
+          tasks=(assembleGithubDebug)
+          # Only an explicit false narrows it; an empty output runs everything.
+          if [ "$RELEASE" != false ]; then
+            tasks+=(assembleAmazonRelease assembleGithubRelease)
+          fi
+          ./gradlew "${tasks[@]}" --continue
 
       # After the Gradle step, on main, as in `verify`.
       - name: Stop Gradle
@@ -417,8 +455,10 @@ jobs:
           # AGP 9.4's default build-tools version.
           BUILD_TOOLS_VERSION: 36.0.0
           DEBUG_APK: ${{ steps.apk.outputs.path }}
-          # One release APK per flavor (amazon, github). Update when a flavor is added (play, F4.3).
-          EXPECTED_RELEASE_APKS: 2
+          # One release APK per flavor (amazon, github). Update when a flavor is added (play, F4.3). None when the
+          # release variants weren't built (see `checks`).
+          # Strings, not numbers: in an expression the number 0 is falsy, so `&& 0 || 2` would always give 2.
+          EXPECTED_RELEASE_APKS: ${{ needs.checks.outputs.release == 'false' && '0' || '2' }}
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
           echo "::group::apksigner verify --print-certs (github debug)"
