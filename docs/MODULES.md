@@ -13,7 +13,7 @@ Source of truth: [`SPEC.md`](SPEC.md).
    though Android modules share the build. If they can't, the pure modules move to a Gradle included build.
 2. **KMP now; tvOS targets are added in Phase 5.** The canary target makes the compiler reject `java.*` in
    `commonMain`, so portability is enforced rather than hoped for. Common code uses `kotlin.time`,
-   `kotlinx-datetime` (`TimeZone`/`LocalDateTime` only), `kotlinx.serialization`, and a hand-written PRNG. Time comes from the
+   `kotlinx-datetime` (`TimeZone`/`LocalDateTime` only) and `kotlinx.serialization`; the hash functions (`splitmix64`, `fnv1a64`) are hand-written. There is no PRNG: every order is a hash key. Time comes from the
    standard library's `kotlin.time.Clock`, injected where needed, not from a custom `Clock` port
    ([ADR-0004](adr/0004-kmp-shared-core.md)). `app` provides `Clock.System` with `@Provides`. If the pinned Kotlin
    version still marks `kotlin.time` APIs experimental, the `kmp-lib` convention plugin opts in to
@@ -42,14 +42,15 @@ stationbreaktv/
 │   ├── rules/          [KMP]    Portable channel-rules JSON format: schema, versioning, migrations, (de)serialization
 │   ├── engine/         [KMP]    Channel engine: evaluate source rules against a library snapshot, then produce
 │   │                            a canonical base order; default-channel generation (per library / genre / collection)
-│   ├── scheduler/      [KMP]    Deterministic scheduler: PRNG, ordering modes, epochs, filler packing,
+│   ├── scheduler/      [KMP]    Deterministic scheduler: ordering modes, epochs, filler packing,
 │   │                            "what's on at time T, at what offset". Input is an ordered item list, not rules.
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
 │   │                            SecretStore, ProEntitlement), use cases, and the built-in
 │   │                            ScheduleSource (engine + scheduler)
 │   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors for the
-│   │                            scheduler's lineups. (The vectors for the rules format and the primitives are canonical in
-│   │                            `docs/rules-format/vectors/`; see "Golden vectors" below.)
+│   │                            scheduler's lineups. (The vectors for the rules format, the primitives and the lineups are
+│   │                            canonical in `docs/rules-format/vectors/`; see "Golden vectors" below. `core:testing` keeps
+│   │                            `SyntheticLibrary`.)
 │   │                            (Port fakes live in core:domain testFixtures.)
 │   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers
 │   └── playback/       [Android] Media3 wrapper: tune-at-offset, direct-play vs transcode decision,
@@ -219,11 +220,14 @@ CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/de
 - **Golden vectors for the rules format and its primitives are canonical in `docs/rules-format/vectors/`** (JSON, with decimal,
   hex and 32-bit halves), not in `core:testing`. They are public so that other clients can check themselves against them.
   Each test module keeps a Kotlin copy in `commonTest` (the `linuxX64` tests cannot read files), and a `jvmTest` fails if a
-  copy differs from the file. `core:testing` keeps the scheduler's own lineup fixtures.
+  copy differs from the file. The scheduler's lineup vectors (`lineup.json`) are canonical there too. `core:testing` keeps
+  `SyntheticLibrary`, the synthetic 10,000-item library for the scheduler's step-count test and benchmark.
 - `splitmix64`, `fnv1a64`, `CanonicalId` and `Seed` live in **`core:model`**, because `core:scheduler` may not depend on
   `core:rules`. `core:rules` keeps the types, the reader and writer, the rating ladder and the automatic-channel seed
-  derivation. The per-epoch seed, the bounded-integer step and the key ordering are implemented by the scheduler (F1.1); their
-  vectors are published with F1.1's definitions.
+  derivation. The per-epoch seed, the key orders, run formation and the day's layout are implemented by the scheduler
+  (F1.1). **There is no PRNG stream and there are no bounded integers**: every order is a hash key and a total sort, and the
+  end of the day is a deterministic scan (see "Building the schedule" in the rules format). Their vectors (`epoch-seed.json`,
+  `key-order.json`, `lineup.json`) are in `docs/rules-format/vectors/`.
 
 ## Build flavors
 
