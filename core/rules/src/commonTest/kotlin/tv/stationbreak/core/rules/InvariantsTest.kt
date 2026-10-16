@@ -66,6 +66,11 @@ class InvariantsTest {
         rejects { base.timing.copy(blockLength = 0) }
         rejects { base.timing.copy(blockLength = 101) }
         rejects { base.timing.copy(epochHours = 5) }
+        rejects { base.timing.copy(graceHours = -1) }
+        rejects { base.timing.copy(graceHours = 49) }
+        rejects { base.timing.copy(gridMinutes = 20) }
+        rejects { base.timing.copy(gridMinutes = 0) }
+        rejects { base.timing.copy(gridMinutes = 60, broadcastDay = base.timing.broadcastDay.copy(start = "06:30")) }
         rejects { base.timing.broadcastDay.copy(utcOffsetMinutes = 7) }
         rejects { base.timing.broadcastDay.copy(utcOffsetMinutes = 855) }
         rejects { base.timing.broadcastDay.copy(start = "06:10") }
