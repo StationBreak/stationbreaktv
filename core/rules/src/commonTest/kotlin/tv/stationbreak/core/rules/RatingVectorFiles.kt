@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
-/** Kotlin copies of `docs/rules-format/vectors/rating.json` and `auto-seed.json` (`RatingVectorsInSyncTest` fails if they differ from the files). */
+/**
+ * Kotlin copies of `docs/rules-format/vectors/rating.json` and `auto-seed.json`. `RatingVectorsInSyncTest` fails if
+ * they differ from the files.
+ */
+@Suppress("LargeClass") // Data only: one entry per vector file.
 internal object RatingVectorFiles {
     val rating: String =
         """

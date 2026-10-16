@@ -63,5 +63,8 @@ internal object VectorJson {
             else -> emptyList()
         }
 
-    fun hexToBytes(hex: String): ByteArray = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(HEX_RADIX).toByte() }
+    fun hexToBytes(hex: String): ByteArray {
+        val pairs = hex.chunked(2)
+        return ByteArray(pairs.size) { pairs[it].toInt(HEX_RADIX).toByte() }
+    }
 }

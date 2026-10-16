@@ -2,9 +2,10 @@
 package tv.stationbreak.core.rules
 
 /**
- * The rating ladder of the rules format (docs/rules-format.md, "Maximum rating and the rating ladder"): eight tiers that
- * follow Jellyfin 12.1's United States table, with TV Parental Guidelines and film ratings on one scale. Names on the same
- * tier are equal. [normalise] and [rankOf] turn the free-form rating string a server returns into a tier, or into nothing.
+ * The rating ladder of the rules format (docs/rules-format.md, "Maximum rating and the rating ladder"): eight tiers
+ * that follow Jellyfin 12.1's United States table, with TV Parental Guidelines and film ratings on one scale. Names
+ * on the same tier are equal. [normalise] and [rankOf] turn the free-form rating string a server returns into a tier,
+ * or into nothing.
  */
 object RatingLadder {
     /** The tiers from the lowest (0) to the highest (7), each with the ladder spelling of its names. */
@@ -27,15 +28,17 @@ object RatingLadder {
     private val rankByName: Map<String, Int> = tiers.flatMapIndexed { rank, tier -> tier.map { it to rank } }.toMap()
 
     /**
-     * The one descriptor group Jellyfin lists after these tiers: a run of the letters in this order, each at most once. The
-     * server table has them for TV-PG and TV-14 (D, L, S, V) and for TV-MA (L, S, V). TV-Y7-FV is already a ladder name.
+     * The one descriptor group Jellyfin lists after these tiers: a run of the letters in this order, each at most once.
+     * The server table has them for TV-PG and TV-14 (D, L, S, V) and for TV-MA (L, S, V). TV-Y7-FV is a ladder name.
      */
     private val descriptorLetters: Map<String, String> = mapOf("TV-PG" to "DLSV", "TV-14" to "DLSV", "TV-MA" to "LSV")
 
+    private const val ASCII_CASE_OFFSET = 'a' - 'A'
+
     /**
-     * The ladder spelling of [raw], or null when it has none. Trim spaces (U+0020) from both ends, upper-case the ASCII
-     * letters `a` to `z` only, and look the result up on the ladder; failing that, accept a TV-PG, TV-14 or TV-MA rating
-     * followed by one descriptor group as that tier's name (`TV-14-V` is `TV-14`).
+     * The ladder spelling of [raw], or null when it has none. Trim spaces (U+0020) from both ends, upper-case the
+     * ASCII letters `a` to `z` only, and look the result up on the ladder; failing that, accept a TV-PG, TV-14 or
+     * TV-MA rating followed by one descriptor group as that tier's name (`TV-14-V` is `TV-14`).
      */
     fun normalise(raw: String): String? {
         val key = upperAscii(raw.trim(' '))
@@ -49,11 +52,9 @@ object RatingLadder {
     internal fun rankOfName(name: String): Int? = rankByName[name]
 
     private fun withoutDescriptors(key: String): String? {
-        for ((tier, letters) in descriptorLetters) {
-            val prefix = "$tier-"
-            if (key.startsWith(prefix) && isDescriptorGroup(key.substring(prefix.length), letters)) return byUpperCase.getValue(tier)
-        }
-        return null
+        val tier = descriptorLetters.keys.firstOrNull { key.startsWith("$it-") } ?: return null
+        val group = key.substring(tier.length + 1)
+        return if (isDescriptorGroup(group, descriptorLetters.getValue(tier))) byUpperCase.getValue(tier) else null
     }
 
     /** True for a non-empty run of [letters] in their order, each at most once. */
@@ -61,15 +62,10 @@ object RatingLadder {
         group: String,
         letters: String,
     ): Boolean {
-        if (group.isEmpty()) return false
-        var previous = -1
-        for (c in group) {
-            val at = letters.indexOf(c)
-            if (at <= previous) return false
-            previous = at
-        }
-        return true
+        val positions = group.map { letters.indexOf(it) }
+        return positions.isNotEmpty() && positions.first() >= 0 && positions.zipWithNext().all { (a, b) -> a < b }
     }
 
-    private fun upperAscii(text: String): String = buildString(text.length) { for (c in text) append(if (c in 'a'..'z') c - 32 else c) }
+    private fun upperAscii(text: String): String =
+        buildString(text.length) { for (c in text) append(if (c in 'a'..'z') c - ASCII_CASE_OFFSET else c) }
 }

@@ -11,9 +11,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * `epoch-seed.json`, `bounded-int.json` and `key-order.json` are published for F1.1 and for ports; F1.1 owns the functions
- * and the tests that run them. This only checks that the files are well formed and safe to rely on: every 64-bit value's
- * decimal, hex and 32-bit halves agree, and the cases that catch common bugs are present.
+ * `epoch-seed.json`, `bounded-int.json` and `key-order.json` are published for F1.1 and for ports; F1.1 owns the
+ * functions and the tests that run them. This only checks that the files are well formed and safe to rely on: every
+ * 64-bit value's decimal, hex and 32-bit halves agree, and the cases that catch common bugs are present.
  */
 class PublishedVectorsConsistencyTest {
     private val epochSeed = VectorJson.parse(PublishedVectors.read("epoch-seed.json"))
@@ -73,7 +73,7 @@ class PublishedVectorsConsistencyTest {
 
     @Test
     fun keyOrderListsEachCaseInUnsignedKeyOrderThenIdBytes() {
-        val groups = keyOrder.array("sortCases").objects() + keyOrder.array("derived").objects().map { it }
+        val groups = keyOrder.array("sortCases").objects() + keyOrder.array("derived").objects()
         for (case in groups) {
             val entries =
                 if ("entries" in case) {
@@ -81,7 +81,8 @@ class PublishedVectorsConsistencyTest {
                 } else {
                     case.array("items").objects().map { it.string("id") to u64(it.getValue("key")) }
                 }
-            val expected = entries.sortedWith(compareBy<Pair<String, ULong>> { it.second }.thenBy { it.first }).map { it.first }
+            val byKeyThenId = compareBy<Pair<String, ULong>> { it.second }.thenBy { it.first }
+            val expected = entries.sortedWith(byKeyThenId).map { it.first }
             assertEquals(expected, case.array("order").map { it.jsonPrimitive.content })
         }
     }

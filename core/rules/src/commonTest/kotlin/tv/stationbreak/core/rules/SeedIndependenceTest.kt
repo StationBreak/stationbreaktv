@@ -18,7 +18,7 @@ import kotlin.test.assertNotNull
  * failure repeats exactly.
  */
 class SeedIndependenceTest {
-    // The stream is Vigna's SplitMix64 generator: draw k is splitmix64(state + (k - 1) * gamma), from the real primitive.
+    // Vigna's SplitMix64 generator: draw k is splitmix64(state + (k - 1) * gamma), using the real primitive.
     private class Stream(
         private var state: ULong,
     ) {

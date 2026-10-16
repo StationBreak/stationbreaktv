@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
+import kotlinx.serialization.json.JsonObject
+import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ordering.fnv1a64
 import tv.stationbreak.core.rules.VectorJson.array
 import tv.stationbreak.core.rules.VectorJson.objects
@@ -19,8 +21,16 @@ import kotlin.test.assertTrue
 class AutoSeedVectorsTest {
     private val file = VectorJson.parse(RatingVectorFiles.autoSeed)
     private val rows = file.array("vectors").objects()
+    private val highBit = 1uL shl 63
 
     private fun kind(name: String): AutoSeedKind? = AutoSeedKind.entries.firstOrNull { it.wireName == name }
+
+    private fun JsonObject.derive(): Seed {
+        val kind = requireNotNull(kind(string("kind")))
+        return AutoSeed.derive(string("serverId"), kind, string("key"))
+    }
+
+    private fun JsonObject.nonAsciiGenre(): Boolean = string("kind") == "genre" && string("key").any { it.code > 127 }
 
     @Test
     fun everyVectorDerivesTheSameBytesHashAndSeed() {
@@ -31,28 +41,26 @@ class AutoSeedVectorsTest {
             val bytes = AutoSeed.bytes(row.string("serverId"), kind, row.string("key"))
             assertContentEquals(VectorJson.hexToBytes(row.string("bytesHex")), bytes, "bytes of $context")
             assertEquals(u64(row.getValue("fnv1a64")), fnv1a64(bytes), "hash of $context")
-            assertEquals(u64(row.getValue("seed")), AutoSeed.derive(row.string("serverId"), kind, row.string("key")).value, context)
+            assertEquals(u64(row.getValue("seed")), row.derive().value, context)
         }
     }
 
     @Test
     fun theFileHasALibraryACollectionANonAsciiGenreAndAHighBitSeed() {
         assertEquals(setOf("library", "collection", "genre"), rows.map { it.string("kind") }.toSet())
-        assertTrue(rows.any { it.string("kind") == "genre" && it.string("key").any { c -> c.code > 127 } })
-        val nonAsciiHigh = rows.filter { it.string("kind") == "genre" && it.string("key").any { c -> c.code > 127 } }
-        assertTrue(nonAsciiHigh.any { u64(it.getValue("seed")) >= (1uL shl 63) }, "a non-ASCII genre with the high bit set")
-        assertTrue(rows.any { u64(it.getValue("seed")) < (1uL shl 63) })
+        assertTrue(rows.any { it.nonAsciiGenre() })
+        val nonAscii = rows.filter { it.nonAsciiGenre() }
+        assertTrue(nonAscii.any { u64(it.getValue("seed")) >= highBit }, "non-ASCII, high bit")
+        assertTrue(rows.any { u64(it.getValue("seed")) < highBit })
     }
 
     @Test
     fun aGenreIsNotCaseFoldedOrNormalised() {
-        val seeds =
-            rows.filter { it.string("kind") == "genre" && it.string("key").startsWith("Anim") }.map {
-                it.string("key") to
-                    u64(it.getValue("seed"))
-            }
-        assertTrue(seeds.size >= 4)
-        assertEquals(seeds.size, seeds.map { it.second }.toSet().size, "Animé, animé and the decomposed form differ")
+        val genres = rows.filter { it.string("kind") == "genre" }
+        val animes = genres.filter { it.string("key").startsWith("Anim", ignoreCase = true) }
+        assertTrue(animes.size >= 4)
+        val seeds = animes.map { u64(it.getValue("seed")) }
+        assertEquals(seeds.size, seeds.toSet().size, "Animé, animé and the decomposed form differ")
     }
 
     @Test
@@ -70,9 +78,9 @@ class AutoSeedVectorsTest {
         assertTrue(invalid.size >= 6)
         for (row in invalid) {
             val kind = kind(row.string("kind")) ?: continue // an unknown or upper-case kind cannot even be named
-            assertFailsWith<IllegalArgumentException>(
-                row.string("why"),
-            ) { AutoSeed.derive(row.string("serverId"), kind, row.string("key")) }
+            assertFailsWith<IllegalArgumentException>(row.string("why")) {
+                AutoSeed.derive(row.string("serverId"), kind, row.string("key"))
+            }
         }
         assertTrue(invalid.any { kind(it.string("kind")) == null }, "the file has an unknown kind")
     }
@@ -86,8 +94,7 @@ class AutoSeedVectorsTest {
     @Test
     fun theSeedIsAValidCanonicalDecimalString() {
         for (row in rows) {
-            val seed = AutoSeed.derive(row.string("serverId"), requireNotNull(kind(row.string("kind"))), row.string("key"))
-            assertEquals(row.getValue("seed").let { (it as kotlinx.serialization.json.JsonObject).string("dec") }, seed.format())
+            assertEquals((row.getValue("seed") as JsonObject).string("dec"), row.derive().format())
         }
     }
 }

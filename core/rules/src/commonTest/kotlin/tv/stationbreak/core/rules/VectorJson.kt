@@ -6,7 +6,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -25,11 +24,13 @@ internal object VectorJson {
     fun JsonObject.string(name: String): String = getValue(name).jsonPrimitive.content
 
     /** The string at [name], or null when it is JSON null. */
-    fun JsonObject.stringOrNull(name: String): String? = getValue(name).let { if (it is JsonNull) null else (it as JsonPrimitive).content }
+    fun JsonObject.stringOrNull(name: String): String? = getValue(name).stringOrNull()
 
-    fun JsonObject.intOrNull(name: String): Int? = getValue(name).let { if (it is JsonNull) null else it.jsonPrimitive.content.toInt() }
+    fun JsonElement.stringOrNull(): String? = if (this is JsonNull) null else jsonPrimitive.content
 
-    fun JsonObject.boolean(name: String): Boolean = getValue(name).jsonPrimitive.content.toBooleanStrict()
+    fun JsonObject.intOrNull(name: String): Int? = getValue(name).stringOrNull()?.toInt()
+
+    fun JsonObject.boolean(name: String): Boolean = string(name).toBooleanStrict()
 
     /** Reads a 64-bit value object and checks that its decimal, hex and 32-bit halves all say the same number. */
     fun u64(element: JsonElement): ULong {
@@ -41,5 +42,8 @@ internal object VectorJson {
         return value
     }
 
-    fun hexToBytes(hex: String): ByteArray = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(HEX_RADIX).toByte() }
+    fun hexToBytes(hex: String): ByteArray {
+        val pairs = hex.chunked(2)
+        return ByteArray(pairs.size) { pairs[it].toInt(HEX_RADIX).toByte() }
+    }
 }

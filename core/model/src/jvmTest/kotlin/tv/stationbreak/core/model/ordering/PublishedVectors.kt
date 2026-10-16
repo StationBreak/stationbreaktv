@@ -3,7 +3,7 @@ package tv.stationbreak.core.model.ordering
 
 import java.io.File
 
-/** Reads `docs/rules-format/vectors/` from the repository (the `rulesFormat.dir` property is set in build.gradle.kts). */
+/** Reads `docs/rules-format/vectors/` (the `rulesFormat.dir` system property is set in build.gradle.kts). */
 internal object PublishedVectors {
     val dir: File =
         File(File(requireNotNull(System.getProperty("rulesFormat.dir")) { "rulesFormat.dir is not set" }), "vectors")

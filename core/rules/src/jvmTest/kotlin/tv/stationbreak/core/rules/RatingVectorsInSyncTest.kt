@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-// The Kotlin copies of the rating and auto-seed vectors (commonTest) must equal the published files, so they cannot drift.
+// The Kotlin copies of the rating and auto-seed vectors (commonTest) must equal the published files: no drift.
 class RatingVectorsInSyncTest {
     @Test
     fun theCopiesEqualTheFiles() {

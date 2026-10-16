@@ -8,8 +8,9 @@ private const val PRIME = 0x100000001B3uL
 private const val BYTE_MASK = 0xFFuL
 
 /**
- * 64-bit FNV-1a of [bytes] (docs/rules-format.md, "Primitives"): start at the offset basis, then for each byte xor it in and
- * multiply by the prime, wrapping modulo 2^64. A byte is taken as an unsigned value (0 to 255), never sign-extended.
+ * 64-bit FNV-1a of [bytes] (docs/rules-format.md, "Primitives"): start at the offset basis, then for each byte xor it
+ * in and multiply by the prime, wrapping modulo 2^64. A byte is taken as an unsigned value (0 to 255), never
+ * sign-extended.
  */
 fun fnv1a64(bytes: ByteArray): ULong {
     var h = OFFSET_BASIS

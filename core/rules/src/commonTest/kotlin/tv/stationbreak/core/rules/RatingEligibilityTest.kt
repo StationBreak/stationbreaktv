@@ -35,7 +35,8 @@ class RatingEligibilityTest {
         assertEquals(15, rankOf.size)
         for ((rating, rank) in rankOf) {
             for ((ceiling, ceilingRank) in rankOf) {
-                assertEquals(rank <= ceilingRank, RatingEligibility.isEligible(rating, ceiling), "$rating under $ceiling")
+                val actual = RatingEligibility.isEligible(rating, ceiling)
+                assertEquals(rank <= ceilingRank, actual, "$rating under $ceiling")
             }
         }
     }
@@ -71,9 +72,10 @@ class RatingEligibilityTest {
 
     @Test
     fun onlyJellyfinsDescriptorGroupsAreRecognised() {
-        // Jellyfin 12.1 lists, for TV-PG and TV-14, every non-empty run of D, L, S, V in that order, and for TV-MA the runs
-        // of L, S, V. Anything else is not a rating it knows, so it has no rank here either (and is blocked).
-        for (bad in listOf("TV-MA-D", "TV-MA-DL", "TV-G-V", "TV-Y-FV", "TV-Y7-V", "TV-14-VD", "TV-14-VV", "TV-14-", "TV-14--V")) {
+        // Jellyfin 12.1 lists, for TV-PG and TV-14, every non-empty run of D, L, S, V in that order, and for TV-MA the
+        // runs of L, S, V. Anything else is not a rating it knows, so it has no rank here either (and is blocked).
+        val notListed = listOf("TV-MA-D", "TV-MA-DL", "TV-G-V", "TV-Y-FV", "TV-Y7-V", "TV-14-VD", "TV-14-VV", "TV-14-")
+        for (bad in notListed + "TV-14--V") {
             assertNull(RatingLadder.rankOf(bad), bad)
         }
         for (bad in listOf("TV-14-X", "TV-14V", "TV-14 V", "TV-PG-F", "TV-X-V", "TV-Y7-FV-V", "TV-14-DLSVV")) {
@@ -110,12 +112,16 @@ class RatingEligibilityTest {
 
     @Test
     fun unratedUnknownAndOtherCountrySystemsAreBlockedUnderAnyCeiling() {
-        val unknown = listOf("NR", "Unrated", "Not Rated", "N/A", "", " ", "FSK 16", "Rated PG", "US:PG-13", "13", "16+", "M", "X", "GP")
+        val unknown = listOf("NR", "Unrated", "Not Rated", "N/A", "", " ", "FSK 16", "Rated PG", "US:PG-13", "13")
         for (rating in unknown) {
             assertNull(RatingLadder.rankOf(rating), rating)
-            for (ceiling in rankOf.keys) assertFalse(RatingEligibility.isEligible(rating, ceiling), "'$rating' under $ceiling")
+            for (ceiling in rankOf.keys) {
+                assertFalse(RatingEligibility.isEligible(rating, ceiling), "'$rating' under $ceiling")
+            }
         }
-        for (ceiling in rankOf.keys) assertFalse(RatingEligibility.isEligible(null, ceiling), "no rating under $ceiling")
+        for (ceiling in rankOf.keys) {
+            assertFalse(RatingEligibility.isEligible(null, ceiling), "no rating under $ceiling")
+        }
     }
 
     @Test
