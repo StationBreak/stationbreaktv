@@ -5,6 +5,8 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -152,6 +155,58 @@ class FirstSyncScreenTest {
 
         compose.onNodeWithTag(FirstSyncTags.RETRY).assertDoesNotExist()
         compose.onAllNodes(isFocusable()).assertCountEquals(0)
+    }
+
+    @Test
+    fun aRefusedSignInSaysSoAndOffersSignInAgainNotRetry() {
+        val error = MediaServerError.SessionExpired()
+        show(FirstSyncPhase.Failed(error, ErrorCopyTable.copyFor(error), sessionLost = true))
+
+        compose.onNodeWithText("The server no longer accepts this sign-in.").assertExists()
+        compose.onNodeWithTag(FirstSyncTags.RETRY).assert(hasText("Sign in again"))
+        compose.onNodeWithText("Retry").assertDoesNotExist()
+        compose.waitUntil(FOCUS_TIMEOUT_MS) {
+            runCatching { compose.onNodeWithTag(FirstSyncTags.RETRY).assertIsFocused() }.isSuccess
+        }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        assertEquals(1, retried)
+    }
+
+    @Test
+    fun waitingForTheNetworkShowsInTheCountLine() {
+        show(FirstSyncPhase.WaitingForNetwork)
+
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("Waiting for your network…"))
+        compose.onAllNodes(isFocusable()).assertCountEquals(0)
+    }
+
+    @Test
+    fun theCountIsHiddenFromTalkBackBecauseTheBarAndTheAnnouncementSayIt() {
+        show(FirstSyncPhase.Syncing(copied = 7_500, total = 15_000))
+
+        val count = compose.onNodeWithTag(FirstSyncTags.COUNT).fetchSemanticsNode().config
+        assertTrue(count.contains(SemanticsProperties.HideFromAccessibility))
+    }
+
+    @Test
+    fun progressIsAnnouncedPolitelyOnlyWhenAQuarterIsPassed() {
+        show(FirstSyncPhase.Syncing(copied = 5_000, total = 20_000))
+        fun announced() =
+            compose.onNodeWithTag(FirstSyncTags.ANNOUNCE).fetchSemanticsNode().config.let {
+                it[SemanticsProperties.ContentDescription].single() to it[SemanticsProperties.LiveRegion]
+            }
+
+        val (first, region) = announced()
+        assertEquals(LiveRegionMode.Polite, region)
+        assertEquals("25 percent", first)
+
+        phase.value = FirstSyncPhase.Syncing(copied = 6_000, total = 20_000)
+        compose.waitForIdle()
+        assertEquals(first, announced().first)
+
+        phase.value = FirstSyncPhase.Syncing(copied = 10_000, total = 20_000)
+        compose.waitForIdle()
+        assertEquals("50 percent", announced().first)
     }
 
     private companion object {

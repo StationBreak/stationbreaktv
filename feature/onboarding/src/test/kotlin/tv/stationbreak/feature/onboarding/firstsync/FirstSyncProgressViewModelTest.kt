@@ -304,4 +304,91 @@ class FirstSyncProgressViewModelTest {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = vm as T
         }
+
+    // No network (owner decision, PR #250): a line after 15 seconds, the failure screen after 5 minutes.
+
+    @Test
+    fun withNoFirstPageForFifteenSecondsTheCountLineSaysItIsWaitingForTheNetwork() =
+        runTest(dispatcher) {
+            val vm = FirstSyncViewModel(InMemoryFirstSync(never))
+            runCurrent()
+
+            advanceTimeBy(14_900)
+            runCurrent()
+            assertEquals(FirstSyncPhase.Starting, vm.state.value)
+
+            advanceTimeBy(1_100)
+            runCurrent()
+            assertEquals(FirstSyncPhase.WaitingForNetwork, vm.state.value)
+        }
+
+    @Test
+    fun theWaitingLineGoesAwayWhenProgressArrives() =
+        runTest(dispatcher) {
+            val firstSync = InMemoryFirstSync(never)
+            val vm = FirstSyncViewModel(firstSync)
+            runCurrent()
+            advanceTimeBy(16_000)
+            runCurrent()
+            assertEquals(FirstSyncPhase.WaitingForNetwork, vm.state.value)
+
+            firstSync.current = running(200, 1000)
+            advanceTimeBy(600)
+            runCurrent()
+            assertEquals(FirstSyncPhase.Syncing(200, 1000), vm.state.value)
+
+            // And it does not come back, however long the sync then takes.
+            advanceTimeBy(600_000)
+            runCurrent()
+            assertTrue(vm.state.value is FirstSyncPhase.Syncing)
+        }
+
+    @Test
+    fun withNoFirstPageForFiveMinutesTheFailureScreenShowsWithAPlainNetworkMessage() =
+        runTest(dispatcher) {
+            val vm = FirstSyncViewModel(InMemoryFirstSync(never))
+            runCurrent()
+
+            advanceTimeBy(299_000)
+            runCurrent()
+            assertEquals(FirstSyncPhase.WaitingForNetwork, vm.state.value)
+
+            advanceTimeBy(2_000)
+            runCurrent()
+            val phase = vm.state.value as FirstSyncPhase.Failed
+            assertTrue(phase.error is MediaServerError.NetworkUnreachable)
+            assertEquals(false, phase.sessionLost)
+        }
+
+    @Test
+    fun retryAfterTheNetworkTimeoutRunsTheSyncAgainAndStartsTheClockOver() =
+        runTest(dispatcher) {
+            val firstSync = InMemoryFirstSync(never)
+            val vm = FirstSyncViewModel(firstSync)
+            runCurrent()
+            advanceTimeBy(302_000)
+            runCurrent()
+            assertTrue(vm.state.value is FirstSyncPhase.Failed)
+
+            vm.onRetry()
+            runCurrent()
+            assertEquals(1, firstSync.retryCalls)
+            assertEquals(FirstSyncPhase.Starting, vm.state.value)
+
+            advanceTimeBy(16_000)
+            runCurrent()
+            assertEquals(FirstSyncPhase.WaitingForNetwork, vm.state.value)
+        }
+
+    @Test
+    fun aRunningSyncWithNothingSavedYetIsStillWaitingAfterFifteenSeconds() =
+        runTest(dispatcher) {
+            val vm = FirstSyncViewModel(InMemoryFirstSync(running(0, 1000)))
+            runCurrent()
+
+            advanceTimeBy(16_000)
+            runCurrent()
+
+            assertEquals(FirstSyncPhase.WaitingForNetwork, vm.state.value)
+        }
 }
