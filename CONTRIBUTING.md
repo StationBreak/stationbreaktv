@@ -95,7 +95,8 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 
 | Check | What it checks | How to fix a failure |
 | --- | --- | --- |
-| `build` | Skipped when the PR changes only `docs/`, `LICENSE` or `*.md` files. `./gradlew check` and assembling every flavor (below) | See the rows below for the task that failed |
+| `verify` | Skipped when the PR changes only `docs/`, `LICENSE` or `*.md` files. Module dependency rules, the KMP tests with no Android SDK and `./gradlew check` (the rows below). It runs in parallel with `assemble`; the old single `build` check was split into the two so a cold build cache fits each one's timeout | See the rows below for the task that failed |
+| `assemble` | Skipped as `verify` is. `assembleAmazonRelease`, `assembleGithubDebug` and `assembleGithubRelease`, then the APK inspection (signature, manifest, release APKs not debuggable, [ADR-0011](docs/adr/0011-debug-build-signing.md)) and the APK upload | The Gradle step names the failing task; for an APK inspection failure, the error names the APK |
 | ↳ `spotlessCheck` | Kotlin style (ktlint) and the SPDX header on every `.kt` and `.gradle.kts` file | Run `./gradlew spotlessApply` and commit the result. ktlint can't fix some rules automatically (wildcard imports, for example); fix those by hand |
 | ↳ `detekt` | Static analysis of Kotlin code | Fix the reported issue. The report names the rule and the line |
 | ↳ `lint` | Android Lint. Issues in the Security category are errors | Fix the reported issue |
@@ -108,12 +109,14 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 | ↳ `checkOverrideLibrary` | No `AndroidManifest.xml` uses `tools:overrideLibrary`, so a library that needs a newer Android version than API 25 can't slip in | Use a version of the library that supports API 25 (minSdk 25 or lower), or a different library |
 | ↳ `licensee` | Every dependency of `app` and of `data:jellyfin` has a license on the allowlist of GPL-compatible licenses, and can be identified (the allowlist is `LicenseePlugin` in `build-logic`) | Use a dependency with a compatible license, or raise it in the pull request so it can be discussed |
 | ↳ trust-anchor tests | The bundled Let's Encrypt roots match their pinned SHA-256, are self-signed CAs and are valid for another year; the network security config trusts only the system store plus those roots, permits cleartext in exactly one place and has no debug overrides | See [Bundled Let's Encrypt roots](#bundled-lets-encrypt-roots). Never add a user-CA source or a second cleartext permission to make a test pass |
-| `emulator` | Skipped unless the PR changes `app/`, `core/`, `data/`, `feature/`, `build-logic/`, `gradle/`, a `*.gradle.kts` file, `gradle.properties` or `ci.yml`. Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports | Don't call APIs newer than API 25 without a version check |
-| ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `build` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
+| `emulator` | Skipped unless the PR changes `app/`, `core/`, `data/`, `feature/`, `build-logic/`, `gradle/`, a `*.gradle.kts` file, `gradle.properties` or `ci.yml`. Instrumented tests on an Android 7.1 (API 25) Android TV emulator, the oldest Android version StationBreak supports. A failure caused by the emulator or runner (an empty `<failure>`, a surfaceflinger or system_server crash, a dead emulator, no results, a step timeout) is retried once; a failed assertion never is (`.github/scripts/instrumented-infra.sh`). The attempts' logcat and results are in the `instrumented-test-reports` artifact | Don't call APIs newer than API 25 without a version check |
+| ↳ dependency verification | Every file Gradle downloads matches its SHA-256 in `gradle/verification-metadata.xml` ([ADR-0013](docs/adr/0013-dependency-verification.md)). It runs inside `verify`, `assemble` and `emulator`. A failure names the artifact | New or updated dependency: rebuild the file ([Dependency verification](#dependency-verification)). A checksum that changed for a version you didn't touch is a real alarm: don't regenerate it, report it |
 | `checks`: dependency verification guard | The verification file or its settings were loosened, or a file under `.github/` turns verification off or rewrites it | Run `bash .github/scripts/verification-guard.sh .` to see which rule. Remove the setting it names. Don't work around it |
 | `checks`: device-proof guard | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
 | `jellyfin-contract` (own workflow) | Runs only when a PR changes `data/jellyfin/`, `core/domain/`, `core/model/`, `build-logic/`, `gradle/libs.versions.toml`, `gradle/verification-metadata.xml`, `settings.gradle.kts` or its own file, and not on drafts. The adapter against real Jellyfin servers in Docker (`:data:jellyfin:contractTest`), once per version in its matrix, directly and behind a subpath proxy. A weekly run (and a manual one) tests the floating `latest` tag too | See [Container contract tests](#container-contract-tests). Failures are in the job log, which carries only test output |
 | `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
+
+A run's APK is only for devices when the whole run concluded success; `assemble` does not wait for `verify`.
 
 To run the Gradle checks locally (with an Android SDK installed):
 
@@ -185,7 +188,7 @@ source set, or a custom `TrustManager`: `NetworkSecurityConfigTest` and Lint's S
 
 Gradle checks every file it downloads (dependencies, plugins and the `build-logic` build) against a SHA-256 in
 `gradle/verification-metadata.xml`. After adding or updating a dependency or plugin, rebuild the file. Renovate's
-PRs fail `build` with a dependency verification error until the baseline is rebuilt. Push the rebuilt file as a
+PRs fail `verify` and `assemble` with a dependency verification error until the baseline is rebuilt. Push the rebuilt file as a
 signed-off commit to the Renovate branch. Renovate then treats the branch as edited and stops rebasing it. The owner
 asks an agent session on their development machine to do the rebuild.
 
