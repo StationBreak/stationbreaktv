@@ -12,9 +12,14 @@ import tv.stationbreak.core.model.Seed
 /**
  * Reads a rules file (docs/rules-format.md). The file is untrusted: the reader never throws for bad input, it returns
  * [RulesResult.Invalid] with a plain reason that holds no file content.
+ *
+ * The order is fixed: size and nesting limits, JSON, then `formatVersion` on its own (a newer file is "update required"
+ * even if the rest of it is unreadable), then the body. Unknown fields are kept; an unknown kind makes the file
+ * unsupported; a file that is malformed anywhere is invalid, whatever else it holds.
  */
 object RulesReader {
     fun read(text: String): RulesResult {
+        RulesLimits.check(text)?.let { return RulesResult.Invalid(it) }
         val root =
             try {
                 Json.parseToJsonElement(text)
@@ -22,16 +27,81 @@ object RulesReader {
                 return RulesResult.Invalid("The file is not valid JSON")
             }
         if (root !is JsonObject) return RulesResult.Invalid("The file is not a JSON object")
+        when (val gate = versionGate(root)) {
+            is VersionGate.Invalid -> return RulesResult.Invalid(gate.reason)
+            is VersionGate.Newer -> return RulesResult.UpdateRequired(gate.version)
+            VersionGate.Current -> Unit
+        }
+        if (hasUnpairedSurrogate(root)) return RulesResult.Invalid("The file has a character that is not valid text")
         return try {
-            val rules = Decoder().rules(root)
-            if (rules.fillerMode == FillerMode.None) {
-                RulesResult.Ok(rules)
-            } else {
-                RulesResult.Unsupported("filler mode '${rules.fillerMode.wireName}' is not scheduled by this version", rules)
-            }
+            decode(root)
         } catch (e: InvalidRules) {
             RulesResult.Invalid(e.reason)
         }
+    }
+
+    private fun decode(root: JsonObject): RulesResult {
+        val decoder = Decoder()
+        val rules = decoder.rules(root)
+        val unsupported = decoder.unsupported
+        return when {
+            unsupported != null -> RulesResult.Unsupported(unsupported)
+            rules.fillerMode != FillerMode.None ->
+                RulesResult.Unsupported("filler mode '${rules.fillerMode.wireName}' is not scheduled by this version", rules)
+            else -> RulesResult.Ok(rules)
+        }
+    }
+
+    private sealed interface VersionGate {
+        data object Current : VersionGate
+
+        data class Newer(
+            val version: Long,
+        ) : VersionGate
+
+        data class Invalid(
+            val reason: String,
+        ) : VersionGate
+    }
+
+    private val WHOLE_NUMBER = Regex("^-?[0-9]+$")
+
+    private fun versionGate(root: JsonObject): VersionGate {
+        val primitive = root["formatVersion"] as? JsonPrimitive
+        val digits = primitive?.takeIf { !it.isString && WHOLE_NUMBER.matches(it.content) }?.content
+        val value = digits?.toLongOrNull()
+        return when {
+            digits == null -> VersionGate.Invalid("formatVersion must be a whole number of 1 or more")
+            // Too big for a Long: positive is certainly newer than this reader, negative is below 1.
+            value == null -> if (digits.startsWith("-")) VersionGate.Invalid(BELOW_ONE) else VersionGate.Newer(Long.MAX_VALUE)
+            value < 1 -> VersionGate.Invalid(BELOW_ONE)
+            value > RulesLimits.SUPPORTED_FORMAT_VERSION -> VersionGate.Newer(value)
+            else -> VersionGate.Current
+        }
+    }
+
+    private const val BELOW_ONE = "formatVersion must be 1 or more"
+
+    private fun hasUnpairedSurrogate(element: JsonElement): Boolean =
+        when (element) {
+            is JsonObject -> element.any { (key, value) -> unpaired(key) || hasUnpairedSurrogate(value) }
+            is JsonArray -> element.any { hasUnpairedSurrogate(it) }
+            is JsonPrimitive -> element.isString && unpaired(element.content)
+        }
+
+    private fun unpaired(text: String): Boolean {
+        var i = 0
+        while (i < text.length) {
+            val c = text[i]
+            if (c.isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()) {
+                i += 2
+            } else if (c.isSurrogate()) {
+                return true
+            } else {
+                i++
+            }
+        }
+        return false
     }
 }
 
@@ -48,7 +118,10 @@ private val RATINGS =
     )
 private val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
 private val START_TIME = Regex("^([01][0-9]|2[0-3]):(00|30)$")
+private val SOURCE_KINDS = setOf("library", "genre", "collection", "tag", "yearRange", "series")
+private val FILLER_SOURCE_KINDS = setOf("library", "collection", "tag")
 
+private const val MAX_SHOWN = 32
 private const val MAX_BLOCK_LENGTH = 100
 private const val MAX_EVERY = 1000
 private const val MIN_YEAR = 1
@@ -56,32 +129,40 @@ private const val MAX_YEAR = 9999
 private const val MIN_OFFSET = -720
 private const val MAX_OFFSET = 840
 private const val OFFSET_STEP = 15
-private const val MAX_NAME = 100
-private const val MAX_TEXT = 256
-private const val MAX_LIST = 256
+private const val MAX_NAME = RulesLimits.MAX_NAME_CODE_POINTS
+private const val MAX_TEXT = RulesLimits.MAX_TEXT_CODE_POINTS
+private const val MAX_LIST = RulesLimits.MAX_LIST_ENTRIES
 
 private class Decoder {
-    fun rules(root: JsonObject): ChannelRules {
-        val version = formatVersion(root)
-        val known = setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")
-        return ChannelRules(
-            formatVersion = version,
-            name = root.optional("name")?.let { name(it, "name", MAX_NAME) },
-            seed = seed(root),
-            sources = sourceList(root.required("sources"), "sources", min = 1),
-            exclusions = root.optional("exclusions")?.let { sourceList(it, "exclusions", min = 0) },
-            maxRating = root.optional("maxRating")?.let { maxRating(it) },
-            ordering = root.optional("ordering")?.let { ordering(it) },
-            timing = timing(root.required("timing")),
-            filler = root.optional("filler")?.let { filler(it) },
-            extras = extras(root, known),
-        )
+    /** The first kind this version does not know. The file is then unsupported. */
+    var unsupported: String? = null
+        private set
+
+    private fun markUnsupported(
+        what: String,
+        value: String,
+    ) {
+        if (unsupported == null) unsupported = "$what '${shown(value)}' is not known to this version"
     }
 
-    private fun formatVersion(root: JsonObject): Int {
-        val value = int(root.required("formatVersion"), "formatVersion")
-        if (value != 1) invalid("formatVersion $value is not supported")
-        return value
+    /** A kind name from the file is shown only when it is short and plain, so the reason holds no file content. */
+    private fun shown(value: String): String =
+        if (value.length <= MAX_SHOWN && value.all { it.isLetterOrDigit() || it == '-' || it == '_' }) value else "(unrecognised)"
+
+    fun rules(root: JsonObject): ChannelRules {
+        val known = setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")
+        return ChannelRules(
+            formatVersion = int(root.required("formatVersion"), "formatVersion"),
+            name = root["name"]?.let { name(it, "name", MAX_NAME) },
+            seed = seed(root),
+            sources = sourceList(root.required("sources"), "sources", min = 1),
+            exclusions = root["exclusions"]?.let { sourceList(it, "exclusions", min = 0) },
+            maxRating = root["maxRating"]?.let { maxRating(it) },
+            ordering = root["ordering"]?.let { ordering(it) },
+            timing = timing(root.required("timing")),
+            filler = root["filler"]?.let { filler(it) },
+            extras = extras(root, known),
+        )
     }
 
     private fun seed(root: JsonObject): Seed {
@@ -105,18 +186,21 @@ private class Decoder {
         val array = element as? JsonArray ?: invalid("$path must be a list")
         if (array.size < min) invalid("$path must have at least $min entry")
         if (array.size > MAX_LIST) invalid("$path has more than $MAX_LIST entries")
-        return array.mapIndexed { i, item -> source(item, "$path[$i]", filler = false) }
+        return array.mapIndexedNotNull { i, item -> source(item, "$path[$i]", filler = false) }
     }
 
     private fun source(
         element: JsonElement,
         path: String,
         filler: Boolean,
-    ): Source {
+    ): Source? {
         val obj = element as? JsonObject ?: invalid("$path must be an object")
         val type = string(obj.required("type", path), "$path.type")
-        val allowed = if (filler) setOf("library", "collection", "tag") else setOf("library", "genre", "collection", "tag", "yearRange", "series")
-        if (type !in allowed) invalid("$path.type '$type' is not a known kind")
+        if (type !in SOURCE_KINDS) {
+            markUnsupported("source kind", type)
+            return null
+        }
+        if (filler && type !in FILLER_SOURCE_KINDS) invalid("$path.type must be a library, a collection or a tag")
         return when (type) {
             "library" -> Source.Library(id(obj, path), extras(obj, setOf("type", "id")))
             "collection" -> Source.Collection(id(obj, path), extras(obj, setOf("type", "id")))
@@ -149,20 +233,24 @@ private class Decoder {
         return Source.YearRange(from, to, extras(obj, setOf("type", "from", "to")))
     }
 
-    private fun ordering(element: JsonElement): Ordering {
+    private fun ordering(element: JsonElement): Ordering? {
         val obj = element as? JsonObject ?: invalid("ordering must be an object")
         val text = string(obj.required("mode", "ordering"), "ordering.mode")
-        val mode = OrderingMode.entries.firstOrNull { it.wireName == text } ?: invalid("ordering.mode '$text' is not a known mode")
+        val mode = OrderingMode.entries.firstOrNull { it.wireName == text }
+        if (mode == null) {
+            markUnsupported("ordering mode", text)
+            return null
+        }
         return Ordering(mode, extras(obj, setOf("mode")))
     }
 
     private fun timing(element: JsonElement): Timing {
         val obj = element as? JsonObject ?: invalid("timing must be an object")
-        val epochHours = obj.optional("epochHours")?.let { int(it, "timing.epochHours") }
+        val epochHours = obj["epochHours"]?.let { int(it, "timing.epochHours") }
         if (epochHours != null && epochHours !in EPOCH_HOURS) invalid("timing.epochHours must divide 24 and be on the list")
         return Timing(
-            blockLength = obj.optional("blockLength")?.let { ranged(it, "timing.blockLength", 1, MAX_BLOCK_LENGTH) },
-            alignToGrid = obj.optional("alignToGrid")?.let { boolean(it, "timing.alignToGrid") },
+            blockLength = obj["blockLength"]?.let { ranged(it, "timing.blockLength", 1, MAX_BLOCK_LENGTH) },
+            alignToGrid = obj["alignToGrid"]?.let { boolean(it, "timing.alignToGrid") },
             epochHours = epochHours,
             broadcastDay = broadcastDay(obj.required("broadcastDay", "timing")),
             extras = extras(obj, setOf("blockLength", "alignToGrid", "epochHours", "broadcastDay")),
@@ -174,19 +262,23 @@ private class Decoder {
         val path = "timing.broadcastDay"
         val offset = ranged(obj.required("utcOffsetMinutes", path), "$path.utcOffsetMinutes", MIN_OFFSET, MAX_OFFSET)
         if (offset % OFFSET_STEP != 0) invalid("$path.utcOffsetMinutes must be a multiple of 15")
-        val start = obj.optional("start")?.let { string(it, "$path.start") }
+        val start = obj["start"]?.let { string(it, "$path.start") }
         if (start != null && !START_TIME.matches(start)) invalid("$path.start must be HH:MM on the hour or half hour")
         return BroadcastDay(offset, start, extras(obj, setOf("utcOffsetMinutes", "start")))
     }
 
-    private fun filler(element: JsonElement): Filler {
+    private fun filler(element: JsonElement): Filler? {
         val obj = element as? JsonObject ?: invalid("filler must be an object")
         val text = string(obj.required("mode", "filler"), "filler.mode")
-        val mode = FillerMode.entries.firstOrNull { it.wireName == text } ?: invalid("filler.mode '$text' is not a known mode")
-        val every = obj.optional("every")?.let { ranged(it, "filler.every", 1, MAX_EVERY) }
-        val source = obj.optional("source")?.let { source(it, "filler.source", filler = true) }
+        val mode = FillerMode.entries.firstOrNull { it.wireName == text }
+        if (mode == null) {
+            markUnsupported("filler mode", text)
+            return null
+        }
+        val every = obj["every"]?.let { ranged(it, "filler.every", 1, MAX_EVERY) }
+        val source = obj["source"]?.let { source(it, "filler.source", filler = true) }
         if (mode == FillerMode.BetweenEveryN && every == null) invalid("filler.every is required for betweenEveryN")
-        if (mode != FillerMode.None && source == null) invalid("filler.source is required for $text")
+        if (mode != FillerMode.None && source == null && unsupported == null) invalid("filler.source is required for $text")
         return Filler(mode, every, source, extras(obj, setOf("mode", "every", "source")))
     }
 
@@ -199,8 +291,6 @@ private class Decoder {
         key: String,
         path: String = "",
     ): JsonElement = this[key] ?: invalid("${if (path.isEmpty()) key else "$path.$key"} is missing")
-
-    private fun JsonObject.optional(key: String): JsonElement? = this[key]
 
     private fun string(
         element: JsonElement,
@@ -242,18 +332,8 @@ private class Decoder {
         max: Int,
     ): String {
         val text = string(element, path)
-        val length = codePoints(text)
+        val length = RulesLimits.codePoints(text)
         if (length < 1 || length > max) invalid("$path must be 1 to $max characters")
         return text
-    }
-
-    private fun codePoints(text: String): Int {
-        var count = 0
-        var i = 0
-        while (i < text.length) {
-            i += if (text[i].isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()) 2 else 1
-            count++
-        }
-        return count
     }
 }
