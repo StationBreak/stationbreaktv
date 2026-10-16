@@ -90,7 +90,8 @@ class FieldRangesTest {
                     "timing",
                     obj(
                         "gridMinutes" to JsonPrimitive(grid),
-                        "broadcastDay" to obj("utcOffsetMinutes" to JsonPrimitive(0), "start" to JsonPrimitive("06:30")),
+                        "broadcastDay" to
+                            obj("utcOffsetMinutes" to JsonPrimitive(0), "start" to JsonPrimitive("06:30")),
                     ),
                 ),
             )

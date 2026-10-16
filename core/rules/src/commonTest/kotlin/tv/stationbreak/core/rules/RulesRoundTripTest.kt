@@ -90,7 +90,8 @@ class RulesRoundTripTest {
 
     @Test
     fun aGraceOfZeroIsKeptAndWrittenBack() {
-        val timing = obj("graceHours" to JsonPrimitive(0), "broadcastDay" to obj("utcOffsetMinutes" to JsonPrimitive(0)))
+        val day = obj("utcOffsetMinutes" to JsonPrimitive(0))
+        val timing = obj("graceHours" to JsonPrimitive(0), "broadcastDay" to day)
         val rules = readOk(minimalRules().with("timing", timing).text())
         assertEquals(0, rules.timing.graceHours)
         assertEquals(0, rules.timing.effectiveGraceHours)

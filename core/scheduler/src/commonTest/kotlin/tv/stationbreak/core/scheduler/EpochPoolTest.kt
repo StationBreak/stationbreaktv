@@ -12,11 +12,13 @@ import kotlin.test.assertTrue
  * The per-epoch pool (spec 08, Unit 1). With `S = epochStart(n)` and `G = graceHours * 3,600,000`, an item is in epoch
  * `n`'s pool when `createdAt < S - G`, `deletedAt` is absent or `>= S - G`, and `0 < runtime <= epochMs`.
  *
- * The channel below is UTC-5, day starts 06:00, 24-hour epochs, grace 6 h. For `n = 0`: `S = 39,600,000` (1970-01-01T11:00Z)
+ * The channel below is UTC-5, day starts 06:00, 24-hour epochs, grace 6 h. For `n = 0`: `S = 39,600,000`
+ * (1970-01-01T11:00Z)
  * and `S - G = 18,000,000`.
  */
 class EpochPoolTest {
-    private val settings = testSettings(utcOffsetMinutes = -300, startMinuteOfDay = 360, epochHours = 24, graceHours = 6)
+    private val settings =
+        testSettings(utcOffsetMinutes = -300, startMinuteOfDay = 360, epochHours = 24, graceHours = 6)
     private val cutoff = 18_000_000L
 
     private fun poolIds(
@@ -174,7 +176,8 @@ class EpochPoolTest {
     @Test
     fun duplicatesAreRejectedEvenWhenTheEpochWouldLeaveThemOut() {
         assertFailsWith<IllegalArgumentException> {
-            EpochPool.build(settings, listOf(testItem(idOf('1'), runtimeMs = 0L), testItem(idOf('1'), runtimeMs = 0L)), 0L)
+            val zero = testItem(idOf('1'), runtimeMs = 0L)
+            EpochPool.build(settings, listOf(zero, zero), 0L)
         }
     }
 }

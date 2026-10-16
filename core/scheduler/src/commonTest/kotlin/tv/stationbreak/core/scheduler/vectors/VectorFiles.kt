@@ -2,8 +2,9 @@
 package tv.stationbreak.core.scheduler.vectors
 
 /**
- * Kotlin copies of the vector files the scheduler tests use. `VectorFilesInSyncTest` (jvmTest) fails if a published copy
- * differs from `docs/rules-format/vectors/`. A test in commonTest cannot read files, because linuxX64Test cannot.
+ * Kotlin copies of the vector files the scheduler tests use. `VectorFilesInSyncTest` (jvmTest) fails if a published
+ * copy differs from `docs/rules-format/vectors/`. A test in commonTest cannot read files, because linuxX64Test
+ * cannot.
  */
 @Suppress("LargeClass") // Data only: one entry per vector file.
 internal object VectorFiles {
@@ -2367,8 +2368,9 @@ internal object VectorFiles {
         """.trimIndent() + "\n"
 
     /**
-     * Cross-check cases for the epoch maths, from the same independent reference. Not published under `docs/rules-format/`,
-     * so nothing checks this copy against a file: it is held here exactly as the reference wrote it.
+     * Cross-check cases for the epoch maths, from the same independent reference. Not published under
+     * `docs/rules-format/`, so nothing checks this copy against a file: it is held here exactly as the reference
+     * wrote it.
      */
     val epochMath: String =
         """

@@ -69,7 +69,9 @@ data class Timing(
         require(blockLength == null || blockLength in blocks) { "A block is 1 to 100 items" }
         require(epochHours == null || epochHours in RulesVocabulary.EPOCH_HOURS) { "An epoch length must divide 24" }
         require(graceHours == null || graceHours in 0..RulesVocabulary.MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
-        require(gridMinutes == null || gridMinutes in RulesVocabulary.GRID_MINUTES) { "The grid is 15, 30 or 60 minutes" }
+        require(gridMinutes == null || gridMinutes in RulesVocabulary.GRID_MINUTES) {
+            "The grid is 15, 30 or 60 minutes"
+        }
         require(effectiveGridMinutes != RulesVocabulary.HOURLY_GRID || broadcastDay.effectiveStart.endsWith(":00")) {
             "With an hourly grid the day starts on the hour"
         }

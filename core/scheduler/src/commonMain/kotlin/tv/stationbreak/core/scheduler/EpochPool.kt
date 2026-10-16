@@ -9,12 +9,12 @@ import tv.stationbreak.core.model.schedule.SchedulerSettings
  *
  * With `S = epochStart(n)` and `G = graceHours * 3,600,000`, an item is in the pool when:
  * - `createdAt < S - G` (an item added inside the grace window waits for the next epoch);
- * - `deletedAt` is absent, or `deletedAt >= S - G` (an item deleted during the epoch before `S` still airs in epoch `n`, so
+ * - `deletedAt` is absent, or `deletedAt >= S - G` (an item deleted shortly before `S` still airs in epoch `n`, so
  *   the lineup does not shift; the player skips it);
  * - `0 < runtime <= epochMs` (a longer item can never play without running over, so it is left out).
  *
- * `deletedAt` is a client's first observation that the item is gone. Jellyfin gives no deletion time, so two devices can
- * disagree on epoch `n` about items deleted in `[S - 2G, S - G)`.
+ * `deletedAt` is a client's first observation that the item is gone. Jellyfin gives no deletion time, so two
+ * devices can disagree on epoch `n` about items deleted in `[S - 2G, S - G)`.
  */
 object EpochPool {
     /**

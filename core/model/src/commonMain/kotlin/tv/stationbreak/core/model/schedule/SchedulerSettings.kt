@@ -7,8 +7,8 @@ import tv.stationbreak.core.model.Seed
 /**
  * What the scheduler needs from a channel's rules (docs/rules-format.md, "Timing"), in numbers.
  *
- * **There are no defaults here, on purpose.** The defaults of the optional rules fields live only in `core:rules`, so the
- * two cannot drift apart. Whoever builds this type (F1.2's engine) spells out every field.
+ * **There are no defaults here, on purpose.** The defaults of the optional rules fields live only in `core:rules`,
+ * so the two cannot drift apart. Whoever builds this type (F1.2's engine) spells out every field.
  *
  * It validates itself when built:
  * - [gridMinutes] is 15, 30 or 60, and [startMinuteOfDay] is a multiple of it (so the day starts on a grid mark);
@@ -17,7 +17,7 @@ import tv.stationbreak.core.model.Seed
  * - [graceHours] is 0 to 48;
  * - [blockLength] is 1 to 100.
  *
- * @property startMinuteOfDay when the broadcast day starts, in minutes after midnight on the channel's own clock (0..1439).
+ * @property startMinuteOfDay when the broadcast day starts: minutes after midnight on the channel's clock, 0..1439.
  */
 data class SchedulerSettings(
     val orderingMode: OrderingMode,

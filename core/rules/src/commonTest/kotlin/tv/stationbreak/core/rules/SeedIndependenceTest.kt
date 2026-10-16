@@ -95,7 +95,11 @@ class SeedIndependenceTest {
             { r, s -> r.withTiming { it.copy(alignToGrid = s.below(2) == 0) } },
             { r, s -> r.withTiming { it.copy(epochHours = s.pick(epochHours)) } },
             { r, s -> r.withDay { it.copy(utcOffsetMinutes = (s.below(105) - 48) * 15) } },
-            { r, s -> r.withTiming { t -> t.copy(broadcastDay = t.broadcastDay.copy(start = randomStart(s, t.effectiveGridMinutes))) } },
+            { r, s ->
+                r.withTiming { t ->
+                    t.copy(broadcastDay = t.broadcastDay.copy(start = randomStart(s, t.effectiveGridMinutes)))
+                }
+            },
             { r, s -> r.withTiming { it.copy(graceHours = s.below(49)) } },
             { r, s -> r.withTiming { t -> t.copy(gridMinutes = s.pick(listOf(15, 30))) } },
             { r, s -> r.copy(sources = r.sources + randomSource(s)) },

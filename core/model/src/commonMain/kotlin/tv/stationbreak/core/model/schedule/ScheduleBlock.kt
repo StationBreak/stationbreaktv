@@ -6,8 +6,8 @@ import tv.stationbreak.core.model.CanonicalId
 /** What a [ScheduleBlock] holds: an item, or a station-ID slate for time nothing else fills. */
 sealed interface ScheduleContent {
     /**
-     * An item. [mediaStartOffsetMs] is where in the media the block starts playing. It is always 0 in version 1, because
-     * no program is ever joined part-way through at the start of a block.
+     * An item. [mediaStartOffsetMs] is where in the media the block starts playing. It is always 0 in version 1,
+     * because no program is ever joined part-way through at the start of a block.
      */
     data class Program(
         val itemId: CanonicalId,
@@ -23,8 +23,8 @@ sealed interface ScheduleContent {
 }
 
 /**
- * One entry of a day's lineup, half-open: it covers `[startMs, endMs)`, so a time exactly on an edge belongs to the later
- * block. A zero-length block is never built. Times are milliseconds since 1970-01-01T00:00:00Z.
+ * One entry of a day's lineup, half-open: it covers `[startMs, endMs)`, so a time exactly on an edge belongs to
+ * the later block. A zero-length block is never built. Times are milliseconds since 1970-01-01T00:00:00Z.
  */
 data class ScheduleBlock(
     val startMs: Long,

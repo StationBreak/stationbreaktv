@@ -8,7 +8,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * The settings type has no defaults (they live in core:rules only, so the two cannot drift) and validates itself when it
+ * The settings type has no defaults (they live in core:rules only, so the two cannot drift) and validates itself when
+ * it
  * is built. `settings(...)` below spells every field out on purpose.
  */
 class SchedulerSettingsTest {
@@ -41,7 +42,8 @@ class SchedulerSettingsTest {
 
     @Test
     fun aValidSettingExposesItsMillisecondForms() {
-        val s = settings(gridMinutes = 15, epochHours = 6, utcOffsetMinutes = 345, startMinuteOfDay = 1110, graceHours = 2)
+        val s =
+            settings(gridMinutes = 15, epochHours = 6, utcOffsetMinutes = 345, startMinuteOfDay = 1110, graceHours = 2)
         assertEquals(15 * 60_000L, s.gridMs)
         assertEquals(6 * 3_600_000L, s.epochMs)
         assertEquals(345 * 60_000L, s.offsetMs)

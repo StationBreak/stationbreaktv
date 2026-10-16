@@ -124,7 +124,8 @@ class EpochMathTest {
                     for (t in times) {
                         val n = Epochs.epochNumber(s, t)
                         val begin = Epochs.epochStart(s, n)
-                        assertTrue(begin <= t && t < begin + s.epochMs, "t=$t in epoch $n of $hours h at $offset/$start")
+                        val where = "t=$t in epoch $n of $hours h at $offset/$start"
+                        assertTrue(begin <= t && t < begin + s.epochMs, where)
                     }
                 }
             }
@@ -149,7 +150,8 @@ class EpochMathTest {
             val out = row.obj("output")
             val name = row.string("name")
             assertEquals(out.string("n").toLong(), Epochs.epochNumber(s, t), "n: $name")
-            assertEquals(out.string("epochStart").toLong(), Epochs.epochStart(s, Epochs.epochNumber(s, t)), "epochStart: $name")
+            val begin = Epochs.epochStart(s, Epochs.epochNumber(s, t))
+            assertEquals(out.string("epochStart").toLong(), begin, "epochStart: $name")
         }
     }
 
@@ -183,9 +185,16 @@ class EpochMathTest {
         for (grid in listOf(15, 30, 60)) {
             for (offset in listOf(-720, -300, 330, 345, 840)) {
                 for (hours in listOf(1, 2, 3, 4, 6, 8, 12, 24)) {
-                    val s = testSettings(gridMinutes = grid, utcOffsetMinutes = offset, epochHours = hours, startMinuteOfDay = 360)
+                    val s =
+                        testSettings(
+                            gridMinutes = grid,
+                            utcOffsetMinutes = offset,
+                            epochHours = hours,
+                            startMinuteOfDay = 360,
+                        )
                     for (n in listOf(-1000L, -1L, 0L, 1L, 9999L)) {
-                        assertTrue(Epochs.isGridMark(s, Epochs.epochStart(s, n)), "grid $grid offset $offset epoch $hours h n $n")
+                        val where = "grid $grid offset $offset epoch $hours h n $n"
+                        assertTrue(Epochs.isGridMark(s, Epochs.epochStart(s, n)), where)
                     }
                 }
             }

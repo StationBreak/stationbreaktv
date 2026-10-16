@@ -12,7 +12,7 @@ enum class ScheduleItemKind {
 /**
  * One item offered to the scheduler. All times are milliseconds since 1970-01-01T00:00:00Z.
  *
- * @property runtimeMs the runtime. The pool leaves out an item whose runtime is not positive or is longer than the epoch.
+ * @property runtimeMs the runtime. The pool leaves out an item with no runtime or one longer than the epoch.
  * @property createdAtMs the server's creation time.
  * @property deletedAtMs the client's first observation that the item is gone, or null while it is present.
  * @property premiereDate the premiere (air) date as `YYYY-MM-DD`, compared as text, or null.

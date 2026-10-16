@@ -30,8 +30,10 @@ class RulesFormatDocTest {
     fun theTimingTableHasRowsForGraceAndGrid() {
         val rows = doc.lines().filter { it.startsWith("| `graceHours` |") || it.startsWith("| `gridMinutes` |") }
         assertEquals(2, rows.size, "one Timing table row each for graceHours and gridMinutes: $rows")
-        assertTrue(rows.single { "graceHours" in it }.let { "`6`" in it && "0 to 48" in it }, "graceHours: default 6, 0 to 48")
-        assertTrue(rows.single { "gridMinutes" in it }.let { "`30`" in it && "15, 30 or 60" in it }, "gridMinutes: default 30")
+        val grace = rows.single { "graceHours" in it }
+        val grid = rows.single { "gridMinutes" in it }
+        assertTrue("`6`" in grace && "0 to 48" in grace, "graceHours: default 6, 0 to 48")
+        assertTrue("`30`" in grid && "15, 30 or 60" in grid, "gridMinutes: default 30")
     }
 
     @Test
