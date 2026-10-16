@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -42,7 +43,7 @@ class MainSafeNetworkTest {
             MockResponse
                 .Builder()
                 .code(200)
-                .body("""{"ServerName":"x","Id":"y","Version":"10.9.0","ProductName":"Jellyfin Server"}""")
+                .body(INFO)
                 .bodyDelay(1500, TimeUnit.MILLISECONDS)
                 .build(),
         )
@@ -71,7 +72,7 @@ class MainSafeNetworkTest {
             val seen = mutableListOf<String>()
             while (!running.isCompleted) {
                 blockedFrame()?.let(seen::add)
-                Thread.sleep(SAMPLE_MILLIS)
+                delay(SAMPLE_MILLIS)
             }
             running.await()
             assertTrue(seen.isEmpty(), "the caller's thread was reading the network: ${seen.firstOrNull()}")
@@ -89,6 +90,10 @@ class MainSafeNetworkTest {
             ?.toString()
 
     private companion object {
+        const val INFO =
+            "{\"ServerName\":\"x\",\"Id\":\"y\",\"Version\":\"12.2.1\"," +
+                "\"ProductName\":\"Jellyfin Server\",\"StartupWizardCompleted\":true}"
+
         const val CALLER = "fake-main"
         const val SAMPLE_MILLIS = 10L
         val NETWORK_PREFIXES = listOf("okio.", "java.net.Socket", "sun.nio.ch.", "sun.security.ssl.")

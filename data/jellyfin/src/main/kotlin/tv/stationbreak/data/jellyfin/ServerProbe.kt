@@ -139,8 +139,8 @@ internal class ServerProbe(
                 .get()
                 .build()
         return try {
-            // Main-safe: `await` resumes on the caller's dispatcher, and the body is read from the socket after that, so
-            // the whole call and read run on `io` (a body that follows its headers would otherwise be read on Main).
+            // Main-safe: `await` resumes on the caller's dispatcher and the body is read from the socket after that, so
+            // the call and the read both run on `io` (a body that follows its headers was read on Main).
             withContext(io) {
                 derived
                     .get()

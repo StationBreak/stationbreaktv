@@ -59,7 +59,7 @@ class MainThreadNetworkTest {
             MockResponse
                 .Builder()
                 .code(200)
-                .body("""{"ServerName":"x","Id":"y","Version":"10.9.0","ProductName":"Jellyfin Server"}""")
+                .body(INFO)
                 .throttleBody(1, 20, TimeUnit.MILLISECONDS)
                 .build(),
         )
@@ -80,4 +80,10 @@ class MainThreadNetworkTest {
     }
 
     private fun onMain(block: () -> Unit) = InstrumentationRegistry.getInstrumentation().runOnMainSync(block)
+
+    private companion object {
+        const val INFO =
+            "{\"ServerName\":\"x\",\"Id\":\"y\",\"Version\":\"12.2.1\"," +
+                "\"ProductName\":\"Jellyfin Server\",\"StartupWizardCompleted\":true}"
+    }
 }
