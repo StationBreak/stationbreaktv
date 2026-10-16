@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.ordering.splitmix64
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+
+private const val GOLDEN_GAMMA = 0x9E3779B97F4A7C15uL
 
 /**
  * Epoch arithmetic, exactly as docs/rules-format.md ("Timing") defines it. Every value is a 64-bit `Long` and every
@@ -22,6 +26,15 @@ object Epochs {
         settings: SchedulerSettings,
         n: Long,
     ): Long = n * settings.epochMs + settings.startMs - settings.offsetMs
+
+    /**
+     * The seed of epoch [n]: `splitmix64(seed + n * 0x9E3779B97F4A7C15)`, wrapping modulo 2^64. [n] is a signed 64-bit
+     * number reinterpreted as unsigned (two's complement) before the multiplication, so a negative `n` is well defined.
+     */
+    fun seedN(
+        seed: Seed,
+        n: Long,
+    ): ULong = splitmix64(seed.value + n.toULong() * GOLDEN_GAMMA)
 
     /**
      * True when [t] is a grid mark of the channel's own clock: `floorMod(t + offsetMs, gridMs) == 0`. Every epoch start
