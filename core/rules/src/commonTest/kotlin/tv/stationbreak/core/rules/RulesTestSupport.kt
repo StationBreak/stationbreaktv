@@ -56,6 +56,8 @@ internal fun source(
     vararg fields: Pair<String, JsonElement>,
 ): JsonObject = JsonObject(mapOf("type" to JsonPrimitive(type)) + fields)
 
+internal fun obj(vararg fields: Pair<String, JsonElement>): JsonObject = JsonObject(mapOf(*fields))
+
 internal fun libraryJson(id: String = PLACEHOLDER_ID): JsonObject = source("library", "id" to JsonPrimitive(id))
 
 internal fun array(vararg items: JsonElement): JsonArray = JsonArray(items.toList())
