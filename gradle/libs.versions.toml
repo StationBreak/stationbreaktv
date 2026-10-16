@@ -47,6 +47,9 @@ ksp = "2.3.12"
 # Test only, for the container contract suite (`contractTest`). 2.0.5 is the latest stable (checked 2026-10-14); the
 # 2.x line works with current Docker engines. Core module only: the suite manages its containers itself.
 testcontainers = "2.0.5"
+# Test only, `core:rules` jvmTest: validates the rules-format examples against the JSON Schema 2020-12 file (spec 07).
+# 3.0.8 is the latest stable (checked 2026-10-15; the jar was published 2026-09-30). Apache-2.0. Never in a runtime classpath.
+jsonSchemaValidator = "3.0.8"
 
 minSdk = "25"
 # Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
@@ -99,6 +102,10 @@ hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hil
 hilt-android-testing = { module = "com.google.dagger:hilt-android-testing", version.ref = "hilt" }
 
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+# Test only (see [versions]).
+json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
+# Test only. Pins the validator's Jackson 3 tree to 3.2.3, which fixes the advisories in 3.2.1 (checked 2026-10-16).
+jackson-bom = { module = "tools.jackson:jackson-bom", version = "3.2.3" }
 
 # Gradle plugins, as libraries: build-logic compiles its convention plugins against these.
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
