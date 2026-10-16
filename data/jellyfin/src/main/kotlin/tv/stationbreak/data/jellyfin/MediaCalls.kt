@@ -246,9 +246,10 @@ internal class MediaCalls(
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
 
         /**
-         * The optional fields the cache needs. `DateLastSaved` is not among them: neither 12.1 nor 12.2 returns it, even
-         * when asked (contract test), so [MediaItem.dateLastSaved] stays null. The rest (production year, rating, series, season and episode
-         * numbers, runtime) come with every item, so asking for more would only make the answer bigger.
+         * The optional fields the cache needs. `DateLastSaved` is not among them: neither 12.1 nor 12.2 returns it,
+         * even when asked (contract test), so [MediaItem.dateLastSaved] stays null. The rest (production year,
+         * rating, series, season and episode numbers, runtime) come with every item, so asking for more would only
+         * make the answer bigger.
          */
         const val ITEM_FIELDS = "DateCreated,Genres,Tags,ParentId"
 

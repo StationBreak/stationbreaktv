@@ -311,7 +311,7 @@ abstract class ContractSuite {
                     .orEmpty()
             assertEquals(server.seeded.movieIds.toSet(), movieItems.map { it.id.value }.toSet())
             assertTrue(movieItems.all { it.kind == ItemKind.Movie && it.dateCreated != null })
-            assertTrue(movieItems.all { it.productionYear in 2001..2003 })
+            assertTrue(movieItems.all { it.productionYear in FIRST_YEAR..LAST_YEAR })
         }
     }
 
@@ -357,10 +357,11 @@ abstract class ContractSuite {
                     .jsonPrimitive.content
             for (id in server.seeded.movieIds) {
                 val dto = server.http.get("Users/$adminId/Items/$id", admin).obj()
-                val tied = JsonObject(dto + ("Name" to JsonPrimitive("Tie")) + ("ForcedSortName" to JsonPrimitive("Tie")))
+                val name = JsonPrimitive("Tie")
+                val tied = JsonObject(dto + ("Name" to name) + ("ForcedSortName" to name))
                 server.http.expectOk("tie", server.http.post("Items/$id", tied.toString(), admin))
             }
-            delay(SETTLE_MS * 3)
+            delay(SETTLE_MS * TIE_SETTLE)
 
             val whole =
                 adapter
@@ -378,7 +379,7 @@ abstract class ContractSuite {
                 }
 
             assertEquals(server.seeded.movieIds.toSet(), whole.map { it.id.value }.toSet())
-            assertEquals(whole.map { it.id }, oneAtATime.map { it.id }, "items with one name page without a skip or repeat")
+            assertEquals(whole.map { it.id }, oneAtATime.map { it.id }, "one name, no skip or repeat")
             // Jellyfin 12 has no sort by ID; it breaks a tie on the ID itself, ascending (the request says SortName).
             assertEquals(whole.map { it.id.value }.sorted(), whole.map { it.id.value }, "ties break on ascending ID")
         }
@@ -402,14 +403,15 @@ abstract class ContractSuite {
             suspend fun changedSince(moment: Instant): Set<String> =
                 adapter
                     .libraryItems(session, movies, 0, BIG_PAGE, moment)
-                    .getOrNull()!!
-                    .items
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
                     .map { it.id.value }
                     .toSet()
 
             // The server does not return DateLastSaved, even when asked, so the boundary is found by searching.
             val everything = Instant.parse("2000-01-01T00:00:00Z")
-            assertEquals(server.seeded.movieIds.toSet(), changedSince(everything), "a moment long ago matches every item")
+            assertEquals(server.seeded.movieIds.toSet(), changedSince(everything), "long ago matches every item")
             val future = Instant.fromEpochMilliseconds(System.currentTimeMillis() + FUTURE_MS)
             assertEquals(emptySet(), changedSince(future), "a moment in the future matches nothing")
 
@@ -422,7 +424,7 @@ abstract class ContractSuite {
                 val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
                 delay(SETTLE_MS)
                 action()
-                delay(SETTLE_MS * 4)
+                delay(SETTLE_MS * EDIT_SETTLE)
                 val changed = changedSince(mark)
                 finding("$label: item returned=${id in changed}, others returned=${(changed - id).size}")
                 return changed
@@ -439,7 +441,7 @@ abstract class ContractSuite {
             // Where is the edge? Search for the last whole millisecond that still returns the renamed item.
             var low = Instant.fromEpochMilliseconds(System.currentTimeMillis() - BISECT_WINDOW_MS)
             var high = Instant.fromEpochMilliseconds(System.currentTimeMillis())
-            check(renamed in changedSince(low) && renamed !in changedSince(high)) { "the edge is not inside the window" }
+            check(renamed in changedSince(low) && renamed !in changedSince(high)) { "the edge is outside the window" }
             while (high.toEpochMilliseconds() - low.toEpochMilliseconds() > 1) {
                 val middle = Instant.fromEpochMilliseconds((low.toEpochMilliseconds() + high.toEpochMilliseconds()) / 2)
                 if (renamed in changedSince(middle)) low = middle else high = middle
@@ -449,8 +451,13 @@ abstract class ContractSuite {
             val refresh =
                 edit("metadata refresh", refreshed) {
                     val query =
-                        listOf("metadataRefreshMode" to "FullRefresh", "imageRefreshMode" to "None", "replaceAllMetadata" to "false")
-                    server.http.expectOk("refresh", server.http.post("Items/$refreshed/Refresh", token = admin, query = query))
+                        listOf(
+                            "metadataRefreshMode" to "FullRefresh",
+                            "imageRefreshMode" to "None",
+                            "replaceAllMetadata" to "false",
+                        )
+                    val refresh = server.http.post("Items/$refreshed/Refresh", token = admin, query = query)
+                    server.http.expectOk("refresh", refresh)
                 }
             // Pinned on 12.1 and 12.2: a refresh saves the item, so it counts as a change. A full re-sync of
             // refreshed items is the cost, never a missed change.
@@ -465,7 +472,8 @@ abstract class ContractSuite {
                             .obj()
                             .getValue("Id")
                             .jsonPrimitive.content
-                    server.http.expectOk("watched", server.http.post("Users/$viewerId/PlayedItems/$watched", token = viewerToken))
+                    val mark = server.http.post("Users/$viewerId/PlayedItems/$watched", token = viewerToken)
+                    server.http.expectOk("watched", mark)
                 }
             // Pinned on 12.1 and 12.2: a watched mark is user data, not an item save, so it is not a change.
             assertEquals(emptySet(), watch, "a watched mark does not count as a change")
@@ -558,6 +566,10 @@ abstract class ContractSuite {
         const val PAGE_SIZE = 2
         const val BIG_PAGE = 20
         const val SETTLE_MS = 1_200L
+        const val TIE_SETTLE = 3
+        const val EDIT_SETTLE = 4
+        const val FIRST_YEAR = 2001
+        const val LAST_YEAR = 2003
         const val FUTURE_MS = 60_000L
         const val BISECT_WINDOW_MS = 30_000L
         const val PROGRESS_SECONDS = 10

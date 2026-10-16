@@ -58,7 +58,7 @@ data class LibraryItemsPage(
     val items: List<MediaItem>,
 )
 
-/** One page of item IDs, for finding what the server no longer has (F0.6). [totalCount] is as for [LibraryItemsPage]. */
+/** One page of item IDs, for finding what the server no longer has (F0.6). [totalCount] works as in [LibraryItemsPage]. */
 data class ItemIdPage(
     val startIndex: Int,
     val totalCount: Int?,

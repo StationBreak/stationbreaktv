@@ -94,6 +94,7 @@ internal class ItemsDto(
 )
 
 @Serializable
+@Suppress("LongParameterList") // One property per wire field.
 internal class ItemDto(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String = "",

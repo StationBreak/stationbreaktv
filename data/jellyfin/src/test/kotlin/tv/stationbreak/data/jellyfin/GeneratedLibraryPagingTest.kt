@@ -60,7 +60,8 @@ class GeneratedLibraryPagingTest {
             val page =
                 testAdapter().libraryItems(testSession(jellyfin.address), library, 400, 200).getOrNull()
 
-            assertEquals(synthetic.page(400, 200), page?.items)
+            // The server does not return DateLastSaved (contract test), so the adapter does not ask for it.
+            assertEquals(synthetic.page(400, 200).map { it.copy(dateLastSaved = null) }, page?.items)
         }
     }
 

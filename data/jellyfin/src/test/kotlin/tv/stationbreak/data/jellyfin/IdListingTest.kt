@@ -47,7 +47,7 @@ class IdListingTest {
     @Test
     fun returnsEveryIdOfALibraryInPagesAndNothingElse() {
         runBlocking {
-            val all = (1..7).map { "id%02d".format(it) }
+            val all = (1..7).map { "id%02d".format(java.util.Locale.ROOT, it) }
             jellyfin.on("GET", "/Items") { request ->
                 val start = request.url.queryParameter("startIndex")!!.toInt()
                 val limit = request.url.queryParameter("limit")!!.toInt()

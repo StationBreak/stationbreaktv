@@ -10,7 +10,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 
-/** The generated library the sync tests run against (F0.6): deterministic, valid, and a little bit broken on purpose. */
+/** The generated library the sync tests run against (F0.6): deterministic, valid, and a little broken on purpose. */
 class SyntheticLibraryTest {
     @Test
     fun theSameSizeAndSeedGiveIdenticalItems() {

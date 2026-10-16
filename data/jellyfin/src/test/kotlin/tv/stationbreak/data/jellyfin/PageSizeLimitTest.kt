@@ -58,7 +58,7 @@ class PageSizeLimitTest {
         runBlocking {
             jellyfin.serve(synthetic)
             jellyfin.on("GET", "/Items") {
-                val items = synthetic.page(0, 500).map { wireItem(it, fields) }
+                val items = synthetic.page(0, 500).map { item -> wireItem(item, fields) }
                 jellyfin.json(
                     buildJsonObject {
                         put("Items", JsonArray(items))

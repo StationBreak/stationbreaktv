@@ -132,7 +132,8 @@ interface MediaServer {
      * repeat an item. [limit] is 1 to
      * [MAX_PAGE_SIZE]. The total count is asked for, and returned, on the first page ([startIndex] 0) only.
      *
-     * With [changedSince] the call returns only items the server saved at or after that UTC moment (`MinDateLastSaved`).
+     * With [changedSince] the call returns only items the server saved at or after that UTC moment
+     * (`MinDateLastSaved`).
      * Throws [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the caller, not a server
      * problem.
      */
