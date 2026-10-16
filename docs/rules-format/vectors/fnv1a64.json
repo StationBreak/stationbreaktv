@@ -1,5 +1,5 @@
 {
-  "description": "fnv1a64(bytes): h = 0xcbf29ce484222325; for each byte b: h = (h ^ b) * 0x100000001b3 (wrapping). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step.",
+  "description": "fnv1a64(bytes): h = 0xcbf29ce484222325; for each byte b: h = (h ^ b) * 0x100000001b3 (wrapping). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
   "source": "Computed with an independent Python reference and cross-checked against a C port. The empty string, a, foo and foobar match the published FNV-1a 64 test values.",
   "vectors": [
     {

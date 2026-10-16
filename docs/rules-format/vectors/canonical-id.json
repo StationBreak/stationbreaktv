@@ -1,5 +1,5 @@
 {
-  "description": "Item IDs. normalised: what a client does with an ID from the server (remove hyphens, remove one surrounding pair of braces, lower-case; null if anything other than 32 hex characters is left). strict: what a rules-file reader accepts (the input unchanged if it is already 32 lower-case hex characters, else null; nothing is repaired). Placeholder IDs only.",
+  "description": "Item IDs. normalised: what a client does with an ID from the server, in this order: (1) if the string starts with { and ends with }, remove those two characters; (2) remove every hyphen, wherever it is; (3) lower-case; null if anything other than 32 hex characters is left). strict: what a rules-file reader accepts (the input unchanged if it is already 32 lower-case hex characters, else null; nothing is repaired). Placeholder IDs only. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
   "vectors": [
     {
       "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -78,6 +78,36 @@
     },
     {
       "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "{a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "strict": null
+    },
+    {
+      "input": "-{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}",
+      "normalised": null,
+      "strict": null
+    },
+    {
+      "input": "{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}-",
       "normalised": null,
       "strict": null
     },
