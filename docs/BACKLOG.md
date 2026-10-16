@@ -173,10 +173,10 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 The library cache **tombstones** deleted items and freezes their runtime until the epoch that referenced them ends, so prefix sums don't shift. Deleted items are skipped at playback time (that slot shows a slate, see F1.3).
 
 **S1.1.3** As a user, I want ordering modes so that channels feel intentional.
-- 🧪 `SHUFFLE`: **hash-keyed order** per epoch: sort by `splitmix64(seed_n + fnv1a64(itemIdBytes))`, ties broken by ID bytes (ADR-0002). No repeats within an epoch until the pool is exhausted. Property test: removing any item leaves the relative order of the others unchanged (start times of later items shift by that item's runtime).
-- 🧪 `CHRONOLOGICAL`: by air date / series-season-episode, continuing across epochs. The starting cursor for epoch *n* is **closed-form** from epoch *n*'s snapshot (not replayed from the origin), so it's O(1) to compute and stable.
-- 🧪 `RANDOM_IN_ORDER`: picks series in hash-keyed order and plays each series' next episode in order. Per-series cursors are closed-form from `(seed_n, snapshot_n)`.
-- 🧪 **Ordering primitives (exact spec):** item ID canonical form = 32 lowercase hex ASCII chars with no hyphens, normalised on ingest (some Jellyfin endpoints return hyphenated GUIDs) and used everywhere (base sort, hash, tie-break). `fnv1a64` uses offset `0xcbf29ce484222325` and prime `0x100000001b3`. All arithmetic wraps mod 2^64 with logical shifts. Keys compare **unsigned**, and ties compare canonical ID bytes unsigned. `RANDOM_IN_ORDER` keys on series ID. When the pool runs out within an epoch, the same order repeats.
+- 🧪 `shuffle`: **hash-keyed order** per epoch: sort by `splitmix64(seed_n + fnv1a64(itemIdBytes))`, ties broken by ID bytes (ADR-0002). No repeats within an epoch until the pool is exhausted. Property test: removing any item leaves the relative order of the others unchanged (start times of later items shift by that item's runtime).
+- 🧪 `chronological`: by air date / series-season-episode, continuing across epochs. The starting cursor for epoch *n* is **closed-form** from epoch *n*'s snapshot (not replayed from the origin), so it's O(1) to compute and stable.
+- 🧪 `randomInOrder`: picks series in hash-keyed order and plays each series' next episode in order. Per-series cursors are closed-form from `(seed_n, snapshot_n)`.
+- 🧪 **Ordering primitives (exact spec):** item ID canonical form = 32 lowercase hex ASCII chars with no hyphens, normalised on ingest (some Jellyfin endpoints return hyphenated GUIDs) and used everywhere (base sort, hash, tie-break). `fnv1a64` uses offset `0xcbf29ce484222325` and prime `0x100000001b3`. All arithmetic wraps mod 2^64 with logical shifts. Keys compare **unsigned**, and ties compare canonical ID bytes unsigned. `randomInOrder` keys on series ID. When the pool runs out within an epoch, the same order repeats.
 - 🧪 Golden vectors cover `splitmix64`, `fnv1a64`, and key ordering **separately** (so ports built from 32-bit halves, e.g. BrightScript, can verify each primitive), including at least one key with the high bit set to catch signed sorting. Property tests cover item removal and insertion.
 - 🧪 `blockLength` (e.g. play 2 episodes of a series per block) is honoured. Blocks start on the :00/:30 grid when `alignToGrid=true`, **the default** (Q-SCH-2). Before F3.1 filler exists, the gap before the next grid slot is a station ID slate (a non-item `ScheduleBlock`). Golden vectors cover aligned and unaligned channels.
 
@@ -301,7 +301,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F3.1 Filler & bumpers (S)
 
 **S3.1.1** As a nostalgia fan, I want bumpers, commercials, or shorts between programs from a chosen library so that it feels like a real station.
-- 🧪 A per-channel filler source (library/collection/tag) and mode: `none`, `pad-to-grid` (fill to the next :00/:30), and `between-every-N`.
+- 🧪 A per-channel filler source (library/collection/tag) and mode (`mode` in the rules: `none`, `padToGrid` (fill to the next :00/:30), and `betweenEveryN`; reserved in rules format 1, so a v1 reader treats any mode but `none` as unsupported).
 - 🧪 Filler packing is deterministic (it uses the scheduler PRNG) and covered by golden vectors.
 - 🧪 When filler can't exactly fill a gap, the remainder is shown as a station ID slate (bundled asset) instead of drifting off the grid.
 

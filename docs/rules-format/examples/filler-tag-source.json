@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "name": "Tagged Filler",
+  "seed": "9",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
+  "filler": {
+    "mode": "padToGrid",
+    "source": {
+      "type": "tag",
+      "name": "Station IDs"
+    }
+  }
+}

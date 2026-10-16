@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "name": "Random Series, Episodes In Order",
+  "seed": "5",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "randomInOrder"
+  },
+  "timing": {
+    "blockLength": 2,
+    "alignToGrid": true,
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
+}

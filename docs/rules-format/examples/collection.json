@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "Holiday Movies",
+  "seed": "42",
+  "sources": [
+    {
+      "type": "collection",
+      "id": "22222222222222222222222222222222"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
+}

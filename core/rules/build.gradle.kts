@@ -11,3 +11,17 @@ kotlin {
         implementation(libs.json.schema.validator)
     }
 }
+
+// The rules-format files (schema, examples, document) are the source of truth. The tests read them from the repository.
+val rulesFormatDir = rootProject.layout.projectDirectory.dir("docs/rules-format")
+val rulesFormatDoc = rootProject.layout.projectDirectory.file("docs/rules-format.md")
+
+tasks.withType<Test>().configureEach {
+    systemProperty("rulesFormat.dir", rulesFormatDir.asFile.absolutePath)
+    inputs.files(rulesFormatDir.asFileTree).withPropertyName("rulesFormatFiles").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs
+        .files(rulesFormatDoc)
+        .withPropertyName("rulesFormatDoc")
+        .optional()
+        .withPathSensitivity(PathSensitivity.NONE)
+}

@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "name": "Padded",
+  "seed": "9",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
+  "filler": {
+    "mode": "padToGrid",
+    "source": {
+      "type": "library",
+      "id": "55555555555555555555555555555555"
+    }
+  }
+}

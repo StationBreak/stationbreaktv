@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "name": "Station Breaks",
+  "seed": "9",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
+  "filler": {
+    "mode": "betweenEveryN",
+    "every": 3,
+    "source": {
+      "type": "collection",
+      "id": "66666666666666666666666666666666"
+    }
+  }
+}

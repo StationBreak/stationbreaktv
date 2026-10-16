@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "name": "Saturday Morning Cartoons",
+  "seed": "13835058055282163712",
+  "sources": [
+    {
+      "type": "genre",
+      "name": "Animation"
+    }
+  ],
+  "maxRating": "TV-Y7",
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
+}

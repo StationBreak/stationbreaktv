@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "Invalid",
+  "seed": "1",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111-1111-1111-1111-111111111111"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
+}

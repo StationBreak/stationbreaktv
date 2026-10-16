@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "name": "The Nineties",
+  "seed": "1990",
+  "sources": [
+    {
+      "type": "yearRange",
+      "from": 1990,
+      "to": 1999
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
+}

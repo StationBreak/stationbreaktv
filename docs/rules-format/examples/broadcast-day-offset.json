@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "name": "Eastern Evening",
+  "seed": "8",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

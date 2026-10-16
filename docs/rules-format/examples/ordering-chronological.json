@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "name": "In Order",
+  "seed": "5",
+  "sources": [
+    {
+      "type": "series",
+      "id": "33333333333333333333333333333333"
+    }
+  ],
+  "ordering": {
+    "mode": "chronological"
+  },
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
+}
