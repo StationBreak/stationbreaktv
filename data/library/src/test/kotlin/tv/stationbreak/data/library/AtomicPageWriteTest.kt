@@ -140,7 +140,7 @@ class AtomicPageWriteTest {
     fun aPageMayBeLargerThanSqliteAllowsVariablesFor() =
         runBlocking {
             // The platform SQLite on API 25 allows 999 variables in a statement; the write chunks its lookups.
-            val many = (0 until 1500).map { item("many-%04d".format(it)) }
+            val many = (0 until 1500).map { item("many-${it.toString().padStart(4, '0')}") }
             repository.select(ALICE, setOf(MOVIES))
 
             repository.writePage(ALICE, MOVIES, many, nextStartIndex = many.size, totalCount = many.size, run = 1)

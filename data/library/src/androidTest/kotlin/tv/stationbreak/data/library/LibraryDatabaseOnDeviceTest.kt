@@ -130,7 +130,7 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun aBigPageStaysUnderTheVariableLimit() =
         runBlocking {
-            val many = (0 until 1200).map { item("many-%04d".format(it)) }
+            val many = (0 until 1200).map { item("many-${it.toString().padStart(4, '0')}") }
             repository.select(account, setOf(library))
 
             repository.writePage(account, library, many, many.size, many.size, run = 1)

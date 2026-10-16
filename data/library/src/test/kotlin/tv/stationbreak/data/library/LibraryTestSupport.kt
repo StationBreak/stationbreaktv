@@ -23,6 +23,10 @@ internal val ALICE_ON_ANOTHER_SERVER = LibraryAccount(ServerId("server-2"), User
 internal val MOVIES = ItemId("lib-movies")
 internal val SHOWS = ItemId("lib-shows")
 
+/** Where Room runs its queries in tests: a real thread pool, as in the app. */
+@Suppress("InjectDispatcher") // A test helper: nothing to inject into.
+internal val TEST_QUERY_CONTEXT: kotlin.coroutines.CoroutineContext = Dispatchers.IO
+
 /** A moment well after the test items were created. */
 internal val EPOCH: Instant = Instant.fromEpochMilliseconds(1_700_000_000_000)
 
@@ -91,5 +95,5 @@ internal object TestLibraries {
     ) = LibraryDatabases
         .builder(TestContext(dir ?: File(System.getProperty("java.io.tmpdir"))), name)
         .setDriver(BundledSQLiteDriver())
-        .setQueryCoroutineContext(Dispatchers.IO)
+        .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
 }

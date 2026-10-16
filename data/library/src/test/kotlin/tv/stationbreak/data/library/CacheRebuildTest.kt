@@ -7,7 +7,6 @@ import androidx.room.PrimaryKey
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -47,7 +46,7 @@ class CacheRebuildTest {
                 Room
                     .databaseBuilder(context, OtherSchemaDatabase::class.java, "rebuild.db")
                     .setDriver(BundledSQLiteDriver())
-                    .setQueryCoroutineContext(Dispatchers.IO)
+                    .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
                     .build()
             other.otherDao().put(OtherRow("kept?"))
             other.close()
@@ -57,7 +56,7 @@ class CacheRebuildTest {
                     LibraryDatabases
                         .builder(context, "rebuild.db")
                         .setDriver(BundledSQLiteDriver())
-                        .setQueryCoroutineContext(Dispatchers.IO),
+                        .setQueryCoroutineContext(TEST_QUERY_CONTEXT),
                     FakeClock(),
                 )
 

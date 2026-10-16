@@ -128,6 +128,7 @@ class RoomLibraryRepository internal constructor(
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
      * [library] must have been chosen with [select] first.
      */
+    @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
     internal suspend fun writePage(
         account: LibraryAccount,
         library: ItemId,
