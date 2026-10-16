@@ -142,6 +142,72 @@ class SignOutTest {
             assertEquals(emptyList(), cache.activated)
         }
 
+    // Angua LOW 2: rows must not outlive a rejected session.
+
+    @Test
+    fun aSessionTheServerRefusesOnRestoreForgetsItsAccount() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+            cache.activated.clear()
+            server.resumeResult = ServerResult.Failure(MediaServerError.SessionExpired())
+
+            sessions.restore(address)
+
+            assertEquals(listOf(account), cache.forgotten)
+        }
+
+    @Test
+    fun aServerMismatchAnsweredByTheServerForgetsItsAccount() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+            server.resumeResult = ServerResult.Failure(MediaServerError.ServerMismatch())
+
+            sessions.restore(address)
+
+            assertEquals(listOf(account), cache.forgotten)
+        }
+
+    @Test
+    fun aStoredSessionForAnotherConfiguredServerForgetsItsAccount() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+
+            sessions.restore(ServerAddress(Scheme.Https, "other.example", 443))
+
+            assertEquals(listOf(account), cache.forgotten)
+        }
+
+    @Test
+    fun anUnreadableStoredSessionForgetsNothingBecauseNoAccountIsKnown() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            store.save(SessionRepository.SESSION_KEY, "not a session")
+
+            val outcome = SessionRepository(store, server, cache).restore(address)
+
+            assertEquals(RestoreOutcome.SignedOut, outcome)
+            assertNull(store.snapshot()[SessionRepository.SESSION_KEY])
+            assertEquals(emptyList(), cache.forgotten)
+        }
+
+    @Test
+    fun aRefusedSessionReportedByACallerForgetsItsAccount() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+
+            assertEquals(false, sessions.onServerError(MediaServerError.Timeout(), session))
+            assertEquals(emptyList(), cache.forgotten)
+            assertEquals(true, sessions.onServerError(MediaServerError.SessionExpired(), session))
+            assertEquals(listOf(account), cache.forgotten)
+        }
+
     @Test
     fun aSessionThatLivesInMemoryOnlyStillActivatesItsAccount() =
         runBlocking {
