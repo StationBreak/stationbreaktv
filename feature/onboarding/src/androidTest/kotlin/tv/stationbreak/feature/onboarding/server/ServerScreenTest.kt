@@ -16,9 +16,9 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasImeAction
-import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -125,8 +125,8 @@ class ServerScreenTest {
 
     private fun found(address: ServerAddress = https) = ServerResult.Success(ResolvedServer(address, info))
 
-    // Compose scales large sp text less than small text (a non-linear curve), so a fixed 40sp headline hardly grew at 1.3
-    // while the buttons did. The headline has to grow in step with the rest.
+    // Compose scales large sp text less than small text, so a fixed 40sp headline hardly grew at 1.3 while the
+    // buttons did. The headline has to grow in step with the rest.
     @Test
     fun theHeadlineGrowsWithTheSystemFontScale() {
         launch()

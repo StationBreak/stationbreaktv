@@ -73,8 +73,7 @@ private const val TOP_OFFSET = 0.1f
  * that flattens as the size grows), so a 40sp headline hardly grew at 1.3 while the buttons did.
  */
 @Composable
-private fun linearSp(size: TextUnit): TextUnit =
-    with(LocalDensity.current) { (size.value * fontScale).dp.toSp() }
+private fun linearSp(size: TextUnit): TextUnit = with(LocalDensity.current) { (size.value * fontScale).dp.toSp() }
 
 /**
  * The server screen as the app shows it. Back is the platform's: from this root screen it leaves the app, and it
