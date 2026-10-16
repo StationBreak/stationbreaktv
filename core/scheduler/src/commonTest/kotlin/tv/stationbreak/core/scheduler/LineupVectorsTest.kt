@@ -29,9 +29,9 @@ import kotlin.test.assertTrue
 
 /**
  * `docs/rules-format/vectors/lineup.json` against `buildDay` and `Day.whatsOn`: whole days from an independent
- * reference (Python, written from docs/rules-format.md only). Every block of every day is checked, every query, and every
- * time outside the day must be an error. A case is never changed to suit the code; a disagreement is reported with the
- * case's name.
+ * reference (Python, written from docs/rules-format.md only). Every block of every day is checked, every query, and
+ * every time outside the day must be an error. A case is never changed to suit the code; a disagreement is reported
+ * with the case's name.
  */
 class LineupVectorsTest {
     private val cases = VectorJson.parse(LineupVectorFile.text).array("cases").objects()
@@ -46,7 +46,11 @@ class LineupVectorsTest {
             orderingMode = OrderingMode.entries.single { it.wireName == obj("ordering").string("mode") },
             seed = Seed(string("seed").toULong()),
             blockLength = timing.getValue("blockLength").jsonPrimitive.int,
-            alignToGrid = timing.getValue("alignToGrid").jsonPrimitive.content.toBoolean(),
+            alignToGrid =
+                timing
+                    .getValue("alignToGrid")
+                    .jsonPrimitive.content
+                    .toBoolean(),
             gridMinutes = timing.getValue("gridMinutes").jsonPrimitive.int,
             epochHours = timing.getValue("epochHours").jsonPrimitive.int,
             utcOffsetMinutes = day.getValue("utcOffsetMinutes").jsonPrimitive.int,

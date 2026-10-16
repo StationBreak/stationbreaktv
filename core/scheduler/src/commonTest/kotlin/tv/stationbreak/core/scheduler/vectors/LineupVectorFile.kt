@@ -2,8 +2,8 @@
 package tv.stationbreak.core.scheduler.vectors
 
 /**
- * The Kotlin copy of `docs/rules-format/vectors/lineup.json`. `VectorFilesInSyncTest` (jvmTest) fails if it differs from
- * the published file. A test in commonTest cannot read files, because linuxX64Test cannot.
+ * The Kotlin copy of `docs/rules-format/vectors/lineup.json`. `VectorFilesInSyncTest` (jvmTest) fails if it differs
+ * from the published file. A test in commonTest cannot read files, because linuxX64Test cannot.
  */
 @Suppress("LargeClass") // Data only: one vector file.
 internal object LineupVectorFile {

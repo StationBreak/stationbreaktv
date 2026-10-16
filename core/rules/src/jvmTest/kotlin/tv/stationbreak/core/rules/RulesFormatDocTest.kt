@@ -112,7 +112,12 @@ class RulesFormatDocTest {
     fun theVectorsListNamesExactlyTheFilesInTheVectorsFolder() {
         val start = doc.lines().indexOfFirst { it.startsWith("- `docs/rules-format/vectors/`:") }
         assertTrue(start >= 0, "no vectors bullet under Files")
-        val bullet = doc.lines().drop(start).takeWhile { it.isNotBlank() }.joinToString(" ")
+        val bullet =
+            doc
+                .lines()
+                .drop(start)
+                .takeWhile { it.isNotBlank() }
+                .joinToString(" ")
         val listed = Regex("`([a-z0-9-]+\\.json)`").findAll(bullet).map { it.groupValues[1] }.toSet()
         val onDisk =
             RulesFormatFiles.dir
