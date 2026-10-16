@@ -5,6 +5,12 @@ plugins {
 }
 
 kotlin {
+    sourceSets.commonMain.dependencies {
+        // The rules are read and written as a JSON tree; unknown fields stay in JsonObject extras, which the types expose.
+        api(libs.kotlinx.serialization.json)
+        // The types expose Seed and CanonicalId.
+        api(project(":core:model"))
+    }
     // Test only: checks the rules-format examples against the JSON Schema. Not a runtime dependency of any module.
     sourceSets.jvmTest.dependencies {
         implementation(project.dependencies.platform(libs.jackson.bom))

@@ -494,21 +494,21 @@ internal object ExampleFiles {
                   },
                   "timing": {
                     "blockLength": 1,
-                    "futureTimingField": null,
                     "broadcastDay": {
                       "utcOffsetMinutes": 60,
                       "start": "05:30",
                       "futureDayField": []
-                    }
+                    },
+                    "futureTimingField": null
                   },
                   "filler": {
                     "mode": "none",
-                    "futureFillerField": "y",
                     "source": {
                       "type": "library",
                       "id": "77777777777777777777777777777777",
                       "futureFillerSourceField": 2
-                    }
+                    },
+                    "futureFillerField": "y"
                   },
                   "futureTopLevel": {
                     "anything": [

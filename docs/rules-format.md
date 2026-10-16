@@ -88,13 +88,32 @@ holds a secret and never causes a client to fetch a URL.
 `formatVersion` is a whole number of 1 or more. It is `1` for this document.
 
 **A reader must read `formatVersion` first, before anything else in the file.** It must be able to do this even when the
-rest of the file is unreadable.
+rest of the file is unreadable. The only things checked before it are the input limits (see Limits) and the JSON profile
+(see JSON profile): a file over a limit, or one that breaks the profile, is invalid even when its `formatVersion` is newer.
 
 - If `formatVersion` is higher than the highest version the reader supports, the reader must **not** schedule the
   channel, must not try to read the rest, and should tell the user that an update is required. It must never play a
   best-effort lineup from a newer file.
 - If `formatVersion` is missing, is not a whole number, or is below 1, the file is invalid. The channel is not scheduled.
 - A file that is not valid JSON is invalid.
+
+## JSON profile
+
+A rules file is JSON as defined by RFC 8259, narrowed by the I-JSON profile of RFC 7493. A reader **must** treat a file
+that breaks any of these rules as invalid, and a writer **must not** produce one:
+
+- The text is UTF-8 with no byte-order mark. A reader given bytes rejects bytes that are not valid UTF-8.
+- No object has two members with the same name, at any level, after escapes are decoded (`"a"` and `"\u0061"` are the same
+  name). This includes unknown fields.
+- No string, and no member name, holds an unpaired surrogate (see String matching).
+- Numbers follow the JSON grammar exactly: no leading zeros (`01`), no plus sign (`+5`), no `NaN` or `Infinity`.
+- Where this document says **whole number** or **integer**, the number is written with digits only, `-?(0|[1-9][0-9]*)`: no
+  fraction and no exponent, so `1.0` and `1e2` are invalid, and `-0` is invalid. (The JSON Schema's `integer` accepts `1.0`.
+  The schema is an aid for tests and tools. This document is the rule, and a reader follows it.)
+
+Unknown fields may hold any valid JSON, including numbers. When a file is written again an unknown value is kept as the same
+JSON value, not as the same bytes: an escape may be written differently, and a number such as `1e2` may be written as
+`100.0`. Writing the shipped examples gives back the same bytes.
 
 **A writer must write the lowest `formatVersion` whose features the file uses.** A file that only uses version 1 features
 says `1`, even when the writer also knows version 2. That keeps older apps working for as long as possible.
@@ -607,7 +626,7 @@ A reader will meet files written by newer apps. Three cases must be handled diff
 
 - **An unknown field** (a key the reader does not know, in any object: the top level, a source, `ordering`, `timing`,
   `broadcastDay`, `filler` or a filler source) is **kept and ignored**. The reader must not use it, must not fail on it,
-  and must write it back unchanged when it writes the file again.
+  and must write it back with the same JSON value when it writes the file again (see JSON profile: the value, not the bytes).
   `docs/rules-format/examples/forward-compat-extras.json` has unknown fields at every level.
 - **An unknown kind** (a `type` of a source, an ordering `mode` or a filler `mode` that the reader does not know) is **not**
   an unknown field. The channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it
@@ -633,6 +652,9 @@ A rules file can come from an export or from another app, so a reader must treat
 | Length of a source `name` | 256 code points |
 | Length of the channel `name` | 100 code points |
 
+A reader that is given a stream or a file must not read more than 256 KiB plus one byte into memory before it checks the
+size; the extra byte is how it knows the file is too big. An endless source must never be read to its end.
+
 ## Verify your client
 
 Before you trust your implementation, check these. Each value can be checked now; more will come with the vectors.
@@ -653,6 +675,8 @@ Before you trust your implementation, check these. Each value can be checked now
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
 9. **Version gate.** A file with `formatVersion` 2 is not scheduled, even when the rest of it is unreadable.
+10. **JSON profile.** A repeated member name (also in an unknown field), a byte-order mark, `01`, `1.0` or `1e2` where a whole
+    number is expected, and `NaN` are all rejected.
 
 ## Files
 
