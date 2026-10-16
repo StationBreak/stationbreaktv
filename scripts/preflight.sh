@@ -4,7 +4,7 @@
 # Runs CI's checks locally, so CI passes the first time. Run it from anywhere in the repo before marking a PR ready:
 #   scripts/preflight.sh [--emulator] [--contract]
 # It mirrors .github/workflows/ci.yml: the `checks` job (script tests, dependency verification guard, actionlint,
-# zizmor, gitleaks, DCO) and the `build` job's Gradle tasks. Keep the task lists and tool versions in step with it.
+# zizmor, gitleaks, DCO) and the Gradle tasks of the `verify` and `assemble` jobs. Keep the task lists and tool versions in step with it.
 # Every step runs even if an earlier one fails, then a PASS/FAIL summary lists them.
 #   --emulator  also run the instrumented tests on a local API 25 Android TV emulator (headless), as CI's `emulator`
 #               job does. If the SDK lacks the emulator or the system image, it prints the sdkmanager command to
@@ -100,6 +100,7 @@ script_tests() {
   bash .github/scripts/osv-issues.test.sh
   bash .github/scripts/verification-guard.test.sh
   bash .github/scripts/device-proof-guard.test.sh
+  bash .github/scripts/instrumented-infra.test.sh
   bash scripts/guard-tree.test.sh
 }
 
@@ -166,7 +167,7 @@ dco() {
   done <<<"$shas" | jq -s . | bash .github/scripts/dco-check.sh
 }
 
-# --- the `build` job (same tasks, same order) ---
+# --- the `verify` job (module_rules, kmp_tests, check) and the `assemble` job (same tasks, same order) ---
 
 module_rules() {
   gradle_env || return 1
@@ -178,12 +179,14 @@ kmp_tests() {
   env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:model:jvmTest :core:scheduler:jvmTest
 }
 
-check_and_assemble() {
+check_tasks() {
   gradle_env || return 1
-  ./gradlew check \
-    assembleAmazonRelease \
-    assembleGithubDebug assembleGithubRelease \
-    --continue
+  ./gradlew check --continue
+}
+
+assemble_tasks() {
+  gradle_env || return 1
+  ./gradlew assembleAmazonRelease assembleGithubDebug assembleGithubRelease --continue
 }
 
 # --- the `jellyfin-contract` workflow ---
@@ -311,7 +314,8 @@ step "gitleaks $GITLEAKS_VERSION ($base..HEAD)" gitleaks
 step "Sign-offs (DCO, $base..HEAD)" dco
 step "Module dependency rules" module_rules
 step "KMP tests with no Android SDK" kmp_tests
-step "Check and assemble" check_and_assemble
+step "Check (CI: verify)" check_tasks
+step "Assemble (CI: assemble)" assemble_tasks
 if [ "$contract" = true ]; then
   step "Container contract tests (docker)" contract_tests
 fi

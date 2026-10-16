@@ -43,7 +43,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Pushes to main always run everything. A PR skips `build` when it changes only docs, and `emulator` unless it
+      # Pushes to main always run everything. A PR skips `verify` and `assemble` when it changes only docs, and `emulator` unless it
       # changes the app, the modules, or the build. Anything not matched below counts as a build change, and if the
       # diff can't be read both jobs run. A skipped job still reports as skipped, not pending, so this is safe to
       # make a required check later (unlike workflow-level paths-ignore). `deps` says whether osv-scanner is needed:
@@ -185,12 +185,20 @@ jobs:
             --ignore-gitleaks-allow --gitleaks-ignore-path "$RUNNER_TEMP" \
             --redact --verbose --no-banner --exit-code 1
 
-  build:
+  # `build` was split in two (verify, assemble) so each fits its timeout on a cold build cache. They run in parallel on
+  # separate runners, each with its own Gradle caches, and both are skipped for docs-only PRs (see `checks`). Measured
+  # on PR #247's run, a cold cache, one 2-core runner, one Gradle invocation: module rules 1m21s + KMP tests 0m28s +
+  # 26m07s for `check` and the three assembles together, which hit the old 30-minute limit on slower runs. Within the
+  # 26 minutes, `check` (detekt, lint, unit tests) kept the runner busy until about the 15 minute mark and the release
+  # work (R8, lintVital, dex, packaging) filled the rest, so each job is about 12 to 20 minutes cold, alone on its
+  # runner. Their timeouts are 1.5 to 2 times that. To change the split, move tasks between the two Gradle steps.
+  verify:
     needs: checks
-    # Not skipped when a check fails: the build still reports. Skipped for docs-only PRs (see `checks`).
+    # Not skipped when a check fails: the job still reports. Skipped for docs-only PRs (see `checks`).
     if: ${{ !cancelled() && needs.checks.outputs.build == 'true' }}
     runs-on: ubuntu-latest
-    # A change to build-logic invalidates most of the build cache, and a cold build can run past 20 minutes.
+    # About 20 minutes cold (a build-logic change or a new dependency empties the build cache), 8 to 10 warm: 30
+    # leaves a third of headroom for a slow runner without hiding a hang.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -211,7 +219,7 @@ jobs:
 
       # Downloaded dependencies and the wrapper distribution. The exact key is a hash of the build files; a PR that
       # changes them falls back to main's newest entry (restore-keys) and downloads only what's new. Only main writes,
-      # so a PR can't change what main restores.
+      # so a PR can't change what main restores. This job keeps the old `build` job's key, so it starts warm.
       - name: Restore Gradle caches
         id: gradle-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -243,13 +251,17 @@ jobs:
       # Gradle's build cache (org.gradle.caching): task outputs, so a PR reuses main's work for the modules it didn't
       # change. Kept out of the dependency cache above (its path excludes build-cache-1) because it changes on every
       # push: main saves it every time under its commit's key, and everything restores main's newest. Only main
-      # writes, so a PR can't change what main restores. Gradle drops entries unused for 7 days.
+      # writes, so a PR can't change what main restores. Gradle drops entries unused for 7 days. The second
+      # restore-key is the old combined `build` job's chain, so the first runs after the split start warm; it
+      # can be dropped once the verify chain has been saved on main.
       - name: Restore Gradle build cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/build-cache-1
-          key: gradle-outputs-build-v1-${{ runner.os }}-${{ github.sha }}
-          restore-keys: gradle-outputs-build-v1-${{ runner.os }}-
+          key: gradle-outputs-verify-v1-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            gradle-outputs-verify-v1-${{ runner.os }}-
+            gradle-outputs-build-v1-${{ runner.os }}-
 
       # MODULES.md's dependency rules and the tools:overrideLibrary guard, first and on their own: an edge that breaks
       # the rules (a [JVM] module depending on an Android module, say) can also fail the full build earlier, with a
@@ -261,14 +273,9 @@ jobs:
       - name: KMP tests with no Android SDK
         run: env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :core:model:jvmTest :core:scheduler:jvmTest
 
-      # No assembleAmazonDebug: nothing uploads or inspects that APK, and `check` already compiles, lints and
-      # unit-tests the variant. Its dex merge was the slowest task in the job.
-      - name: Check and assemble
-        run: >-
-          ./gradlew check
-          assembleAmazonRelease
-          assembleGithubDebug assembleGithubRelease
-          --continue
+      # Lint, detekt, spotless and the unit tests of every module. The assembles are the `assemble` job's.
+      - name: Check
+        run: ./gradlew check --continue
 
       # After the Gradle steps, on main: the dependency cache when the build files changed (a new key), the build cache
       # every time. The daemon is stopped first so it isn't writing to the caches while they're archived. The sizes
@@ -295,7 +302,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/build-cache-1
-          key: gradle-outputs-build-v1-${{ runner.os }}-${{ github.sha }}
+          key: gradle-outputs-verify-v1-${{ runner.os }}-${{ github.sha }}
 
       - name: Save Kotlin/Native
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.konan.outputs.cache-hit != 'true'
@@ -303,6 +310,86 @@ jobs:
         with:
           path: ~/.konan
           key: ${{ steps.konan.outputs.cache-primary-key }}
+
+  assemble:
+    needs: checks
+    # As for `verify`.
+    if: ${{ !cancelled() && needs.checks.outputs.build == 'true' }}
+    runs-on: ubuntu-latest
+    # About 12 to 14 minutes cold (R8, lintVital and dex for two release flavors and a debug build), 6 to 8 warm: 25
+    # is about twice the cold time, since an R8 or dex task can run long on a slow runner.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Caching as in `verify`, with this job's own entries (it resolves less, and its build outputs are different
+      # ones). Neither job needs the other's: they run at the same time.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-disabled: true
+
+      # The second restore-key is `verify`'s chain, so this job's first entry on main starts from it.
+      - name: Restore Gradle caches
+        id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-1
+          key: gradle-assemble-v2-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-assemble-v2-${{ runner.os }}-
+            gradle-build-v2-${{ runner.os }}-
+
+      - name: Restore Gradle build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-outputs-assemble-v1-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            gradle-outputs-assemble-v1-${{ runner.os }}-
+            gradle-outputs-build-v1-${{ runner.os }}-
+
+      # No assembleAmazonDebug: nothing uploads or inspects that APK, and `check` (in `verify`) already compiles,
+      # lints and unit-tests the variant. Its dex merge was the slowest task in the old combined job.
+      - name: Assemble
+        run: >-
+          ./gradlew
+          assembleAmazonRelease
+          assembleGithubDebug assembleGithubRelease
+          --continue
+
+      # After the Gradle step, on main, as in `verify`.
+      - name: Stop Gradle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          ./gradlew --stop
+          du -sh ~/.gradle/caches ~/.gradle/wrapper ~/.gradle/caches/build-cache-1 || true
+
+      - name: Save Gradle caches
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-1
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+
+      - name: Save Gradle build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-outputs-assemble-v1-${{ runner.os }}-${{ github.sha }}
 
       - name: Name the debug APK
         id: apk
@@ -380,14 +467,16 @@ jobs:
           if-no-files-found: error
 
   # Instrumented tests on the Insignia's Android version (API 25), so a call to a newer API crashes here, not on a
-  # device. It runs in parallel with `build`, once `checks` has decided it's needed: not for docs-only PRs, nor for
+  # device. It runs in parallel with `verify` and `assemble`, once `checks` has decided it's needed: not for docs-only PRs, nor for
   # PRs that touch neither the app, the modules nor the build.
   emulator:
     needs: checks
     if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' }}
     runs-on: ubuntu-latest
-    # Cold boot plus tests takes about 3.5 minutes; this catches a hang well before the default 6 hours.
-    timeout-minutes: 15
+    # Cold boot plus tests takes 3.5 to 8 minutes, and the APK build before it up to 5 on a cold build cache. A failed
+    # attempt that is retried (see the test steps) adds a second boot, so 20 leaves room for that on a warm cache and
+    # still catches a hang well before the default 6 hours.
+    timeout-minutes: 20
     # Repeats the workflow default so this job stays read-only if the top level is ever widened for another job.
     permissions:
       contents: read
@@ -476,21 +565,68 @@ jobs:
           ./gradlew $ASSEMBLE_TASKS
 
       # Cold boot every run: a cached AVD snapshot hung on "device offline" in 3 of 8 runs; cold boot in 0 of 8.
-      # A boot timeout or any failed test fails this step and the job.
+      # The emulator itself is the flaky part (a surfaceflinger crash, a boot that never finishes, a stalled run),
+      # so a failed attempt is retried once, and only when .github/scripts/instrumented-infra.sh says the failure
+      # was infrastructure: an empty <failure>, a system crash in the logcat, a dead emulator or adb, no results at
+      # all (a boot failure or this step's timeout). A failure with a message is a real test failure and fails the job
+      # at once. Each attempt's own timeout is below the job's, so a stall to the limit can still be retried.
       - name: Instrumented tests (API 25 Android TV)
         id: tests
+        continue-on-error: true
+        timeout-minutes: 9
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
           target: android-tv
           # The API 25 TV image exists only for x86.
           arch: x86
+          # Keep -gpu in step with scripts/preflight.sh.
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          # On failure, save logcat before the action shuts the emulator down.
-          script: ./gradlew $CONNECTED_TASKS || { adb logcat -d > app/build/logcat.txt; exit 1; }
+          # On failure, saves the logcat and the emulator's state before the action shuts the emulator down.
+          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt1
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
+
+      - name: Was the failure infrastructure?
+        id: infra
+        if: steps.tests.outcome == 'failure'
+        run: |
+          # Not a pipe into tee: the exit status of the script is the answer.
+          if reason="$(bash .github/scripts/instrumented-infra.sh classify instrumented-diag/attempt1)"; then
+            echo "retry=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "retry=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::warning::Instrumented tests, attempt 1 failed: ${reason}"
+
+      # Attempt 1's results move to instrumented-diag/attempt1/results (uploaded with the reports), and any emulator
+      # or adb left over from it, orphaned by a timeout or a crash, is killed.
+      - name: Clean up before the retry
+        if: steps.infra.outputs.retry == 'true'
+        run: bash .github/scripts/instrumented-infra.sh cleanup instrumented-diag/attempt1
+
+      - name: Instrumented tests, retry (API 25 Android TV)
+        id: tests-retry
+        if: steps.infra.outputs.retry == 'true'
+        timeout-minutes: 9
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 25
+          target: android-tv
+          arch: x86
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2
+        env:
+          CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
+
+      # Attempt 1 ran with continue-on-error, so a failure it was not retried for fails the job here.
+      - name: Fail on a test failure that was not retried
+        if: steps.tests.outcome == 'failure' && steps.infra.outputs.retry != 'true'
+        run: |
+          echo "::error::Instrumented tests failed and the failure is not infrastructure; see the test results."
+          exit 1
 
       # After the Gradle steps, on main: the dependency cache when the build files changed (a new key), the build cache
       # every time. The daemon is stopped first so it isn't writing to the caches while they're archived. The sizes
@@ -539,7 +675,7 @@ jobs:
 
       # Test reports and logcat only, no APK, so fork PRs can have it too (ADR-0011 gates APKs).
       - name: Upload instrumented test reports
-        if: failure() && steps.tests.outcome == 'failure'
+        if: failure() && (steps.tests.outcome == 'failure' || steps.tests-retry.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: instrumented-test-reports
@@ -547,6 +683,7 @@ jobs:
             **/build/reports/androidTests/
             **/build/outputs/androidTest-results/
             app/build/logcat.txt
+            instrumented-diag/
           retention-days: 7
           if-no-files-found: ignore
 
