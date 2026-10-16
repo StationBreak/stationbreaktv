@@ -131,7 +131,7 @@ internal class LibrariesViewModel
 
         private suspend fun failed(error: MediaServerError) {
             // A refused session is cleared, and launch routing sends the user to sign in again.
-            if (sessions.onServerError(error)) {
+            if (sessions.onServerError(error, session)) {
                 signedIn.clear()
                 results.send(LibrariesEvent.SessionLost)
             } else {

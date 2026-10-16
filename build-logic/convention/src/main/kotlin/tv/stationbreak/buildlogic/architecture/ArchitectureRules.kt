@@ -80,6 +80,11 @@ enum class Rule(
         "a [KMP] or [JVM] module other than data:jellyfin may not declare OkHttp (com.squareup.okhttp3:*), so no " +
             "OkHttp type reaches a port signature (ADR-0005)",
     ),
+    NO_ROOM_OR_WORK_IN_CORE(
+        "no-room-or-work-in-core",
+        "no core:* module may declare Room (androidx.room*) or WorkManager (androidx.work*), in any configuration: " +
+            "they are Android-only, and the cache and its worker belong to data:library (F0.6)",
+    ),
     NO_HTTP_LOGGING(
         "no-http-logging",
         "no module may declare com.squareup.okhttp3:logging-interceptor, in any configuration: its " +
@@ -139,6 +144,9 @@ object ArchitectureRules {
     private val FEATURE =
         ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:ui", ":core:playback", ":core:model"))
 
+    private const val CORE_PREFIX = ":core:"
+    private val ROOM_OR_WORK_GROUPS = listOf("androidx.room", "androidx.room3", "androidx.work")
+
     private const val DATA_JELLYFIN = ":data:jellyfin"
     private const val SDK_GROUP = "org.jellyfin.sdk"
     private const val OKHTTP_GROUP = "com.squareup.okhttp3"
@@ -191,6 +199,10 @@ object ArchitectureRules {
                 when {
                     dependency.key == OKHTTP_LOGGING -> {
                         Rule.NO_HTTP_LOGGING
+                    }
+
+                    module.startsWith(CORE_PREFIX) && dependency.group in ROOM_OR_WORK_GROUPS -> {
+                        Rule.NO_ROOM_OR_WORK_IN_CORE
                     }
 
                     spec.platform == Platform.PURE && android -> {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -53,8 +54,19 @@ sealed interface RestoreOutcome {
 class SessionRepository(
     private val store: SecretStore,
     private val server: MediaServer,
+    cache: AccountCache = AccountCache.None,
 ) {
-    suspend fun save(session: Session): PersistOutcome = write(session.toStored())
+    private val library = TolerantCache(cache)
+
+    /**
+     * Stores [session]. Its account becomes the active one in the saved library, whether or not the token reached
+     * storage: the user is signed in for this run, so every other account's saved library goes now (spec 06 task 2.12).
+     */
+    suspend fun save(session: Session): PersistOutcome {
+        val outcome = write(session.toStored())
+        library.activate(session.libraryAccount())
+        return outcome
+    }
 
     private suspend fun write(stored: StoredSession): PersistOutcome =
         when (store.save(SESSION_KEY, encode(stored))) {
@@ -72,12 +84,15 @@ class SessionRepository(
         val stored = decode(raw)
         return when {
             stored == null -> {
+                // No account is known from an unreadable blob, so there is nothing to forget by name; the next
+                // sign-in's useAccount deletes any other account's rows.
                 clear()
                 RestoreOutcome.SignedOut
             }
 
             !stored.address.bindsTo(configured) && !configured.bindsTo(stored.address) -> {
                 clear()
+                library.forget(stored.libraryAccount())
                 RestoreOutcome.Rejected(MediaServerError.ServerMismatch())
             }
 
@@ -91,11 +106,12 @@ class SessionRepository(
         when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
                 if (result.value.address != stored.address) write(result.value.toStored())
+                library.activate(result.value.libraryAccount())
                 RestoreOutcome.Restored(result.value)
             }
 
             is ServerResult.Failure -> {
-                if (onServerError(result.error)) {
+                if (onServerError(result.error, stored.libraryAccount())) {
                     RestoreOutcome.Rejected(result.error)
                 } else {
                     RestoreOutcome.Unavailable(result.error)
@@ -103,10 +119,24 @@ class SessionRepository(
             }
         }
 
-    /** Clears the stored session if [error] says it can't be used (`SessionExpired`, `ServerMismatch`). */
-    suspend fun onServerError(error: MediaServerError): Boolean {
+    /**
+     * Clears the stored session if [error] says it can't be used (`SessionExpired`, `ServerMismatch`), and the saved
+     * library of [session]'s account with it, so rows don't outlive a rejected session.
+     */
+    suspend fun onServerError(
+        error: MediaServerError,
+        session: Session? = null,
+    ): Boolean = onServerError(error, session?.libraryAccount())
+
+    private suspend fun onServerError(
+        error: MediaServerError,
+        account: LibraryAccount?,
+    ): Boolean {
         val fatal = error is MediaServerError.SessionExpired || error is MediaServerError.ServerMismatch
-        if (fatal) clear()
+        if (fatal) {
+            clear()
+            account?.let { library.forget(it) }
+        }
         return fatal
     }
 
@@ -121,6 +151,7 @@ class SessionRepository(
     suspend fun signOut(session: Session): RevokeOutcome =
         withContext(NonCancellable) {
             clear()
+            library.forget(session.libraryAccount())
             when (server.revoke(session)) {
                 is ServerResult.Success -> RevokeOutcome.Revoked
                 is ServerResult.Failure -> RevokeOutcome.NotRevoked
@@ -180,5 +211,38 @@ class SessionRepository(
         const val SESSION_KEY = "session"
         const val FORMAT_VERSION = 1
         private val JSON = Json { encodeDefaults = true }
+    }
+}
+
+private fun Session.libraryAccount() = LibraryAccount(this.server.id, this.userId)
+
+private fun StoredSession.libraryAccount() = LibraryAccount(this.serverId, this.userId)
+
+/**
+ * Tells the saved library about sign-in and sign-out without ever failing the caller. A sign-in or sign-out must not
+ * fail because rows could not be tidied: they are keyed by account and hold no credential, the token is already gone on
+ * sign-out, and the next sign-in's [AccountCache.useAccount] deletes whatever is left.
+ */
+private class TolerantCache(
+    private val cache: AccountCache,
+) {
+    suspend fun activate(account: LibraryAccount) {
+        try {
+            cache.useAccount(account)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // See above.
+        }
+    }
+
+    suspend fun forget(account: LibraryAccount) {
+        try {
+            cache.forget(account)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // See above.
+        }
     }
 }

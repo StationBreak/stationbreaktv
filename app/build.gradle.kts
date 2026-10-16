@@ -54,6 +54,8 @@ dependencies {
     implementation(project(":data:jellyfin"))
     // The Keystore-backed SecretStore, bound in di/MediaServerModule. Nothing else imports it.
     implementation(project(":data:settings"))
+    // The Room-backed LibraryRepository (F0.6), bound in di/LibraryModule. Nothing else imports it.
+    implementation(project(":data:library"))
     // The base OkHttpClient is built here (ADR-0005); data:jellyfin keeps OkHttp to itself otherwise.
     implementation(libs.okhttp)
     implementation(project(":core:ui"))
