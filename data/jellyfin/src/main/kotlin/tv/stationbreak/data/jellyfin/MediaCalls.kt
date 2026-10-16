@@ -112,7 +112,7 @@ internal class MediaCalls(
         }
 
     /**
-     * The query both cache calls share: the library's video items at any depth, in a stable order by ID. The total
+     * The query both cache calls share: the library's video items at any depth, in a stable order. The total
      * count is asked for on the first page only, because the server counts the whole library for it.
      */
     private fun recursiveQuery(
@@ -126,7 +126,9 @@ internal class MediaCalls(
             "parentId" to library.id.value,
             "recursive" to "true",
             "includeItemTypes" to CACHED_TYPES,
-            "sortBy" to "Id",
+            // Jellyfin 12 has no sort by ID (an unknown key is ignored), but it breaks every tie on the ID, in
+            // ascending order whatever the direction (contract test: tiedNamesPageStably), so this order is total.
+            "sortBy" to "SortName",
             "sortOrder" to "Ascending",
             "startIndex" to startIndex.toString(),
             "limit" to limit.toString(),
@@ -244,10 +246,11 @@ internal class MediaCalls(
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
 
         /**
-         * The optional fields the cache needs. The rest (production year, rating, series, season and episode
+         * The optional fields the cache needs. `DateLastSaved` is not among them: neither 12.1 nor 12.2 returns it, even
+         * when asked (contract test), so [MediaItem.dateLastSaved] stays null. The rest (production year, rating, series, season and episode
          * numbers, runtime) come with every item, so asking for more would only make the answer bigger.
          */
-        const val ITEM_FIELDS = "DateCreated,DateLastSaved,Genres,Tags,ParentId"
+        const val ITEM_FIELDS = "DateCreated,Genres,Tags,ParentId"
 
         val ITEM_KINDS =
             mapOf(

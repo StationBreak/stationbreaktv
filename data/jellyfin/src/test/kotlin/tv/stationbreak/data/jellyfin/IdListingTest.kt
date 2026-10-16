@@ -33,7 +33,7 @@ class IdListingTest {
             assertEquals("true", url.queryParameter("recursive"))
             assertEquals("lib01", url.queryParameter("parentId"))
             assertEquals("Movie,Episode,Video,MusicVideo", url.queryParameter("includeItemTypes"))
-            assertEquals("Id", url.queryParameter("sortBy"))
+            assertEquals("SortName", url.queryParameter("sortBy"))
             assertEquals("Ascending", url.queryParameter("sortOrder"))
             assertEquals("0", url.queryParameter("startIndex"))
             assertEquals("100", url.queryParameter("limit"))

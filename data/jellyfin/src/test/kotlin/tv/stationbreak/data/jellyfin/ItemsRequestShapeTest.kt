@@ -54,16 +54,16 @@ class ItemsRequestShapeTest {
         val url = sent()
 
         assertEquals(
-            setOf("DateCreated", "DateLastSaved", "Genres", "Tags", "ParentId"),
+            setOf("DateCreated", "Genres", "Tags", "ParentId"),
             url.listOf("fields").toSet(),
         )
     }
 
     @Test
-    fun sortsByAStableUniqueKeySoAPageBoundaryCannotSkipOrRepeat() {
+    fun sortsByNameWhichTheServerBreaksTiesOnByIdSoAPageBoundaryCannotSkipOrRepeat() {
         val url = sent()
 
-        assertEquals(listOf("Id"), url.listOf("sortBy"))
+        assertEquals(listOf("SortName"), url.listOf("sortBy"))
         assertEquals("Ascending", url.queryParameter("sortOrder"))
     }
 

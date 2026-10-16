@@ -27,7 +27,7 @@ class PageSizeLimitTest {
     private val jellyfin = FakeJellyfin()
     private val synthetic = SyntheticLibrary(size = 2_000, seed = 1)
     private val library = Library(synthetic.libraryId, "Generated", LibraryKind.Mixed)
-    private val fields = setOf("DateCreated", "DateLastSaved", "Genres", "Tags", "ParentId")
+    private val fields = setOf("DateCreated", "Genres", "Tags", "ParentId")
 
     @AfterTest
     fun tearDown() = jellyfin.close()
