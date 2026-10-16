@@ -2,6 +2,7 @@
 package tv.stationbreak.core.model
 
 import kotlin.time.Duration
+import kotlin.time.Instant
 
 /** What an item is, coarsely. Anything the server adds later reads as [Other], never an error. */
 enum class ItemKind {
@@ -16,8 +17,11 @@ enum class ItemKind {
 }
 
 /**
- * The thin item the adapter's contract needs (F0.3): F0.6 and F1.5 add what their screens need. [runtime] is null when
- * the server doesn't say. [parentId] is the folder or library the item is in.
+ * An item as the server describes it. [runtime] is null when the server doesn't say; [parentId] is the folder or
+ * library the item is in. F0.6 adds what the library cache and the scheduler need (S0.6.3). Every one of those fields
+ * is optional, because an incomplete server answer must never fail a page: [dateCreated] and [dateLastSaved] are the
+ * server's own UTC moments, [genres] and [tags] are empty when the server sends none, and [seriesId], [seasonNumber]
+ * and [episodeNumber] only mean something for an episode.
  */
 data class MediaItem(
     val id: ItemId,
@@ -25,6 +29,15 @@ data class MediaItem(
     val kind: ItemKind,
     val runtime: Duration?,
     val parentId: ItemId?,
+    val dateCreated: Instant? = null,
+    val dateLastSaved: Instant? = null,
+    val productionYear: Int? = null,
+    val officialRating: String? = null,
+    val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val seriesId: ItemId? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
 )
 
 /** One page of a library: [totalCount] counts every item, [items] the ones from [startIndex] on. */
