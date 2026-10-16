@@ -2,6 +2,7 @@
 package tv.stationbreak.core.rules
 
 /** Kotlin copies of `docs/rules-format/examples/`. `ExampleFilesInSyncTest` fails if they differ from the files. */
+@Suppress("LargeClass") // Data only: one entry per example file.
 internal object ExampleFiles {
     val valid: Map<String, String> =
         mapOf(
