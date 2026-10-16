@@ -58,7 +58,7 @@ class WhatsOnStepsTest {
         assertTrue(blocks >= minimumBlocks, "the day has only $blocks blocks")
         val allowed = ceilLog2(blocks) + SLACK
         val times =
-            day.blocks.flatMap { listOf(it.startMs, it.endMs - 1) } + day.startMs + (day.endMs - day.startMs) / 2
+            day.blocks.flatMap { listOf(it.startMs, it.endMs - 1) } + (day.startMs + (day.endMs - day.startMs) / 2)
         var worst = 0
         for (t in times) {
             comparisons = 0
@@ -67,6 +67,7 @@ class WhatsOnStepsTest {
             assertTrue(comparisons <= allowed, "$comparisons comparisons for $blocks blocks at $t (allowed $allowed)")
         }
         assertTrue(worst >= ceilLog2(blocks) - 1, "the counter did not count: worst was $worst")
+        println("whatsOn steps: $mode, ${items.size} items, $blocks blocks, worst $worst comparisons, ceil(log2 B) = ${ceilLog2(blocks)}")
     }
 
     @Test

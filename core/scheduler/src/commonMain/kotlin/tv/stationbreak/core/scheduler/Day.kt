@@ -26,10 +26,33 @@ class Day internal constructor(
     internal val cycleRunCount: Int,
     private val onCompare: (() -> Unit)? = null,
 ) {
+    /**
+     * What is on at [t] (milliseconds since the Unix epoch), by binary search over the day's blocks:
+     * - the block containing [t]; an edge belongs to the later block;
+     * - the position in the media, `mediaStartOffset + (t - blockStart)`, or null for a slate;
+     * - up to [k] blocks that follow it in this day. When they run out the caller builds day `n + 1` from the same items.
+     *
+     * [t] must be in `[startMs, endMs)`: the caller picks the day. Throws [IllegalArgumentException] otherwise.
+     */
     fun whatsOn(
         t: Long,
         k: Int,
-    ): OnAir = TODO("task 3.6")
+    ): OnAir {
+        require(t >= startMs && t < endMs) { "Time $t is outside this day [$startMs, $endMs)" }
+        require(k >= 0) { "Cannot ask for a negative number of next blocks" }
+        // The last block that starts at or before t. blocks[0] starts at startMs <= t, so the answer exists.
+        var low = 0
+        var high = blocks.size - 1
+        while (low < high) {
+            val mid = (low + high + 1) ushr 1
+            onCompare?.invoke()
+            if (blocks[mid].startMs <= t) low = mid else high = mid - 1
+        }
+        val block = blocks[low]
+        val content = block.content
+        val offset = if (content is ScheduleContent.Program) content.mediaStartOffsetMs + (t - block.startMs) else null
+        return OnAir(block, offset, blocks.subList(low + 1, minOf(blocks.size.toLong(), low + 1L + k).toInt()).toList())
+    }
 }
 
 fun buildDay(
