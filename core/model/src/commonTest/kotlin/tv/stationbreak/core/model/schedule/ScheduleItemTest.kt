@@ -103,4 +103,32 @@ class ScheduleItemTest {
         val episode = item().copy(seriesId = series)
         assertEquals(series, episode.groupId)
     }
+
+    @Test
+    fun aProductionYearIsOneToNineThousandNineHundredNinetyNine() {
+        for (y in listOf(1, 999, 1969, 9999)) accepts(y)
+        for (y in listOf(0, -1, 10000)) assertFailsWith<IllegalArgumentException>("$y") { accepts(y) }
+    }
+
+    private fun accepts(year: Int) =
+        ScheduleItem(
+            id = id,
+            kind = ScheduleItemKind.Movie,
+            runtimeMs = 1L,
+            createdAtMs = 0L,
+            deletedAtMs = null,
+            premiereDate = null,
+            productionYear = year,
+            seriesId = null,
+            seasonNumber = null,
+            episodeNumber = null,
+        )
+
+    @Test
+    fun aPremiereDateHasARealMonthAndDay() {
+        for (ok in listOf("2020-01-01", "2020-12-31", "0999-06-15")) item(premiereDate = ok)
+        for (bad in listOf("2020-00-10", "2020-13-10", "2020-01-00", "2020-01-32", "2020-99-99")) {
+            assertFailsWith<IllegalArgumentException>(bad) { item(premiereDate = bad) }
+        }
+    }
 }
