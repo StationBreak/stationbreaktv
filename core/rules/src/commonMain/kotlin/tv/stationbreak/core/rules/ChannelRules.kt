@@ -61,6 +61,7 @@ data class Timing(
     val epochHours: Int?,
     val graceHours: Int?,
     val gridMinutes: Int?,
+    val minRuntimeSeconds: Int?,
     val broadcastDay: BroadcastDay,
     val extras: JsonObject = NO_EXTRAS,
 ) {
@@ -69,6 +70,9 @@ data class Timing(
         require(blockLength == null || blockLength in blocks) { "A block is 1 to 100 items" }
         require(epochHours == null || epochHours in RulesVocabulary.EPOCH_HOURS) { "An epoch length must divide 24" }
         require(graceHours == null || graceHours in 0..RulesVocabulary.MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
+        require(minRuntimeSeconds == null || minRuntimeSeconds in 1..RulesVocabulary.MAX_MIN_RUNTIME_SECONDS) {
+            "The minimum runtime is 1 to 3600 seconds"
+        }
         require(gridMinutes == null || gridMinutes in RulesVocabulary.GRID_MINUTES) {
             "The grid is 15, 30 or 60 minutes"
         }
@@ -85,15 +89,21 @@ data class Timing(
     /** The grace window G in hours: how long before an epoch starts a new item must have been added to air in it. */
     val effectiveGraceHours: Int get() = graceHours ?: DEFAULT_GRACE_HOURS
 
+    /** The shortest runtime, in seconds, that counts as a program; the pool leaves out anything shorter. */
+    val effectiveMinRuntimeSeconds: Int get() = minRuntimeSeconds ?: DEFAULT_MIN_RUNTIME_SECONDS
+
     /** The grid spacing in minutes: 30 when the file does not say. */
     val effectiveGridMinutes: Int get() = gridMinutes ?: DEFAULT_GRID_MINUTES
 
-    private companion object {
-        const val DEFAULT_BLOCK_LENGTH = 1
-        const val DEFAULT_ALIGN_TO_GRID = true
-        const val DEFAULT_EPOCH_HOURS = 24
-        const val DEFAULT_GRACE_HOURS = 6
-        const val DEFAULT_GRID_MINUTES = 30
+    companion object {
+        /** The default of `timing.minRuntimeSeconds`. */
+        const val DEFAULT_MIN_RUNTIME_SECONDS = 60
+
+        private const val DEFAULT_BLOCK_LENGTH = 1
+        private const val DEFAULT_ALIGN_TO_GRID = true
+        private const val DEFAULT_EPOCH_HOURS = 24
+        private const val DEFAULT_GRACE_HOURS = 6
+        private const val DEFAULT_GRID_MINUTES = 30
     }
 }
 

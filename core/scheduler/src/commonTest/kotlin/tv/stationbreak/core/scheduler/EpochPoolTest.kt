@@ -91,10 +91,18 @@ class EpochPoolTest {
     @Test
     fun theMinimumIsTheSettingsOwn() {
         val oneSecond = testSettings(minRuntimeMs = 1_000L)
-        val items = listOf(testItem(idOf('1'), runtimeMs = 999L), testItem(idOf('2'), runtimeMs = 1_000L))
+        val items =
+            listOf(
+                testItem(idOf('1'), runtimeMs = 999L, createdAtMs = LONG_AGO),
+                testItem(idOf('2'), runtimeMs = 1_000L, createdAtMs = LONG_AGO),
+            )
         assertEquals(listOf('2'), EpochPool.build(oneSecond, items, 0L).map { it.id.value.first() })
         val oneHour = testSettings(minRuntimeMs = 3_600_000L)
-        val longer = listOf(testItem(idOf('1'), runtimeMs = 3_599_999L), testItem(idOf('2'), runtimeMs = 3_600_000L))
+        val longer =
+            listOf(
+                testItem(idOf('1'), runtimeMs = 3_599_999L, createdAtMs = LONG_AGO),
+                testItem(idOf('2'), runtimeMs = 3_600_000L, createdAtMs = LONG_AGO),
+            )
         assertEquals(listOf('2'), EpochPool.build(oneHour, longer, 0L).map { it.id.value.first() })
     }
 

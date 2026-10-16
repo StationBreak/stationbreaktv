@@ -171,7 +171,8 @@ class TimelineTest {
         // minRuntimeSeconds = 1, unaligned, 24 hours: the largest number of blocks a day can have.
         val items =
             (0 until 50).map {
-                testItem(CanonicalId.parse(it.toString(16).padStart(32, '0')), runtimeMs = 1_000L, createdAtMs = LONG_AGO)
+                val id = CanonicalId.parse(it.toString(16).padStart(32, '0'))
+                testItem(id, runtimeMs = 1_000L, createdAtMs = LONG_AGO)
             }
         val s =
             testSettings(

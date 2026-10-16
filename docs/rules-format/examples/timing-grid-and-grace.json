@@ -13,6 +13,7 @@
     "epochHours": 12,
     "graceHours": 12,
     "gridMinutes": 60,
+    "minRuntimeSeconds": 90,
     "broadcastDay": {
       "utcOffsetMinutes": 330,
       "start": "06:00"
