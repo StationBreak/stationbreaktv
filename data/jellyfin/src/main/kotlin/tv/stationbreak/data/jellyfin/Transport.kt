@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -42,6 +45,7 @@ internal class Endpoint(
 internal class Transport(
     private val clients: ClientFactory,
     private val deviceIds: DeviceIdProvider,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     suspend fun send(
         address: ServerAddress,
@@ -65,10 +69,13 @@ internal class Transport(
                 .method(endpoint.method, requestBody(endpoint))
                 .build()
         return try {
-            clients.credentialed
-                .newCall(request)
-                .await()
-                .use { read(it, tokenBearing = token != null) }
+            // Main-safe: the call and the body read run on `io`, not on the caller's dispatcher `await` resumes on.
+            withContext(io) {
+                clients.credentialed
+                    .newCall(request)
+                    .await()
+                    .use { read(it, tokenBearing = token != null) }
+            }
         } catch (error: IOException) {
             val secure = address.scheme == Scheme.Https
             ServerResult.Failure(ErrorMapper.map(error, tokenBearing = token != null, secure = secure))
