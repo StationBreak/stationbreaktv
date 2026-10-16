@@ -79,7 +79,7 @@ class RulesFormatDocTest {
             assertTrue(needle in doc, "missing statement: $needle")
         }
         assertTrue("RANDOM_IN_ORDER" !in doc && "SHUFFLE" !in doc, "ordering modes are lowerCamel")
-        assertTrue("between-every-N" !in doc && "pad-to-grid" !in doc, "filler modes are lowerCamel")
+        assertTrue("`between-every-N`" !in doc && "`pad-to-grid`" !in doc, "filler modes are lowerCamel")
         assertTrue("Bounded integers" !in doc, "bounded integers belong to F1.1")
     }
 
