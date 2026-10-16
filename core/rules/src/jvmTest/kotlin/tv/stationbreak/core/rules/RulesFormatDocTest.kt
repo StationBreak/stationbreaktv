@@ -37,6 +37,15 @@ class RulesFormatDocTest {
     }
 
     @Test
+    fun theGridIsDescribedByGridMinutesNotByHalfHours() {
+        val align = doc.lines().single { it.startsWith("| `alignToGrid` |") }
+        assertTrue(":00 and :30" !in align && "half-hour" !in align, "alignToGrid row names a fixed grid: $align")
+        assertTrue("gridMinutes" in align, "alignToGrid row points at gridMinutes: $align")
+        assertTrue("The \"grid\" for `alignToGrid` is the :00 and :30 marks" !in doc, "the grid sentence is stale")
+        assertTrue("with 60 it must be :00" in doc, "start says how it relates to gridMinutes")
+    }
+
+    @Test
     fun statesTheRatingLadder() {
         for (row in ladderRows) assertTrue(row in doc, "ladder row missing: $row")
     }
