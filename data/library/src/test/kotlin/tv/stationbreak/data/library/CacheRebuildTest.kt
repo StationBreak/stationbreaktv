@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.library
+
+import androidx.room.Database
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import androidx.room.RoomDatabase
+import androidx.room.Room
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+/**
+ * Spec 06 task 2.11: the database is a cache. A schema change drops it and it is fetched again, and the schema is
+ * exported so a change shows in review.
+ */
+class CacheRebuildTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    @Test
+    fun theExportedSchemaFileExistsAndNamesTheTables() {
+        assertTrue("missing ${SchemaFile.file.path}", SchemaFile.file.isFile)
+        assertEquals(
+            setOf("library", "item", "item_genre", "item_tag", "checkpoint", "account_state"),
+            SchemaFile.tableNames().toSet(),
+        )
+        assertTrue(SchemaFile.text().contains("\"version\": ${LibraryDatabase.VERSION}"))
+    }
+
+    @Test
+    fun theDatabaseVersionIsExportedAndNotZero() {
+        assertTrue(LibraryDatabase.VERSION >= 1)
+    }
+
+    @Test
+    fun aDatabaseFromADifferentSchemaIsDroppedAndRebuiltEmpty() =
+        runBlocking {
+            // A "future" schema stands in for any schema change: its file is one the current schema has no migration for.
+            val context = TestContext(folder.root)
+            val other =
+                Room
+                    .databaseBuilder(context, OtherSchemaDatabase::class.java, "rebuild.db")
+                    .setDriver(BundledSQLiteDriver())
+                    .setQueryCoroutineContext(Dispatchers.IO)
+                    .build()
+            other.otherDao().put(OtherRow("kept?"))
+            other.close()
+
+            val repository =
+                RoomLibraryRepository.testing(
+                    LibraryDatabases
+                        .builder(context, "rebuild.db")
+                        .setDriver(BundledSQLiteDriver())
+                        .setQueryCoroutineContext(Dispatchers.IO),
+                    FakeClock(),
+                )
+
+            // It opens (no crash, no migration error), is empty, and is usable.
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+            repository.select(ALICE, setOf(MOVIES))
+            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            assertEquals(1, repository.stored(ALICE).size)
+            repository.close()
+        }
+
+    @Test
+    fun aDatabaseFromTheCurrentSchemaIsKept() =
+        runBlocking {
+            val first = TestLibraries.onDisk(folder.root, name = "keep.db")
+            first.select(ALICE, setOf(MOVIES))
+            first.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            first.close()
+
+            val second = TestLibraries.onDisk(folder.root, name = "keep.db")
+
+            assertEquals(1, second.stored(ALICE).size)
+            second.close()
+        }
+}
+
+// A different schema at a higher version, written to the same file name the cache then opens.
+@Entity(tableName = "other_table")
+internal data class OtherRow(
+    @PrimaryKey val id: String,
+)
+
+@androidx.room.Dao
+internal interface OtherDao {
+    @androidx.room.Insert
+    suspend fun put(row: OtherRow)
+}
+
+@Database(entities = [OtherRow::class], version = LibraryDatabase.VERSION + 1, exportSchema = false)
+internal abstract class OtherSchemaDatabase : RoomDatabase() {
+    abstract fun otherDao(): OtherDao
+}
