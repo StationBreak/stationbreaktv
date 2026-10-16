@@ -25,14 +25,24 @@ class UnknownFieldsTest {
     @Test
     fun keepsExtraFieldsInASourceAndAnExclusion() {
         assertEquals(JsonPrimitive(true), rules.sources[0].extras.getValue("futureSourceField"))
-        assertEquals(JsonPrimitive("x"), rules.exclusions?.get(0)?.extras?.getValue("futureExclusionField"))
+        assertEquals(
+            JsonPrimitive("x"),
+            rules.exclusions
+                ?.get(0)
+                ?.extras
+                ?.getValue("futureExclusionField"),
+        )
     }
 
     @Test
     fun keepsExtraFieldsInOrderingTimingAndTheBroadcastDay() {
         assertEquals(JsonPrimitive(1), rules.ordering?.extras?.getValue("futureOrderingField"))
         assertEquals(JsonNull, rules.timing.extras.getValue("futureTimingField"))
-        assertEquals(JsonArray(emptyList()), rules.timing.broadcastDay.extras.getValue("futureDayField"))
+        assertEquals(
+            JsonArray(emptyList()),
+            rules.timing.broadcastDay.extras
+                .getValue("futureDayField"),
+        )
     }
 
     @Test

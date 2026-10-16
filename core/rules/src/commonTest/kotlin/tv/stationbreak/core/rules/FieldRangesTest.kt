@@ -14,8 +14,7 @@ class FieldRangesTest {
     private fun timing(vararg fields: Pair<String, JsonElement>) =
         minimalRules().with("timing", obj("broadcastDay" to obj("utcOffsetMinutes" to JsonPrimitive(0)), *fields))
 
-    private fun day(vararg fields: Pair<String, JsonElement>) =
-        minimalRules().with("timing", obj("broadcastDay" to obj(*fields)))
+    private fun day(vararg fields: Pair<String, JsonElement>) = minimalRules().with("timing", obj("broadcastDay" to obj(*fields)))
 
     private fun ok(rules: JsonObject) = assertIs<RulesResult.Ok>(RulesReader.read(rules.text()), rules.text())
 
@@ -53,7 +52,14 @@ class FieldRangesTest {
 
     @Test
     fun theBroadcastDayStartIsOnTheHourOrHalfHour() {
-        for (start in listOf("00:00", "06:00", "05:30", "23:30")) ok(day("utcOffsetMinutes" to JsonPrimitive(0), "start" to JsonPrimitive(start)))
+        for (start in listOf("00:00", "06:00", "05:30", "23:30")) {
+            ok(
+                day(
+                    "utcOffsetMinutes" to JsonPrimitive(0),
+                    "start" to JsonPrimitive(start),
+                ),
+            )
+        }
         for (start in listOf("06:10", "24:00", "6:00", "06:00:00", "", "0600")) {
             bad(day("utcOffsetMinutes" to JsonPrimitive(0), "start" to JsonPrimitive(start)))
         }
@@ -68,7 +74,19 @@ class FieldRangesTest {
 
     @Test
     fun aYearRangeIsOneToNineThousandNineHundredNinetyNineAndNotBackwards() {
-        fun years(from: Int, to: Int) = minimalRules().with("sources", array(source("yearRange", "from" to JsonPrimitive(from), "to" to JsonPrimitive(to))))
+        fun years(
+            from: Int,
+            to: Int,
+        ) = minimalRules().with(
+            "sources",
+            array(
+                source(
+                    "yearRange",
+                    "from" to JsonPrimitive(from),
+                    "to" to JsonPrimitive(to),
+                ),
+            ),
+        )
         ok(years(1990, 1999))
         ok(years(1, 9999))
         ok(years(2000, 2000))
@@ -102,7 +120,17 @@ class FieldRangesTest {
         bad(minimalRules().with("filler", obj("mode" to JsonPrimitive("none"), "source" to source("genre", "name" to JsonPrimitive("x")))))
         assertEquals(
             true,
-            RulesReader.read(minimalRules().with("filler", obj("mode" to JsonPrimitive("betweenEveryN"), "every" to JsonPrimitive(3), "source" to source)).text())
+            RulesReader.read(
+                minimalRules()
+                    .with(
+                        "filler",
+                        obj(
+                            "mode" to JsonPrimitive("betweenEveryN"),
+                            "every" to JsonPrimitive(3),
+                            "source" to source,
+                        ),
+                    ).text(),
+            )
                 is RulesResult.Unsupported,
         )
     }

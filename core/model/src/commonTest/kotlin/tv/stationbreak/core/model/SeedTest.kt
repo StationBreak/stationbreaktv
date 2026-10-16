@@ -26,8 +26,22 @@ class SeedTest {
     fun rejectsEverythingButTheCanonicalDecimalForm() {
         val bad =
             listOf(
-                "007", "00", "-1", "+1", "abc", "", " 1", "1 ", "1.0", "1e3", "0x10", "١٢٣",
-                "18446744073709551616", "99999999999999999999", "100000000000000000000", "1" + "0".repeat(40),
+                "007",
+                "00",
+                "-1",
+                "+1",
+                "abc",
+                "",
+                " 1",
+                "1 ",
+                "1.0",
+                "1e3",
+                "0x10",
+                "١٢٣",
+                "18446744073709551616",
+                "99999999999999999999",
+                "100000000000000000000",
+                "1" + "0".repeat(40),
             )
         for (text in bad) {
             val e = assertFailsWith<IllegalArgumentException>("accepted '$text'") { Seed.parse(text) }

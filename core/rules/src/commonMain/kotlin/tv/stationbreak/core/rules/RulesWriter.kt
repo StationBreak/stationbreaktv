@@ -62,12 +62,29 @@ object RulesWriter {
     private fun source(source: Source): JsonObject =
         obj(source.extras) {
             when (source) {
-                is Source.Library -> typed("library", "id" to JsonPrimitive(source.id.value))
-                is Source.Genre -> typed("genre", "name" to JsonPrimitive(source.name))
-                is Source.Collection -> typed("collection", "id" to JsonPrimitive(source.id.value))
-                is Source.Tag -> typed("tag", "name" to JsonPrimitive(source.name))
-                is Source.YearRange -> typed("yearRange", "from" to JsonPrimitive(source.from), "to" to JsonPrimitive(source.to))
-                is Source.Series -> typed("series", "id" to JsonPrimitive(source.id.value))
+                is Source.Library -> {
+                    typed("library", "id" to JsonPrimitive(source.id.value))
+                }
+
+                is Source.Genre -> {
+                    typed("genre", "name" to JsonPrimitive(source.name))
+                }
+
+                is Source.Collection -> {
+                    typed("collection", "id" to JsonPrimitive(source.id.value))
+                }
+
+                is Source.Tag -> {
+                    typed("tag", "name" to JsonPrimitive(source.name))
+                }
+
+                is Source.YearRange -> {
+                    typed("yearRange", "from" to JsonPrimitive(source.from), "to" to JsonPrimitive(source.to))
+                }
+
+                is Source.Series -> {
+                    typed("series", "id" to JsonPrimitive(source.id.value))
+                }
             }
         }
 

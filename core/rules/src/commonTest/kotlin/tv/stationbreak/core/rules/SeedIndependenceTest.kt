@@ -75,19 +75,62 @@ class SeedIndependenceTest {
     ): ChannelRules {
         val day = rules.timing.broadcastDay
         return when (s.below(13)) {
-            0 -> rules.copy(name = randomName(s))
-            1 -> rules.copy(name = null)
-            2 -> rules.copy(maxRating = if (s.below(4) == 0) null else s.pick(ratings))
-            3 -> rules.copy(ordering = if (s.below(4) == 0) null else Ordering(s.pick(OrderingMode.entries)))
-            4 -> rules.copy(timing = rules.timing.copy(blockLength = 1 + s.below(100)))
-            5 -> rules.copy(timing = rules.timing.copy(alignToGrid = s.below(2) == 0))
-            6 -> rules.copy(timing = rules.timing.copy(epochHours = s.pick(epochHours)))
-            7 -> rules.copy(timing = rules.timing.copy(broadcastDay = day.copy(utcOffsetMinutes = (s.below(105) - 48) * 15)))
-            8 -> rules.copy(timing = rules.timing.copy(broadcastDay = day.copy(start = "${s.below(24).toString().padStart(2, '0')}:${s.pick(listOf("00", "30"))}")))
-            9 -> rules.copy(sources = rules.sources + randomSource(s))
-            10 -> rules.copy(exclusions = rules.effectiveExclusions + randomSource(s))
-            11 -> rules.copy(sources = rules.sources.reversed())
-            else -> rules.copy(extras = JsonObject(rules.extras + randomExtra(s)))
+            0 -> {
+                rules.copy(name = randomName(s))
+            }
+
+            1 -> {
+                rules.copy(name = null)
+            }
+
+            2 -> {
+                rules.copy(maxRating = if (s.below(4) == 0) null else s.pick(ratings))
+            }
+
+            3 -> {
+                rules.copy(ordering = if (s.below(4) == 0) null else Ordering(s.pick(OrderingMode.entries)))
+            }
+
+            4 -> {
+                rules.copy(timing = rules.timing.copy(blockLength = 1 + s.below(100)))
+            }
+
+            5 -> {
+                rules.copy(timing = rules.timing.copy(alignToGrid = s.below(2) == 0))
+            }
+
+            6 -> {
+                rules.copy(timing = rules.timing.copy(epochHours = s.pick(epochHours)))
+            }
+
+            7 -> {
+                rules.copy(timing = rules.timing.copy(broadcastDay = day.copy(utcOffsetMinutes = (s.below(105) - 48) * 15)))
+            }
+
+            8 -> {
+                rules.copy(
+                    timing =
+                        rules.timing.copy(
+                            broadcastDay = day.copy(start = "${s.below(24).toString().padStart(2, '0')}:${s.pick(listOf("00", "30"))}"),
+                        ),
+                )
+            }
+
+            9 -> {
+                rules.copy(sources = rules.sources + randomSource(s))
+            }
+
+            10 -> {
+                rules.copy(exclusions = rules.effectiveExclusions + randomSource(s))
+            }
+
+            11 -> {
+                rules.copy(sources = rules.sources.reversed())
+            }
+
+            else -> {
+                rules.copy(extras = JsonObject(rules.extras + randomExtra(s)))
+            }
         }
     }
 

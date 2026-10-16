@@ -76,7 +76,7 @@ data class BroadcastDay(
     val effectiveStart: String get() = start ?: "06:00"
 }
 
-/** The filler modes of version 1, with the exact names the file uses. Only [None] is scheduled by a version 1 reader. */
+/** The filler modes of version 1, with the file's exact names. Only [None] is scheduled by a version 1 reader. */
 enum class FillerMode(
     val wireName: String,
 ) {

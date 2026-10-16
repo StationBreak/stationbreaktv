@@ -99,24 +99,34 @@ class InputLimitsTest {
     @Test
     fun aSourceNameIsCountedInCodePoints() {
         val emoji = "😀"
+
         fun genre(name: String) = minimalRules().with("sources", array(source("genre", "name" to JsonPrimitive(name)))).text()
         assertIs<RulesResult.Ok>(RulesReader.read(genre(emoji.repeat(256))))
         invalid(genre(emoji.repeat(257)))
         invalid(genre(""))
     }
 
+    // Builds a file by hand so a JSON escape such as \\ud800 reaches the reader as written.
+    private fun file(
+        name: String,
+        extraKey: String = "note",
+    ): String =
+        "{\"formatVersion\":1,\"seed\":\"1\",\"$extraKey\":1,\"name\":\"$name\"," +
+            "\"sources\":[{\"type\":\"library\",\"id\":\"$PLACEHOLDER_ID\"}]," +
+            "\"timing\":{\"broadcastDay\":{\"utcOffsetMinutes\":0}}}"
+
     @Test
     fun anUnpairedSurrogateMakesTheFileInvalid() {
-        val escaped = """{"formatVersion":1,"seed":"1","name":"a\ud800b","sources":[{"type":"library","id":"$PLACEHOLDER_ID"}],"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
-        invalid(escaped)
-        invalid(escaped.replace("\\ud800", "\\udc00"))
-        val inExtras = """{"formatVersion":1,"seed":"1","\ud800":1,"sources":[{"type":"library","id":"$PLACEHOLDER_ID"}],"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
-        invalid(inExtras)
+        invalid(file("a\\ud800b"))
+        invalid(file("a\\udc00b"))
+        invalid(file("\\ud83d"))
+        invalid(file("\\ude00\\ud83d"))
+        invalid(file("ok", extraKey = "\\ud800"))
     }
 
     @Test
     fun aPairOfSurrogateEscapesIsOneCharacter() {
-        val pair = """{"formatVersion":1,"seed":"1","name":"😀","sources":[{"type":"library","id":"$PLACEHOLDER_ID"}],"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
-        assertEquals("😀", readOk(pair).name)
+        assertEquals("\uD83D\uDE00", readOk(file("\\ud83d\\ude00")).name)
+        assertEquals(1, RulesLimits.codePoints(readOk(file("\\ud83d\\ude00")).name.orEmpty()))
     }
 }

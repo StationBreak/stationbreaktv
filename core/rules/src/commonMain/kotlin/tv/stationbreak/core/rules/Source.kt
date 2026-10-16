@@ -5,8 +5,8 @@ import kotlinx.serialization.json.JsonObject
 import tv.stationbreak.core.model.CanonicalId
 
 /**
- * One source or exclusion, or a filler source (docs/rules-format.md, "Sources"). Every kind keeps the fields it does not
- * know in [extras] and writes them back unchanged.
+ * One source or exclusion, or a filler source (docs/rules-format.md, "Sources"). Every kind keeps the fields it does
+ * not know in [extras] and writes them back unchanged.
  */
 sealed interface Source {
     /** Fields this version does not know, kept as read. */
