@@ -92,6 +92,8 @@ class SchemaExamplesTest {
 
     @Test fun graceHoursAboveFortyEight() = rejects("grace-hours-49.json")
 
+    @Test fun minRuntimeSecondsZero() = rejects("min-runtime-seconds-0.json")
+
     @Test fun gridMinutesOffTheList() = rejects("grid-minutes-45.json")
 
     @Test fun hourlyGridWithAHalfHourStart() = rejects("grid-60-start-half-hour.json")
@@ -131,6 +133,7 @@ class SchemaExamplesTest {
                 "epoch-hours-5.json",
                 "start-not-on-grid.json",
                 "grace-hours-49.json",
+                "min-runtime-seconds-0.json",
                 "grid-minutes-45.json",
                 "grid-60-start-half-hour.json",
                 "ordering-mode-upper-case.json",

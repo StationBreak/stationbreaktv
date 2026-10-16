@@ -101,6 +101,7 @@ class SeedIndependenceTest {
                 }
             },
             { r, s -> r.withTiming { it.copy(graceHours = s.below(49)) } },
+            { r, s -> r.withTiming { it.copy(minRuntimeSeconds = 1 + s.below(3600)) } },
             { r, s -> r.withTiming { t -> t.copy(gridMinutes = s.pick(listOf(15, 30))) } },
             { r, s -> r.copy(sources = r.sources + randomSource(s)) },
             { r, s -> r.copy(exclusions = r.effectiveExclusions + randomSource(s)) },

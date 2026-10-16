@@ -345,6 +345,7 @@ fields are optional.
 | `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a number that divides 24, so that every epoch boundary falls on a grid mark). |
 | `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it. A whole number from 0 to 48. |
 | `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark. |
+| `minRuntimeSeconds` | `60` | The shortest runtime, in seconds, that counts as a program: an item shorter than this is left out of the epoch's pool. A whole number from 1 to 3600. |
 | `broadcastDay` | required | When an epoch starts. An object with `utcOffsetMinutes` (required) and `start`. |
 
 **The broadcast day.** `broadcastDay` has two fields:

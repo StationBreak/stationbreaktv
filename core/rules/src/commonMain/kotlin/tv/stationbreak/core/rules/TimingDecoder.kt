@@ -25,6 +25,10 @@ internal object TimingDecoder {
             epochHours = epochHours,
             graceHours = obj["graceHours"]?.let { ranged(it, "timing.graceHours", 0, RulesVocabulary.MAX_GRACE_HOURS) },
             gridMinutes = grid,
+            minRuntimeSeconds =
+                obj["minRuntimeSeconds"]?.let {
+                    ranged(it, "timing.minRuntimeSeconds", 1, RulesVocabulary.MAX_MIN_RUNTIME_SECONDS)
+                },
             broadcastDay = broadcastDay,
             extras = extras(obj, RulesVocabulary.TIMING),
         )

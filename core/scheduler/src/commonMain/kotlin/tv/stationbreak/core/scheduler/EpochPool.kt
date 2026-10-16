@@ -11,7 +11,8 @@ import tv.stationbreak.core.model.schedule.SchedulerSettings
  * - `createdAt < S - G` (an item added inside the grace window waits for the next epoch);
  * - `deletedAt` is absent, or `deletedAt >= S - G` (an item deleted shortly before `S` still airs in epoch `n`, so
  *   the lineup does not shift; the player skips it);
- * - `0 < runtime <= epochMs` (a longer item can never play without running over, so it is left out).
+ * - `minRuntimeMs <= runtime <= epochMs` (a shorter item is not a program, and a longer one can never play without
+ *   running over, so both are left out).
  *
  * `deletedAt` is a client's first observation that the item is gone. Jellyfin gives no deletion time, so two
  * devices can disagree on epoch `n` about items deleted in `[S - 2G, S - G)`.
@@ -29,20 +30,20 @@ object EpochPool {
         requireUniqueIds(items)
         val cutoff = Epochs.epochStart(settings, n) - settings.graceMs
         return items
-            .filter { isInPool(it, cutoff, settings.epochMs) }
+            .filter { isInPool(it, cutoff, settings) }
             .sortedBy { it.id.value }
     }
 
     private fun isInPool(
         item: ScheduleItem,
         cutoff: Long,
-        epochMs: Long,
+        settings: SchedulerSettings,
     ): Boolean {
         val deleted = item.deletedAtMs
         return item.createdAtMs < cutoff &&
             (deleted == null || deleted >= cutoff) &&
-            item.runtimeMs > 0L &&
-            item.runtimeMs <= epochMs
+            item.runtimeMs >= settings.minRuntimeMs &&
+            item.runtimeMs <= settings.epochMs
     }
 
     private fun requireUniqueIds(items: List<ScheduleItem>) {

@@ -45,6 +45,7 @@ object RulesWriter {
             timing.epochHours?.let { put("epochHours", JsonPrimitive(it)) }
             timing.graceHours?.let { put("graceHours", JsonPrimitive(it)) }
             timing.gridMinutes?.let { put("gridMinutes", JsonPrimitive(it)) }
+            timing.minRuntimeSeconds?.let { put("minRuntimeSeconds", JsonPrimitive(it)) }
             put(
                 "broadcastDay",
                 obj(timing.broadcastDay.extras) {

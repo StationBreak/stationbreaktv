@@ -24,6 +24,7 @@ class SchedulerSettingsTest {
         utcOffsetMinutes: Int = 0,
         startMinuteOfDay: Int = 360,
         graceHours: Int = 6,
+        minRuntimeMs: Long = 60_000L,
     ) = SchedulerSettings(
         orderingMode = orderingMode,
         seed = seed,
@@ -34,6 +35,7 @@ class SchedulerSettingsTest {
         utcOffsetMinutes = utcOffsetMinutes,
         startMinuteOfDay = startMinuteOfDay,
         graceHours = graceHours,
+        minRuntimeMs = minRuntimeMs,
     )
 
     private fun rejects(build: () -> SchedulerSettings) {
@@ -94,6 +96,14 @@ class SchedulerSettingsTest {
     }
 
     @Test
+    fun theMinimumRuntimeIsOneSecondToOneHour() {
+        for (ms in listOf(1_000L, 60_000L, 3_600_000L)) assertEquals(ms, settings(minRuntimeMs = ms).minRuntimeMs)
+        for (ms in listOf(Long.MIN_VALUE, -1L, 0L, 999L, 3_600_001L, Long.MAX_VALUE)) {
+            rejects { settings(minRuntimeMs = ms) }
+        }
+    }
+
+    @Test
     fun aBlockIsOneToOneHundredItems() {
         for (b in listOf(1, 2, 100)) settings(blockLength = b)
         for (b in listOf(0, -1, 101)) rejects { settings(blockLength = b) }
@@ -101,7 +111,7 @@ class SchedulerSettingsTest {
 
     @Test
     fun theTypeHasNoDefaults() {
-        // Every constructor parameter is required: the only way to build one is to name all nine fields.
+        // Every constructor parameter is required: the only way to build one is to name all ten fields.
         val s = settings()
         assertEquals(
             SchedulerSettings(
@@ -114,6 +124,7 @@ class SchedulerSettingsTest {
                 0,
                 360,
                 6,
+                60_000L,
             ),
             s,
         )

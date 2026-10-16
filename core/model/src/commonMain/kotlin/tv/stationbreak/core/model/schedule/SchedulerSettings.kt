@@ -15,8 +15,11 @@ import tv.stationbreak.core.model.Seed
  * - [epochHours] is one of 1, 2, 3, 4, 6, 8, 12 or 24;
  * - [utcOffsetMinutes] is -720 to 840 and a multiple of 15;
  * - [graceHours] is 0 to 48;
- * - [blockLength] is 1 to 100.
+ * - [blockLength] is 1 to 100;
+ * - [minRuntimeMs] is 1,000 to 3,600,000 (one second to one hour).
  *
+ * @property minRuntimeMs the shortest runtime that counts as a program (`timing.minRuntimeSeconds` in ms): the pool
+ *   leaves out anything shorter, so a day holds at most `epochMs / minRuntimeMs` programs.
  * @property startMinuteOfDay when the broadcast day starts: minutes after midnight on the channel's clock, 0..1439.
  */
 data class SchedulerSettings(
@@ -29,6 +32,7 @@ data class SchedulerSettings(
     val utcOffsetMinutes: Int,
     val startMinuteOfDay: Int,
     val graceHours: Int,
+    val minRuntimeMs: Long,
 ) {
     init {
         require(blockLength in MIN_BLOCK_LENGTH..MAX_BLOCK_LENGTH) { "A run is 1 to 100 items" }
@@ -39,6 +43,7 @@ data class SchedulerSettings(
         require(startMinuteOfDay in 0 until MINUTES_PER_DAY) { "The start is inside the day" }
         require(startMinuteOfDay % gridMinutes == 0) { "The start must be on the grid" }
         require(graceHours in 0..MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
+        require(minRuntimeMs in MIN_RUNTIME_MS..MAX_RUNTIME_MS) { "The minimum runtime is 1 second to 1 hour" }
     }
 
     /** The grid spacing in milliseconds. */
@@ -66,6 +71,8 @@ data class SchedulerSettings(
         private const val MAX_OFFSET = 840
         private const val OFFSET_STEP = 15
         private const val MAX_GRACE_HOURS = 48
+        private const val MIN_RUNTIME_MS = 1_000L
+        private const val MAX_RUNTIME_MS = 3_600_000L
         private val GRID_MINUTES = setOf(15, 30, 60)
         private val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
     }

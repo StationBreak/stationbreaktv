@@ -21,6 +21,7 @@ internal fun testSettings(
     utcOffsetMinutes: Int = 0,
     startMinuteOfDay: Int = 360,
     graceHours: Int = 6,
+    minRuntimeMs: Long = 60_000L,
 ) = SchedulerSettings(
     orderingMode = orderingMode,
     seed = seed,
@@ -31,4 +32,5 @@ internal fun testSettings(
     utcOffsetMinutes = utcOffsetMinutes,
     startMinuteOfDay = startMinuteOfDay,
     graceHours = graceHours,
+    minRuntimeMs = minRuntimeMs,
 )

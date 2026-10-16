@@ -12,12 +12,22 @@ internal object RulesVocabulary {
     val TOP_LEVEL =
         setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")
     val GRID_MINUTES = setOf(15, 30, 60)
-    val TIMING = setOf("blockLength", "alignToGrid", "epochHours", "graceHours", "gridMinutes", "broadcastDay")
+    val TIMING =
+        setOf(
+            "blockLength",
+            "alignToGrid",
+            "epochHours",
+            "graceHours",
+            "gridMinutes",
+            "minRuntimeSeconds",
+            "broadcastDay",
+        )
     val BROADCAST_DAY = setOf("utcOffsetMinutes", "start")
     val FILLER = setOf("mode", "every", "source")
 
     const val MAX_BLOCK_LENGTH = 100
     const val MAX_GRACE_HOURS = 48
+    const val MAX_MIN_RUNTIME_SECONDS = 3600
     const val HOURLY_GRID = 60
     const val MAX_EVERY = 1000
     const val MIN_YEAR = 1

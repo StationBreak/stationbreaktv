@@ -536,6 +536,7 @@ internal object ExampleFiles {
                     "epochHours": 12,
                     "graceHours": 12,
                     "gridMinutes": 60,
+                    "minRuntimeSeconds": 90,
                     "broadcastDay": {
                       "utcOffsetMinutes": 330,
                       "start": "06:00"
@@ -982,6 +983,26 @@ internal object ExampleFiles {
                   ],
                   "timing": {
                     "graceHours": 49,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "min-runtime-seconds-0.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "minRuntimeSeconds": 0,
                     "broadcastDay": {
                       "utcOffsetMinutes": 0
                     }
