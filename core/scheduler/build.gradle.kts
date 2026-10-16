@@ -25,3 +25,26 @@ tasks.withType<Test>().configureEach {
     systemProperty("rulesFormat.dir", rulesFormatDir.asFile.absolutePath)
     inputs.files(rulesFormatDir.asFileTree).withPropertyName("rulesFormatFiles").withPathSensitivity(PathSensitivity.RELATIVE)
 }
+
+// The benchmark is a wall-clock measurement, so it never gates anything (spec 08, Technical Considerations): it is left out
+// of jvmTest (and so of allTests and check) and runs only through `./gradlew :core:scheduler:benchmark`.
+val benchmarkClass = "*WhatsOnBenchmark"
+
+tasks.named<Test>("jvmTest") {
+    filter { excludeTestsMatching(benchmarkClass) }
+}
+
+tasks.register<Test>("benchmark") {
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    description = "Times Day.whatsOn on a 10,000-item day and prints the median and p95. Not part of check."
+    val jvmTest = tasks.named<Test>("jvmTest").get()
+    testClassesDirs = jvmTest.testClassesDirs
+    classpath = jvmTest.classpath
+    filter { includeTestsMatching(benchmarkClass) }
+    // A timing is never "up to date", and the numbers are the point, so show the test's output.
+    outputs.upToDateWhen { false }
+    testLogging {
+        showStandardStreams = true
+        events("passed", "failed")
+    }
+}

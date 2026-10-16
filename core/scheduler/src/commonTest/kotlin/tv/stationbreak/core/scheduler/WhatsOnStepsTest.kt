@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
-import tv.stationbreak.core.model.CanonicalId
-import tv.stationbreak.core.model.ItemKind
-import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.ScheduleItem
-import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.testing.SyntheticLibrary
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -17,26 +13,6 @@ import kotlin.test.assertTrue
  */
 class WhatsOnStepsTest {
     private val library = SyntheticLibrary(size = 10_000, seed = 7L)
-
-    /** The library's movies and episodes as scheduler items; [runtimeOf] may change a runtime to make shorter blocks. */
-    private fun scheduleItems(runtimeOf: (MediaItem) -> Long): List<ScheduleItem> =
-        library.items
-            .filter { it.kind == ItemKind.Movie || it.kind == ItemKind.Episode }
-            .map { media ->
-                val episode = media.kind == ItemKind.Episode
-                ScheduleItem(
-                    id = CanonicalId.parse(media.id.value),
-                    kind = if (episode) ScheduleItemKind.Episode else ScheduleItemKind.Movie,
-                    runtimeMs = runtimeOf(media),
-                    createdAtMs = checkNotNull(media.dateCreated).toEpochMilliseconds(),
-                    deletedAtMs = null,
-                    premiereDate = null,
-                    productionYear = media.productionYear,
-                    seriesId = media.seriesId?.let { CanonicalId.parse(it.value) },
-                    seasonNumber = media.seasonNumber,
-                    episodeNumber = media.episodeNumber,
-                )
-            }.toList()
 
     private fun ceilLog2(value: Int): Int {
         var bits = 0
@@ -73,12 +49,12 @@ class WhatsOnStepsTest {
     @Test
     fun aTenThousandItemLibraryOnItsOwnRuntimes() {
         // About 17 blocks in a 24-hour day: the library's programs average an hour and a half.
-        assertLogarithmic(OrderingMode.Chronological, scheduleItems { (it.runtime?.inWholeMilliseconds ?: 0L) }, 10)
+        assertLogarithmic(OrderingMode.Chronological, syntheticScheduleItems(library) { it.runtimeMsOrZero() }, 10)
     }
 
     @Test
     fun aTenThousandItemLibraryWithShortProgramsGivesADayOfThousandsOfBlocks() {
-        val short = scheduleItems { 1_000L + ((it.runtime?.inWholeMilliseconds ?: 0L) % 90_000L) }
+        val short = syntheticScheduleItems(library) { it.shortRuntimeMs() }
         assertLogarithmic(OrderingMode.Shuffle, short, 1_000)
         assertLogarithmic(OrderingMode.RandomInOrder, short, 1_000)
     }
