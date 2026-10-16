@@ -53,16 +53,18 @@ private const val TOP_OFFSET = 0.1f
  * never flashes, then on to wherever [LaunchRouter] decided. A server that can't be reached stays here, with the error
  * and Retry; a changed certificate shows the trust screen of Unit 3 over it.
  */
+@Suppress("LongParameterList") // One callback for each place launch routing can send the app.
 @Composable
 fun LaunchDestination(
     onNoServer: () -> Unit,
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
+    onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
 ) {
     val viewModel: LaunchViewModel = hiltViewModel()
-    LaunchRoot(viewModel, onNoServer, onSignIn, onLibraries, onSetupComplete, onChangeServer)
+    LaunchRoot(viewModel, onNoServer, onSignIn, onLibraries, onFirstSync, onSetupComplete, onChangeServer)
 }
 
 /** [LaunchDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -73,6 +75,7 @@ internal fun LaunchRoot(
     onNoServer: () -> Unit,
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
+    onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
 ) {
@@ -83,6 +86,7 @@ internal fun LaunchRoot(
                 LaunchTarget.NoServer -> onNoServer()
                 LaunchTarget.SignIn -> onSignIn()
                 LaunchTarget.Libraries -> onLibraries()
+                LaunchTarget.FirstSync -> onFirstSync()
                 LaunchTarget.SetupComplete -> onSetupComplete()
             }
         }

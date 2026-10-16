@@ -59,7 +59,7 @@ internal sealed interface LaunchPhase {
 }
 
 /** Where launch routing sends the app. Each is the last thing this screen does. */
-internal enum class LaunchTarget { NoServer, SignIn, Libraries, SetupComplete }
+internal enum class LaunchTarget { NoServer, SignIn, Libraries, FirstSync, SetupComplete }
 
 /**
  * Launch routing (spec 05, Unit 4): runs [LaunchRouter] at startup and again on Retry, hands what the next screen
@@ -113,6 +113,10 @@ internal class LaunchViewModel
                             // Restored from the secret store, so it is persisted. No name is known for it.
                             signedIn.put(SignInResult(route.session, persisted = true, username = null))
                             results.send(LaunchTarget.Libraries)
+                        }
+
+                        LaunchRoute.FirstSync -> {
+                            results.send(LaunchTarget.FirstSync)
                         }
 
                         LaunchRoute.SetupComplete -> {

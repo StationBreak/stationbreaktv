@@ -8,6 +8,15 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+        WorkManager's manifest adds a foreground-service permission and service that nothing here uses (the sync is
+        plain background work, never setForeground). Removed so they are not on the attack surface (Angua L1);
+        BackupRulesTest keeps the exact list of permissions and exported components.
+    -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:node="remove" />
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
@@ -39,6 +48,11 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:ignore="MissingClass"
+            tools:node="remove" />
     </application>
 
 </manifest>

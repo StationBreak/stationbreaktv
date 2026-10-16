@@ -8,8 +8,14 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.AccountCache
+import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
+import tv.stationbreak.data.library.WorkManagerFirstSync
 import javax.inject.Singleton
 import kotlin.time.Clock
 
@@ -33,4 +39,30 @@ internal object LibraryModule {
 
     @Provides
     fun accountCache(repository: RoomLibraryRepository): AccountCache = repository
+
+    /**
+     * The first sync of the signed-in account (spec 06, Unit 3) on WorkManager: the progress screen and launch routing
+     * ask it for the saved library's status and to start or run again. `core:*` and the feature module never see
+     * WorkManager (checkArchitecture).
+     */
+    @Provides
+    @Singleton
+    fun firstSync(
+        @ApplicationContext context: Context,
+        repository: RoomLibraryRepository,
+    ): FirstSync = WorkManagerFirstSync.create(context, repository)
+
+    /**
+     * What the first-sync worker runs. WorkManager builds the worker itself, so the worker asks the `Application` for
+     * this (see [FirstSyncEntryPoint]). It reads the session from the secret store when it runs: nothing, and no token,
+     * is passed through WorkManager.
+     */
+    @Provides
+    @Singleton
+    fun firstSyncRunner(
+        settings: ServerSettings,
+        sessions: SessionRepository,
+        server: MediaServer,
+        repository: RoomLibraryRepository,
+    ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
 }

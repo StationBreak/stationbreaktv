@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
@@ -26,6 +27,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val rows = mutableListOf<Row>()
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
+    private val active = MutableStateFlow<LibraryAccount?>(null)
 
     /** Every account passed to [useAccount], in order. */
     val activated = mutableListOf<LibraryAccount>()
@@ -57,6 +59,11 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
         statuses.map { it[account] ?: LibraryStatus(SyncState.NeverSynced, null) }
 
+    override fun activeStatus(): Flow<LibraryStatus?> =
+        combine(active, statuses) { account, all ->
+            account?.let { all[it] ?: LibraryStatus(SyncState.NeverSynced, null) }
+        }
+
     override suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -87,6 +94,7 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override suspend fun useAccount(account: LibraryAccount) {
         activated += account
+        active.value = account
         rows.removeAll { it.account != account }
         pending.keys.retainAll(setOf(account))
         statuses.value = statuses.value.filterKeys { it == account }
@@ -98,6 +106,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         rows.removeAll { it.account == account }
         pending.remove(account)
         statuses.value = statuses.value - account
+        if (active.value == account) active.value = null
     }
 
     private fun live(

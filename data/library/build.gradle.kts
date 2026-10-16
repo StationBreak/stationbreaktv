@@ -25,6 +25,8 @@ dependencies {
     implementation(project(":core:model"))
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
+    // The first-sync worker (spec 06 task 3.0). Never in core:* (checkArchitecture).
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(testFixtures(project(":core:domain")))
     // The generated library the cache tests write (F0.6). Test sources only (checkArchitecture).
@@ -36,6 +38,9 @@ dependencies {
     kspTest(libs.androidx.room.compiler)
 
     androidTestImplementation(libs.kotlinx.coroutines.core)
+    // The heap test on the emulator pages the generated library through the scripted server (test sources only).
+    androidTestImplementation(testFixtures(project(":core:domain")))
+    androidTestImplementation(project(":core:testing"))
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)

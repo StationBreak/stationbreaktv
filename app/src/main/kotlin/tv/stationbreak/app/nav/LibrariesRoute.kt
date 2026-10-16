@@ -14,6 +14,14 @@ data object LibrariesRoute
 @Serializable
 data object SignedInRoute
 
+/**
+ * The first-sync progress screen (spec 06, Unit 3): shown from the end of onboarding until the signed-in account's
+ * first sync ends, then "Setup complete". Nothing is under it on the back stack, so Back leaves the app and the sync
+ * carries on.
+ */
+@Serializable
+data object FirstSyncRoute
+
 /** The placeholder shown after setup. Nothing is under it on the back stack, so Back leaves the app. */
 @Serializable
 data object SetupCompleteRoute

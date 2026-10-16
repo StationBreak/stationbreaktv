@@ -4,8 +4,11 @@ package tv.stationbreak.data.library
 import android.content.Context
 import androidx.room.RoomDatabase
 import androidx.room.useReaderConnection
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -15,6 +18,8 @@ import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.nanoseconds
@@ -59,8 +64,9 @@ internal data class RowCounts(
 class RoomLibraryRepository internal constructor(
     private val db: LibraryDatabase,
     private val clock: Clock,
+    private val sync: SyncControl = SyncControl.None,
 ) : LibraryRepository {
-    private val dao = db.dao()
+    internal val dao = db.dao()
 
     /**
      * Test seam: runs inside [writePage]'s transaction after the items are written and before the checkpoint is, so a
@@ -75,6 +81,19 @@ class RoomLibraryRepository internal constructor(
             .observeStatus(account.server.value, account.user.value)
             .map { row -> row?.toStatus() ?: LibraryStatus(SyncState.NeverSynced, null) }
             .distinctUntilChanged()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun activeStatus(): Flow<LibraryStatus?> =
+        dao
+            .observeActive()
+            .distinctUntilChanged()
+            .flatMapLatest { active ->
+                if (active == null) {
+                    flowOf(null)
+                } else {
+                    status(LibraryAccount(ServerId(active.serverId), UserId(active.userId)))
+                }
+            }
 
     override suspend fun snapshot(
         account: LibraryAccount,
@@ -113,11 +132,15 @@ class RoomLibraryRepository internal constructor(
 
     override suspend fun useAccount(account: LibraryAccount) {
         val (server, user) = account.keys()
+        // The unique sync work goes first, unless this is the account already syncing (the worker restores the
+        // session itself, which names it again). Cancelling is asynchronous: the DAO checks the account regardless.
+        if (dao.activeAccounts() != listOf(ActiveAccountEntity(server, user))) sync.cancelFirstSync()
         dao.activate(server, user)
     }
 
     override suspend fun forget(account: LibraryAccount) {
         val (server, user) = account.keys()
+        sync.cancelFirstSync()
         dao.forget(server, user)
     }
 
@@ -139,10 +162,33 @@ class RoomLibraryRepository internal constructor(
         run: Long,
     ): PageWrite {
         val (server, user) = account.keys()
+        val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
+        val rows = rowsOf(items, server, user, library)
+        return dao.writePage(server, user, checkpoint, rows, faultBetweenItemsAndCheckpoint)
+    }
+
+    /**
+     * Saves [items] of [library] with no checkpoint: a page of a changed-since pass, which moves no position. The same
+     * idempotent upsert as [writePage], and the same check that the account is still signed in.
+     */
+    internal suspend fun upsertItems(
+        account: LibraryAccount,
+        library: ItemId,
+        items: List<MediaItem>,
+    ): PageWrite {
+        val (server, user) = account.keys()
+        return dao.writePage(server, user, null, rowsOf(items, server, user, library), faultBetweenItemsAndCheckpoint)
+    }
+
+    private fun rowsOf(
+        items: List<MediaItem>,
+        server: String,
+        user: String,
+        library: ItemId,
+    ): Map<String, ItemRows> {
         val rows = LinkedHashMap<String, ItemRows>()
         items.forEach { rows[it.id.value] = it.toRows(server, user, library.value) }
-        val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
-        return dao.writePage(checkpoint, rows, faultBetweenItemsAndCheckpoint)
+        return rows
     }
 
     internal suspend fun checkpoint(
@@ -182,8 +228,7 @@ class RoomLibraryRepository internal constructor(
     /** A sync ended well now: the state is idle and the time of the success is kept with the saved library. */
     internal suspend fun finishSync(account: LibraryAccount) {
         val (server, user) = account.keys()
-        val now = clock.now().toEpochMilliseconds()
-        dao.saveState(AccountStateEntity(server, user, AccountStateEntity.STATE_IDLE, null, null, now))
+        dao.finishSync(server, user, clock.now().toEpochMilliseconds())
     }
 
     /** A sync stopped for [failure]. Everything saved so far, and the time of the last success, stay. */
@@ -293,14 +338,17 @@ class RoomLibraryRepository internal constructor(
             clock: Clock = Clock.System,
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
-            return RoomLibraryRepository(builder.build(), clock)
+            // Sign-in and sign-out cancel the unique first-sync work through WorkManager, asked for only when they do.
+            val sync = WorkManagerSyncControl(WorkManagerEnqueuer(context))
+            return RoomLibraryRepository(builder.build(), clock, sync)
         }
 
         /** For tests: a database from a builder the test configured (a JVM driver, a file or memory). */
         internal fun testing(
             builder: RoomDatabase.Builder<LibraryDatabase>,
             clock: Clock,
-        ): RoomLibraryRepository = RoomLibraryRepository(builder.build(), clock)
+            sync: SyncControl = SyncControl.None,
+        ): RoomLibraryRepository = RoomLibraryRepository(builder.build(), clock, sync)
     }
 }
 

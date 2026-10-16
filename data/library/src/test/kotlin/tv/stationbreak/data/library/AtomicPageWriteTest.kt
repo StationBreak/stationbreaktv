@@ -110,6 +110,20 @@ class AtomicPageWriteTest {
         }
 
     @Test
+    fun aChangedSincePageSavesItemsAndMovesNoCheckpoint() =
+        runBlocking {
+            repository.select(ALICE, setOf(MOVIES))
+            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            val before = repository.checkpoint(ALICE, MOVIES)
+
+            val write = repository.upsertItems(ALICE, MOVIES, listOf(page1[0].copy(name = "Changed"), page2[0]))
+
+            assertEquals(PageWrite(inserted = 1, updated = 1, unchanged = 0), write)
+            assertEquals(before, repository.checkpoint(ALICE, MOVIES))
+            assertEquals(listOf("p1-a", "p1-b", "p2-a"), idsStored())
+        }
+
+    @Test
     fun aChangedItemIsUpdatedAndItsGenresAreReplaced() =
         runBlocking {
             repository.select(ALICE, setOf(MOVIES))

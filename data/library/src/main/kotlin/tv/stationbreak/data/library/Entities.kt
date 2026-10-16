@@ -141,3 +141,14 @@ internal data class AccountStateEntity(
         const val STATE_FAILED = 2
     }
 }
+
+/**
+ * The account signed in now. `useAccount` writes it (and deletes every other account's rows and marker) and `forget`
+ * deletes it. Every transaction the sync runs checks it first, so a sync still running after its account signed out, or
+ * after another account signed in, can write nothing back (spec 06 task 3.4, Angua M1). Normally one row.
+ */
+@Entity(tableName = "active_account", primaryKeys = ["serverId", "userId"])
+internal data class ActiveAccountEntity(
+    val serverId: String,
+    val userId: String,
+)

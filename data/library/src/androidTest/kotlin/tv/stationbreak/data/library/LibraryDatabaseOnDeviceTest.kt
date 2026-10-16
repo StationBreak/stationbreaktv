@@ -45,6 +45,8 @@ class LibraryDatabaseOnDeviceTest {
     fun open() {
         context.deleteDatabase(RoomLibraryRepository.DATABASE_NAME)
         repository = RoomLibraryRepository.create(context)
+        // The sync and the page writes belong to the signed-in account (Angua M1), as they do in the app.
+        runBlocking { repository.useAccount(account) }
     }
 
     @After

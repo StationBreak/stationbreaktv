@@ -102,6 +102,31 @@ class SessionRepository(
         }
     }
 
+    /**
+     * Like [restore], but only looks: it never activates an account in the saved library, never writes or clears the
+     * stored session, and never forgets a library. For a background worker, which must not bring back an account or a
+     * session that the user signed out while it was waiting for the server (Angua M1, PR #250).
+     */
+    @Suppress("ReturnCount") // Each early return is a way the check ends without asking the server.
+    suspend fun verify(configured: ServerAddress): RestoreOutcome {
+        val raw = (store.load(SESSION_KEY) as? SecretStoreResult.Success)?.value ?: return RestoreOutcome.SignedOut
+        val stored = decode(raw) ?: return RestoreOutcome.SignedOut
+        if (!stored.address.bindsTo(configured) && !configured.bindsTo(stored.address)) {
+            return RestoreOutcome.Rejected(MediaServerError.ServerMismatch())
+        }
+        return when (val result = server.resume(stored)) {
+            is ServerResult.Success -> {
+                RestoreOutcome.Restored(result.value)
+            }
+
+            is ServerResult.Failure -> {
+                val error = result.error
+                val fatal = error is MediaServerError.SessionExpired || error is MediaServerError.ServerMismatch
+                if (fatal) RestoreOutcome.Rejected(error) else RestoreOutcome.Unavailable(error)
+            }
+        }
+    }
+
     private suspend fun resume(stored: StoredSession): RestoreOutcome =
         when (val result = server.resume(stored)) {
             is ServerResult.Success -> {

@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import tv.stationbreak.feature.onboarding.firstsync.FirstSyncDestination
 import tv.stationbreak.feature.onboarding.launch.LaunchDestination
 import tv.stationbreak.feature.onboarding.libraries.LibrariesDestination
 import tv.stationbreak.feature.onboarding.libraries.SetupCompleteDestination
@@ -38,6 +39,7 @@ internal fun AppNavGraph(
                 onNoServer = { navController.replaceAll(ServerRoute) },
                 onSignIn = { navController.replaceAll(SignInRoute) },
                 onLibraries = { navController.replaceAll(LibrariesRoute) },
+                onFirstSync = { navController.replaceAll(FirstSyncRoute) },
                 onSetupComplete = { navController.replaceAll(SetupCompleteRoute) },
                 // The stored session and pin stay: the server screen shows the stored address, and only a Continue
                 // (or a trust) on another address replaces them.
@@ -65,8 +67,9 @@ internal fun AppNavGraph(
             LibrariesDestination(
                 // Back is "Signed in as": it never signs out silently.
                 onBack = { navController.navigate(SignedInRoute) { launchSingleTop = true } },
-                // Nothing is left beneath "Setup complete": Back exits, and onboarding is never re-entered.
-                onDone = { navController.replaceAll(SetupCompleteRoute) },
+                // The first sync starts here (spec 06, owner answer 3). Nothing is left beneath its screen: Back exits,
+                // the sync carries on in the background, and onboarding is never re-entered.
+                onDone = { navController.replaceAll(FirstSyncRoute) },
                 onSessionLost = { navController.replaceAll(LaunchRoute) },
                 onMissingSession = { navController.replaceAll(LaunchRoute) },
             )
@@ -76,6 +79,14 @@ internal fun AppNavGraph(
                 onContinue = { navController.popBackStack() },
                 onSwitchUser = { navController.replaceAll(SignInRoute) },
                 onMissingSession = { navController.replaceAll(LaunchRoute) },
+            )
+        }
+        composable<FirstSyncRoute> {
+            FirstSyncDestination(
+                // No button: when the first sync ends the app moves on, and the placeholder is the next destination.
+                onFinished = { navController.replaceAll(SetupCompleteRoute) },
+                // The server no longer accepts the sign-in: launch routing explains and asks the user to sign in again.
+                onSessionLost = { navController.replaceAll(LaunchRoute) },
             )
         }
         composable<SetupCompleteRoute> { SetupCompleteDestination() }

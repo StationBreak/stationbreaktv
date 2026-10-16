@@ -32,6 +32,9 @@ internal data class StatusRow(
     val copied: Int,
 )
 
+/** The account a sync belongs to is no longer the signed-in one: nothing it was about to write may be kept. */
+internal class AccountNotActiveException : IllegalStateException("The account is not signed in any more")
+
 /**
  * The SQL of the saved library. A lookup by a list of IDs must be given at most [MAX_VARIABLES] values: the platform
  * SQLite on API 25 allows 999 variables in a statement, and the repository chunks.
@@ -70,7 +73,7 @@ internal abstract class LibraryDao {
     )
 
     @Query("UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId")
-    abstract suspend fun markFetched(
+    protected abstract suspend fun setFetched(
         serverId: String,
         userId: String,
         libraryId: String,
@@ -213,7 +216,7 @@ internal abstract class LibraryDao {
     // Sync state.
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    abstract suspend fun saveState(row: AccountStateEntity)
+    protected abstract suspend fun saveState(row: AccountStateEntity)
 
     @Query("SELECT * FROM account_state WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun state(
@@ -222,7 +225,7 @@ internal abstract class LibraryDao {
     ): AccountStateEntity?
 
     @Query("UPDATE account_state SET total = :total WHERE serverId = :serverId AND userId = :userId")
-    abstract suspend fun setTotal(
+    protected abstract suspend fun updateTotal(
         serverId: String,
         userId: String,
         total: Int,
@@ -252,6 +255,43 @@ internal abstract class LibraryDao {
         serverId: String,
         userId: String,
     ): Flow<StatusRow?>
+
+    // The signed-in account.
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertActive(row: ActiveAccountEntity)
+
+    @Query("SELECT * FROM active_account")
+    abstract suspend fun activeAccounts(): List<ActiveAccountEntity>
+
+    @Query("SELECT COUNT(*) FROM active_account WHERE serverId = :serverId AND userId = :userId")
+    protected abstract suspend fun activeCount(
+        serverId: String,
+        userId: String,
+    ): Int
+
+    @Query("DELETE FROM active_account WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun deleteActive(
+        serverId: String,
+        userId: String,
+    )
+
+    @Query("DELETE FROM active_account WHERE NOT (serverId = :serverId AND userId = :userId)")
+    protected abstract suspend fun deleteOtherActive(
+        serverId: String,
+        userId: String,
+    )
+
+    @Query("SELECT * FROM active_account LIMIT 1")
+    abstract fun observeActive(): Flow<ActiveAccountEntity?>
+
+    /** Throws [AccountNotActiveException] unless the account is signed in. Call it first inside a transaction. */
+    protected suspend fun requireActive(
+        serverId: String,
+        userId: String,
+    ) {
+        if (activeCount(serverId, userId) == 0) throw AccountNotActiveException()
+    }
 
     // Counts, for the tests and diagnostics.
 
@@ -284,6 +324,8 @@ internal abstract class LibraryDao {
         userId: String,
         chosen: List<String>,
     ) {
+        // An account that is not signed in (it signed out while the sync ran) gets no rows back.
+        if (activeCount(serverId, userId) == 0) return
         // A "NOT IN" list can't be chunked, so find the libraries to drop here and delete them in chunks.
         val keep = chosen.toSet()
         libraryIds(serverId, userId).filter { it !in keep }.chunked(MAX_VARIABLES).forEach {
@@ -301,6 +343,8 @@ internal abstract class LibraryDao {
     ) {
         deleteOtherLibraries(serverId, userId)
         deleteOtherStates(serverId, userId)
+        deleteOtherActive(serverId, userId)
+        insertActive(ActiveAccountEntity(serverId, userId))
     }
 
     /** The account signed out: its rows go. */
@@ -311,21 +355,25 @@ internal abstract class LibraryDao {
     ) {
         deleteLibraries(serverId, userId)
         deleteState(serverId, userId)
+        deleteActive(serverId, userId)
     }
 
     /**
-     * Writes one page and its checkpoint together. An item the database already holds, equal, is left alone; one that
-     * differs is updated and its genres and tags replaced; a new one is inserted. [betweenItemsAndCheckpoint] runs
-     * after the items and before the checkpoint (a test seam; null in the app).
+     * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
+     * no position). An item the database already holds, equal, is left alone; one that differs is updated and its
+     * genres and tags replaced; a new one is inserted. The account must still be signed in, which is checked inside
+     * this transaction. [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam;
+     * null in the app).
      */
     @Transaction
     open suspend fun writePage(
-        checkpoint: CheckpointEntity,
+        server: String,
+        user: String,
+        checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
         betweenItemsAndCheckpoint: (() -> Unit)?,
     ): PageWrite {
-        val server = checkpoint.serverId
-        val user = checkpoint.userId
+        requireActive(server, user)
         val existing =
             items.keys
                 .chunked(MAX_VARIABLES)
@@ -352,7 +400,7 @@ internal abstract class LibraryDao {
         insertGenres(changed.flatMap { items.getValue(it).genres })
         insertTags(changed.flatMap { items.getValue(it).tags })
         betweenItemsAndCheckpoint?.invoke()
-        saveCheckpoint(checkpoint)
+        checkpoint?.let { saveCheckpoint(it) }
         return PageWrite(toInsert.size, toUpdate.size, unchanged)
     }
 
@@ -362,6 +410,7 @@ internal abstract class LibraryDao {
         serverId: String,
         userId: String,
     ) {
+        requireActive(serverId, userId)
         val last = state(serverId, userId)?.lastSuccessMs
         saveState(AccountStateEntity(serverId, userId, AccountStateEntity.STATE_FIRST_RUNNING, null, null, last))
     }
@@ -373,6 +422,7 @@ internal abstract class LibraryDao {
         userId: String,
         failure: Int,
     ) {
+        requireActive(serverId, userId)
         val old = state(serverId, userId)
         val failed = AccountStateEntity.STATE_FAILED
         saveState(AccountStateEntity(serverId, userId, failed, old?.total, failure, old?.lastSuccessMs))
@@ -385,7 +435,10 @@ internal abstract class LibraryDao {
         userId: String,
         ids: List<String>,
         atMs: Long,
-    ) = ids.chunked(MAX_VARIABLES).forEach { tombstone(serverId, userId, it, atMs) }
+    ) {
+        requireActive(serverId, userId)
+        ids.chunked(MAX_VARIABLES).forEach { tombstone(serverId, userId, it, atMs) }
+    }
 
     /** Clears the tombstone of [ids]. */
     @Transaction
@@ -393,7 +446,43 @@ internal abstract class LibraryDao {
         serverId: String,
         userId: String,
         ids: List<String>,
-    ) = ids.chunked(MAX_VARIABLES).forEach { revive(serverId, userId, it) }
+    ) {
+        requireActive(serverId, userId)
+        ids.chunked(MAX_VARIABLES).forEach { revive(serverId, userId, it) }
+    }
+
+    /** Page one said the whole sync holds [total] items. */
+    @Transaction
+    open suspend fun setTotal(
+        serverId: String,
+        userId: String,
+        total: Int,
+    ) {
+        requireActive(serverId, userId)
+        updateTotal(serverId, userId, total)
+    }
+
+    /** [libraryId] has been read to its end. */
+    @Transaction
+    open suspend fun markFetched(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ) {
+        requireActive(serverId, userId)
+        setFetched(serverId, userId, libraryId)
+    }
+
+    /** A sync ended well at [nowMs]: idle, and the time of the success kept with the saved library. */
+    @Transaction
+    open suspend fun finishSync(
+        serverId: String,
+        userId: String,
+        nowMs: Long,
+    ) {
+        requireActive(serverId, userId)
+        saveState(AccountStateEntity(serverId, userId, AccountStateEntity.STATE_IDLE, null, null, nowMs))
+    }
 
     /** The snapshot's items with their genres and tags, all from one moment. */
     @Transaction

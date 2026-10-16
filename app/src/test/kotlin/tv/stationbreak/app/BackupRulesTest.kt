@@ -185,4 +185,63 @@ class BackupRulesTest {
             assertEquals(emptyList<Element>(), children(section, "include"))
         }
     }
+
+    // The merged manifest's allowlist (Angua L1, PR #250): every permission and component another app could reach.
+    // A new dependency that adds one fails here, so it is read and either removed or added to these lists on purpose.
+
+    private fun nameOf(element: Element) = element.getAttributeNS(androidNamespace, "name")
+
+    @Test
+    fun theMergedManifestRequestsExactlyTheseUsesPermissions() {
+        val dynamic = "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        val requested =
+            allElements(mergedManifest)
+                .filter { it.tagName == "uses-permission" }
+                .map { nameOf(it) }
+                // androidx.core's own signature permission carries the application ID, which differs by build type.
+                .map { if (it.endsWith(".$dynamic")) dynamic else it }
+                .toSet()
+        val allowed =
+            setOf(
+                "android.permission.INTERNET",
+                "android.permission.WAKE_LOCK",
+                "android.permission.ACCESS_NETWORK_STATE",
+                // The periodic sync (spec 06 task 4.0) restarts after a reboot.
+                "android.permission.RECEIVE_BOOT_COMPLETED",
+                dynamic,
+            )
+        assertEquals(allowed, requested)
+    }
+
+    @Test
+    fun theMergedManifestExportsExactlyTheseComponents() {
+        val kinds = setOf("activity", "service", "receiver", "provider")
+        val exported =
+            allElements(mergedManifest)
+                .filter { it.tagName in kinds }
+                .filter {
+                    val attribute = it.getAttributeNS(androidNamespace, "exported")
+                    attribute == "true" || (attribute.isEmpty() && it.getElementsByTagName("intent-filter").length > 0)
+                }.map { nameOf(it) }
+                .toSet()
+        val allowed =
+            setOf(
+                "tv.stationbreak.app.MainActivity",
+                // System-only: each is guarded by a permission only the system holds.
+                "androidx.work.impl.background.systemjob.SystemJobService",
+                "androidx.work.impl.diagnostics.DiagnosticsReceiver",
+                "androidx.profileinstaller.ProfileInstallReceiver",
+            )
+        assertEquals(allowed, exported)
+    }
+
+    @Test
+    fun theForegroundServiceNothingUsesIsRemoved() {
+        val names = allElements(mergedManifest).map { nameOf(it) }
+        assertTrue("FOREGROUND_SERVICE is still requested", "android.permission.FOREGROUND_SERVICE" !in names)
+        assertTrue(
+            "SystemForegroundService is still declared",
+            "androidx.work.impl.foreground.SystemForegroundService" !in names,
+        )
+    }
 }
