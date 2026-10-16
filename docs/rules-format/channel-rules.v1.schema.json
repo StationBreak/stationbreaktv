@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StationBreak channel rules, format version 1",
+  "description": "Describes a version 1 rules file. Every object is open: a reader keeps and ignores fields it does not know. The schema checks shapes only. The range of a seed (at most 18446744073709551615) and 'to' not below 'from' in a year range are checked by readers; see docs/rules-format.md.",
+  "type": "object",
+  "required": ["formatVersion", "seed", "sources"],
+  "properties": {
+    "formatVersion": {
+      "description": "1 for this version. A reader that supports a lower number than this one must not schedule the channel.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "name": {
+      "description": "Display name. Free text, never used for matching or ordering.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "seed": { "$ref": "#/$defs/seed" },
+    "sources": {
+      "description": "What can air. The union of all sources, minus the exclusions.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "exclusions": {
+      "description": "What must not air. Same kinds as sources.",
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "maxRating": { "$ref": "#/$defs/rating" },
+    "ordering": { "$ref": "#/$defs/ordering" },
+    "timing": { "$ref": "#/$defs/timing" },
+    "filler": { "$ref": "#/$defs/filler" }
+  },
+  "$defs": {
+    "id": {
+      "description": "A canonical item ID: 32 lowercase hex characters, no hyphens.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "text": {
+      "description": "A name matched exactly, as UTF-8, with ASCII-only case folding.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "seed": {
+      "description": "An unsigned 64-bit value as a decimal string: no sign, no leading zeros except \"0\", at most 20 digits. The range is checked by readers.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "rating": {
+      "description": "A rating ceiling, spelled exactly as in the ladder. Absent means no ceiling.",
+      "enum": [
+        "TV-Y", "TV-G", "G", "Approved",
+        "TV-Y7", "TV-Y7-FV",
+        "TV-PG", "PG",
+        "PG-13",
+        "TV-14",
+        "R",
+        "TV-MA", "NC-17",
+        "TV-X", "TV-AO"
+      ]
+    },
+    "libraryRef": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "library" }, "id": { "$ref": "#/$defs/id" } }
+    },
+    "genreRef": {
+      "type": "object",
+      "required": ["type", "name"],
+      "properties": { "type": { "const": "genre" }, "name": { "$ref": "#/$defs/text" } }
+    },
+    "collectionRef": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "collection" }, "id": { "$ref": "#/$defs/id" } }
+    },
+    "tagRef": {
+      "type": "object",
+      "required": ["type", "name"],
+      "properties": { "type": { "const": "tag" }, "name": { "$ref": "#/$defs/text" } }
+    },
+    "yearRangeRef": {
+      "type": "object",
+      "required": ["type", "from", "to"],
+      "properties": {
+        "type": { "const": "yearRange" },
+        "from": { "type": "integer", "minimum": 1, "maximum": 9999 },
+        "to": { "type": "integer", "minimum": 1, "maximum": 9999 }
+      }
+    },
+    "seriesRef": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "series" }, "id": { "$ref": "#/$defs/id" } }
+    },
+    "source": {
+      "description": "One source or exclusion, chosen by its 'type'.",
+      "oneOf": [
+        { "$ref": "#/$defs/libraryRef" },
+        { "$ref": "#/$defs/genreRef" },
+        { "$ref": "#/$defs/collectionRef" },
+        { "$ref": "#/$defs/tagRef" },
+        { "$ref": "#/$defs/yearRangeRef" },
+        { "$ref": "#/$defs/seriesRef" }
+      ]
+    },
+    "fillerSource": {
+      "description": "Where filler comes from: a library, a collection or a tag.",
+      "oneOf": [
+        { "$ref": "#/$defs/libraryRef" },
+        { "$ref": "#/$defs/collectionRef" },
+        { "$ref": "#/$defs/tagRef" }
+      ]
+    },
+    "ordering": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": { "mode": { "enum": ["SHUFFLE", "CHRONOLOGICAL", "RANDOM_IN_ORDER"] } }
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "blockLength": { "description": "Items per block. Default 1.", "type": "integer", "minimum": 1, "maximum": 100 },
+        "alignToGrid": { "description": "Start blocks on :00 and :30. Default true.", "type": "boolean" },
+        "epochHours": { "description": "Length of an epoch in hours. Default 24.", "type": "integer", "minimum": 1, "maximum": 168 },
+        "broadcastDay": {
+          "type": "object",
+          "properties": {
+            "utcOffsetMinutes": {
+              "description": "Fixed offset from UTC in minutes, east positive. Default 0.",
+              "type": "integer",
+              "minimum": -720,
+              "maximum": 840
+            },
+            "start": {
+              "description": "When the broadcast day starts, as HH:MM on a 24-hour clock at that offset. Default 06:00.",
+              "type": "string",
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+            }
+          }
+        }
+      }
+    },
+    "filler": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["none", "pad-to-grid", "between-every-N"] },
+        "every": { "description": "N for between-every-N: one filler item after every N programs.", "type": "integer", "minimum": 1, "maximum": 1000 },
+        "source": { "$ref": "#/$defs/fillerSource" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "between-every-N" } }, "required": ["mode"] },
+          "then": { "required": ["every", "source"] }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "pad-to-grid" } }, "required": ["mode"] },
+          "then": { "required": ["source"] }
+        }
+      ]
+    }
+  }
+}
