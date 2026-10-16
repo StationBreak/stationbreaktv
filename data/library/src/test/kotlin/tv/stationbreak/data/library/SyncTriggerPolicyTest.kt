@@ -75,7 +75,8 @@ class SyncTriggerPolicyTest {
         val running = LibraryStatus(SyncState.FirstSyncRunning(copied = 10, total = 100), null)
         assertEquals(SyncPlan.None, policy.onOpen(running, syncRunning = false))
         assertEquals(SyncPlan.None, policy.onOpen(LibraryStatus(SyncState.NeverSynced, null), syncRunning = false))
-        assertEquals(SyncPlan.None, policy.onOpen(LibraryStatus(SyncState.LastSyncFailed(SyncFailure.Server), null), false))
+        val failedFirst = LibraryStatus(SyncState.LastSyncFailed(SyncFailure.Server), null)
+        assertEquals(SyncPlan.None, policy.onOpen(failedFirst, syncRunning = false))
         assertEquals(SyncPlan.None, policy.onOpen(null, syncRunning = false))
     }
 
@@ -96,7 +97,8 @@ class SyncTriggerPolicyTest {
     private fun plansEnqueued() =
         enqueuer.enqueued.map {
             val data = it.third.workSpec.input
-            SyncPlan(data.getBoolean(StayCurrentWork.KEY_INCREMENTAL, false), data.getBoolean(StayCurrentWork.KEY_RECONCILE, false))
+            val incremental = data.getBoolean(StayCurrentWork.KEY_INCREMENTAL, false)
+            SyncPlan(incremental, data.getBoolean(StayCurrentWork.KEY_RECONCILE, false))
         }
 
     @Test

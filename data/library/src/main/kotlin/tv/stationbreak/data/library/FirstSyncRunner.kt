@@ -20,11 +20,11 @@ import kotlin.time.Clock
  */
 @Suppress("ReturnCount") // Each early return is a reason there is nothing to sync yet.
 class FirstSyncRunner(
-    private val settings: ServerSettings,
-    private val sessions: SessionRepository,
-    private val server: MediaServer,
-    private val repository: RoomLibraryRepository,
-    private val clock: Clock = Clock.System,
+    internal val settings: ServerSettings,
+    internal val sessions: SessionRepository,
+    internal val server: MediaServer,
+    internal val repository: RoomLibraryRepository,
+    internal val clock: Clock = Clock.System,
 ) {
     /** Runs the first sync once and says what WorkManager should do next. [attempt] is the run's retry count. */
     suspend fun run(attempt: Int): SyncVerdict = SyncRetryPolicy.verdict(outcome(), attempt)

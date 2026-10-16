@@ -5,10 +5,12 @@ import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ListenableWorker
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
+import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.Flow
@@ -76,7 +78,8 @@ internal interface WorkEnqueuer {
 /** WorkManager itself. It is asked for on first use, so building this starts nothing. */
 internal class WorkManagerEnqueuer(
     context: Context,
-) : WorkEnqueuer {
+) : WorkEnqueuer,
+    PeriodicEnqueuer {
     private val appContext = context.applicationContext
     private val manager: WorkManager by lazy { WorkManager.getInstance(appContext) }
 
@@ -86,6 +89,14 @@ internal class WorkManagerEnqueuer(
         request: OneTimeWorkRequest,
     ) {
         manager.enqueueUniqueWork(name, policy, request)
+    }
+
+    override fun enqueueUniquePeriodic(
+        name: String,
+        policy: ExistingPeriodicWorkPolicy,
+        request: PeriodicWorkRequest,
+    ) {
+        manager.enqueueUniquePeriodicWork(name, policy, request)
     }
 
     override fun cancelUnique(name: String) {

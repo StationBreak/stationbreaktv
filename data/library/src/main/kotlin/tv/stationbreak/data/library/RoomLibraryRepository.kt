@@ -375,8 +375,8 @@ class RoomLibraryRepository internal constructor(
             clock: Clock = Clock.System,
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
-            // Sign-in and sign-out cancel the unique first-sync work through WorkManager, asked for only when they do.
-            val sync = WorkManagerSyncControl(WorkManagerEnqueuer(context))
+            // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
+            val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
             return RoomLibraryRepository(builder.build(), clock, sync)
         }
 

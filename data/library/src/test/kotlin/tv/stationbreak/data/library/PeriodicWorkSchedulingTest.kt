@@ -45,7 +45,7 @@ class PeriodicWorkSchedulingTest {
         stayCurrent.schedulePeriodic()
         stayCurrent.schedulePeriodic()
 
-        assertEquals(listOf(StayCurrentWork.PERIODIC_NAME, StayCurrentWork.PERIODIC_NAME), enqueuer.periodic.map { it.first })
+        assertEquals(List(2) { StayCurrentWork.PERIODIC_NAME }, enqueuer.periodic.map { it.first })
         assertEquals(List(2) { ExistingPeriodicWorkPolicy.KEEP }, enqueuer.periodic.map { it.second })
     }
 
