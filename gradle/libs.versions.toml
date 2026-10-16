@@ -51,6 +51,14 @@ testcontainers = "2.0.5"
 # 3.0.8 is the latest stable (checked 2026-10-15; the jar was published 2026-09-30). Apache-2.0. Never in a runtime classpath.
 jsonSchemaValidator = "3.0.8"
 
+# Room 2.8.5 is the latest stable Room 2 (checked 2026-10-15; released 2026-09-09): the library cache in data:library only
+# (core:* may not declare it, checkArchitecture). minSdk 23, fine on API 25. Room 3.0.3 (androidx.room3, also minSdk 23) is
+# not used: see the spec 06 task 2.2 verdict in docs/MODULES.md. KSP only, no kapt.
+room = "2.8.5"
+# androidx.sqlite 2.7.1 (checked 2026-10-15) is Room 2.8.5's own SQLite line. Its bundled driver is TEST ONLY: it lets the
+# cache's unit tests run Room on the JVM. The app uses the platform SQLite.
+androidxSqlite = "2.7.1"
+
 minSdk = "25"
 # Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
 # (owner, 2026-10-12/13).
@@ -79,6 +87,13 @@ androidx-navigation-compose = { module = "androidx.navigation:navigation-compose
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+# The annotation processor, through KSP (`ksp(...)`) in data:library only.
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+# Test only: the JVM build of the bundled SQLite driver (it carries the Linux x64 native library) that the cache's unit tests
+# run Room on (see [versions]). The Android build of this artifact has no host library. Never in an APK.
+androidx-sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.ref = "androidxSqlite" }
 
 jellyfin-sdk-core = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfinSdk" }
 jellyfin-sdk-api-okhttp = { module = "org.jellyfin.sdk:jellyfin-api-okhttp", version.ref = "jellyfinSdk" }

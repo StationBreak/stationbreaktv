@@ -89,6 +89,24 @@ task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configu
 atomically replaced file in `noBackupFilesDir`). `app` binds both in `MediaServerModule`. The DataStore settings arrive with
 the stories that need them.
 
+`data:library` exists since F0.6 task 2.0. It holds the saved copy of the user's chosen libraries in Room (`RoomLibraryRepository`,
+the `LibraryRepository` implementation) and, from tasks 3.0 and 4.0, the sync engine, the worker and the trigger policy. It
+depends on `core:domain` and `core:model` only. Room and WorkManager belong to this module: `checkArchitecture` fails a `core:*`
+module that declares `androidx.room*` or `androidx.work*`. `app` binds the repository in `di/LibraryModule`, and passes it to
+`SessionRepository` as the `AccountCache`, so sign-in and sign-out keep the saved copy to one account.
+
+- **Room 2.8.5, KSP only, platform SQLite.** The database is a cache: a schema change drops and rebuilds it, and the schema is
+  exported to `data/library/schemas/` so a change shows in review. The SQL stays inside what SQLite 3.9 (API 25) has: no UPSERT,
+  no window functions, no row values, at most 999 variables per statement.
+- **Room 3 was checked and not adopted** (spec 06 task 2.2, 2026-10-15). `androidx.room3:room3-runtime-android:3.0.3` is stable
+  and its merged manifest says `minSdkVersion 23`, so it would not break R-PLAT-1. It stays on Room 2.8.5 because the spec and
+  the research notes design for 2.x, Room 3 drops the `SupportSQLite` API for a driver-only one, and the cache is rebuildable, so
+  moving later is mechanical. Revisit when Room 2 stops receiving fixes. The AARs the cache pulls in are all minSdk 23 or 24
+  (Room 2.8.5: 23, androidx.sqlite 2.7.1: 23, WorkManager 2.12.0, added by task 3.0: 24).
+- **Unit tests run Room on the JVM** over `androidx.sqlite:sqlite-bundled-jvm`, a test-only dependency that carries a native
+  SQLite for the build machine. It is never in an APK. The instrumented test on the API 25 emulator runs the same schema on the
+  platform SQLite.
+
 Per-server certificate trust (F0.5 task 3.0, S0.5.2) is in `data:jellyfin`'s `trust` package: `PinnedHttpClients` builds the
 one base client the adapter derives every client from, and rebuilds its `SSLContext`, client and connection pool whenever a
 pin changes. Its trust manager asks the platform first (`SystemTrust`, supplied by `app` as the Network Security Config's trust
