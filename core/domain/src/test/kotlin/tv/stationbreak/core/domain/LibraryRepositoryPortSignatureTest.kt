@@ -64,7 +64,10 @@ class LibraryRepositoryPortSignatureTest {
 
     @Test
     fun theRepositoryPortHasTheJobsTheSpecGivesIt() {
-        val methods = LibraryRepository::class.java.methods.map { it.name }.toSet()
+        val methods =
+            LibraryRepository::class.java.methods
+                .map { it.name }
+                .toSet()
         // The snapshot, the status flow (sync state and last success), the exclusion count and the selection.
         assertTrue(
             methods.containsAll(setOf("snapshot", "status", "excludedCount", "select", "pendingLibraries")),
@@ -80,7 +83,10 @@ class LibraryRepositoryPortSignatureTest {
     @Test
     fun theAccountCacheHookUsesOnlyDomainTypes() {
         assertDomainOnly(AccountCache::class.java)
-        val methods = AccountCache::class.java.methods.map { it.name }.toSet()
+        val methods =
+            AccountCache::class.java.methods
+                .map { it.name }
+                .toSet()
         assertEquals(setOf("useAccount", "forget"), methods)
     }
 
@@ -90,7 +96,8 @@ class LibraryRepositoryPortSignatureTest {
         listOf(SyncState.FirstSyncRunning::class.java, SyncState.LastSyncFailed::class.java, LibraryStatus::class.java)
             .forEach { type ->
                 val found = type.declaredFields.flatMap { names(it.genericType) }
-                assertEquals(emptyList(), found.filter { it.contains("Throwable") || it.contains("Exception") }, type.name)
+                val bad = found.filter { it.contains("Throwable") || it.contains("Exception") }
+                assertEquals(emptyList(), bad, type.name)
             }
     }
 }

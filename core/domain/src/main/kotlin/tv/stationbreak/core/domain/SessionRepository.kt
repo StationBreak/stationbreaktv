@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -53,8 +54,23 @@ sealed interface RestoreOutcome {
 class SessionRepository(
     private val store: SecretStore,
     private val server: MediaServer,
+    private val cache: AccountCache = AccountCache.None,
 ) {
-    suspend fun save(session: Session): PersistOutcome = write(session.toStored())
+    /**
+     * Stores [session]. Its account becomes the active one in the saved library, whether or not the token reached
+     * storage: the user is signed in for this run, so every other account's saved library goes now (spec 06 task 2.12).
+     */
+    suspend fun save(session: Session): PersistOutcome {
+        val outcome = write(session.toStored())
+        try {
+            cache.useAccount(session.libraryAccount())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // A cache that can't be tidied never fails a sign-in: it is rows keyed by account, not a credential.
+        }
+        return outcome
+    }
 
     private suspend fun write(stored: StoredSession): PersistOutcome =
         when (store.save(SESSION_KEY, encode(stored))) {
@@ -121,11 +137,24 @@ class SessionRepository(
     suspend fun signOut(session: Session): RevokeOutcome =
         withContext(NonCancellable) {
             clear()
+            forgetLibrary(session)
             when (server.revoke(session)) {
                 is ServerResult.Success -> RevokeOutcome.Revoked
                 is ServerResult.Failure -> RevokeOutcome.NotRevoked
             }
         }
+
+    // The saved library of a signed-out account goes with it. A failure here never stops the sign-out: the token is
+    // already gone, and the next sign-in's useAccount deletes whatever is left.
+    private suspend fun forgetLibrary(session: Session) {
+        try {
+            cache.forget(session.libraryAccount())
+        } catch (_: Exception) {
+            // See above.
+        }
+    }
+
+    private fun Session.libraryAccount() = LibraryAccount(this.server.id, this.userId)
 
     @OptIn(SecretAccess::class)
     private fun encode(stored: StoredSession): String =
