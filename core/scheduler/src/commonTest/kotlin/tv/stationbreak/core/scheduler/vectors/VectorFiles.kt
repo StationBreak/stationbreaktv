@@ -2368,9 +2368,7 @@ internal object VectorFiles {
         """.trimIndent() + "\n"
 
     /**
-     * Cross-check cases for the epoch maths, from the same independent reference. Not published under
-     * `docs/rules-format/`, so nothing checks this copy against a file: it is held here exactly as the reference
-     * wrote it.
+     * Cases for the epoch maths (`epoch-math.json`), from the same independent reference.
      */
     val epochMath: String =
         """
@@ -3985,5 +3983,6 @@ internal object VectorFiles {
     val files: Map<String, String> =
         mapOf(
             "epoch-seed.json" to epochSeed,
+            "epoch-math.json" to epochMath,
         )
 }
