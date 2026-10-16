@@ -8,9 +8,11 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.MediaSource
@@ -23,6 +25,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamUrls
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Instant
 
 /**
  * The libraries, items, playback-info and reporting calls (S0.3.3, R2). All of them go through [AuthorizedCall], so the
@@ -30,6 +33,7 @@ import kotlin.time.Duration.Companion.microseconds
  * are read into the small lenient DTOs in `Wire.kt`, and anything that is not a plain value of the domain model (a URL,
  * a file path, a key) is dropped there.
  */
+@Suppress("TooManyFunctions") // One class for the media surface (libraries, items, playback, reports).
 internal class MediaCalls(
     private val calls: AuthorizedCall,
 ) {
@@ -58,10 +62,90 @@ internal class MediaCalls(
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
-                convert { ItemPage(page.totalRecordCount, page.startIndex, page.items.map(::item)) }
+                convert { ItemPage(page.totalRecordCount ?: 0, page.startIndex, page.items.map(::item)) }
             }
         }
     }
+
+    suspend fun libraryItems(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<LibraryItemsPage> {
+        val query =
+            recursiveQuery(library, startIndex, limit) +
+                listOfNotNull(
+                    "fields" to ITEM_FIELDS,
+                    changedSince?.let { "minDateLastSaved" to utcMillis(it) },
+                )
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { LibraryItemsPage(startIndex, total, page.items.map(::item)) }
+                }
+            }
+        }
+    }
+
+    suspend fun libraryItemIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        val query = recursiveQuery(library, startIndex, limit) + ID_ONLY
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, ItemIdsDto.serializer()).flatMap { page ->
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { ItemIdPage(startIndex, total, page.items.map { ItemId(it.id) }) }
+                }
+            }
+        }
+    }
+
+    /**
+     * The query both cache calls share: the library's video items at any depth, in a stable order. The total
+     * count is asked for on the first page only, because the server counts the whole library for it.
+     */
+    private fun recursiveQuery(
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): List<Pair<String, String>> {
+        require(startIndex >= 0) { "startIndex can't be negative" }
+        require(limit in 1..MediaServer.MAX_PAGE_SIZE) { "limit must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
+        return listOf(
+            "parentId" to library.id.value,
+            "recursive" to "true",
+            "includeItemTypes" to CACHED_TYPES,
+            // Jellyfin 12 has no sort by ID (an unknown key is ignored), but it breaks every tie on the ID, in
+            // ascending order whatever the direction (contract test: tiedNamesPageStably), so this order is total.
+            "sortBy" to "SortName",
+            "sortOrder" to "Ascending",
+            "startIndex" to startIndex.toString(),
+            "limit" to limit.toString(),
+            "enableTotalRecordCount" to (startIndex == 0).toString(),
+        )
+    }
+
+    /**
+     * The total for a page: asked for, and so required, on the first page; never asked for, and so null, after it.
+     * A first page without one is not an empty library, it is an answer we can't trust, so the page fails.
+     */
+    private fun firstPageTotal(
+        startIndex: Int,
+        total: Int?,
+    ): ServerResult<Int?> =
+        when {
+            startIndex != 0 -> ServerResult.Success(null)
+            total == null -> ServerResult.Failure(MediaServerError.ServerError())
+            else -> ServerResult.Success(total)
+        }
+
+    /** The moment as UTC text with millisecond precision, which is as fine as the server reads. */
+    private fun utcMillis(at: Instant): String = Instant.fromEpochMilliseconds(at.toEpochMilliseconds()).toString()
 
     suspend fun playbackInfo(
         session: Session,
@@ -115,7 +199,25 @@ internal class MediaCalls(
             kind = ITEM_KINDS[dto.type] ?: ItemKind.Other,
             runtime = dto.runTimeTicks?.let(::duration),
             parentId = dto.parentId?.let(::ItemId),
+            dateCreated = instant(dto.dateCreated),
+            productionYear = dto.productionYear,
+            officialRating = dto.officialRating,
+            genres = dto.genres.orEmpty(),
+            tags = dto.tags.orEmpty(),
+            seriesId = dto.seriesId?.let(::ItemId),
+            seasonNumber = dto.seasonNumber,
+            episodeNumber = dto.episodeNumber,
         )
+
+    /** A date the server sent, or null when it is missing or unreadable: one odd date must not fail a page. */
+    private fun instant(text: String?): Instant? =
+        text?.let {
+            try {
+                Instant.parse(it)
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
 
     private fun playbackInfo(
         address: ServerAddress,
@@ -141,11 +243,28 @@ internal class MediaCalls(
             supportsDirectStream = dto.supportsDirectStream,
         )
 
-    /** Ticks are 100 ns; a negative runtime is nonsense, so it reads as unknown. */
-    private fun duration(ticks: Long): Duration? = if (ticks < 0) null else (ticks / TICKS_PER_MICROSECOND).microseconds
+    /** Ticks are 100 ns; a zero or negative runtime is nonsense for an item, so it reads as unknown. */
+    private fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MICROSECOND).microseconds.takeIf { ticks > 0 }
 
     private companion object {
         const val TICKS_PER_MICROSECOND = 10L
+
+        /** The video kinds the cache holds (spec 06): never series, seasons, folders or collections. */
+        const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
+
+        /**
+         * The optional fields the cache needs. `DateLastSaved` is not among them: neither 12.1 nor 12.2 returns it,
+         * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
+         * runtime) come with every item, so asking for more would only make the answer bigger.
+         */
+        const val ITEM_FIELDS = "DateCreated,Genres,Tags,ParentId"
+
+        /**
+         * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
+         * neither: on 12.1 and 12.2 a 6-item page measured 7.5 kB with the cache fields, 5.9 kB bare, 4.0 kB without
+         * images and 2.9 kB without images and user data.
+         */
+        val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
 
         val ITEM_KINDS =
             mapOf(

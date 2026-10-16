@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
@@ -15,6 +17,15 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import kotlin.time.Instant
+
+/** The arguments of one [MediaServer.libraryItems] call, as the fake recorded it. */
+data class LibraryItemsCall(
+    val library: Library,
+    val startIndex: Int,
+    val limit: Int,
+    val changedSince: Instant?,
+)
 
 /** A scripted [MediaServer] for tests of code that uses the port (ADR-0004). Not thread-safe. */
 class FakeMediaServer : MediaServer {
@@ -27,6 +38,8 @@ class FakeMediaServer : MediaServer {
     var quickConnectStates: List<QuickConnectState> = emptyList()
     var librariesResult: ServerResult<List<Library>> = ServerResult.Failure(MediaServerError.Unknown())
     var itemsResult: ServerResult<ItemPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var libraryItemsResult: ServerResult<LibraryItemsPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var libraryItemIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
     var playbackInfoResult: ServerResult<PlaybackInfo> = ServerResult.Failure(MediaServerError.Unknown())
     var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
@@ -48,6 +61,12 @@ class FakeMediaServer : MediaServer {
 
     /** The library, start index and limit of each [items] call. */
     val itemsCalls = mutableListOf<Triple<Library, Int, Int>>()
+
+    /** Each [libraryItems] call. */
+    val libraryItemsCalls = mutableListOf<LibraryItemsCall>()
+
+    /** The library, start index and limit of each [libraryItemIds] call. */
+    val libraryItemIdsCalls = mutableListOf<Triple<Library, Int, Int>>()
     val playbackInfoCalls = mutableListOf<ItemId>()
 
     /** The reports sent, in order, as the call name and the report. */
@@ -118,6 +137,29 @@ class FakeMediaServer : MediaServer {
         require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
         itemsCalls += Triple(library, startIndex, limit)
         return itemsResult
+    }
+
+    override suspend fun libraryItems(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<LibraryItemsPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        libraryItemsCalls += LibraryItemsCall(library, startIndex, limit, changedSince)
+        return libraryItemsResult
+    }
+
+    override suspend fun libraryItemIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        libraryItemIdsCalls += Triple(library, startIndex, limit)
+        return libraryItemIdsResult
     }
 
     override suspend fun playbackInfo(

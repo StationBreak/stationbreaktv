@@ -86,6 +86,8 @@ class CleartextGateTest {
                 // The media calls (Unit 3) take a session, which carries the acknowledgement, plus plain values.
                 Library::class.java,
                 PlaybackReport::class.java,
+                // libraryItems takes the moment to fetch changes since: a plain value.
+                kotlin.time.Instant::class.java,
                 // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.
                 SpkiPin::class.java,
                 Int::class.javaPrimitiveType,

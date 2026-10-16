@@ -5,9 +5,11 @@ import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.MediaSourceId
@@ -23,6 +25,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class FakeMediaServerTest {
     private val address = ServerAddress(Scheme.Https, "media.example.com", 443)
@@ -76,6 +79,43 @@ class FakeMediaServerTest {
             assertFailsWith<IllegalArgumentException> { fake.items(session(), library, -1, 10) }
             val tooMany = MediaServer.MAX_PAGE_SIZE + 1
             assertFailsWith<IllegalArgumentException> { fake.items(session(), library, 0, tooMany) }
+        }
+    }
+
+    @Test
+    fun recordsTheCacheCallsAndAnswersWithWhatItWasTold() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val library = Library(ItemId("lib"), "Films", LibraryKind.Movies)
+            val page = LibraryItemsPage(0, 1, listOf(MediaItem(ItemId("i1"), "Heat", ItemKind.Movie, null, null)))
+            val ids = ItemIdPage(0, 1, listOf(ItemId("i1")))
+            val since = Instant.parse("2026-03-04T05:06:07Z")
+            fake.libraryItemsResult = ServerResult.Success(page)
+            fake.libraryItemIdsResult = ServerResult.Success(ids)
+
+            assertEquals(ServerResult.Success(page), fake.libraryItems(session(), library, 0, 10, since))
+            assertEquals(ServerResult.Success(page), fake.libraryItems(session(), library, 10, 20))
+            assertEquals(ServerResult.Success(ids), fake.libraryItemIds(session(), library, 5, 7))
+
+            assertEquals(
+                listOf(LibraryItemsCall(library, 0, 10, since), LibraryItemsCall(library, 10, 20, null)),
+                fake.libraryItemsCalls,
+            )
+            assertEquals(listOf(Triple(library, 5, 7)), fake.libraryItemIdsCalls)
+        }
+    }
+
+    @Test
+    fun refusesABadCachePageRequestAsTheRealPortDoes() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val library = Library(ItemId("lib"), "Films", LibraryKind.Movies)
+            val tooMany = MediaServer.MAX_PAGE_SIZE + 1
+
+            assertFailsWith<IllegalArgumentException> { fake.libraryItems(session(), library, -1, 10) }
+            assertFailsWith<IllegalArgumentException> { fake.libraryItems(session(), library, 0, tooMany) }
+            assertFailsWith<IllegalArgumentException> { fake.libraryItemIds(session(), library, -1, 10) }
+            assertFailsWith<IllegalArgumentException> { fake.libraryItemIds(session(), library, 0, 0) }
         }
     }
 }

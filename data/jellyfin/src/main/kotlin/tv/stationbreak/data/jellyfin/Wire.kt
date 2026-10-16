@@ -89,17 +89,51 @@ internal class ViewDto(
 @Serializable
 internal class ItemsDto(
     @SerialName("Items") val items: List<ItemDto> = emptyList(),
-    @SerialName("TotalRecordCount") val totalRecordCount: Int = 0,
+    // Null when the server sent none. The old `items` call reads that as 0; the cache calls fail a first page
+    // that has none, because 0 would look like an empty library.
+    @SerialName("TotalRecordCount") val totalRecordCount: Int? = null,
     @SerialName("StartIndex") val startIndex: Int = 0,
 )
 
+/**
+ * One item of a page. Decoding is deliberately strict about types: a field that is present but the wrong type (a
+ * year that is text, say) fails the whole page as `NotJellyfin`, because `coerceInputValues` would turn it into a
+ * silent default and the cache would hold a wrong value. Missing, null and unknown fields are fine. A server that
+ * sends one malformed item therefore fails its page every time; the sync (Unit 3) retries and then narrows the page
+ * to find it, rather than guessing here.
+ */
 @Serializable
+@Suppress("LongParameterList") // One property per wire field.
 internal class ItemDto(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String = "",
     @SerialName("Type") val type: String = "",
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("ParentId") val parentId: String? = null,
+    // Dates stay text here and are read leniently in the mapper, so an odd one is absent, not a failed page.
+    @SerialName("DateCreated") val dateCreated: String? = null,
+    @SerialName("ProductionYear") val productionYear: Int? = null,
+    @SerialName("OfficialRating") val officialRating: String? = null,
+    @SerialName("Genres") val genres: List<String>? = null,
+    @SerialName("Tags") val tags: List<String>? = null,
+    @SerialName("SeriesId") val seriesId: String? = null,
+    @SerialName("ParentIndexNumber") val seasonNumber: Int? = null,
+    @SerialName("IndexNumber") val episodeNumber: Int? = null,
+)
+
+/** An ID-only listing: the answer carries more, but only the ID is read. */
+@Serializable
+internal class ItemIdsDto(
+    @SerialName("Items") val items: List<ItemIdDto> = emptyList(),
+    // Null when the server sent none. The old `items` call reads that as 0; the cache calls fail a first page
+    // that has none, because 0 would look like an empty library.
+    @SerialName("TotalRecordCount") val totalRecordCount: Int? = null,
+    @SerialName("StartIndex") val startIndex: Int = 0,
+)
+
+@Serializable
+internal class ItemIdDto(
+    @SerialName("Id") val id: String,
 )
 
 /** The answer to `PlaybackInfo`. `Path`, `TranscodingUrl` and the like are not here, so they can't be passed on. */
