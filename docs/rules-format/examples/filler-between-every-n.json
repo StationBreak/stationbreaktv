@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "name": "Station Breaks",
+  "seed": "9",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filler": {
+    "mode": "between-every-N",
+    "every": 3,
+    "source": {
+      "type": "collection",
+      "id": "66666666666666666666666666666666"
+    }
+  }
+}

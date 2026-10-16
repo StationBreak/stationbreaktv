@@ -1,0 +1,49 @@
+{
+  "formatVersion": 1,
+  "name": "From A Newer App",
+  "seed": "12",
+  "futureTopLevel": {
+    "anything": [
+      1,
+      2,
+      3
+    ]
+  },
+  "sources": [
+    {
+      "type": "genre",
+      "name": "Drama",
+      "futureSourceField": true
+    }
+  ],
+  "exclusions": [
+    {
+      "type": "tag",
+      "name": "Skip",
+      "futureExclusionField": "x"
+    }
+  ],
+  "maxRating": "TV-14",
+  "ordering": {
+    "mode": "SHUFFLE",
+    "futureOrderingField": 1
+  },
+  "timing": {
+    "blockLength": 1,
+    "futureTimingField": null,
+    "broadcastDay": {
+      "utcOffsetMinutes": 60,
+      "start": "05:30",
+      "futureDayField": []
+    }
+  },
+  "filler": {
+    "mode": "pad-to-grid",
+    "futureFillerField": "y",
+    "source": {
+      "type": "library",
+      "id": "77777777777777777777777777777777",
+      "futureFillerSourceField": 2
+    }
+  }
+}

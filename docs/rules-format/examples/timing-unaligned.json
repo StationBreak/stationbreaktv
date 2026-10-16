@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "Marathon",
+  "seed": "5",
+  "sources": [
+    {
+      "type": "series",
+      "id": "00000000000000000000000000000004"
+    }
+  ],
+  "timing": {
+    "blockLength": 4,
+    "alignToGrid": false,
+    "epochHours": 12
+  }
+}

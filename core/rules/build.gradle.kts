@@ -19,5 +19,9 @@ val rulesFormatDoc = rootProject.layout.projectDirectory.file("docs/rules-format
 tasks.withType<Test>().configureEach {
     systemProperty("rulesFormat.dir", rulesFormatDir.asFile.absolutePath)
     inputs.files(rulesFormatDir.asFileTree).withPropertyName("rulesFormatFiles").withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.files(rulesFormatDoc).withPropertyName("rulesFormatDoc").optional().withPathSensitivity(PathSensitivity.NONE)
+    inputs
+        .files(rulesFormatDoc)
+        .withPropertyName("rulesFormatDoc")
+        .optional()
+        .withPathSensitivity(PathSensitivity.NONE)
 }

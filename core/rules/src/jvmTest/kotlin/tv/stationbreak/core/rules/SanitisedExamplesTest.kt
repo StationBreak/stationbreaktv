@@ -20,8 +20,8 @@ class SanitisedExamplesTest {
             else -> emptyList()
         }
 
-    // 32 hex characters that are one repeated digit, or 31 zeros then one digit.
-    private val placeholder = Regex("^(([0-9])\\2{31}|0{31}[0-9])$")
+    // 32 hex characters that are one repeated character, or 31 zeros then one digit.
+    private val placeholder = Regex("^(([0-9a-f])\\2{31}|0{31}[0-9])$")
     private val idShaped = Regex("^[0-9a-fA-F-]{32,36}$")
     private val tokenLike = Regex("[A-Za-z0-9_-]{24,}")
 

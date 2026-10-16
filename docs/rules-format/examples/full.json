@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "name": "Saturday Morning Cartoons",
+  "seed": "13835058055282163712",
+  "sources": [
+    {
+      "type": "genre",
+      "name": "Animation"
+    },
+    {
+      "type": "collection",
+      "id": "22222222222222222222222222222222"
+    }
+  ],
+  "exclusions": [
+    {
+      "type": "series",
+      "id": "33333333333333333333333333333333"
+    }
+  ],
+  "maxRating": "TV-Y7",
+  "ordering": {
+    "mode": "RANDOM_IN_ORDER"
+  },
+  "timing": {
+    "blockLength": 2,
+    "alignToGrid": true,
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  },
+  "filler": {
+    "mode": "between-every-N",
+    "every": 3,
+    "source": {
+      "type": "tag",
+      "name": "Station IDs"
+    }
+  }
+}

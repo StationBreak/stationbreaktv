@@ -1,0 +1,10 @@
+{
+  "formatVersion": 1,
+  "name": "Invalid",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ]
+}

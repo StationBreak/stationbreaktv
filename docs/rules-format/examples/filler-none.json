@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "name": "No Filler",
+  "seed": "9",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filler": {
+    "mode": "none"
+  }
+}

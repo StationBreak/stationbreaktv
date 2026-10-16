@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "name": "Comedy, Minus One",
+  "seed": "99",
+  "sources": [
+    {
+      "type": "genre",
+      "name": "Comedy"
+    },
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "exclusions": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    },
+    {
+      "type": "genre",
+      "name": "Horror"
+    },
+    {
+      "type": "collection",
+      "id": "22222222222222222222222222222222"
+    },
+    {
+      "type": "tag",
+      "name": "Seen It"
+    },
+    {
+      "type": "yearRange",
+      "from": 1900,
+      "to": 1969
+    },
+    {
+      "type": "series",
+      "id": "33333333333333333333333333333333"
+    }
+  ]
+}

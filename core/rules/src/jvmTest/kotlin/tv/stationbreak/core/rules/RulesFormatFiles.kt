@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
-import java.io.File
 import tools.jackson.databind.json.JsonMapper
+import java.io.File
 
 /** Reads the published rules-format files (schema, examples, document) from the repository (spec 07, Unit 1). */
 internal object RulesFormatFiles {

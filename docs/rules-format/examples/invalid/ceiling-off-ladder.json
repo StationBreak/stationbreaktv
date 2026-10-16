@@ -1,0 +1,12 @@
+{
+  "formatVersion": 1,
+  "name": "Invalid",
+  "seed": "1",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "maxRating": "PG-14"
+}

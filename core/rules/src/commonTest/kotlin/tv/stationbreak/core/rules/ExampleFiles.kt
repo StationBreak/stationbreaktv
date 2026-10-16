@@ -3,6 +3,592 @@ package tv.stationbreak.core.rules
 
 /** Kotlin copies of `docs/rules-format/examples/`. `ExampleFilesInSyncTest` fails if they differ from the files. */
 internal object ExampleFiles {
-    val valid: Map<String, String> = emptyMap()
-    val invalid: Map<String, String> = emptyMap()
+    val valid: Map<String, String> =
+        mapOf(
+            "library-only.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Everything",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "genre-with-max-rating.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Saturday Morning Cartoons",
+                  "seed": "13835058055282163712",
+                  "sources": [
+                    {
+                      "type": "genre",
+                      "name": "Animation"
+                    }
+                  ],
+                  "maxRating": "TV-Y7"
+                }
+                """.trimIndent() + "\n",
+            "collection.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Holiday Movies",
+                  "seed": "42",
+                  "sources": [
+                    {
+                      "type": "collection",
+                      "id": "22222222222222222222222222222222"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "tag.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Late Night",
+                  "seed": "18446744073709551615",
+                  "sources": [
+                    {
+                      "type": "tag",
+                      "name": "Late Night"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "year-range.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "The Nineties",
+                  "seed": "1990",
+                  "sources": [
+                    {
+                      "type": "yearRange",
+                      "from": 1990,
+                      "to": 1999
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "series.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Just This Show",
+                  "seed": "7",
+                  "sources": [
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "exclusion.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Comedy, Minus One",
+                  "seed": "99",
+                  "sources": [
+                    {
+                      "type": "genre",
+                      "name": "Comedy"
+                    },
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "exclusions": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    },
+                    {
+                      "type": "genre",
+                      "name": "Horror"
+                    },
+                    {
+                      "type": "collection",
+                      "id": "22222222222222222222222222222222"
+                    },
+                    {
+                      "type": "tag",
+                      "name": "Seen It"
+                    },
+                    {
+                      "type": "yearRange",
+                      "from": 1900,
+                      "to": 1969
+                    },
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "ordering-shuffle.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Shuffled",
+                  "seed": "5",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "SHUFFLE"
+                  }
+                }
+                """.trimIndent() + "\n",
+            "ordering-chronological.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "In Order",
+                  "seed": "5",
+                  "sources": [
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "CHRONOLOGICAL"
+                  }
+                }
+                """.trimIndent() + "\n",
+            "ordering-random-in-order.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Random Series, Episodes In Order",
+                  "seed": "5",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "RANDOM_IN_ORDER"
+                  },
+                  "timing": {
+                    "blockLength": 2,
+                    "alignToGrid": true
+                  }
+                }
+                """.trimIndent() + "\n",
+            "timing-unaligned.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Marathon",
+                  "seed": "5",
+                  "sources": [
+                    {
+                      "type": "series",
+                      "id": "00000000000000000000000000000004"
+                    }
+                  ],
+                  "timing": {
+                    "blockLength": 4,
+                    "alignToGrid": false,
+                    "epochHours": 12
+                  }
+                }
+                """.trimIndent() + "\n",
+            "broadcast-day-offset.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Eastern Evening",
+                  "seed": "8",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filler-none.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "No Filler",
+                  "seed": "9",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filler": {
+                    "mode": "none"
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filler-pad-to-grid.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Padded",
+                  "seed": "9",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filler": {
+                    "mode": "pad-to-grid",
+                    "source": {
+                      "type": "library",
+                      "id": "55555555555555555555555555555555"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filler-between-every-n.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Station Breaks",
+                  "seed": "9",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filler": {
+                    "mode": "between-every-N",
+                    "every": 3,
+                    "source": {
+                      "type": "collection",
+                      "id": "66666666666666666666666666666666"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filler-tag-source.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Tagged Filler",
+                  "seed": "9",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filler": {
+                    "mode": "pad-to-grid",
+                    "source": {
+                      "type": "tag",
+                      "name": "Station IDs"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "full.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Saturday Morning Cartoons",
+                  "seed": "13835058055282163712",
+                  "sources": [
+                    {
+                      "type": "genre",
+                      "name": "Animation"
+                    },
+                    {
+                      "type": "collection",
+                      "id": "22222222222222222222222222222222"
+                    }
+                  ],
+                  "exclusions": [
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    }
+                  ],
+                  "maxRating": "TV-Y7",
+                  "ordering": {
+                    "mode": "RANDOM_IN_ORDER"
+                  },
+                  "timing": {
+                    "blockLength": 2,
+                    "alignToGrid": true,
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  },
+                  "filler": {
+                    "mode": "between-every-N",
+                    "every": 3,
+                    "source": {
+                      "type": "tag",
+                      "name": "Station IDs"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "forward-compat-extras.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "From A Newer App",
+                  "seed": "12",
+                  "futureTopLevel": {
+                    "anything": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "sources": [
+                    {
+                      "type": "genre",
+                      "name": "Drama",
+                      "futureSourceField": true
+                    }
+                  ],
+                  "exclusions": [
+                    {
+                      "type": "tag",
+                      "name": "Skip",
+                      "futureExclusionField": "x"
+                    }
+                  ],
+                  "maxRating": "TV-14",
+                  "ordering": {
+                    "mode": "SHUFFLE",
+                    "futureOrderingField": 1
+                  },
+                  "timing": {
+                    "blockLength": 1,
+                    "futureTimingField": null,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 60,
+                      "start": "05:30",
+                      "futureDayField": []
+                    }
+                  },
+                  "filler": {
+                    "mode": "pad-to-grid",
+                    "futureFillerField": "y",
+                    "source": {
+                      "type": "library",
+                      "id": "77777777777777777777777777777777",
+                      "futureFillerSourceField": 2
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+        )
+
+    val invalid: Map<String, String> =
+        mapOf(
+            "wrong-type.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": "library"
+                }
+                """.trimIndent() + "\n",
+            "missing-format-version.json" to
+                """
+                {
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "format-version-zero.json" to
+                """
+                {
+                  "formatVersion": 0,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "missing-seed.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "seed-leading-zeros.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "007",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "seed-negative.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "-1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "seed-not-a-string.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": 12345,
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "hyphenated-id.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111-1111-1111-1111-111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "uppercase-id.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "ceiling-off-ladder.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "maxRating": "PG-14"
+                }
+                """.trimIndent() + "\n",
+            "unknown-source-kind.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "playlist",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "no-sources.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": []
+                }
+                """.trimIndent() + "\n",
+            "filler-between-every-n-missing-n.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filler": {
+                    "mode": "between-every-N",
+                    "source": {
+                      "type": "library",
+                      "id": "55555555555555555555555555555555"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+        )
 }
