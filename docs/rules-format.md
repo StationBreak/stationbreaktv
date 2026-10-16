@@ -13,9 +13,9 @@ steps that have to match bit for bit (the hash, the shuffle order and the chrono
 The words **must**, **must not**, **should** and **may** are used as described in RFC 2119 and RFC 8174, and mean that
 only when they are written in bold.
 
-Places marked `TODO(vectors)` point at worked numbers that will be published as test vectors in
-`docs/rules-format/vectors/`. Sections marked "specified by F1.1" are not written yet: they are the scheduler's part
-of the contract (see Building the schedule).
+Worked numbers are published as test vectors in `docs/rules-format/vectors/` (see Files). Sections marked "specified by
+F1.1" are not written yet: they are the scheduler's part of the contract (see Building the schedule), and the vectors for
+what the scheduler runs (the per-epoch seed, bounded integers and the key order) are published here and executed there.
 
 ## Overview and file layout
 
@@ -259,8 +259,10 @@ The hash-keyed order, in numbered steps:
 Removing one item from the pool leaves the relative order of every other item unchanged. That is the reason the order is
 a hash key and not a shuffle that depends on the size of the pool.
 
-`docs/rules-format/examples/ordering-shuffle.json` selects it. `TODO(vectors)`: worked keys, including one with the high
-bit set and one tie.
+`docs/rules-format/examples/ordering-shuffle.json` selects it. `docs/rules-format/vectors/key-order.json` has worked keys:
+three seeds and epochs with twelve IDs each (keys, hashes and the resulting order, with high-bit keys among them), and
+`sortCases` that give keys directly so that the unsigned comparison and a tie are tested on their own. The scheduler (F1.1)
+runs them; this document only publishes them.
 
 ### `chronological`
 
@@ -329,7 +331,8 @@ then it starts again: B1 A1 C1 B2 A2 A3 ...
 ```
 
 Where in this walk epoch `n` starts is specified by F1.1. `docs/rules-format/examples/ordering-random-in-order.json`
-selects it. `TODO(vectors)`: worked group keys.
+selects it. The key of a group is the same function with the group's canonical ID (the series ID) hashed in place of an
+item's, so the same `key-order.json` vectors cover group keys. The scheduler (F1.1) runs them.
 
 ## Timing
 
@@ -487,8 +490,18 @@ this section to *create* a channel.
 
   `seed = splitmix64(fnv1a64(bytes))`, written as an unsigned decimal string. The functions are defined in Primitives.
 
-  `TODO(vectors)`: a worked example for a library, a collection and a non-ASCII genre, with the hash and the seed in
-  decimal and hex, including a seed with the high bit set.
+  Worked examples (server ID `11111111111111111111111111111111`; all in `docs/rules-format/vectors/auto-seed.json`, which
+  also lists the exact bytes and the 32-bit halves):
+
+  | Kind | Key | `fnv1a64` (hex) | Seed (decimal) | Seed (hex) |
+  | --- | --- | --- | --- | --- |
+  | `library` | `22222222222222222222222222222222` | `d22a74589ce8af26` | `16427903836559823302` | `e3fba380266cd1c6` |
+  | `collection` | `33333333333333333333333333333333` | `1559bdec1b2bb6cd` | `1052978938816395171` | `0e9ceec4141e77a3` |
+  | `genre` | `Animé` | `edd5cb810fd750ff` | `182484535837226886` | `028850b7ef947786` |
+  | `genre` | `科幻` | `28f84939c584258a` | `12794934325292202904` | `b190bcfa777e7b98` |
+
+  The library and the `科幻` seeds have the high bit set. `animé` (lower case) and `Animé` written as `Anime` plus a
+  combining acute accent are different genre names and give different seeds: nothing is folded or normalised.
 
 - **Reseeding** a channel, and **duplicating** one, give the new channel a fresh random seed (a custom channel's rule).
 - **Importing** a rules file keeps the seed byte for byte.
@@ -608,7 +621,11 @@ the ordering hash is the **32 ASCII bytes** of the canonical ID, not UTF-16 text
 is a bug that only shows for keys with the high bit set, so the vectors include one. Ties are broken by the canonical ID
 bytes, unsigned, ascending.
 
-`TODO(vectors)`: published vectors for the per-epoch seed and key order.
+Vectors: `docs/rules-format/vectors/splitmix64.json` and `fnv1a64.json` (the primitives, with the published anchor
+values), `epoch-seed.json` (the per-epoch seed, including negative epochs and a seed with the high bit set) and
+`key-order.json`. The scheduler (F1.1) implements and runs the last two; they are published here. `bounded-int.json`
+publishes the rejection-sampling step (threshold `2^64 mod bound`, accept a draw at or above it, result `draw mod bound`)
+that F1.1 is expected to use; it is **provisional** until F1.1 confirms the function.
 
 ## String matching
 
@@ -663,7 +680,8 @@ size; the extra byte is how it knows the file is too big. An endless source must
 
 ## Verify your client
 
-Before you trust your implementation, check these. Each value can be checked now; more will come with the vectors.
+Before you trust your implementation, check these. The files in `docs/rules-format/vectors/` have many more values of the
+same kinds, each written in decimal, in hex and as 32-bit halves.
 
 1. **Schema.** Every file in `docs/rules-format/examples/` validates against the schema, and every file in
    `docs/rules-format/examples/invalid/` fails.
@@ -683,6 +701,9 @@ Before you trust your implementation, check these. Each value can be checked now
 9. **Version gate.** A file with `formatVersion` 2 is not scheduled, even when the rest of it is unreadable.
 10. **JSON profile.** A repeated member name (also in an unknown field), a byte-order mark, `01`, `1.0` or `1e2` where a whole
     number is expected, and `NaN` are all rejected.
+11. **Automatic seed.** For server ID `11111111111111111111111111111111` and the library
+    `22222222222222222222222222222222`, the bytes hash to `fnv1a64` `0xd22a74589ce8af26` and the seed is
+    `"16427903836559823302"`. For the genre `Animé` on the same server it is `"182484535837226886"`.
 
 ## Files
 
@@ -699,7 +720,10 @@ Everything below is in this repository, under `docs/`:
   source kind, no sources, a missing `timing` or offset, an offset that is not a multiple of 15, an `epochHours` not on
   the list, a `start` off the half hour, an upper-case ordering mode, a kebab-case filler mode, a name of 101 code
   points, `betweenEveryN` without `every`).
-- `docs/rules-format/vectors/`: test vectors for the primitives (added with the test-vector work).
+- `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
+  `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
+  filter and the series rule, built on Jellyfin 12.1's own table), and, for the scheduler (F1.1) to run, `epoch-seed.json`,
+  `key-order.json` and the provisional `bounded-int.json`.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 
