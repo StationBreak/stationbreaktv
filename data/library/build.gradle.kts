@@ -38,6 +38,8 @@ dependencies {
     kspTest(libs.androidx.room.compiler)
 
     androidTestImplementation(libs.kotlinx.coroutines.core)
+    // The real WorkManager's test driver, for the stay-current work tests on the emulator (test only).
+    androidTestImplementation(libs.androidx.work.testing)
     // The heap test on the emulator pages the generated library through the scripted server (test sources only).
     androidTestImplementation(testFixtures(project(":core:domain")))
     androidTestImplementation(project(":core:testing"))

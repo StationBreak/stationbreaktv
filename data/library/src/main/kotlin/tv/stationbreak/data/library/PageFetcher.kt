@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.library
+
+import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.Session
+import kotlin.time.Instant
+
+/** The page size in force for one library: only a response-size error makes it smaller. */
+internal class PageLimit(
+    var size: Int,
+)
+
+/** What asking for one page came to. */
+internal sealed interface Fetched {
+    class Page(
+        val startIndex: Int,
+        val totalCount: Int?,
+        val items: List<MediaItem>,
+    ) : Fetched
+
+    /** One item that will not decode, found by halving the page down to it. */
+    data object Malformed : Fetched
+
+    class Failed(
+        val error: MediaServerError,
+    ) : Fetched
+}
+
+/**
+ * Asks for one page of [library]'s items, the way the first sync and the stay-current passes both need it. A page the
+ * server refuses as too large is asked for again at half the size (and the smaller size is kept in [limit] for the rest
+ * of the library). A page that will not decode is halved until it is one item, which comes back as
+ * [Fetched.Malformed]: decoding is strict by design, so one malformed item must not stop a library.
+ */
+@Suppress("ReturnCount") // Each return is one way a page can come back.
+internal suspend fun MediaServer.fetchPage(
+    session: Session,
+    library: Library,
+    startIndex: Int,
+    changedSince: Instant?,
+    limit: PageLimit,
+): Fetched {
+    var asking = limit.size
+    while (true) {
+        when (val result = libraryItems(session, library, startIndex, asking, changedSince)) {
+            is ServerResult.Success -> {
+                return Fetched.Page(startIndex, result.value.totalCount, result.value.items)
+            }
+
+            is ServerResult.Failure -> {
+                val error = result.error
+                when {
+                    // Too big for the response limit: half the size, and keep it for the rest of the library.
+                    error is MediaServerError.ServerError && asking > 1 -> {
+                        asking /= 2
+                        limit.size = asking
+                    }
+
+                    // Will not decode: halve to find the item, for this page only.
+                    error is MediaServerError.NotJellyfin && asking > 1 -> {
+                        asking /= 2
+                    }
+
+                    error is MediaServerError.NotJellyfin -> {
+                        return Fetched.Malformed
+                    }
+
+                    else -> {
+                        return Fetched.Failed(error)
+                    }
+                }
+            }
+        }
+    }
+}

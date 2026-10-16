@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.library
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.RestoreOutcome
+import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.UserId
+import kotlin.time.Clock
+
+/**
+ * Which of the two stay-current passes a run does: the incremental pass (items changed since the last one) and the ID
+ * reconciliation (deletions, and items the cache lacks). When both are asked for, the incremental pass goes first.
+ */
+data class SyncPlan(
+    val incremental: Boolean,
+    val reconcile: Boolean,
+) {
+    /** True when there is nothing to run. */
+    val isEmpty: Boolean get() = !incremental && !reconcile
+
+    companion object {
+        /** Neither pass. */
+        val None = SyncPlan(incremental = false, reconcile = false)
+
+        /** Both passes: what the periodic job runs. */
+        val Both = SyncPlan(incremental = true, reconcile = true)
+    }
+}
+
+/**
+ * What the quiet worker runs (spec 06 task 4.7), after the first sync: the stay-current passes of a [SyncPlan]. It
+ * reads the stored server, the ticked libraries and the session from the app's own stores when it runs, the way
+ * [FirstSyncRunner] does, so no token passes through WorkManager. It is quiet by construction: it only ever writes the
+ * saved library, never shows anything, and never puts the account back into the first-sync state.
+ *
+ * Only one run goes at a time in the process (a second one, from another trigger, does nothing), and a run leaves an
+ * account whose first sync has not finished to the first sync. A failure is recorded in the saved library for Phase 1's
+ * banner to read; none of it retries, because the next open or the next periodic run is the retry.
+ */
+@Suppress("LongParameterList") // The same stores the first-sync runner is given.
+class StayCurrentRunner(
+    private val settings: ServerSettings,
+    private val sessions: SessionRepository,
+    private val server: MediaServer,
+    private val repository: RoomLibraryRepository,
+    private val clock: Clock = Clock.System,
+) {
+    private val gate = Mutex()
+
+    // What a walk could not find, kept across runs in this process.
+    private val unfindable = UnfindableIds()
+
+    /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
+    val isRunning: Boolean get() = gate.isLocked
+
+    /** Runs [plan] once and says how it ended for WorkManager. Never asks to be retried. */
+    suspend fun run(plan: SyncPlan): SyncVerdict =
+        when (outcome(plan)) {
+            SyncOutcome.Completed, SyncOutcome.Cancelled -> SyncVerdict.Success
+            is SyncOutcome.Failed -> SyncVerdict.Failure
+        }
+
+    internal suspend fun outcome(plan: SyncPlan): SyncOutcome {
+        if (plan.isEmpty || !gate.tryLock()) return SyncOutcome.Cancelled
+        try {
+            return guarded(plan)
+        } finally {
+            gate.unlock()
+        }
+    }
+
+    // A sign-out that lands while a pass is writing ends the pass with nothing more written.
+    private suspend fun guarded(plan: SyncPlan): SyncOutcome =
+        try {
+            start(plan)
+        } catch (_: AccountNotActiveException) {
+            SyncOutcome.Cancelled
+        }
+
+    @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
+    private suspend fun start(plan: SyncPlan): SyncOutcome {
+        val record = settings.load() ?: return SyncOutcome.Cancelled
+        val chosen = settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return SyncOutcome.Cancelled
+        val active = repository.dao.activeAccounts().singleOrNull() ?: return SyncOutcome.Cancelled
+        val account = LibraryAccount(ServerId(active.serverId), UserId(active.userId))
+        // The first sync has not ended: it owns the library, and nothing here is a "top up" yet.
+        val firstSyncOpen = repository.lastSuccess(account) == null || repository.isFirstSyncRunning(account)
+        if (firstSyncOpen) return SyncOutcome.Cancelled
+        return when (val restored = sessions.verify(record.address)) {
+            is RestoreOutcome.Restored -> safely(account) { passes(restored.session, account, chosen, plan) }
+            RestoreOutcome.SignedOut -> SyncOutcome.Cancelled
+            is RestoreOutcome.Rejected -> record(account, SyncFailure.SessionExpired)
+            is RestoreOutcome.Unavailable -> record(account, restored.error.toSyncFailure())
+        }
+    }
+
+    @Suppress("ReturnCount") // Each early return is a pass that did not complete.
+    private suspend fun passes(
+        session: Session,
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+        plan: SyncPlan,
+    ): SyncOutcome {
+        // Signed out, or another account in, while the server was answering: nothing to sync.
+        if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
+        val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
+        if (plan.incremental) {
+            val incremental = engine.incremental(session, account, chosen).outcome
+            if (incremental != SyncOutcome.Completed) return incremental
+        }
+        return if (plan.reconcile) engine.reconcile(session, account, chosen).outcome else SyncOutcome.Completed
+    }
+
+    // Anything unexpected is a server failure for the record, never a crash; cancellation and a sign-out pass through.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun safely(
+        account: LibraryAccount,
+        block: suspend () -> SyncOutcome,
+    ): SyncOutcome =
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (signedOut: AccountNotActiveException) {
+            throw signedOut
+        } catch (_: Exception) {
+            record(account, SyncFailure.Server)
+        }
+
+    // The server could not be asked, or rejected the session: the saved library keeps what it has, and says why.
+    private suspend fun record(
+        account: LibraryAccount,
+        failure: SyncFailure,
+    ): SyncOutcome {
+        repository.failSync(account, failure)
+        return SyncOutcome.Failed(failure)
+    }
+}

@@ -561,7 +561,127 @@ abstract class ContractSuite {
         }
     }
 
+    /** Waits, bounded, until [library]'s ID listing satisfies [done], and returns the IDs then. */
+    private suspend fun awaitIds(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        library: Library,
+        what: String,
+        done: (Set<String>) -> Boolean,
+    ): Set<String> {
+        val deadline = System.nanoTime() + CHURN_WAIT_SECONDS.seconds.inWholeNanoseconds
+        while (true) {
+            val listed = adapter.libraryItemIds(session, library, 0, BIG_PAGE).getOrNull()
+            val ids =
+                listed
+                    ?.ids
+                    .orEmpty()
+                    .map { it.value }
+                    .toSet()
+            if (listed != null && done(ids)) return ids
+            check(System.nanoTime() < deadline) { "$what did not happen within $CHURN_WAIT_SECONDS s" }
+            delay(CHURN_POLL_MS)
+        }
+    }
+
+    /** Waits, bounded, until every item of [library] has a running time (the scan has finished with it). */
+    private suspend fun awaitProbed(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        library: Library,
+        count: Int,
+    ) {
+        val deadline = System.nanoTime() + CHURN_WAIT_SECONDS.seconds.inWholeNanoseconds
+        while (true) {
+            val items =
+                adapter
+                    .libraryItems(session, library, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+            if (items.size == count && items.all { (it.runtime ?: 0.seconds) > 0.seconds }) return
+            check(System.nanoTime() < deadline) { "the scan did not finish within $CHURN_WAIT_SECONDS s" }
+            delay(CHURN_POLL_MS)
+        }
+    }
+
+    @Test
+    fun deleteBecomesTombstone() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            ChurnLibrary(server).use { churn ->
+                churn.create(listOf("Churn A", "Churn B", "Churn C"))
+                val library = Library(ItemId(churn.id), "Churn", LibraryKind.Movies)
+                awaitProbed(adapter, session, library, count = 3)
+                // What the first sync would have saved: every ID of the library.
+                val cached = awaitIds(adapter, session, library, "the first listing") { it.size == 3 }
+                val doomed =
+                    adapter
+                        .libraryItems(session, library, 0, BIG_PAGE)
+                        .getOrNull()
+                        ?.items
+                        .orEmpty()
+                        .first { it.name.contains("Churn B") }
+                        .id.value
+
+                churn.removeFile("Churn B")
+                churn.refresh()
+                val serverIds = awaitIds(adapter, session, library, "the delete") { doomed !in it }
+
+                // One reconciliation: what the cache holds and the server no longer lists is tombstoned.
+                assertEquals(setOf(doomed), cached - serverIds, "exactly the deleted item is missing from the listing")
+                assertEquals(cached - doomed, serverIds, "the other items are still listed")
+                // And a changed-since pass can never see a delete, which is why reconciliation exists.
+                val everything = Instant.parse("2000-01-01T00:00:00Z")
+                val changed = adapter.libraryItems(session, library, 0, BIG_PAGE, everything).getOrNull()
+                assertTrue(changed?.items.orEmpty().none { it.id.value == doomed }, "a deleted item is not returned")
+
+                // Open question 5: a file put back. Revive a returning ID, fetch a new one: either way works.
+                churn.addFile("Churn B")
+                churn.refresh()
+                val restored = awaitIds(adapter, session, library, "the restore") { it.size == 3 }
+                finding("restored file keeps its ID = ${doomed in restored}")
+                assertEquals(CHURN_FILES, restored.size)
+            }
+        }
+    }
+
+    @Test
+    fun newItemAfterIncremental() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            ChurnLibrary(server).use { churn ->
+                churn.create(listOf("Churn A", "Churn B"))
+                val library = Library(ItemId(churn.id), "Churn", LibraryKind.Movies)
+                awaitProbed(adapter, session, library, count = 2)
+                val before = awaitIds(adapter, session, library, "the first listing") { it.size == 2 }
+                delay(SETTLE_MS * EDIT_SETTLE)
+                val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+                delay(SETTLE_MS)
+
+                churn.addFile("Churn C")
+                churn.refresh()
+                val after = awaitIds(adapter, session, library, "the new item") { it.size == 3 }
+                delay(SETTLE_MS * EDIT_SETTLE)
+
+                // One incremental pass from the moment recorded before the add: the new item, and not the old ones.
+                val added = (after - before).single()
+                val page = adapter.libraryItems(session, library, 0, BIG_PAGE, mark).getOrNull()
+                assertNotNull(page)
+                assertEquals(setOf(added), page.items.map { it.id.value }.toSet(), "only the new item comes back")
+                val item = page.items.single()
+                assertNotNull(item.dateCreated)
+                assertTrue((item.runtime ?: 0.seconds) > 0.seconds)
+            }
+        }
+    }
+
     private companion object {
+        const val CHURN_FILES = 3
+        const val CHURN_WAIT_SECONDS = 120
+        const val CHURN_POLL_MS = 2_000L
         const val SUPPORTED_MAJOR = 12
         const val PAGE_SIZE = 2
         const val BIG_PAGE = 20

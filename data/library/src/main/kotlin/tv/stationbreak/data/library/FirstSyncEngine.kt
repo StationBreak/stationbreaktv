@@ -80,6 +80,10 @@ internal class FirstSyncEngine(
     ) {
         private var skipped = 0
 
+        // The earliest walk start across the libraries: what the next incremental pass counts from (a long walk, or a
+        // resume, must not push it past changes made while an early library was being read).
+        private var earliestWalk = started
+
         suspend fun sync(chosen: Set<ItemId>): SyncOutcome {
             val listed =
                 when (val result = server.libraries(session)) {
@@ -105,12 +109,17 @@ internal class FirstSyncEngine(
 
             val pending = repository.pendingLibraries(account)
             for (library in libraries) {
+                // A library fetched by an earlier run keeps the start of its walk in its checkpoint.
+                repository.checkpoint(account, library.id)?.let {
+                    earliestWalk = minOf(earliestWalk, Instant.fromEpochMilliseconds(it.run))
+                }
                 if (library.id !in pending) continue
                 sync(library, totals.getValue(library.id))?.let { return it }
             }
             // A library the user ticked that the server no longer lists has nothing to fetch.
             (pending - libraries.map { it.id }.toSet()).forEach { repository.markFetched(account, it) }
-            repository.finishSync(account)
+            // Recorded as when the walk began, never when it ended: changes made during it are fetched next time.
+            repository.finishSync(account, earliestWalk)
             return SyncOutcome.Completed
         }
 
@@ -121,6 +130,7 @@ internal class FirstSyncEngine(
             val checkpoint = repository.checkpoint(account, library.id)
             // The walk's start is the first run's, however many times the sync was started again (a resume keeps it).
             val run = checkpoint?.run ?: started.toEpochMilliseconds()
+            earliestWalk = minOf(earliestWalk, Instant.fromEpochMilliseconds(run))
             val limit = PageLimit(pageSize)
             val walked =
                 read(library, checkpoint?.nextStartIndex ?: 0, null, limit) { items, next, firstTotal ->
@@ -150,7 +160,7 @@ internal class FirstSyncEngine(
         ): SyncOutcome? {
             var next = startAt
             while (true) {
-                when (val fetched = fetch(library, next, changedSince, limit)) {
+                when (val fetched = server.fetchPage(session, library, next, changedSince, limit)) {
                     is Fetched.Failed -> {
                         return fail(fetched.error)
                     }
@@ -170,71 +180,11 @@ internal class FirstSyncEngine(
             }
         }
 
-        private suspend fun fetch(
-            library: Library,
-            startIndex: Int,
-            changedSince: Instant?,
-            limit: PageLimit,
-        ): Fetched {
-            var asking = limit.size
-            while (true) {
-                when (val result = server.libraryItems(session, library, startIndex, asking, changedSince)) {
-                    is ServerResult.Success -> {
-                        return Fetched.Page(startIndex, result.value.totalCount, result.value.items)
-                    }
-
-                    is ServerResult.Failure -> {
-                        val error = result.error
-                        when {
-                            // Too big for the response limit: half the size, and keep it for the rest of the library.
-                            error is MediaServerError.ServerError && asking > 1 -> {
-                                asking /= 2
-                                limit.size = asking
-                            }
-
-                            // Will not decode: halve to find the item, for this page only.
-                            error is MediaServerError.NotJellyfin && asking > 1 -> {
-                                asking /= 2
-                            }
-
-                            error is MediaServerError.NotJellyfin -> {
-                                return Fetched.Malformed
-                            }
-
-                            else -> {
-                                return Fetched.Failed(error)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         private suspend fun fail(error: MediaServerError): SyncOutcome {
             val failure = error.toSyncFailure()
             repository.failSync(account, failure)
             return SyncOutcome.Failed(failure)
         }
-    }
-
-    /** The page size in force for one library: only a response-size error makes it smaller. */
-    private class PageLimit(
-        var size: Int,
-    )
-
-    private sealed interface Fetched {
-        class Page(
-            val startIndex: Int,
-            val totalCount: Int?,
-            val items: List<MediaItem>,
-        ) : Fetched
-
-        /** One item that will not decode, found by halving the page down to it. */
-        data object Malformed : Fetched
-
-        class Failed(
-            val error: MediaServerError,
-        ) : Fetched
     }
 
     companion object {

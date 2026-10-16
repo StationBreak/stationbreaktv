@@ -63,6 +63,8 @@ dependencies {
     implementation(project(":feature:onboarding"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
+    // ProcessLifecycleOwner: the app coming to the foreground starts the quiet library sync (spec 06 task 4.0).
+    implementation(libs.androidx.lifecycle.process)
     // The Jellyfin SDK logs through SLF4J and without a binding its first request crashes on Android (ADR-0006).
     // A no-op until S3.6.1 builds the redacting logger.
     runtimeOnly(libs.slf4j.nop)

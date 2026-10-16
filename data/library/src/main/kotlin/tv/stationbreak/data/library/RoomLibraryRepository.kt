@@ -225,10 +225,38 @@ class RoomLibraryRepository internal constructor(
         dao.setTotal(server, user, total)
     }
 
-    /** A sync ended well now: the state is idle and the time of the success is kept with the saved library. */
-    internal suspend fun finishSync(account: LibraryAccount) {
+    /**
+     * A sync ended well: the state is idle and [recorded] is kept with the saved library as the time of the success. It
+     * is the moment the pass **began** (the next incremental pass counts changes from it), never when it ended. With no
+     * moment given it is now.
+     */
+    internal suspend fun finishSync(
+        account: LibraryAccount,
+        recorded: Instant? = null,
+    ) {
         val (server, user) = account.keys()
-        dao.finishSync(server, user, clock.now().toEpochMilliseconds())
+        dao.finishSync(server, user, (recorded ?: clock.now()).toEpochMilliseconds())
+    }
+
+    /** The recorded moment of the last successful pass, or null before the first sync ended. */
+    internal suspend fun lastSuccess(account: LibraryAccount): Instant? {
+        val (server, user) = account.keys()
+        return dao.state(server, user)?.lastSuccessMs?.let(Instant::fromEpochMilliseconds)
+    }
+
+    /** True while the account's first sync is running (a stay-current pass leaves it alone). */
+    internal suspend fun isFirstSyncRunning(account: LibraryAccount): Boolean {
+        val (server, user) = account.keys()
+        return dao.state(server, user)?.state == AccountStateEntity.STATE_FIRST_RUNNING
+    }
+
+    /**
+     * A pass that does not move the recorded moment (an ID reconciliation) ended well: a failure left by an earlier
+     * pass is cleared, and the time of the last success stays as it was.
+     */
+    internal suspend fun clearFailure(account: LibraryAccount) {
+        val (server, user) = account.keys()
+        dao.clearFailure(server, user)
     }
 
     /** A sync stopped for [failure]. Everything saved so far, and the time of the last success, stay. */
@@ -265,6 +293,21 @@ class RoomLibraryRepository internal constructor(
     ): List<ItemId> {
         val (server, user) = account.keys()
         return dao.liveItemIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of [library]'s tombstoned items: deleted on the server, not yet purged. */
+    internal suspend fun tombstonedItemIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return dao.tombstonedItemIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of every row the account has, live or tombstoned, in any library. */
+    internal suspend fun allItemIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return dao.allItemIds(server, user).map(::ItemId)
     }
 
     /** Deletes every tombstone more than [TOMBSTONE_LIFETIME_DAYS] days old, for every account. Returns how many. */
@@ -338,8 +381,8 @@ class RoomLibraryRepository internal constructor(
             clock: Clock = Clock.System,
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
-            // Sign-in and sign-out cancel the unique first-sync work through WorkManager, asked for only when they do.
-            val sync = WorkManagerSyncControl(WorkManagerEnqueuer(context))
+            // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
+            val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
             return RoomLibraryRepository(builder.build(), clock, sync)
         }
 

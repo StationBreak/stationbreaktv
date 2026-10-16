@@ -49,6 +49,8 @@ internal class JellyfinServer private constructor(
     val http: Harness,
     private val accounts: ServerSeeding.Accounts,
     val seeded: Seeded,
+    /** The Jellyfin container itself, for a case that adds or removes media files while it runs. */
+    val jellyfin: GenericContainer<*>,
 ) : AutoCloseable {
     val admin: Account get() = accounts.admin
     val viewer: Account get() = accounts.viewer
@@ -105,7 +107,7 @@ internal class JellyfinServer private constructor(
                 val accounts = ServerSeeding.Accounts()
                 val seeded = ServerSeeding.seed(jellyfin, http, accounts)
                 ready = true
-                return JellyfinServer(started, address, http, accounts, seeded)
+                return JellyfinServer(started, address, http, accounts, seeded, jellyfin)
             } finally {
                 if (!ready) started.asReversed().forEach { runCatching { it.close() } }
             }

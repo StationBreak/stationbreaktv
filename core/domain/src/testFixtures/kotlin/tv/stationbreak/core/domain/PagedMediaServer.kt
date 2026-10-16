@@ -79,6 +79,9 @@ class PagedMediaServer(
     /** A page that includes one of these fails with [MediaServerError.NotJellyfin] (the strict decode). */
     var malformed: Set<ItemId> = emptySet()
 
+    /** Items the ID listing names but the item pages never return (a listed ID that cannot be fetched). */
+    var hiddenFromItems: Set<ItemId> = emptySet()
+
     /** What [libraries] answers, when it should fail. */
     var librariesFailure: MediaServerError? = null
 
@@ -102,7 +105,7 @@ class PagedMediaServer(
         respond(call)?.let { return ServerResult.Failure(it) }
         if (limit > maxItemsPerResponse) return ServerResult.Failure(MediaServerError.ServerError())
         val source = sources.getValue(library.id)
-        val items = selected(source, startIndex, limit, changedSince)
+        val items = selected(source, startIndex, limit, changedSince).filter { it.id !in hiddenFromItems }
         if (items.any { it.id in malformed }) return ServerResult.Failure(MediaServerError.NotJellyfin())
         val total = if (startIndex == 0) totalOf(source, changedSince) else null
         return ServerResult.Success(LibraryItemsPage(startIndex, total, items))
