@@ -114,7 +114,9 @@ class WorkManagerFirstSync internal constructor(
 
     override fun retry() = start(ExistingWorkPolicy.REPLACE)
 
-    private fun start(policy: ExistingWorkPolicy) = enqueuer.enqueueUnique(FirstSyncWork.UNIQUE_NAME, policy, FirstSyncWork.request())
+    private fun start(policy: ExistingWorkPolicy) {
+        enqueuer.enqueueUnique(FirstSyncWork.UNIQUE_NAME, policy, FirstSyncWork.request())
+    }
 
     companion object {
         /** The first sync on the app's WorkManager, reading its state from [library]. */

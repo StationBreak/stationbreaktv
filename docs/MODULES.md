@@ -103,6 +103,14 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   the research notes design for 2.x, Room 3 drops the `SupportSQLite` API for a driver-only one, and the cache is rebuildable, so
   moving later is mechanical. Revisit when Room 2 stops receiving fixes. The AARs the cache pulls in are all minSdk 23 or 24
   (Room 2.8.5: 23, androidx.sqlite 2.7.1: 23, WorkManager 2.12.0, added by task 3.0: 24).
+- **The first sync (task 3.0).** `FirstSyncEngine` copies each ticked library one page at a time, writing the page and its
+  checkpoint in one transaction, so a killed run resumes from the last saved page. `FirstSyncWorker` (a `CoroutineWorker`, one
+  unique piece of work, network-connected, exponential backoff, no input data) runs `FirstSyncRunner`, which reads the server
+  record, the choice and the session from the app's own stores. WorkManager builds the worker by class name, so the worker
+  asks the `Application` for its runner (`FirstSyncRunnerProvider`, implemented by `StationBreakApp` through a Hilt entry
+  point). The `FirstSync` port in `core:domain` is how the progress screen and launch routing reach all of it without seeing
+  WorkManager or Room. Every sync write checks inside its own transaction that the account is still the signed-in one
+  (`active_account`, schema 2), and sign-in and sign-out cancel the unique work first.
 - **Unit tests run Room on the JVM** over `androidx.sqlite:sqlite-bundled-jvm`, a test-only dependency that carries a native
   SQLite for the build machine. It is never in an APK. The instrumented test on the API 25 emulator runs the same schema on the
   platform SQLite.

@@ -38,6 +38,9 @@ dependencies {
     kspTest(libs.androidx.room.compiler)
 
     androidTestImplementation(libs.kotlinx.coroutines.core)
+    // The heap test on the emulator pages the generated library through the scripted server (test sources only).
+    androidTestImplementation(testFixtures(project(":core:domain")))
+    androidTestImplementation(project(":core:testing"))
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
