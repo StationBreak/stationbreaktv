@@ -25,10 +25,13 @@ private const val SWEEP_DEGREES = 270f
 private const val FULL_TURN = 360f
 private const val TURN_MS = 1100
 
-/** A small indeterminate spinner. Light on purpose: the Insignia has about 1.5 GB of RAM. */
+/**
+ * A small indeterminate spinner. Light on purpose: the Insignia has about 1.5 GB of RAM. Pass a null
+ * [contentDescription] when visible text beside it already says the same thing, so a screen reader says it once.
+ */
 @Composable
 internal fun ProgressSpinner(
-    contentDescription: String,
+    contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
     val color = MaterialTheme.colorScheme.onSurface
@@ -38,7 +41,7 @@ internal fun ProgressSpinner(
         animationSpec = infiniteRepeatable(tween(TURN_MS, easing = LinearEasing), RepeatMode.Restart),
         label = "turn",
     )
-    Canvas(modifier = modifier.size(28.dp).semantics { this.contentDescription = contentDescription }) {
+    Canvas(modifier = modifier.size(28.dp).then(describedAs(contentDescription))) {
         val stroke = 4.dp.toPx()
         drawArc(
             color = color,
@@ -51,3 +54,6 @@ internal fun ProgressSpinner(
         )
     }
 }
+
+private fun describedAs(description: String?): Modifier =
+    if (description == null) Modifier else Modifier.semantics { contentDescription = description }

@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotFocused
@@ -144,6 +145,20 @@ class ServerScreenTest {
         gate.complete(ServerResult.Failure(MediaServerError.Timeout()))
         compose.waitForIdle()
         compose.onNodeWithTag(ServerTags.ERROR_PANEL).assert(polite)
+    }
+
+    @Test
+    fun theTestingLineIsSpokenOnceNotTwice() {
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = gate
+        launch()
+        typeAndTest()
+        // Past the spinner's delay, so the spinner is on screen beside the text.
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+        compose.onAllNodes(hasText("Testing…") or hasContentDescription("Testing the connection")).assertCountEquals(1)
+        compose.onAllNodes(hasContentDescription("Testing the connection")).assertCountEquals(0)
+        gate.complete(ServerResult.Failure(MediaServerError.Timeout()))
     }
 
     @Test

@@ -180,7 +180,8 @@ internal fun QuickConnectPanel(
                 horizontalArrangement = Arrangement.spacedBy(TightGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ProgressSpinner(contentDescription = stringResource(R.string.quick_connect_waiting))
+                // The text beside it says it; a description too would be read out twice.
+                ProgressSpinner(contentDescription = null)
                 Text(
                     text = stringResource(R.string.quick_connect_waiting),
                     fontSize = BodySize,

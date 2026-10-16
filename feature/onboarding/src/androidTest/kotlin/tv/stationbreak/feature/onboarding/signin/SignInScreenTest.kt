@@ -10,6 +10,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasImeAction
@@ -380,6 +381,18 @@ class SignInScreenTest {
         runBlocking { server.quickConnectUpdates.emit(QuickConnectState.CodeIssued("123456")) }
         compose.waitForIdle()
         compose.onNodeWithTag(SignInTags.QUICK_CONNECT_WAITING).assert(politeLiveRegion)
+    }
+
+    @Test
+    fun theWaitingLineIsSpokenOnceNotTwice() {
+        server.useDrivenQuickConnect = true
+        launch()
+        chooseQuickConnect()
+        runBlocking { server.quickConnectUpdates.emit(QuickConnectState.CodeIssued("123456")) }
+        compose.waitForIdle()
+        val waiting = "Waiting for approval…"
+        compose.onAllNodes(hasText(waiting) or hasContentDescription(waiting)).assertCountEquals(1)
+        compose.onAllNodes(hasContentDescription(waiting)).assertCountEquals(0)
     }
 
     @Test
