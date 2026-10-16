@@ -1,0 +1,19888 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.scheduler.vectors
+
+/**
+ * The Kotlin copy of `docs/rules-format/vectors/lineup.json`. `VectorFilesInSyncTest` (jvmTest) fails if it differs
+ * from the published file. A test in commonTest cannot read files, because linuxX64Test cannot.
+ */
+@Suppress("LargeClass") // Data only: one vector file.
+internal object LineupVectorFile {
+    val text: String =
+        """
+        {
+          "description": "Whole days of the lineup, one case per day. A case has: name; settings, the rules subset the scheduler reads (seed as a decimal string, ordering.mode, and timing with blockLength, alignToGrid, epochHours, graceHours, gridMinutes, minRuntimeSeconds and broadcastDay.utcOffsetMinutes and start; every one given explicitly); items, the pool candidates (id, kind, runtimeMs, createdAtMs, optional deletedAtMs, premiereDate, productionYear, seriesId, season, episode, each omitted when absent); n, the day number; blocks, the whole day in order, each {startMs, endMs, itemId} for a program (media start offset 0) or {startMs, endMs, slate: true}, half-open [startMs, endMs), tiling [epochStart(n), epochStart(n + 1)); and queries, each {t, k, blockIndex, offsetMs, nextIndexes}: the index into blocks of the block containing t, its offset (mediaStartOffset + t - startMs; absent for a slate) and the indexes of the next k blocks of the same day (fewer at the end of the day). A case with errorTimes lists times outside the day, and errorKs lists values of k, for which whatsOn is an error; the vectors assert only that the call fails. A case with inputError: true has settings, items and n but no blocks and no queries: building that day must be rejected as an input error (the scheduler builds nothing), and reason quotes the rule of Building the schedule (Inputs, Numbers and ranges). The input error \"2^26 items or more\" is not given as a case, because the file would need 67,108,864 items; a port tests it with a generated list. Times, runtimes and created/deleted stamps are signed decimal strings of milliseconds since 1970-01-01T00:00:00Z; season, episode and productionYear are JSON numbers.",
+          "source": "Computed with an independent Python reference written from docs/rules-format.md only (the final Building the schedule section, Ordering, Timing and Primitives), without reading any Kotlin. The worked examples of the document are cases here, and the reference reproduces them. Item IDs are synthetic.",
+          "cases": [
+            {
+              "name": "doc worked example 1, day 0 (chronological, 3 movies of 90 min, 4 h days from 00:30)",
+              "note": "Rules Building the schedule, Worked example 1; the seam skips run 2 after day 0 and run 7 after day 2. Queries include t = minute 120 (M2, offset 0), 120 min - 1 ms (M1, offset 5399999) and minute 240 (slate).",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 4,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "1800000",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "12600000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "12600000",
+                  "endMs": "16200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "7199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "9000000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "12599999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "5399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "12600000",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "14400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "16199999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "16200000"
+              ]
+            },
+            {
+              "name": "doc worked example 1, day 1 (chronological, 3 movies of 90 min, 4 h days from 00:30)",
+              "note": "Rules Building the schedule, Worked example 1.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 4,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "16200000",
+                  "endMs": "21600000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "21600000",
+                  "endMs": "27000000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "27000000",
+                  "endMs": "30600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "16200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "21600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "23400000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "26999999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "5399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "27000000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "30599999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "doc worked example 1, day 2 (chronological, 3 movies of 90 min, 4 h days from 00:30)",
+              "note": "Rules Building the schedule, Worked example 1; the seam skips run 2 after day 0 and run 7 after day 2.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 4,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "30600000",
+                  "endMs": "36000000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "41400000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "41400000",
+                  "endMs": "45000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "30600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "35999999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "36000000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "37800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "41399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "5399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "41400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "44999999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "doc worked example 1, day 3 (chronological, 3 movies of 90 min, 4 h days from 00:30)",
+              "note": "Rules Building the schedule, Worked example 1.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 4,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "45000000",
+                  "endMs": "50400000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "50400000",
+                  "endMs": "55800000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "55800000",
+                  "endMs": "59400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "45000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "50399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "50400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "52200000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "55799999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "5399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "55800000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "59399999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "doc worked example 2, chronological: A1 passed over, A2 not eligible, B placed",
+              "note": "Rules Building the schedule, Worked example 2 (items P 75, A1 45, A2 20, B 25 minutes; channel seed 8).",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "4500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-02",
+                  "seriesId": "00000000000000000000000000000063",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-03",
+                  "seriesId": "00000000000000000000000000000063",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-04"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "4500000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "4500000",
+                  "endMs": "5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "6900000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "6900000",
+                  "endMs": "7200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3600000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "3600000",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "4499999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "4499999",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "4500000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "5399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6899999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6900000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "doc worked example 2, shuffle: the fill wraps; A2 is placed, B and P do not fit",
+              "note": "Rules Building the schedule, Worked example 2, shuffle with seed 4 (the order is P A1 A2 B).",
+              "settings": {
+                "seed": "4",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "4500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-02",
+                  "seriesId": "00000000000000000000000000000063",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-03",
+                  "seriesId": "00000000000000000000000000000063",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-04"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "4500000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "4500000",
+                  "endMs": "5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "6600000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "6600000",
+                  "endMs": "7200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3600000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "3600000",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "4499999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "4499999",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "4500000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "5399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6599999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6600000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, aligned 30, six movies, 6 h epochs (slates before grid marks)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "5700000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "5700000",
+                  "endMs": "7200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "8520000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "8520000",
+                  "endMs": "9000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "9000000",
+                  "endMs": "11400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "11400000",
+                  "endMs": "12600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "12600000",
+                  "endMs": "15600000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "15600000",
+                  "endMs": "16200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "16200000",
+                  "endMs": "17700000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "17700000",
+                  "endMs": "18000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "18000000",
+                  "endMs": "19800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "19800000",
+                  "endMs": "21120000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "21120000",
+                  "endMs": "21600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5699999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5699999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "5700000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "7199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "8519999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "10800000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "19800000",
+                  "k": 5,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    12
+                  ]
+                },
+                {
+                  "t": "21119999",
+                  "k": 0,
+                  "blockIndex": 11,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21120000",
+                  "k": 1,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21599999",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, not aligned, back to back",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "5700000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "5700000",
+                  "endMs": "7020000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "7020000",
+                  "endMs": "9420000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "9420000",
+                  "endMs": "12420000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "12420000",
+                  "endMs": "13920000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "13920000",
+                  "endMs": "15720000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "15720000",
+                  "endMs": "21420000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "21420000",
+                  "endMs": "21600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5699999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5699999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "5700000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "7019999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "7020000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "9419999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "10800000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "1380000",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "15720000",
+                  "k": 5,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7
+                  ]
+                },
+                {
+                  "t": "21419999",
+                  "k": 0,
+                  "blockIndex": 6,
+                  "offsetMs": "5699999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21420000",
+                  "k": 1,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21599999",
+                  "k": 2,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, grid 15",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "64800000",
+                  "endMs": "70500000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "70500000",
+                  "endMs": "71100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "71100000",
+                  "endMs": "72600000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "72600000",
+                  "endMs": "72900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "72900000",
+                  "endMs": "75900000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "75900000",
+                  "endMs": "76500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "76500000",
+                  "endMs": "77820000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "77820000",
+                  "endMs": "78300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "78300000",
+                  "endMs": "80700000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "80700000",
+                  "endMs": "81000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "81000000",
+                  "endMs": "82800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "82800000",
+                  "endMs": "84300000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "84300000",
+                  "endMs": "84600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "84600000",
+                  "endMs": "85920000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "85920000",
+                  "endMs": "86400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "64800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "70499999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5699999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "70500000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "71099999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "71100000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "72599999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "75600000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "2700000",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "84600000",
+                  "k": 5,
+                  "blockIndex": 13,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    14
+                  ]
+                },
+                {
+                  "t": "85919999",
+                  "k": 0,
+                  "blockIndex": 13,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "85920000",
+                  "k": 1,
+                  "blockIndex": 14,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "86399999",
+                  "k": 2,
+                  "blockIndex": 14,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, grid 60, start 06:00",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "110400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "110400000",
+                  "endMs": "111600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "111600000",
+                  "endMs": "113100000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "113100000",
+                  "endMs": "115200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "115200000",
+                  "endMs": "117000000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "117000000",
+                  "endMs": "118800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "118800000",
+                  "endMs": "120120000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "120120000",
+                  "endMs": "122400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "122400000",
+                  "endMs": "128100000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "128100000",
+                  "endMs": "129600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "129600000",
+                  "endMs": "132600000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "132600000",
+                  "endMs": "133200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "133200000",
+                  "endMs": "135600000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "135600000",
+                  "endMs": "136800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "136800000",
+                  "endMs": "138300000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "138300000",
+                  "endMs": "140400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "140400000",
+                  "endMs": "142200000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "142200000",
+                  "endMs": "144000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "144000000",
+                  "endMs": "145320000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "145320000",
+                  "endMs": "147600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "147600000",
+                  "endMs": "150600000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "150600000",
+                  "endMs": "151200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "110399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "110400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "111599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "111600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "113099999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "129600000",
+                  "k": 2,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11,
+                    12
+                  ]
+                },
+                {
+                  "t": "147600000",
+                  "k": 5,
+                  "blockIndex": 20,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    21
+                  ]
+                },
+                {
+                  "t": "150599999",
+                  "k": 0,
+                  "blockIndex": 20,
+                  "offsetMs": "2999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "150600000",
+                  "k": 1,
+                  "blockIndex": 21,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "151199999",
+                  "k": 2,
+                  "blockIndex": 21,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, blockLength 2, aligned",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "28800000",
+                  "endMs": "30120000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "30120000",
+                  "endMs": "32520000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "32520000",
+                  "endMs": "34200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "34200000",
+                  "endMs": "36000000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "39000000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "39000000",
+                  "endMs": "39600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "39600000",
+                  "endMs": "41100000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "41100000",
+                  "endMs": "46800000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "48120000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "48120000",
+                  "endMs": "50520000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "50520000",
+                  "endMs": "52200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "52200000",
+                  "endMs": "54000000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "54000000",
+                  "endMs": "57000000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "57000000",
+                  "endMs": "57600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "28800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "30119999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "30120000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "32519999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "32520000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "34199999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "43200000",
+                  "k": 2,
+                  "blockIndex": 7,
+                  "offsetMs": "2100000",
+                  "nextIndexes": [
+                    8,
+                    9
+                  ]
+                },
+                {
+                  "t": "54000000",
+                  "k": 5,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13
+                  ]
+                },
+                {
+                  "t": "56999999",
+                  "k": 0,
+                  "blockIndex": 12,
+                  "offsetMs": "2999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "57000000",
+                  "k": 1,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "57599999",
+                  "k": 2,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, seven 30-min episodes on a 30-min grid, day n",
+              "note": "slots all equal the grid: lag delta is 0",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000065",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000066",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000067",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000068",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-04",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "00000000000000000000000000000069",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-05",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "0000000000000000000000000000006a",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-06",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "0000000000000000000000000000006b",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-07",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 7
+                }
+              ],
+              "n": "5",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "109800000",
+                  "itemId": "00000000000000000000000000000069"
+                },
+                {
+                  "startMs": "109800000",
+                  "endMs": "111600000",
+                  "itemId": "0000000000000000000000000000006a"
+                },
+                {
+                  "startMs": "111600000",
+                  "endMs": "113400000",
+                  "itemId": "0000000000000000000000000000006b"
+                },
+                {
+                  "startMs": "113400000",
+                  "endMs": "115200000",
+                  "itemId": "00000000000000000000000000000065"
+                },
+                {
+                  "startMs": "115200000",
+                  "endMs": "117000000",
+                  "itemId": "00000000000000000000000000000066"
+                },
+                {
+                  "startMs": "117000000",
+                  "endMs": "118800000",
+                  "itemId": "00000000000000000000000000000067"
+                },
+                {
+                  "startMs": "118800000",
+                  "endMs": "120600000",
+                  "itemId": "00000000000000000000000000000068"
+                },
+                {
+                  "startMs": "120600000",
+                  "endMs": "122400000",
+                  "itemId": "00000000000000000000000000000069"
+                },
+                {
+                  "startMs": "122400000",
+                  "endMs": "124200000",
+                  "itemId": "0000000000000000000000000000006a"
+                },
+                {
+                  "startMs": "124200000",
+                  "endMs": "126000000",
+                  "itemId": "0000000000000000000000000000006b"
+                },
+                {
+                  "startMs": "126000000",
+                  "endMs": "127800000",
+                  "itemId": "00000000000000000000000000000065"
+                },
+                {
+                  "startMs": "127800000",
+                  "endMs": "129600000",
+                  "itemId": "00000000000000000000000000000066"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "109799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "109800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "111599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "111600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "113399999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "118800000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "126000000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "127799999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "127800000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "129599999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, same channel, day n+1 (resumes without a skip)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000065",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000066",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000067",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000068",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-04",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "00000000000000000000000000000069",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-05",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "0000000000000000000000000000006a",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-06",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "0000000000000000000000000000006b",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-07",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 7
+                }
+              ],
+              "n": "6",
+              "blocks": [
+                {
+                  "startMs": "129600000",
+                  "endMs": "131400000",
+                  "itemId": "00000000000000000000000000000067"
+                },
+                {
+                  "startMs": "131400000",
+                  "endMs": "133200000",
+                  "itemId": "00000000000000000000000000000068"
+                },
+                {
+                  "startMs": "133200000",
+                  "endMs": "135000000",
+                  "itemId": "00000000000000000000000000000069"
+                },
+                {
+                  "startMs": "135000000",
+                  "endMs": "136800000",
+                  "itemId": "0000000000000000000000000000006a"
+                },
+                {
+                  "startMs": "136800000",
+                  "endMs": "138600000",
+                  "itemId": "0000000000000000000000000000006b"
+                },
+                {
+                  "startMs": "138600000",
+                  "endMs": "140400000",
+                  "itemId": "00000000000000000000000000000065"
+                },
+                {
+                  "startMs": "140400000",
+                  "endMs": "142200000",
+                  "itemId": "00000000000000000000000000000066"
+                },
+                {
+                  "startMs": "142200000",
+                  "endMs": "144000000",
+                  "itemId": "00000000000000000000000000000067"
+                },
+                {
+                  "startMs": "144000000",
+                  "endMs": "145800000",
+                  "itemId": "00000000000000000000000000000068"
+                },
+                {
+                  "startMs": "145800000",
+                  "endMs": "147600000",
+                  "itemId": "00000000000000000000000000000069"
+                },
+                {
+                  "startMs": "147600000",
+                  "endMs": "149400000",
+                  "itemId": "0000000000000000000000000000006a"
+                },
+                {
+                  "startMs": "149400000",
+                  "endMs": "151200000",
+                  "itemId": "0000000000000000000000000000006b"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "129600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "131399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "131400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "133199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "133200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "134999999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "140400000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "147600000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "149399999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "149400000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "151199999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, seam with a skip, day n",
+              "note": "Mixed runtimes: day n+1 skips 1 run(s) against the continuous playout.",
+              "settings": {
+                "seed": "15396698177038169412",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 5,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 75,
+                    "start": "23:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00a0f65afec748be97e9ed2992287d7e",
+                  "kind": "movie",
+                  "runtimeMs": "2520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-10-03"
+                },
+                {
+                  "id": "006b6b1129393a06bfbac487de303719",
+                  "kind": "movie",
+                  "runtimeMs": "2520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-07-12"
+                },
+                {
+                  "id": "0069fcdb8f834cfd2855eb76a5b5a6f8",
+                  "kind": "episode",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2006-12-13",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 3,
+                  "episode": 7
+                },
+                {
+                  "id": "0080f7ff3e63ecc751492eff08141bdc",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2002-06-28",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 3,
+                  "episode": 6
+                },
+                {
+                  "id": "003a5cc64610225c8b7048c637734303",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2002-10-15",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 3,
+                  "episode": 1
+                },
+                {
+                  "id": "00f81c866982ba8cdfe45fa1bf87e229",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2011-09-28",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 1,
+                  "episode": 2
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "99900000",
+                  "endMs": "101400000",
+                  "itemId": "0080f7ff3e63ecc751492eff08141bdc"
+                },
+                {
+                  "startMs": "101400000",
+                  "endMs": "102720000",
+                  "itemId": "003a5cc64610225c8b7048c637734303"
+                },
+                {
+                  "startMs": "102720000",
+                  "endMs": "106320000",
+                  "itemId": "0069fcdb8f834cfd2855eb76a5b5a6f8"
+                },
+                {
+                  "startMs": "106320000",
+                  "endMs": "108840000",
+                  "itemId": "00a0f65afec748be97e9ed2992287d7e"
+                },
+                {
+                  "startMs": "108840000",
+                  "endMs": "110340000",
+                  "itemId": "00f81c866982ba8cdfe45fa1bf87e229"
+                },
+                {
+                  "startMs": "110340000",
+                  "endMs": "110700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "110700000",
+                  "endMs": "113220000",
+                  "itemId": "006b6b1129393a06bfbac487de303719"
+                },
+                {
+                  "startMs": "113220000",
+                  "endMs": "114300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "114300000",
+                  "endMs": "115800000",
+                  "itemId": "0080f7ff3e63ecc751492eff08141bdc"
+                },
+                {
+                  "startMs": "115800000",
+                  "endMs": "116100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "116100000",
+                  "endMs": "117420000",
+                  "itemId": "003a5cc64610225c8b7048c637734303"
+                },
+                {
+                  "startMs": "117420000",
+                  "endMs": "117900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "117900000",
+                  "endMs": "121500000",
+                  "itemId": "0069fcdb8f834cfd2855eb76a5b5a6f8"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "99900000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "101399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "101400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "102719999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "102720000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "106319999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "110700000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "117420000",
+                  "k": 5,
+                  "blockIndex": 11,
+                  "nextIndexes": [
+                    12
+                  ]
+                },
+                {
+                  "t": "117899999",
+                  "k": 0,
+                  "blockIndex": 11,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "117900000",
+                  "k": 1,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "121499999",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, seam with a skip, day n+1",
+              "settings": {
+                "seed": "15396698177038169412",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 5,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 75,
+                    "start": "23:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00a0f65afec748be97e9ed2992287d7e",
+                  "kind": "movie",
+                  "runtimeMs": "2520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-10-03"
+                },
+                {
+                  "id": "006b6b1129393a06bfbac487de303719",
+                  "kind": "movie",
+                  "runtimeMs": "2520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-07-12"
+                },
+                {
+                  "id": "0069fcdb8f834cfd2855eb76a5b5a6f8",
+                  "kind": "episode",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2006-12-13",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 3,
+                  "episode": 7
+                },
+                {
+                  "id": "0080f7ff3e63ecc751492eff08141bdc",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2002-06-28",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 3,
+                  "episode": 6
+                },
+                {
+                  "id": "003a5cc64610225c8b7048c637734303",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2002-10-15",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 3,
+                  "episode": 1
+                },
+                {
+                  "id": "00f81c866982ba8cdfe45fa1bf87e229",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2011-09-28",
+                  "seriesId": "00000000000000000000000000001eef",
+                  "season": 1,
+                  "episode": 2
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "121500000",
+                  "endMs": "124020000",
+                  "itemId": "006b6b1129393a06bfbac487de303719"
+                },
+                {
+                  "startMs": "124020000",
+                  "endMs": "125100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "125100000",
+                  "endMs": "126600000",
+                  "itemId": "0080f7ff3e63ecc751492eff08141bdc"
+                },
+                {
+                  "startMs": "126600000",
+                  "endMs": "127920000",
+                  "itemId": "003a5cc64610225c8b7048c637734303"
+                },
+                {
+                  "startMs": "127920000",
+                  "endMs": "131520000",
+                  "itemId": "0069fcdb8f834cfd2855eb76a5b5a6f8"
+                },
+                {
+                  "startMs": "131520000",
+                  "endMs": "134040000",
+                  "itemId": "00a0f65afec748be97e9ed2992287d7e"
+                },
+                {
+                  "startMs": "134040000",
+                  "endMs": "135540000",
+                  "itemId": "00f81c866982ba8cdfe45fa1bf87e229"
+                },
+                {
+                  "startMs": "135540000",
+                  "endMs": "135900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "135900000",
+                  "endMs": "138420000",
+                  "itemId": "006b6b1129393a06bfbac487de303719"
+                },
+                {
+                  "startMs": "138420000",
+                  "endMs": "139500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "139500000",
+                  "endMs": "141000000",
+                  "itemId": "0080f7ff3e63ecc751492eff08141bdc"
+                },
+                {
+                  "startMs": "141000000",
+                  "endMs": "141300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "141300000",
+                  "endMs": "142620000",
+                  "itemId": "003a5cc64610225c8b7048c637734303"
+                },
+                {
+                  "startMs": "142620000",
+                  "endMs": "143100000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "121500000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "124019999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2519999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "124020000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "125099999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "125100000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "126599999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "132300000",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "780000",
+                  "nextIndexes": [
+                    6,
+                    7
+                  ]
+                },
+                {
+                  "t": "141300000",
+                  "k": 5,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13
+                  ]
+                },
+                {
+                  "t": "142619999",
+                  "k": 0,
+                  "blockIndex": 12,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "142620000",
+                  "k": 1,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "143099999",
+                  "k": 2,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, blockLength 2, grid 30",
+              "settings": {
+                "seed": "12345",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-02-02",
+                  "seriesId": "00000000000000000000000000000015",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-03-03",
+                  "seriesId": "00000000000000000000000000000016",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-04-04",
+                  "seriesId": "00000000000000000000000000000014",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-05-05",
+                  "seriesId": "00000000000000000000000000000015",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000000000000000000000cd",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-06-06",
+                  "seriesId": "00000000000000000000000000000016",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000000000000000000000ce",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-07-07",
+                  "seriesId": "00000000000000000000000000000014",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000000000000000000000cf",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-08-08",
+                  "seriesId": "00000000000000000000000000000015",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000000000000000000000d0",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-09-09",
+                  "seriesId": "00000000000000000000000000000016",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "0000000000000000000000000000012c",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000012d",
+                  "kind": "movie",
+                  "runtimeMs": "6600000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "4",
+              "blocks": [
+                {
+                  "startMs": "115200000",
+                  "endMs": "116520000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "116520000",
+                  "endMs": "117840000",
+                  "itemId": "000000000000000000000000000000ce"
+                },
+                {
+                  "startMs": "117840000",
+                  "endMs": "118800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "118800000",
+                  "endMs": "124500000",
+                  "itemId": "0000000000000000000000000000012c"
+                },
+                {
+                  "startMs": "124500000",
+                  "endMs": "126000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "126000000",
+                  "endMs": "132600000",
+                  "itemId": "0000000000000000000000000000012d"
+                },
+                {
+                  "startMs": "132600000",
+                  "endMs": "133200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "133200000",
+                  "endMs": "134760000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "134760000",
+                  "endMs": "136320000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "136320000",
+                  "endMs": "136800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "136800000",
+                  "endMs": "138600000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "138600000",
+                  "endMs": "140400000",
+                  "itemId": "000000000000000000000000000000cd"
+                },
+                {
+                  "startMs": "140400000",
+                  "endMs": "141960000",
+                  "itemId": "000000000000000000000000000000cf"
+                },
+                {
+                  "startMs": "141960000",
+                  "endMs": "142200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "142200000",
+                  "endMs": "144000000",
+                  "itemId": "000000000000000000000000000000d0"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "115200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "116519999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "116520000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "117839999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "117840000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "118799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "129600000",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "3600000",
+                  "nextIndexes": [
+                    6,
+                    7
+                  ]
+                },
+                {
+                  "t": "141960000",
+                  "k": 5,
+                  "blockIndex": 13,
+                  "nextIndexes": [
+                    14
+                  ]
+                },
+                {
+                  "t": "142199999",
+                  "k": 0,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "142200000",
+                  "k": 1,
+                  "blockIndex": 14,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "143999999",
+                  "k": 2,
+                  "blockIndex": 14,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, blockLength 100 (turn = whole group)",
+              "settings": {
+                "seed": "99",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 100,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-02-02",
+                  "seriesId": "00000000000000000000000000000015",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-03-03",
+                  "seriesId": "00000000000000000000000000000016",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-04-04",
+                  "seriesId": "00000000000000000000000000000014",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-05-05",
+                  "seriesId": "00000000000000000000000000000015",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000000000000000000000cd",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-06-06",
+                  "seriesId": "00000000000000000000000000000016",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000000000000000000000ce",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-07-07",
+                  "seriesId": "00000000000000000000000000000014",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000000000000000000000cf",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-08-08",
+                  "seriesId": "00000000000000000000000000000015",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000000000000000000000d0",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2019-09-09",
+                  "seriesId": "00000000000000000000000000000016",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "0000000000000000000000000000012c",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000012d",
+                  "kind": "movie",
+                  "runtimeMs": "6600000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "-3",
+              "blocks": [
+                {
+                  "startMs": "-129600000",
+                  "endMs": "-127800000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-127800000",
+                  "endMs": "-126000000",
+                  "itemId": "000000000000000000000000000000cd"
+                },
+                {
+                  "startMs": "-126000000",
+                  "endMs": "-124200000",
+                  "itemId": "000000000000000000000000000000d0"
+                },
+                {
+                  "startMs": "-124200000",
+                  "endMs": "-117600000",
+                  "itemId": "0000000000000000000000000000012d"
+                },
+                {
+                  "startMs": "-117600000",
+                  "endMs": "-117000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-117000000",
+                  "endMs": "-115440000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-115440000",
+                  "endMs": "-113880000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-113880000",
+                  "endMs": "-112320000",
+                  "itemId": "000000000000000000000000000000cf"
+                },
+                {
+                  "startMs": "-112320000",
+                  "endMs": "-111600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-111600000",
+                  "endMs": "-110280000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-110280000",
+                  "endMs": "-108960000",
+                  "itemId": "000000000000000000000000000000ce"
+                },
+                {
+                  "startMs": "-108960000",
+                  "endMs": "-108000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-108000000",
+                  "endMs": "-102300000",
+                  "itemId": "0000000000000000000000000000012c"
+                },
+                {
+                  "startMs": "-102300000",
+                  "endMs": "-100800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-100800000",
+                  "endMs": "-99000000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-99000000",
+                  "endMs": "-97200000",
+                  "itemId": "000000000000000000000000000000cd"
+                },
+                {
+                  "startMs": "-97200000",
+                  "endMs": "-95400000",
+                  "itemId": "000000000000000000000000000000d0"
+                },
+                {
+                  "startMs": "-95400000",
+                  "endMs": "-88800000",
+                  "itemId": "0000000000000000000000000000012d"
+                },
+                {
+                  "startMs": "-88800000",
+                  "endMs": "-88200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-88200000",
+                  "endMs": "-86640000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-86640000",
+                  "endMs": "-86400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-129600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-127800001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-127800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-126000001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-126000000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-124200001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-108000000",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "t": "-88200000",
+                  "k": 5,
+                  "blockIndex": 19,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    20
+                  ]
+                },
+                {
+                  "t": "-86640001",
+                  "k": 0,
+                  "blockIndex": 19,
+                  "offsetMs": "1559999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-86640000",
+                  "k": 1,
+                  "blockIndex": 20,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-86400001",
+                  "k": 2,
+                  "blockIndex": 20,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "empty pool (one slate)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "86400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "43200000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "86399999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "only items longer than the epoch (pool empty)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "7200000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1800000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, blockLength 3, epoch 2 h: the 150-min run is left out of the cycle",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": false,
+                  "epochHours": 2,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-05"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1200000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "2400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "3600000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "4800000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "4800000",
+                  "endMs": "6000000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "6000000",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000005"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2399999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "2400000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "4800000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "5999999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "6000000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "every run longer than the epoch, pool not empty (this reference: one slate)",
+              "note": "B = 0: the whole day is one slate (Left-out runs).",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1800000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "grace cut-off: createdAt < S-G kept, deletedAt >= S-G kept (edges on both sides)",
+              "note": "Pool = ids 1 (created S-G-1), 5 (deleted exactly S-G), 6, 7. Excluded: 2 (created exactly S-G), 3 (after), 4 (deleted S-G-1).",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "842399999"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "842400000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "842400001"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "842399999"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "842400000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "842400001"
+                },
+                {
+                  "id": "00000000000000000000000000000007",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "10",
+              "blocks": [
+                {
+                  "startMs": "864000000",
+                  "endMs": "865800000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "865800000",
+                  "endMs": "867600000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "867600000",
+                  "endMs": "869400000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "869400000",
+                  "endMs": "871200000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "871200000",
+                  "endMs": "873000000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "873000000",
+                  "endMs": "874800000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "874800000",
+                  "endMs": "876600000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "876600000",
+                  "endMs": "878400000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "878400000",
+                  "endMs": "880200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "880200000",
+                  "endMs": "882000000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "882000000",
+                  "endMs": "883800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "883800000",
+                  "endMs": "885600000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "885600000",
+                  "endMs": "887400000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "887400000",
+                  "endMs": "889200000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "889200000",
+                  "endMs": "891000000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "891000000",
+                  "endMs": "892800000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "892800000",
+                  "endMs": "894600000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "894600000",
+                  "endMs": "896400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "896400000",
+                  "endMs": "898200000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "898200000",
+                  "endMs": "900000000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "900000000",
+                  "endMs": "901800000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "901800000",
+                  "endMs": "903600000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "903600000",
+                  "endMs": "905400000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "905400000",
+                  "endMs": "907200000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "907200000",
+                  "endMs": "909000000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "909000000",
+                  "endMs": "910800000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "910800000",
+                  "endMs": "912600000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "912600000",
+                  "endMs": "914400000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "914400000",
+                  "endMs": "916200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "916200000",
+                  "endMs": "918000000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "918000000",
+                  "endMs": "919800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "919800000",
+                  "endMs": "921600000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "921600000",
+                  "endMs": "923400000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "923400000",
+                  "endMs": "925200000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "925200000",
+                  "endMs": "927000000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "927000000",
+                  "endMs": "928800000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "928800000",
+                  "endMs": "930600000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "930600000",
+                  "endMs": "932400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "932400000",
+                  "endMs": "934200000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "934200000",
+                  "endMs": "936000000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "936000000",
+                  "endMs": "937800000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "937800000",
+                  "endMs": "939600000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "939600000",
+                  "endMs": "941400000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "941400000",
+                  "endMs": "943200000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "943200000",
+                  "endMs": "945000000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "945000000",
+                  "endMs": "946800000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "946800000",
+                  "endMs": "948600000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "948600000",
+                  "endMs": "950400000",
+                  "itemId": "00000000000000000000000000000007"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "864000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "865799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "865800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "867599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "867600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "869399999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "907200000",
+                  "k": 2,
+                  "blockIndex": 24,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    25,
+                    26
+                  ]
+                },
+                {
+                  "t": "946800000",
+                  "k": 5,
+                  "blockIndex": 46,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    47
+                  ]
+                },
+                {
+                  "t": "948599999",
+                  "k": 0,
+                  "blockIndex": 46,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "948600000",
+                  "k": 1,
+                  "blockIndex": 47,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "950399999",
+                  "k": 2,
+                  "blockIndex": 47,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "Nepal +345, start 18:30, grid 30",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 345,
+                    "start": "18:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "7",
+              "blocks": [
+                {
+                  "startMs": "348300000",
+                  "endMs": "350100000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "350100000",
+                  "endMs": "352500000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "352500000",
+                  "endMs": "353700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "353700000",
+                  "endMs": "359400000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "359400000",
+                  "endMs": "360900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "360900000",
+                  "endMs": "362400000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "362400000",
+                  "endMs": "362700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "362700000",
+                  "endMs": "365700000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "365700000",
+                  "endMs": "366300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "366300000",
+                  "endMs": "367620000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "367620000",
+                  "endMs": "368100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "368100000",
+                  "endMs": "369900000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "369900000",
+                  "endMs": "372300000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "372300000",
+                  "endMs": "373500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "373500000",
+                  "endMs": "379200000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "379200000",
+                  "endMs": "380700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "380700000",
+                  "endMs": "382200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "382200000",
+                  "endMs": "382500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "382500000",
+                  "endMs": "385500000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "385500000",
+                  "endMs": "386100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "386100000",
+                  "endMs": "387420000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "387420000",
+                  "endMs": "387900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "387900000",
+                  "endMs": "389700000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "389700000",
+                  "endMs": "391200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "391200000",
+                  "endMs": "391500000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "348300000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "350099999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "350100000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "352499999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "352500000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "353699999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "369900000",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "t": "389700000",
+                  "k": 5,
+                  "blockIndex": 23,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    24
+                  ]
+                },
+                {
+                  "t": "391199999",
+                  "k": 0,
+                  "blockIndex": 23,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "391200000",
+                  "k": 1,
+                  "blockIndex": 24,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "391499999",
+                  "k": 2,
+                  "blockIndex": 24,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "India +330, start 00:00, grid 60",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 330,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-02-01"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-03-01"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "3300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-04-01"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-05-01"
+                }
+              ],
+              "n": "9",
+              "blocks": [
+                {
+                  "startMs": "369000000",
+                  "endMs": "371700000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "371700000",
+                  "endMs": "372600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "372600000",
+                  "endMs": "376200000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "376200000",
+                  "endMs": "382200000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "382200000",
+                  "endMs": "383400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "383400000",
+                  "endMs": "386700000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "386700000",
+                  "endMs": "387000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "387000000",
+                  "endMs": "388800000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "388800000",
+                  "endMs": "390600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "390600000",
+                  "endMs": "393300000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "393300000",
+                  "endMs": "394200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "394200000",
+                  "endMs": "397800000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "397800000",
+                  "endMs": "403800000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "403800000",
+                  "endMs": "405000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "405000000",
+                  "endMs": "408300000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "408300000",
+                  "endMs": "408600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "408600000",
+                  "endMs": "410400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "410400000",
+                  "endMs": "412200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "369000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "371699999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2699999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "371700000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "372599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "372600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "376199999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "390600000",
+                  "k": 2,
+                  "blockIndex": 9,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    10,
+                    11
+                  ]
+                },
+                {
+                  "t": "408600000",
+                  "k": 5,
+                  "blockIndex": 16,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    17
+                  ]
+                },
+                {
+                  "t": "410399999",
+                  "k": 0,
+                  "blockIndex": 16,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "410400000",
+                  "k": 1,
+                  "blockIndex": 17,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "412199999",
+                  "k": 2,
+                  "blockIndex": 17,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "before 1970 (n < 0), UTC-5 start 06:00, chronological",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1999-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1999-02-01"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1999-03-01"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "3300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1999-04-01"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1999-05-01"
+                }
+              ],
+              "n": "-1000",
+              "blocks": [
+                {
+                  "startMs": "-21560400000",
+                  "endMs": "-21558900000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "-21558900000",
+                  "endMs": "-21558600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21558600000",
+                  "endMs": "-21552600000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "-21552600000",
+                  "endMs": "-21551400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21551400000",
+                  "endMs": "-21548100000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "-21548100000",
+                  "endMs": "-21547800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21547800000",
+                  "endMs": "-21546000000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "-21546000000",
+                  "endMs": "-21543300000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "-21543300000",
+                  "endMs": "-21542400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21542400000",
+                  "endMs": "-21540900000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "-21540900000",
+                  "endMs": "-21540600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21540600000",
+                  "endMs": "-21538800000",
+                  "itemId": "00000000000000000000000000000005"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-21560400000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-21558900001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-21558900000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-21558600001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-21558600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-21552600001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "5999999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-21549600000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-21540900000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "-21540600001",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-21540600000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-21538800001",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, chronological: A3 does not fit, A4 would but is not placed (group rule)",
+              "note": "Slate of 20 min at the end.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000191",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-01",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000192",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-02",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000193",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-03",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000194",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-04",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 4
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1200000",
+                  "itemId": "00000000000000000000000000000191"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "2400000",
+                  "itemId": "00000000000000000000000000000192"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "2399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, randomInOrder: same series, same rule",
+              "settings": {
+                "seed": "5",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000191",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-01",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000192",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-02",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000193",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-03",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000194",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-04",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 4
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1200000",
+                  "itemId": "00000000000000000000000000000191"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "2400000",
+                  "itemId": "00000000000000000000000000000192"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "2399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, shuffle: A3 does not fit, A4 is placed (no group rule)",
+              "settings": {
+                "seed": "3",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000191",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-01",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000192",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-02",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000193",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-03",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000194",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-04",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 4
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "600000",
+                  "itemId": "00000000000000000000000000000194"
+                },
+                {
+                  "startMs": "600000",
+                  "endMs": "1800000",
+                  "itemId": "00000000000000000000000000000191"
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3000000",
+                  "itemId": "00000000000000000000000000000192"
+                },
+                {
+                  "startMs": "3000000",
+                  "endMs": "3600000",
+                  "itemId": "00000000000000000000000000000194"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2999999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3000000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "offsetMs": "599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, chronological: reaches the cycle's end and stops (no wrap), 30-min slate",
+              "note": "Cycle M1 M2 M3 M4 (10, 10, 10, 50 min). M4 does not fit at minute 30. The fill visits M4 only; M1 would fit again but the fill does not wrap.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000001f5",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-01"
+                },
+                {
+                  "id": "000000000000000000000000000001f6",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-02"
+                },
+                {
+                  "id": "000000000000000000000000000001f7",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-03"
+                },
+                {
+                  "id": "000000000000000000000000000001f8",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-04"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "600000",
+                  "itemId": "000000000000000000000000000001f5"
+                },
+                {
+                  "startMs": "600000",
+                  "endMs": "1200000",
+                  "itemId": "000000000000000000000000000001f6"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "1800000",
+                  "itemId": "000000000000000000000000000001f7"
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, shuffle: same pool and order, the fill wraps and re-places M1..M3",
+              "note": "Shuffle order M1 M2 M3 M4 (seed chosen for it). M4 does not fit; the fill wraps to M1, M2, M3 and places all three, filling the day with no slate.",
+              "settings": {
+                "seed": "9",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000001f5",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-01"
+                },
+                {
+                  "id": "000000000000000000000000000001f6",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-02"
+                },
+                {
+                  "id": "000000000000000000000000000001f7",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-03"
+                },
+                {
+                  "id": "000000000000000000000000000001f8",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-04-04"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "600000",
+                  "itemId": "000000000000000000000000000001f5"
+                },
+                {
+                  "startMs": "600000",
+                  "endMs": "1200000",
+                  "itemId": "000000000000000000000000000001f6"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "1800000",
+                  "itemId": "000000000000000000000000000001f7"
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "2400000",
+                  "itemId": "000000000000000000000000000001f5"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "3000000",
+                  "itemId": "000000000000000000000000000001f6"
+                },
+                {
+                  "startMs": "3000000",
+                  "endMs": "3600000",
+                  "itemId": "000000000000000000000000000001f7"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "2400000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "2999999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "599999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3000000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "minimum runtime: a 59,999 ms item is left out of the pool (default 60 s)",
+              "note": "Only the 30-minute movie airs.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000259",
+                  "kind": "movie",
+                  "runtimeMs": "59999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-05-01"
+                },
+                {
+                  "id": "0000000000000000000000000000025b",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-05-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1800000",
+                  "itemId": "0000000000000000000000000000025b"
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3600000",
+                  "itemId": "0000000000000000000000000000025b"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "minimum runtime: a 60,000 ms item is in the pool (default 60 s)",
+              "note": "The 1-minute movie airs, then the 30-minute one.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000025a",
+                  "kind": "movie",
+                  "runtimeMs": "60000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-05-02"
+                },
+                {
+                  "id": "0000000000000000000000000000025b",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-05-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "60000",
+                  "itemId": "0000000000000000000000000000025a"
+                },
+                {
+                  "startMs": "60000",
+                  "endMs": "1860000",
+                  "itemId": "0000000000000000000000000000025b"
+                },
+                {
+                  "startMs": "1860000",
+                  "endMs": "1920000",
+                  "itemId": "0000000000000000000000000000025a"
+                },
+                {
+                  "startMs": "1920000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "59999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "59999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "60000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1740000",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1859999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1860000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1919999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "59999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1920000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "movies only, one 2 h movie in a 3 h epoch on a 60-min grid: long slate",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "7200000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "10800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5400000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5400000",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "7199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "movies only, 170-min movie in a 3 h epoch, 30-min grid: 10-min slate",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "10200000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "10200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "10200000",
+                  "endMs": "10800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5400000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5400000",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "10199999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "10199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "10200000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, aligned, grid 15, mixed runtimes",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-05"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-06"
+                },
+                {
+                  "id": "00000000000000000000000000000007",
+                  "kind": "movie",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-07"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "110400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "110400000",
+                  "endMs": "110700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "110700000",
+                  "endMs": "112500000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "112500000",
+                  "endMs": "113340000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "113340000",
+                  "endMs": "113400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "113400000",
+                  "endMs": "114900000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "114900000",
+                  "endMs": "115200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "115200000",
+                  "endMs": "118200000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "118200000",
+                  "endMs": "118800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "118800000",
+                  "endMs": "120120000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "120120000",
+                  "endMs": "120600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "120600000",
+                  "endMs": "126300000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "126300000",
+                  "endMs": "126900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "126900000",
+                  "endMs": "129300000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "129300000",
+                  "endMs": "129600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "129600000",
+                  "endMs": "131400000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "131400000",
+                  "endMs": "132240000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "132240000",
+                  "endMs": "132300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "132300000",
+                  "endMs": "133800000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "133800000",
+                  "endMs": "134100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "134100000",
+                  "endMs": "135420000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "135420000",
+                  "endMs": "135900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "135900000",
+                  "endMs": "136740000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "136740000",
+                  "endMs": "136800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "110399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "110400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "110699999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "110700000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "112499999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "122400000",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    12,
+                    13
+                  ]
+                },
+                {
+                  "t": "135900000",
+                  "k": 5,
+                  "blockIndex": 22,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    23
+                  ]
+                },
+                {
+                  "t": "136739999",
+                  "k": 0,
+                  "blockIndex": 22,
+                  "offsetMs": "839999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "136740000",
+                  "k": 1,
+                  "blockIndex": 23,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "136799999",
+                  "k": 2,
+                  "blockIndex": 23,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, aligned, grid 15, blockLength 2",
+              "settings": {
+                "seed": "92",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000000b",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "0000000000000000000000000000000c",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-02",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "0000000000000000000000000000000d",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-03",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "0000000000000000000000000000000e",
+                  "kind": "episode",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-04",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "0000000000000000000000000000000f",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-05",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "00000000000000000000000000000010",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-06",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "00000000000000000000000000000011",
+                  "kind": "episode",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-07",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "00000000000000000000000000000012",
+                  "kind": "episode",
+                  "runtimeMs": "4200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-08",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 8
+                }
+              ],
+              "n": "-2",
+              "blocks": [
+                {
+                  "startMs": "-57600000",
+                  "endMs": "-56100000",
+                  "itemId": "0000000000000000000000000000000b"
+                },
+                {
+                  "startMs": "-56100000",
+                  "endMs": "-54780000",
+                  "itemId": "0000000000000000000000000000000d"
+                },
+                {
+                  "startMs": "-54780000",
+                  "endMs": "-54000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-54000000",
+                  "endMs": "-52200000",
+                  "itemId": "00000000000000000000000000000010"
+                },
+                {
+                  "startMs": "-52200000",
+                  "endMs": "-48000000",
+                  "itemId": "00000000000000000000000000000012"
+                },
+                {
+                  "startMs": "-48000000",
+                  "endMs": "-47700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-47700000",
+                  "endMs": "-45300000",
+                  "itemId": "0000000000000000000000000000000f"
+                },
+                {
+                  "startMs": "-45300000",
+                  "endMs": "-44460000",
+                  "itemId": "00000000000000000000000000000011"
+                },
+                {
+                  "startMs": "-44460000",
+                  "endMs": "-44100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-44100000",
+                  "endMs": "-41100000",
+                  "itemId": "0000000000000000000000000000000c"
+                },
+                {
+                  "startMs": "-41100000",
+                  "endMs": "-35400000",
+                  "itemId": "0000000000000000000000000000000e"
+                },
+                {
+                  "startMs": "-35400000",
+                  "endMs": "-35100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-35100000",
+                  "endMs": "-33600000",
+                  "itemId": "0000000000000000000000000000000b"
+                },
+                {
+                  "startMs": "-33600000",
+                  "endMs": "-32280000",
+                  "itemId": "0000000000000000000000000000000d"
+                },
+                {
+                  "startMs": "-32280000",
+                  "endMs": "-31500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-31500000",
+                  "endMs": "-29700000",
+                  "itemId": "00000000000000000000000000000010"
+                },
+                {
+                  "startMs": "-29700000",
+                  "endMs": "-28800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-57600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-56100001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-56100000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-54780001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-54780000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-54000001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-43200000",
+                  "k": 2,
+                  "blockIndex": 9,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    10,
+                    11
+                  ]
+                },
+                {
+                  "t": "-31500000",
+                  "k": 5,
+                  "blockIndex": 15,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    16
+                  ]
+                },
+                {
+                  "t": "-29700001",
+                  "k": 0,
+                  "blockIndex": 15,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-29700000",
+                  "k": 1,
+                  "blockIndex": 16,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-28800001",
+                  "k": 2,
+                  "blockIndex": 16,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, aligned, grid 15, blockLength 3 (the last run is short)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "12:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000001e",
+                  "kind": "movie",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000001f",
+                  "kind": "movie",
+                  "runtimeMs": "1980000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000020",
+                  "kind": "movie",
+                  "runtimeMs": "2760000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000021",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000022",
+                  "kind": "movie",
+                  "runtimeMs": "1740000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000023",
+                  "kind": "movie",
+                  "runtimeMs": "3120000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000024",
+                  "kind": "movie",
+                  "runtimeMs": "2280000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "11",
+              "blocks": [
+                {
+                  "startMs": "518400000",
+                  "endMs": "520140000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "520140000",
+                  "endMs": "522900000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "522900000",
+                  "endMs": "526020000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "526020000",
+                  "endMs": "526500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "526500000",
+                  "endMs": "528780000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "528780000",
+                  "endMs": "530760000",
+                  "itemId": "0000000000000000000000000000001f"
+                },
+                {
+                  "startMs": "530760000",
+                  "endMs": "532020000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "532020000",
+                  "endMs": "532800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "532800000",
+                  "endMs": "533880000",
+                  "itemId": "00000000000000000000000000000021"
+                },
+                {
+                  "startMs": "533880000",
+                  "endMs": "534600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "534600000",
+                  "endMs": "536340000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "536340000",
+                  "endMs": "539100000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "539100000",
+                  "endMs": "542220000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "542220000",
+                  "endMs": "542700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "542700000",
+                  "endMs": "544980000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "544980000",
+                  "endMs": "546960000",
+                  "itemId": "0000000000000000000000000000001f"
+                },
+                {
+                  "startMs": "546960000",
+                  "endMs": "548220000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "548220000",
+                  "endMs": "549000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "549000000",
+                  "endMs": "550080000",
+                  "itemId": "00000000000000000000000000000021"
+                },
+                {
+                  "startMs": "550080000",
+                  "endMs": "550800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "550800000",
+                  "endMs": "552540000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "552540000",
+                  "endMs": "555300000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "555300000",
+                  "endMs": "558420000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "558420000",
+                  "endMs": "558900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "558900000",
+                  "endMs": "561180000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "561180000",
+                  "endMs": "561600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "518400000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "520139999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1739999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "520140000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "522899999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2759999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "522900000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "526019999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3119999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "540000000",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "t": "558900000",
+                  "k": 5,
+                  "blockIndex": 24,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    25
+                  ]
+                },
+                {
+                  "t": "561179999",
+                  "k": 0,
+                  "blockIndex": 24,
+                  "offsetMs": "2279999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "561180000",
+                  "k": 1,
+                  "blockIndex": 25,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "561599999",
+                  "k": 2,
+                  "blockIndex": 25,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, aligned, grid 30, mixed runtimes",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-05"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-06"
+                },
+                {
+                  "id": "00000000000000000000000000000007",
+                  "kind": "movie",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-07"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "109500000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "109500000",
+                  "endMs": "109800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "109800000",
+                  "endMs": "112800000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "112800000",
+                  "endMs": "113400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "113400000",
+                  "endMs": "114720000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "114720000",
+                  "endMs": "115200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "115200000",
+                  "endMs": "120900000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "120900000",
+                  "endMs": "122400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "122400000",
+                  "endMs": "124800000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "124800000",
+                  "endMs": "126000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "126000000",
+                  "endMs": "127800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "127800000",
+                  "endMs": "128640000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "128640000",
+                  "endMs": "129600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "129600000",
+                  "endMs": "131100000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "131100000",
+                  "endMs": "131400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "131400000",
+                  "endMs": "134400000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "134400000",
+                  "endMs": "135000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "135000000",
+                  "endMs": "136320000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "136320000",
+                  "endMs": "136800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "109499999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "109500000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "109799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "109800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "112799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2999999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "122400000",
+                  "k": 2,
+                  "blockIndex": 8,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    9,
+                    10
+                  ]
+                },
+                {
+                  "t": "135000000",
+                  "k": 5,
+                  "blockIndex": 17,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    18
+                  ]
+                },
+                {
+                  "t": "136319999",
+                  "k": 0,
+                  "blockIndex": 17,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "136320000",
+                  "k": 1,
+                  "blockIndex": 18,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "136799999",
+                  "k": 2,
+                  "blockIndex": 18,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, aligned, grid 30, blockLength 2",
+              "settings": {
+                "seed": "107",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000000b",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "0000000000000000000000000000000c",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-02",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "0000000000000000000000000000000d",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-03",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "0000000000000000000000000000000e",
+                  "kind": "episode",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-04",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "0000000000000000000000000000000f",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-05",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "00000000000000000000000000000010",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-06",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "00000000000000000000000000000011",
+                  "kind": "episode",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-07",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "00000000000000000000000000000012",
+                  "kind": "episode",
+                  "runtimeMs": "4200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-08",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 8
+                }
+              ],
+              "n": "-2",
+              "blocks": [
+                {
+                  "startMs": "-57600000",
+                  "endMs": "-55200000",
+                  "itemId": "0000000000000000000000000000000f"
+                },
+                {
+                  "startMs": "-55200000",
+                  "endMs": "-54360000",
+                  "itemId": "00000000000000000000000000000011"
+                },
+                {
+                  "startMs": "-54360000",
+                  "endMs": "-54000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-54000000",
+                  "endMs": "-52200000",
+                  "itemId": "00000000000000000000000000000010"
+                },
+                {
+                  "startMs": "-52200000",
+                  "endMs": "-48000000",
+                  "itemId": "00000000000000000000000000000012"
+                },
+                {
+                  "startMs": "-48000000",
+                  "endMs": "-46800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-46800000",
+                  "endMs": "-45300000",
+                  "itemId": "0000000000000000000000000000000b"
+                },
+                {
+                  "startMs": "-45300000",
+                  "endMs": "-43980000",
+                  "itemId": "0000000000000000000000000000000d"
+                },
+                {
+                  "startMs": "-43980000",
+                  "endMs": "-43200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-43200000",
+                  "endMs": "-40200000",
+                  "itemId": "0000000000000000000000000000000c"
+                },
+                {
+                  "startMs": "-40200000",
+                  "endMs": "-34500000",
+                  "itemId": "0000000000000000000000000000000e"
+                },
+                {
+                  "startMs": "-34500000",
+                  "endMs": "-34200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-34200000",
+                  "endMs": "-31800000",
+                  "itemId": "0000000000000000000000000000000f"
+                },
+                {
+                  "startMs": "-31800000",
+                  "endMs": "-30960000",
+                  "itemId": "00000000000000000000000000000011"
+                },
+                {
+                  "startMs": "-30960000",
+                  "endMs": "-30600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-30600000",
+                  "endMs": "-28800000",
+                  "itemId": "00000000000000000000000000000010"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-57600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-55200001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-55200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-54360001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "839999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-54360000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-54000001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-43200000",
+                  "k": 2,
+                  "blockIndex": 9,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    10,
+                    11
+                  ]
+                },
+                {
+                  "t": "-30960000",
+                  "k": 5,
+                  "blockIndex": 14,
+                  "nextIndexes": [
+                    15
+                  ]
+                },
+                {
+                  "t": "-30600001",
+                  "k": 0,
+                  "blockIndex": 14,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-30600000",
+                  "k": 1,
+                  "blockIndex": 15,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-28800001",
+                  "k": 2,
+                  "blockIndex": 15,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, aligned, grid 30, blockLength 3 (the last run is short)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "12:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000001e",
+                  "kind": "movie",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000001f",
+                  "kind": "movie",
+                  "runtimeMs": "1980000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000020",
+                  "kind": "movie",
+                  "runtimeMs": "2760000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000021",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000022",
+                  "kind": "movie",
+                  "runtimeMs": "1740000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000023",
+                  "kind": "movie",
+                  "runtimeMs": "3120000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000024",
+                  "kind": "movie",
+                  "runtimeMs": "2280000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "11",
+              "blocks": [
+                {
+                  "startMs": "518400000",
+                  "endMs": "520140000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "520140000",
+                  "endMs": "522900000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "522900000",
+                  "endMs": "526020000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "526020000",
+                  "endMs": "527400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "527400000",
+                  "endMs": "529680000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "529680000",
+                  "endMs": "531660000",
+                  "itemId": "0000000000000000000000000000001f"
+                },
+                {
+                  "startMs": "531660000",
+                  "endMs": "532920000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "532920000",
+                  "endMs": "534600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "534600000",
+                  "endMs": "535680000",
+                  "itemId": "00000000000000000000000000000021"
+                },
+                {
+                  "startMs": "535680000",
+                  "endMs": "536400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "536400000",
+                  "endMs": "538140000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "538140000",
+                  "endMs": "540900000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "540900000",
+                  "endMs": "544020000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "544020000",
+                  "endMs": "545400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "545400000",
+                  "endMs": "547680000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "547680000",
+                  "endMs": "549660000",
+                  "itemId": "0000000000000000000000000000001f"
+                },
+                {
+                  "startMs": "549660000",
+                  "endMs": "550920000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "550920000",
+                  "endMs": "552600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "552600000",
+                  "endMs": "553680000",
+                  "itemId": "00000000000000000000000000000021"
+                },
+                {
+                  "startMs": "553680000",
+                  "endMs": "554400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "554400000",
+                  "endMs": "556140000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "556140000",
+                  "endMs": "556200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "556200000",
+                  "endMs": "558960000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "558960000",
+                  "endMs": "559800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "559800000",
+                  "endMs": "561060000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "561060000",
+                  "endMs": "561600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "518400000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "520139999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1739999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "520140000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "522899999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2759999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "522900000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "526019999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3119999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "540000000",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1860000",
+                  "nextIndexes": [
+                    12,
+                    13
+                  ]
+                },
+                {
+                  "t": "559800000",
+                  "k": 5,
+                  "blockIndex": 24,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    25
+                  ]
+                },
+                {
+                  "t": "561059999",
+                  "k": 0,
+                  "blockIndex": 24,
+                  "offsetMs": "1259999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "561060000",
+                  "k": 1,
+                  "blockIndex": 25,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "561599999",
+                  "k": 2,
+                  "blockIndex": 25,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological, aligned, grid 60, mixed runtimes",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-05"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-06"
+                },
+                {
+                  "id": "00000000000000000000000000000007",
+                  "kind": "movie",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-07"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "109800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "109800000",
+                  "endMs": "111600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "111600000",
+                  "endMs": "112440000",
+                  "itemId": "00000000000000000000000000000007"
+                },
+                {
+                  "startMs": "112440000",
+                  "endMs": "115200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "115200000",
+                  "endMs": "116700000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "116700000",
+                  "endMs": "118800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "118800000",
+                  "endMs": "121800000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "121800000",
+                  "endMs": "122400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "122400000",
+                  "endMs": "123720000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "123720000",
+                  "endMs": "126000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "126000000",
+                  "endMs": "131700000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "131700000",
+                  "endMs": "133200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "133200000",
+                  "endMs": "135600000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "135600000",
+                  "endMs": "136800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "109799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "109800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "111599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "111600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "112439999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "839999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "122400000",
+                  "k": 2,
+                  "blockIndex": 8,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    9,
+                    10
+                  ]
+                },
+                {
+                  "t": "133200000",
+                  "k": 5,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13
+                  ]
+                },
+                {
+                  "t": "135599999",
+                  "k": 0,
+                  "blockIndex": 12,
+                  "offsetMs": "2399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "135600000",
+                  "k": 1,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "136799999",
+                  "k": 2,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, aligned, grid 60, blockLength 2",
+              "settings": {
+                "seed": "137",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000000b",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-01",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "0000000000000000000000000000000c",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-02",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "0000000000000000000000000000000d",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-03",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "0000000000000000000000000000000e",
+                  "kind": "episode",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-04",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "0000000000000000000000000000000f",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-05",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "00000000000000000000000000000010",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-06",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "00000000000000000000000000000011",
+                  "kind": "episode",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-07",
+                  "seriesId": "00000000000000000000000000000006",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "00000000000000000000000000000012",
+                  "kind": "episode",
+                  "runtimeMs": "4200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2021-01-08",
+                  "seriesId": "00000000000000000000000000000005",
+                  "season": 1,
+                  "episode": 8
+                }
+              ],
+              "n": "-2",
+              "blocks": [
+                {
+                  "startMs": "-57600000",
+                  "endMs": "-55800000",
+                  "itemId": "00000000000000000000000000000010"
+                },
+                {
+                  "startMs": "-55800000",
+                  "endMs": "-51600000",
+                  "itemId": "00000000000000000000000000000012"
+                },
+                {
+                  "startMs": "-51600000",
+                  "endMs": "-50400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-50400000",
+                  "endMs": "-48900000",
+                  "itemId": "0000000000000000000000000000000b"
+                },
+                {
+                  "startMs": "-48900000",
+                  "endMs": "-47580000",
+                  "itemId": "0000000000000000000000000000000d"
+                },
+                {
+                  "startMs": "-47580000",
+                  "endMs": "-46800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-46800000",
+                  "endMs": "-43800000",
+                  "itemId": "0000000000000000000000000000000c"
+                },
+                {
+                  "startMs": "-43800000",
+                  "endMs": "-38100000",
+                  "itemId": "0000000000000000000000000000000e"
+                },
+                {
+                  "startMs": "-38100000",
+                  "endMs": "-36000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-36000000",
+                  "endMs": "-33600000",
+                  "itemId": "0000000000000000000000000000000f"
+                },
+                {
+                  "startMs": "-33600000",
+                  "endMs": "-32760000",
+                  "itemId": "00000000000000000000000000000011"
+                },
+                {
+                  "startMs": "-32760000",
+                  "endMs": "-32400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-32400000",
+                  "endMs": "-30600000",
+                  "itemId": "00000000000000000000000000000010"
+                },
+                {
+                  "startMs": "-30600000",
+                  "endMs": "-28800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-57600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-55800001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-55800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-51600001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "4199999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-51600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-50400001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-43200000",
+                  "k": 2,
+                  "blockIndex": 7,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    8,
+                    9
+                  ]
+                },
+                {
+                  "t": "-32400000",
+                  "k": 5,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13
+                  ]
+                },
+                {
+                  "t": "-30600001",
+                  "k": 0,
+                  "blockIndex": 12,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-30600000",
+                  "k": 1,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-28800001",
+                  "k": 2,
+                  "blockIndex": 13,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, aligned, grid 60, blockLength 3 (the last run is short)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "12:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000001e",
+                  "kind": "movie",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000001f",
+                  "kind": "movie",
+                  "runtimeMs": "1980000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000020",
+                  "kind": "movie",
+                  "runtimeMs": "2760000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000021",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000022",
+                  "kind": "movie",
+                  "runtimeMs": "1740000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000023",
+                  "kind": "movie",
+                  "runtimeMs": "3120000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000024",
+                  "kind": "movie",
+                  "runtimeMs": "2280000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "11",
+              "blocks": [
+                {
+                  "startMs": "518400000",
+                  "endMs": "520140000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "520140000",
+                  "endMs": "522900000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "522900000",
+                  "endMs": "526020000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "526020000",
+                  "endMs": "529200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "529200000",
+                  "endMs": "531480000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "531480000",
+                  "endMs": "533460000",
+                  "itemId": "0000000000000000000000000000001f"
+                },
+                {
+                  "startMs": "533460000",
+                  "endMs": "534720000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "534720000",
+                  "endMs": "536400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "536400000",
+                  "endMs": "537480000",
+                  "itemId": "00000000000000000000000000000021"
+                },
+                {
+                  "startMs": "537480000",
+                  "endMs": "540000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "540000000",
+                  "endMs": "541740000",
+                  "itemId": "00000000000000000000000000000022"
+                },
+                {
+                  "startMs": "541740000",
+                  "endMs": "544500000",
+                  "itemId": "00000000000000000000000000000020"
+                },
+                {
+                  "startMs": "544500000",
+                  "endMs": "547620000",
+                  "itemId": "00000000000000000000000000000023"
+                },
+                {
+                  "startMs": "547620000",
+                  "endMs": "550800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "550800000",
+                  "endMs": "553080000",
+                  "itemId": "00000000000000000000000000000024"
+                },
+                {
+                  "startMs": "553080000",
+                  "endMs": "555060000",
+                  "itemId": "0000000000000000000000000000001f"
+                },
+                {
+                  "startMs": "555060000",
+                  "endMs": "556320000",
+                  "itemId": "0000000000000000000000000000001e"
+                },
+                {
+                  "startMs": "556320000",
+                  "endMs": "558000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "558000000",
+                  "endMs": "559080000",
+                  "itemId": "00000000000000000000000000000021"
+                },
+                {
+                  "startMs": "559080000",
+                  "endMs": "561600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "518400000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "520139999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1739999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "520140000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "522899999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2759999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "522900000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "526019999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3119999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "540000000",
+                  "k": 2,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11,
+                    12
+                  ]
+                },
+                {
+                  "t": "558000000",
+                  "k": 5,
+                  "blockIndex": 18,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    19
+                  ]
+                },
+                {
+                  "t": "559079999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "1079999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "559080000",
+                  "k": 1,
+                  "blockIndex": 19,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "561599999",
+                  "k": 2,
+                  "blockIndex": 19,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, not aligned, blockLength 3",
+              "settings": {
+                "seed": "4242",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000032",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-01",
+                  "seriesId": "00000000000000000000000000000008",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000033",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-02",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000034",
+                  "kind": "episode",
+                  "runtimeMs": "1560000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-03",
+                  "seriesId": "0000000000000000000000000000000a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000035",
+                  "kind": "episode",
+                  "runtimeMs": "1740000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-04",
+                  "seriesId": "00000000000000000000000000000008",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000036",
+                  "kind": "episode",
+                  "runtimeMs": "1920000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-05",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000037",
+                  "kind": "episode",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-06",
+                  "seriesId": "0000000000000000000000000000000a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000038",
+                  "kind": "episode",
+                  "runtimeMs": "2280000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-07",
+                  "seriesId": "00000000000000000000000000000008",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000039",
+                  "kind": "episode",
+                  "runtimeMs": "2460000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-08",
+                  "seriesId": "00000000000000000000000000000009",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "0000000000000000000000000000003a",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2022-01-09",
+                  "seriesId": "0000000000000000000000000000000a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "5",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "109200000",
+                  "itemId": "00000000000000000000000000000032"
+                },
+                {
+                  "startMs": "109200000",
+                  "endMs": "110940000",
+                  "itemId": "00000000000000000000000000000035"
+                },
+                {
+                  "startMs": "110940000",
+                  "endMs": "113220000",
+                  "itemId": "00000000000000000000000000000038"
+                },
+                {
+                  "startMs": "113220000",
+                  "endMs": "114780000",
+                  "itemId": "00000000000000000000000000000034"
+                },
+                {
+                  "startMs": "114780000",
+                  "endMs": "116880000",
+                  "itemId": "00000000000000000000000000000037"
+                },
+                {
+                  "startMs": "116880000",
+                  "endMs": "119520000",
+                  "itemId": "0000000000000000000000000000003a"
+                },
+                {
+                  "startMs": "119520000",
+                  "endMs": "120900000",
+                  "itemId": "00000000000000000000000000000033"
+                },
+                {
+                  "startMs": "120900000",
+                  "endMs": "122820000",
+                  "itemId": "00000000000000000000000000000036"
+                },
+                {
+                  "startMs": "122820000",
+                  "endMs": "125280000",
+                  "itemId": "00000000000000000000000000000039"
+                },
+                {
+                  "startMs": "125280000",
+                  "endMs": "126480000",
+                  "itemId": "00000000000000000000000000000032"
+                },
+                {
+                  "startMs": "126480000",
+                  "endMs": "128220000",
+                  "itemId": "00000000000000000000000000000035"
+                },
+                {
+                  "startMs": "128220000",
+                  "endMs": "129600000",
+                  "itemId": "00000000000000000000000000000033"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "109199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "109200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "110939999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1739999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "110940000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "113219999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2279999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "118800000",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "1920000",
+                  "nextIndexes": [
+                    6,
+                    7
+                  ]
+                },
+                {
+                  "t": "126480000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "128219999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1739999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "128220000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "129599999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1379999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "cycle wraps inside the day, chronological, aligned 30 (3 items of 25 min, 6 h)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000046",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-06-01"
+                },
+                {
+                  "id": "00000000000000000000000000000047",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-06-02"
+                },
+                {
+                  "id": "00000000000000000000000000000048",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-06-03"
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "44700000",
+                  "itemId": "00000000000000000000000000000046"
+                },
+                {
+                  "startMs": "44700000",
+                  "endMs": "45000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "45000000",
+                  "endMs": "46500000",
+                  "itemId": "00000000000000000000000000000047"
+                },
+                {
+                  "startMs": "46500000",
+                  "endMs": "46800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "48300000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "48300000",
+                  "endMs": "48600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "48600000",
+                  "endMs": "50100000",
+                  "itemId": "00000000000000000000000000000046"
+                },
+                {
+                  "startMs": "50100000",
+                  "endMs": "50400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "50400000",
+                  "endMs": "51900000",
+                  "itemId": "00000000000000000000000000000047"
+                },
+                {
+                  "startMs": "51900000",
+                  "endMs": "52200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "52200000",
+                  "endMs": "53700000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "53700000",
+                  "endMs": "54000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "54000000",
+                  "endMs": "55500000",
+                  "itemId": "00000000000000000000000000000046"
+                },
+                {
+                  "startMs": "55500000",
+                  "endMs": "55800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "55800000",
+                  "endMs": "57300000",
+                  "itemId": "00000000000000000000000000000047"
+                },
+                {
+                  "startMs": "57300000",
+                  "endMs": "57600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "57600000",
+                  "endMs": "59100000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "59100000",
+                  "endMs": "59400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "59400000",
+                  "endMs": "60900000",
+                  "itemId": "00000000000000000000000000000046"
+                },
+                {
+                  "startMs": "60900000",
+                  "endMs": "61200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "61200000",
+                  "endMs": "62700000",
+                  "itemId": "00000000000000000000000000000047"
+                },
+                {
+                  "startMs": "62700000",
+                  "endMs": "63000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "63000000",
+                  "endMs": "64500000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "64500000",
+                  "endMs": "64800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "44699999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "44700000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "44999999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "45000000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "46499999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "54000000",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "t": "63000000",
+                  "k": 5,
+                  "blockIndex": 22,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    23
+                  ]
+                },
+                {
+                  "t": "64499999",
+                  "k": 0,
+                  "blockIndex": 22,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "64500000",
+                  "k": 1,
+                  "blockIndex": 23,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "64799999",
+                  "k": 2,
+                  "blockIndex": 23,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "cycle wraps inside the day, shuffle, not aligned",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000046",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-06-01"
+                },
+                {
+                  "id": "00000000000000000000000000000047",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-06-02"
+                },
+                {
+                  "id": "00000000000000000000000000000048",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-06-03"
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "21600000",
+                  "endMs": "23100000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "23100000",
+                  "endMs": "24600000",
+                  "itemId": "00000000000000000000000000000047"
+                },
+                {
+                  "startMs": "24600000",
+                  "endMs": "26100000",
+                  "itemId": "00000000000000000000000000000046"
+                },
+                {
+                  "startMs": "26100000",
+                  "endMs": "27600000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "27600000",
+                  "endMs": "29100000",
+                  "itemId": "00000000000000000000000000000047"
+                },
+                {
+                  "startMs": "29100000",
+                  "endMs": "30600000",
+                  "itemId": "00000000000000000000000000000046"
+                },
+                {
+                  "startMs": "30600000",
+                  "endMs": "32100000",
+                  "itemId": "00000000000000000000000000000048"
+                },
+                {
+                  "startMs": "32100000",
+                  "endMs": "32400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "21600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "23099999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "23100000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "24599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "24600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "26099999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "27000000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "30600000",
+                  "k": 5,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7
+                  ]
+                },
+                {
+                  "t": "32099999",
+                  "k": 0,
+                  "blockIndex": 6,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "32100000",
+                  "k": 1,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "32399999",
+                  "k": 2,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "cycle wraps inside the day, randomInOrder, blockLength 2, not aligned",
+              "settings": {
+                "seed": "9",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": false,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000051",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-07-02",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000052",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-07-03",
+                  "seriesId": "00000000000000000000000000000003",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000053",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-07-04",
+                  "seriesId": "00000000000000000000000000000004",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "21600000",
+                  "endMs": "22800000",
+                  "itemId": "00000000000000000000000000000052"
+                },
+                {
+                  "startMs": "22800000",
+                  "endMs": "24000000",
+                  "itemId": "00000000000000000000000000000051"
+                },
+                {
+                  "startMs": "24000000",
+                  "endMs": "25200000",
+                  "itemId": "00000000000000000000000000000053"
+                },
+                {
+                  "startMs": "25200000",
+                  "endMs": "26400000",
+                  "itemId": "00000000000000000000000000000052"
+                },
+                {
+                  "startMs": "26400000",
+                  "endMs": "27600000",
+                  "itemId": "00000000000000000000000000000051"
+                },
+                {
+                  "startMs": "27600000",
+                  "endMs": "28800000",
+                  "itemId": "00000000000000000000000000000053"
+                },
+                {
+                  "startMs": "28800000",
+                  "endMs": "30000000",
+                  "itemId": "00000000000000000000000000000052"
+                },
+                {
+                  "startMs": "30000000",
+                  "endMs": "31200000",
+                  "itemId": "00000000000000000000000000000051"
+                },
+                {
+                  "startMs": "31200000",
+                  "endMs": "32400000",
+                  "itemId": "00000000000000000000000000000053"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "21600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "22799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "22800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "23999999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "24000000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "25199999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "27000000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "30000000",
+                  "k": 5,
+                  "blockIndex": 7,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    8
+                  ]
+                },
+                {
+                  "t": "31199999",
+                  "k": 0,
+                  "blockIndex": 7,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "31200000",
+                  "k": 1,
+                  "blockIndex": 8,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "32399999",
+                  "k": 2,
+                  "blockIndex": 8,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "regular layout ends exactly at E (4 x 30 min in 2 h): no fill, no closing slate",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000005a",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-01"
+                },
+                {
+                  "id": "0000000000000000000000000000005b",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-02"
+                },
+                {
+                  "id": "0000000000000000000000000000005c",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-03"
+                },
+                {
+                  "id": "0000000000000000000000000000005d",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-04"
+                }
+              ],
+              "n": "6",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "45000000",
+                  "itemId": "0000000000000000000000000000005a"
+                },
+                {
+                  "startMs": "45000000",
+                  "endMs": "46800000",
+                  "itemId": "0000000000000000000000000000005b"
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "48600000",
+                  "itemId": "0000000000000000000000000000005c"
+                },
+                {
+                  "startMs": "48600000",
+                  "endMs": "50400000",
+                  "itemId": "0000000000000000000000000000005d"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "44999999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "45000000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "46799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "46800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "48599999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "48600000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "50399999",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "regular layout ends exactly at E, not aligned, shuffle (3 x 40 min in 2 h)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000064",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000065",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000066",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "6",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "45600000",
+                  "itemId": "00000000000000000000000000000064"
+                },
+                {
+                  "startMs": "45600000",
+                  "endMs": "48000000",
+                  "itemId": "00000000000000000000000000000065"
+                },
+                {
+                  "startMs": "48000000",
+                  "endMs": "50400000",
+                  "itemId": "00000000000000000000000000000066"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "45599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "45600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "46800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1200000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "47999999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "48000000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "50399999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "2399999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a gap to the next grid mark at the end of the day is part of the closing slate",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000006e",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-01"
+                },
+                {
+                  "id": "0000000000000000000000000000006f",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-02"
+                },
+                {
+                  "id": "00000000000000000000000000000070",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-08-03"
+                }
+              ],
+              "n": "6",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "46200000",
+                  "itemId": "0000000000000000000000000000006e"
+                },
+                {
+                  "startMs": "46200000",
+                  "endMs": "46800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "49800000",
+                  "itemId": "0000000000000000000000000000006f"
+                },
+                {
+                  "startMs": "49800000",
+                  "endMs": "50400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "46199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2999999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "46200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "46799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "46800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "49799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2999999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "49800000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "50399999",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "one 3 h movie in a 3 h epoch fills the day exactly",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000078",
+                  "kind": "movie",
+                  "runtimeMs": "10800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "4",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "54000000",
+                  "itemId": "00000000000000000000000000000078"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "48600000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5400000",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "53999999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "10799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a movie of epochMs + 1 ms is not in the pool (empty day)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000079",
+                  "kind": "movie",
+                  "runtimeMs": "10800001",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "4",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "54000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "48600000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "53999999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a run whose slot equals the epoch stays in the cycle (blockLength 2, 2 x 90 min in 3 h)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000007a",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000007b",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "4",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "48600000",
+                  "itemId": "0000000000000000000000000000007a"
+                },
+                {
+                  "startMs": "48600000",
+                  "endMs": "54000000",
+                  "itemId": "0000000000000000000000000000007b"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "48599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "48600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "53999999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "5399999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "every item shorter than the minimum (30 s): empty pool, one slate",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000082",
+                  "kind": "movie",
+                  "runtimeMs": "30000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000083",
+                  "kind": "movie",
+                  "runtimeMs": "59999",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "86400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "43200000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "86399999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "minRuntimeSeconds 1: 999 ms is out, 1000 ms is in",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 1,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000084",
+                  "kind": "movie",
+                  "runtimeMs": "999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000085",
+                  "kind": "movie",
+                  "runtimeMs": "1000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000086",
+                  "kind": "movie",
+                  "runtimeMs": "300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "1000",
+                  "endMs": "301000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "301000",
+                  "endMs": "302000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "302000",
+                  "endMs": "602000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "602000",
+                  "endMs": "603000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "603000",
+                  "endMs": "903000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "903000",
+                  "endMs": "904000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "904000",
+                  "endMs": "1204000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "1204000",
+                  "endMs": "1205000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "1205000",
+                  "endMs": "1505000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "1505000",
+                  "endMs": "1506000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "1506000",
+                  "endMs": "1806000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "1806000",
+                  "endMs": "1807000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "1807000",
+                  "endMs": "2107000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "2107000",
+                  "endMs": "2108000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "2108000",
+                  "endMs": "2408000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "2408000",
+                  "endMs": "2409000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "2409000",
+                  "endMs": "2709000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "2709000",
+                  "endMs": "2710000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "2710000",
+                  "endMs": "3010000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "3010000",
+                  "endMs": "3011000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "3011000",
+                  "endMs": "3311000",
+                  "itemId": "00000000000000000000000000000086"
+                },
+                {
+                  "startMs": "3311000",
+                  "endMs": "3312000",
+                  "itemId": "00000000000000000000000000000085"
+                },
+                {
+                  "startMs": "3312000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "300999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "299999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "301000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "301999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "294000",
+                  "nextIndexes": [
+                    12,
+                    13
+                  ]
+                },
+                {
+                  "t": "3311000",
+                  "k": 5,
+                  "blockIndex": 22,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    23
+                  ]
+                },
+                {
+                  "t": "3311999",
+                  "k": 0,
+                  "blockIndex": 22,
+                  "offsetMs": "999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3312000",
+                  "k": 1,
+                  "blockIndex": 23,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 23,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "minRuntimeSeconds 3600 with 1 h epochs: only 1-hour items remain",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 3600,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000087",
+                  "kind": "movie",
+                  "runtimeMs": "3599999",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000088",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000089",
+                  "kind": "movie",
+                  "runtimeMs": "3660000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "3600000",
+                  "itemId": "00000000000000000000000000000088"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1800000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1800000",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "minRuntimeSeconds 600 default grid: a 599,999 ms item is out, 600,000 ms in",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 600,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000008a",
+                  "kind": "movie",
+                  "runtimeMs": "599999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-01"
+                },
+                {
+                  "id": "0000000000000000000000000000008b",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-02"
+                },
+                {
+                  "id": "0000000000000000000000000000008c",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "600000",
+                  "itemId": "0000000000000000000000000000008b"
+                },
+                {
+                  "startMs": "600000",
+                  "endMs": "2400000",
+                  "itemId": "0000000000000000000000000000008c"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "3000000",
+                  "itemId": "0000000000000000000000000000008b"
+                },
+                {
+                  "startMs": "3000000",
+                  "endMs": "4800000",
+                  "itemId": "0000000000000000000000000000008c"
+                },
+                {
+                  "startMs": "4800000",
+                  "endMs": "5400000",
+                  "itemId": "0000000000000000000000000000008b"
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "7200000",
+                  "itemId": "0000000000000000000000000000008c"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2399999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "2400000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2999999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "4800000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "5399999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "599999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5400000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "grace 0 h: createdAt and deletedAt on both sides of S-G (shuffle)",
+              "note": "In the pool: 141 (created S-G-1) and 143 (deleted at S-G). Out: 142, 144, 145.",
+              "settings": {
+                "seed": "31",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000008d",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "259199999",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000008e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "259200000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000008f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "259200000",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000090",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "259199999",
+                  "premiereDate": "2020-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000091",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "259200001",
+                  "premiereDate": "2020-01-05"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "64800000",
+                  "endMs": "66600000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "66600000",
+                  "endMs": "68400000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "68400000",
+                  "endMs": "70200000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "70200000",
+                  "endMs": "72000000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "72000000",
+                  "endMs": "73800000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "73800000",
+                  "endMs": "75600000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "75600000",
+                  "endMs": "77400000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "77400000",
+                  "endMs": "79200000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "79200000",
+                  "endMs": "81000000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "81000000",
+                  "endMs": "82800000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "82800000",
+                  "endMs": "84600000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "84600000",
+                  "endMs": "86400000",
+                  "itemId": "0000000000000000000000000000008f"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "64800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "66599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "66600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "68399999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "68400000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "70199999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "75600000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "82800000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "84599999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "84600000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "86399999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "grace 48 h: createdAt and deletedAt on both sides of S-G (shuffle)",
+              "note": "In the pool: 141 (created S-G-1) and 143 (deleted at S-G). Out: 142, 144, 145.",
+              "settings": {
+                "seed": "31",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 48,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000008d",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "86399999",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000008e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "86400000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000008f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "86400000",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000090",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "86399999",
+                  "premiereDate": "2020-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000091",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "86400001",
+                  "premiereDate": "2020-01-05"
+                }
+              ],
+              "n": "3",
+              "blocks": [
+                {
+                  "startMs": "64800000",
+                  "endMs": "66600000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "66600000",
+                  "endMs": "68400000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "68400000",
+                  "endMs": "70200000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "70200000",
+                  "endMs": "72000000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "72000000",
+                  "endMs": "73800000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "73800000",
+                  "endMs": "75600000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "75600000",
+                  "endMs": "77400000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "77400000",
+                  "endMs": "79200000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "79200000",
+                  "endMs": "81000000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "81000000",
+                  "endMs": "82800000",
+                  "itemId": "0000000000000000000000000000008f"
+                },
+                {
+                  "startMs": "82800000",
+                  "endMs": "84600000",
+                  "itemId": "00000000000000000000000000000090"
+                },
+                {
+                  "startMs": "84600000",
+                  "endMs": "86400000",
+                  "itemId": "0000000000000000000000000000008f"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "64800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "66599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "66600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "68399999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "68400000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "70199999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "75600000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "82800000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "84599999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "84600000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "86399999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a deleted item still airs in its day (deletedAt >= S-G), a later day drops it",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 2,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000092",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "100800005",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000093",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "5",
+              "blocks": [
+                {
+                  "startMs": "108000000",
+                  "endMs": "111600000",
+                  "itemId": "00000000000000000000000000000092"
+                },
+                {
+                  "startMs": "111600000",
+                  "endMs": "115200000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "115200000",
+                  "endMs": "118800000",
+                  "itemId": "00000000000000000000000000000092"
+                },
+                {
+                  "startMs": "118800000",
+                  "endMs": "122400000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "122400000",
+                  "endMs": "126000000",
+                  "itemId": "00000000000000000000000000000092"
+                },
+                {
+                  "startMs": "126000000",
+                  "endMs": "129600000",
+                  "itemId": "00000000000000000000000000000093"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "108000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "111599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "111600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "115199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "115200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "118799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "118800000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "122400000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "125999999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "126000000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "129599999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "same channel, the next day (the deleted item is gone)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 2,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000092",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "100800005",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000093",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "6",
+              "blocks": [
+                {
+                  "startMs": "129600000",
+                  "endMs": "133200000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "133200000",
+                  "endMs": "136800000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "136800000",
+                  "endMs": "140400000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "140400000",
+                  "endMs": "144000000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "144000000",
+                  "endMs": "147600000",
+                  "itemId": "00000000000000000000000000000093"
+                },
+                {
+                  "startMs": "147600000",
+                  "endMs": "151200000",
+                  "itemId": "00000000000000000000000000000093"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "129600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "133199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "133200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "136799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "136800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "140399999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "140400000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "144000000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "147599999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "147600000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "151199999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "Nepal +345, start 18:30, chronological, grid 30, 24 h",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 345,
+                    "start": "18:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000096",
+                  "kind": "movie",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-01"
+                },
+                {
+                  "id": "00000000000000000000000000000097",
+                  "kind": "movie",
+                  "runtimeMs": "4500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-02"
+                },
+                {
+                  "id": "00000000000000000000000000000098",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-03"
+                },
+                {
+                  "id": "00000000000000000000000000000099",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-04"
+                },
+                {
+                  "id": "0000000000000000000000000000009a",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-05"
+                },
+                {
+                  "id": "0000000000000000000000000000009b",
+                  "kind": "movie",
+                  "runtimeMs": "3720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-06"
+                }
+              ],
+              "n": "20",
+              "blocks": [
+                {
+                  "startMs": "1773900000",
+                  "endMs": "1779900000",
+                  "itemId": "00000000000000000000000000000099"
+                },
+                {
+                  "startMs": "1779900000",
+                  "endMs": "1781100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1781100000",
+                  "endMs": "1782900000",
+                  "itemId": "0000000000000000000000000000009a"
+                },
+                {
+                  "startMs": "1782900000",
+                  "endMs": "1786620000",
+                  "itemId": "0000000000000000000000000000009b"
+                },
+                {
+                  "startMs": "1786620000",
+                  "endMs": "1788300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1788300000",
+                  "endMs": "1791000000",
+                  "itemId": "00000000000000000000000000000096"
+                },
+                {
+                  "startMs": "1791000000",
+                  "endMs": "1791900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1791900000",
+                  "endMs": "1796400000",
+                  "itemId": "00000000000000000000000000000097"
+                },
+                {
+                  "startMs": "1796400000",
+                  "endMs": "1797300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1797300000",
+                  "endMs": "1800300000",
+                  "itemId": "00000000000000000000000000000098"
+                },
+                {
+                  "startMs": "1800300000",
+                  "endMs": "1800900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1800900000",
+                  "endMs": "1806900000",
+                  "itemId": "00000000000000000000000000000099"
+                },
+                {
+                  "startMs": "1806900000",
+                  "endMs": "1808100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1808100000",
+                  "endMs": "1809900000",
+                  "itemId": "0000000000000000000000000000009a"
+                },
+                {
+                  "startMs": "1809900000",
+                  "endMs": "1813620000",
+                  "itemId": "0000000000000000000000000000009b"
+                },
+                {
+                  "startMs": "1813620000",
+                  "endMs": "1815300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1815300000",
+                  "endMs": "1818000000",
+                  "itemId": "00000000000000000000000000000096"
+                },
+                {
+                  "startMs": "1818000000",
+                  "endMs": "1818900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1818900000",
+                  "endMs": "1823400000",
+                  "itemId": "00000000000000000000000000000097"
+                },
+                {
+                  "startMs": "1823400000",
+                  "endMs": "1824300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1824300000",
+                  "endMs": "1827300000",
+                  "itemId": "00000000000000000000000000000098"
+                },
+                {
+                  "startMs": "1827300000",
+                  "endMs": "1827900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1827900000",
+                  "endMs": "1833900000",
+                  "itemId": "00000000000000000000000000000099"
+                },
+                {
+                  "startMs": "1833900000",
+                  "endMs": "1835100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1835100000",
+                  "endMs": "1836900000",
+                  "itemId": "0000000000000000000000000000009a"
+                },
+                {
+                  "startMs": "1836900000",
+                  "endMs": "1840620000",
+                  "itemId": "0000000000000000000000000000009b"
+                },
+                {
+                  "startMs": "1840620000",
+                  "endMs": "1842300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1842300000",
+                  "endMs": "1845000000",
+                  "itemId": "00000000000000000000000000000096"
+                },
+                {
+                  "startMs": "1845000000",
+                  "endMs": "1845900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1845900000",
+                  "endMs": "1850400000",
+                  "itemId": "00000000000000000000000000000097"
+                },
+                {
+                  "startMs": "1850400000",
+                  "endMs": "1851300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1851300000",
+                  "endMs": "1854300000",
+                  "itemId": "00000000000000000000000000000098"
+                },
+                {
+                  "startMs": "1854300000",
+                  "endMs": "1854900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1854900000",
+                  "endMs": "1856700000",
+                  "itemId": "0000000000000000000000000000009a"
+                },
+                {
+                  "startMs": "1856700000",
+                  "endMs": "1860300000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1773900000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1779899999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5999999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1779900000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1781099999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "1781100000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1782899999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1817100000",
+                  "k": 2,
+                  "blockIndex": 16,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    17,
+                    18
+                  ]
+                },
+                {
+                  "t": "1854900000",
+                  "k": 5,
+                  "blockIndex": 33,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    34
+                  ]
+                },
+                {
+                  "t": "1856699999",
+                  "k": 0,
+                  "blockIndex": 33,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1856700000",
+                  "k": 1,
+                  "blockIndex": 34,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1860299999",
+                  "k": 2,
+                  "blockIndex": 34,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "Nepal +345, start 18:30, randomInOrder, runs of 2, 12 h",
+              "settings": {
+                "seed": "9223372036854775813",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 345,
+                    "start": "18:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000a1",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-02",
+                  "seriesId": "00000000000000000000000000000020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000a2",
+                  "kind": "episode",
+                  "runtimeMs": "4500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-03",
+                  "seriesId": "0000000000000000000000000000001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000a3",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-04",
+                  "seriesId": "00000000000000000000000000000020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000000000000000000000a4",
+                  "kind": "episode",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-05",
+                  "seriesId": "0000000000000000000000000000001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000000000000000000000a5",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-06",
+                  "seriesId": "00000000000000000000000000000020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000000000000000000000a6",
+                  "kind": "episode",
+                  "runtimeMs": "3720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-07",
+                  "seriesId": "0000000000000000000000000000001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000000000000000000000a7",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-08",
+                  "seriesId": "00000000000000000000000000000020",
+                  "season": 1,
+                  "episode": 7
+                }
+              ],
+              "n": "-20",
+              "blocks": [
+                {
+                  "startMs": "-818100000",
+                  "endMs": "-813600000",
+                  "itemId": "000000000000000000000000000000a2"
+                },
+                {
+                  "startMs": "-813600000",
+                  "endMs": "-807600000",
+                  "itemId": "000000000000000000000000000000a4"
+                },
+                {
+                  "startMs": "-807600000",
+                  "endMs": "-807300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-807300000",
+                  "endMs": "-804600000",
+                  "itemId": "000000000000000000000000000000a1"
+                },
+                {
+                  "startMs": "-804600000",
+                  "endMs": "-801600000",
+                  "itemId": "000000000000000000000000000000a3"
+                },
+                {
+                  "startMs": "-801600000",
+                  "endMs": "-800100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-800100000",
+                  "endMs": "-796380000",
+                  "itemId": "000000000000000000000000000000a6"
+                },
+                {
+                  "startMs": "-796380000",
+                  "endMs": "-794700000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-794700000",
+                  "endMs": "-792900000",
+                  "itemId": "000000000000000000000000000000a5"
+                },
+                {
+                  "startMs": "-792900000",
+                  "endMs": "-790500000",
+                  "itemId": "000000000000000000000000000000a7"
+                },
+                {
+                  "startMs": "-790500000",
+                  "endMs": "-789300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-789300000",
+                  "endMs": "-784800000",
+                  "itemId": "000000000000000000000000000000a2"
+                },
+                {
+                  "startMs": "-784800000",
+                  "endMs": "-778800000",
+                  "itemId": "000000000000000000000000000000a4"
+                },
+                {
+                  "startMs": "-778800000",
+                  "endMs": "-778500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-778500000",
+                  "endMs": "-775800000",
+                  "itemId": "000000000000000000000000000000a1"
+                },
+                {
+                  "startMs": "-775800000",
+                  "endMs": "-774900000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-818100000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-813600001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "4499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-813600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-807600001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "5999999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-807600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-807300001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-796500000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "3600000",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "-778500000",
+                  "k": 5,
+                  "blockIndex": 14,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    15
+                  ]
+                },
+                {
+                  "t": "-775800001",
+                  "k": 0,
+                  "blockIndex": 14,
+                  "offsetMs": "2699999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-775800000",
+                  "k": 1,
+                  "blockIndex": 15,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-774900001",
+                  "k": 2,
+                  "blockIndex": 15,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "India +330, start 00:00, shuffle, grid 60, 24 h",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 330,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000aa",
+                  "kind": "movie",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000ab",
+                  "kind": "movie",
+                  "runtimeMs": "4500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000ac",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000ad",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000ae",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000af",
+                  "kind": "movie",
+                  "runtimeMs": "3720000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20000",
+              "blocks": [
+                {
+                  "startMs": "1727980200000",
+                  "endMs": "1727983200000",
+                  "itemId": "000000000000000000000000000000ac"
+                },
+                {
+                  "startMs": "1727983200000",
+                  "endMs": "1727983800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1727983800000",
+                  "endMs": "1727985600000",
+                  "itemId": "000000000000000000000000000000ae"
+                },
+                {
+                  "startMs": "1727985600000",
+                  "endMs": "1727987400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1727987400000",
+                  "endMs": "1727990100000",
+                  "itemId": "000000000000000000000000000000aa"
+                },
+                {
+                  "startMs": "1727990100000",
+                  "endMs": "1727991000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1727991000000",
+                  "endMs": "1727997000000",
+                  "itemId": "000000000000000000000000000000ad"
+                },
+                {
+                  "startMs": "1727997000000",
+                  "endMs": "1727998200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1727998200000",
+                  "endMs": "1728001920000",
+                  "itemId": "000000000000000000000000000000af"
+                },
+                {
+                  "startMs": "1728001920000",
+                  "endMs": "1728005400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728005400000",
+                  "endMs": "1728009900000",
+                  "itemId": "000000000000000000000000000000ab"
+                },
+                {
+                  "startMs": "1728009900000",
+                  "endMs": "1728012600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728012600000",
+                  "endMs": "1728015600000",
+                  "itemId": "000000000000000000000000000000ac"
+                },
+                {
+                  "startMs": "1728015600000",
+                  "endMs": "1728016200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728016200000",
+                  "endMs": "1728018000000",
+                  "itemId": "000000000000000000000000000000ae"
+                },
+                {
+                  "startMs": "1728018000000",
+                  "endMs": "1728019800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728019800000",
+                  "endMs": "1728022500000",
+                  "itemId": "000000000000000000000000000000aa"
+                },
+                {
+                  "startMs": "1728022500000",
+                  "endMs": "1728023400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728023400000",
+                  "endMs": "1728029400000",
+                  "itemId": "000000000000000000000000000000ad"
+                },
+                {
+                  "startMs": "1728029400000",
+                  "endMs": "1728030600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728030600000",
+                  "endMs": "1728034320000",
+                  "itemId": "000000000000000000000000000000af"
+                },
+                {
+                  "startMs": "1728034320000",
+                  "endMs": "1728037800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728037800000",
+                  "endMs": "1728042300000",
+                  "itemId": "000000000000000000000000000000ab"
+                },
+                {
+                  "startMs": "1728042300000",
+                  "endMs": "1728045000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728045000000",
+                  "endMs": "1728048000000",
+                  "itemId": "000000000000000000000000000000ac"
+                },
+                {
+                  "startMs": "1728048000000",
+                  "endMs": "1728048600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728048600000",
+                  "endMs": "1728050400000",
+                  "itemId": "000000000000000000000000000000ae"
+                },
+                {
+                  "startMs": "1728050400000",
+                  "endMs": "1728052200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728052200000",
+                  "endMs": "1728054900000",
+                  "itemId": "000000000000000000000000000000aa"
+                },
+                {
+                  "startMs": "1728054900000",
+                  "endMs": "1728055800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728055800000",
+                  "endMs": "1728061800000",
+                  "itemId": "000000000000000000000000000000ad"
+                },
+                {
+                  "startMs": "1728061800000",
+                  "endMs": "1728063000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1728063000000",
+                  "endMs": "1728066000000",
+                  "itemId": "000000000000000000000000000000ac"
+                },
+                {
+                  "startMs": "1728066000000",
+                  "endMs": "1728066600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1727980200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1727983199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2999999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1727983200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1727983799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "1727983800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1727985599999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1728023400000",
+                  "k": 2,
+                  "blockIndex": 18,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    19,
+                    20
+                  ]
+                },
+                {
+                  "t": "1728063000000",
+                  "k": 5,
+                  "blockIndex": 32,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    33
+                  ]
+                },
+                {
+                  "t": "1728065999999",
+                  "k": 0,
+                  "blockIndex": 32,
+                  "offsetMs": "2999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1728066000000",
+                  "k": 1,
+                  "blockIndex": 33,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1728066599999",
+                  "k": 2,
+                  "blockIndex": 33,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "UTC-12 start 23:30 shuffle 12 h",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 12,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -720,
+                    "start": "23:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000b4",
+                  "kind": "movie",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000b5",
+                  "kind": "movie",
+                  "runtimeMs": "4500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000b6",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000b7",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000b8",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000b9",
+                  "kind": "movie",
+                  "runtimeMs": "3720000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "171000000",
+                  "endMs": "175500000",
+                  "itemId": "000000000000000000000000000000b5"
+                },
+                {
+                  "startMs": "175500000",
+                  "endMs": "176400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "176400000",
+                  "endMs": "179100000",
+                  "itemId": "000000000000000000000000000000b4"
+                },
+                {
+                  "startMs": "179100000",
+                  "endMs": "180000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "180000000",
+                  "endMs": "183000000",
+                  "itemId": "000000000000000000000000000000b6"
+                },
+                {
+                  "startMs": "183000000",
+                  "endMs": "183600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "183600000",
+                  "endMs": "187320000",
+                  "itemId": "000000000000000000000000000000b9"
+                },
+                {
+                  "startMs": "187320000",
+                  "endMs": "189000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "189000000",
+                  "endMs": "195000000",
+                  "itemId": "000000000000000000000000000000b7"
+                },
+                {
+                  "startMs": "195000000",
+                  "endMs": "196200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "196200000",
+                  "endMs": "198000000",
+                  "itemId": "000000000000000000000000000000b8"
+                },
+                {
+                  "startMs": "198000000",
+                  "endMs": "202500000",
+                  "itemId": "000000000000000000000000000000b5"
+                },
+                {
+                  "startMs": "202500000",
+                  "endMs": "203400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "203400000",
+                  "endMs": "206100000",
+                  "itemId": "000000000000000000000000000000b4"
+                },
+                {
+                  "startMs": "206100000",
+                  "endMs": "207000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "207000000",
+                  "endMs": "210000000",
+                  "itemId": "000000000000000000000000000000b6"
+                },
+                {
+                  "startMs": "210000000",
+                  "endMs": "210600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "210600000",
+                  "endMs": "212400000",
+                  "itemId": "000000000000000000000000000000b8"
+                },
+                {
+                  "startMs": "212400000",
+                  "endMs": "214200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "171000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "175499999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "4499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "175500000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "176399999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "176400000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "179099999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2699999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "192600000",
+                  "k": 2,
+                  "blockIndex": 8,
+                  "offsetMs": "3600000",
+                  "nextIndexes": [
+                    9,
+                    10
+                  ]
+                },
+                {
+                  "t": "210600000",
+                  "k": 5,
+                  "blockIndex": 17,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    18
+                  ]
+                },
+                {
+                  "t": "212399999",
+                  "k": 0,
+                  "blockIndex": 17,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "212400000",
+                  "k": 1,
+                  "blockIndex": 18,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "214199999",
+                  "k": 2,
+                  "blockIndex": 18,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "UTC+14 start 06:00 chronological 1 h epochs",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 840,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000be",
+                  "kind": "movie",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-01"
+                },
+                {
+                  "id": "000000000000000000000000000000bf",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-02"
+                },
+                {
+                  "id": "000000000000000000000000000000c0",
+                  "kind": "movie",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-03"
+                },
+                {
+                  "id": "000000000000000000000000000000c1",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-04"
+                },
+                {
+                  "id": "000000000000000000000000000000c2",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-09-05"
+                }
+              ],
+              "n": "400",
+              "blocks": [
+                {
+                  "startMs": "1411200000",
+                  "endMs": "1411620000",
+                  "itemId": "000000000000000000000000000000c0"
+                },
+                {
+                  "startMs": "1411620000",
+                  "endMs": "1413000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1413000000",
+                  "endMs": "1414080000",
+                  "itemId": "000000000000000000000000000000c2"
+                },
+                {
+                  "startMs": "1414080000",
+                  "endMs": "1414800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1411200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1411619999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "419999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1411620000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1412999999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1413000000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1414079999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1079999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1414080000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1414799999",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "large positive n (1.2e9, 1 h epochs), shuffle",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 840,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c8",
+                  "kind": "movie",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-01"
+                },
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-02"
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "movie",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-03"
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-04"
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-05"
+                }
+              ],
+              "n": "1200000000",
+              "blocks": [
+                {
+                  "startMs": "4319999949600000",
+                  "endMs": "4319999950680000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "4319999950680000",
+                  "endMs": "4319999951400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "4319999951400000",
+                  "endMs": "4319999951820000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "4319999951820000",
+                  "endMs": "4319999952300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "4319999952300000",
+                  "endMs": "4319999953020000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "4319999953020000",
+                  "endMs": "4319999953200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "4319999949600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4319999950679999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1079999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "4319999950680000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "4319999951399999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "4319999951400000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4319999951819999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "419999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "4319999952300000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "4319999953019999",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "719999",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "4319999953020000",
+                  "k": 0,
+                  "blockIndex": 5,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4319999953199999",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "large negative n (-1.2e9, 1 h epochs), chronological",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -720,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c8",
+                  "kind": "movie",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-01"
+                },
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-02"
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "movie",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-03"
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-04"
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-05"
+                }
+              ],
+              "n": "-1200000000",
+              "blocks": [
+                {
+                  "startMs": "-4319999956800000",
+                  "endMs": "-4319999953200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-4319999956800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-4319999955000000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-4319999953200001",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "large n, randomInOrder (n does not change the group order)",
+              "settings": {
+                "seed": "18446744073709551615",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000d3",
+                  "kind": "episode",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "0000000000000000000000000000002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000d4",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000d5",
+                  "kind": "episode",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "0000000000000000000000000000002a",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000000000000000000000d6",
+                  "kind": "episode",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000000000000000000000d7",
+                  "kind": "episode",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "0000000000000000000000000000002a",
+                  "season": 1,
+                  "episode": 5
+                }
+              ],
+              "n": "1200000000",
+              "blocks": [
+                {
+                  "startMs": "4320000000000000",
+                  "endMs": "4320000000420000",
+                  "itemId": "000000000000000000000000000000d5"
+                },
+                {
+                  "startMs": "4320000000420000",
+                  "endMs": "4320000000900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "4320000000900000",
+                  "endMs": "4320000002760000",
+                  "itemId": "000000000000000000000000000000d6"
+                },
+                {
+                  "startMs": "4320000002760000",
+                  "endMs": "4320000003600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "4320000000000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4320000000419999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "419999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "4320000000420000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "4320000000899999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "4320000000900000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4320000001800000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "4320000002759999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1859999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "4320000002760000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4320000003599999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "n = -1, t before 1970, shuffle with the max seed",
+              "settings": {
+                "seed": "18446744073709551615",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c8",
+                  "kind": "movie",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-01"
+                },
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-02"
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "movie",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-03"
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-04"
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-05"
+                }
+              ],
+              "n": "-1",
+              "blocks": [
+                {
+                  "startMs": "18000000",
+                  "endMs": "19860000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "19860000",
+                  "endMs": "21600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "21600000",
+                  "endMs": "22020000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "22020000",
+                  "endMs": "23400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "23400000",
+                  "endMs": "24900000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "24900000",
+                  "endMs": "25200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "25200000",
+                  "endMs": "26280000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "26280000",
+                  "endMs": "27000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "27000000",
+                  "endMs": "27720000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "27720000",
+                  "endMs": "28800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "28800000",
+                  "endMs": "30660000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "30660000",
+                  "endMs": "32400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "32400000",
+                  "endMs": "32820000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "32820000",
+                  "endMs": "34200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "34200000",
+                  "endMs": "35700000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "35700000",
+                  "endMs": "36000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "37080000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "37080000",
+                  "endMs": "37800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "37800000",
+                  "endMs": "38520000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "38520000",
+                  "endMs": "39600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "18000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "19859999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1859999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "19860000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "21599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "21600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "22019999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "419999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "28800000",
+                  "k": 2,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11,
+                    12
+                  ]
+                },
+                {
+                  "t": "37800000",
+                  "k": 5,
+                  "blockIndex": 18,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    19
+                  ]
+                },
+                {
+                  "t": "38519999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "719999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "38520000",
+                  "k": 1,
+                  "blockIndex": 19,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "39599999",
+                  "k": 2,
+                  "blockIndex": 19,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "n = 0 and the day contains 1970-01-01T00:00Z, UTC+0",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c8",
+                  "kind": "movie",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-01"
+                },
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-02"
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "movie",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-03"
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-04"
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-05"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "720000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "720000",
+                  "endMs": "1800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3300000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "3300000",
+                  "endMs": "3600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "4020000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "4020000",
+                  "endMs": "5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "7260000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "7260000",
+                  "endMs": "9000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "9000000",
+                  "endMs": "10080000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "10080000",
+                  "endMs": "10800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "10800000",
+                  "endMs": "11520000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "11520000",
+                  "endMs": "12600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "12600000",
+                  "endMs": "14100000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "14100000",
+                  "endMs": "14400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "14400000",
+                  "endMs": "14820000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "14820000",
+                  "endMs": "16200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "16200000",
+                  "endMs": "18060000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "18060000",
+                  "endMs": "19800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "19800000",
+                  "endMs": "20880000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "20880000",
+                  "endMs": "21600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "21600000",
+                  "endMs": "22320000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "22320000",
+                  "endMs": "23400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "23400000",
+                  "endMs": "24900000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "24900000",
+                  "endMs": "25200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "25200000",
+                  "endMs": "25620000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "25620000",
+                  "endMs": "27000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "27000000",
+                  "endMs": "28860000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "28860000",
+                  "endMs": "30600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "30600000",
+                  "endMs": "31680000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "31680000",
+                  "endMs": "32400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "32400000",
+                  "endMs": "33120000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "33120000",
+                  "endMs": "34200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "34200000",
+                  "endMs": "35700000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "35700000",
+                  "endMs": "36000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "36420000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "36420000",
+                  "endMs": "37800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "37800000",
+                  "endMs": "39660000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "39660000",
+                  "endMs": "41400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "41400000",
+                  "endMs": "42480000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "42480000",
+                  "endMs": "43200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "43200000",
+                  "endMs": "43920000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "43920000",
+                  "endMs": "45000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "45000000",
+                  "endMs": "46500000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "46500000",
+                  "endMs": "46800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "47220000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "47220000",
+                  "endMs": "48600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "48600000",
+                  "endMs": "50460000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "50460000",
+                  "endMs": "52200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "52200000",
+                  "endMs": "53280000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "53280000",
+                  "endMs": "54000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "54000000",
+                  "endMs": "54720000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "54720000",
+                  "endMs": "55800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "55800000",
+                  "endMs": "57300000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "57300000",
+                  "endMs": "57600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "57600000",
+                  "endMs": "58020000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "58020000",
+                  "endMs": "59400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "59400000",
+                  "endMs": "61260000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "61260000",
+                  "endMs": "63000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "63000000",
+                  "endMs": "64080000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "64080000",
+                  "endMs": "64800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "64800000",
+                  "endMs": "65520000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "65520000",
+                  "endMs": "66600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "66600000",
+                  "endMs": "68100000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "68100000",
+                  "endMs": "68400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "68400000",
+                  "endMs": "68820000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "68820000",
+                  "endMs": "70200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "70200000",
+                  "endMs": "72060000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "72060000",
+                  "endMs": "73800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "73800000",
+                  "endMs": "74880000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "74880000",
+                  "endMs": "75600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "75600000",
+                  "endMs": "76320000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "76320000",
+                  "endMs": "77400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "77400000",
+                  "endMs": "78900000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "78900000",
+                  "endMs": "79200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "79200000",
+                  "endMs": "79620000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "79620000",
+                  "endMs": "81000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "81000000",
+                  "endMs": "82860000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "82860000",
+                  "endMs": "84600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "84600000",
+                  "endMs": "85680000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "85680000",
+                  "endMs": "86400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "719999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "719999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "720000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3299999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "43200000",
+                  "k": 2,
+                  "blockIndex": 40,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    41,
+                    42
+                  ]
+                },
+                {
+                  "t": "84600000",
+                  "k": 5,
+                  "blockIndex": 78,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    79
+                  ]
+                },
+                {
+                  "t": "85679999",
+                  "k": 0,
+                  "blockIndex": 78,
+                  "offsetMs": "1079999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "85680000",
+                  "k": 1,
+                  "blockIndex": 79,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "86399999",
+                  "k": 2,
+                  "blockIndex": 79,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a day that contains t = -1, shuffle",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000c8",
+                  "kind": "movie",
+                  "runtimeMs": "720000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-01"
+                },
+                {
+                  "id": "000000000000000000000000000000c9",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-02"
+                },
+                {
+                  "id": "000000000000000000000000000000ca",
+                  "kind": "movie",
+                  "runtimeMs": "420000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-03"
+                },
+                {
+                  "id": "000000000000000000000000000000cb",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-04"
+                },
+                {
+                  "id": "000000000000000000000000000000cc",
+                  "kind": "movie",
+                  "runtimeMs": "1080000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-10-05"
+                }
+              ],
+              "n": "-1",
+              "blocks": [
+                {
+                  "startMs": "-86400000",
+                  "endMs": "-84900000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-84900000",
+                  "endMs": "-84600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-84600000",
+                  "endMs": "-84180000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-84180000",
+                  "endMs": "-82800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-82800000",
+                  "endMs": "-81720000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-81720000",
+                  "endMs": "-81000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-81000000",
+                  "endMs": "-79140000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-79140000",
+                  "endMs": "-77400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-77400000",
+                  "endMs": "-76680000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-76680000",
+                  "endMs": "-75600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-75600000",
+                  "endMs": "-74100000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-74100000",
+                  "endMs": "-73800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-73800000",
+                  "endMs": "-73380000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-73380000",
+                  "endMs": "-72000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-72000000",
+                  "endMs": "-70920000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-70920000",
+                  "endMs": "-70200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-70200000",
+                  "endMs": "-68340000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-68340000",
+                  "endMs": "-66600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-66600000",
+                  "endMs": "-65880000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-65880000",
+                  "endMs": "-64800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-64800000",
+                  "endMs": "-63300000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-63300000",
+                  "endMs": "-63000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-63000000",
+                  "endMs": "-62580000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-62580000",
+                  "endMs": "-61200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-61200000",
+                  "endMs": "-60120000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-60120000",
+                  "endMs": "-59400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-59400000",
+                  "endMs": "-57540000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-57540000",
+                  "endMs": "-55800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-55800000",
+                  "endMs": "-55080000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-55080000",
+                  "endMs": "-54000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-54000000",
+                  "endMs": "-52500000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-52500000",
+                  "endMs": "-52200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-52200000",
+                  "endMs": "-51780000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-51780000",
+                  "endMs": "-50400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-50400000",
+                  "endMs": "-49320000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-49320000",
+                  "endMs": "-48600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-48600000",
+                  "endMs": "-46740000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-46740000",
+                  "endMs": "-45000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-45000000",
+                  "endMs": "-44280000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-44280000",
+                  "endMs": "-43200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-43200000",
+                  "endMs": "-41700000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-41700000",
+                  "endMs": "-41400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-41400000",
+                  "endMs": "-40980000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-40980000",
+                  "endMs": "-39600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-39600000",
+                  "endMs": "-38520000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-38520000",
+                  "endMs": "-37800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-37800000",
+                  "endMs": "-35940000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-35940000",
+                  "endMs": "-34200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-34200000",
+                  "endMs": "-33480000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-33480000",
+                  "endMs": "-32400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-32400000",
+                  "endMs": "-30900000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-30900000",
+                  "endMs": "-30600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-30600000",
+                  "endMs": "-30180000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-30180000",
+                  "endMs": "-28800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-28800000",
+                  "endMs": "-27720000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-27720000",
+                  "endMs": "-27000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-27000000",
+                  "endMs": "-25140000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-25140000",
+                  "endMs": "-23400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-23400000",
+                  "endMs": "-22680000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-22680000",
+                  "endMs": "-21600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21600000",
+                  "endMs": "-20100000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-20100000",
+                  "endMs": "-19800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-19800000",
+                  "endMs": "-19380000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-19380000",
+                  "endMs": "-18000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-18000000",
+                  "endMs": "-16920000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-16920000",
+                  "endMs": "-16200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-16200000",
+                  "endMs": "-14340000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-14340000",
+                  "endMs": "-12600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-12600000",
+                  "endMs": "-11880000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-11880000",
+                  "endMs": "-10800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-10800000",
+                  "endMs": "-9300000",
+                  "itemId": "000000000000000000000000000000c9"
+                },
+                {
+                  "startMs": "-9300000",
+                  "endMs": "-9000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-9000000",
+                  "endMs": "-8580000",
+                  "itemId": "000000000000000000000000000000ca"
+                },
+                {
+                  "startMs": "-8580000",
+                  "endMs": "-7200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-7200000",
+                  "endMs": "-6120000",
+                  "itemId": "000000000000000000000000000000cc"
+                },
+                {
+                  "startMs": "-6120000",
+                  "endMs": "-5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-5400000",
+                  "endMs": "-3540000",
+                  "itemId": "000000000000000000000000000000cb"
+                },
+                {
+                  "startMs": "-3540000",
+                  "endMs": "-1800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-1800000",
+                  "endMs": "-1080000",
+                  "itemId": "000000000000000000000000000000c8"
+                },
+                {
+                  "startMs": "-1080000",
+                  "endMs": "0",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-86400000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-84900001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-84900000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-84600001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-84600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-84180001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "419999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-43200000",
+                  "k": 2,
+                  "blockIndex": 40,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    41,
+                    42
+                  ]
+                },
+                {
+                  "t": "-1800000",
+                  "k": 5,
+                  "blockIndex": 78,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    79
+                  ]
+                },
+                {
+                  "t": "-1080001",
+                  "k": 0,
+                  "blockIndex": 78,
+                  "offsetMs": "719999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-1080000",
+                  "k": 1,
+                  "blockIndex": 79,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-1",
+                  "k": 2,
+                  "blockIndex": 79,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder with specials and a missing season, blockLength 1",
+              "note": "Series 7001 plays seasons 1 and 2, then the specials (season 0), then the missing season. Series 7002 interleaves.",
+              "settings": {
+                "seed": "21",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000dc",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2000-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 0,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000dd",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2000-01-02",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 0,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000de",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000df",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2011-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 2,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e0",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1990-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e1",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000001b59"
+                },
+                {
+                  "id": "000000000000000000000000000000e2",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2005-01-01",
+                  "seriesId": "00000000000000000000000000001b5a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e3",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2005-01-02",
+                  "seriesId": "00000000000000000000000000001b5a",
+                  "season": 1,
+                  "episode": 2
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "28800000",
+                  "endMs": "31200000",
+                  "itemId": "000000000000000000000000000000dd"
+                },
+                {
+                  "startMs": "31200000",
+                  "endMs": "33600000",
+                  "itemId": "000000000000000000000000000000e0"
+                },
+                {
+                  "startMs": "33600000",
+                  "endMs": "36000000",
+                  "itemId": "000000000000000000000000000000e1"
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "37800000",
+                  "itemId": "000000000000000000000000000000e2"
+                },
+                {
+                  "startMs": "37800000",
+                  "endMs": "40200000",
+                  "itemId": "000000000000000000000000000000de"
+                },
+                {
+                  "startMs": "40200000",
+                  "endMs": "42000000",
+                  "itemId": "000000000000000000000000000000e3"
+                },
+                {
+                  "startMs": "42000000",
+                  "endMs": "44400000",
+                  "itemId": "000000000000000000000000000000df"
+                },
+                {
+                  "startMs": "44400000",
+                  "endMs": "46800000",
+                  "itemId": "000000000000000000000000000000dc"
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "49200000",
+                  "itemId": "000000000000000000000000000000dd"
+                },
+                {
+                  "startMs": "49200000",
+                  "endMs": "51600000",
+                  "itemId": "000000000000000000000000000000e0"
+                },
+                {
+                  "startMs": "51600000",
+                  "endMs": "54000000",
+                  "itemId": "000000000000000000000000000000e1"
+                },
+                {
+                  "startMs": "54000000",
+                  "endMs": "55800000",
+                  "itemId": "000000000000000000000000000000e2"
+                },
+                {
+                  "startMs": "55800000",
+                  "endMs": "57600000",
+                  "itemId": "000000000000000000000000000000e3"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "28800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "31199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "31200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "33599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "33600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "35999999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "43200000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "1200000",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "54000000",
+                  "k": 5,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    12
+                  ]
+                },
+                {
+                  "t": "55799999",
+                  "k": 0,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "55800000",
+                  "k": 1,
+                  "blockIndex": 12,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "57599999",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder with specials and a missing season, blockLength 2",
+              "note": "Series 7001 plays seasons 1 and 2, then the specials (season 0), then the missing season. Series 7002 interleaves.",
+              "settings": {
+                "seed": "21",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": false,
+                  "epochHours": 8,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000dc",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2000-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 0,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000dd",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2000-01-02",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 0,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000de",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000df",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2011-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "season": 2,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e0",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1990-01-01",
+                  "seriesId": "00000000000000000000000000001b59",
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e1",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000001b59"
+                },
+                {
+                  "id": "000000000000000000000000000000e2",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2005-01-01",
+                  "seriesId": "00000000000000000000000000001b5a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e3",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2005-01-02",
+                  "seriesId": "00000000000000000000000000001b5a",
+                  "season": 1,
+                  "episode": 2
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "28800000",
+                  "endMs": "31200000",
+                  "itemId": "000000000000000000000000000000dc"
+                },
+                {
+                  "startMs": "31200000",
+                  "endMs": "33600000",
+                  "itemId": "000000000000000000000000000000dd"
+                },
+                {
+                  "startMs": "33600000",
+                  "endMs": "36000000",
+                  "itemId": "000000000000000000000000000000e0"
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "38400000",
+                  "itemId": "000000000000000000000000000000e1"
+                },
+                {
+                  "startMs": "38400000",
+                  "endMs": "40200000",
+                  "itemId": "000000000000000000000000000000e2"
+                },
+                {
+                  "startMs": "40200000",
+                  "endMs": "42000000",
+                  "itemId": "000000000000000000000000000000e3"
+                },
+                {
+                  "startMs": "42000000",
+                  "endMs": "44400000",
+                  "itemId": "000000000000000000000000000000de"
+                },
+                {
+                  "startMs": "44400000",
+                  "endMs": "46800000",
+                  "itemId": "000000000000000000000000000000df"
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "49200000",
+                  "itemId": "000000000000000000000000000000dc"
+                },
+                {
+                  "startMs": "49200000",
+                  "endMs": "51600000",
+                  "itemId": "000000000000000000000000000000dd"
+                },
+                {
+                  "startMs": "51600000",
+                  "endMs": "54000000",
+                  "itemId": "000000000000000000000000000000e0"
+                },
+                {
+                  "startMs": "54000000",
+                  "endMs": "56400000",
+                  "itemId": "000000000000000000000000000000e1"
+                },
+                {
+                  "startMs": "56400000",
+                  "endMs": "57600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "28800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "31199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "31200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "33599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "33600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "35999999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "43200000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "1200000",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "54000000",
+                  "k": 5,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    12
+                  ]
+                },
+                {
+                  "t": "56399999",
+                  "k": 0,
+                  "blockIndex": 11,
+                  "offsetMs": "2399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "56400000",
+                  "k": 1,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "57599999",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder, the in-group order follows the numbering, not the dates",
+              "settings": {
+                "seed": "21",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000e6",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-01",
+                  "seriesId": "00000000000000000000000000001bbc",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000e7",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2005-05-05",
+                  "seriesId": "00000000000000000000000000001bbc",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000e8",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1999-09-09",
+                  "seriesId": "00000000000000000000000000001bbc",
+                  "season": 2,
+                  "episode": 1
+                }
+              ],
+              "n": "1",
+              "blocks": [
+                {
+                  "startMs": "21600000",
+                  "endMs": "23400000",
+                  "itemId": "000000000000000000000000000000e7"
+                },
+                {
+                  "startMs": "23400000",
+                  "endMs": "25200000",
+                  "itemId": "000000000000000000000000000000e6"
+                },
+                {
+                  "startMs": "25200000",
+                  "endMs": "27000000",
+                  "itemId": "000000000000000000000000000000e8"
+                },
+                {
+                  "startMs": "27000000",
+                  "endMs": "28800000",
+                  "itemId": "000000000000000000000000000000e7"
+                },
+                {
+                  "startMs": "28800000",
+                  "endMs": "30600000",
+                  "itemId": "000000000000000000000000000000e6"
+                },
+                {
+                  "startMs": "30600000",
+                  "endMs": "32400000",
+                  "itemId": "000000000000000000000000000000e8"
+                },
+                {
+                  "startMs": "32400000",
+                  "endMs": "34200000",
+                  "itemId": "000000000000000000000000000000e7"
+                },
+                {
+                  "startMs": "34200000",
+                  "endMs": "36000000",
+                  "itemId": "000000000000000000000000000000e6"
+                },
+                {
+                  "startMs": "36000000",
+                  "endMs": "37800000",
+                  "itemId": "000000000000000000000000000000e8"
+                },
+                {
+                  "startMs": "37800000",
+                  "endMs": "39600000",
+                  "itemId": "000000000000000000000000000000e7"
+                },
+                {
+                  "startMs": "39600000",
+                  "endMs": "41400000",
+                  "itemId": "000000000000000000000000000000e6"
+                },
+                {
+                  "startMs": "41400000",
+                  "endMs": "43200000",
+                  "itemId": "000000000000000000000000000000e8"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "21600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "23399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "23400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "25199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "25200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "26999999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "32400000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "39600000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "41399999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "41400000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "43199999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle with a real fnv1a64 collision (two IDs, one hash), n = 0",
+              "note": "TIE_A (b3b8...) sorts before TIE_B (bf13...) whatever the seed.",
+              "settings": {
+                "seed": "5",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "bf13eaba83dea4340123456789abcdef",
+                  "kind": "movie",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000f0",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "b3b828bb3655e2a70123456789abcdef",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000f1",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1500000",
+                  "itemId": "b3b828bb3655e2a70123456789abcdef"
+                },
+                {
+                  "startMs": "1500000",
+                  "endMs": "1800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3900000",
+                  "itemId": "bf13eaba83dea4340123456789abcdef"
+                },
+                {
+                  "startMs": "3900000",
+                  "endMs": "5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "6600000",
+                  "itemId": "000000000000000000000000000000f0"
+                },
+                {
+                  "startMs": "6600000",
+                  "endMs": "7200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "10200000",
+                  "itemId": "000000000000000000000000000000f1"
+                },
+                {
+                  "startMs": "10200000",
+                  "endMs": "10800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1499999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1500000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3899999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2099999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "5400000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 5,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7
+                  ]
+                },
+                {
+                  "t": "10199999",
+                  "k": 0,
+                  "blockIndex": 6,
+                  "offsetMs": "2999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10200000",
+                  "k": 1,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 2,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle with a real fnv1a64 collision (two IDs, one hash), n = -7",
+              "note": "TIE_A (b3b8...) sorts before TIE_B (bf13...) whatever the seed.",
+              "settings": {
+                "seed": "5",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "bf13eaba83dea4340123456789abcdef",
+                  "kind": "movie",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000f0",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "b3b828bb3655e2a70123456789abcdef",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000000000000000000000f1",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "-7",
+              "blocks": [
+                {
+                  "startMs": "-75600000",
+                  "endMs": "-74100000",
+                  "itemId": "b3b828bb3655e2a70123456789abcdef"
+                },
+                {
+                  "startMs": "-74100000",
+                  "endMs": "-73800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-73800000",
+                  "endMs": "-71700000",
+                  "itemId": "bf13eaba83dea4340123456789abcdef"
+                },
+                {
+                  "startMs": "-71700000",
+                  "endMs": "-70200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-70200000",
+                  "endMs": "-67200000",
+                  "itemId": "000000000000000000000000000000f1"
+                },
+                {
+                  "startMs": "-67200000",
+                  "endMs": "-66600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-66600000",
+                  "endMs": "-65400000",
+                  "itemId": "000000000000000000000000000000f0"
+                },
+                {
+                  "startMs": "-65400000",
+                  "endMs": "-64800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-75600000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-74100001",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "-74100000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "-73800001",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-73800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-71700001",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "2099999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "-70200000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "-66600000",
+                  "k": 5,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7
+                  ]
+                },
+                {
+                  "t": "-65400001",
+                  "k": 0,
+                  "blockIndex": 6,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-65400000",
+                  "k": 1,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-64800001",
+                  "k": 2,
+                  "blockIndex": 7,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "randomInOrder with a real group-key tie",
+              "settings": {
+                "seed": "5",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "bf13eaba83dea4340123456789abcdef",
+                  "kind": "movie",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "b3b828bb3655e2a70123456789abcdef",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1500000",
+                  "itemId": "b3b828bb3655e2a70123456789abcdef"
+                },
+                {
+                  "startMs": "1500000",
+                  "endMs": "3600000",
+                  "itemId": "bf13eaba83dea4340123456789abcdef"
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "5100000",
+                  "itemId": "b3b828bb3655e2a70123456789abcdef"
+                },
+                {
+                  "startMs": "5100000",
+                  "endMs": "7200000",
+                  "itemId": "bf13eaba83dea4340123456789abcdef"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "8700000",
+                  "itemId": "b3b828bb3655e2a70123456789abcdef"
+                },
+                {
+                  "startMs": "8700000",
+                  "endMs": "10800000",
+                  "itemId": "bf13eaba83dea4340123456789abcdef"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1499999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1500000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "3599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2099999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5099999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "5400000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "300000",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "8699999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "8700000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "2099999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill: a series-less episode is a group of one (not blocked by the other episodes)",
+              "note": "None of the four episodes has a series, so each is its own group: the 10-minute one is placed.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000000000000000000000fa",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000000000000000000000fb",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000000000000000000000fc",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000000000000000000000fd",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-04",
+                  "season": 1,
+                  "episode": 4
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1200000",
+                  "itemId": "000000000000000000000000000000fa"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "2400000",
+                  "itemId": "000000000000000000000000000000fb"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "3000000",
+                  "itemId": "000000000000000000000000000000fd"
+                },
+                {
+                  "startMs": "3000000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "1199999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "2999999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3000000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, randomInOrder blockLength 2: turns of a series, the fill places single items",
+              "settings": {
+                "seed": "3",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": false,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000033",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000106",
+                  "kind": "episode",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000033",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000107",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000033",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000108",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000033",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "00000000000000000000000000000109",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000033",
+                  "season": 1,
+                  "episode": 5
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "2400000",
+                  "itemId": "00000000000000000000000000000105"
+                },
+                {
+                  "startMs": "2400000",
+                  "endMs": "4500000",
+                  "itemId": "00000000000000000000000000000106"
+                },
+                {
+                  "startMs": "4500000",
+                  "endMs": "6300000",
+                  "itemId": "00000000000000000000000000000107"
+                },
+                {
+                  "startMs": "6300000",
+                  "endMs": "6900000",
+                  "itemId": "00000000000000000000000000000108"
+                },
+                {
+                  "startMs": "6900000",
+                  "endMs": "7200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2399999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "2400000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1200000",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4
+                  ]
+                },
+                {
+                  "t": "4499999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "2099999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4500000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6299999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3,
+                    4
+                  ]
+                },
+                {
+                  "t": "6300000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4
+                  ]
+                },
+                {
+                  "t": "6899999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "offsetMs": "599999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "6900000",
+                  "k": 1,
+                  "blockIndex": 4,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "end fill, shuffle, aligned: a placed fill item starts on a grid mark",
+              "settings": {
+                "seed": "12",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000010e",
+                  "kind": "movie",
+                  "runtimeMs": "3300000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000010f",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000110",
+                  "kind": "movie",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000111",
+                  "kind": "movie",
+                  "runtimeMs": "840000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000112",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000113",
+                  "kind": "movie",
+                  "runtimeMs": "4200000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "4200000",
+                  "itemId": "00000000000000000000000000000113"
+                },
+                {
+                  "startMs": "4200000",
+                  "endMs": "5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "6600000",
+                  "itemId": "0000000000000000000000000000010f"
+                },
+                {
+                  "startMs": "6600000",
+                  "endMs": "7200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3600000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "3600000",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "4199999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "4199999",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "4200000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "5399999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5400000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6599999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "6600000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "empty pool at a large n",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [],
+              "n": "1200000000",
+              "blocks": [
+                {
+                  "startMs": "4320000000000000",
+                  "endMs": "4320000003600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "4320000000000000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4320000001800000",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "4320000003599999",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a left-out run whose items would each fit: the fill never uses them (chronological)",
+              "note": "blockLength 3, 1 h epochs: the run [25, 25, 25] min is 75 min and is left out; the cycle is the run [20, 15]. The day plays it once (0-35), the second does not fit, and the fill visits the cycle's items only: 20 min fits (35-55), 15 does not. The 25-minute items would fit at minute 35 but are not in the cycle. A port that fills from the order places one of them.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000012c",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000012d",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000012e",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "0000000000000000000000000000012f",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000130",
+                  "kind": "movie",
+                  "runtimeMs": "900000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-05"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1200000",
+                  "itemId": "0000000000000000000000000000012f"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "2100000",
+                  "itemId": "00000000000000000000000000000130"
+                },
+                {
+                  "startMs": "2100000",
+                  "endMs": "3300000",
+                  "itemId": "0000000000000000000000000000012f"
+                },
+                {
+                  "startMs": "3300000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2099999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "899999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2100000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3299999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3300000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a left-out run whose items would each fit: the fill never uses them (randomInOrder)",
+              "note": "A series of three 25-minute episodes is one turn of 75 min and is left out; the two movies are turns of one.",
+              "settings": {
+                "seed": "17",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "timing": {
+                  "blockLength": 3,
+                  "alignToGrid": false,
+                  "epochHours": 1,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000136",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "0000000000000000000000000000003d",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "00000000000000000000000000000137",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "0000000000000000000000000000003d",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "00000000000000000000000000000138",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "0000000000000000000000000000003d",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "00000000000000000000000000000139",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "0000000000000000000000000000013a",
+                  "kind": "movie",
+                  "runtimeMs": "900000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1200000",
+                  "itemId": "00000000000000000000000000000139"
+                },
+                {
+                  "startMs": "1200000",
+                  "endMs": "2100000",
+                  "itemId": "0000000000000000000000000000013a"
+                },
+                {
+                  "startMs": "2100000",
+                  "endMs": "3300000",
+                  "itemId": "00000000000000000000000000000139"
+                },
+                {
+                  "startMs": "3300000",
+                  "endMs": "3600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2099999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "899999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "2100000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3299999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1199999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3300000",
+                  "k": 5,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 0,
+                  "blockIndex": 3,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological day wraps the cycle and stops at run 1: the fill starts at f = 1 and does not wrap",
+              "note": "Cycle A 10, B 40, C 25 min (75 min), 2 h day. Regular layout: A B C A, then B (85+40 > 120) does not fit: i = 1 (modulo B), f = 1. The fill visits B (passed over) and C (placed at 85-110) and stops at the cycle's end; A would fit at 110-120 but is not visited.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 2,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000140",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000141",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000142",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "600000",
+                  "itemId": "00000000000000000000000000000140"
+                },
+                {
+                  "startMs": "600000",
+                  "endMs": "3000000",
+                  "itemId": "00000000000000000000000000000141"
+                },
+                {
+                  "startMs": "3000000",
+                  "endMs": "4500000",
+                  "itemId": "00000000000000000000000000000142"
+                },
+                {
+                  "startMs": "4500000",
+                  "endMs": "5100000",
+                  "itemId": "00000000000000000000000000000140"
+                },
+                {
+                  "startMs": "5100000",
+                  "endMs": "6600000",
+                  "itemId": "00000000000000000000000000000142"
+                },
+                {
+                  "startMs": "6600000",
+                  "endMs": "7200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2999999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "3000000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3600000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "4499999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3,
+                    4
+                  ]
+                },
+                {
+                  "t": "5100000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "6599999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "6600000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle day wraps the cycle and stops at run 1: the fill starts at f = 1 and wraps",
+              "note": "Same pool; the seed gives the order A B C. The fill visits B, C, A: C is placed (85-110) and A is placed (110-120).",
+              "settings": {
+                "seed": "9",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 2,
+                  "graceHours": 0,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000140",
+                  "kind": "movie",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000141",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000142",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "600000",
+                  "itemId": "00000000000000000000000000000140"
+                },
+                {
+                  "startMs": "600000",
+                  "endMs": "3000000",
+                  "itemId": "00000000000000000000000000000141"
+                },
+                {
+                  "startMs": "3000000",
+                  "endMs": "4500000",
+                  "itemId": "00000000000000000000000000000142"
+                },
+                {
+                  "startMs": "4500000",
+                  "endMs": "5100000",
+                  "itemId": "00000000000000000000000000000140"
+                },
+                {
+                  "startMs": "5100000",
+                  "endMs": "6600000",
+                  "itemId": "00000000000000000000000000000142"
+                },
+                {
+                  "startMs": "6600000",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000140"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "2999999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "2399999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "3000000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3600000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "600000",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "4499999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "offsetMs": "1499999",
+                  "nextIndexes": [
+                    3,
+                    4
+                  ]
+                },
+                {
+                  "t": "5100000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "6599999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "6600000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "chronological day wraps with blockLength 2 and stops at run 1 (aligned, grid 15)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 2,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 0,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000014a",
+                  "kind": "movie",
+                  "runtimeMs": "300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000014b",
+                  "kind": "movie",
+                  "runtimeMs": "360000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000014c",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "0000000000000000000000000000014d",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-04"
+                },
+                {
+                  "id": "0000000000000000000000000000014e",
+                  "kind": "movie",
+                  "runtimeMs": "480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-05"
+                },
+                {
+                  "id": "0000000000000000000000000000014f",
+                  "kind": "movie",
+                  "runtimeMs": "540000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-06"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "300000",
+                  "itemId": "0000000000000000000000000000014a"
+                },
+                {
+                  "startMs": "300000",
+                  "endMs": "660000",
+                  "itemId": "0000000000000000000000000000014b"
+                },
+                {
+                  "startMs": "660000",
+                  "endMs": "900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "900000",
+                  "endMs": "2100000",
+                  "itemId": "0000000000000000000000000000014c"
+                },
+                {
+                  "startMs": "2100000",
+                  "endMs": "3600000",
+                  "itemId": "0000000000000000000000000000014d"
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "4080000",
+                  "itemId": "0000000000000000000000000000014e"
+                },
+                {
+                  "startMs": "4080000",
+                  "endMs": "4620000",
+                  "itemId": "0000000000000000000000000000014f"
+                },
+                {
+                  "startMs": "4620000",
+                  "endMs": "5400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "5700000",
+                  "itemId": "0000000000000000000000000000014a"
+                },
+                {
+                  "startMs": "5700000",
+                  "endMs": "6060000",
+                  "itemId": "0000000000000000000000000000014b"
+                },
+                {
+                  "startMs": "6060000",
+                  "endMs": "6300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "6300000",
+                  "endMs": "6780000",
+                  "itemId": "0000000000000000000000000000014e"
+                },
+                {
+                  "startMs": "6780000",
+                  "endMs": "7200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "299999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "299999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "300000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "659999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "359999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "660000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "899999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    6,
+                    7
+                  ]
+                },
+                {
+                  "t": "6300000",
+                  "k": 5,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    12
+                  ]
+                },
+                {
+                  "t": "6779999",
+                  "k": 0,
+                  "blockIndex": 11,
+                  "offsetMs": "479999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "6780000",
+                  "k": 1,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "times at exactly -2^52 and 2^52 are valid (bounds included)",
+              "note": "Item 340 is in the pool (created at -2^52). Item 341 (created at 2^52) is not. Item 342 (deleted at 2^52) is in. Item 343 (deleted at -2^52) is not.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000154",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-4503599627370496",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000155",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "4503599627370496",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000156",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "4503599627370496",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000157",
+                  "kind": "movie",
+                  "runtimeMs": "3600000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "-4503599627370496",
+                  "premiereDate": "2020-01-04"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "3600000",
+                  "itemId": "00000000000000000000000000000154"
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000156"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "10800000",
+                  "itemId": "00000000000000000000000000000154"
+                },
+                {
+                  "startMs": "10800000",
+                  "endMs": "14400000",
+                  "itemId": "00000000000000000000000000000156"
+                },
+                {
+                  "startMs": "14400000",
+                  "endMs": "18000000",
+                  "itemId": "00000000000000000000000000000154"
+                },
+                {
+                  "startMs": "18000000",
+                  "endMs": "21600000",
+                  "itemId": "00000000000000000000000000000156"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "3599999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "7199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "3599999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "10800000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "14400000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "17999999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "18000000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21599999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "3599999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "a premiere date is checked for shape only: 2020-02-31 is accepted and compared as text",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000158",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-31"
+                },
+                {
+                  "id": "00000000000000000000000000000159",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-02-30"
+                },
+                {
+                  "id": "0000000000000000000000000000015a",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-03-01"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1800000",
+                  "itemId": "00000000000000000000000000000159"
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3600000",
+                  "itemId": "00000000000000000000000000000158"
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "5400000",
+                  "itemId": "0000000000000000000000000000015a"
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000159"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "9000000",
+                  "itemId": "00000000000000000000000000000158"
+                },
+                {
+                  "startMs": "9000000",
+                  "endMs": "10800000",
+                  "itemId": "0000000000000000000000000000015a"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "3599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5399999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "5400000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "8999999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "9000000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "an episode with no series and a movie with a production year only",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015b",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "0000000000000000000000000000015c",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1999
+                },
+                {
+                  "id": "0000000000000000000000000000015d",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1999,
+                  "season": 0,
+                  "episode": 0
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "1800000",
+                  "itemId": "0000000000000000000000000000015c"
+                },
+                {
+                  "startMs": "1800000",
+                  "endMs": "3600000",
+                  "itemId": "0000000000000000000000000000015d"
+                },
+                {
+                  "startMs": "3600000",
+                  "endMs": "5400000",
+                  "itemId": "0000000000000000000000000000015b"
+                },
+                {
+                  "startMs": "5400000",
+                  "endMs": "7200000",
+                  "itemId": "0000000000000000000000000000015c"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "9000000",
+                  "itemId": "0000000000000000000000000000015d"
+                },
+                {
+                  "startMs": "9000000",
+                  "endMs": "10800000",
+                  "itemId": "0000000000000000000000000000015b"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1799999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1800000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "3599999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "3600000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5399999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "5400000",
+                  "k": 2,
+                  "blockIndex": 3,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    4,
+                    5
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 5,
+                  "blockIndex": 4,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    5
+                  ]
+                },
+                {
+                  "t": "8999999",
+                  "k": 0,
+                  "blockIndex": 4,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "9000000",
+                  "k": 1,
+                  "blockIndex": 5,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "10799999",
+                  "k": 2,
+                  "blockIndex": 5,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "whatsOn with a negative k is an error (the day itself is valid)",
+              "note": "A negative k is an error: errorKs lists the k values for which the call must fail.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 4,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-03"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "1800000",
+                  "endMs": "7200000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "12600000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "12600000",
+                  "endMs": "16200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1800000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "7199999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5399999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "9000000",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "12599999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "5399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "12600000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "16199999",
+                  "k": 2,
+                  "blockIndex": 2,
+                  "nextIndexes": []
+                }
+              ],
+              "errorKs": [
+                -1
+              ]
+            },
+            {
+              "name": "deletedAt earlier than createdAt is accepted (each is tested against the cut-off on its own)",
+              "note": "The scheduler accepts all five items. Only 370 is in the pool: each of 371 to 374 fails the createdAt test or the deletedAt test (or both).",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000172",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "00000000000000000000000000000173",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "151199000",
+                  "deletedAtMs": "151198000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000174",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "151200500",
+                  "deletedAtMs": "151199995",
+                  "premiereDate": "2020-01-03"
+                },
+                {
+                  "id": "00000000000000000000000000000175",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "151199999",
+                  "deletedAtMs": "151199998",
+                  "premiereDate": "2020-01-04"
+                },
+                {
+                  "id": "00000000000000000000000000000176",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "151200010",
+                  "deletedAtMs": "151200000",
+                  "premiereDate": "2020-01-05"
+                }
+              ],
+              "n": "2",
+              "blocks": [
+                {
+                  "startMs": "43200000",
+                  "endMs": "45000000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "45000000",
+                  "endMs": "46800000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "46800000",
+                  "endMs": "48600000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "48600000",
+                  "endMs": "50400000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "50400000",
+                  "endMs": "52200000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "52200000",
+                  "endMs": "54000000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "54000000",
+                  "endMs": "55800000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "55800000",
+                  "endMs": "57600000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "57600000",
+                  "endMs": "59400000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "59400000",
+                  "endMs": "61200000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "61200000",
+                  "endMs": "63000000",
+                  "itemId": "00000000000000000000000000000172"
+                },
+                {
+                  "startMs": "63000000",
+                  "endMs": "64800000",
+                  "itemId": "00000000000000000000000000000172"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "43200000",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "44999999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "45000000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "46799999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "46800000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "48599999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1799999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "54000000",
+                  "k": 2,
+                  "blockIndex": 6,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    7,
+                    8
+                  ]
+                },
+                {
+                  "t": "61200000",
+                  "k": 5,
+                  "blockIndex": 10,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    11
+                  ]
+                },
+                {
+                  "t": "62999999",
+                  "k": 0,
+                  "blockIndex": 10,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "63000000",
+                  "k": 1,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "64799999",
+                  "k": 2,
+                  "blockIndex": 11,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "input error: duplicate canonical ID",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "Two items with the same canonical ID (the same 32 characters, compared as exact strings) are an input error, whether or not either is kept."
+            },
+            {
+              "name": "input error: duplicate canonical ID, one copy would be left out of the pool",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "Two items with the same canonical ID (the same 32 characters, compared as exact strings) are an input error, whether or not either is kept."
+            },
+            {
+              "name": "input error: createdAt = 2^52 + 1",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000160",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "4503599627370497"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+            },
+            {
+              "name": "input error: createdAt = -2^52 - 1",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000160",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-4503599627370497"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+            },
+            {
+              "name": "input error: deletedAt = 2^52 + 1",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000160",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "4503599627370497"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+            },
+            {
+              "name": "input error: out-of-range createdAt on an item the pool would have left out (runtime 1 s)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000160",
+                  "kind": "movie",
+                  "runtimeMs": "1000",
+                  "createdAtMs": "4503599627370497"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+            },
+            {
+              "name": "input error: the day's E is out of range (n = 1.3e9, 1 h epochs)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "1300000000",
+              "inputError": true,
+              "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+            },
+            {
+              "name": "input error: the day's S is out of range (n = -1.3e9, 1 h epochs)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "-1300000000",
+              "inputError": true,
+              "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+            },
+            {
+              "name": "input error: a movie with a season number",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000161",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "season": 1
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A movie that has a series ID, a season number or an episode number is an input error."
+            },
+            {
+              "name": "input error: a movie with an episode number",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000161",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "episode": 1
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A movie that has a series ID, a season number or an episode number is an input error."
+            },
+            {
+              "name": "input error: a movie with a series ID",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000161",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "00000000000000000000000000000009"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A movie that has a series ID, a season number or an episode number is an input error."
+            },
+            {
+              "name": "input error: premiere date 2020-1-01 (month not two digits)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000162",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-1-01"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with month 13",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000162",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-13-01"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with day 00",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000162",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-00"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with a time part",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000162",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01T00:00:00Z"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with a three-digit year",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000162",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "987-01-01"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: production year 0",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000163",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 0
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the production year, or none: a whole number from 1 to 9999. Any other value is an input error"
+            },
+            {
+              "name": "input error: production year 10000",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000163",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 10000
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the production year, or none: a whole number from 1 to 9999. Any other value is an input error"
+            },
+            {
+              "name": "input error: a negative episode number",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000164",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "season": 1,
+                  "episode": -1
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A negative number is an input error."
+            },
+            {
+              "name": "input error: a negative season number",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000164",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "season": -1,
+                  "episode": 1
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A negative number is an input error."
+            },
+            {
+              "name": "input error: a third kind of item (series)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000165",
+                  "kind": "series",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "its kind, `Movie` or `Episode`. Any other kind is an input error"
+            },
+            {
+              "name": "input error: an upper-case item ID",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "ABCDEF0123456789ABCDEF0123456789",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error"
+            },
+            {
+              "name": "input error: a 31-character item ID",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "0000000000000000000000000000000",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error"
+            },
+            {
+              "name": "input error: a hyphenated item ID",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "12345678-1234-1234-1234-123456789abc",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error"
+            },
+            {
+              "name": "input error: a non-canonical series ID (upper case)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000167",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "ABCDEF0123456789ABCDEF0123456789",
+                  "season": 1,
+                  "episode": 1
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A series ID is a canonical ID, like the item's own."
+            },
+            {
+              "name": "input error: a non-canonical series ID (too short)",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000167",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "abc",
+                  "season": 1,
+                  "episode": 1
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "A series ID is a canonical ID, like the item's own."
+            },
+            {
+              "name": "input error: setting out of range, blockLength 101",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 101,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+            },
+            {
+              "name": "input error: setting out of range, blockLength 0",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 0,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+            },
+            {
+              "name": "input error: setting out of range, graceHours 49",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 49,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+            },
+            {
+              "name": "input error: setting out of range, gridMinutes 20",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 20,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+            },
+            {
+              "name": "input error: premiere year 0000",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000168",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "0000-01-01"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with a trailing space",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000169",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01 "
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with a leading space",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000169",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": " 2020-01-01"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: premiere date with non-ASCII digits",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                },
+                {
+                  "id": "00000000000000000000000000000169",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "\u0662\u0660\u0662\u0660-01-01"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+            },
+            {
+              "name": "input error: setting out of range, start 06:30 with a 60-minute grid",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "06:30"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "`start`: minutes after midnight on the channel's clock, on :00 or :30, and on :00 with a 60-minute grid, as Timing says; ... a setting outside its range or list is an input error."
+            },
+            {
+              "name": "input error: an unknown ordering mode",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "alphabetical"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+            },
+            {
+              "name": "input error: a seed of 2^64",
+              "settings": {
+                "seed": "18446744073709551616",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 3,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "0000000000000000000000000000015e",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-01"
+                },
+                {
+                  "id": "0000000000000000000000000000015f",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2020-01-02"
+                }
+              ],
+              "n": "0",
+              "inputError": true,
+              "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+            }
+          ]
+        }
+        """.trimIndent() + "\n"
+}

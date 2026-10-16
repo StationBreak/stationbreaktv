@@ -96,11 +96,42 @@ class RulesFormatDocTest {
 
     @Test
     fun hasTheScopeSectionsAndBanner() {
-        assertTrue("Draft — v1 is final once F1.1 completes the scheduling section and the vectors land." in doc)
+        val banner =
+            "> Version 1 — final (2026-10-16). " +
+                "Any change that could alter a lineup needs `formatVersion` 2 (see Format version)."
+        assertTrue(banner in doc.lines(), "the final banner is missing")
+        assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")
         }
-        assertTrue("specified by F1.1" in doc)
+        assertTrue("will be published with F1.1" !in doc)
+    }
+
+    @Test
+    fun noNoteSaysTheVectorsWillBePublishedLater() {
+        assertTrue("will be published with F1.1" !in doc, "a stale 'will be published with F1.1' note")
+    }
+
+    @Test
+    fun theVectorsListNamesExactlyTheFilesInTheVectorsFolder() {
+        val start = doc.lines().indexOfFirst { it.startsWith("- `docs/rules-format/vectors/`:") }
+        assertTrue(start >= 0, "no vectors bullet under Files")
+        val bullet =
+            doc
+                .lines()
+                .drop(start)
+                .takeWhile { it.isNotBlank() }
+                .joinToString(" ")
+        val listed = Regex("`([a-z0-9-]+\\.json)`").findAll(bullet).map { it.groupValues[1] }.toSet()
+        val onDisk =
+            RulesFormatFiles.dir
+                .resolve("vectors")
+                .listFiles { f -> f.isFile && f.name.endsWith(".json") }
+                .orEmpty()
+                .map { it.name }
+                .toSet()
+        assertEquals(onDisk, listed, "the Files list and docs/rules-format/vectors/ must agree")
+        assertTrue("lineup.json" in listed, "the lineup vectors are part of the contract")
     }
 
     @Test

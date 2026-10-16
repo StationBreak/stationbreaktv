@@ -3985,5 +3985,6 @@ internal object VectorFiles {
             "epoch-seed.json" to epochSeed,
             "epoch-math.json" to epochMath,
             "key-order.json" to KeyOrderVectorFile.text,
+            "lineup.json" to LineupVectorFile.text,
         )
 }

@@ -75,6 +75,17 @@ class Day internal constructor(
     }
 }
 
+/** The largest time the format allows, in milliseconds: 2^52 (docs/rules-format.md, "Numbers and ranges"). */
+private const val MAX_TIME_MS = 1L shl 52
+
+/** `buildDay` takes fewer items than this: 2^26, so that the sum of the slots of a cycle stays below 2^53. */
+private const val MAX_ITEMS = 1 shl 26
+
+/**
+ * Builds day [n]. Throws [IllegalArgumentException], building nothing, when the input is out of range: 2^26 items or
+ * more, a `createdAt` or `deletedAt` beyond +-2^52 ms, or a day whose start or end is. Filtering bad items is the
+ * caller's job.
+ */
 fun buildDay(
     settings: SchedulerSettings,
     items: List<ScheduleItem>,
@@ -88,8 +99,19 @@ internal fun buildDayCounting(
     n: Long,
     onCompare: (() -> Unit)?,
 ): Day {
+    require(items.size < MAX_ITEMS) { "At most ${MAX_ITEMS - 1} items may be given, got ${items.size}" }
     val start = Epochs.epochStart(settings, n)
     val end = start + settings.epochMs
+    require(start in -MAX_TIME_MS..MAX_TIME_MS && end in -MAX_TIME_MS..MAX_TIME_MS) {
+        "Day $n is outside the valid times (-2^52 to 2^52 ms)"
+    }
+    for (item in items) {
+        require(item.createdAtMs in -MAX_TIME_MS..MAX_TIME_MS) { "Item ${item.id.value}: createdAt is out of range" }
+        val deleted = item.deletedAtMs
+        require(deleted == null || deleted in -MAX_TIME_MS..MAX_TIME_MS) {
+            "Item ${item.id.value}: deletedAt is out of range"
+        }
+    }
     val pool = EpochPool.build(settings, items, n)
     val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n))
     if (cycle.isEmpty()) {

@@ -98,6 +98,14 @@ class SchemaExamplesTest {
 
     @Test fun hourlyGridWithAHalfHourStart() = rejects("grid-60-start-half-hour.json")
 
+    @Test fun blockLengthZero() = rejects("block-length-0.json")
+
+    @Test fun blockLengthOver100() = rejects("block-length-101.json")
+
+    @Test fun nullMaxRating() = rejects("max-rating-null.json")
+
+    @Test fun alignToGridAsAString() = rejects("align-to-grid-string.json")
+
     @Test fun upperCaseOrderingMode() = rejects("ordering-mode-upper-case.json")
 
     @Test fun upperCaseFillerMode() = rejects("filler-mode-kebab-case.json")
@@ -139,6 +147,10 @@ class SchemaExamplesTest {
                 "ordering-mode-upper-case.json",
                 "filler-mode-kebab-case.json",
                 "name-101-code-points.json",
+                "block-length-0.json",
+                "block-length-101.json",
+                "max-rating-null.json",
+                "align-to-grid-string.json",
             )
     }
 }
