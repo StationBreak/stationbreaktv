@@ -101,6 +101,10 @@ jobs:
       - name: Test the OSV issue opener
         run: bash .github/scripts/osv-issues.test.sh
 
+      # The emulator job's retry decision: only an infrastructure failure is ever retried.
+      - name: Test the instrumented infra classifier
+        run: bash .github/scripts/instrumented-infra.test.sh
+
       # ADR-0013: fails if the dependency verification file or its settings are loosened, or a workflow turns
       # verification off or rewrites the file. The tests run first, so a broken guard can't pass the real check.
       - name: Test the dependency verification guard
