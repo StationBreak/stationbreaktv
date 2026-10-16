@@ -22,7 +22,6 @@ class MediaItemFieldsTest {
         val item = MediaItem(ItemId("i1"), "Heat", ItemKind.Movie, null, null)
 
         assertNull(item.dateCreated)
-        assertNull(item.dateLastSaved)
         assertNull(item.productionYear)
         assertNull(item.officialRating)
         assertEquals(emptyList(), item.genres)
@@ -35,7 +34,6 @@ class MediaItemFieldsTest {
     @Test
     fun theNewFieldsCarryWhatTheyAreGiven() {
         val created = Instant.parse("2026-01-02T03:04:05Z")
-        val saved = Instant.parse("2026-02-03T04:05:06Z")
 
         val item =
             MediaItem(
@@ -45,7 +43,6 @@ class MediaItemFieldsTest {
                 runtime = 22.minutes,
                 parentId = ItemId("season1"),
                 dateCreated = created,
-                dateLastSaved = saved,
                 productionYear = 1994,
                 officialRating = "TV-14",
                 genres = listOf("Comedy"),
@@ -56,7 +53,6 @@ class MediaItemFieldsTest {
             )
 
         assertEquals(created, item.dateCreated)
-        assertEquals(saved, item.dateLastSaved)
         assertEquals(1994, item.productionYear)
         assertEquals("TV-14", item.officialRating)
         assertEquals(listOf("Comedy"), item.genres)

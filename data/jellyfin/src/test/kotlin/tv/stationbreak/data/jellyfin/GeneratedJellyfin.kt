@@ -34,11 +34,11 @@ internal fun FakeJellyfin.serve(library: SyntheticLibrary) {
             if (since == null) {
                 library.page(start, limit)
             } else {
-                library.items
-                    .filter { (it.dateLastSaved ?: Instant.DISTANT_PAST) >= since }
+                (0 until library.size)
+                    .filter { library.savedAt(it) >= since }
                     .drop(start)
                     .take(limit)
-                    .toList()
+                    .map(library::item)
             }
         val total = if (url.queryParameter("enableTotalRecordCount") == "true") library.size else matching.size
         val body =
@@ -70,7 +70,6 @@ internal fun wireItem(
         item.episodeNumber?.let { put("IndexNumber", it) }
         if ("ParentId" in fields) item.parentId?.let { put("ParentId", it.value) }
         if ("DateCreated" in fields) item.dateCreated?.let { put("DateCreated", it.toString()) }
-        if ("DateLastSaved" in fields) item.dateLastSaved?.let { put("DateLastSaved", it.toString()) }
         if ("Genres" in fields) put("Genres", JsonArray(item.genres.map(::JsonPrimitive)))
         if ("Tags" in fields) put("Tags", JsonArray(item.tags.map(::JsonPrimitive)))
     }

@@ -128,14 +128,16 @@ interface MediaServer {
     /**
      * One page of every video item under [library], at any depth (movies, episodes, videos and music videos; not
      * series, seasons or folders), for the library cache. The items carry the fields the cache needs and come in a
-     * stable, total order (by name, ties broken by the server on ID), so paging by [startIndex] can neither skip nor
-     * repeat an item. [limit] is 1 to
-     * [MAX_PAGE_SIZE]. The total count is asked for, and returned, on the first page ([startIndex] 0) only.
+     * stable, total order (by name, ties broken by the server on ID). For a library that doesn't change, paging by
+     * [startIndex] therefore neither skips nor repeats an item. A library that changes mid-walk can shift offsets: that
+     * is the sync's job, not this call's (a changed-since pass from the walk's start minus a margin, ID
+     * reconciliation, and upserts that are idempotent). [limit] is 1 to [MAX_PAGE_SIZE]. The total count is asked for,
+     * and returned, on the first page ([startIndex] 0) only; a first page the server answers without one fails as a
+     * [MediaServerError.ServerError].
      *
      * With [changedSince] the call returns only items the server saved at or after that UTC moment
-     * (`MinDateLastSaved`).
-     * Throws [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the caller, not a server
-     * problem.
+     * (`MinDateLastSaved`). Throws [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the
+     * caller, not a server problem.
      */
     suspend fun libraryItems(
         session: Session,

@@ -41,7 +41,7 @@ class ItemsDecodeLenientTest {
     fun aFullyDescribedEpisodeDecodesEveryField() {
         val body =
             """{"Items":[{"Id":"e1","Name":"Pilot","Type":"Episode","RunTimeTicks":13200000000,"ParentId":"s1",
-            "DateCreated":"2026-01-02T03:04:05.0000000Z","DateLastSaved":"2026-02-03T04:05:06.1234567Z",
+            "DateCreated":"2026-01-02T03:04:05.0000000Z",
             "ProductionYear":1994,"OfficialRating":"TV-14","Genres":["Comedy","Drama"],"Tags":["sitcom"],
             "SeriesId":"series1","ParentIndexNumber":1,"IndexNumber":2,"Etag":"ignored","Overview":"ignored"}],
             "TotalRecordCount":1,"StartIndex":0}"""
@@ -56,7 +56,6 @@ class ItemsDecodeLenientTest {
                 runtime = 22.minutes,
                 parentId = ItemId("s1"),
                 dateCreated = Instant.parse("2026-01-02T03:04:05Z"),
-                dateLastSaved = Instant.parse("2026-02-03T04:05:06.123456700Z"),
                 productionYear = 1994,
                 officialRating = "TV-14",
                 genres = listOf("Comedy", "Drama"),
@@ -89,7 +88,7 @@ class ItemsDecodeLenientTest {
 
     @Test
     fun anUnreadableDateIsAbsentNotAFailure() {
-        val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie","DateCreated":"not a date"}]}"""
+        val body = """{"Items":[{"Id":"i1","Type":"Movie","DateCreated":"not a date"}],"TotalRecordCount":1}"""
 
         val item = page(body).getOrNull()?.items?.single()
 
@@ -136,5 +135,32 @@ class ItemsDecodeLenientTest {
     @Test
     fun anAnswerThatIsNotJsonIsNotJellyfin() {
         assertIs<MediaServerError.NotJellyfin>(page("<html>nope</html>").errorOrNull())
+    }
+
+    @Test
+    fun aFirstPageWithNoTotalIsAServerErrorNotAnEmptyLibrary() {
+        val error = page("""{"Items":[{"Id":"i1","Name":"x","Type":"Movie"}]}""", startIndex = 0).errorOrNull()
+
+        assertIs<MediaServerError.ServerError>(error)
+    }
+
+    @Test
+    fun aLaterPageNeedsNoTotal() {
+        val items = page("""{"Items":[{"Id":"i1","Name":"x","Type":"Movie"}]}""", startIndex = 50).getOrNull()?.items
+
+        assertEquals(1, items?.size)
+    }
+
+    @Test
+    fun aRuntimeOfZeroTicksIsUnknownToo() {
+        val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie","RunTimeTicks":0}],"TotalRecordCount":1}"""
+
+        assertNull(
+            page(body)
+                .getOrNull()
+                ?.items
+                ?.single()
+                ?.runtime,
+        )
     }
 }

@@ -62,7 +62,7 @@ internal class MediaCalls(
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
-                convert { ItemPage(page.totalRecordCount, page.startIndex, page.items.map(::item)) }
+                convert { ItemPage(page.totalRecordCount ?: 0, page.startIndex, page.items.map(::item)) }
             }
         }
     }
@@ -82,12 +82,8 @@ internal class MediaCalls(
                 )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
-                convert {
-                    LibraryItemsPage(
-                        startIndex = startIndex,
-                        totalCount = if (startIndex == 0) page.totalRecordCount else null,
-                        items = page.items.map(::item),
-                    )
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { LibraryItemsPage(startIndex, total, page.items.map(::item)) }
                 }
             }
         }
@@ -98,18 +94,16 @@ internal class MediaCalls(
         library: Library,
         startIndex: Int,
         limit: Int,
-    ): ServerResult<ItemIdPage> =
-        calls.send(session, Endpoint.get("Items", recursiveQuery(library, startIndex, limit))).flatMap { text ->
+    ): ServerResult<ItemIdPage> {
+        val query = recursiveQuery(library, startIndex, limit) + ID_ONLY
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemIdsDto.serializer()).flatMap { page ->
-                convert {
-                    ItemIdPage(
-                        startIndex = startIndex,
-                        totalCount = if (startIndex == 0) page.totalRecordCount else null,
-                        ids = page.items.map { ItemId(it.id) },
-                    )
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { ItemIdPage(startIndex, total, page.items.map { ItemId(it.id) }) }
                 }
             }
         }
+    }
 
     /**
      * The query both cache calls share: the library's video items at any depth, in a stable order. The total
@@ -135,6 +129,20 @@ internal class MediaCalls(
             "enableTotalRecordCount" to (startIndex == 0).toString(),
         )
     }
+
+    /**
+     * The total for a page: asked for, and so required, on the first page; never asked for, and so null, after it.
+     * A first page without one is not an empty library, it is an answer we can't trust, so the page fails.
+     */
+    private fun firstPageTotal(
+        startIndex: Int,
+        total: Int?,
+    ): ServerResult<Int?> =
+        when {
+            startIndex != 0 -> ServerResult.Success(null)
+            total == null -> ServerResult.Failure(MediaServerError.ServerError())
+            else -> ServerResult.Success(total)
+        }
 
     /** The moment as UTC text with millisecond precision, which is as fine as the server reads. */
     private fun utcMillis(at: Instant): String = Instant.fromEpochMilliseconds(at.toEpochMilliseconds()).toString()
@@ -192,7 +200,6 @@ internal class MediaCalls(
             runtime = dto.runTimeTicks?.let(::duration),
             parentId = dto.parentId?.let(::ItemId),
             dateCreated = instant(dto.dateCreated),
-            dateLastSaved = instant(dto.dateLastSaved),
             productionYear = dto.productionYear,
             officialRating = dto.officialRating,
             genres = dto.genres.orEmpty(),
@@ -236,8 +243,8 @@ internal class MediaCalls(
             supportsDirectStream = dto.supportsDirectStream,
         )
 
-    /** Ticks are 100 ns; a negative runtime is nonsense, so it reads as unknown. */
-    private fun duration(ticks: Long): Duration? = if (ticks < 0) null else (ticks / TICKS_PER_MICROSECOND).microseconds
+    /** Ticks are 100 ns; a zero or negative runtime is nonsense for an item, so it reads as unknown. */
+    private fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MICROSECOND).microseconds.takeIf { ticks > 0 }
 
     private companion object {
         const val TICKS_PER_MICROSECOND = 10L
@@ -247,11 +254,17 @@ internal class MediaCalls(
 
         /**
          * The optional fields the cache needs. `DateLastSaved` is not among them: neither 12.1 nor 12.2 returns it,
-         * even when asked (contract test), so [MediaItem.dateLastSaved] stays null. The rest (production year,
-         * rating, series, season and episode numbers, runtime) come with every item, so asking for more would only
-         * make the answer bigger.
+         * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
+         * runtime) come with every item, so asking for more would only make the answer bigger.
          */
         const val ITEM_FIELDS = "DateCreated,Genres,Tags,ParentId"
+
+        /**
+         * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
+         * neither: on 12.1 and 12.2 a 6-item page measured 7.5 kB with the cache fields, 5.9 kB bare, 4.0 kB without
+         * images and 2.9 kB without images and user data.
+         */
+        val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
 
         val ITEM_KINDS =
             mapOf(

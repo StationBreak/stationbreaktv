@@ -61,8 +61,17 @@ class SyntheticLibraryTest {
 
         for (item in library.items) {
             assertNotNull(item.dateCreated, item.id.value)
-            assertNotNull(item.dateLastSaved, item.id.value)
             assertEquals(library.libraryId, item.parentId)
+        }
+    }
+
+    @Test
+    fun anItemIsSavedNoEarlierThanItWasCreatedAndTheTimeIsRepeatable() {
+        val library = SyntheticLibrary(size = 300, seed = 4)
+
+        for (index in 0 until 300) {
+            assertTrue(library.savedAt(index) >= checkNotNull(library.item(index).dateCreated))
+            assertEquals(library.savedAt(index), SyntheticLibrary(size = 300, seed = 4).savedAt(index))
         }
     }
 

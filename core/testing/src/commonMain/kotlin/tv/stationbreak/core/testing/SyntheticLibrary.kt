@@ -52,7 +52,6 @@ class SyntheticLibrary(
             runtime = runtime(random),
             parentId = libraryId,
             dateCreated = created,
-            dateLastSaved = created + random.nextLong(SAVED_SPREAD_DAYS).days,
             productionYear = YEAR_FIRST + random.nextInt(YEAR_COUNT),
             officialRating = RATINGS[random.nextInt(RATINGS.size)],
             genres = pick(random, GENRES, random.nextInt(MAX_GENRES + 1)),
@@ -61,6 +60,15 @@ class SyntheticLibrary(
             seasonNumber = if (episode) 1 + (index / EPISODES_PER_SEASON) % SEASONS else null,
             episodeNumber = if (episode) 1 + index % EPISODES_PER_SEASON else null,
         )
+    }
+
+    /**
+     * When the server last saved the item at [index]: never before it was created. The model has no such field,
+     * because Jellyfin doesn't return it, but a fake server needs it to answer "changed since".
+     */
+    fun savedAt(index: Int): Instant {
+        val created = checkNotNull(item(index).dateCreated)
+        return created + Random(seed * SEED_MIX + index + SAVED_MIX).nextLong(SAVED_SPREAD_DAYS).days
     }
 
     /** Up to [limit] items from [startIndex] on, as a server page would give them. Empty past the end. */
@@ -110,6 +118,7 @@ class SyntheticLibrary(
         const val SECONDS_PER_MINUTE = 60
         const val CREATED_SPREAD_SECONDS = 6L * 365 * 24 * 3600
         const val SAVED_SPREAD_DAYS = 30L
+        const val SAVED_MIX = 7L
         const val YEAR_FIRST = 1950
         const val YEAR_COUNT = 76
         const val MAX_GENRES = 2

@@ -38,6 +38,9 @@ class IdListingTest {
             assertEquals("0", url.queryParameter("startIndex"))
             assertEquals("100", url.queryParameter("limit"))
             assertEquals("true", url.queryParameter("enableTotalRecordCount"))
+            // Images and user data are most of an item's bytes and the ID check reads neither.
+            assertEquals("false", url.queryParameter("enableImages"))
+            assertEquals("false", url.queryParameter("enableUserData"))
             // No fields beyond the always-present ones, and no change filter: this is the whole list.
             assertNull(url.queryParameter("fields"))
             assertNull(url.queryParameter("minDateLastSaved"))
@@ -94,6 +97,17 @@ class IdListingTest {
             val error = testAdapter().libraryItemIds(testSession(jellyfin.address), library, 0, 5).errorOrNull()
 
             assertIs<MediaServerError.NotJellyfin>(error)
+        }
+    }
+
+    @Test
+    fun aFirstPageWithNoTotalIsAServerErrorNotAnEmptyLibrary() {
+        runBlocking {
+            jellyfin.on("GET", "/Items") { jellyfin.json("{\"Items\":[{\"Id\":\"a1\"}]}") }
+
+            val error = testAdapter().libraryItemIds(testSession(jellyfin.address), library, 0, 5).errorOrNull()
+
+            assertIs<MediaServerError.ServerError>(error)
         }
     }
 }

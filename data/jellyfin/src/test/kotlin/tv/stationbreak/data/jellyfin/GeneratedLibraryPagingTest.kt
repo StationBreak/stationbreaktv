@@ -13,6 +13,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.time.Duration
 import kotlin.time.Instant
 
 /** The adapter reading a 15,000-item generated library page by page: nothing missing, nothing repeated (S0.6.1). */
@@ -60,8 +61,9 @@ class GeneratedLibraryPagingTest {
             val page =
                 testAdapter().libraryItems(testSession(jellyfin.address), library, 400, 200).getOrNull()
 
-            // The server does not return DateLastSaved (contract test), so the adapter does not ask for it.
-            assertEquals(synthetic.page(400, 200).map { it.copy(dateLastSaved = null) }, page?.items)
+            // A zero running time reads as unknown at the port (the scheduler treats both the same).
+            val expected = synthetic.page(400, 200).map { it.copy(runtime = it.runtime?.takeIf(Duration::isPositive)) }
+            assertEquals(expected, page?.items)
         }
     }
 
@@ -92,10 +94,9 @@ class GeneratedLibraryPagingTest {
             jellyfin.serve(synthetic)
             val moment = Instant.parse("2024-01-01T00:00:00Z")
             val expected =
-                synthetic.items
-                    .filter { checkNotNull(it.dateLastSaved) >= moment }
-                    .map { it.id }
-                    .toList()
+                (0 until synthetic.size)
+                    .filter { synthetic.savedAt(it) >= moment }
+                    .map { synthetic.item(it).id }
 
             val adapter = testAdapter()
             val session = testSession(jellyfin.address)
