@@ -149,7 +149,8 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
    matches **any** exclusion (with the same matching rules) is removed.
 4. **Rating ceiling.** If `maxRating` is present, an item stays only if it passes the rating rule (see Maximum rating
-   and the rating ladder). An episode with no rating of its own uses its series' rating.
+   and the rating ladder). An episode with no rating of its own (none, or the empty string) uses its series' rating; any
+   other own rating, even `NR` or a blank, is used as it is.
 5. **The library snapshot.** The pool is worked out from the *library snapshot*: the cached set of items, and their
    genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. Which snapshot is
    used for which epoch, and when it is taken, is part of "Building the schedule" (specified by F1.1). The format only
@@ -527,20 +528,25 @@ scale). Ratings on the same rank are the same tier. A ceiling allows an item who
 
 ### Normalising an item's rating
 
-**Provisional until checked against Jellyfin (task 3.x).** The steps below are the working assumption and are being
-checked against Jellyfin's own rating parsing. The ladder above does not change if the check finds a difference; these
-steps would.
+The server gives each item a free-form rating string (or none). The steps below were checked against the rating table and
+lookup in Jellyfin 12.1 (`Localization/Ratings/us.json` and `LocalizationManager.GetRatingScore`): every United States
+string in that table gets the tier below, and Jellyfin's lookup is also case-insensitive and trims the string. Before
+looking a string up:
 
-The server gives each item a free-form rating string (or none). Before looking it up:
-
-1. Trim spaces from both ends.
+1. Trim spaces (U+0020) from both ends. Nothing else is trimmed: a tab, a line break or a non-breaking space is not a
+   space, and the string then has no rank.
 2. Convert the ASCII letters `a` to `z` to upper case (nothing else: no locale). `Approved` becomes `APPROVED`, and is
    accepted as `G`.
 3. Look the result up on the ladder. If it is there, that is its rank.
-4. Otherwise, if it starts with `TV-`, remove one trailing content-descriptor group (a hyphen followed by one or more of
-   the letters `D`, `L`, `S`, `V` and `F`, for example `-V` or `-DLSV`) and look up what is left. A descriptor never
-   changes the age tier: `TV-14-V` is `TV-14`.
-5. Anything else has no rank.
+4. Otherwise, accept it if it is `TV-PG-`, `TV-14-` or `TV-MA-` followed by **one** descriptor group: a non-empty run of
+   the letters `D`, `L`, `S` and `V`, in that order, each at most once, for example `-V`, `-DL` or `-DLSV`. For `TV-MA`
+   the letters are `L`, `S` and `V` only. These are exactly the strings Jellyfin lists for those tiers. A descriptor never
+   changes the age tier: `TV-14-V` is `TV-14`, and `TV-MA-LSV` is `TV-MA`. (`TV-Y7-FV` is already on the ladder.)
+5. Anything else has no rank. That includes `TV-14-VD` (letters out of order), `TV-MA-D`, `TV-G-V` and `TV-14-`.
+
+Jellyfin also understands strings this format does not: a country prefix such as `US:PG-13`, a leading `Rated `, a plain
+number such as `13` or `16+`, and a list such as `TV-14/TV-MA`. They have no rank here, so they are blocked under a ceiling.
+That is on purpose: this format fails closed, and a client that wants them must map them to a ladder name first.
 
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
 with no rating, a blank rating, `NR`, `Unrated`, or any rating that is not on the ladder (for example a British or German

@@ -5,24 +5,8 @@ import kotlinx.serialization.json.JsonObject
 
 /** The fixed names and ranges of format version 1, shared by the reader and by the checks on the types. */
 internal object RulesVocabulary {
-    val RATINGS =
-        setOf(
-            "TV-Y",
-            "TV-G",
-            "G",
-            "Approved",
-            "TV-Y7",
-            "TV-Y7-FV",
-            "TV-PG",
-            "PG",
-            "PG-13",
-            "TV-14",
-            "R",
-            "TV-MA",
-            "NC-17",
-            "TV-X",
-            "TV-AO",
-        )
+    /** The names a `maxRating` may take: the rating ladder. */
+    val RATINGS: Set<String> get() = RatingLadder.names
     val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
     val START_TIME = Regex("^([01][0-9]|2[0-3]):(00|30)$")
     val TOP_LEVEL =
