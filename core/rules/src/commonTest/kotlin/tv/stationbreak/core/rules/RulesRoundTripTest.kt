@@ -2,13 +2,13 @@
 package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.model.Seed
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import tv.stationbreak.core.model.OrderingMode
-import tv.stationbreak.core.model.Seed
 
 class RulesRoundTripTest {
     // Filler modes other than "none" are not scheduled by a version 1 reader, but the file is still read and kept.

@@ -43,6 +43,8 @@ object RulesWriter {
             timing.blockLength?.let { put("blockLength", JsonPrimitive(it)) }
             timing.alignToGrid?.let { put("alignToGrid", JsonPrimitive(it)) }
             timing.epochHours?.let { put("epochHours", JsonPrimitive(it)) }
+            timing.graceHours?.let { put("graceHours", JsonPrimitive(it)) }
+            timing.gridMinutes?.let { put("gridMinutes", JsonPrimitive(it)) }
             put(
                 "broadcastDay",
                 obj(timing.broadcastDay.extras) {

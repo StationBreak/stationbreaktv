@@ -342,6 +342,8 @@ fields are optional.
 | `blockLength` | `1` | Items per block: the number of consecutive items (for example 2 episodes of one series) that play together as one block. A whole number from 1 to 100. |
 | `alignToGrid` | `true` | Blocks start on the half-hour grid: at :00 and :30 of the clock described below. If `false`, a block starts when the previous one ends. |
 | `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a number that divides 24, so that every epoch boundary falls on a grid mark). |
+| `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it. A whole number from 0 to 48. |
+| `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark. |
 | `broadcastDay` | required | When an epoch starts. An object with `utcOffsetMinutes` (required) and `start`. |
 
 **The broadcast day.** `broadcastDay` has two fields:
@@ -382,7 +384,8 @@ the next epoch's start later.
 
 Examples: `docs/rules-format/examples/broadcast-day-offset.json` (UTC-5, starts 06:00),
 `docs/rules-format/examples/broadcast-day-offset-nepal.json` (UTC+5:45, starts 18:30) and
-`docs/rules-format/examples/timing-unaligned.json` (blocks of 4, no grid, 12-hour epochs):
+`docs/rules-format/examples/timing-unaligned.json` (blocks of 4, no grid, 12-hour epochs) and
+`docs/rules-format/examples/timing-grid-and-grace.json` (UTC+5:30, an hourly grid, 12-hour epochs, 12 hours of grace):
 
 ```json
 {

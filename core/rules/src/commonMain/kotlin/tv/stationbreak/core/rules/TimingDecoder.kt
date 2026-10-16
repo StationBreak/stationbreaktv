@@ -13,12 +13,20 @@ internal object TimingDecoder {
         val epochHours = obj["epochHours"]?.let { int(it, "timing.epochHours") }
         val hours = RulesVocabulary.EPOCH_HOURS
         if (epochHours != null && epochHours !in hours) invalid("timing.epochHours must be on the list")
+        val grid = obj["gridMinutes"]?.let { int(it, "timing.gridMinutes") }
+        if (grid != null && grid !in RulesVocabulary.GRID_MINUTES) invalid("timing.gridMinutes must be 15, 30 or 60")
+        val broadcastDay = broadcastDay(required(obj, "broadcastDay", "timing"))
+        if (grid == RulesVocabulary.HOURLY_GRID && !broadcastDay.effectiveStart.endsWith(":00")) {
+            invalid("timing.broadcastDay.start must be on the hour when timing.gridMinutes is 60")
+        }
         return Timing(
             blockLength = obj["blockLength"]?.let { ranged(it, "timing.blockLength", 1, MAX_BLOCK) },
             alignToGrid = obj["alignToGrid"]?.let { boolean(it, "timing.alignToGrid") },
             epochHours = epochHours,
-            broadcastDay = broadcastDay(required(obj, "broadcastDay", "timing")),
-            extras = extras(obj, setOf("blockLength", "alignToGrid", "epochHours", "broadcastDay")),
+            graceHours = obj["graceHours"]?.let { ranged(it, "timing.graceHours", 0, RulesVocabulary.MAX_GRACE_HOURS) },
+            gridMinutes = grid,
+            broadcastDay = broadcastDay,
+            extras = extras(obj, RulesVocabulary.TIMING),
         )
     }
 

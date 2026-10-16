@@ -127,10 +127,14 @@
       "description": "Required, because the broadcast-day offset has no default: the creator picks the zone's standard (non-daylight-saving) offset.",
       "type": "object",
       "required": ["broadcastDay"],
+      "if": { "required": ["gridMinutes"], "properties": { "gridMinutes": { "const": 60 } } },
+      "then": { "properties": { "broadcastDay": { "properties": { "start": { "pattern": "^([01][0-9]|2[0-3]):00$" } } } } },
       "properties": {
         "blockLength": { "description": "Items per block. Default 1.", "type": "integer", "minimum": 1, "maximum": 100 },
-        "alignToGrid": { "description": "Start blocks on :00 and :30. Default true.", "type": "boolean" },
+        "alignToGrid": { "description": "Start blocks on the grid marks (gridMinutes). Default true.", "type": "boolean" },
         "epochHours": { "description": "Length of an epoch in hours; must divide 24. Default 24.", "enum": [1, 2, 3, 4, 6, 8, 12, 24] },
+        "graceHours": { "description": "Grace window G in hours: an item joins epoch n only if it was added before the epoch's start minus G. Default 6.", "type": "integer", "minimum": 0, "maximum": 48 },
+        "gridMinutes": { "description": "Grid spacing in minutes. Default 30. With 60, broadcastDay.start must be on the hour.", "enum": [15, 30, 60] },
         "broadcastDay": {
           "type": "object",
           "required": ["utcOffsetMinutes"],
