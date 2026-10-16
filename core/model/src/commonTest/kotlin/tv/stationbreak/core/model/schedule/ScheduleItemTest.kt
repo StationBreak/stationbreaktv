@@ -131,4 +131,13 @@ class ScheduleItemTest {
             assertFailsWith<IllegalArgumentException>(bad) { item(premiereDate = bad) }
         }
     }
+
+    @Test
+    fun aPremiereDateIsTenAsciiCharactersWithAYearFromOne() {
+        for (ok in listOf("0001-01-01", "9999-12-31", "2020-02-31")) item(premiereDate = ok)
+        val bad = listOf("0000-01-01", " 2020-01-01", "2020-01-01 ", "2020-01-01\n", "\u0662020-01-01", "2020-01-01T10:00")
+        for (value in bad) {
+            assertFailsWith<IllegalArgumentException>(value) { item(premiereDate = value) }
+        }
+    }
 }
