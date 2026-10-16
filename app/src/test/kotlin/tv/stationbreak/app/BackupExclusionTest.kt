@@ -59,7 +59,8 @@ class BackupExclusionTest {
     @Test
     fun theOldBackupRulesExcludeTheDatabaseDomain() {
         val root = parse("src/main/res/xml/backup_rules.xml").documentElement
-        assertTrue("backup_rules.xml must exclude the database domain", excludedWholeDomains(root).containsAll(databaseDomains))
+        val excluded = excludedWholeDomains(root)
+        assertTrue("backup_rules.xml must exclude the database domain", excluded.containsAll(databaseDomains))
         assertEquals("backup_rules.xml includes something", emptyList<Element>(), elements(root, "include"))
     }
 

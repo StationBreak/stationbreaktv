@@ -10,7 +10,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/** Spec 06 task 2.9 (S0.6.3): no item without a trustworthy running time reaches the scheduler, and they are counted. */
+/** Spec 06 task 2.9 (S0.6.3): no item without a trusted running time reaches the scheduler, and they are counted. */
 class RuntimeExclusionTest {
     private val repository = TestLibraries.inMemory()
 
@@ -76,6 +76,7 @@ class RuntimeExclusionTest {
             repository.writePage(ALICE, MOVIES, listOf(item("zero", runtime = 40.minutes)), 5, 5, run = 2)
 
             assertEquals(2, repository.excludedCount(ALICE, setOf(MOVIES)))
-            assertEquals(listOf("ok", "one-second", "zero"), repository.snapshot(ALICE, setOf(MOVIES), EPOCH).map { it.id.value })
+            val ids = repository.snapshot(ALICE, setOf(MOVIES), EPOCH).map { it.id.value }
+            assertEquals(listOf("ok", "one-second", "zero"), ids)
         }
 }

@@ -23,8 +23,10 @@ class SyncStateFlowTest {
     fun close() = repository.close()
 
     // Room reports a change on its own thread, so wait for the state instead of assuming when it arrives.
-    private suspend fun Flow<LibraryStatus>.until(wanted: LibraryStatus) =
-        withTimeout(10.seconds) { first { it == wanted } }
+    private suspend fun Flow<LibraryStatus>.until(wanted: LibraryStatus): LibraryStatus {
+        val matches = { status: LibraryStatus -> status == wanted }
+        return withTimeout(10.seconds) { first(matches) }
+    }
 
     private suspend fun status() = repository.status(ALICE).first()
 
@@ -42,7 +44,7 @@ class SyncStateFlowTest {
             assertEquals(LibraryStatus(SyncState.FirstSyncRunning(copied = 0, total = null), null), status())
 
             repository.setTotal(ALICE, 4)
-            repository.writePage(ALICE, MOVIES, listOf(item("a"), item("b")), nextStartIndex = 2, totalCount = 4, run = 1)
+            repository.writePage(ALICE, MOVIES, listOf(item("a"), item("b")), 2, 4, run = 1)
 
             assertEquals(LibraryStatus(SyncState.FirstSyncRunning(copied = 2, total = 4), null), status())
         }
@@ -61,6 +63,7 @@ class SyncStateFlowTest {
             seen.until(LibraryStatus(SyncState.FirstSyncRunning(4, 6), null))
             repository.writePage(ALICE, MOVIES, listOf(item("e"), item("f")), 6, 6, run = 1)
             seen.until(LibraryStatus(SyncState.FirstSyncRunning(6, 6), null))
+            Unit
         }
 
     @Test
@@ -136,6 +139,7 @@ class SyncStateFlowTest {
             flow.until(LibraryStatus(SyncState.Idle, clock.instant))
             repository.failSync(ALICE, SyncFailure.Server)
             flow.until(LibraryStatus(SyncState.LastSyncFailed(SyncFailure.Server), clock.instant))
+            Unit
         }
 
     @Test

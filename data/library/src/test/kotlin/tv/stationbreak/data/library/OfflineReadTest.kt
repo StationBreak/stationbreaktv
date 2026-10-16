@@ -55,7 +55,8 @@ class OfflineReadTest {
             repository.failSync(ALICE, SyncFailure.Network)
 
             assertEquals(listOf("a"), repository.snapshot(ALICE, setOf(MOVIES), EPOCH).map { it.id.value })
-            assertEquals(LibraryStatus(SyncState.LastSyncFailed(SyncFailure.Network), success), repository.status(ALICE).first())
+            val expected = LibraryStatus(SyncState.LastSyncFailed(SyncFailure.Network), success)
+            assertEquals(expected, repository.status(ALICE).first())
             repository.close()
         }
 

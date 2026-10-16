@@ -27,9 +27,10 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /**
- * Spec 06 task 2.14: the saved library on the platform SQLite of the API 25 emulator (SQLite 3.9, Fire OS 6's own), through
- * the same `create` the app uses. The JVM tests run the same SQL over a newer SQLite; this proves nothing newer than API 25's
- * is needed: foreign keys that cascade, a transaction that rolls back, and the file in the `databases` directory.
+ * Spec 06 task 2.14: the saved library on the platform SQLite of the API 25 emulator (SQLite 3.9, like Fire OS 6's),
+ * through the same `create` the app uses. The JVM tests run the same SQL over a newer SQLite; this proves nothing newer
+ * than API 25's is needed: foreign keys that cascade, a transaction that rolls back, and the file in the `databases`
+ * directory.
  * Generated placeholder data only.
  */
 @RunWith(AndroidJUnit4::class)

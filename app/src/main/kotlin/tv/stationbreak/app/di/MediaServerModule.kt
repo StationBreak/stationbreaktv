@@ -12,6 +12,7 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import tv.stationbreak.app.net.AndroidSystemTrust
 import tv.stationbreak.app.net.PinSyncingServerSettings
+import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SecretStore
@@ -92,13 +93,17 @@ internal interface MediaServerModule {
             @ApplicationContext context: Context,
         ): SecretStore = KeystoreSecretStore(context)
 
-        /** The one stored session (F0.4): sign-in saves through it, and launch routing (task 4.0) restores via it. */
+        /**
+         * The one stored session (F0.4): sign-in saves through it, and launch routing (task 4.0) restores via it. It
+         * tells the saved library (F0.6) who is signed in and who signed out, so another account's copy never lingers.
+         */
         @Provides
         @Singleton
         fun sessionRepository(
             store: SecretStore,
             server: MediaServer,
-        ): SessionRepository = SessionRepository(store, server)
+            library: AccountCache,
+        ): SessionRepository = SessionRepository(store, server, library)
 
         @Provides
         @Singleton

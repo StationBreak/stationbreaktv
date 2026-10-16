@@ -27,7 +27,7 @@ class LibraryRepositorySnapshotTest {
     ) {
         chosen += library
         repository.select(ALICE, chosen.toSet())
-        repository.writePage(ALICE, library, items.toList(), nextStartIndex = items.size, totalCount = items.size, run = 1)
+        repository.writePage(ALICE, library, items.toList(), items.size, items.size, run = 1)
     }
 
     private suspend fun ids(
@@ -113,7 +113,7 @@ class LibraryRepositorySnapshotTest {
             val generated = SyntheticLibrary(2_500, seed = 3).items.toList()
             repository.select(ALICE, setOf(MOVIES))
             generated.chunked(200).forEachIndexed { index, page ->
-                repository.writePage(ALICE, MOVIES, page, nextStartIndex = (index + 1) * 200, totalCount = 2_500, run = 1)
+                repository.writePage(ALICE, MOVIES, page, (index + 1) * 200, 2_500, run = 1)
             }
             val farFuture = Instant.fromEpochMilliseconds(4_000_000_000_000)
 

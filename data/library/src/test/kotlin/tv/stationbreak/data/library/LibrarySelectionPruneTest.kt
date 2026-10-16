@@ -13,7 +13,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 
-/** Spec 06 task 2.10 (owner answer 2): the cache holds only the libraries the user ticked, as `ServerSettings` has them. */
+/** Spec 06 task 2.10 (owner answer 2): the cache holds only the libraries ticked, as `ServerSettings` has them. */
 class LibrarySelectionPruneTest {
     private val repository = TestLibraries.inMemory()
     private val record = ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example", 443))

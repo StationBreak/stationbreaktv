@@ -6,6 +6,8 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaItem
 
 /** Spec 06 task 2.7 (ADR-0002): rows are keyed by server and user, and a change of either clears the cache. */
 class AccountIsolationTest {
@@ -28,9 +30,9 @@ class AccountIsolationTest {
         runBlocking {
             save(ALICE, "a1", "a2")
 
-            assertEquals(emptyList(), repository.snapshot(BOB, setOf(MOVIES), EPOCH))
+            assertEquals(emptyList<MediaItem>(), repository.snapshot(BOB, setOf(MOVIES), EPOCH))
             assertEquals(0, repository.excludedCount(BOB, setOf(MOVIES)))
-            assertEquals(emptySet(), repository.pendingLibraries(BOB))
+            assertEquals(emptySet<ItemId>(), repository.pendingLibraries(BOB))
         }
 
     @Test
@@ -38,7 +40,7 @@ class AccountIsolationTest {
         runBlocking {
             save(ALICE, "a1")
 
-            assertEquals(emptyList(), repository.snapshot(ALICE_ON_ANOTHER_SERVER, setOf(MOVIES), EPOCH))
+            assertEquals(emptyList<MediaItem>(), repository.snapshot(ALICE_ON_ANOTHER_SERVER, setOf(MOVIES), EPOCH))
         }
 
     @Test
@@ -68,7 +70,7 @@ class AccountIsolationTest {
             repository.useAccount(BOB)
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
-            assertEquals(emptyList(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
+            assertEquals(emptyList<MediaItem>(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
         }
 
     @Test
@@ -99,7 +101,7 @@ class AccountIsolationTest {
 
             repository.forget(ALICE)
 
-            assertEquals(emptyList(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
+            assertEquals(emptyList<MediaItem>(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
             assertEquals(listOf("b1"), repository.snapshot(BOB, setOf(MOVIES), EPOCH).map { it.id.value })
         }
 

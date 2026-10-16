@@ -4,8 +4,8 @@ package tv.stationbreak.data.library
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.RoomDatabase
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -41,7 +41,7 @@ class CacheRebuildTest {
     @Test
     fun aDatabaseFromADifferentSchemaIsDroppedAndRebuiltEmpty() =
         runBlocking {
-            // A "future" schema stands in for any schema change: its file is one the current schema has no migration for.
+            // A "future" schema stands in for any schema change: a file the current schema has no migration for.
             val context = TestContext(folder.root)
             val other =
                 Room

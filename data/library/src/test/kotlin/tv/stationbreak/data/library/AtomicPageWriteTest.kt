@@ -32,7 +32,8 @@ class AtomicPageWriteTest {
             repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
 
             assertEquals(listOf("p1-a", "p1-b"), idsStored())
-            assertEquals(Checkpoint(MOVIES, nextStartIndex = 2, totalCount = 4, run = 7), repository.checkpoint(ALICE, MOVIES))
+            val expected = Checkpoint(MOVIES, nextStartIndex = 2, totalCount = 4, run = 7)
+            assertEquals(expected, repository.checkpoint(ALICE, MOVIES))
         }
 
     @Test
@@ -85,7 +86,7 @@ class AtomicPageWriteTest {
     fun aPageForALibraryThatWasNotSelectedStoresNothing() {
         assertThrows(Exception::class.java) {
             runBlocking {
-                repository.writePage(ALICE, ItemId("never-selected"), page1, nextStartIndex = 2, totalCount = 4, run = 1)
+                repository.writePage(ALICE, ItemId("never-selected"), page1, 2, 4, run = 1)
             }
         }
         runBlocking {
@@ -143,7 +144,7 @@ class AtomicPageWriteTest {
             repository.select(ALICE, setOf(MOVIES))
 
             repository.writePage(ALICE, MOVIES, many, nextStartIndex = many.size, totalCount = many.size, run = 1)
-            val replay = repository.writePage(ALICE, MOVIES, many, nextStartIndex = many.size, totalCount = many.size, run = 1)
+            val replay = repository.writePage(ALICE, MOVIES, many, many.size, many.size, run = 1)
 
             assertEquals(1500, repository.stored(ALICE).size)
             assertEquals(1500, replay.unchanged)

@@ -60,15 +60,23 @@ internal object SchemaFile {
 
     fun text(): String = file.readText()
 
-    fun columnNames(): List<String> = Regex("\"columnName\":\\s*\"([^\"]+)\"").findAll(text()).map { it.groupValues[1] }.toList()
+    fun columnNames(): List<String> = valuesOf("columnName")
 
-    fun tableNames(): List<String> = Regex("\"tableName\":\\s*\"([^\"]+)\"").findAll(text()).map { it.groupValues[1] }.toList()
+    fun tableNames(): List<String> = valuesOf("tableName")
+
+    private fun valuesOf(key: String): List<String> {
+        val pattern = Regex("\"$key\":\\s*\"([^\"]+)\"")
+        return pattern.findAll(text()).map { it.groupValues[1] }.toList()
+    }
 }
 
 /** Room on the JVM, over the bundled SQLite driver (test only). */
 internal object TestLibraries {
     /** A database that lives in memory and is gone when closed. */
-    fun inMemory(clock: Clock = FakeClock()): RoomLibraryRepository = RoomLibraryRepository.testing(builder(null, null), clock)
+    fun inMemory(clock: Clock = FakeClock()): RoomLibraryRepository {
+        val configured = builder(null, null)
+        return RoomLibraryRepository.testing(configured, clock)
+    }
 
     /** A database file named [name] under [dir]; opening the same name again reads what the last open stored. */
     fun onDisk(

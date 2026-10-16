@@ -9,6 +9,7 @@ import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
@@ -64,7 +65,7 @@ class SignOutClearsCacheTest {
 
             sessions.signOut(session(ALICE))
 
-            assertEquals(emptyList(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
+            assertEquals(emptyList<MediaItem>(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
             assertEquals(1, repository.snapshot(BOB, setOf(MOVIES), EPOCH).size)
         }
 
