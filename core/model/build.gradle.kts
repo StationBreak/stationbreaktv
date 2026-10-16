@@ -11,3 +11,12 @@ kotlin {
         implementation(libs.kotlinx.serialization.json)
     }
 }
+
+// The rules-format vectors are the source of truth. The jvmTest checks read them from the repository and compare them with
+// the Kotlin copies in commonTest, which is what linuxX64Test can use (it cannot read files).
+val rulesFormatDir = rootProject.layout.projectDirectory.dir("docs/rules-format")
+
+tasks.withType<Test>().configureEach {
+    systemProperty("rulesFormat.dir", rulesFormatDir.asFile.absolutePath)
+    inputs.files(rulesFormatDir.asFileTree).withPropertyName("rulesFormatFiles").withPathSensitivity(PathSensitivity.RELATIVE)
+}
