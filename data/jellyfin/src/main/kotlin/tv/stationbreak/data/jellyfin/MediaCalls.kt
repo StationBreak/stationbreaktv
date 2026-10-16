@@ -33,6 +33,7 @@ import kotlin.time.Instant
  * are read into the small lenient DTOs in `Wire.kt`, and anything that is not a plain value of the domain model (a URL,
  * a file path, a key) is dropped there.
  */
+@Suppress("TooManyFunctions") // One class for the media surface (libraries, items, playback, reports).
 internal class MediaCalls(
     private val calls: AuthorizedCall,
 ) {
@@ -134,7 +135,7 @@ internal class MediaCalls(
     }
 
     /** The moment as UTC text with millisecond precision, which is as fine as the server reads. */
-    private fun utcMillis(moment: Instant): String = Instant.fromEpochMilliseconds(moment.toEpochMilliseconds()).toString()
+    private fun utcMillis(at: Instant): String = Instant.fromEpochMilliseconds(at.toEpochMilliseconds()).toString()
 
     suspend fun playbackInfo(
         session: Session,

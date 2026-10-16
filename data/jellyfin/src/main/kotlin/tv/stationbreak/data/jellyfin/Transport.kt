@@ -17,6 +17,9 @@ import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import java.io.IOException
 
+/** The most of an answer the adapter reads (1 MiB): more is a server error, never an out-of-memory. */
+internal const val MAX_BODY_BYTES = 1 shl 20
+
 /** One call to the server: its method, its path under the base address, and what it carries. */
 internal class Endpoint(
     val method: String,
@@ -108,6 +111,5 @@ internal class Transport(
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
         val REDIRECTS = 300..399
-        const val MAX_BODY_BYTES = 1 shl 20
     }
 }

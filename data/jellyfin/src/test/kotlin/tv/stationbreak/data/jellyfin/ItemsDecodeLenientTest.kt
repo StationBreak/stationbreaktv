@@ -20,7 +20,7 @@ import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
-/** `libraryItems` decodes what the server sends and shrugs at what it doesn't (F0.6: an incomplete answer never fails). */
+/** `libraryItems` decodes what the server sends and shrugs at what it doesn't: no answer fails for a missing field. */
 class ItemsDecodeLenientTest {
     private val jellyfin = FakeJellyfin()
     private val library = Library(ItemId("lib01"), "Shows", LibraryKind.TvShows)
@@ -89,7 +89,7 @@ class ItemsDecodeLenientTest {
 
     @Test
     fun anUnreadableDateIsAbsentNotAFailure() {
-        val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie","DateCreated":"not a date"}],"TotalRecordCount":1}"""
+        val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie","DateCreated":"not a date"}]}"""
 
         val item = page(body).getOrNull()?.items?.single()
 

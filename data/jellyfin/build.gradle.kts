@@ -25,6 +25,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.okhttp.tls)
+    // The generated library the paging tests serve (F0.6). Test sources only (checkArchitecture).
+    testImplementation(project(":core:testing"))
 }
 
 // Test only: the contract suite starts the server (and a subpath proxy) with Testcontainers.

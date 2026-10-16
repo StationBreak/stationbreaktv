@@ -57,7 +57,8 @@ class ItemsArgumentTest {
         runBlocking {
             jellyfin.on("GET", "/Items") { jellyfin.json("{\"Items\":[],\"TotalRecordCount\":0}") }
 
-            val result = testAdapter().libraryItems(testSession(jellyfin.address), library, 0, MediaServer.MAX_PAGE_SIZE)
+            val session = testSession(jellyfin.address)
+            val result = testAdapter().libraryItems(session, library, 0, MediaServer.MAX_PAGE_SIZE)
 
             assertEquals(null, result.errorOrNull())
         }
