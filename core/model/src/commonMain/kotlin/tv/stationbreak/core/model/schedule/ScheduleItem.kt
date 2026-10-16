@@ -15,7 +15,7 @@ enum class ScheduleItemKind {
  * @property runtimeMs the runtime. The pool leaves out an item with no runtime or one longer than the epoch.
  * @property createdAtMs the server's creation time.
  * @property deletedAtMs the client's first observation that the item is gone, or null while it is present.
- * @property premiereDate the premiere (air) date as `YYYY-MM-DD`, compared as text, or null.
+ * @property premiereDate the premiere (air) date as a UTC calendar date `YYYY-MM-DD`, compared as text, or null.
  * @property seriesId the series of an episode; the group a chronological order keeps together.
  */
 @Suppress("LongParameterList") // A plain data carrier: one field per input the ordering and the pool read.
@@ -33,6 +33,7 @@ data class ScheduleItem(
 ) {
     init {
         require(premiereDate == null || DATE.matches(premiereDate)) { "A premiere date is YYYY-MM-DD" }
+        require(productionYear == null || productionYear in 1..MAX_YEAR) { "A production year is 1 to 9999" }
         require(seasonNumber == null || seasonNumber >= 0) { "A season number is not negative" }
         require(episodeNumber == null || episodeNumber >= 0) { "An episode number is not negative" }
         require(kind != ScheduleItemKind.Movie || (seriesId == null && seasonNumber == null && episodeNumber == null)) {
@@ -47,6 +48,7 @@ data class ScheduleItem(
     val groupId: CanonicalId get() = seriesId ?: id
 
     private companion object {
-        val DATE = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+        const val MAX_YEAR = 9999
+        val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
     }
 }
