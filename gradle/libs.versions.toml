@@ -104,6 +104,8 @@ hilt-android-testing = { module = "com.google.dagger:hilt-android-testing", vers
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 # Test only (see [versions]).
 json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
+# Test only. Pins the validator's Jackson 3 tree to 3.2.3, which fixes the advisories in 3.2.1 (checked 2026-10-16).
+jackson-bom = { module = "tools.jackson:jackson-bom", version = "3.2.3" }
 
 # Gradle plugins, as libraries: build-logic compiles its convention plugins against these.
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }

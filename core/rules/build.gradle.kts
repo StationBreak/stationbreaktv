@@ -7,6 +7,7 @@ plugins {
 kotlin {
     // Test only: checks the rules-format examples against the JSON Schema. Not a runtime dependency of any module.
     sourceSets.jvmTest.dependencies {
+        implementation(project.dependencies.platform(libs.jackson.bom))
         implementation(libs.json.schema.validator)
     }
 }
