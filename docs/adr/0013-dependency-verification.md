@@ -74,7 +74,7 @@ largest part of the dependency set.
 - Renovate waits 3 days after a release before proposing it (`minimumReleaseAge`), which gives the community time
   to spot a bad one.
 - The owner reviews every change to `gradle/verification-metadata.xml` before merging, including in Renovate's
-  pull requests (ADR-0011, debug build signing, item 6; ADR-0012, CI gates advisory until the visibility
+  pull requests (amended 2026-10-16, see below) (ADR-0011, debug build signing, item 6; ADR-0012, CI gates advisory until the visibility
   flip). The review compares each new checksum with the `.sha256` file the
   publishing repository lists (see CONTRIBUTING.md).
 - OSV-Scanner reads the file, so known-vulnerable versions are reported. Findings that existed at the baseline
@@ -97,3 +97,15 @@ commits the result with a sign-off. The owner reads the diff and merges. CI neve
   the owner reviews it before merge, like `.github/**` (ADR-0012, CI gates advisory until the visibility flip,
   decision 1).
 - The file is large and machine-generated. Its diff is reviewed by checksum, not read for meaning.
+
+## Amendment (2026-10-16): who reviews the metadata diff
+
+Owner decision, made on PR #253.
+
+- **Our own pull requests.** A change to `gradle/verification-metadata.xml` is no longer held for the owner. A
+  security review (Angua) replaces it. The review compares every new checksum with the `.sha256` file the
+  publishing repository lists, or records why it can't (for example, Maven Central publishes none for a file and a
+  second download was compared instead). It also confirms that the change adds no `trusted-artifacts`, keys or
+  wildcard trust. The pull request body lists the new entries.
+- **Renovate's dependency pull requests.** These still go to the owner, who reads the rebuilt diff and merges.
+
