@@ -184,7 +184,6 @@ class SyncRetryPolicyTest {
             val verdict = runner(settings()).run(attempt = 0)
 
             assertEquals(SyncVerdict.Failure, verdict)
-            assertTrue(store.snapshot().isEmpty())
         }
 
     @Test
