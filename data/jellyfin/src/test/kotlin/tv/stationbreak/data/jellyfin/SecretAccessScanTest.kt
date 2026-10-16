@@ -30,7 +30,8 @@ class SecretAccessScanTest {
         val users =
             root
                 .walkTopDown()
-                .onEnter { it.name != "build" && it.name != ".git" && it.name != ".gradle" }
+                // `.claude` holds agent worktrees: whole checkouts of other branches, not this tree's sources.
+                .onEnter { it.name !in setOf("build", ".git", ".gradle", ".claude") }
                 .filter { it.isFile && it.extension == "kt" }
                 .filter { mainSourceSet.containsMatchIn(it.path.replace('\\', '/')) }
                 .filter { "SecretAccess" in it.readText() }
