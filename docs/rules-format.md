@@ -86,7 +86,8 @@ holds a secret and never causes a client to fetch a URL.
 - **Epoch**: the stretch of time from `epochStart(n)` up to `epochStart(n + 1)` (default 24 hours). Each epoch's lineup is
   worked out from that epoch's own pool and the channel's rules, with no state carried over from earlier epochs. The
   `shuffle` order has a seed of its own for each epoch; the other two orders do not (see Ordering).
-- **Cycle**: the runs of one epoch's pool in order, once through. It repeats when it runs out.
+- **Cycle**: the runs of one epoch's pool in order, once through, without the runs that are left out (see Left-out runs). It
+  repeats when it runs out.
 - **Grid mark**, **slot**, **continuous playout**: see Building the schedule.
 - **Broadcast day**: the daily start of the first epoch, on the channel's own fixed-offset clock.
 - **Canonical ID**: an item ID as 32 lower-case hex characters (see Item IDs).
@@ -420,7 +421,7 @@ fields are optional.
 | --- | --- | --- |
 | `blockLength` | `1` | Items per run: the number of consecutive items (for example 2 episodes of one series) that play together, back to back, as one run (see Runs). A whole number from 1 to 100. |
 | `alignToGrid` | `true` | Runs start on the grid marks (every `gridMinutes`, see that row) of the clock described below. If `false`, a run starts when the previous one ends. |
-| `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a number that divides 24, so that every epoch boundary falls on a grid mark of the channel's clock; see Building the schedule). |
+| `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a whole number of hours that divides 24, so that the day repeats). |
 | `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it (see The pool of an epoch). A whole number from 0 to 48. |
 | `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark (see Grid marks). |
 | `minRuntimeSeconds` | `60` | The shortest runtime, in seconds, that counts as a program: an item shorter than this is left out of the epoch's pool (see The pool of an epoch). A whole number from 1 to 3600. |
@@ -522,7 +523,7 @@ filled in from the rules first; the scheduler has none of its own.
 - `gridMinutes`: 15, 30 or 60;
 - `epochHours`: 1, 2, 3, 4, 6, 8, 12 or 24;
 - `utcOffsetMinutes`: -720 to 840, a multiple of 15;
-- `start`: minutes after midnight on the channel's clock, on the grid;
+- `start`: minutes after midnight on the channel's clock, on :00 or :30, and on :00 with a 60-minute grid, as Timing says;
 - `graceHours`: 0 to 48;
 - `minRuntimeSeconds`: 1 to 3600.
 
@@ -539,13 +540,18 @@ has:
 
 - its canonical ID;
 - its kind, movie or episode;
-- `runtimeMs`: its runtime, in whole milliseconds. (From Jellyfin's ticks of 100 nanoseconds, truncating `ticks / 10000` is
+- `runtimeMs`: its runtime, in whole milliseconds. A runtime of 0 or less is not an error: it is below the minimum, so the
+  item is left out of the pool. (From Jellyfin's ticks of 100 nanoseconds, truncating `ticks / 10000` is
   recommended. The scheduler uses the number it is given, and it decides whether an item right at `minRuntimeSeconds` counts.)
 - `createdAt`: when the server created the item, in milliseconds since 1970-01-01T00:00:00Z;
 - `deletedAt`: absent, or the time this client first saw the item was gone (see The pool of an epoch);
-- the premiere date `YYYY-MM-DD` (UTC), or none; the production year (1 to 9999), or none;
+- the premiere date, or none: exactly `YYYY-MM-DD` (UTC), with a four-digit year, a month `01` to `12` and a day `01` to
+  `31`. The shape is all that is checked: there is no check against a real calendar (`2020-02-31` is accepted and compared
+  as text). Anything else is an input error;
+- the production year, or none: a whole number from 1 to 9999. Any other value is an input error;
 - for an episode: its series ID, or none, and its season number and episode number (each a whole number of 0 or more, or
-  none). A movie has none of these three.
+  none). A negative number is an input error. A movie that has a series ID, a season number or an episode number is an
+  input error.
 
 Two items with the same canonical ID are an input error, whether or not either is kept. The scheduler rejects the input
 and builds no day.
@@ -564,11 +570,14 @@ seeds are **unsigned 64-bit** (see Primitives). Every division of times rounds t
 every remainder is `floorMod` (see Timing).
 
 - **Valid times.** `t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to
-  `2^52` milliseconds (about 142,000 years each way; today is about `1.8 * 10^12`). A client must treat a time outside that
-  range as an error. In this range `t + offsetMs - startMs` and `n * epochMs` cannot overflow 64 bits, and they are also
+  `2^52` milliseconds, **both bounds included** (about 142,000 years each way; today is about `1.8 * 10^12`). A time outside
+  that range is an **input error**: building the day **rejects the whole input** and builds nothing. This includes any item
+  whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is
+  out of range. Filtering bad items is the caller's job (the library layer), not the scheduler's. In this range `t + offsetMs - startMs` and `n * epochMs` cannot overflow 64 bits, and they are also
   exact in a double-precision float.
 - **Sums.** A day holds at most `epochMs / minRuntimeMs` programs, and the sum of the slots of a cycle is at most the
-  number of items times `epochMs`. With fewer than 2^26 items that sum is below 2^53.
+  number of items times `epochMs`. So the list of input items must hold **fewer than 2^26 items** (67,108,864); that many or
+  more is an **input error** (the whole input is rejected), and below it that sum is below 2^53.
 - **BrightScript** has 32-bit plain integers: use `LongInteger` for every time, runtime, slot and sum, and for each 64-bit
   hash use the two-32-bit-halves method of Primitives. Its `\` and `MOD` truncate: write `floorDiv` and `floorMod`.
 - **JavaScript** numbers are exact for whole numbers up to `2^53`, so times, slots and sums fit in a `Number`, but its `%`
@@ -793,11 +802,12 @@ For `chronological` and `randomInOrder`, with an **unchanged pool** (the same cy
 - Day `n` starts `delta_n` late against the continuous playout, `0 <= delta_n < slot(run j_n)`. So the runs from the first
   run that day `n` did not start, up to but not including the first run of day `n + 1`, **may be skipped**. They are not
   played on day `n` and day `n + 1` has moved past them.
-- **Nothing is skipped when `delta_n = 0`.** That holds on every day when **every slot equals exactly one grid slot**
-  (`gridMs`), for example half-hour episodes in runs of 1 on a 30-minute grid: then `C` is a multiple of `gridMs`, and `pos`
-  is too. Equal slots alone are not enough: 60-minute slots with a `:30` start give `delta = 30` minutes. But that does not
-  skip anything when the slots fill the day exactly (60-minute runs in a whole-hour epoch), because the last run then
-  ends exactly at `E`.
+- **Nothing is skipped when every slot is the same length and that length divides `epochMs`.** The runs of the day then fill
+  it exactly, so the last one ends at `E`, the next day starts at the next run, and `delta` does not matter. Example:
+  60-minute slots in a 4-hour epoch with a `:30` start give `delta = 30` minutes, and still skip nothing. Equal slots that
+  do **not** divide `epochMs` can skip (worked example 1 below: 90-minute slots in a 4-hour epoch). Also, when
+  `delta_n = 0` nothing is skipped: for example half-hour episodes in runs of 1 on a 30-minute grid have `C` a multiple of
+  `gridMs`, so `pos` is too.
 
 A skip needs leftover time at the seam. In worked example 1, count the runs of the continuous playout 0, 1, 2, 3 ... (run
 `k` is cycle run `k mod 3`). Day `n` starts at continuous run `K_n = floorDiv(S + offsetMs, C) * B + j` and starts `r_n`
@@ -820,8 +830,8 @@ For `shuffle` the order is new on each day, so there is no continuity to promise
 
 When step 3 of the regular layout stops (run `i` would not end by `E`), the rest of the day is **planned**, not cut. Let `c`
 be the end of the last block placed (it is `S` if none). Number the items of the cycle `L[0] ... L[N - 1]`, runs in order
-and items in order inside each run. Let `f` be the number of items in runs `0` to `i - 1`: `L[f]` is the first item of run
-`i`.
+and items in order inside each run. Here `i` is the index of the run that did not fit, taken modulo `B` (the regular layout may have gone round the cycle
+more than once). Let `f` be the number of items in runs `0` to `i - 1`: `L[f]` is the first item of run `i`.
 
 1. **Visit order.** Starting at `L[f]`, visit items in order. For `shuffle`, wrap from `L[N - 1]` to `L[0]` and visit
    exactly `N` items (so every item once). For `chronological` and `randomInOrder`, **do not wrap**: stop after
@@ -847,16 +857,29 @@ Why the group rule: without it, when episode 3 of a series does not fit but epis
 episode 3 has aired. So once an item of a group is passed over, no later item of that group is eligible. `shuffle` has no
 such limit, because its order has no series order to keep.
 
-Worked example 2: UTC, `start` `"00:00"`, `epochHours` 2 (so day 0 is `[0, 120)` minutes), a 30-minute grid, `blockLength`
-1. Items in order: P (movie, 75 minutes), A1 and A2 (episodes of series A, 45 and 20 minutes), B (movie, 25 minutes), and
-`chronological` order by air date. Slots are 90, 60, 30 and 30, `C = 210`, `S = 0`, so `pos = 0`, `j = 0`.
+Worked example 2: UTC (`utcOffsetMinutes` 0), `start` `"00:00"`, `epochHours` 2 (so day 0 is `[0, 120)` minutes), a 30-minute
+grid, `alignToGrid` true, `blockLength` 1, `graceHours` 6, `minRuntimeSeconds` 60, day `n = 0`. The channel seed is `8` for
+`chronological` (it plays no part) and `4` for `shuffle`. Every item was created long before (`createdAt` -10^12 ms) and
+none is deleted. The items, in the vector file's IDs (shortened to the last digits: `...01` is
+`00000000000000000000000000000001`):
+
+```text
+ID    kind     runtime   premiere date   series   season, episode
+...01 movie    75 min    2020-02-01      none     none            (P)
+...02 episode  45 min    2020-02-02      ...63    1, 1            (A1)
+...03 episode  20 min    2020-02-03      ...63    1, 2            (A2)
+...04 movie    25 min    2020-02-04      none     none            (B)
+```
+
+`chronological` order is by date: P, A1, A2, B. Slots are 90, 60, 30 and 30, `C = 210`, `S = 0`, so `pos = 0` and `j = 0`.
+For `shuffle` with seed `4`, the order of day 0 happens to be P, A1, A2, B as well, and the layout starts at run 0.
 
 ```text
 regular layout:  P [0,75). Next run A1: nextMark(75) = 90, and 90 + 45 = 135 > 120. It does not fit. i = 1, f = 1, c = 75.
 chronological:   visit A1: s = 90, 135 > 120, passed over (group A).
                  visit A2: group A was passed over, not eligible (it would fit, but A1 has not aired).
                  visit B:  s = 90, 90 + 25 = 115 <= 120, placed: slate [75,90), B [90,115). Close: slate [115,120).
-shuffle:         if the day's shuffle order is also P A1 A2 B, visit A1, A2, B, P (N = 4, wrapping):
+shuffle (seed 4):  the order is P A1 A2 B too, so visit A1, A2, B, P (N = 4, wrapping):
                  A1: no.   A2: s = 90, 110 <= 120, placed: slate [75,90), A2 [90,110).
                  B: s = nextMark(110) = 120, 145 > 120, no.   P: s = 120, no.   Close: slate [110,120).
 ```
@@ -875,7 +898,7 @@ An empty cycle (`B = 0`) makes the whole day one slate block `[S, E)`.
 `whatsOn(day, t, k)` answers "what is on at `t`" from a built day:
 
 1. `t` must satisfy `S <= t < E`. A `t` outside the day is an **error**, not a guess: the caller picks the day (`n` from
-   `t` as in Epochs and `seed_n`), and builds day `n + 1` or `n - 1` itself. `k` must be 0 or more.
+   `t` as in Epochs and `seed_n`), and builds day `n + 1` or `n - 1` itself. `k` must be 0 or more: a negative `k` is an error.
 2. The block is the **last block whose start is at or before `t`**, found by binary search (at most `ceil(log2(number of
    blocks))` comparisons). Blocks are half-open, so a `t` exactly on the end of one block is in the next one.
 3. The **offset** is `mediaStartOffset + (t - blockStart)` for a program: the position in the media to play from. A
@@ -1214,7 +1237,8 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
     `S - 21600000` is not; one deleted at `S - 21600000` is in the pool and one deleted at `S - 21600001` is not; a runtime
     of 59999 ms is out and 60000 ms is in (default `minRuntimeSeconds`).
 14. **A whole day.** Worked example 1 in Building the schedule gives the blocks of days 0 to 3, and worked example 2 gives the
-    end of a day for `chronological` and for `shuffle`. A client should reproduce both.
+    end of day 0 for `chronological` (seed 8) and for `shuffle` (seed 4), with the items, dates, IDs and seeds written out.
+    A client should reproduce both.
 15. **`whatsOn`.** In day 0 of worked example 1, `t` at minute 120 is M2 at offset 0, `t` one millisecond earlier is M1 at offset
     5399999 ms, `t` at minute 240 is a slate with no offset, and `t` at minute 270 is an error for that day.
 
@@ -1237,9 +1261,9 @@ Everything below is in this repository, under `docs/`:
   `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
   filter and the series rule, built on Jellyfin 12.1's own table), `epoch-seed.json` (`seed_n`, including negative `n`) and
   `epoch-math.json` (the epoch number and `epochStart` for many offsets, starts and epoch lengths), `key-order.json` (the three
-  orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (whole
-  days: the rules that matter, the items and a time `T`, with the block that is on at `T`, its start and end, the item or
-  slate, and the offset).
+  orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (82 whole
+  days: the rules the scheduler reads, the items, the day number `n`, every block of the day, and queries giving the block
+  that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors).
 
 Examples in `docs/rules-format/examples/`, with what they show:
 
