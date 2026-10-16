@@ -9,8 +9,6 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performImeAction
-import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -184,23 +182,8 @@ class SignInNavigationTest {
 
     private fun isFocused(tag: String): Boolean = runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess
 
-    /**
-     * On a cold emulator the first text input can reach the IME before its connection is active ("commitText on
-     * inactive InputConnection" in logcat) and is dropped, so Test then runs on a blank field. Type until it lands.
-     */
-    private fun typeIntoField(address: String) {
-        val input = compose.onNodeWithTag(ServerTags.FIELD_INPUT)
-        repeat(TYPE_ATTEMPTS) {
-            input.performTextInput(address)
-            val landed =
-                runCatching {
-                    compose.waitUntil(TYPE_TIMEOUT_MS) { runCatching { input.assert(hasText(address)) }.isSuccess }
-                }.isSuccess
-            if (landed) return
-            input.performTextClearance()
-        }
-        input.assert(hasText(address))
-    }
+    /** Types the address with [typeWhenReady], which waits out a cold emulator's IME. */
+    private fun typeIntoField(address: String) = compose.typeWhenReady(ServerTags.FIELD_INPUT, address)
 
     /** The Test runs off the main thread; on a cold emulator its result can land after the idle check. */
     private fun awaitFocused(tag: String) {
@@ -240,11 +223,11 @@ class SignInNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performTextInput("sam")
+        compose.typeWhenReady(SignInTags.USERNAME_INPUT, "sam")
         compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
         compose.waitForIdle()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performTextInput("dummy-pass-0001")
+        compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
         compose.waitForIdle()
         compose.onNodeWithTag(SignInTags.SIGN_IN).assertIsFocused()
@@ -272,11 +255,11 @@ class SignInNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performTextInput("sam")
+        compose.typeWhenReady(SignInTags.USERNAME_INPUT, "sam")
         compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
         compose.waitForIdle()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performTextInput("dummy-pass-0001")
+        compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
         compose.waitForIdle()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -292,7 +275,7 @@ class SignInNavigationTest {
         Scripted.server.discoverResult = ServerResult.Success(ResolvedServer(http, info))
         launchApp()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(ServerTags.FIELD_INPUT).performTextInput("http://jellyfin.example.test:8096")
+        compose.typeWhenReady(ServerTags.FIELD_INPUT, "http://jellyfin.example.test:8096")
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
         press(KeyEvent.KEYCODE_DPAD_CENTER)

@@ -18,7 +18,6 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -55,6 +54,7 @@ import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
+import tv.stationbreak.feature.onboarding.typeWhenReady
 
 /** A [MediaServer] whose Quick Connect can be driven by the test. */
 private class DrivenServer(
@@ -400,7 +400,7 @@ class SignInScreenTest {
         launch()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performTextInput("dummy-pass-0001")
+        compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
         compose.waitForIdle()
         assertFalse(editableText(SignInTags.PASSWORD_INPUT).isEmpty())
 
