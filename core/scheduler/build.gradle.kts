@@ -12,6 +12,8 @@ kotlin {
     // Test only: the vector files are JSON. The library is already in the build for core:model and core:rules.
     sourceSets.commonTest.dependencies {
         implementation(libs.kotlinx.serialization.json)
+        // Test only: a 10,000-item library for the counted-steps test and the benchmark (MODULES.md: tests may use it).
+        implementation(project(":core:testing"))
     }
 }
 
