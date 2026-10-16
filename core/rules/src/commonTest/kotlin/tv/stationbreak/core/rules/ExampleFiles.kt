@@ -519,6 +519,30 @@ internal object ExampleFiles {
                   }
                 }
                 """.trimIndent() + "\n",
+            "timing-grid-and-grace.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Hourly Grid",
+                  "seed": "21",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "alignToGrid": true,
+                    "epochHours": 12,
+                    "graceHours": 12,
+                    "gridMinutes": 60,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 330,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
         )
 
     val invalid: Map<String, String> =
@@ -940,6 +964,67 @@ internal object ExampleFiles {
                     "source": {
                       "type": "library",
                       "id": "55555555555555555555555555555555"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "grace-hours-49.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "graceHours": 49,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "grid-minutes-45.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "gridMinutes": 45,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "grid-60-start-half-hour.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "gridMinutes": 60,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0,
+                      "start": "06:30"
                     }
                   }
                 }

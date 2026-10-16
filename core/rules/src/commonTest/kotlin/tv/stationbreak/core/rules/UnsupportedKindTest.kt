@@ -3,6 +3,7 @@ package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.model.OrderingMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

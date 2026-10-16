@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
+import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,6 +61,41 @@ class RulesRoundTripTest {
         assertTrue(rules.timing.effectiveAlignToGrid)
         assertEquals(24, rules.timing.effectiveEpochHours)
         assertEquals("06:00", rules.timing.broadcastDay.effectiveStart)
+        assertEquals(6, rules.timing.effectiveGraceHours)
+        assertEquals(30, rules.timing.effectiveGridMinutes)
+    }
+
+    @Test
+    fun graceAndGridDefaultWhenAbsentAndAreNotInventedOnWrite() {
+        val rules = readOk(ExampleFiles.valid.getValue("library-only.json"))
+        assertEquals(null, rules.timing.graceHours)
+        assertEquals(null, rules.timing.gridMinutes)
+        assertEquals(6, rules.timing.effectiveGraceHours)
+        assertEquals(30, rules.timing.effectiveGridMinutes)
+        val written = RulesWriter.write(rules)
+        assertTrue(!written.contains("graceHours") && !written.contains("gridMinutes"))
+    }
+
+    @Test
+    fun graceAndGridTravelInTheRulesAndComeBackOut() {
+        val text = ExampleFiles.valid.getValue("timing-grid-and-grace.json")
+        val rules = readOk(text)
+        assertEquals(12, rules.timing.graceHours)
+        assertEquals(60, rules.timing.gridMinutes)
+        assertEquals(12, rules.timing.effectiveGraceHours)
+        assertEquals(60, rules.timing.effectiveGridMinutes)
+        assertEquals(emptySet(), rules.timing.extras.keys)
+        assertEquals(text, RulesWriter.write(rules))
+    }
+
+    @Test
+    fun aGraceOfZeroIsKeptAndWrittenBack() {
+        val day = obj("utcOffsetMinutes" to JsonPrimitive(0))
+        val timing = obj("graceHours" to JsonPrimitive(0), "broadcastDay" to day)
+        val rules = readOk(minimalRules().with("timing", timing).text())
+        assertEquals(0, rules.timing.graceHours)
+        assertEquals(0, rules.timing.effectiveGraceHours)
+        assertTrue(RulesWriter.write(rules).contains("\"graceHours\": 0"))
     }
 
     @Test

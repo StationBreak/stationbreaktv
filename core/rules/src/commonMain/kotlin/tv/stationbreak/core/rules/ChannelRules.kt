@@ -2,6 +2,7 @@
 package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonObject
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
@@ -43,15 +44,6 @@ data class ChannelRules(
     val effectiveExclusions: List<Source> get() = exclusions.orEmpty()
 }
 
-/** The ordering modes of version 1, with the exact names the file uses. */
-enum class OrderingMode(
-    val wireName: String,
-) {
-    Shuffle("shuffle"),
-    Chronological("chronological"),
-    RandomInOrder("randomInOrder"),
-}
-
 /** The `ordering` object. */
 data class Ordering(
     val mode: OrderingMode,
@@ -67,6 +59,8 @@ data class Timing(
     val blockLength: Int?,
     val alignToGrid: Boolean?,
     val epochHours: Int?,
+    val graceHours: Int?,
+    val gridMinutes: Int?,
     val broadcastDay: BroadcastDay,
     val extras: JsonObject = NO_EXTRAS,
 ) {
@@ -74,16 +68,32 @@ data class Timing(
         val blocks = 1..RulesVocabulary.MAX_BLOCK_LENGTH
         require(blockLength == null || blockLength in blocks) { "A block is 1 to 100 items" }
         require(epochHours == null || epochHours in RulesVocabulary.EPOCH_HOURS) { "An epoch length must divide 24" }
+        require(graceHours == null || graceHours in 0..RulesVocabulary.MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
+        require(gridMinutes == null || gridMinutes in RulesVocabulary.GRID_MINUTES) {
+            "The grid is 15, 30 or 60 minutes"
+        }
+        require(effectiveGridMinutes != RulesVocabulary.HOURLY_GRID || broadcastDay.effectiveStart.endsWith(":00")) {
+            "With an hourly grid the day starts on the hour"
+        }
         RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.TIMING)
     }
 
     val effectiveBlockLength: Int get() = blockLength ?: DEFAULT_BLOCK_LENGTH
-    val effectiveAlignToGrid: Boolean get() = alignToGrid ?: true
+    val effectiveAlignToGrid: Boolean get() = alignToGrid ?: DEFAULT_ALIGN_TO_GRID
     val effectiveEpochHours: Int get() = epochHours ?: DEFAULT_EPOCH_HOURS
+
+    /** The grace window G in hours: how long before an epoch starts a new item must have been added to air in it. */
+    val effectiveGraceHours: Int get() = graceHours ?: DEFAULT_GRACE_HOURS
+
+    /** The grid spacing in minutes: 30 when the file does not say. */
+    val effectiveGridMinutes: Int get() = gridMinutes ?: DEFAULT_GRID_MINUTES
 
     private companion object {
         const val DEFAULT_BLOCK_LENGTH = 1
+        const val DEFAULT_ALIGN_TO_GRID = true
         const val DEFAULT_EPOCH_HOURS = 24
+        const val DEFAULT_GRACE_HOURS = 6
+        const val DEFAULT_GRID_MINUTES = 30
     }
 }
 

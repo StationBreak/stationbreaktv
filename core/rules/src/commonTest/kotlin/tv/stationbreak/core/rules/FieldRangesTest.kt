@@ -45,6 +45,60 @@ class FieldRangesTest {
     }
 
     @Test
+    fun graceHoursIsAWholeNumberFromZeroToFortyEight() {
+        for (n in listOf(0, 1, 6, 47, 48)) ok(timing("graceHours" to JsonPrimitive(n)))
+        for (n in listOf(-1, 49, 100, 1_000_000)) bad(timing("graceHours" to JsonPrimitive(n)))
+        bad(timing("graceHours" to JsonPrimitive("6")))
+        bad(timing("graceHours" to JsonPrimitive(1.5)))
+        bad(timing("graceHours" to JsonPrimitive(6.0)))
+        bad(timing("graceHours" to JsonNull))
+    }
+
+    @Test
+    fun gridMinutesIsFifteenThirtyOrSixty() {
+        for (n in listOf(15, 30, 60)) ok(timing("gridMinutes" to JsonPrimitive(n)))
+        for (n in listOf(0, 1, 5, 10, 20, 45, 90, -30)) bad(timing("gridMinutes" to JsonPrimitive(n)))
+        bad(timing("gridMinutes" to JsonPrimitive("30")))
+        bad(timing("gridMinutes" to JsonPrimitive(30.5)))
+        bad(timing("gridMinutes" to JsonNull))
+    }
+
+    @Test
+    fun withAnHourlyGridTheDayMustStartOnTheHour() {
+        fun hourly(start: String?) =
+            minimalRules().with(
+                "timing",
+                obj(
+                    "gridMinutes" to JsonPrimitive(60),
+                    "broadcastDay" to
+                        if (start == null) {
+                            obj("utcOffsetMinutes" to JsonPrimitive(0))
+                        } else {
+                            obj("utcOffsetMinutes" to JsonPrimitive(0), "start" to JsonPrimitive(start))
+                        },
+                ),
+            )
+        ok(hourly("06:00"))
+        ok(hourly("00:00"))
+        ok(hourly(null)) // the default start is 06:00
+        bad(hourly("06:30"))
+        bad(hourly("23:30"))
+        // On the other grids a half-hour start is fine.
+        for (grid in listOf(15, 30)) {
+            ok(
+                minimalRules().with(
+                    "timing",
+                    obj(
+                        "gridMinutes" to JsonPrimitive(grid),
+                        "broadcastDay" to
+                            obj("utcOffsetMinutes" to JsonPrimitive(0), "start" to JsonPrimitive("06:30")),
+                    ),
+                ),
+            )
+        }
+    }
+
+    @Test
     fun theUtcOffsetIsRequiredAMultipleOfFifteenAndInRange() {
         for (n in listOf(-720, -300, 0, 345, 840)) ok(day("utcOffsetMinutes" to JsonPrimitive(n)))
         for (n in listOf(-735, 7, 855, 841, -721, 10)) bad(day("utcOffsetMinutes" to JsonPrimitive(n)))

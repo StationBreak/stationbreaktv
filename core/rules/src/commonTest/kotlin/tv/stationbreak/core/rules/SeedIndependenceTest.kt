@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.ordering.splitmix64
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -73,9 +74,14 @@ class SeedIndependenceTest {
     private fun ChannelRules.withDay(change: (BroadcastDay) -> BroadcastDay) =
         withTiming { it.copy(broadcastDay = change(it.broadcastDay)) }
 
-    private fun randomStart(s: Stream): String {
+    /** A start time; on the hour when the grid is hourly, because a half-hour start is invalid there. */
+    private fun randomStart(
+        s: Stream,
+        gridMinutes: Int,
+    ): String {
         val hour = s.below(24).toString().padStart(2, '0')
-        return "$hour:${s.pick(listOf("00", "30"))}"
+        val minutes = if (gridMinutes == 60) listOf("00") else listOf("00", "30")
+        return "$hour:${s.pick(minutes)}"
     }
 
     /** Each entry changes one field other than the seed. */
@@ -89,7 +95,13 @@ class SeedIndependenceTest {
             { r, s -> r.withTiming { it.copy(alignToGrid = s.below(2) == 0) } },
             { r, s -> r.withTiming { it.copy(epochHours = s.pick(epochHours)) } },
             { r, s -> r.withDay { it.copy(utcOffsetMinutes = (s.below(105) - 48) * 15) } },
-            { r, s -> r.withDay { it.copy(start = randomStart(s)) } },
+            { r, s ->
+                r.withTiming { t ->
+                    t.copy(broadcastDay = t.broadcastDay.copy(start = randomStart(s, t.effectiveGridMinutes)))
+                }
+            },
+            { r, s -> r.withTiming { it.copy(graceHours = s.below(49)) } },
+            { r, s -> r.withTiming { t -> t.copy(gridMinutes = s.pick(listOf(15, 30))) } },
             { r, s -> r.copy(sources = r.sources + randomSource(s)) },
             { r, s -> r.copy(exclusions = r.effectiveExclusions + randomSource(s)) },
             { r, _ -> r.copy(sources = r.sources.reversed()) },

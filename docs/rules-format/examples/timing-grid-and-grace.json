@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "name": "Hourly Grid",
+  "seed": "21",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "alignToGrid": true,
+    "epochHours": 12,
+    "graceHours": 12,
+    "gridMinutes": 60,
+    "broadcastDay": {
+      "utcOffsetMinutes": 330,
+      "start": "06:00"
+    }
+  }
+}

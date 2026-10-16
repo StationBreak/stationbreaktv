@@ -1,0 +1,1605 @@
+{
+  "description": "Epoch maths from the format doc (Timing). Input: t (milliseconds since 1970-01-01T00:00:00Z, signed decimal string), utcOffsetMinutes, start (HH:MM) and epochHours. offsetMs = utcOffsetMinutes * 60000; startMs = (hours * 60 + minutes) * 60000; epochMs = epochHours * 3600000; n = floor((t + offsetMs - startMs) / epochMs), rounded toward negative infinity; epochStart(n) = n * epochMs + startMs - offsetMs. Output: n and epochStart as signed decimal strings. Every case satisfies epochStart(n) <= t < epochStart(n) + epochMs. Use 64-bit integers.",
+  "source": "Computed with an independent Python reference written from the format doc and spec 08 only, without reading any Kotlin. Calendar dates in the case names are proleptic Gregorian, UTC.",
+  "vectors": [
+    {
+      "name": "UTC-5 start 06:00, noon UTC",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "UTC-5 start 06:00, exactly on the boundary 11:00Z",
+      "input": {
+        "t": "1792148400000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "UTC-5 start 06:00, 1 ms before the boundary",
+      "input": {
+        "t": "1792148399999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792062000000"
+      }
+    },
+    {
+      "name": "UTC-5 start 06:00, 1 ms after the boundary",
+      "input": {
+        "t": "1792148400001",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "UTC-5 start 06:00, last ms of the epoch",
+      "input": {
+        "t": "1792234799999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "Nepal +345 start 18:30, noon UTC",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792068300000"
+      }
+    },
+    {
+      "name": "Nepal +345 start 18:30, on the boundary 12:45Z",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "Nepal +345 start 18:30, 1 ms before 12:45Z",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792068300000"
+      }
+    },
+    {
+      "name": "Nepal +345 start 18:30, midnight UTC",
+      "input": {
+        "t": "1792108800000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792068300000"
+      }
+    },
+    {
+      "name": "India +330 start 00:00, noon UTC",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792089000000"
+      }
+    },
+    {
+      "name": "India +330 start 00:00, on the boundary 18:30Z",
+      "input": {
+        "t": "1792089000000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792089000000"
+      }
+    },
+    {
+      "name": "India +330 start 00:00, 1 ms before 18:30Z",
+      "input": {
+        "t": "1792088999999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792002600000"
+      }
+    },
+    {
+      "name": "India +330 start 00:00, t = 0",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "-19800000"
+      }
+    },
+    {
+      "name": "UTC-12 start 06:00",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": -720,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792087200000"
+      }
+    },
+    {
+      "name": "UTC+14 start 06:00",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": 840,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792080000000"
+      }
+    },
+    {
+      "name": "UTC+14 start 00:30, 8 h epochs",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": 840,
+        "start": "00:30",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62229",
+        "epochStart": "1792146600000"
+      }
+    },
+    {
+      "name": "UTC-12 start 23:30, 12 h epochs",
+      "input": {
+        "t": "1792152000000",
+        "utcOffsetMinutes": -720,
+        "start": "23:30",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41482",
+        "epochStart": "1792150200000"
+      }
+    },
+    {
+      "name": "UTC+0 start 00:00, t = 0",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-86400000"
+      }
+    },
+    {
+      "name": "t = -1, UTC-5 start 06:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-46800000"
+      }
+    },
+    {
+      "name": "1969-12-31 12:00Z, Nepal start 18:30",
+      "input": {
+        "t": "-43200000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-2",
+        "epochStart": "-126900000"
+      }
+    },
+    {
+      "name": "1969-07-20 20:17Z, India start 00:00, 6 h",
+      "input": {
+        "t": "-14182980000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "-656",
+        "epochStart": "-14189400000"
+      }
+    },
+    {
+      "name": "1900-01-01 00:00Z, UTC-5 start 06:00",
+      "input": {
+        "t": "-2208988800000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-25568",
+        "epochStart": "-2209035600000"
+      }
+    },
+    {
+      "name": "before 1970, exactly on a boundary",
+      "input": {
+        "t": "-219600000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-3",
+        "epochStart": "-219600000"
+      }
+    },
+    {
+      "name": "before 1970, 1 ms before a boundary",
+      "input": {
+        "t": "-219600001",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-4",
+        "epochStart": "-306000000"
+      }
+    },
+    {
+      "name": "2100-01-01 00:00Z, Nepal start 18:30",
+      "input": {
+        "t": "4102444800000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "47481",
+        "epochStart": "4102404300000"
+      }
+    },
+    {
+      "name": "2262-04-11 00:00Z, UTC+14 start 06:00, 1 h",
+      "input": {
+        "t": "9223286400000",
+        "utcOffsetMinutes": 840,
+        "start": "06:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "2562032",
+        "epochStart": "9223286400000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497812",
+        "epochStart": "1792162800000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792162800000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497812",
+        "epochStart": "1792162800000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792162799999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497811",
+        "epochStart": "1792159200000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497810",
+        "epochStart": "1792161900000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792161900000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497810",
+        "epochStart": "1792161900000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792161899999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497809",
+        "epochStart": "1792158300000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497828",
+        "epochStart": "1792161000000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792161000000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497828",
+        "epochStart": "1792161000000"
+      }
+    },
+    {
+      "name": "1 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792160999999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "497827",
+        "epochStart": "1792157400000"
+      }
+    },
+    {
+      "name": "1 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "1 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-3600000"
+      }
+    },
+    {
+      "name": "1 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 1
+      },
+      "output": {
+        "n": "-42342",
+        "epochStart": "-152391600000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248906",
+        "epochStart": "1792162800000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792162800000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248906",
+        "epochStart": "1792162800000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792162799999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248905",
+        "epochStart": "1792155600000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248905",
+        "epochStart": "1792161900000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792161900000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248905",
+        "epochStart": "1792161900000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792161899999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248904",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248914",
+        "epochStart": "1792161000000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792161000000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248914",
+        "epochStart": "1792161000000"
+      }
+    },
+    {
+      "name": "2 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792160999999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "248913",
+        "epochStart": "1792153800000"
+      }
+    },
+    {
+      "name": "2 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "2 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-7200000"
+      }
+    },
+    {
+      "name": "2 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 2
+      },
+      "output": {
+        "n": "-21171",
+        "epochStart": "-152391600000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165937",
+        "epochStart": "1792159200000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792159200000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165937",
+        "epochStart": "1792159200000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792159199999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165936",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165936",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165936",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165935",
+        "epochStart": "1792143900000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165942",
+        "epochStart": "1792153800000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792153800000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165942",
+        "epochStart": "1792153800000"
+      }
+    },
+    {
+      "name": "3 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792153799999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "165941",
+        "epochStart": "1792143000000"
+      }
+    },
+    {
+      "name": "3 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "3 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-10800000"
+      }
+    },
+    {
+      "name": "3 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 3
+      },
+      "output": {
+        "n": "-14114",
+        "epochStart": "-152391600000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124453",
+        "epochStart": "1792162800000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792162800000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124453",
+        "epochStart": "1792162800000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792162799999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124452",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124452",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124452",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124451",
+        "epochStart": "1792140300000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124457",
+        "epochStart": "1792161000000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792161000000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124457",
+        "epochStart": "1792161000000"
+      }
+    },
+    {
+      "name": "4 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792160999999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "124456",
+        "epochStart": "1792146600000"
+      }
+    },
+    {
+      "name": "4 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "4 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-14400000"
+      }
+    },
+    {
+      "name": "4 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 4
+      },
+      "output": {
+        "n": "-10586",
+        "epochStart": "-152398800000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82968",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792148400000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82968",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792148399999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82967",
+        "epochStart": "1792126800000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82968",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82968",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82967",
+        "epochStart": "1792133100000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82971",
+        "epochStart": "1792153800000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792153800000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82971",
+        "epochStart": "1792153800000"
+      }
+    },
+    {
+      "name": "6 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792153799999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "82970",
+        "epochStart": "1792132200000"
+      }
+    },
+    {
+      "name": "6 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "6 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-21600000"
+      }
+    },
+    {
+      "name": "6 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 6
+      },
+      "output": {
+        "n": "-7057",
+        "epochStart": "-152391600000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62226",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792148400000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62226",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792148399999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62225",
+        "epochStart": "1792119600000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62226",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62226",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62225",
+        "epochStart": "1792125900000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62228",
+        "epochStart": "1792146600000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792146600000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62228",
+        "epochStart": "1792146600000"
+      }
+    },
+    {
+      "name": "8 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792146599999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "62227",
+        "epochStart": "1792117800000"
+      }
+    },
+    {
+      "name": "8 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "8 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-28800000"
+      }
+    },
+    {
+      "name": "8 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 8
+      },
+      "output": {
+        "n": "-5293",
+        "epochStart": "-152398800000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41484",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792148400000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41484",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792148399999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41483",
+        "epochStart": "1792105200000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41484",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41484",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41483",
+        "epochStart": "1792111500000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41485",
+        "epochStart": "1792132200000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792132200000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41485",
+        "epochStart": "1792132200000"
+      }
+    },
+    {
+      "name": "12 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792132199999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "41484",
+        "epochStart": "1792089000000"
+      }
+    },
+    {
+      "name": "12 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "12 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-43200000"
+      }
+    },
+    {
+      "name": "12 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 12
+      },
+      "output": {
+        "n": "-3529",
+        "epochStart": "-152413200000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset -300 start 06:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset -300 start 06:00, on a boundary",
+      "input": {
+        "t": "1792148400000",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792148400000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset -300 start 06:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792148399999",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792062000000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset 345 start 18:30, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset 345 start 18:30, on a boundary",
+      "input": {
+        "t": "1792154700000",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792154700000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset 345 start 18:30, 1 ms before a boundary",
+      "input": {
+        "t": "1792154699999",
+        "utcOffsetMinutes": 345,
+        "start": "18:30",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792068300000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset 330 start 00:00, mid-epoch",
+      "input": {
+        "t": "1792163229123",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792089000000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset 330 start 00:00, on a boundary",
+      "input": {
+        "t": "1792089000000",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20742",
+        "epochStart": "1792089000000"
+      }
+    },
+    {
+      "name": "24 h epochs, offset 330 start 00:00, 1 ms before a boundary",
+      "input": {
+        "t": "1792088999999",
+        "utcOffsetMinutes": 330,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "20741",
+        "epochStart": "1792002600000"
+      }
+    },
+    {
+      "name": "24 h epochs, t = 0, UTC+0 start 00:00",
+      "input": {
+        "t": "0",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "0",
+        "epochStart": "0"
+      }
+    },
+    {
+      "name": "24 h epochs, t = -1, UTC+0 start 00:00",
+      "input": {
+        "t": "-1",
+        "utcOffsetMinutes": 0,
+        "start": "00:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-1",
+        "epochStart": "-86400000"
+      }
+    },
+    {
+      "name": "24 h epochs, pre-1970, UTC-5 start 06:00",
+      "input": {
+        "t": "-152391232992",
+        "utcOffsetMinutes": -300,
+        "start": "06:00",
+        "epochHours": 24
+      },
+      "output": {
+        "n": "-1765",
+        "epochStart": "-152456400000"
+      }
+    }
+  ]
+}

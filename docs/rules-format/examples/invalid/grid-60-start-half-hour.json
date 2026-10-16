@@ -1,0 +1,18 @@
+{
+  "formatVersion": 1,
+  "name": "Invalid",
+  "seed": "1",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "gridMinutes": 60,
+    "broadcastDay": {
+      "utcOffsetMinutes": 0,
+      "start": "06:30"
+    }
+  }
+}

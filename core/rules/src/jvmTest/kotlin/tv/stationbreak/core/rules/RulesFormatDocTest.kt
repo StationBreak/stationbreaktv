@@ -27,6 +27,25 @@ class RulesFormatDocTest {
     }
 
     @Test
+    fun theTimingTableHasRowsForGraceAndGrid() {
+        val rows = doc.lines().filter { it.startsWith("| `graceHours` |") || it.startsWith("| `gridMinutes` |") }
+        assertEquals(2, rows.size, "one Timing table row each for graceHours and gridMinutes: $rows")
+        val grace = rows.single { "graceHours" in it }
+        val grid = rows.single { "gridMinutes" in it }
+        assertTrue("`6`" in grace && "0 to 48" in grace, "graceHours: default 6, 0 to 48")
+        assertTrue("`30`" in grid && "15, 30 or 60" in grid, "gridMinutes: default 30")
+    }
+
+    @Test
+    fun theGridIsDescribedByGridMinutesNotByHalfHours() {
+        val align = doc.lines().single { it.startsWith("| `alignToGrid` |") }
+        assertTrue(":00 and :30" !in align && "half-hour" !in align, "alignToGrid row names a fixed grid: $align")
+        assertTrue("gridMinutes" in align, "alignToGrid row points at gridMinutes: $align")
+        assertTrue("The \"grid\" for `alignToGrid` is the :00 and :30 marks" !in doc, "the grid sentence is stale")
+        assertTrue("with 60 it must be :00" in doc, "start says how it relates to gridMinutes")
+    }
+
+    @Test
     fun statesTheRatingLadder() {
         for (row in ladderRows) assertTrue(row in doc, "ladder row missing: $row")
     }

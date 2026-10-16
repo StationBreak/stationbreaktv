@@ -11,11 +11,14 @@ internal object RulesVocabulary {
     val START_TIME = Regex("^([01][0-9]|2[0-3]):(00|30)$")
     val TOP_LEVEL =
         setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")
-    val TIMING = setOf("blockLength", "alignToGrid", "epochHours", "broadcastDay")
+    val GRID_MINUTES = setOf(15, 30, 60)
+    val TIMING = setOf("blockLength", "alignToGrid", "epochHours", "graceHours", "gridMinutes", "broadcastDay")
     val BROADCAST_DAY = setOf("utcOffsetMinutes", "start")
     val FILLER = setOf("mode", "every", "source")
 
     const val MAX_BLOCK_LENGTH = 100
+    const val MAX_GRACE_HOURS = 48
+    const val HOURLY_GRID = 60
     const val MAX_EVERY = 1000
     const val MIN_YEAR = 1
     const val MAX_YEAR = 9999

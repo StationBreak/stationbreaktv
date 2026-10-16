@@ -90,6 +90,12 @@ class SchemaExamplesTest {
 
     @Test fun startNotOnTheHalfHour() = rejects("start-not-on-grid.json")
 
+    @Test fun graceHoursAboveFortyEight() = rejects("grace-hours-49.json")
+
+    @Test fun gridMinutesOffTheList() = rejects("grid-minutes-45.json")
+
+    @Test fun hourlyGridWithAHalfHourStart() = rejects("grid-60-start-half-hour.json")
+
     @Test fun upperCaseOrderingMode() = rejects("ordering-mode-upper-case.json")
 
     @Test fun upperCaseFillerMode() = rejects("filler-mode-kebab-case.json")
@@ -124,6 +130,9 @@ class SchemaExamplesTest {
                 "offset-out-of-range.json",
                 "epoch-hours-5.json",
                 "start-not-on-grid.json",
+                "grace-hours-49.json",
+                "grid-minutes-45.json",
+                "grid-60-start-half-hour.json",
                 "ordering-mode-upper-case.json",
                 "filler-mode-kebab-case.json",
                 "name-101-code-points.json",

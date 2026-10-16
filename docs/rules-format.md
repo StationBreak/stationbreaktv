@@ -270,8 +270,9 @@ Items are put in air-date order, and the episodes of a series stay in season and
 
 1. **Undated flag**: `0` if the item has a date, `1` if not. Undated items come after all dated ones.
 2. **Date**: the item's premiere (air) date, as a calendar date `YYYY-MM-DD` in UTC, compared as text. If an item has no
-   premiere date but has a production year, its date is `YYYY-01-01`. If it has neither, it is undated.
-3. **Group ID**: the canonical ID of the series, for an episode. For a movie, its own canonical ID.
+   premiere date but has a production year, its date is `YYYY-01-01`, with the year zero-padded to four digits. If it has neither, it is undated.
+3. **Group ID**: the canonical ID of the series, for an episode. For a movie, its own canonical ID. An episode with no
+   series is a group of one, like a movie.
 4. **Season number**: for an episode. Season `0` (specials) is an ordinary season number: a special sorts by its own date
    like any other episode, and before season 1 when dates are equal. A missing season number sorts after every present
    one. A movie has none.
@@ -340,8 +341,10 @@ fields are optional.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `blockLength` | `1` | Items per block: the number of consecutive items (for example 2 episodes of one series) that play together as one block. A whole number from 1 to 100. |
-| `alignToGrid` | `true` | Blocks start on the half-hour grid: at :00 and :30 of the clock described below. If `false`, a block starts when the previous one ends. |
+| `alignToGrid` | `true` | Blocks start on the grid marks (every `gridMinutes`) of the clock described below. If `false`, a block starts when the previous one ends. |
 | `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a number that divides 24, so that every epoch boundary falls on a grid mark). |
+| `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it. A whole number from 0 to 48. |
+| `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark. |
 | `broadcastDay` | required | When an epoch starts. An object with `utcOffsetMinutes` (required) and `start`. |
 
 **The broadcast day.** `broadcastDay` has two fields:
@@ -349,7 +352,7 @@ fields are optional.
 - `utcOffsetMinutes`: a fixed offset from UTC, in minutes, east positive. **Required; no default.** A whole number from
   -720 to 840 that is a multiple of 15. For example, UTC-5 is `-300`, and Nepal (UTC+5:45) is `345`.
 - `start`: the time of day the broadcast day starts, as `HH:MM` on a 24-hour clock at that offset (`00` to `23` hours).
-  Only `00` or `30` minutes are allowed. Default `"06:00"`.
+  Only `00` or `30` minutes are allowed. Default `"06:00"`. `start` is on :00 or :30 for every `gridMinutes`; with 60 it must be :00.
 
 **Which offset to write.** A creator picks the zone's **standard (non-daylight-saving) offset**, never the offset the
 zone has at the moment. A channel made in New York in July uses `-300` (UTC-5), not `-240`.
@@ -371,7 +374,7 @@ question; see the scheduler.) `t`, `offsetMs` and `n * epochMs` do not fit in 32
 integers for them. This matters on BrightScript, whose plain integers are 32-bit: use its 64-bit integer type
 (`LongInteger`), not a float or an integer.
 
-The "grid" for `alignToGrid` is the :00 and :30 marks of that same fixed-offset clock.
+The "grid" for `alignToGrid` is the grid marks (every `gridMinutes`) of that same fixed-offset clock.
 
 **Daylight saving.** Because the offset is fixed, in a place that observes daylight saving the wall-clock time at which
 the broadcast day starts moves by one hour, twice a year. A channel set to start at 06:00 at UTC-5 starts at 07:00
@@ -382,7 +385,8 @@ the next epoch's start later.
 
 Examples: `docs/rules-format/examples/broadcast-day-offset.json` (UTC-5, starts 06:00),
 `docs/rules-format/examples/broadcast-day-offset-nepal.json` (UTC+5:45, starts 18:30) and
-`docs/rules-format/examples/timing-unaligned.json` (blocks of 4, no grid, 12-hour epochs):
+`docs/rules-format/examples/timing-unaligned.json` (blocks of 4, no grid, 12-hour epochs) and
+`docs/rules-format/examples/timing-grid-and-grace.json` (UTC+5:30, an hourly grid, 12-hour epochs, 12 hours of grace):
 
 ```json
 {
@@ -720,7 +724,9 @@ Everything below is in this repository, under `docs/`:
   points, `betweenEveryN` without `every`).
 - `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
   `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
-  filter and the series rule, built on Jellyfin 12.1's own table). Vectors for the scheduler's functions come with F1.1.
+  filter and the series rule, built on Jellyfin 12.1's own table), `epoch-seed.json` (`seed_n`, including negative `n`) and
+  `epoch-math.json` (the epoch number and `epochStart` for many offsets, starts and epoch lengths). The remaining vectors
+  for the scheduler's functions come with F1.1.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 
