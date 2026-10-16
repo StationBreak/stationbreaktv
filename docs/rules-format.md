@@ -724,7 +724,9 @@ Everything below is in this repository, under `docs/`:
   points, `betweenEveryN` without `every`).
 - `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
   `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
-  filter and the series rule, built on Jellyfin 12.1's own table). Vectors for the scheduler's functions come with F1.1.
+  filter and the series rule, built on Jellyfin 12.1's own table), `epoch-seed.json` (`seed_n`, including negative `n`) and
+  `epoch-math.json` (the epoch number and `epochStart` for many offsets, starts and epoch lengths). The remaining vectors
+  for the scheduler's functions come with F1.1.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 
