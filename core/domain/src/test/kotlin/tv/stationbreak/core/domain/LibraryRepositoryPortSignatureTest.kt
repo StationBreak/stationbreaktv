@@ -70,7 +70,7 @@ class LibraryRepositoryPortSignatureTest {
                 .toSet()
         // The snapshot, the status flow (sync state and last success), the exclusion count and the selection.
         assertTrue(
-            methods.containsAll(setOf("snapshot", "status", "excludedCount", "select", "pendingLibraries")),
+            methods.containsAll(setOf("snapshot", "status", "activeStatus", "excludedCount", "select", "pendingLibraries")),
             "found $methods",
         )
     }
@@ -78,6 +78,16 @@ class LibraryRepositoryPortSignatureTest {
     @Test
     fun theRepositoryPortUsesOnlyDomainTypes() {
         assertDomainOnly(LibraryRepository::class.java)
+    }
+
+    @Test
+    fun theFirstSyncPortUsesOnlyDomainTypes() {
+        assertDomainOnly(FirstSync::class.java)
+        val methods =
+            FirstSync::class.java.methods
+                .map { it.name }
+                .toSet()
+        assertTrue(methods.containsAll(setOf("status", "ensureRunning", "retry")), "found $methods")
     }
 
     @Test
