@@ -56,12 +56,14 @@ object StayCurrentWork {
             .putBoolean(KEY_RECONCILE, plan.reconcile)
             .build()
 
-    /** A request for the on-open work running [plan]. */
-    fun openRequest(plan: SyncPlan): OneTimeWorkRequest =
+    /**
+     * A request for the on-open work. It carries no flags: the worker decides its plan when it runs, from the saved
+     * library's last success and the clock then, so a request that waited for the network is never stale.
+     */
+    fun openRequest(): OneTimeWorkRequest =
         OneTimeWorkRequest
             .Builder(StayCurrentWorker::class.java)
             .setConstraints(needsNetwork)
-            .setInputData(flags(plan))
             .build()
 
     /** A request for the periodic job: both passes, every [PERIOD_HOURS] hours, with a network connection. */
@@ -90,12 +92,21 @@ class StayCurrentWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): ListenableWorker.Result {
         val provider = applicationContext as? StayCurrentProvider ?: return Result.failure()
-        val plan =
-            SyncPlan(
-                incremental = inputData.getBoolean(StayCurrentWork.KEY_INCREMENTAL, false),
-                reconcile = inputData.getBoolean(StayCurrentWork.KEY_RECONCILE, false),
-            )
-        provider.stayCurrent().runner.run(plan)
+        val stayCurrent = provider.stayCurrent()
+        val flagged =
+            inputData.keyValueMap.containsKey(StayCurrentWork.KEY_INCREMENTAL) ||
+                inputData.keyValueMap.containsKey(StayCurrentWork.KEY_RECONCILE)
+        if (flagged) {
+            // The periodic job names its passes.
+            val plan =
+                SyncPlan(
+                    incremental = inputData.getBoolean(StayCurrentWork.KEY_INCREMENTAL, false),
+                    reconcile = inputData.getBoolean(StayCurrentWork.KEY_RECONCILE, false),
+                )
+            stayCurrent.runner.run(plan)
+        } else {
+            stayCurrent.runOpen()
+        }
         return Result.success()
     }
 }
@@ -129,13 +140,18 @@ class StayCurrent internal constructor(
     /** The app was opened: schedule the periodic job if it is not, and start whatever the open calls for. */
     suspend fun onOpen() {
         schedulePeriodic()
-        val plan = policy.onOpen(library.activeStatus().first(), runner.isRunning)
-        if (plan.isEmpty) return
-        // Appended, not kept: a Both plan must not be dropped behind a queued reconcile-only one. The runner's mutex
-        // serialises the work, and the policy already starts nothing while a sync is running.
-        val request = StayCurrentWork.openRequest(plan)
-        enqueuer.enqueueUnique(StayCurrentWork.OPEN_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        // Nothing to queue when a sync is running, the first sync has not ended or nobody is signed in.
+        if (policy.onOpen(library.activeStatus().first(), runner.isRunning).isEmpty) return
+        // Kept, not appended: the queued work decides its plan when it runs, so a second open has nothing to add and
+        // opens cannot pile up while offline. The runner's mutex serialises it with any other run.
+        enqueuer.enqueueUnique(StayCurrentWork.OPEN_NAME, ExistingWorkPolicy.KEEP, StayCurrentWork.openRequest())
     }
+
+    /**
+     * What the on-open work does when it runs: the reconciliation always, and the incremental pass too when the last
+     * success is over 6 hours old by the clock now ([SyncTriggerPolicy]). A run while another is going does nothing.
+     */
+    suspend fun runOpen(): SyncVerdict = runner.run(policy.onOpen(library.activeStatus().first(), syncRunning = false))
 
     /** Makes sure the unique periodic job exists. An existing one is kept, so this may be called every time. */
     fun schedulePeriodic() {

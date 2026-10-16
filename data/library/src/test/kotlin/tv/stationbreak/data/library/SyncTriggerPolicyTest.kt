@@ -112,7 +112,12 @@ class SyncTriggerPolicyTest {
             assertEquals(listOf(StayCurrentWork.OPEN_NAME), enqueuer.enqueued.map { it.first })
             assertEquals(listOf(ExistingWorkPolicy.KEEP), enqueuer.enqueued.map { it.second })
             // The worker decides the plan when it runs, so the request carries nothing.
-            assertTrue(enqueuer.enqueued.single().third.workSpec.input.keyValueMap.isEmpty())
+            assertTrue(
+                enqueuer.enqueued
+                    .single()
+                    .third.workSpec.input.keyValueMap
+                    .isEmpty(),
+            )
         }
 
     @Test
