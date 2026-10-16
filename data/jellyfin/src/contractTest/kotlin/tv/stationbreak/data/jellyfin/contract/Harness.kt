@@ -59,6 +59,12 @@ internal class Harness(
         query: List<Pair<String, String>> = emptyList(),
     ): Reply = call("POST", path, body.orEmpty(), token, query)
 
+    fun delete(
+        path: String,
+        token: String? = null,
+        query: List<Pair<String, String>> = emptyList(),
+    ): Reply = call("DELETE", path, null, token, query)
+
     /** Fails the suite with the step's name and status, never the body. */
     fun expectOk(
         step: String,
