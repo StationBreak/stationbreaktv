@@ -54,21 +54,17 @@ sealed interface RestoreOutcome {
 class SessionRepository(
     private val store: SecretStore,
     private val server: MediaServer,
-    private val cache: AccountCache = AccountCache.None,
+    cache: AccountCache = AccountCache.None,
 ) {
+    private val library = TolerantCache(cache)
+
     /**
      * Stores [session]. Its account becomes the active one in the saved library, whether or not the token reached
      * storage: the user is signed in for this run, so every other account's saved library goes now (spec 06 task 2.12).
      */
     suspend fun save(session: Session): PersistOutcome {
         val outcome = write(session.toStored())
-        try {
-            cache.useAccount(session.libraryAccount())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            // A cache that can't be tidied never fails a sign-in: it is rows keyed by account, not a credential.
-        }
+        library.activate(session.libraryAccount())
         return outcome
     }
 
@@ -107,6 +103,7 @@ class SessionRepository(
         when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
                 if (result.value.address != stored.address) write(result.value.toStored())
+                library.activate(result.value.libraryAccount())
                 RestoreOutcome.Restored(result.value)
             }
 
@@ -137,24 +134,12 @@ class SessionRepository(
     suspend fun signOut(session: Session): RevokeOutcome =
         withContext(NonCancellable) {
             clear()
-            forgetLibrary(session)
+            library.forget(session.libraryAccount())
             when (server.revoke(session)) {
                 is ServerResult.Success -> RevokeOutcome.Revoked
                 is ServerResult.Failure -> RevokeOutcome.NotRevoked
             }
         }
-
-    // The saved library of a signed-out account goes with it. A failure here never stops the sign-out: the token is
-    // already gone, and the next sign-in's useAccount deletes whatever is left.
-    private suspend fun forgetLibrary(session: Session) {
-        try {
-            cache.forget(session.libraryAccount())
-        } catch (_: Exception) {
-            // See above.
-        }
-    }
-
-    private fun Session.libraryAccount() = LibraryAccount(this.server.id, this.userId)
 
     @OptIn(SecretAccess::class)
     private fun encode(stored: StoredSession): String =
@@ -209,5 +194,36 @@ class SessionRepository(
         const val SESSION_KEY = "session"
         const val FORMAT_VERSION = 1
         private val JSON = Json { encodeDefaults = true }
+    }
+}
+
+private fun Session.libraryAccount() = LibraryAccount(this.server.id, this.userId)
+
+/**
+ * Tells the saved library about sign-in and sign-out without ever failing the caller. A sign-in or sign-out must not
+ * fail because rows could not be tidied: they are keyed by account and hold no credential, the token is already gone on
+ * sign-out, and the next sign-in's [AccountCache.useAccount] deletes whatever is left.
+ */
+private class TolerantCache(
+    private val cache: AccountCache,
+) {
+    suspend fun activate(account: LibraryAccount) {
+        try {
+            cache.useAccount(account)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // See above.
+        }
+    }
+
+    suspend fun forget(account: LibraryAccount) {
+        try {
+            cache.forget(account)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // See above.
+        }
     }
 }

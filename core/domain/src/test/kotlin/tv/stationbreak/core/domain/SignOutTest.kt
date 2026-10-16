@@ -114,6 +114,35 @@ class SignOutTest {
         }
 
     @Test
+    fun restoringASessionMakesItsAccountTheActiveOne() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+            cache.activated.clear()
+            server.resumeResult = ServerResult.Success(session)
+
+            val outcome = sessions.restore(address)
+
+            assertTrue(outcome is RestoreOutcome.Restored)
+            assertEquals(listOf(account), cache.activated)
+        }
+
+    @Test
+    fun aSessionThatIsRejectedOnRestoreActivatesNothing() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+            cache.activated.clear()
+            server.resumeResult = ServerResult.Failure(MediaServerError.SessionExpired())
+
+            sessions.restore(address)
+
+            assertEquals(emptyList(), cache.activated)
+        }
+
+    @Test
     fun aSessionThatLivesInMemoryOnlyStillActivatesItsAccount() =
         runBlocking {
             val cache = InMemoryLibraryRepository()
