@@ -86,7 +86,8 @@ class TombstoneWindowTest {
         val cutoff = Epochs.epochStart(s, 0L) - g
         val items = listOf(movie('1', 20), movie('2', 20))
 
-        // d = S - 2G: device A sees it at once (deletedAt S - 2G, before the cut-off: out); device B sees it a full G later
+        // d = S - 2G: device A sees it at once (deletedAt S - 2G, before the cut-off: out); device B sees it a full G
+        // later
         // (deletedAt S - G, at the cut-off: in).
         fun pools(d: Long): Pair<Set<String>, Set<String>> {
             val seenAtOnce = items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = d) else it }

@@ -27,42 +27,20 @@ internal object DayOracle {
         val cycle = all.filter { slot(settings, it) <= settings.epochMs }
         if (cycle.isEmpty()) return listOf(ScheduleBlock(dayStart, dayEnd, ScheduleContent.Slate))
 
-        val out = mutableListOf<ScheduleBlock>()
-        var cursor = dayStart
-        var runIndex = if (settings.orderingMode == OrderingMode.Shuffle) 0 else continuousRun(settings, cycle, dayStart)
-        while (true) {
-            val run = cycle[runIndex]
-            val start = markAtOrAfter(settings, cursor)
-            if (start + run.runtimeMs > dayEnd) break
-            if (start > cursor) out.add(ScheduleBlock(cursor, start, ScheduleContent.Slate))
-            cursor = start
-            for (item in run.items) {
-                out.add(ScheduleBlock(cursor, cursor + item.runtimeMs, ScheduleContent.Program(item.id)))
-                cursor += item.runtimeMs
-            }
-            runIndex = (runIndex + 1) % cycle.size
-            if (cursor == dayEnd) return out
-        }
-
-        // The end of the day: first fit, repeat, over the visit list.
-        val flat = cycle.flatMap { it.items }
-        val firstItem = cycle.take(runIndex).sumOf { it.items.size }
         val shuffle = settings.orderingMode == OrderingMode.Shuffle
+        val first = if (shuffle) 0 else continuousRun(settings, cycle, dayStart)
+        val regular = regularRuns(settings, cycle, first, dayStart, dayEnd)
+        val out = regular.blocks.toMutableList()
+        var cursor = out.lastOrNull()?.endMs ?: dayStart
+        // The end of the day: first fit, repeat, over the visit list, starting at the first item of the unstarted run.
+        val flat = cycle.flatMap { it.items }
+        val firstItem = cycle.take(regular.nextRun).sumOf { it.items.size }
         var candidates =
             if (shuffle) List(flat.size) { flat[(firstItem + it) % flat.size] } else flat.drop(firstItem)
-        val blocked = mutableSetOf<CanonicalId>()
-        while (true) {
-            // The first candidate that is eligible and fits now. Every candidate before it was passed over, and that
-            // blocks its group for the later ones (the group rule), including later ones in this same scan.
-            var at = -1
-            for ((i, candidate) in candidates.withIndex()) {
-                if (!shuffle && candidate.groupId in blocked) continue
-                if (markAtOrAfter(settings, cursor) + candidate.runtimeMs <= dayEnd) {
-                    at = i
-                    break
-                }
-                if (!shuffle) blocked.add(candidate.groupId)
-            }
+        // Only the modes with the group rule remember the groups they passed over.
+        val blocked = if (shuffle) null else mutableSetOf<CanonicalId>()
+        while (cursor < dayEnd) {
+            val at = firstFit(settings, candidates, blocked, cursor, dayEnd)
             if (at < 0) break
             val item = candidates[at]
             val start = markAtOrAfter(settings, cursor)
@@ -75,6 +53,57 @@ internal object DayOracle {
         return out
     }
 
+    /** Blocks of the runs that fit, and the index of the first run that did not (in the cycle, after wrapping). */
+    private class Regular(
+        val blocks: List<ScheduleBlock>,
+        val nextRun: Int,
+    )
+
+    private fun regularRuns(
+        settings: SchedulerSettings,
+        cycle: List<Run>,
+        first: Int,
+        dayStart: Long,
+        dayEnd: Long,
+    ): Regular {
+        val out = mutableListOf<ScheduleBlock>()
+        var cursor = dayStart
+        var runIndex = first
+        while (true) {
+            val run = cycle[runIndex]
+            val start = markAtOrAfter(settings, cursor)
+            if (start + run.runtimeMs > dayEnd) return Regular(out, runIndex)
+            if (start > cursor) out.add(ScheduleBlock(cursor, start, ScheduleContent.Slate))
+            cursor = start
+            for (item in run.items) {
+                out.add(ScheduleBlock(cursor, cursor + item.runtimeMs, ScheduleContent.Program(item.id)))
+                cursor += item.runtimeMs
+            }
+            runIndex = (runIndex + 1) % cycle.size
+        }
+    }
+
+    /**
+     * The index of the first candidate that is eligible and fits now, or -1. Every candidate before it was passed over,
+     * and that blocks its group for the later ones (the group rule; [blocked] is null for shuffle), including later
+     * ones in this same scan.
+     */
+    private fun firstFit(
+        settings: SchedulerSettings,
+        candidates: List<ScheduleItem>,
+        blocked: MutableSet<CanonicalId>?,
+        cursor: Long,
+        dayEnd: Long,
+    ): Int {
+        val start = markAtOrAfter(settings, cursor)
+        for ((i, candidate) in candidates.withIndex()) {
+            val eligible = blocked == null || candidate.groupId !in blocked
+            if (eligible && start + candidate.runtimeMs <= dayEnd) return i
+            blocked?.add(candidate.groupId)
+        }
+        return -1
+    }
+
     fun slot(
         settings: SchedulerSettings,
         run: Run,
@@ -85,7 +114,7 @@ internal object DayOracle {
         return slots * settings.gridMs
     }
 
-    /** The run of the continuous playout that contains [dayStart]: the last run whose slot begins at or before `pos`. */
+    /** The run of the continuous playout that contains [dayStart]: the last run whose slot begins at or before pos. */
     private fun continuousRun(
         settings: SchedulerSettings,
         cycle: List<Run>,

@@ -60,7 +60,8 @@ class WhatsOnBenchmark {
         val median = samples[CALLS / 2]
         val p95 = samples[CALLS * 95 / 100]
         println(
-            "WhatsOnBenchmark $label: ${items.size} items, ${day.blocks.size} blocks; $CALLS calls after $WARM_UP warm-up; " +
+            "WhatsOnBenchmark $label: ${items.size} items, ${day.blocks.size} blocks; " +
+                "$CALLS calls after $WARM_UP warm-up; " +
                 "whatsOn median $median ns, p95 $p95 ns, max ${samples.last()} ns; " +
                 "buildDay median ${builds[BUILDS / 2] / NS_PER_MS} ms (checksum $sink)",
         )

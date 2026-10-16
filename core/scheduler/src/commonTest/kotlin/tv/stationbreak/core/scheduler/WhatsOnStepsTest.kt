@@ -26,7 +26,7 @@ class WhatsOnStepsTest {
         minimumBlocks: Int,
     ) {
         val settings =
-            testSettings(orderingMode = mode, alignToGrid = false, epochHours = 24, startMinuteOfDay = 360, blockLength = 1)
+            testSettings(orderingMode = mode, alignToGrid = false, epochHours = 24, startMinuteOfDay = 360)
         var comparisons = 0
         // A day long after every item was created, so the whole library is in the pool.
         val day = buildDayCounting(settings, items, 30_000L, onCompare = { comparisons++ })
@@ -43,7 +43,8 @@ class WhatsOnStepsTest {
             assertTrue(comparisons <= allowed, "$comparisons comparisons for $blocks blocks at $t (allowed $allowed)")
         }
         assertTrue(worst >= ceilLog2(blocks) - 1, "the counter did not count: worst was $worst")
-        println("whatsOn steps: $mode, ${items.size} items, $blocks blocks, worst $worst comparisons, ceil(log2 B) = ${ceilLog2(blocks)}")
+        val bound = ceilLog2(blocks)
+        println("whatsOn steps: $mode, ${items.size} items, $blocks blocks, worst $worst, ceil(log2 B) = $bound")
     }
 
     @Test

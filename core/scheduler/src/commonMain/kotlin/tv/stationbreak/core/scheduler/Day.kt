@@ -15,22 +15,35 @@ data class OnAir(
     val next: List<ScheduleBlock>,
 )
 
+/**
+ * How a day used the cycle, for the tests and the continuity guarantee: the run it starts at, the number of runs the
+ * regular layout started, and the number of runs in the cycle (those not left out).
+ */
+internal class RunPlan(
+    val startRun: Int,
+    val regularRuns: Int,
+    val cycleRuns: Int,
+)
+
 /** One built day (epoch [n]): contiguous half-open blocks that cover exactly `[startMs, endMs)`. */
 class Day internal constructor(
     val n: Long,
     val startMs: Long,
     val endMs: Long,
     val blocks: List<ScheduleBlock>,
-    internal val startRunIndex: Int,
-    internal val regularRunCount: Int,
-    internal val cycleRunCount: Int,
+    private val plan: RunPlan,
     private val onCompare: (() -> Unit)? = null,
 ) {
+    internal val startRunIndex: Int get() = plan.startRun
+    internal val regularRunCount: Int get() = plan.regularRuns
+    internal val cycleRunCount: Int get() = plan.cycleRuns
+
     /**
      * What is on at [t] (milliseconds since the Unix epoch), by binary search over the day's blocks:
      * - the block containing [t]; an edge belongs to the later block;
      * - the position in the media, `mediaStartOffset + (t - blockStart)`, or null for a slate;
-     * - up to [k] blocks that follow it in this day. When they run out the caller builds day `n + 1` from the same items.
+     * - up to [k] blocks that follow it in this day. When they run out the caller builds day `n + 1` from the same
+     *   items.
      *
      * [t] must be in `[startMs, endMs)`: the caller picks the day. Throws [IllegalArgumentException] otherwise.
      */
@@ -72,11 +85,11 @@ internal fun buildDayCounting(
     val pool = EpochPool.build(settings, items, n)
     val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n))
     if (cycle.isEmpty()) {
-        return Day(n, start, end, listOf(ScheduleBlock(start, end, ScheduleContent.Slate)), 0, 0, 0, onCompare)
+        return Day(n, start, end, listOf(ScheduleBlock(start, end, ScheduleContent.Slate)), RunPlan(0, 0, 0), onCompare)
     }
     val startRun = Timeline.startRun(settings, cycle, start)
     val layout = Timeline.layout(settings, cycle, startRun, start, end)
-    return Day(n, start, end, layout.blocks, startRun, layout.runsStarted, cycle.size, onCompare)
+    return Day(n, start, end, layout.blocks, RunPlan(startRun, layout.runsStarted, cycle.size), onCompare)
 }
 
 /** The day's layout, step by step (spec 08, Unit 3). Pure functions of their inputs. */
@@ -136,7 +149,8 @@ internal object Timeline {
     ): Long = if (settings.alignToGrid) t + (-(t + settings.offsetMs)).mod(settings.gridMs) else t
 
     /**
-     * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's end
+     * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's
+     * end
      * when aligned, and the end of the day planned by [fillEnd] when the next run would end after [dayEnd].
      */
     fun layout(
@@ -167,7 +181,11 @@ internal object Timeline {
             started++
             index = (index + 1) % cycle.size
         }
-        if (unstarted >= 0) cursor = fillEnd(settings, cycle, unstarted, cursor, dayEnd, blocks)
+        if (unstarted >= 0) {
+            val filled = fillEnd(settings, cycle, unstarted, cursor, dayEnd)
+            blocks.addAll(filled)
+            cursor = filled.lastOrNull()?.endMs ?: cursor
+        }
         if (cursor < dayEnd) blocks.add(ScheduleBlock(cursor, dayEnd, ScheduleContent.Slate))
         return Layout(blocks, started)
     }
@@ -178,8 +196,8 @@ internal object Timeline {
      * wraps; the other modes stop at the cycle's end, so an earlier episode is never replayed after a later one. Each
      * item starts at the end of the previous block, moved to the next grid mark when aligned, and is placed when its
      * start plus its actual runtime is no later than [dayEnd]. For the other modes, once an item of a group has been
-     * passed over no later item of that group is eligible. Returns the end of the last placed block; the caller adds
-     * the closing slate.
+     * passed over no later item of that group is eligible. Returns the blocks placed (with the slates for grid gaps
+     * before them); the caller adds the closing slate.
      */
     private fun fillEnd(
         settings: SchedulerSettings,
@@ -187,13 +205,13 @@ internal object Timeline {
         unstarted: Int,
         from: Long,
         dayEnd: Long,
-        blocks: MutableList<ScheduleBlock>,
-    ): Long {
+    ): List<ScheduleBlock> {
         val items = cycle.flatMap { it.items }
         val firstItem = (0 until unstarted).sumOf { cycle[it].items.size }
         val wraps = settings.orderingMode == OrderingMode.Shuffle
         val visits = if (wraps) items.size else items.size - firstItem
         val passedOver = HashSet<CanonicalId>()
+        val blocks = ArrayList<ScheduleBlock>()
         var cursor = from
         for (visit in 0 until visits) {
             val item = items[(firstItem + visit) % items.size]
@@ -207,6 +225,6 @@ internal object Timeline {
                 passedOver.add(item.groupId)
             }
         }
-        return cursor
+        return blocks
     }
 }

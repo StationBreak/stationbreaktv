@@ -66,7 +66,16 @@ class TimelineTest {
     fun aGridOf15RoundsUpToTheNextQuarterHour() {
         val built = day(listOf(movie('1', 20)), alignToGrid = true, gridMinutes = 15, epochHours = 2)
         assertEquals(
-            listOf("0-20:1", "20-30:slate", "30-50:1", "50-60:slate", "60-80:1", "80-90:slate", "90-110:1", "110-120:slate"),
+            listOf(
+                "0-20:1",
+                "20-30:slate",
+                "30-50:1",
+                "50-60:slate",
+                "60-80:1",
+                "80-90:slate",
+                "90-110:1",
+                "110-120:slate",
+            ),
             built.describe(),
         )
     }
@@ -139,10 +148,12 @@ class TimelineTest {
 
     @Test
     fun theSlotNotTheRuntimeDecidesWhetherARunIsLeftOut() {
-        // 100 minutes is within a 2 h epoch, but on a 60-minute grid its slot is 120 (fits); 130 would be 180 (left out).
+        // 100 minutes is within a 2 h epoch, but on a 60-minute grid its slot is 120 (fits); 130 would be 180 (left
+        // out).
         val fits = day(listOf(movie('1', 100)), alignToGrid = true, gridMinutes = 60, epochHours = 2)
         assertEquals(listOf("0-100:1", "100-120:slate"), fits.describe())
-        val tooLong = day(listOf(movie('1', 70), movie('2', 60)), alignToGrid = true, gridMinutes = 60, epochHours = 2, blockLength = 2)
+        val pair = listOf(movie('1', 70), movie('2', 60))
+        val tooLong = day(pair, alignToGrid = true, gridMinutes = 60, epochHours = 2, blockLength = 2)
         assertEquals(0, tooLong.cycleRunCount)
         assertEquals(listOf("0-120:slate"), tooLong.describe())
     }

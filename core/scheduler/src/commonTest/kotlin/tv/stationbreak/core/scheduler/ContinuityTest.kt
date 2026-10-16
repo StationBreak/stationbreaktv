@@ -37,7 +37,8 @@ class ContinuityTest {
         while (true) {
             val channel = generateAny(gen, oneGridSlotEach)
             val s = channel.settings
-            if (Timeline.cycle(s, EpochPool.build(s, channel.items, 0L), Epochs.seedN(s.seed, 0L)).isNotEmpty()) return channel
+            val cycle = Timeline.cycle(s, EpochPool.build(s, channel.items, 0L), Epochs.seedN(s.seed, 0L))
+            if (cycle.isNotEmpty()) return channel
         }
     }
 
@@ -60,7 +61,8 @@ class ContinuityTest {
             )
         val items =
             List(gen.nextInt(2..12)) {
-                val minutes = if (oneGridSlotEach) gen.nextInt(1..grid) else gen.pick(listOf(7, 22, 30, 41, 55, 62, 90, 118, 150))
+                val minutes =
+                    if (oneGridSlotEach) gen.nextInt(1..grid) else gen.pick(listOf(7, 22, 30, 41, 55, 62, 90, 118, 150))
                 val id = CanonicalId.parse(gen.hexId())
                 if (gen.chance(50)) {
                     ScheduleItem(
@@ -166,7 +168,8 @@ class ContinuityTest {
                         ]
                     }
                 val unused = today.day.endMs - (today.day.startMs + regularSlots)
-                assertTrue(skippedSlots <= unused + today.lag, "skipped $skippedSlots ms > unused $unused ms + lag ${today.lag} ms")
+                val room = unused + today.lag
+                assertTrue(skippedSlots <= room, "skipped $skippedSlots ms > unused $unused ms + lag ${today.lag} ms")
                 if (jNext > u) seamsWithASkip++
                 today = tomorrow
             }
@@ -180,7 +183,8 @@ class ContinuityTest {
             val channel = generate(gen, oneGridSlotEach = false)
             for (step in 0..3) {
                 val p = position(channel.settings, channel.items, channel.firstDay + step)
-                assertTrue(p.lag >= 0 && p.lag < p.slots[p.day.startRunIndex], "lag ${p.lag}, slot ${p.slots[p.day.startRunIndex]}")
+                val slot = p.slots[p.day.startRunIndex]
+                assertTrue(p.lag >= 0 && p.lag < slot, "lag ${p.lag}, slot $slot")
             }
         }
     }
@@ -205,7 +209,8 @@ class ContinuityTest {
     fun equalSlotsAloneAreNotEnough() {
         // Three 90-minute movies on a 30-minute grid: every slot is 90 minutes, but that is three grid slots, not one.
         // A 4-hour day starting at 00:30 begins 30 minutes into run 0 of the continuous playout (lag 30), plays runs 0
-        // and 1 (180 minutes), cannot fit run 2 in the last 60 minutes, and the next day starts at run 0 of the next lap:
+        // and 1 (180 minutes), cannot fit run 2 in the last 60 minutes, and the next day starts at run 0 of the next
+        // lap:
         // run 2 is skipped (reference, 2026-10-16: equal slots with a lag).
         val s =
             testSettings(

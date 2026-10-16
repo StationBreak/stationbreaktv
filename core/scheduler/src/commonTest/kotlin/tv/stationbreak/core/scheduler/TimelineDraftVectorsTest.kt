@@ -134,6 +134,7 @@ class TimelineDraftVectorsTest {
     @Test
     fun everyDraftCaseAgreesWithTheReference() {
         val failures = vectors.flatMap { failuresOf(it) }
-        assertTrue(failures.isEmpty(), "${failures.size} disagreements with the reference:\n" + failures.joinToString("\n"))
+        val report = "${failures.size} disagreements with the reference:\n" + failures.joinToString("\n")
+        assertTrue(failures.isEmpty(), report)
     }
 }

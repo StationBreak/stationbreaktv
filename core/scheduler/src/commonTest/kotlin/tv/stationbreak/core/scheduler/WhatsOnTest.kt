@@ -90,9 +90,7 @@ class WhatsOnTest {
                         ScheduleBlock(0L, 40L, ScheduleContent.Program(idOf('1'), 5_000L)),
                         ScheduleBlock(40L, 100L, ScheduleContent.Slate),
                     ),
-                startRunIndex = 0,
-                regularRunCount = 1,
-                cycleRunCount = 1,
+                plan = RunPlan(startRun = 0, regularRuns = 1, cycleRuns = 1),
             )
         assertEquals(5_017L, withOffset.whatsOn(17L, 0).offsetMs)
     }
@@ -116,7 +114,12 @@ class WhatsOnTest {
     @Test
     fun aNegativeDayAnswersToo() {
         val s =
-            testSettings(orderingMode = OrderingMode.Chronological, alignToGrid = false, epochHours = 1, startMinuteOfDay = 0)
+            testSettings(
+                orderingMode = OrderingMode.Chronological,
+                alignToGrid = false,
+                epochHours = 1,
+                startMinuteOfDay = 0,
+            )
         val before1970 = buildDay(s, listOf(movie('1', 20)), -3L)
         assertEquals(minutes(-180), before1970.startMs)
         val at = before1970.whatsOn(minutes(-180) + minutes(25), 1)
@@ -138,7 +141,8 @@ class WhatsOnTest {
                 assertEquals(built.blocks[index], at.block)
                 assertEquals(built.blocks.drop(index + 1).take(3), at.next)
                 val content = at.block.content
-                val expectedOffset = if (content is ScheduleContent.Program) content.mediaStartOffsetMs + (t - at.block.startMs) else null
+                val into = t - at.block.startMs
+                val expectedOffset = if (content is ScheduleContent.Program) content.mediaStartOffsetMs + into else null
                 assertEquals(expectedOffset, at.offsetMs)
             }
         }

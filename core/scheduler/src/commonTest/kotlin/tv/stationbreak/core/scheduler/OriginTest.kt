@@ -12,10 +12,12 @@ import kotlin.test.assertTrue
 
 /**
  * Where a day starts in its order (spec 08, Unit 3): `shuffle` at run 0; `chronological` and `randomInOrder` at the run
- * of the continuous playout that contains `S`, found with the origin `-offsetMs` and slot lengths. Blocks that depend on
+ * of the continuous playout that contains `S`, found with the origin `-offsetMs` and slot lengths. Blocks that depend
+ * on
  * the end-of-day fill are left out of the expected lists (`EndFillTest` covers the fill).
  */
 class OriginTest {
+    @Suppress("LongParameterList")
     private fun settings(
         mode: OrderingMode = OrderingMode.Chronological,
         alignToGrid: Boolean = true,
@@ -36,7 +38,7 @@ class OriginTest {
 
     private val threePrograms = listOf(movie('1', 20), movie('2', 40), movie('3', 30))
 
-    // --- The largest j with Q[j] <= pos, with slot lengths when aligned ------------------------------------------------
+    // --- The largest j with Q[j] <= pos, with slot lengths when aligned ---------------------------------------------
 
     @Test
     fun alignedSlotsGiveTheRunThatContainsS() {
@@ -155,7 +157,7 @@ class OriginTest {
         return (0 until cycle.size).last { prefix[it] <= pos }
     }
 
-    // --- Nepal and India: every regular run starts on a grid mark --------------------------------------------------------
+    // --- Nepal and India: every regular run starts on a grid mark ----------------------------------------------------
 
     private val mixed =
         listOf(movie('1', 22), movie('2', 41), movie('3', 55), movie('4', 8), movie('5', 29), movie('6', 63))
@@ -173,7 +175,8 @@ class OriginTest {
                 assertTrue(Epochs.isGridMark(m, day.endMs), "the next S is a grid mark: $label")
                 for (block in day.blocks) {
                     if (block.content is ScheduleContent.Program) {
-                        assertTrue(Epochs.isGridMark(m, block.startMs), "program at ${block.startMs} off the grid: $label")
+                        val onMark = Epochs.isGridMark(m, block.startMs)
+                        assertTrue(onMark, "program at ${block.startMs} off the grid: $label")
                     }
                 }
             }
@@ -195,7 +198,13 @@ class OriginTest {
     @Test
     fun nepalWithRunsOfSeveralItemsStartsEveryRunOnAMark() {
         val nepal =
-            settings(gridMinutes = 30, epochHours = 8, startMinuteOfDay = 18 * 60 + 30, utcOffsetMinutes = 345, blockLength = 3)
+            settings(
+                gridMinutes = 30,
+                epochHours = 8,
+                startMinuteOfDay = 18 * 60 + 30,
+                utcOffsetMinutes = 345,
+                blockLength = 3,
+            )
         for (mode in OrderingMode.entries) {
             val m = nepal.copy(orderingMode = mode)
             for (n in -4L..4L) {

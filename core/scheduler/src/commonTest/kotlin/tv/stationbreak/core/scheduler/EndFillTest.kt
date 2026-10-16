@@ -34,7 +34,7 @@ class EndFillTest {
         startMinuteOfDay = 0,
     )
 
-    /** A seed for which `shuffle` puts [items] in the order of [wanted] on day 0, so a hand-worked case can be written. */
+    /** A seed for which `shuffle` puts [items] in the order [wanted] on day 0, so a hand-worked case can be written. */
     private fun shuffleSeedFor(
         base: SchedulerSettings,
         items: List<ScheduleItem>,
@@ -89,7 +89,8 @@ class EndFillTest {
 
     @Test
     fun chronologicalStopsAtTheCycleEndInsteadOfWrapping() {
-        // M4 (50 min) does not fit at minute 30. M1 would fit again, but an earlier item is never replayed after a later one.
+        // M4 (50 min) does not fit at minute 30. M1 would fit again, but an earlier item is never replayed after a
+        // later one.
         val built = buildDay(settings(OrderingMode.Chronological), shortThenLong, 0L)
         assertEquals(listOf("0-10:1", "10-20:2", "20-30:3", "30-60:slate"), built.describe())
     }
@@ -106,7 +107,8 @@ class EndFillTest {
 
     @Test
     fun theShufflePassVisitsAtMostNItems() {
-        // N = 3. M3 (50 min) does not fit at minute 20; the pass visits M3, M1, M2 and stops. It does not go round again.
+        // N = 3. M3 (50 min) does not fit at minute 20; the pass visits M3, M1, M2 and stops. It does not go round
+        // again.
         val items = listOf(movie('1', 10), movie('2', 10), movie('3', 50))
         val s = shuffleSeedFor(settings(OrderingMode.Shuffle), items, "123")
         val built = buildDay(s, items, 0L)
@@ -115,7 +117,8 @@ class EndFillTest {
 
     @Test
     fun placedItemsAreBlocksOfOneAndDoNotJoinRunGrouping() {
-        // Runs of two: [1 2] = 40 min, [3 4] = 40 min, which does not fit at minute 40. M3 (30) does not fit, M4 (10) does.
+        // Runs of two: [1 2] = 40 min, [3 4] = 40 min, which does not fit at minute 40. M3 (30) does not fit, M4 (10)
+        // does.
         val items = listOf(movie('1', 20), movie('2', 20), movie('3', 30), movie('4', 10))
         val built = buildDay(settings(OrderingMode.Chronological, blockLength = 2), items, 0L)
         assertEquals(listOf("0-20:1", "20-40:2", "40-50:4", "50-60:slate"), built.describe())
@@ -148,7 +151,8 @@ class EndFillTest {
 
     @Test
     fun nothingIsCutAndNothingRunsPastTheBoundary() {
-        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 1), listOf(movie('1', 45)), 0L)
+        val s = settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 1)
+        val built = buildDay(s, listOf(movie('1', 45)), 0L)
         assertEquals(listOf("0-45:1", "45-60:slate"), built.describe())
         assertTrue(built.blocks.all { it.endMs <= built.endMs })
     }
@@ -176,14 +180,15 @@ class EndFillTest {
                     EpochPool.build(case.settings, case.items, case.n),
                     Epochs.seedN(case.settings.seed, case.n),
                 )
-            val regularItems = (0 until actual.regularRunCount).sumOf { cycle[(actual.startRunIndex + it) % cycle.size].items.size }
+            val regularItems =
+                (0 until actual.regularRunCount).sumOf { cycle[(actual.startRunIndex + it) % cycle.size].items.size }
             val filled = actual.blocks.count { it.content is ScheduleContent.Program } - regularItems
             if (filled > 0) placedByFill++
             if (filled > 0 && case.settings.orderingMode != OrderingMode.Shuffle) placedByFillInOrderedModes++
         }
         // The generator reaches the interesting branch in every mode family, so the comparison is not vacuous.
         assertTrue(placedByFill >= 20, "only $placedByFill cases placed items in the end fill")
-        assertTrue(placedByFillInOrderedModes >= 10, "only $placedByFillInOrderedModes ordered-mode cases placed items in the end fill")
+        assertTrue(placedByFillInOrderedModes >= 10, "only $placedByFillInOrderedModes ordered-mode cases filled")
     }
 }
 

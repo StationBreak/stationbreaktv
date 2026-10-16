@@ -26,22 +26,32 @@ class StabilityPropertyTest {
         cutoff: Long,
     ): List<ScheduleItem> {
         var out = items
-        repeat(gen.nextInt(1..5)) {
+        repeat(gen.nextInt(1..5)) { _ ->
             out =
                 when (gen.nextInt(5)) {
-                    0 -> out + addedItem(gen, cutoff)
+                    0 -> {
+                        out + addedItem(gen, cutoff)
+                    }
 
                     // Deleted (first seen gone) at or after the cut-off. An item deleted earlier stays as it was.
-                    1 -> out.changeOne(gen) { if (it.notDeletedBefore(cutoff)) it.copy(deletedAtMs = later(gen, cutoff)) else it }
+                    1 -> {
+                        out.changeOne(gen) { if (it.notDeletedBefore(cutoff)) it.deletedLater(gen, cutoff) else it }
+                    }
 
                     // Seen again after a deletion that was itself at or after the cut-off.
-                    2 -> out.changeOne(gen) { if (it.isDeletedAtOrAfter(cutoff)) it.copy(deletedAtMs = null) else it }
+                    2 -> {
+                        out.changeOne(gen) { if (it.isDeletedAtOrAfter(cutoff)) it.copy(deletedAtMs = null) else it }
+                    }
 
                     // Re-created at a later moment, but still at or after the cut-off.
-                    3 -> out.changeOne(gen) { if (it.createdAtMs >= cutoff) it.copy(createdAtMs = later(gen, cutoff)) else it }
+                    3 -> {
+                        out.changeOne(gen) { if (it.createdAtMs >= cutoff) it.createdLater(gen, cutoff) else it }
+                    }
 
                     // A deletion moved to another moment at or after the cut-off.
-                    else -> out.changeOne(gen) { if (it.isDeletedAtOrAfter(cutoff)) it.copy(deletedAtMs = later(gen, cutoff)) else it }
+                    else -> {
+                        out.changeOne(gen) { if (it.isDeletedAtOrAfter(cutoff)) it.deletedLater(gen, cutoff) else it }
+                    }
                 }
         }
         return out
@@ -55,6 +65,16 @@ class StabilityPropertyTest {
         runtimeMs = gen.pick(listOf(10, 25, 40, 90)) * MS_MINUTE,
         createdAtMs = later(gen, cutoff),
     )
+
+    private fun ScheduleItem.deletedLater(
+        gen: SeededGen,
+        cutoff: Long,
+    ) = copy(deletedAtMs = later(gen, cutoff))
+
+    private fun ScheduleItem.createdLater(
+        gen: SeededGen,
+        cutoff: Long,
+    ) = copy(createdAtMs = later(gen, cutoff))
 
     private fun ScheduleItem.isDeletedAtOrAfter(cutoff: Long): Boolean = deletedAtMs.let { it != null && it >= cutoff }
 
@@ -76,7 +96,8 @@ class StabilityPropertyTest {
             val case = generateCase(gen)
             val s = case.settings
             val cutoff = Epochs.epochStart(s, case.n) - s.graceMs
-            // Some items are already late (created or deleted at or after the cut-off), some deleted earlier (excluded).
+            // Some items are already late (created or deleted at or after the cut-off), some deleted earlier
+            // (excluded).
             val base =
                 case.items.map { item ->
                     when (gen.nextInt(6)) {
