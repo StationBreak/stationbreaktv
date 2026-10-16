@@ -2,6 +2,7 @@
 package tv.stationbreak.core.scheduler
 
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ordering.fnv1a64
 import tv.stationbreak.core.model.ordering.splitmix64
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -65,6 +66,76 @@ object Orderings {
                 else -> a.id.value.compareTo(b.id.value)
             }
         }
+
+    /** One `randomInOrder` group: a series, or a movie (or a series-less episode) on its own. */
+    class OrderGroup internal constructor(
+        val groupId: CanonicalId,
+        /** `splitmix64(seed + fnv1a64(groupIdBytes))`, with the channel seed. */
+        val key: ULong,
+        /** The group's items in chronological order, without the group part of the key. */
+        val items: List<ScheduleItem>,
+    )
+
+    /**
+     * The `randomInOrder` key of the group [groupId]: `splitmix64(seed + fnv1a64(groupIdBytes))`. It uses the **channel
+     * seed**, not `seed_n`, so the order of the groups, and so the walk, is the same on every day.
+     */
+    fun groupKey(
+        seed: Seed,
+        groupId: CanonicalId,
+    ): ULong = splitmix64(seed.value + fnv1a64(groupId))
+
+    /**
+     * The groups of [pool] in key order: ascending by [groupKey] as unsigned numbers, a tie to the smaller group ID
+     * bytes. Each group's items are in the chronological order without its group part (date first, then season,
+     * episode and ID).
+     */
+    fun groups(
+        pool: List<ScheduleItem>,
+        seed: Seed,
+    ): List<OrderGroup> {
+        val inGroup = chronologicalComparator(withGroup = false)
+        return pool
+            .groupBy { it.groupId }
+            .map { (groupId, items) -> OrderGroup(groupId, groupKey(seed, groupId), items.sortedWith(inGroup)) }
+            .sortedWith(compareBy<OrderGroup> { it.key }.thenBy { it.groupId.value })
+    }
+
+    /**
+     * The `randomInOrder` walk of one cycle, as **turns**. In each round, every group in key order takes up to
+     * [blockLength] of its next items as one turn; a group with fewer left gives a short turn, and a used-up group is
+     * skipped. The cycle ends when every group is used up (the walk then restarts from the beginning, which is the next
+     * cycle). One turn is one run.
+     */
+    fun randomInOrderTurns(
+        pool: List<ScheduleItem>,
+        seed: Seed,
+        blockLength: Int,
+    ): List<List<ScheduleItem>> {
+        require(blockLength >= 1) { "A run is at least one item" }
+        val groups = groups(pool, seed)
+        val taken = IntArray(groups.size)
+        val turns = ArrayList<List<ScheduleItem>>()
+        var remaining = pool.size
+        while (remaining > 0) {
+            for ((index, group) in groups.withIndex()) {
+                val from = taken[index]
+                if (from >= group.items.size) continue
+                val to = minOf(group.items.size, from + blockLength)
+                turns += group.items.subList(from, to)
+                taken[index] = to
+                remaining -= to - from
+            }
+        }
+        return turns
+    }
+
+    /** The `randomInOrder` order of one cycle: the turns of [randomInOrderTurns], one after the other. */
+    fun randomInOrder(
+        pool: List<ScheduleItem>,
+        seed: Seed,
+        blockLength: Int,
+    ): List<ScheduleItem> = randomInOrderTurns(pool, seed, blockLength).flatten()
 
     /**
      * The date part of the chronological key: the premiere date (a UTC calendar date `YYYY-MM-DD`), else the production

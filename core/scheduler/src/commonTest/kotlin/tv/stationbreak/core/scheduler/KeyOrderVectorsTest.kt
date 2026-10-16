@@ -123,8 +123,7 @@ class KeyOrderVectorsTest {
 
     private fun JsonObject.blockLength(): Int = getValue("blockLength").jsonPrimitive.content.toInt()
 
-    private fun JsonObject.expectedRuns(): List<List<String>> =
-        array("runs").map { run -> run.jsonArray.map { it.jsonPrimitive.content } }
+    private fun JsonObject.expectedRuns(): List<List<String>> = array("runs").map { run -> run.jsonArray.map { it.jsonPrimitive.content } }
 
     @Test
     fun theShuffleSeedNComesFromTheChannelSeedAndN() {
