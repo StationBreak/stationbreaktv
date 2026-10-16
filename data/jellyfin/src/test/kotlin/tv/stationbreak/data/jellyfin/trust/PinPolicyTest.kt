@@ -35,12 +35,14 @@ class PinPolicyTest {
 
     private fun policy(vararg pins: Pair<PinKey, SpkiPin>) = PinPolicy(pins.toMap())
 
+    // Judged at the current time, not at `now`: a certificate built with OkHttp's default validity starts when it is
+    // built, which can be a second after `now` was taken, and it would then read as not yet valid.
     private fun verdict(
         cert: HeldCertificate,
         policy: PinPolicy = policy(),
         key: PinKey? = this.key,
         host: String? = this.host,
-    ) = policy.judge(cert.certificate, key, host, now)
+    ) = policy.judge(cert.certificate, key, host, System.currentTimeMillis())
 
     // --- the key ---
 
