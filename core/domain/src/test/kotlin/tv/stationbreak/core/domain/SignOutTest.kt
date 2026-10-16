@@ -70,4 +70,58 @@ class SignOutTest {
             assertNull(store.snapshot()[SessionRepository.SESSION_KEY])
             assertEquals(listOf(session), server.revokeCalls)
         }
+
+    // F0.6 (spec 06, task 2.12): the saved library follows the session. The real database is tested end to end in
+    // data:library (SignOutClearsCacheTest); these pin the hook itself.
+
+    private val account = LibraryAccount(ServerId("srv1"), UserId("u"))
+
+    @Test
+    fun signingOutForgetsTheSessionsSavedLibrary() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+
+            sessions.signOut(session)
+
+            assertEquals(listOf(account), cache.forgotten)
+        }
+
+    @Test
+    fun signingOutStillFinishesWhenTheCacheCannotBeCleared() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository().apply { failForget = true }
+            val sessions = SessionRepository(store, server, cache)
+            sessions.save(session)
+
+            val outcome = sessions.signOut(session)
+
+            // The token is gone and revoked whatever the cache did.
+            assertNull(store.snapshot()[SessionRepository.SESSION_KEY])
+            assertEquals(RevokeOutcome.Revoked, outcome)
+        }
+
+    @Test
+    fun savingASessionMakesItsAccountTheActiveOne() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val sessions = SessionRepository(store, server, cache)
+
+            sessions.save(session)
+
+            assertEquals(listOf(account), cache.activated)
+        }
+
+    @Test
+    fun aSessionThatLivesInMemoryOnlyStillActivatesItsAccount() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            store.failSave = true
+
+            // The user is signed in for this run even though the token wasn't stored, so the other accounts go now.
+            SessionRepository(store, server, cache).save(session)
+
+            assertEquals(listOf(account), cache.activated)
+        }
 }
