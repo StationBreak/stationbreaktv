@@ -4,7 +4,6 @@ package tv.stationbreak.feature.onboarding.firstsync
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
@@ -191,6 +190,7 @@ class FirstSyncScreenTest {
     @Test
     fun progressIsAnnouncedPolitelyOnlyWhenAQuarterIsPassed() {
         show(FirstSyncPhase.Syncing(copied = 5_000, total = 20_000))
+
         fun announced() =
             compose.onNodeWithTag(FirstSyncTags.ANNOUNCE).fetchSemanticsNode().config.let {
                 it[SemanticsProperties.ContentDescription].single() to it[SemanticsProperties.LiveRegion]

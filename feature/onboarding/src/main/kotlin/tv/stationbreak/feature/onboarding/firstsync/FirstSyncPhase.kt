@@ -9,6 +9,12 @@ internal sealed interface FirstSyncPhase {
     /** The sync has been asked for and has not saved anything yet. */
     data object Starting : FirstSyncPhase
 
+    /**
+     * No first page has been saved for a while (15 seconds), so the TV is probably not on a network: the count line
+     * says it is waiting. It goes away when progress arrives.
+     */
+    data object WaitingForNetwork : FirstSyncPhase
+
     /** [copied] items are saved so far, of [total] once the saved library knows it (from the first page). */
     data class Syncing(
         val copied: Int,

@@ -57,6 +57,9 @@ class FirstSyncScreenshotTest {
         shoot("3.0-first-sync-done.png", FirstSyncPhase.Syncing(copied = TOTAL, total = TOTAL))
         val error = MediaServerError.NetworkUnreachable()
         shoot("3.0-first-sync-failed.png", FirstSyncPhase.Failed(error, ErrorCopyTable.copyFor(error), false))
+        shoot("3.0-first-sync-waiting.png", FirstSyncPhase.WaitingForNetwork)
+        val refused = MediaServerError.SessionExpired()
+        shoot("3.0-first-sync-sign-in-again.png", FirstSyncPhase.Failed(refused, ErrorCopyTable.copyFor(refused), true))
     }
 
     private companion object {

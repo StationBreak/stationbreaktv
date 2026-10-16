@@ -8,6 +8,7 @@ object FirstSyncTags {
     const val SECOND_LINE = "firstSync:secondLine"
     const val BAR = "firstSync:bar"
     const val COUNT = "firstSync:count"
+    const val ANNOUNCE = "firstSync:announce"
     const val ERROR_PANEL = "firstSync:errorPanel"
     const val RETRY = "firstSync:retry"
 }

@@ -203,4 +203,8 @@
     <string name="first_sync_progress_description">Getting your library ready: %1$s of %2$s</string>
     <string name="first_sync_progress_description_starting">Getting your library ready</string>
     <string name="first_sync_failed_headline">Your library isn’t ready yet</string>
+    <string name="first_sync_waiting_for_network">Waiting for your network…</string>
+    <string name="first_sync_sign_in_again">Sign in again</string>
+    <!-- Said by TalkBack at each quarter: 25, 50, 75 and 100. -->
+    <string name="first_sync_announce">%1$d percent</string>
 </resources>

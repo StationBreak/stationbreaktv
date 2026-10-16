@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,11 +26,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -56,6 +61,8 @@ private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private val BarHeight = 12.dp
 private const val OVERSCAN = 0.05f
+private const val QUARTERS = 4
+private const val PERCENT_PER_QUARTER = 25
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -103,6 +110,7 @@ internal fun FirstSyncScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scrolling = if (phase is FirstSyncPhase.Failed) Modifier.verticalScroll(rememberScrollState()) else Modifier
     BoxWithConstraints(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(FirstSyncTags.SCREEN),
     ) {
@@ -110,7 +118,8 @@ internal fun FirstSyncScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    // Only the failure panel can outgrow the screen (large text); the progress screen never scrolls.
+                    .then(scrolling)
                     .padding(
                         start = maxWidth * OVERSCAN,
                         end = maxWidth * OVERSCAN,
@@ -125,8 +134,9 @@ internal fun FirstSyncScreen(
             ) {
                 when (phase) {
                     FirstSyncPhase.Starting -> Progress(copied = null, total = null, fraction = 0f)
+                    FirstSyncPhase.WaitingForNetwork -> Progress(null, null, fraction = 0f, waiting = true)
                     is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
-                    is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, onRetry)
+                    is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
                 }
             }
         }
@@ -138,10 +148,13 @@ private fun Progress(
     copied: Int?,
     total: Int?,
     fraction: Float,
+    waiting: Boolean = false,
 ) {
-    val numbers = remember { NumberFormat.getInstance() }
+    val locale = LocalConfiguration.current.locales[0]
+    val numbers = remember(locale) { NumberFormat.getInstance(locale) }
     val count =
         when {
+            waiting -> stringResource(R.string.first_sync_waiting_for_network)
             copied == null -> stringResource(R.string.first_sync_starting)
             total == null -> stringResource(R.string.first_sync_count_only, numbers.format(copied))
             else -> stringResource(R.string.first_sync_count, numbers.format(copied), numbers.format(total))
@@ -168,9 +181,31 @@ private fun Progress(
     Bar(fraction, description)
     Text(
         text = count,
-        modifier = Modifier.testTag(FirstSyncTags.COUNT),
+        // The bar and the announcement below say it for TalkBack; reading the count too would say it twice.
+        modifier = Modifier.testTag(FirstSyncTags.COUNT).semantics { hideFromAccessibility() },
         fontSize = BodySize,
         color = MaterialTheme.colorScheme.onSurface,
+    )
+    Announcement(fraction)
+}
+
+/**
+ * What TalkBack hears as the sync goes on: one polite announcement each time a quarter is passed, from a node with no
+ * size, so there is no chatter for every update of the count.
+ */
+@Composable
+private fun Announcement(fraction: Float) {
+    val quarter = (fraction * QUARTERS).toInt()
+    if (quarter == 0) return
+    val said = stringResource(R.string.first_sync_announce, quarter * PERCENT_PER_QUARTER)
+    Box(
+        Modifier
+            .size(0.dp)
+            .testTag(FirstSyncTags.ANNOUNCE)
+            .semantics {
+                liveRegion = LiveRegionMode.Polite
+                contentDescription = said
+            },
     )
 }
 
@@ -204,6 +239,7 @@ private fun Bar(
 private fun Failure(
     error: MediaServerError,
     copy: ErrorCopy,
+    sessionLost: Boolean,
     onRetry: () -> Unit,
 ) {
     val retryFocus = remember { FocusRequester() }
@@ -242,7 +278,8 @@ private fun Failure(
         }
     }
     ServerButton(
-        label = R.string.server_retry,
+        // A refused sign-in cannot be retried: the button goes back to signing in, and says so.
+        label = if (sessionLost) R.string.first_sync_sign_in_again else R.string.server_retry,
         onClick = onRetry,
         modifier = Modifier.focusRequester(retryFocus).testTag(FirstSyncTags.RETRY),
     )
