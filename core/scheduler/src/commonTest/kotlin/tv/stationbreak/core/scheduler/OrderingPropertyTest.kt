@@ -135,7 +135,7 @@ class OrderingPropertyTest {
             // The others keep their relative order, so the new item lands exactly where the key puts it ...
             assertEquals(Orderings.chronological(before).ids(), orderWith.filter { it != inserted.id.value })
             // ... and it sits after every item whose key is smaller and before every item whose key is larger.
-            val comparator = Orderings.chronologicalComparator(withGroup = true)
+            val comparator = Orderings.chronologicalKey
             val position = orderWith.indexOf(inserted.id.value)
             for ((index, id) in orderWith.withIndex()) {
                 val other = case.pool.first { it.id.value == id }
@@ -151,7 +151,7 @@ class OrderingPropertyTest {
         forAllCases("chronological sorted", baseSeed = 0x4353uL) { gen ->
             val case = gen.case()
             val order = Orderings.chronological(case.pool)
-            val comparator = Orderings.chronologicalComparator(withGroup = true)
+            val comparator = Orderings.chronologicalKey
             for (pair in order.zipWithNext()) assertTrue(comparator.compare(pair.first, pair.second) < 0)
         }
     }
