@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
@@ -74,20 +75,56 @@ internal object SchemaFile {
     }
 }
 
+/**
+ * A [SyncControl] that counts the cancellations, and can look at the rows at the moment of each one, to prove the
+ * unique sync work is cancelled before sign-in or sign-out touches them.
+ */
+internal class RecordingSyncControl : SyncControl {
+    var cancels = 0
+    val rowsWhenCancelled = mutableListOf<RowCounts>()
+    private var reader: (() -> RowCounts)? = null
+
+    fun watch(read: () -> RowCounts) {
+        reader = read
+    }
+
+    override fun cancelFirstSync() {
+        cancels++
+        reader?.let { rowsWhenCancelled += it() }
+    }
+}
+
 /** Room on the JVM, over the bundled SQLite driver (test only). */
 internal object TestLibraries {
-    /** A database that lives in memory and is gone when closed. */
-    fun inMemory(clock: Clock = FakeClock()): RoomLibraryRepository {
-        val configured = builder(null, null)
-        return RoomLibraryRepository.testing(configured, clock)
-    }
+    /** The accounts the tests sign in unless a test says otherwise (several at once, which the app never does). */
+    val STANDARD_ACCOUNTS = listOf(ALICE, BOB, ALICE_ON_ANOTHER_SERVER)
+
+    /**
+     * A database that lives in memory and is gone when closed. [signedIn] are marked as signed-in accounts without
+     * clearing each other, so a test can hold several accounts' rows; pass none to start from nobody signed in.
+     */
+    fun inMemory(
+        clock: Clock = FakeClock(),
+        sync: SyncControl = SyncControl.None,
+        signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
+    ): RoomLibraryRepository = signedIn(RoomLibraryRepository.testing(builder(null, null), clock, sync), signedIn)
 
     /** A database file named [name] under [dir]; opening the same name again reads what the last open stored. */
     fun onDisk(
         dir: File,
         name: String = "library-test.db",
         clock: Clock = FakeClock(),
-    ): RoomLibraryRepository = RoomLibraryRepository.testing(builder(dir, name), clock)
+        signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
+    ): RoomLibraryRepository = signedIn(RoomLibraryRepository.testing(builder(dir, name), clock), signedIn)
+
+    /** Marks [accounts] as signed in (idempotent), without the clearing that `useAccount` does. */
+    fun signedIn(
+        repository: RoomLibraryRepository,
+        accounts: List<LibraryAccount>,
+    ): RoomLibraryRepository {
+        runBlocking { accounts.forEach { repository.dao.insertActive(ActiveAccountEntity(it.server.value, it.user.value)) } }
+        return repository
+    }
 
     private fun builder(
         dir: File?,

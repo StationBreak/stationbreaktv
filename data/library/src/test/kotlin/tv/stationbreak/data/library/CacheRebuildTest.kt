@@ -26,7 +26,7 @@ class CacheRebuildTest {
     fun theExportedSchemaFileExistsAndNamesTheTables() {
         assertTrue("missing ${SchemaFile.file.path}", SchemaFile.file.isFile)
         assertEquals(
-            setOf("library", "item", "item_genre", "item_tag", "checkpoint", "account_state"),
+            setOf("library", "item", "item_genre", "item_tag", "checkpoint", "account_state", "active_account"),
             SchemaFile.tableNames().toSet(),
         )
         assertTrue(SchemaFile.text().contains("\"version\": ${LibraryDatabase.VERSION}"))
@@ -62,9 +62,41 @@ class CacheRebuildTest {
 
             // It opens (no crash, no migration error), is empty, and is usable.
             assertEquals(RowCounts.NONE, repository.rowCounts())
+            repository.useAccount(ALICE)
             repository.select(ALICE, setOf(MOVIES))
             repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             assertEquals(1, repository.stored(ALICE).size)
+            repository.close()
+        }
+
+    @Test
+    fun aDatabaseFromAnOlderSchemaIsDroppedAndRebuiltEmpty() =
+        runBlocking {
+            // The upgrade path (the file is older than the code), which version 2 is the first to take: the cache has
+            // no migration, so the old file is dropped and fetched again.
+            val context = TestContext(folder.root)
+            val older =
+                Room
+                    .databaseBuilder(context, OlderSchemaDatabase::class.java, "upgrade.db")
+                    .setDriver(BundledSQLiteDriver())
+                    .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
+                    .build()
+            older.otherDao().put(OtherRow("kept?"))
+            older.close()
+
+            val repository =
+                RoomLibraryRepository.testing(
+                    LibraryDatabases
+                        .builder(context, "upgrade.db")
+                        .setDriver(BundledSQLiteDriver())
+                        .setQueryCoroutineContext(TEST_QUERY_CONTEXT),
+                    FakeClock(),
+                )
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            assertEquals(setOf(MOVIES), repository.pendingLibraries(ALICE))
             repository.close()
         }
 
@@ -97,5 +129,11 @@ internal interface OtherDao {
 
 @Database(entities = [OtherRow::class], version = LibraryDatabase.VERSION + 1, exportSchema = false)
 internal abstract class OtherSchemaDatabase : RoomDatabase() {
+    abstract fun otherDao(): OtherDao
+}
+
+// The same, at the version before the current one.
+@Database(entities = [OtherRow::class], version = LibraryDatabase.VERSION - 1, exportSchema = false)
+internal abstract class OlderSchemaDatabase : RoomDatabase() {
     abstract fun otherDao(): OtherDao
 }
