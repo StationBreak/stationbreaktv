@@ -1,5 +1,5 @@
 {
-  "description": "Whole days of the lineup, one case per day. A case has: name; settings, the rules subset the scheduler reads (seed as a decimal string, ordering.mode, and timing with blockLength, alignToGrid, epochHours, graceHours, gridMinutes, minRuntimeSeconds and broadcastDay.utcOffsetMinutes and start; every one given explicitly); items, the pool candidates (id, kind, runtimeMs, createdAtMs, optional deletedAtMs, premiereDate, productionYear, seriesId, season, episode, each omitted when absent); n, the day number; blocks, the whole day in order, each {startMs, endMs, itemId} for a program (media start offset 0) or {startMs, endMs, slate: true}, half-open [startMs, endMs), tiling [epochStart(n), epochStart(n + 1)); and queries, each {t, k, blockIndex, offsetMs, nextIndexes}: the index into blocks of the block containing t, its offset (mediaStartOffset + t - startMs; absent for a slate) and the indexes of the next k blocks of the same day (fewer at the end of the day). A case with errorTimes lists times outside the day, for which whatsOn is an error. Times, runtimes and created/deleted stamps are signed decimal strings of milliseconds since 1970-01-01T00:00:00Z; season, episode and productionYear are JSON numbers.",
+  "description": "Whole days of the lineup, one case per day. A case has: name; settings, the rules subset the scheduler reads (seed as a decimal string, ordering.mode, and timing with blockLength, alignToGrid, epochHours, graceHours, gridMinutes, minRuntimeSeconds and broadcastDay.utcOffsetMinutes and start; every one given explicitly); items, the pool candidates (id, kind, runtimeMs, createdAtMs, optional deletedAtMs, premiereDate, productionYear, seriesId, season, episode, each omitted when absent); n, the day number; blocks, the whole day in order, each {startMs, endMs, itemId} for a program (media start offset 0) or {startMs, endMs, slate: true}, half-open [startMs, endMs), tiling [epochStart(n), epochStart(n + 1)); and queries, each {t, k, blockIndex, offsetMs, nextIndexes}: the index into blocks of the block containing t, its offset (mediaStartOffset + t - startMs; absent for a slate) and the indexes of the next k blocks of the same day (fewer at the end of the day). A case with errorTimes lists times outside the day, and errorKs lists values of k, for which whatsOn is an error; the vectors assert only that the call fails. A case with inputError: true has settings, items and n but no blocks and no queries: building that day must be rejected as an input error (the scheduler builds nothing), and reason quotes the rule of Building the schedule (Inputs, Numbers and ranges). The input error \"2^26 items or more\" is not given as a case, because the file would need 67,108,864 items; a port tests it with a generated list. Times, runtimes and created/deleted stamps are signed decimal strings of milliseconds since 1970-01-01T00:00:00Z; season, episode and productionYear are JSON numbers.",
   "source": "Computed with an independent Python reference written from docs/rules-format.md only (the final Building the schedule section, Ordering, Timing and Primitives), without reading any Kotlin. The worked examples of the document are cases here, and the reference reproduces them. Item IDs are synthetic.",
   "cases": [
     {
@@ -488,7 +488,7 @@
     },
     {
       "name": "doc worked example 2, chronological: A1 passed over, A2 not eligible, B placed",
-      "note": "Rules Building the schedule, Worked example 2 (items P 75, A1 45, A2 20, B 25 minutes).",
+      "note": "Rules Building the schedule, Worked example 2 (items P 75, A1 45, A2 20, B 25 minutes; channel seed 8).",
       "settings": {
         "seed": "8",
         "ordering": {
@@ -642,7 +642,7 @@
     },
     {
       "name": "doc worked example 2, shuffle: the fill wraps; A2 is placed, B and P do not fit",
-      "note": "Rules Building the schedule, Worked example 2, shuffle order P A1 A2 B (the seed is chosen to give it).",
+      "note": "Rules Building the schedule, Worked example 2, shuffle with seed 4 (the order is P A1 A2 B).",
       "settings": {
         "seed": "4",
         "ordering": {
@@ -3828,7 +3828,7 @@
     },
     {
       "name": "every run longer than the epoch, pool not empty (this reference: one slate)",
-      "note": "Spec silent. The cycle is empty, so there is no run to fill from; the reference emits one slate for the day. Do not rely on this case until the spec says so.",
+      "note": "B = 0: the whole day is one slate (Left-out runs).",
       "settings": {
         "seed": "8",
         "ordering": {
@@ -16431,6 +16431,3445 @@
           "nextIndexes": []
         }
       ]
+    },
+    {
+      "name": "a left-out run whose items would each fit: the fill never uses them (chronological)",
+      "note": "blockLength 3, 1 h epochs: the run [25, 25, 25] min is 75 min and is left out; the cycle is the run [20, 15]. The day plays it once (0-35), the second does not fit, and the fill visits the cycle's items only: 20 min fits (35-55), 15 does not. The 25-minute items would fit at minute 35 but are not in the cycle. A port that fills from the order places one of them.",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 3,
+          "alignToGrid": false,
+          "epochHours": 1,
+          "graceHours": 0,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000012c",
+          "kind": "movie",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000012d",
+          "kind": "movie",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "0000000000000000000000000000012e",
+          "kind": "movie",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-03"
+        },
+        {
+          "id": "0000000000000000000000000000012f",
+          "kind": "movie",
+          "runtimeMs": "1200000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-04"
+        },
+        {
+          "id": "00000000000000000000000000000130",
+          "kind": "movie",
+          "runtimeMs": "900000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-05"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "1200000",
+          "itemId": "0000000000000000000000000000012f"
+        },
+        {
+          "startMs": "1200000",
+          "endMs": "2100000",
+          "itemId": "00000000000000000000000000000130"
+        },
+        {
+          "startMs": "2100000",
+          "endMs": "3300000",
+          "itemId": "0000000000000000000000000000012f"
+        },
+        {
+          "startMs": "3300000",
+          "endMs": "3600000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "1199999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "1199999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "1200000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "1800000",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "600000",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "2099999",
+          "k": 0,
+          "blockIndex": 1,
+          "offsetMs": "899999",
+          "nextIndexes": []
+        },
+        {
+          "t": "2100000",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "3299999",
+          "k": 2,
+          "blockIndex": 2,
+          "offsetMs": "1199999",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "3300000",
+          "k": 5,
+          "blockIndex": 3,
+          "nextIndexes": []
+        },
+        {
+          "t": "3599999",
+          "k": 0,
+          "blockIndex": 3,
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "a left-out run whose items would each fit: the fill never uses them (randomInOrder)",
+      "note": "A series of three 25-minute episodes is one turn of 75 min and is left out; the two movies are turns of one.",
+      "settings": {
+        "seed": "17",
+        "ordering": {
+          "mode": "randomInOrder"
+        },
+        "timing": {
+          "blockLength": 3,
+          "alignToGrid": false,
+          "epochHours": 1,
+          "graceHours": 0,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000136",
+          "kind": "episode",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "0000000000000000000000000000003d",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "00000000000000000000000000000137",
+          "kind": "episode",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "0000000000000000000000000000003d",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "00000000000000000000000000000138",
+          "kind": "episode",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "0000000000000000000000000000003d",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "00000000000000000000000000000139",
+          "kind": "movie",
+          "runtimeMs": "1200000",
+          "createdAtMs": "-1000000000000"
+        },
+        {
+          "id": "0000000000000000000000000000013a",
+          "kind": "movie",
+          "runtimeMs": "900000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "1200000",
+          "itemId": "00000000000000000000000000000139"
+        },
+        {
+          "startMs": "1200000",
+          "endMs": "2100000",
+          "itemId": "0000000000000000000000000000013a"
+        },
+        {
+          "startMs": "2100000",
+          "endMs": "3300000",
+          "itemId": "00000000000000000000000000000139"
+        },
+        {
+          "startMs": "3300000",
+          "endMs": "3600000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "1199999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "1199999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "1200000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "1800000",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "600000",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "2099999",
+          "k": 0,
+          "blockIndex": 1,
+          "offsetMs": "899999",
+          "nextIndexes": []
+        },
+        {
+          "t": "2100000",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "3299999",
+          "k": 2,
+          "blockIndex": 2,
+          "offsetMs": "1199999",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "3300000",
+          "k": 5,
+          "blockIndex": 3,
+          "nextIndexes": []
+        },
+        {
+          "t": "3599999",
+          "k": 0,
+          "blockIndex": 3,
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "chronological day wraps the cycle and stops at run 1: the fill starts at f = 1 and does not wrap",
+      "note": "Cycle A 10, B 40, C 25 min (75 min), 2 h day. Regular layout: A B C A, then B (85+40 > 120) does not fit: i = 1 (modulo B), f = 1. The fill visits B (passed over) and C (placed at 85-110) and stops at the cycle's end; A would fit at 110-120 but is not visited.",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": false,
+          "epochHours": 2,
+          "graceHours": 0,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000140",
+          "kind": "movie",
+          "runtimeMs": "600000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "00000000000000000000000000000141",
+          "kind": "movie",
+          "runtimeMs": "2400000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000142",
+          "kind": "movie",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-03"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "600000",
+          "itemId": "00000000000000000000000000000140"
+        },
+        {
+          "startMs": "600000",
+          "endMs": "3000000",
+          "itemId": "00000000000000000000000000000141"
+        },
+        {
+          "startMs": "3000000",
+          "endMs": "4500000",
+          "itemId": "00000000000000000000000000000142"
+        },
+        {
+          "startMs": "4500000",
+          "endMs": "5100000",
+          "itemId": "00000000000000000000000000000140"
+        },
+        {
+          "startMs": "5100000",
+          "endMs": "6600000",
+          "itemId": "00000000000000000000000000000142"
+        },
+        {
+          "startMs": "6600000",
+          "endMs": "7200000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "599999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "599999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "600000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "2999999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "2399999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "t": "3000000",
+          "k": 0,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "3600000",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "600000",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "4499999",
+          "k": 2,
+          "blockIndex": 2,
+          "offsetMs": "1499999",
+          "nextIndexes": [
+            3,
+            4
+          ]
+        },
+        {
+          "t": "5100000",
+          "k": 5,
+          "blockIndex": 4,
+          "offsetMs": "0",
+          "nextIndexes": [
+            5
+          ]
+        },
+        {
+          "t": "6599999",
+          "k": 0,
+          "blockIndex": 4,
+          "offsetMs": "1499999",
+          "nextIndexes": []
+        },
+        {
+          "t": "6600000",
+          "k": 1,
+          "blockIndex": 5,
+          "nextIndexes": []
+        },
+        {
+          "t": "7199999",
+          "k": 2,
+          "blockIndex": 5,
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "shuffle day wraps the cycle and stops at run 1: the fill starts at f = 1 and wraps",
+      "note": "Same pool; the seed gives the order A B C. The fill visits B, C, A: C is placed (85-110) and A is placed (110-120).",
+      "settings": {
+        "seed": "9",
+        "ordering": {
+          "mode": "shuffle"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": false,
+          "epochHours": 2,
+          "graceHours": 0,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000140",
+          "kind": "movie",
+          "runtimeMs": "600000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "00000000000000000000000000000141",
+          "kind": "movie",
+          "runtimeMs": "2400000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000142",
+          "kind": "movie",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-03"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "600000",
+          "itemId": "00000000000000000000000000000140"
+        },
+        {
+          "startMs": "600000",
+          "endMs": "3000000",
+          "itemId": "00000000000000000000000000000141"
+        },
+        {
+          "startMs": "3000000",
+          "endMs": "4500000",
+          "itemId": "00000000000000000000000000000142"
+        },
+        {
+          "startMs": "4500000",
+          "endMs": "5100000",
+          "itemId": "00000000000000000000000000000140"
+        },
+        {
+          "startMs": "5100000",
+          "endMs": "6600000",
+          "itemId": "00000000000000000000000000000142"
+        },
+        {
+          "startMs": "6600000",
+          "endMs": "7200000",
+          "itemId": "00000000000000000000000000000140"
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "599999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "599999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "600000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "2999999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "2399999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "t": "3000000",
+          "k": 0,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "3600000",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "600000",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "4499999",
+          "k": 2,
+          "blockIndex": 2,
+          "offsetMs": "1499999",
+          "nextIndexes": [
+            3,
+            4
+          ]
+        },
+        {
+          "t": "5100000",
+          "k": 5,
+          "blockIndex": 4,
+          "offsetMs": "0",
+          "nextIndexes": [
+            5
+          ]
+        },
+        {
+          "t": "6599999",
+          "k": 0,
+          "blockIndex": 4,
+          "offsetMs": "1499999",
+          "nextIndexes": []
+        },
+        {
+          "t": "6600000",
+          "k": 1,
+          "blockIndex": 5,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "7199999",
+          "k": 2,
+          "blockIndex": 5,
+          "offsetMs": "599999",
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "chronological day wraps with blockLength 2 and stops at run 1 (aligned, grid 15)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 2,
+          "alignToGrid": true,
+          "epochHours": 2,
+          "graceHours": 0,
+          "gridMinutes": 15,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000014a",
+          "kind": "movie",
+          "runtimeMs": "300000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000014b",
+          "kind": "movie",
+          "runtimeMs": "360000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "0000000000000000000000000000014c",
+          "kind": "movie",
+          "runtimeMs": "1200000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-03"
+        },
+        {
+          "id": "0000000000000000000000000000014d",
+          "kind": "movie",
+          "runtimeMs": "1500000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-04"
+        },
+        {
+          "id": "0000000000000000000000000000014e",
+          "kind": "movie",
+          "runtimeMs": "480000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-05"
+        },
+        {
+          "id": "0000000000000000000000000000014f",
+          "kind": "movie",
+          "runtimeMs": "540000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-06"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "300000",
+          "itemId": "0000000000000000000000000000014a"
+        },
+        {
+          "startMs": "300000",
+          "endMs": "660000",
+          "itemId": "0000000000000000000000000000014b"
+        },
+        {
+          "startMs": "660000",
+          "endMs": "900000",
+          "slate": true
+        },
+        {
+          "startMs": "900000",
+          "endMs": "2100000",
+          "itemId": "0000000000000000000000000000014c"
+        },
+        {
+          "startMs": "2100000",
+          "endMs": "3600000",
+          "itemId": "0000000000000000000000000000014d"
+        },
+        {
+          "startMs": "3600000",
+          "endMs": "4080000",
+          "itemId": "0000000000000000000000000000014e"
+        },
+        {
+          "startMs": "4080000",
+          "endMs": "4620000",
+          "itemId": "0000000000000000000000000000014f"
+        },
+        {
+          "startMs": "4620000",
+          "endMs": "5400000",
+          "slate": true
+        },
+        {
+          "startMs": "5400000",
+          "endMs": "5700000",
+          "itemId": "0000000000000000000000000000014a"
+        },
+        {
+          "startMs": "5700000",
+          "endMs": "6060000",
+          "itemId": "0000000000000000000000000000014b"
+        },
+        {
+          "startMs": "6060000",
+          "endMs": "6300000",
+          "slate": true
+        },
+        {
+          "startMs": "6300000",
+          "endMs": "6780000",
+          "itemId": "0000000000000000000000000000014e"
+        },
+        {
+          "startMs": "6780000",
+          "endMs": "7200000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "299999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "299999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "300000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "659999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "359999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "t": "660000",
+          "k": 0,
+          "blockIndex": 2,
+          "nextIndexes": []
+        },
+        {
+          "t": "899999",
+          "k": 1,
+          "blockIndex": 2,
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "3600000",
+          "k": 2,
+          "blockIndex": 5,
+          "offsetMs": "0",
+          "nextIndexes": [
+            6,
+            7
+          ]
+        },
+        {
+          "t": "6300000",
+          "k": 5,
+          "blockIndex": 11,
+          "offsetMs": "0",
+          "nextIndexes": [
+            12
+          ]
+        },
+        {
+          "t": "6779999",
+          "k": 0,
+          "blockIndex": 11,
+          "offsetMs": "479999",
+          "nextIndexes": []
+        },
+        {
+          "t": "6780000",
+          "k": 1,
+          "blockIndex": 12,
+          "nextIndexes": []
+        },
+        {
+          "t": "7199999",
+          "k": 2,
+          "blockIndex": 12,
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "times at exactly -2^52 and 2^52 are valid (bounds included)",
+      "note": "Item 340 is in the pool (created at -2^52). Item 341 (created at 2^52) is not. Item 342 (deleted at 2^52) is in. Item 343 (deleted at -2^52) is not.",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": false,
+          "epochHours": 6,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000154",
+          "kind": "movie",
+          "runtimeMs": "3600000",
+          "createdAtMs": "-4503599627370496",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "00000000000000000000000000000155",
+          "kind": "movie",
+          "runtimeMs": "3600000",
+          "createdAtMs": "4503599627370496",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000156",
+          "kind": "movie",
+          "runtimeMs": "3600000",
+          "createdAtMs": "-1000000000000",
+          "deletedAtMs": "4503599627370496",
+          "premiereDate": "2020-01-03"
+        },
+        {
+          "id": "00000000000000000000000000000157",
+          "kind": "movie",
+          "runtimeMs": "3600000",
+          "createdAtMs": "-1000000000000",
+          "deletedAtMs": "-4503599627370496",
+          "premiereDate": "2020-01-04"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "3600000",
+          "itemId": "00000000000000000000000000000154"
+        },
+        {
+          "startMs": "3600000",
+          "endMs": "7200000",
+          "itemId": "00000000000000000000000000000156"
+        },
+        {
+          "startMs": "7200000",
+          "endMs": "10800000",
+          "itemId": "00000000000000000000000000000154"
+        },
+        {
+          "startMs": "10800000",
+          "endMs": "14400000",
+          "itemId": "00000000000000000000000000000156"
+        },
+        {
+          "startMs": "14400000",
+          "endMs": "18000000",
+          "itemId": "00000000000000000000000000000154"
+        },
+        {
+          "startMs": "18000000",
+          "endMs": "21600000",
+          "itemId": "00000000000000000000000000000156"
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "3599999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "3599999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "3600000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "7199999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "3599999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "t": "7200000",
+          "k": 0,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "10799999",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "3599999",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "10800000",
+          "k": 2,
+          "blockIndex": 3,
+          "offsetMs": "0",
+          "nextIndexes": [
+            4,
+            5
+          ]
+        },
+        {
+          "t": "14400000",
+          "k": 5,
+          "blockIndex": 4,
+          "offsetMs": "0",
+          "nextIndexes": [
+            5
+          ]
+        },
+        {
+          "t": "17999999",
+          "k": 0,
+          "blockIndex": 4,
+          "offsetMs": "3599999",
+          "nextIndexes": []
+        },
+        {
+          "t": "18000000",
+          "k": 1,
+          "blockIndex": 5,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "21599999",
+          "k": 2,
+          "blockIndex": 5,
+          "offsetMs": "3599999",
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "a premiere date is checked for shape only: 2020-02-31 is accepted and compared as text",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": false,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000158",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-02-31"
+        },
+        {
+          "id": "00000000000000000000000000000159",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-02-30"
+        },
+        {
+          "id": "0000000000000000000000000000015a",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-03-01"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "1800000",
+          "itemId": "00000000000000000000000000000159"
+        },
+        {
+          "startMs": "1800000",
+          "endMs": "3600000",
+          "itemId": "00000000000000000000000000000158"
+        },
+        {
+          "startMs": "3600000",
+          "endMs": "5400000",
+          "itemId": "0000000000000000000000000000015a"
+        },
+        {
+          "startMs": "5400000",
+          "endMs": "7200000",
+          "itemId": "00000000000000000000000000000159"
+        },
+        {
+          "startMs": "7200000",
+          "endMs": "9000000",
+          "itemId": "00000000000000000000000000000158"
+        },
+        {
+          "startMs": "9000000",
+          "endMs": "10800000",
+          "itemId": "0000000000000000000000000000015a"
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "1799999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "1800000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "3599999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "t": "3600000",
+          "k": 0,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "5399999",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "5400000",
+          "k": 2,
+          "blockIndex": 3,
+          "offsetMs": "0",
+          "nextIndexes": [
+            4,
+            5
+          ]
+        },
+        {
+          "t": "7200000",
+          "k": 5,
+          "blockIndex": 4,
+          "offsetMs": "0",
+          "nextIndexes": [
+            5
+          ]
+        },
+        {
+          "t": "8999999",
+          "k": 0,
+          "blockIndex": 4,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        },
+        {
+          "t": "9000000",
+          "k": 1,
+          "blockIndex": 5,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "10799999",
+          "k": 2,
+          "blockIndex": 5,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "an episode with no series and a movie with a production year only",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": false,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015b",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "0000000000000000000000000000015c",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "productionYear": 1999
+        },
+        {
+          "id": "0000000000000000000000000000015d",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "productionYear": 1999,
+          "season": 0,
+          "episode": 0
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "0",
+          "endMs": "1800000",
+          "itemId": "0000000000000000000000000000015c"
+        },
+        {
+          "startMs": "1800000",
+          "endMs": "3600000",
+          "itemId": "0000000000000000000000000000015d"
+        },
+        {
+          "startMs": "3600000",
+          "endMs": "5400000",
+          "itemId": "0000000000000000000000000000015b"
+        },
+        {
+          "startMs": "5400000",
+          "endMs": "7200000",
+          "itemId": "0000000000000000000000000000015c"
+        },
+        {
+          "startMs": "7200000",
+          "endMs": "9000000",
+          "itemId": "0000000000000000000000000000015d"
+        },
+        {
+          "startMs": "9000000",
+          "endMs": "10800000",
+          "itemId": "0000000000000000000000000000015b"
+        }
+      ],
+      "queries": [
+        {
+          "t": "0",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "1799999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "1800000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "3599999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "t": "3600000",
+          "k": 0,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "5399999",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "5400000",
+          "k": 2,
+          "blockIndex": 3,
+          "offsetMs": "0",
+          "nextIndexes": [
+            4,
+            5
+          ]
+        },
+        {
+          "t": "7200000",
+          "k": 5,
+          "blockIndex": 4,
+          "offsetMs": "0",
+          "nextIndexes": [
+            5
+          ]
+        },
+        {
+          "t": "8999999",
+          "k": 0,
+          "blockIndex": 4,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        },
+        {
+          "t": "9000000",
+          "k": 1,
+          "blockIndex": 5,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "10799999",
+          "k": 2,
+          "blockIndex": 5,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "whatsOn with a negative k is an error (the day itself is valid)",
+      "note": "A negative k is an error: errorKs lists the k values for which the call must fail.",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 4,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:30"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000001",
+          "kind": "movie",
+          "runtimeMs": "5400000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "00000000000000000000000000000002",
+          "kind": "movie",
+          "runtimeMs": "5400000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000003",
+          "kind": "movie",
+          "runtimeMs": "5400000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-03"
+        }
+      ],
+      "n": "0",
+      "blocks": [
+        {
+          "startMs": "1800000",
+          "endMs": "7200000",
+          "itemId": "00000000000000000000000000000001"
+        },
+        {
+          "startMs": "7200000",
+          "endMs": "12600000",
+          "itemId": "00000000000000000000000000000002"
+        },
+        {
+          "startMs": "12600000",
+          "endMs": "16200000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "1800000",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "7199999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "5399999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "7200000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "9000000",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "1800000",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "12599999",
+          "k": 0,
+          "blockIndex": 1,
+          "offsetMs": "5399999",
+          "nextIndexes": []
+        },
+        {
+          "t": "12600000",
+          "k": 1,
+          "blockIndex": 2,
+          "nextIndexes": []
+        },
+        {
+          "t": "16199999",
+          "k": 2,
+          "blockIndex": 2,
+          "nextIndexes": []
+        }
+      ],
+      "errorKs": [
+        -1
+      ]
+    },
+    {
+      "name": "deletedAt earlier than createdAt is accepted (each is tested against the cut-off on its own)",
+      "note": "The scheduler accepts all five items. Only 370 is in the pool: each of 371 to 374 fails the createdAt test or the deletedAt test (or both).",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": false,
+          "epochHours": 6,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000000000000000000000000172",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "00000000000000000000000000000173",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "151199000",
+          "deletedAtMs": "151198000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000174",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "151200500",
+          "deletedAtMs": "151199995",
+          "premiereDate": "2020-01-03"
+        },
+        {
+          "id": "00000000000000000000000000000175",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "151199999",
+          "deletedAtMs": "151199998",
+          "premiereDate": "2020-01-04"
+        },
+        {
+          "id": "00000000000000000000000000000176",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "151200010",
+          "deletedAtMs": "151200000",
+          "premiereDate": "2020-01-05"
+        }
+      ],
+      "n": "2",
+      "blocks": [
+        {
+          "startMs": "43200000",
+          "endMs": "45000000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "45000000",
+          "endMs": "46800000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "46800000",
+          "endMs": "48600000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "48600000",
+          "endMs": "50400000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "50400000",
+          "endMs": "52200000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "52200000",
+          "endMs": "54000000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "54000000",
+          "endMs": "55800000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "55800000",
+          "endMs": "57600000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "57600000",
+          "endMs": "59400000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "59400000",
+          "endMs": "61200000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "61200000",
+          "endMs": "63000000",
+          "itemId": "00000000000000000000000000000172"
+        },
+        {
+          "startMs": "63000000",
+          "endMs": "64800000",
+          "itemId": "00000000000000000000000000000172"
+        }
+      ],
+      "queries": [
+        {
+          "t": "43200000",
+          "k": 0,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "44999999",
+          "k": 1,
+          "blockIndex": 0,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            1
+          ]
+        },
+        {
+          "t": "45000000",
+          "k": 2,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2,
+            3
+          ]
+        },
+        {
+          "t": "46799999",
+          "k": 5,
+          "blockIndex": 1,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "t": "46800000",
+          "k": 0,
+          "blockIndex": 2,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "48599999",
+          "k": 1,
+          "blockIndex": 2,
+          "offsetMs": "1799999",
+          "nextIndexes": [
+            3
+          ]
+        },
+        {
+          "t": "54000000",
+          "k": 2,
+          "blockIndex": 6,
+          "offsetMs": "0",
+          "nextIndexes": [
+            7,
+            8
+          ]
+        },
+        {
+          "t": "61200000",
+          "k": 5,
+          "blockIndex": 10,
+          "offsetMs": "0",
+          "nextIndexes": [
+            11
+          ]
+        },
+        {
+          "t": "62999999",
+          "k": 0,
+          "blockIndex": 10,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        },
+        {
+          "t": "63000000",
+          "k": 1,
+          "blockIndex": 11,
+          "offsetMs": "0",
+          "nextIndexes": []
+        },
+        {
+          "t": "64799999",
+          "k": 2,
+          "blockIndex": 11,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        }
+      ]
+    },
+    {
+      "name": "input error: duplicate canonical ID",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "2700000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "Two items with the same canonical ID (the same 32 characters, compared as exact strings) are an input error, whether or not either is kept."
+    },
+    {
+      "name": "input error: duplicate canonical ID, one copy would be left out of the pool",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "Two items with the same canonical ID (the same 32 characters, compared as exact strings) are an input error, whether or not either is kept."
+    },
+    {
+      "name": "input error: createdAt = 2^52 + 1",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000160",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "4503599627370497"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+    },
+    {
+      "name": "input error: createdAt = -2^52 - 1",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000160",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-4503599627370497"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+    },
+    {
+      "name": "input error: deletedAt = 2^52 + 1",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000160",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "deletedAtMs": "4503599627370497"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+    },
+    {
+      "name": "input error: out-of-range createdAt on an item the pool would have left out (runtime 1 s)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000160",
+          "kind": "movie",
+          "runtimeMs": "1000",
+          "createdAtMs": "4503599627370497"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+    },
+    {
+      "name": "input error: the day's E is out of range (n = 1.3e9, 1 h epochs)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "shuffle"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 1,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "1300000000",
+      "inputError": true,
+      "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+    },
+    {
+      "name": "input error: the day's S is out of range (n = -1.3e9, 1 h epochs)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "shuffle"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 1,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "-1300000000",
+      "inputError": true,
+      "reason": "`t`, every `createdAt` and `deletedAt`, `epochStart(n)` and `epochStart(n + 1)` must lie from `-2^52` to `2^52` milliseconds, both bounds included. A time outside that range is an input error: building the day rejects the whole input and builds nothing. This includes any item whose `createdAt` or `deletedAt` is out of range, even an item the pool would have left out, and a day whose `S` or `E` is out of range."
+    },
+    {
+      "name": "input error: a movie with a season number",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000161",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "season": 1
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A movie that has a series ID, a season number or an episode number is an input error."
+    },
+    {
+      "name": "input error: a movie with an episode number",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000161",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "episode": 1
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A movie that has a series ID, a season number or an episode number is an input error."
+    },
+    {
+      "name": "input error: a movie with a series ID",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000161",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000000000000000000000000009"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A movie that has a series ID, a season number or an episode number is an input error."
+    },
+    {
+      "name": "input error: premiere date 2020-1-01 (month not two digits)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000162",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-1-01"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with month 13",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000162",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-13-01"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with day 00",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000162",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-00"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with a time part",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000162",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01T00:00:00Z"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with a three-digit year",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000162",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "987-01-01"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: production year 0",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000163",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "productionYear": 0
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the production year, or none: a whole number from 1 to 9999. Any other value is an input error"
+    },
+    {
+      "name": "input error: production year 10000",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000163",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "productionYear": 10000
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the production year, or none: a whole number from 1 to 9999. Any other value is an input error"
+    },
+    {
+      "name": "input error: a negative episode number",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000164",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "season": 1,
+          "episode": -1
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A negative number is an input error."
+    },
+    {
+      "name": "input error: a negative season number",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000164",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "season": -1,
+          "episode": 1
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A negative number is an input error."
+    },
+    {
+      "name": "input error: a third kind of item (series)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000165",
+          "kind": "series",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "its kind, `Movie` or `Episode`. Any other kind is an input error"
+    },
+    {
+      "name": "input error: an upper-case item ID",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "ABCDEF0123456789ABCDEF0123456789",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error"
+    },
+    {
+      "name": "input error: a 31-character item ID",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "0000000000000000000000000000000",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error"
+    },
+    {
+      "name": "input error: a hyphenated item ID",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "12345678-1234-1234-1234-123456789abc",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error"
+    },
+    {
+      "name": "input error: a non-canonical series ID (upper case)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000167",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "ABCDEF0123456789ABCDEF0123456789",
+          "season": 1,
+          "episode": 1
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A series ID is a canonical ID, like the item's own."
+    },
+    {
+      "name": "input error: a non-canonical series ID (too short)",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000167",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "abc",
+          "season": 1,
+          "episode": 1
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "A series ID is a canonical ID, like the item's own."
+    },
+    {
+      "name": "input error: setting out of range, blockLength 101",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 101,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+    },
+    {
+      "name": "input error: setting out of range, blockLength 0",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 0,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+    },
+    {
+      "name": "input error: setting out of range, graceHours 49",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 49,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+    },
+    {
+      "name": "input error: setting out of range, gridMinutes 20",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 20,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+    },
+    {
+      "name": "input error: premiere year 0000",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000168",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "0000-01-01"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with a trailing space",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000169",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01 "
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with a leading space",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000169",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": " 2020-01-01"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: premiere date with non-ASCII digits",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        },
+        {
+          "id": "00000000000000000000000000000169",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "\u0662\u0660\u0662\u0660-01-01"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "the premiere date, or none: exactly 10 ASCII characters, `YYYY-MM-DD` (UTC), written with ASCII digits only, a year from `0001` to `9999` (so `0000` is an input error, as it is for a production year), a month `01` to `12` and a day `01` to `31`. ... Anything else is an input error, including leading or trailing whitespace and a time part"
+    },
+    {
+      "name": "input error: setting out of range, start 06:30 with a 60-minute grid",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 60,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "06:30"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "`start`: minutes after midnight on the channel's clock, on :00 or :30, and on :00 with a 60-minute grid, as Timing says; ... a setting outside its range or list is an input error."
+    },
+    {
+      "name": "input error: an unknown ordering mode",
+      "settings": {
+        "seed": "8",
+        "ordering": {
+          "mode": "alphabetical"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
+    },
+    {
+      "name": "input error: a seed of 2^64",
+      "settings": {
+        "seed": "18446744073709551616",
+        "ordering": {
+          "mode": "chronological"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 3,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": 0,
+            "start": "00:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "0000000000000000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-01"
+        },
+        {
+          "id": "0000000000000000000000000000015f",
+          "kind": "movie",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2020-01-02"
+        }
+      ],
+      "n": "0",
+      "inputError": true,
+      "reason": "The settings must be inside the ranges and lists of Inputs and outputs, above: a setting outside its range or list is an input error. That includes an unknown ordering mode, and a `seed` outside 0 to 2^64 - 1."
     }
   ]
 }

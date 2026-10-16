@@ -2842,7 +2842,7 @@ internal object KeyOrderVectorFile {
               "name": "randomInOrder, movies, a series and a series-less episode; high-bit group keys",
               "mode": "randomInOrder",
               "blockLength": 1,
-              "note": "Group keys include values with the high bit set. A signed compare gives a different group order. Group d lists its episodes in date order (f before e).",
+              "note": "Group keys include values with the high bit set. A signed compare gives a different group order. Group d lists its episodes in numbering order (f is S1E1).",
               "items": [
                 {
                   "id": "d1024a5fad64d71711402f2430284f2c",

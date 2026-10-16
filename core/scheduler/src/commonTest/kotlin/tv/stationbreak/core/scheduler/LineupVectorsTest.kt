@@ -60,16 +60,25 @@ class LineupVectorsTest {
         )
     }
 
+    // The strict form: a vector ID that is not canonical must be rejected, not repaired.
+    private fun canonical(text: String): CanonicalId =
+        CanonicalId.parseCanonicalOrNull(text) ?: throw IllegalArgumentException("not a canonical ID: $text")
+
     private fun JsonObject.item(): ScheduleItem =
         ScheduleItem(
-            id = CanonicalId.parse(string("id")),
-            kind = if (string("kind") == "movie") ScheduleItemKind.Movie else ScheduleItemKind.Episode,
+            id = canonical(string("id")),
+            kind =
+                when (val kind = string("kind")) {
+                    "movie" -> ScheduleItemKind.Movie
+                    "episode" -> ScheduleItemKind.Episode
+                    else -> throw IllegalArgumentException("unknown kind $kind")
+                },
             runtimeMs = string("runtimeMs").toLong(),
             createdAtMs = string("createdAtMs").toLong(),
             deletedAtMs = optional("deletedAtMs")?.toLong(),
             premiereDate = optional("premiereDate"),
             productionYear = this["productionYear"]?.jsonPrimitive?.intOrNull,
-            seriesId = optional("seriesId")?.let { CanonicalId.parse(it) },
+            seriesId = optional("seriesId")?.let { canonical(it) },
             seasonNumber = this["season"]?.jsonPrimitive?.intOrNull,
             episodeNumber = this["episode"]?.jsonPrimitive?.intOrNull,
         )
@@ -95,6 +104,15 @@ class LineupVectorsTest {
         ) {
             if (expected != actual) failures.add("[$name] $what: reference $expected, Kotlin $actual")
         }
+        if (case["inputError"] != null) {
+            val thrown =
+                runCatching {
+                    val items = case.array("items").objects().map { it.item() }
+                    buildDay(case.obj("settings").settings(), items, case.string("n").toLong())
+                }
+            if (thrown.isSuccess) failures.add("[$name] input error: building should be rejected, but it built a day")
+            return failures
+        }
         val settings = case.obj("settings").settings()
         val items = case.array("items").objects().map { it.item() }
         val day = buildDay(settings, items, case.string("n").toLong())
@@ -115,6 +133,11 @@ class LineupVectorsTest {
             val thrown = runCatching { day.whatsOn(t, 0) }.exceptionOrNull()
             expect("whatsOn($t) outside the day throws", true, thrown is IllegalArgumentException)
         }
+        val errorKs = (case["errorKs"] as? JsonArray).orEmpty().map { it.jsonPrimitive.int }
+        for (k in errorKs) {
+            val thrown = runCatching { day.whatsOn(day.startMs, k) }.exceptionOrNull()
+            expect("whatsOn(k = $k) throws", true, thrown is IllegalArgumentException)
+        }
         return failures
     }
 
@@ -132,7 +155,7 @@ class LineupVectorsTest {
 
     @Test
     fun everyDayTilesItsEpochWithNothingCrossingTheBoundary() {
-        for (case in cases) {
+        for (case in cases.filter { it["inputError"] == null }) {
             val blocks = case.array("blocks").objects().map { it.block() }
             val settings = case.obj("settings").settings()
             val n = case.string("n").toLong()

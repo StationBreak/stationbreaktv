@@ -196,7 +196,8 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
 The scheduler's item fields (see Building the schedule, Inputs and outputs) come from the server's item like this. A client
 **must** follow every line, because a different conversion gives a different lineup:
 
-- `kind` **must** come from `Type`: `Movie` is a movie and `Episode` is an episode. Nothing else is an item.
+- `kind` **must** come from `Type`: Jellyfin's `Movie` is the kind `movie` and `Episode` is the kind `episode` (lower case, as
+  Inputs and outputs says). Nothing else is an item.
 - `runtimeMs` **must** be `floorDiv(RunTimeTicks, 10000)` (Jellyfin's ticks are 100 nanoseconds). An item with a missing or
   `null` `RunTimeTicks` **must** be left out of the pool.
 - `createdAt` **must** be `floorDiv(T, 10000)`, where `T` is `DateCreated` as ticks of 100 nanoseconds since
@@ -564,7 +565,7 @@ minRuntimeMs = minRuntimeSeconds * 1000
 has:
 
 - its canonical ID: exactly 32 lower-case hexadecimal characters (see Item IDs). Anything else is an input error;
-- its kind, `Movie` or `Episode`. Any other kind is an input error;
+- its kind, exactly `movie` or `episode` (lower case). Any other kind is an input error;
 - `runtimeMs`: its runtime, in whole milliseconds, from `RunTimeTicks` as Scheduler inputs from the server says
   (`floorDiv(RunTimeTicks, 10000)`; no runtime, no item). A runtime of 0 or less is not an error: it is below the minimum,
   so the item is left out of the pool.
