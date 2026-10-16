@@ -73,6 +73,23 @@ class KeyOrderVectorsTest {
     }
 
     @Test
+    fun chronologicalOrderMatches() {
+        val cases = forMode("chronological")
+        assertTrue(cases.size >= 10, "chronological cases: ${cases.size}")
+        for (case in cases) {
+            assertEquals(case.expectedOrder(), Orderings.chronological(case.pool()).ids(), case.string("name"))
+        }
+    }
+
+    @Test
+    fun theWorkedExampleOfTheFormatDocIsThere() {
+        val case = vectors.first { it.string("name").startsWith("chronological, the format doc's worked example") }
+        val order = Orderings.chronological(case.pool()).ids()
+        // special, then the three 2020-01-01 items by group ID (1, 2, movie 4), then 01-02, 01-08, and the undated last.
+        assertEquals(listOf('e', 'a', 'c', '4', 'd', 'b', 'f'), order.map { it.first() })
+    }
+
+    @Test
     fun theShuffleSeedNComesFromTheChannelSeedAndN() {
         val case = vectors.first { it.containsKey("n") }
         assertEquals(
