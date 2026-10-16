@@ -96,11 +96,15 @@ class RulesFormatDocTest {
 
     @Test
     fun hasTheScopeSectionsAndBanner() {
-        assertTrue("Draft — v1 is final once F1.1 completes the scheduling section and the vectors land." in doc)
+        val banner =
+            "> Version 1 — final (2026-10-16). " +
+                "Any change that could alter a lineup needs `formatVersion` 2 (see Format version)."
+        assertTrue(banner in doc.lines(), "the final banner is missing")
+        assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")
         }
-        assertTrue("specified by F1.1" in doc)
+        assertTrue("will be published with F1.1" !in doc)
     }
 
     @Test

@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Draft — v1 is final once F1.1 completes the scheduling section and the vectors land.
+> Version 1 — final (2026-10-16). Any change that could alter a lineup needs `formatVersion` 2 (see Format version).
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -672,7 +672,8 @@ An item is in the pool of day `n` if and only if **all four** hold:
 **Edits.** Day `n` is built from each item's fields as this client held them before `S - G`. A change first seen at or after
 `S - G` takes effect from the next day whose cut-off is after it. A client with no earlier copy (a new install) uses the
 oldest copy it has. Devices can disagree about day `n` only when an edit or deletion falls in `[S - 2G, S - G)`. This
-covers every field the scheduler reads, a runtime edit among them, and a deletion is the same case (the item then stays in
+covers every field this document reads (the scheduler's fields, and the genres, tags, ratings and memberships the pool rules
+use), a runtime edit among them, and a deletion is the same case (the item then stays in
 the pool with the runtime it had, as item 2 says). Keeping the earlier copy is the library layer's job.
 
 **What `deletedAt` means.** `deletedAt` is the time at which **this client** first saw that the item was gone from the
