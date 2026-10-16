@@ -104,7 +104,8 @@ internal fun TestingStatus() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (spinnerVisible) {
-            ProgressSpinner(contentDescription = stringResource(R.string.server_progress_description))
+            // The text beside it says it; a description too would be read out twice.
+            ProgressSpinner(contentDescription = null)
         }
         Text(
             text = stringResource(R.string.server_testing),

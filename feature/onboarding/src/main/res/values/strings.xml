@@ -27,7 +27,6 @@
 
     <!-- Accessibility: the icon beside an error says "Problem" so colour is never the only signal. -->
     <string name="server_problem_icon">Problem</string>
-    <string name="server_progress_description">Testing the connection</string>
 
     <!-- The cleartext confirmation (ADR-0014). Cancel has default focus. -->
     <string name="cleartext_title">Connect without encryption?</string>
