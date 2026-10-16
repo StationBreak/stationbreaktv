@@ -196,7 +196,7 @@ class SyncResumeTest {
             first.close()
             opened -= first
 
-            // Two hours later. An item saved in between must still be found, so the pass is measured from the first start.
+            // Two hours later. An item saved in between must still be found: the pass counts from the first start.
             clock.instant += 2.hours
             val second = open("d.db", clock)
             second.useAccount(ALICE)

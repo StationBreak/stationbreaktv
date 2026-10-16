@@ -62,7 +62,7 @@ internal object LibraryDatabases {
             }
         // The order matters: the downgrade call also sets "a migration is required", which the other call then clears.
         // Reversed, an upgrade from an older schema fails to open instead of being dropped and rebuilt (found by
-        // CacheRebuildTest.aDatabaseFromAnOlderSchemaIsDroppedAndRebuiltEmpty when the schema first moved to version 2).
+        // CacheRebuildTest when the schema first moved to version 2).
         return base
             .addCallback(SecureDeleteCallback)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)

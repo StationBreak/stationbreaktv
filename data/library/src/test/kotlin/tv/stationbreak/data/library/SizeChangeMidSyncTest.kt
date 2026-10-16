@@ -42,7 +42,8 @@ class SizeChangeMidSyncTest {
     private fun duringTheWalk(change: () -> Unit) {
         var changed = false
         server.respond = { call ->
-            if (call.startIndex == 100 && call.changedSince == null && !call.idsOnly && !changed) {
+            val secondWalkPage = call.startIndex == 100 && call.changedSince == null
+            if (secondWalkPage && !call.idsOnly && !changed) {
                 changed = true
                 clock.instant += 1.minutes
                 change()

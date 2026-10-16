@@ -41,7 +41,12 @@ class FirstSyncHeapTest {
             limit: Int,
         ): List<MediaItem> = library.page(startIndex, limit).also { pages += WeakReference(it) }
 
-        override fun savedAt(item: MediaItem): Instant = library.savedAt(item.id.value.drop(1).toInt(HEX))
+        override fun savedAt(item: MediaItem): Instant =
+            library.savedAt(
+                item.id.value
+                    .drop(1)
+                    .toInt(HEX),
+            )
     }
 
     private fun usedHeap(): Long {
@@ -71,8 +76,8 @@ class FirstSyncHeapTest {
                 null
             }
 
-            val outcome =
-                SyncWorld.engine(repository, server, clock, MediaServer.MAX_PAGE_SIZE).run(session, ALICE, setOf(MOVIES))
+            val engine = SyncWorld.engine(repository, server, clock, MediaServer.MAX_PAGE_SIZE)
+            val outcome = engine.run(session, ALICE, setOf(MOVIES))
 
             assertEquals(SyncOutcome.Completed, outcome)
             assertEquals(15_000, repository.rowCounts().items)

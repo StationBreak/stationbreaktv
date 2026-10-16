@@ -70,7 +70,9 @@ class LibraryRepositoryPortSignatureTest {
                 .toSet()
         // The snapshot, the status flow (sync state and last success), the exclusion count and the selection.
         assertTrue(
-            methods.containsAll(setOf("snapshot", "status", "activeStatus", "excludedCount", "select", "pendingLibraries")),
+            methods.containsAll(
+                setOf("snapshot", "status", "activeStatus", "excludedCount", "select", "pendingLibraries"),
+            ),
             "found $methods",
         )
     }

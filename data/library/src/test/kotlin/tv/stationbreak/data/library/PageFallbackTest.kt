@@ -127,7 +127,8 @@ class PageFallbackTest {
 
             run(pageSize = 100)
 
-            val missing = (0 until 300).map { SyncWorld.item("m", it).id } - repository.stored(ALICE).map { it.item.id }.toSet()
+            val all = (0 until 300).map { SyncWorld.item("m", it).id }
+            val missing = all - repository.stored(ALICE).map { it.item.id }.toSet()
             assertEquals(listOf(ItemId("m-00005"), ItemId("m-00250")), missing)
         }
 

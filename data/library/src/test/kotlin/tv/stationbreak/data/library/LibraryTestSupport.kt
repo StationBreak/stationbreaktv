@@ -122,7 +122,9 @@ internal object TestLibraries {
         repository: RoomLibraryRepository,
         accounts: List<LibraryAccount>,
     ): RoomLibraryRepository {
-        runBlocking { accounts.forEach { repository.dao.insertActive(ActiveAccountEntity(it.server.value, it.user.value)) } }
+        runBlocking {
+            accounts.forEach { repository.dao.insertActive(ActiveAccountEntity(it.server.value, it.user.value)) }
+        }
         return repository
     }
 

@@ -41,8 +41,7 @@ class ListLibrarySource(
         limit: Int,
     ): List<MediaItem> = items.drop(startIndex).take(limit)
 
-    override fun savedAt(item: MediaItem): Instant =
-        saved[item.id] ?: item.dateCreated ?: Instant.fromEpochMilliseconds(0)
+    override fun savedAt(item: MediaItem): Instant = saved[item.id] ?: item.dateCreated ?: Instant.fromEpochMilliseconds(0)
 }
 
 /** One call [PagedMediaServer] served, as it saw it. */
@@ -57,8 +56,8 @@ data class PagedCall(
 
 /**
  * A [MediaServer] that pages [LibrarySource]s the way the adapter does (the first page carries the total, a page past
- * the end is empty, a changed-since call returns only items saved at or after the moment), for tests of code that walks a
- * library. The rest of the port is [fake]'s. It can be told to misbehave: [respond] sees every call before it is
+ * the end is empty, a changed-since call returns only items saved at or after the moment), for tests of code that walks
+ * a library. The rest of the port is [fake]'s. It can be told to misbehave: [respond] sees every call before it is
  * served and may change the library, fail the call or throw (a killed process); [maxItemsPerResponse] makes a larger
  * page fail as the adapter's 1 MiB limit does; [malformed] items fail the decode of any page that holds them.
  * Not thread-safe.
@@ -74,10 +73,10 @@ class PagedMediaServer(
     /** Runs before each items or IDs call is served. Return an error to fail the call, or null to serve it. */
     var respond: (PagedCall) -> MediaServerError? = { null }
 
-    /** A page asking for more than this many items fails with [MediaServerError.ServerError] (the response-size limit). */
+    /** A page asking for more than this many items fails with [MediaServerError.ServerError] (the size limit). */
     var maxItemsPerResponse: Int = Int.MAX_VALUE
 
-    /** A page that includes one of these fails with [MediaServerError.NotJellyfin] (the strict decode of a bad item). */
+    /** A page that includes one of these fails with [MediaServerError.NotJellyfin] (the strict decode). */
     var malformed: Set<ItemId> = emptySet()
 
     /** What [libraries] answers, when it should fail. */

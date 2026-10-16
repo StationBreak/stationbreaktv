@@ -360,9 +360,10 @@ internal abstract class LibraryDao {
 
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
-     * no position). An item the database already holds, equal, is left alone; one that differs is updated and its genres
-     * and tags replaced; a new one is inserted. The account must still be signed in, checked inside this transaction.
-     * [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam; null in the app).
+     * no position). An item the database already holds, equal, is left alone; one that differs is updated and its
+     * genres and tags replaced; a new one is inserted. The account must still be signed in, which is checked inside
+     * this transaction. [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam;
+     * null in the app).
      */
     @Transaction
     open suspend fun writePage(

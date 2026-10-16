@@ -19,7 +19,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 
-/** Placeholder libraries and a placeholder session for the sync tests. The token is a marker the secret scan looks for. */
+/** Placeholder libraries and session for the sync tests. The token is a marker the secret scan looks for. */
 internal object SyncWorld {
     const val TOKEN = "SECRET-TOKEN-MARKER-0001"
 

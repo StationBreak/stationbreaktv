@@ -51,7 +51,8 @@ class SelectedLibrariesOnlyTest {
             engine().run(session, ALICE, linkedSetOf(shows.id, movies.id))
 
             val walked = server.itemCalls.filter { it.changedSince == null }.map { it.library }
-            assertEquals(listOf(movies, movies, movies, shows, shows), walked)
+            // Each library is read to the empty page that ends it: 120 movies in pages of 50 are four calls.
+            assertEquals(listOf(movies, movies, movies, movies, shows, shows, shows), walked)
         }
 
     @Test
@@ -93,7 +94,9 @@ class SelectedLibrariesOnlyTest {
 
             // The total was known before the first page was asked for: 120 movies and 60 shows.
             assertEquals(SyncState.FirstSyncRunning(copied = 0, total = 180), seen.first().state)
-            assertEquals(listOf(0, 50, 100, 120, 170), seen.take(5).map { (it.state as SyncState.FirstSyncRunning).copied })
+            val copied = seen.take(7).map { (it.state as SyncState.FirstSyncRunning).copied }
+            // Movies: three pages and the empty one, then its changed-since pass (still 120); then the shows begin.
+            assertEquals(listOf(0, 50, 100, 120, 120, 120, 170), copied)
             assertTrue(seen.all { (it.state as SyncState.FirstSyncRunning).total == 180 })
             val done = repository.activeStatus().first()!!
             assertEquals(SyncState.Idle, done.state)

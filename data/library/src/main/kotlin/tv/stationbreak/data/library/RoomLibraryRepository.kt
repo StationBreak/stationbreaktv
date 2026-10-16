@@ -163,7 +163,8 @@ class RoomLibraryRepository internal constructor(
     ): PageWrite {
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
-        return dao.writePage(server, user, checkpoint, rowsOf(items, server, user, library), faultBetweenItemsAndCheckpoint)
+        val rows = rowsOf(items, server, user, library)
+        return dao.writePage(server, user, checkpoint, rows, faultBetweenItemsAndCheckpoint)
     }
 
     /**

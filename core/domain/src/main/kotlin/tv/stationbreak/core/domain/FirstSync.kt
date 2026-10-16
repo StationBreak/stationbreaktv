@@ -7,8 +7,8 @@ import kotlinx.coroutines.flow.flowOf
 
 /**
  * The very first sync of the signed-in account, as launch routing and the progress screen see it (spec 06 task 3.0,
- * owner answer 3). It is a port so `feature:onboarding` never sees WorkManager or Room: `data:library` implements it and
- * `app` binds it. No token, URL or account name crosses it.
+ * owner answer 3). It is a port so `feature:onboarding` never sees WorkManager or Room: `data:library` implements it
+ * and `app` binds it. No token, URL or account name crosses it.
  */
 interface FirstSync {
     /**
