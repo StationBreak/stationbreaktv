@@ -2,6 +2,7 @@
 package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonObject
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
@@ -41,15 +42,6 @@ data class ChannelRules(
 
     /** The exclusions to use: none when the file has no `exclusions`. */
     val effectiveExclusions: List<Source> get() = exclusions.orEmpty()
-}
-
-/** The ordering modes of version 1, with the exact names the file uses. */
-enum class OrderingMode(
-    val wireName: String,
-) {
-    Shuffle("shuffle"),
-    Chronological("chronological"),
-    RandomInOrder("randomInOrder"),
 }
 
 /** The `ordering` object. */

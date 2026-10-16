@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
+import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.CanonicalId
-import kotlin.test.Test
-import kotlin.test.assertFailsWith
+import tv.stationbreak.core.model.OrderingMode
 
 // The types cannot hold what the writer must not emit: every rule the reader checks is also checked on construction.
 class InvariantsTest {
