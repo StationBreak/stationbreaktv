@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin.contract
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -45,6 +48,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /**
  * The contract suite (S0.3.6): the adapter against a real Jellyfin server in Docker. Every case runs twice, directly
@@ -276,6 +280,213 @@ abstract class ContractSuite {
     }
 
     @Test
+    fun itemsReturnEpisodesAndCreationDate() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+
+            val page = adapter.libraryItems(session, shows, 0, BIG_PAGE).getOrNull()
+
+            assertNotNull(page)
+            // The TV library's direct children are series; the recursive call reaches the episodes under them.
+            assertEquals(server.seeded.episodeIds.toSet(), page.items.map { it.id.value }.toSet())
+            assertEquals(server.seeded.episodeIds.size, page.totalCount)
+            for (item in page.items) {
+                assertEquals(ItemKind.Episode, item.kind)
+                assertNotNull(item.seriesId, "an episode names its series")
+                assertEquals(1, item.seasonNumber)
+                assertTrue(item.episodeNumber in 1..server.seeded.episodeIds.size)
+                assertTrue((item.runtime ?: 0.seconds) > 5.minutes)
+                // The creation date is what the server holds, read back raw with the harness's own device.
+                val raw = rawItem(item.id.value)
+                assertEquals(Instant.parse(raw.getValue("DateCreated").jsonPrimitive.content), item.dateCreated)
+            }
+            val movies = Library(ItemId(server.seeded.moviesLibrary), "Movies", LibraryKind.Movies)
+            val movieItems =
+                adapter
+                    .libraryItems(session, movies, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+            assertEquals(server.seeded.movieIds.toSet(), movieItems.map { it.id.value }.toSet())
+            assertTrue(movieItems.all { it.kind == ItemKind.Movie && it.dateCreated != null })
+            assertTrue(movieItems.all { it.productionYear in 2001..2003 })
+        }
+    }
+
+    @Test
+    fun pagesOfOneNeverSkipOrRepeatAndTheIdListingMatches() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val mixed = Library(ItemId(server.seeded.mixedLibrary), "Everything", LibraryKind.Mixed)
+            val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+
+            for (library in listOf(shows, mixed)) {
+                val whole = adapter.libraryItems(session, library, 0, BIG_PAGE).getOrNull()
+                assertNotNull(whole)
+                val oneAtATime =
+                    (0..whole.items.size).flatMap { index ->
+                        adapter
+                            .libraryItems(session, library, index, 1)
+                            .getOrNull()
+                            ?.items
+                            .orEmpty()
+                    }
+                assertEquals(whole.items.map { it.id }, oneAtATime.map { it.id }, "${library.kind} by pages of one")
+                val ids = adapter.libraryItemIds(session, library, 0, BIG_PAGE).getOrNull()
+                assertEquals(whole.items.map { it.id }, ids?.ids, "${library.kind} id listing")
+                assertEquals(whole.items.size, ids?.totalCount)
+            }
+        }
+    }
+
+    @Test
+    fun tiedNamesPageStably() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val movies = Library(ItemId(server.seeded.moviesLibrary), "Movies", LibraryKind.Movies)
+            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+            val adminId =
+                server.http
+                    .get("Users/Me", admin)
+                    .obj()
+                    .getValue("Id")
+                    .jsonPrimitive.content
+            for (id in server.seeded.movieIds) {
+                val dto = server.http.get("Users/$adminId/Items/$id", admin).obj()
+                val tied = JsonObject(dto + ("Name" to JsonPrimitive("Tie")) + ("ForcedSortName" to JsonPrimitive("Tie")))
+                server.http.expectOk("tie", server.http.post("Items/$id", tied.toString(), admin))
+            }
+            delay(SETTLE_MS * 3)
+
+            val whole =
+                adapter
+                    .libraryItems(session, movies, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+            val oneAtATime =
+                (0..whole.size).flatMap {
+                    adapter
+                        .libraryItems(session, movies, it, 1)
+                        .getOrNull()
+                        ?.items
+                        .orEmpty()
+                }
+
+            assertEquals(server.seeded.movieIds.toSet(), whole.map { it.id.value }.toSet())
+            assertEquals(whole.map { it.id }, oneAtATime.map { it.id }, "items with one name page without a skip or repeat")
+            // Jellyfin 12 has no sort by ID; it breaks a tie on the ID itself, ascending (the request says SortName).
+            assertEquals(whole.map { it.id.value }.sorted(), whole.map { it.id.value }, "ties break on ascending ID")
+        }
+    }
+
+    @Test
+    fun changedSinceBoundary() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val movies = Library(ItemId(server.seeded.moviesLibrary), "Movies", LibraryKind.Movies)
+            val (renamed, refreshed, watched) = server.seeded.movieIds
+            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+            val adminId =
+                server.http
+                    .get("Users/Me", admin)
+                    .obj()
+                    .getValue("Id")
+                    .jsonPrimitive.content
+
+            suspend fun changedSince(moment: Instant): Set<String> =
+                adapter
+                    .libraryItems(session, movies, 0, BIG_PAGE, moment)
+                    .getOrNull()!!
+                    .items
+                    .map { it.id.value }
+                    .toSet()
+
+            // The server does not return DateLastSaved, even when asked, so the boundary is found by searching.
+            val everything = Instant.parse("2000-01-01T00:00:00Z")
+            assertEquals(server.seeded.movieIds.toSet(), changedSince(everything), "a moment long ago matches every item")
+            val future = Instant.fromEpochMilliseconds(System.currentTimeMillis() + FUTURE_MS)
+            assertEquals(emptySet(), changedSince(future), "a moment in the future matches nothing")
+
+            suspend fun edit(
+                label: String,
+                id: String,
+                action: () -> Unit,
+            ): Set<String> {
+                delay(SETTLE_MS)
+                val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+                delay(SETTLE_MS)
+                action()
+                delay(SETTLE_MS * 4)
+                val changed = changedSince(mark)
+                finding("$label: item returned=${id in changed}, others returned=${(changed - id).size}")
+                return changed
+            }
+
+            val rename =
+                edit("rename", renamed) {
+                    val dto = server.http.get("Users/$adminId/Items/$renamed", admin).obj()
+                    val edited = JsonObject(dto + ("Name" to JsonPrimitive("Renamed by the contract test")))
+                    server.http.expectOk("rename", server.http.post("Items/$renamed", edited.toString(), admin))
+                }
+            assertEquals(setOf(renamed), rename, "a rename counts as a change, and only for the renamed item")
+
+            // Where is the edge? Search for the last whole millisecond that still returns the renamed item.
+            var low = Instant.fromEpochMilliseconds(System.currentTimeMillis() - BISECT_WINDOW_MS)
+            var high = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+            check(renamed in changedSince(low) && renamed !in changedSince(high)) { "the edge is not inside the window" }
+            while (high.toEpochMilliseconds() - low.toEpochMilliseconds() > 1) {
+                val middle = Instant.fromEpochMilliseconds((low.toEpochMilliseconds() + high.toEpochMilliseconds()) / 2)
+                if (renamed in changedSince(middle)) low = middle else high = middle
+            }
+            finding("rename: the item stops matching after $low (the moment it was saved, to the millisecond)")
+
+            val refresh =
+                edit("metadata refresh", refreshed) {
+                    val query =
+                        listOf("metadataRefreshMode" to "FullRefresh", "imageRefreshMode" to "None", "replaceAllMetadata" to "false")
+                    server.http.expectOk("refresh", server.http.post("Items/$refreshed/Refresh", token = admin, query = query))
+                }
+            // Pinned on 12.1 and 12.2: a refresh saves the item, so it counts as a change. A full re-sync of
+            // refreshed items is the cost, never a missed change.
+            assertEquals(setOf(refreshed), refresh, "a metadata refresh counts as a change")
+
+            val watch =
+                edit("watched mark", watched) {
+                    val viewerToken = harnessToken()
+                    val viewerId =
+                        server.http
+                            .get("Users/Me", viewerToken)
+                            .obj()
+                            .getValue("Id")
+                            .jsonPrimitive.content
+                    server.http.expectOk("watched", server.http.post("Users/$viewerId/PlayedItems/$watched", token = viewerToken))
+                }
+            // Pinned on 12.1 and 12.2: a watched mark is user data, not an item save, so it is not a change.
+            assertEquals(emptySet(), watch, "a watched mark does not count as a change")
+        }
+    }
+
+    private fun finding(text: String) = println("FINDING: $text")
+
+    /** The server's own text for an item, read with the harness's device. */
+    private fun rawItem(id: String): JsonObject {
+        val token = harnessToken()
+        val viewerId =
+            server.http
+                .get("Users/Me", token)
+                .obj()
+                .getValue("Id")
+                .jsonPrimitive.content
+        return server.http.expectOk("read item", server.http.get("Users/$viewerId/Items/$id", token)).obj()
+    }
+
+    @Test
     fun playbackInfoListsSourcesAndTheBuiltUrlStreamsWithTheHeader() {
         runBlocking {
             val adapter = adapter()
@@ -345,6 +556,10 @@ abstract class ContractSuite {
     private companion object {
         const val SUPPORTED_MAJOR = 12
         const val PAGE_SIZE = 2
+        const val BIG_PAGE = 20
+        const val SETTLE_MS = 1_200L
+        const val FUTURE_MS = 60_000L
+        const val BISECT_WINDOW_MS = 30_000L
         const val PROGRESS_SECONDS = 10
         const val RESUME_SECONDS = 120
         const val TICKS_PER_SECOND = 10_000_000L
