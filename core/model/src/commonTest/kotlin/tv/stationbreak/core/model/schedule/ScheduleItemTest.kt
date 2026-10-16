@@ -62,4 +62,45 @@ class ScheduleItemTest {
         assertFailsWith<IllegalArgumentException> { item(seasonNumber = -1) }
         assertFailsWith<IllegalArgumentException> { item(episodeNumber = -1) }
     }
+
+    private val series = CanonicalId.parse("22222222222222222222222222222222")
+
+    private fun movie(
+        seriesId: CanonicalId? = null,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null,
+    ) = ScheduleItem(
+        id = id,
+        kind = ScheduleItemKind.Movie,
+        runtimeMs = 1L,
+        createdAtMs = 0L,
+        deletedAtMs = null,
+        premiereDate = null,
+        productionYear = null,
+        seriesId = seriesId,
+        seasonNumber = seasonNumber,
+        episodeNumber = episodeNumber,
+    )
+
+    @Test
+    fun aMovieHasNoSeriesSeasonOrEpisode() {
+        movie()
+        assertFailsWith<IllegalArgumentException> { movie(seriesId = series) }
+        assertFailsWith<IllegalArgumentException> { movie(seasonNumber = 1) }
+        assertFailsWith<IllegalArgumentException> { movie(episodeNumber = 1) }
+    }
+
+    @Test
+    fun anOrphanEpisodeIsAcceptedAndIsAGroupOfOne() {
+        val orphan = item(seasonNumber = 1, episodeNumber = 2)
+        assertNull(orphan.seriesId)
+        assertEquals(id, orphan.groupId)
+        assertEquals(id, movie().groupId)
+    }
+
+    @Test
+    fun anEpisodeWithASeriesIsGroupedBySeries() {
+        val episode = item().copy(seriesId = series)
+        assertEquals(series, episode.groupId)
+    }
 }
