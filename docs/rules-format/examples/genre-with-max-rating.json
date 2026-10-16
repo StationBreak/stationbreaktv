@@ -8,5 +8,10 @@
       "name": "Animation"
     }
   ],
-  "maxRating": "TV-Y7"
+  "maxRating": "TV-Y7",
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
 }

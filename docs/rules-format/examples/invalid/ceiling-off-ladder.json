@@ -8,5 +8,10 @@
       "id": "11111111111111111111111111111111"
     }
   ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
   "maxRating": "PG-14"
 }

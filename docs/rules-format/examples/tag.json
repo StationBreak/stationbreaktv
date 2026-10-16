@@ -7,5 +7,10 @@
       "type": "tag",
       "name": "Late Night"
     }
-  ]
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
 }

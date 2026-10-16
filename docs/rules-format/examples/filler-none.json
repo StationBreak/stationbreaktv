@@ -8,6 +8,11 @@
       "id": "11111111111111111111111111111111"
     }
   ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
   "filler": {
     "mode": "none"
   }

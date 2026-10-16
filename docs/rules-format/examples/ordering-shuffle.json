@@ -9,6 +9,11 @@
     }
   ],
   "ordering": {
-    "mode": "SHUFFLE"
+    "mode": "shuffle"
+  },
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
   }
 }

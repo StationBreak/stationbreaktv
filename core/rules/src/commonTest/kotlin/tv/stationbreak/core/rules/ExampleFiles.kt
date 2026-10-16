@@ -16,7 +16,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "genre-with-max-rating.json" to
@@ -31,7 +36,12 @@ internal object ExampleFiles {
                       "name": "Animation"
                     }
                   ],
-                  "maxRating": "TV-Y7"
+                  "maxRating": "TV-Y7",
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "collection.json" to
@@ -45,7 +55,12 @@ internal object ExampleFiles {
                       "type": "collection",
                       "id": "22222222222222222222222222222222"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "tag.json" to
@@ -59,7 +74,12 @@ internal object ExampleFiles {
                       "type": "tag",
                       "name": "Late Night"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "year-range.json" to
@@ -74,7 +94,12 @@ internal object ExampleFiles {
                       "from": 1990,
                       "to": 1999
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "series.json" to
@@ -88,7 +113,12 @@ internal object ExampleFiles {
                       "type": "series",
                       "id": "33333333333333333333333333333333"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "exclusion.json" to
@@ -133,7 +163,12 @@ internal object ExampleFiles {
                       "type": "series",
                       "id": "33333333333333333333333333333333"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "ordering-shuffle.json" to
@@ -149,7 +184,12 @@ internal object ExampleFiles {
                     }
                   ],
                   "ordering": {
-                    "mode": "SHUFFLE"
+                    "mode": "shuffle"
+                  },
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
                   }
                 }
                 """.trimIndent() + "\n",
@@ -166,7 +206,12 @@ internal object ExampleFiles {
                     }
                   ],
                   "ordering": {
-                    "mode": "CHRONOLOGICAL"
+                    "mode": "chronological"
+                  },
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
                   }
                 }
                 """.trimIndent() + "\n",
@@ -183,11 +228,14 @@ internal object ExampleFiles {
                     }
                   ],
                   "ordering": {
-                    "mode": "RANDOM_IN_ORDER"
+                    "mode": "randomInOrder"
                   },
                   "timing": {
                     "blockLength": 2,
-                    "alignToGrid": true
+                    "alignToGrid": true,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
                   }
                 }
                 """.trimIndent() + "\n",
@@ -206,7 +254,10 @@ internal object ExampleFiles {
                   "timing": {
                     "blockLength": 4,
                     "alignToGrid": false,
-                    "epochHours": 12
+                    "epochHours": 12,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
                   }
                 }
                 """.trimIndent() + "\n",
@@ -242,6 +293,11 @@ internal object ExampleFiles {
                       "id": "11111111111111111111111111111111"
                     }
                   ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
                   "filler": {
                     "mode": "none"
                   }
@@ -259,8 +315,13 @@ internal object ExampleFiles {
                       "id": "11111111111111111111111111111111"
                     }
                   ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
                   "filler": {
-                    "mode": "pad-to-grid",
+                    "mode": "padToGrid",
                     "source": {
                       "type": "library",
                       "id": "55555555555555555555555555555555"
@@ -280,8 +341,13 @@ internal object ExampleFiles {
                       "id": "11111111111111111111111111111111"
                     }
                   ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
                   "filler": {
-                    "mode": "between-every-N",
+                    "mode": "betweenEveryN",
                     "every": 3,
                     "source": {
                       "type": "collection",
@@ -302,11 +368,55 @@ internal object ExampleFiles {
                       "id": "11111111111111111111111111111111"
                     }
                   ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
                   "filler": {
-                    "mode": "pad-to-grid",
+                    "mode": "padToGrid",
                     "source": {
                       "type": "tag",
                       "name": "Station IDs"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "broadcast-day-offset-nepal.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Kathmandu Evening",
+                  "seed": "11",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 345,
+                      "start": "18:30"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "name-100-code-points.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+                  "seed": "13",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
                     }
                   }
                 }
@@ -335,7 +445,7 @@ internal object ExampleFiles {
                   ],
                   "maxRating": "TV-Y7",
                   "ordering": {
-                    "mode": "RANDOM_IN_ORDER"
+                    "mode": "randomInOrder"
                   },
                   "timing": {
                     "blockLength": 2,
@@ -347,7 +457,7 @@ internal object ExampleFiles {
                     }
                   },
                   "filler": {
-                    "mode": "between-every-N",
+                    "mode": "betweenEveryN",
                     "every": 3,
                     "source": {
                       "type": "tag",
@@ -362,13 +472,6 @@ internal object ExampleFiles {
                   "formatVersion": 1,
                   "name": "From A Newer App",
                   "seed": "12",
-                  "futureTopLevel": {
-                    "anything": [
-                      1,
-                      2,
-                      3
-                    ]
-                  },
                   "sources": [
                     {
                       "type": "genre",
@@ -385,7 +488,7 @@ internal object ExampleFiles {
                   ],
                   "maxRating": "TV-14",
                   "ordering": {
-                    "mode": "SHUFFLE",
+                    "mode": "shuffle",
                     "futureOrderingField": 1
                   },
                   "timing": {
@@ -398,13 +501,20 @@ internal object ExampleFiles {
                     }
                   },
                   "filler": {
-                    "mode": "pad-to-grid",
+                    "mode": "none",
                     "futureFillerField": "y",
                     "source": {
                       "type": "library",
                       "id": "77777777777777777777777777777777",
                       "futureFillerSourceField": 2
                     }
+                  },
+                  "futureTopLevel": {
+                    "anything": [
+                      1,
+                      2,
+                      3
+                    ]
                   }
                 }
                 """.trimIndent() + "\n",
@@ -418,7 +528,12 @@ internal object ExampleFiles {
                   "formatVersion": 1,
                   "name": "Invalid",
                   "seed": "1",
-                  "sources": "library"
+                  "sources": "library",
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "missing-format-version.json" to
@@ -431,7 +546,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "format-version-zero.json" to
@@ -445,7 +565,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "missing-seed.json" to
@@ -458,7 +583,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "seed-leading-zeros.json" to
@@ -472,7 +602,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "seed-negative.json" to
@@ -486,7 +621,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "seed-not-a-string.json" to
@@ -500,7 +640,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "hyphenated-id.json" to
@@ -514,7 +659,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "11111111-1111-1111-1111-111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "uppercase-id.json" to
@@ -528,7 +678,12 @@ internal object ExampleFiles {
                       "type": "library",
                       "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "ceiling-off-ladder.json" to
@@ -543,6 +698,11 @@ internal object ExampleFiles {
                       "id": "11111111111111111111111111111111"
                     }
                   ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
                   "maxRating": "PG-14"
                 }
                 """.trimIndent() + "\n",
@@ -557,7 +717,12 @@ internal object ExampleFiles {
                       "type": "playlist",
                       "id": "11111111111111111111111111111111"
                     }
-                  ]
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "no-sources.json" to
@@ -566,7 +731,190 @@ internal object ExampleFiles {
                   "formatVersion": 1,
                   "name": "Invalid",
                   "seed": "1",
-                  "sources": []
+                  "sources": [],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "missing-timing.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ]
+                }
+                """.trimIndent() + "\n",
+            "missing-utc-offset.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "offset-not-multiple-of-15.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 7
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "offset-out-of-range.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 855
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "epoch-hours-5.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 5,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "start-not-on-grid.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0,
+                      "start": "06:10"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "ordering-mode-upper-case.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
+                  "ordering": {
+                    "mode": "SHUFFLE"
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filler-mode-kebab-case.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Invalid",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
+                  "filler": {
+                    "mode": "pad-to-grid",
+                    "source": {
+                      "type": "library",
+                      "id": "55555555555555555555555555555555"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "name-101-code-points.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+                  "seed": "1",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  }
                 }
                 """.trimIndent() + "\n",
             "filler-between-every-n-missing-n.json" to
@@ -581,8 +929,13 @@ internal object ExampleFiles {
                       "id": "11111111111111111111111111111111"
                     }
                   ],
+                  "timing": {
+                    "broadcastDay": {
+                      "utcOffsetMinutes": 0
+                    }
+                  },
                   "filler": {
-                    "mode": "between-every-N",
+                    "mode": "betweenEveryN",
                     "source": {
                       "type": "library",
                       "id": "55555555555555555555555555555555"

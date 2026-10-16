@@ -7,5 +7,10 @@
       "type": "series",
       "id": "33333333333333333333333333333333"
     }
-  ]
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
 }

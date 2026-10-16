@@ -9,6 +9,11 @@
     }
   ],
   "ordering": {
-    "mode": "CHRONOLOGICAL"
+    "mode": "chronological"
+  },
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
   }
 }

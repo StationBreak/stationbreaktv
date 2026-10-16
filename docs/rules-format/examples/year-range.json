@@ -8,5 +8,10 @@
       "from": 1990,
       "to": 1999
     }
-  ]
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
 }

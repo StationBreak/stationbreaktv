@@ -8,8 +8,13 @@
       "id": "11111111111111111111111111111111"
     }
   ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
   "filler": {
-    "mode": "pad-to-grid",
+    "mode": "padToGrid",
     "source": {
       "type": "library",
       "id": "55555555555555555555555555555555"

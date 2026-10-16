@@ -2,13 +2,6 @@
   "formatVersion": 1,
   "name": "From A Newer App",
   "seed": "12",
-  "futureTopLevel": {
-    "anything": [
-      1,
-      2,
-      3
-    ]
-  },
   "sources": [
     {
       "type": "genre",
@@ -25,7 +18,7 @@
   ],
   "maxRating": "TV-14",
   "ordering": {
-    "mode": "SHUFFLE",
+    "mode": "shuffle",
     "futureOrderingField": 1
   },
   "timing": {
@@ -38,12 +31,19 @@
     }
   },
   "filler": {
-    "mode": "pad-to-grid",
+    "mode": "none",
     "futureFillerField": "y",
     "source": {
       "type": "library",
       "id": "77777777777777777777777777777777",
       "futureFillerSourceField": 2
     }
+  },
+  "futureTopLevel": {
+    "anything": [
+      1,
+      2,
+      3
+    ]
   }
 }

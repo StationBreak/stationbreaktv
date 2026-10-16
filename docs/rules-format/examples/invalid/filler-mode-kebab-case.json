@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "name": "Invalid",
+  "seed": "1",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  },
+  "filler": {
+    "mode": "pad-to-grid",
+    "source": {
+      "type": "library",
+      "id": "55555555555555555555555555555555"
+    }
+  }
+}

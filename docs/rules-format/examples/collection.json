@@ -7,5 +7,10 @@
       "type": "collection",
       "id": "22222222222222222222222222222222"
     }
-  ]
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
 }

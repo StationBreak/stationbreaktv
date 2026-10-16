@@ -7,5 +7,10 @@
       "type": "library",
       "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     }
-  ]
+  ],
+  "timing": {
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
+  }
 }

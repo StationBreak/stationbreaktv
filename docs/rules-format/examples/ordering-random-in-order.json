@@ -9,10 +9,13 @@
     }
   ],
   "ordering": {
-    "mode": "RANDOM_IN_ORDER"
+    "mode": "randomInOrder"
   },
   "timing": {
     "blockLength": 2,
-    "alignToGrid": true
+    "alignToGrid": true,
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
   }
 }

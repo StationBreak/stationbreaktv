@@ -20,7 +20,7 @@
   ],
   "maxRating": "TV-Y7",
   "ordering": {
-    "mode": "RANDOM_IN_ORDER"
+    "mode": "randomInOrder"
   },
   "timing": {
     "blockLength": 2,
@@ -32,7 +32,7 @@
     }
   },
   "filler": {
-    "mode": "between-every-N",
+    "mode": "betweenEveryN",
     "every": 3,
     "source": {
       "type": "tag",

@@ -11,6 +11,9 @@
   "timing": {
     "blockLength": 4,
     "alignToGrid": false,
-    "epochHours": 12
+    "epochHours": 12,
+    "broadcastDay": {
+      "utcOffsetMinutes": 0
+    }
   }
 }

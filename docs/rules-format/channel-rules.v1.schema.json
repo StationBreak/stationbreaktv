@@ -3,7 +3,7 @@
   "title": "StationBreak channel rules, format version 1",
   "description": "Describes a version 1 rules file. Every object is open: a reader keeps and ignores fields it does not know. The schema checks shapes only. The range of a seed (at most 18446744073709551615) and 'to' not below 'from' in a year range are checked by readers; see docs/rules-format.md.",
   "type": "object",
-  "required": ["formatVersion", "seed", "sources"],
+  "required": ["formatVersion", "seed", "sources", "timing"],
   "properties": {
     "formatVersion": {
       "description": "1 for this version. A reader that supports a lower number than this one must not schedule the channel.",
@@ -11,7 +11,7 @@
       "minimum": 1
     },
     "name": {
-      "description": "Display name. Free text, never used for matching or ordering.",
+      "description": "Display name. Free text, 1 to 100 Unicode code points, never used for matching or ordering.",
       "type": "string",
       "minLength": 1,
       "maxLength": 100
@@ -121,27 +121,31 @@
     "ordering": {
       "type": "object",
       "required": ["mode"],
-      "properties": { "mode": { "enum": ["SHUFFLE", "CHRONOLOGICAL", "RANDOM_IN_ORDER"] } }
+      "properties": { "mode": { "enum": ["shuffle", "chronological", "randomInOrder"] } }
     },
     "timing": {
+      "description": "Required, because the broadcast-day offset has no default: the creator picks the zone's standard (non-daylight-saving) offset.",
       "type": "object",
+      "required": ["broadcastDay"],
       "properties": {
         "blockLength": { "description": "Items per block. Default 1.", "type": "integer", "minimum": 1, "maximum": 100 },
         "alignToGrid": { "description": "Start blocks on :00 and :30. Default true.", "type": "boolean" },
-        "epochHours": { "description": "Length of an epoch in hours. Default 24.", "type": "integer", "minimum": 1, "maximum": 168 },
+        "epochHours": { "description": "Length of an epoch in hours; must divide 24. Default 24.", "enum": [1, 2, 3, 4, 6, 8, 12, 24] },
         "broadcastDay": {
           "type": "object",
+          "required": ["utcOffsetMinutes"],
           "properties": {
             "utcOffsetMinutes": {
-              "description": "Fixed offset from UTC in minutes, east positive. Default 0.",
+              "description": "Fixed offset from UTC in minutes, east positive, a multiple of 15. Required: no default. Use the zone's standard (non-daylight-saving) offset.",
               "type": "integer",
+              "multipleOf": 15,
               "minimum": -720,
               "maximum": 840
             },
             "start": {
-              "description": "When the broadcast day starts, as HH:MM on a 24-hour clock at that offset. Default 06:00.",
+              "description": "When the broadcast day starts, as HH:MM on a 24-hour clock at that offset, on the hour or half hour. Default 06:00.",
               "type": "string",
-              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+              "pattern": "^([01][0-9]|2[0-3]):(00|30)$"
             }
           }
         }
@@ -151,17 +155,17 @@
       "type": "object",
       "required": ["mode"],
       "properties": {
-        "mode": { "enum": ["none", "pad-to-grid", "between-every-N"] },
-        "every": { "description": "N for between-every-N: one filler item after every N programs.", "type": "integer", "minimum": 1, "maximum": 1000 },
+        "mode": { "enum": ["none", "padToGrid", "betweenEveryN"] },
+        "every": { "description": "N for betweenEveryN: one filler item after every N programs.", "type": "integer", "minimum": 1, "maximum": 1000 },
         "source": { "$ref": "#/$defs/fillerSource" }
       },
       "allOf": [
         {
-          "if": { "properties": { "mode": { "const": "between-every-N" } }, "required": ["mode"] },
+          "if": { "properties": { "mode": { "const": "betweenEveryN" } }, "required": ["mode"] },
           "then": { "required": ["every", "source"] }
         },
         {
-          "if": { "properties": { "mode": { "const": "pad-to-grid" } }, "required": ["mode"] },
+          "if": { "properties": { "mode": { "const": "padToGrid" } }, "required": ["mode"] },
           "then": { "required": ["source"] }
         }
       ]
