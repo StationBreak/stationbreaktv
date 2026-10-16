@@ -1,0 +1,230 @@
+{
+  "description": "seed_n = splitmix64(seed + n * 0x9E3779B97F4A7C15), all wrapping modulo 2^64; n is a signed whole number taken modulo 2^64. Published here; the scheduler (F1.1) implements and runs it. Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step.",
+  "vectors": [
+    {
+      "seed": {
+        "dec": "0",
+        "hex": "0000000000000000",
+        "hi": "00000000",
+        "lo": "00000000"
+      },
+      "n": 0,
+      "seedN": {
+        "dec": "16294208416658607535",
+        "hex": "e220a8397b1dcdaf",
+        "hi": "e220a839",
+        "lo": "7b1dcdaf"
+      }
+    },
+    {
+      "seed": {
+        "dec": "0",
+        "hex": "0000000000000000",
+        "hi": "00000000",
+        "lo": "00000000"
+      },
+      "n": 1,
+      "seedN": {
+        "dec": "7960286522194355700",
+        "hex": "6e789e6aa1b965f4",
+        "hi": "6e789e6a",
+        "lo": "a1b965f4"
+      }
+    },
+    {
+      "seed": {
+        "dec": "0",
+        "hex": "0000000000000000",
+        "hi": "00000000",
+        "lo": "00000000"
+      },
+      "n": -1,
+      "seedN": {
+        "dec": "0",
+        "hex": "0000000000000000",
+        "hi": "00000000",
+        "lo": "00000000"
+      }
+    },
+    {
+      "seed": {
+        "dec": "1",
+        "hex": "0000000000000001",
+        "hi": "00000000",
+        "lo": "00000001"
+      },
+      "n": 0,
+      "seedN": {
+        "dec": "10451216379200822465",
+        "hex": "910a2dec89025cc1",
+        "hi": "910a2dec",
+        "lo": "89025cc1"
+      }
+    },
+    {
+      "seed": {
+        "dec": "1",
+        "hex": "0000000000000001",
+        "hi": "00000000",
+        "lo": "00000001"
+      },
+      "n": 5,
+      "seedN": {
+        "dec": "14072917602864530048",
+        "hex": "c34d0bff90150280",
+        "hi": "c34d0bff",
+        "lo": "90150280"
+      }
+    },
+    {
+      "seed": {
+        "dec": "7",
+        "hex": "0000000000000007",
+        "hi": "00000000",
+        "lo": "00000007"
+      },
+      "n": -3,
+      "seedN": {
+        "dec": "9565615822095788654",
+        "hex": "84bfe4e8cde02a6e",
+        "hi": "84bfe4e8",
+        "lo": "cde02a6e"
+      }
+    },
+    {
+      "seed": {
+        "dec": "12345678901234567890",
+        "hex": "ab54a98ceb1f0ad2",
+        "hi": "ab54a98c",
+        "lo": "eb1f0ad2"
+      },
+      "n": 0,
+      "seedN": {
+        "dec": "17967625711492519656",
+        "hex": "f959d46356afd6e8",
+        "hi": "f959d463",
+        "lo": "56afd6e8"
+      }
+    },
+    {
+      "seed": {
+        "dec": "12345678901234567890",
+        "hex": "ab54a98ceb1f0ad2",
+        "hi": "ab54a98c",
+        "lo": "eb1f0ad2"
+      },
+      "n": 100,
+      "seedN": {
+        "dec": "295035867934016124",
+        "hex": "04182d8f0834c27c",
+        "hi": "04182d8f",
+        "lo": "0834c27c"
+      }
+    },
+    {
+      "seed": {
+        "dec": "18446744073709551615",
+        "hex": "ffffffffffffffff",
+        "hi": "ffffffff",
+        "lo": "ffffffff"
+      },
+      "n": 1,
+      "seedN": {
+        "dec": "16834447057089888969",
+        "hex": "e99ff867dbf682c9",
+        "hi": "e99ff867",
+        "lo": "dbf682c9"
+      }
+    },
+    {
+      "seed": {
+        "dec": "18446744073709551615",
+        "hex": "ffffffffffffffff",
+        "hi": "ffffffff",
+        "lo": "ffffffff"
+      },
+      "n": -1,
+      "seedN": {
+        "dec": "13029008266876403067",
+        "hex": "b4d055fcf2cbbd7b",
+        "hi": "b4d055fc",
+        "lo": "f2cbbd7b"
+      }
+    },
+    {
+      "seed": {
+        "dec": "9223372036854775808",
+        "hex": "8000000000000000",
+        "hi": "80000000",
+        "lo": "00000000"
+      },
+      "n": 0,
+      "seedN": {
+        "dec": "5196802822362493915",
+        "hex": "481ec0a212a9f3db",
+        "hi": "481ec0a2",
+        "lo": "12a9f3db"
+      }
+    },
+    {
+      "seed": {
+        "dec": "9223372036854775808",
+        "hex": "8000000000000000",
+        "hi": "80000000",
+        "lo": "00000000"
+      },
+      "n": 2,
+      "seedN": {
+        "dec": "7036458801432265024",
+        "hex": "61a685ffc80a8140",
+        "hi": "61a685ff",
+        "lo": "c80a8140"
+      }
+    },
+    {
+      "seed": {
+        "dec": "13835058055282163712",
+        "hex": "c000000000000000",
+        "hi": "c0000000",
+        "lo": "00000000"
+      },
+      "n": -2147483648,
+      "seedN": {
+        "dec": "14197490781899829181",
+        "hex": "c5079ea50505afbd",
+        "hi": "c5079ea5",
+        "lo": "0505afbd"
+      }
+    },
+    {
+      "seed": {
+        "dec": "13835058055282163712",
+        "hex": "c000000000000000",
+        "hi": "c0000000",
+        "lo": "00000000"
+      },
+      "n": 2147483647,
+      "seedN": {
+        "dec": "2883823079561676964",
+        "hex": "280565cfcc58c8a4",
+        "hi": "280565cf",
+        "lo": "cc58c8a4"
+      }
+    },
+    {
+      "seed": {
+        "dec": "42",
+        "hex": "000000000000002a",
+        "hi": "00000000",
+        "lo": "0000002a"
+      },
+      "n": 20000,
+      "seedN": {
+        "dec": "12523712222751321166",
+        "hex": "adcd29e9c24f6c4e",
+        "hi": "adcd29e9",
+        "lo": "c24f6c4e"
+      }
+    }
+  ]
+}

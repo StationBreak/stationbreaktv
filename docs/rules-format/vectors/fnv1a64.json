@@ -1,0 +1,116 @@
+{
+  "description": "fnv1a64(bytes): h = 0xcbf29ce484222325; for each byte b: h = (h ^ b) * 0x100000001b3 (wrapping). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step.",
+  "source": "Computed with an independent Python reference and cross-checked against a C port. The empty string, a, foo and foobar match the published FNV-1a 64 test values.",
+  "vectors": [
+    {
+      "name": "empty",
+      "bytesHex": "",
+      "output": {
+        "dec": "14695981039346656037",
+        "hex": "cbf29ce484222325",
+        "hi": "cbf29ce4",
+        "lo": "84222325"
+      }
+    },
+    {
+      "name": "a",
+      "bytesHex": "61",
+      "output": {
+        "dec": "12638187200555641996",
+        "hex": "af63dc4c8601ec8c",
+        "hi": "af63dc4c",
+        "lo": "8601ec8c"
+      }
+    },
+    {
+      "name": "foo",
+      "bytesHex": "666f6f",
+      "output": {
+        "dec": "15902901984413996407",
+        "hex": "dcb27518fed9d577",
+        "hi": "dcb27518",
+        "lo": "fed9d577"
+      }
+    },
+    {
+      "name": "foobar",
+      "bytesHex": "666f6f626172",
+      "output": {
+        "dec": "9625390261332436968",
+        "hex": "85944171f73967e8",
+        "hi": "85944171",
+        "lo": "f73967e8"
+      }
+    },
+    {
+      "name": "byte 0x00",
+      "bytesHex": "00",
+      "output": {
+        "dec": "12638153115695167455",
+        "hex": "af63bd4c8601b7df",
+        "hi": "af63bd4c",
+        "lo": "8601b7df"
+      }
+    },
+    {
+      "name": "byte 0xff",
+      "bytesHex": "ff",
+      "output": {
+        "dec": "12638352127299873646",
+        "hex": "af64724c8602eb6e",
+        "hi": "af64724c",
+        "lo": "8602eb6e"
+      }
+    },
+    {
+      "name": "canonical id 11..1",
+      "bytesHex": "3131313131313131313131313131313131313131313131313131313131313131",
+      "output": {
+        "dec": "16872389951895316613",
+        "hex": "ea26c5447a972885",
+        "hi": "ea26c544",
+        "lo": "7a972885"
+      }
+    },
+    {
+      "name": "canonical id 0..01",
+      "bytesHex": "3030303030303030303030303030303030303030303030303030303030303031",
+      "output": {
+        "dec": "8935916118950687730",
+        "hex": "7c02c05d9cbe33f2",
+        "hi": "7c02c05d",
+        "lo": "9cbe33f2"
+      }
+    },
+    {
+      "name": "canonical id a..a",
+      "bytesHex": "6161616161616161616161616161616161616161616161616161616161616161",
+      "output": {
+        "dec": "5210854943071644549",
+        "hex": "4850acf661dfab85",
+        "hi": "4850acf6",
+        "lo": "61dfab85"
+      }
+    },
+    {
+      "name": "utf-8 genre Animé",
+      "bytesHex": "416e696dc3a9",
+      "output": {
+        "dec": "15083902137316481856",
+        "hex": "d154c91371811b40",
+        "hi": "d154c913",
+        "lo": "71811b40"
+      }
+    },
+    {
+      "name": "utf-8 genre 科幻",
+      "bytesHex": "e7a791e5b9bb",
+      "output": {
+        "dec": "15237165279010863489",
+        "hex": "d37549175f5bb981",
+        "hi": "d3754917",
+        "lo": "5f5bb981"
+      }
+    }
+  ]
+}
