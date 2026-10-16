@@ -116,6 +116,8 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 | `jellyfin-contract` (own workflow) | Runs only when a PR changes `data/jellyfin/`, `core/domain/`, `core/model/`, `build-logic/`, `gradle/libs.versions.toml`, `gradle/verification-metadata.xml`, `settings.gradle.kts` or its own file, and not on drafts. The adapter against real Jellyfin servers in Docker (`:data:jellyfin:contractTest`), once per version in its matrix, directly and behind a subpath proxy. A weekly run (and a manual one) tests the floating `latest` tag too | See [Container contract tests](#container-contract-tests). Failures are in the job log, which carries only test output |
 | `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
 
+A run's APK is only for devices when the whole run concluded success; `assemble` does not wait for `verify`.
+
 To run the Gradle checks locally (with an Android SDK installed):
 
 - The build needs JDK 17. Gradle doesn't download one for you, so with only another JDK installed the build fails

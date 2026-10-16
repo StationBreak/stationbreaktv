@@ -594,7 +594,7 @@ jobs:
 
       - name: Was the failure infrastructure?
         id: infra
-        if: steps.tests.outcome == 'failure'
+        if: steps.tests.outcome != 'success'
         run: |
           # Not a pipe into tee: the exit status of the script is the answer.
           if reason="$(bash .github/scripts/instrumented-infra.sh classify instrumented-diag/attempt1)"; then
@@ -627,7 +627,7 @@ jobs:
 
       # Attempt 1 ran with continue-on-error, so a failure it was not retried for fails the job here.
       - name: Fail on a test failure that was not retried
-        if: steps.tests.outcome == 'failure' && steps.infra.outputs.retry != 'true'
+        if: steps.tests.outcome != 'success' && steps.infra.outputs.retry != 'true'
         run: |
           echo "::error::Instrumented tests failed and the failure is not infrastructure; see the test results."
           exit 1
@@ -679,7 +679,7 @@ jobs:
 
       # Test reports and logcat only, no APK, so fork PRs can have it too (ADR-0011 gates APKs).
       - name: Upload instrumented test reports
-        if: failure() && (steps.tests.outcome == 'failure' || steps.tests-retry.outcome == 'failure')
+        if: failure() && steps.tests.outcome != 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: instrumented-test-reports
@@ -687,7 +687,16 @@ jobs:
             **/build/reports/androidTests/
             **/build/outputs/androidTest-results/
             app/build/logcat.txt
-            instrumented-diag/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # Attempt 1's logcat, emulator state and results, kept even when the retry passed, so retries can be audited.
+      - name: Upload attempt 1 diagnostics
+        if: always() && steps.tests.outcome != 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: instrumented-attempt1-diag
+          path: instrumented-diag/
           retention-days: 7
           if-no-files-found: ignore
 
