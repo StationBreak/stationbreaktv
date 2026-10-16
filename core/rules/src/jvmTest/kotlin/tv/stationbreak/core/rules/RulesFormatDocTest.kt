@@ -5,6 +5,7 @@ import com.networknt.schema.InputFormat
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 // docs/rules-format.md must cover every topic an outside developer needs (spec 07, task 1.0), and its full examples
@@ -28,6 +29,21 @@ class RulesFormatDocTest {
     @Test
     fun statesTheRatingLadder() {
         for (row in ladderRows) assertTrue(row in doc, "ladder row missing: $row")
+    }
+
+    @Test
+    fun theLadderTableInTheDocumentIsTheOneInCode() {
+        val start = doc.lines().indexOfFirst { it.startsWith("| Rank | Ratings |") }
+        assertTrue(start >= 0, "no ladder table")
+        val rows = doc.lines().drop(start + 2).takeWhile { it.startsWith("| ") }
+        val fromCode = RatingLadder.tiers.mapIndexed { rank, names -> "| $rank | ${names.joinToString(", ")} |" }
+        assertEquals(fromCode, rows)
+    }
+
+    @Test
+    fun theNormalisationRuleIsNoLongerMarkedProvisional() {
+        assertTrue("Provisional" !in doc, "the rating rule was checked against Jellyfin (task 3.5)")
+        assertTrue("TV-PG-" in doc && "TV-14-" in doc && "TV-MA-" in doc, "the descriptor rule names the three tiers")
     }
 
     @Test
@@ -69,7 +85,6 @@ class RulesFormatDocTest {
             "A writer must write the lowest `formatVersion` whose features the file uses.",
             "code points",
             "standard (non-daylight-saving) offset",
-            "Provisional until checked against Jellyfin",
             "RFC 2119",
             "RFC 8174",
             "unsupported",
