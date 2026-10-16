@@ -12,8 +12,8 @@ import kotlin.test.assertNotNull
 
 /**
  * Property test (a hand-written loop, no framework): editing any field except the seed, then writing and reading the
- * file again, never changes the seed or the text of the seed. The cases come from a fixed SplitMix64 stream, so a failure
- * repeats exactly. (The stream is local to this test; the real primitives are task 3.0.)
+ * file again, never changes the seed or the text of the seed. The cases come from a fixed SplitMix64 stream, so a
+ * failure repeats exactly. (The stream is local to this test; the real primitives are task 3.0.)
  */
 class SeedIndependenceTest {
     private class Stream(
@@ -38,7 +38,10 @@ class SeedIndependenceTest {
     private val ratings = listOf("TV-Y", "TV-G", "Approved", "TV-Y7-FV", "PG", "PG-13", "TV-14", "R", "NC-17", "TV-AO")
     private val epochHours = listOf(1, 2, 3, 4, 6, 8, 12, 24)
 
-    private fun randomName(s: Stream): String = buildString { repeat(1 + s.below(100)) { append(s.pick(namePieces)) } }.let { clip(it) }
+    private fun randomName(s: Stream): String {
+        val raw = buildString { repeat(1 + s.below(100)) { append(s.pick(namePieces)) } }
+        return clip(raw)
+    }
 
     // Keeps a generated name inside 100 code points without splitting a pair.
     private fun clip(text: String): String {
@@ -68,85 +71,53 @@ class SeedIndependenceTest {
         return key to value
     }
 
-    /** One edit to a field other than the seed. */
-    private fun edit(
-        rules: ChannelRules,
-        s: Stream,
-    ): ChannelRules {
-        val day = rules.timing.broadcastDay
-        return when (s.below(13)) {
-            0 -> {
-                rules.copy(name = randomName(s))
-            }
+    private fun ChannelRules.withTiming(change: (Timing) -> Timing) = copy(timing = change(timing))
 
-            1 -> {
-                rules.copy(name = null)
-            }
+    private fun ChannelRules.withDay(change: (BroadcastDay) -> BroadcastDay) =
+        withTiming { it.copy(broadcastDay = change(it.broadcastDay)) }
 
-            2 -> {
-                rules.copy(maxRating = if (s.below(4) == 0) null else s.pick(ratings))
-            }
-
-            3 -> {
-                rules.copy(ordering = if (s.below(4) == 0) null else Ordering(s.pick(OrderingMode.entries)))
-            }
-
-            4 -> {
-                rules.copy(timing = rules.timing.copy(blockLength = 1 + s.below(100)))
-            }
-
-            5 -> {
-                rules.copy(timing = rules.timing.copy(alignToGrid = s.below(2) == 0))
-            }
-
-            6 -> {
-                rules.copy(timing = rules.timing.copy(epochHours = s.pick(epochHours)))
-            }
-
-            7 -> {
-                rules.copy(timing = rules.timing.copy(broadcastDay = day.copy(utcOffsetMinutes = (s.below(105) - 48) * 15)))
-            }
-
-            8 -> {
-                rules.copy(
-                    timing =
-                        rules.timing.copy(
-                            broadcastDay = day.copy(start = "${s.below(24).toString().padStart(2, '0')}:${s.pick(listOf("00", "30"))}"),
-                        ),
-                )
-            }
-
-            9 -> {
-                rules.copy(sources = rules.sources + randomSource(s))
-            }
-
-            10 -> {
-                rules.copy(exclusions = rules.effectiveExclusions + randomSource(s))
-            }
-
-            11 -> {
-                rules.copy(sources = rules.sources.reversed())
-            }
-
-            else -> {
-                rules.copy(extras = JsonObject(rules.extras + randomExtra(s)))
-            }
-        }
+    private fun randomStart(s: Stream): String {
+        val hour = s.below(24).toString().padStart(2, '0')
+        return "$hour:${s.pick(listOf("00", "30"))}"
     }
+
+    /** Each entry changes one field other than the seed. */
+    private val edits: List<(ChannelRules, Stream) -> ChannelRules> =
+        listOf(
+            { r, s -> r.copy(name = randomName(s)) },
+            { r, _ -> r.copy(name = null) },
+            { r, s -> r.copy(maxRating = if (s.below(4) == 0) null else s.pick(ratings)) },
+            { r, s -> r.copy(ordering = if (s.below(4) == 0) null else Ordering(s.pick(OrderingMode.entries))) },
+            { r, s -> r.withTiming { it.copy(blockLength = 1 + s.below(100)) } },
+            { r, s -> r.withTiming { it.copy(alignToGrid = s.below(2) == 0) } },
+            { r, s -> r.withTiming { it.copy(epochHours = s.pick(epochHours)) } },
+            { r, s -> r.withDay { it.copy(utcOffsetMinutes = (s.below(105) - 48) * 15) } },
+            { r, s -> r.withDay { it.copy(start = randomStart(s)) } },
+            { r, s -> r.copy(sources = r.sources + randomSource(s)) },
+            { r, s -> r.copy(exclusions = r.effectiveExclusions + randomSource(s)) },
+            { r, _ -> r.copy(sources = r.sources.reversed()) },
+            { r, s -> r.copy(extras = JsonObject(r.extras + randomExtra(s))) },
+        )
 
     private fun seedText(written: String): String {
         val root = Json.parseToJsonElement(written) as JsonObject
         return (root.getValue("seed") as JsonPrimitive).content
     }
 
+    private fun rulesFor(
+        name: String,
+        text: String,
+    ): ChannelRules = assertNotNull(rulesOf(RulesReader.read(text)), name)
+
     @Test
     fun editingAnyOtherFieldNeverChangesTheSeed() {
-        val bases = ExampleFiles.valid.map { (name, text) -> name to assertNotNull(rulesOf(RulesReader.read(text)), name) }
+        val bases = ExampleFiles.valid.map { (name, text) -> name to rulesFor(name, text) }
+
         val stream = Stream(0x5EED5EEDuL)
         repeat(1000) { case ->
             val (name, base) = bases[case % bases.size]
             var rules = base
-            repeat(1 + stream.below(3)) { rules = edit(rules, stream) }
+            repeat(1 + stream.below(3)) { rules = stream.pick(edits)(rules, stream) }
             val written = RulesWriter.write(rules)
             val context = "case $case from $name"
             assertEquals(base.seed.format(), seedText(written), context)

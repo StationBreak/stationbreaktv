@@ -19,13 +19,13 @@ value class CanonicalId private constructor(
         private const val LENGTH = 32
         private const val MESSAGE = "An ID is 32 hexadecimal characters"
 
-        /** Normalises [raw] (hyphens and one pair of braces removed, lower case) or throws [IllegalArgumentException]. */
+        /** Normalises [raw] (hyphens and a pair of braces removed, lower case) or throws [IllegalArgumentException]. */
         fun parse(raw: String): CanonicalId = parseOrNull(raw) ?: throw IllegalArgumentException(MESSAGE)
 
         /** Like [parse], but returns null for anything that is not an ID. */
         fun parseOrNull(raw: String): CanonicalId? {
-            val unwrapped =
-                if (raw.length >= 2 && raw.first() == '{' && raw.last() == '}') raw.substring(1, raw.length - 1) else raw
+            val braced = raw.length >= 2 && raw.first() == '{' && raw.last() == '}'
+            val unwrapped = if (braced) raw.substring(1, raw.length - 1) else raw
             val digits = unwrapped.replace("-", "").lowercase()
             return if (isCanonical(digits)) CanonicalId(digits) else null
         }
@@ -33,6 +33,8 @@ value class CanonicalId private constructor(
         /** Accepts only text that is already canonical: 32 lower-case hex characters. Nothing is repaired. */
         fun parseCanonicalOrNull(raw: String): CanonicalId? = if (isCanonical(raw)) CanonicalId(raw) else null
 
-        private fun isCanonical(text: String): Boolean = text.length == LENGTH && text.all { it in '0'..'9' || it in 'a'..'f' }
+        private fun isCanonical(text: String): Boolean = text.length == LENGTH && text.all(::isLowerHex)
+
+        private fun isLowerHex(c: Char): Boolean = c in '0'..'9' || c in 'a'..'f'
     }
 }

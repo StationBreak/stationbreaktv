@@ -24,13 +24,29 @@ class SeedFieldTest {
 
     @Test
     fun aMalformedSeedIsAnInvalidFile() {
-        val bad = listOf("007", "00", "-1", "+1", "abc", "", " 1", "1 ", "1.0", "0x1", "18446744073709551616", "1" + "0".repeat(30))
+        val bad =
+            listOf(
+                "007",
+                "00",
+                "-1",
+                "+1",
+                "abc",
+                "",
+                " 1",
+                "1 ",
+                "1.0",
+                "0x1",
+                "18446744073709551616",
+                "1" + "0".repeat(30),
+            )
         for (text in bad) assertTrue(invalidReason(JsonPrimitive(text)).contains("seed"), text)
     }
 
     @Test
     fun aSeedThatIsNotAStringIsInvalid() {
-        for (element in listOf(JsonPrimitive(12345), JsonPrimitive(0), JsonPrimitive(true), JsonNull, JsonArray(emptyList()))) {
+        val notStrings =
+            listOf(JsonPrimitive(12345), JsonPrimitive(0), JsonPrimitive(true), JsonNull, JsonArray(emptyList()))
+        for (element in notStrings) {
             assertTrue(invalidReason(element).contains("seed"), element.toString())
         }
         assertIs<RulesResult.Invalid>(RulesReader.read(ExampleFiles.invalid.getValue("seed-not-a-string.json")))

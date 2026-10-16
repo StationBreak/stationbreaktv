@@ -14,7 +14,10 @@ class FieldRangesTest {
     private fun timing(vararg fields: Pair<String, JsonElement>) =
         minimalRules().with("timing", obj("broadcastDay" to obj("utcOffsetMinutes" to JsonPrimitive(0)), *fields))
 
-    private fun day(vararg fields: Pair<String, JsonElement>) = minimalRules().with("timing", obj("broadcastDay" to obj(*fields)))
+    private fun day(vararg fields: Pair<String, JsonElement>): JsonObject {
+        val timing = obj("broadcastDay" to obj(*fields))
+        return minimalRules().with("timing", timing)
+    }
 
     private fun ok(rules: JsonObject) = assertIs<RulesResult.Ok>(RulesReader.read(rules.text()), rules.text())
 
@@ -116,8 +119,10 @@ class FieldRangesTest {
         val source = libraryJson()
         bad(minimalRules().with("filler", obj("mode" to JsonPrimitive("betweenEveryN"), "source" to source)))
         bad(minimalRules().with("filler", obj("mode" to JsonPrimitive("padToGrid"))))
-        bad(minimalRules().with("filler", obj("mode" to JsonPrimitive("betweenEveryN"), "every" to JsonPrimitive(0), "source" to source)))
-        bad(minimalRules().with("filler", obj("mode" to JsonPrimitive("none"), "source" to source("genre", "name" to JsonPrimitive("x")))))
+        val zero = obj("mode" to JsonPrimitive("betweenEveryN"), "every" to JsonPrimitive(0), "source" to source)
+        bad(minimalRules().with("filler", zero))
+        val genre = source("genre", "name" to JsonPrimitive("x"))
+        bad(minimalRules().with("filler", obj("mode" to JsonPrimitive("none"), "source" to genre)))
         assertEquals(
             true,
             RulesReader.read(

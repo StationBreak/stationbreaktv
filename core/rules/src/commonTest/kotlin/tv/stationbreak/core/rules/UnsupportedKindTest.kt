@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,11 +18,16 @@ class UnsupportedKindTest {
 
     private fun orderingOf(mode: String) = minimalRules().with("ordering", obj("mode" to JsonPrimitive(mode)))
 
-    private fun fillerOf(mode: String) = minimalRules().with("filler", obj("mode" to JsonPrimitive(mode), "source" to libraryJson()))
+    private fun fillerOf(mode: String): JsonObject {
+        val filler = obj("mode" to JsonPrimitive(mode), "source" to libraryJson())
+        return minimalRules().with("filler", filler)
+    }
+
+    private fun playlist() = source("playlist", "id" to JsonPrimitive(PLACEHOLDER_ID))
 
     @Test
     fun anUnknownSourceKindIsUnsupportedNotDropped() {
-        val text = minimalRules().with("sources", array(libraryJson(), source("playlist", "id" to JsonPrimitive(PLACEHOLDER_ID)))).text()
+        val text = minimalRules().with("sources", array(libraryJson(), playlist())).text()
         val result = unsupported(text)
         assertNull(result.rules)
         assertEquals(true, result.reason.contains("playlist"))
@@ -46,13 +52,15 @@ class UnsupportedKindTest {
 
     @Test
     fun anUnknownKindInAFillerSourceIsUnsupported() {
-        val filler = obj("mode" to JsonPrimitive("none"), "source" to source("playlist", "id" to JsonPrimitive(PLACEHOLDER_ID)))
+        val filler = obj("mode" to JsonPrimitive("none"), "source" to playlist())
         unsupported(minimalRules().with("filler", filler).text())
     }
 
     @Test
     fun everyFillerModeButNoneIsUnsupportedButStillRead() {
-        for (name in listOf("filler-pad-to-grid.json", "filler-tag-source.json", "filler-between-every-n.json", "full.json")) {
+        val names =
+            listOf("filler-pad-to-grid.json", "filler-tag-source.json", "filler-between-every-n.json", "full.json")
+        for (name in names) {
             val result = unsupported(ExampleFiles.valid.getValue(name))
             assertNotNull(result.rules, name)
             assertEquals(true, result.reason.contains("filler"), name)
@@ -80,7 +88,8 @@ class UnsupportedKindTest {
 
     @Test
     fun theInvalidExamplesAreRejectedAsTheDocumentSays() {
-        val unsupportedKinds = setOf("unknown-source-kind.json", "ordering-mode-upper-case.json", "filler-mode-kebab-case.json")
+        val unsupportedKinds =
+            setOf("unknown-source-kind.json", "ordering-mode-upper-case.json", "filler-mode-kebab-case.json")
         for ((name, text) in ExampleFiles.invalid) {
             val result = RulesReader.read(text)
             if (name in unsupportedKinds) {

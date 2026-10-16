@@ -7,7 +7,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class FormatVersionGateTest {
-    private fun read(version: String): RulesResult = RulesReader.read("""{"formatVersion":$version,"sources":"not a list"}""")
+    private fun read(version: String): RulesResult {
+        val body = """{"formatVersion":$version,"sources":"not a list"}"""
+        return RulesReader.read(body)
+    }
 
     @Test
     fun aNewerVersionNeedsAnUpdateEvenWhenTheBodyIsUnreadable() {
@@ -34,7 +37,22 @@ class FormatVersionGateTest {
 
     @Test
     fun aMissingOrNonIntegerVersionIsInvalid() {
-        val bad = listOf("null", "\"1\"", "\"2\"", "1.5", "1.0", "2.0", "1e0", "true", "[]", "{}", "0", "-1", "-99999999999999999999999")
+        val bad =
+            listOf(
+                "null",
+                "\"1\"",
+                "\"2\"",
+                "1.5",
+                "1.0",
+                "2.0",
+                "1e0",
+                "true",
+                "[]",
+                "{}",
+                "0",
+                "-1",
+                "-99999999999999999999999",
+            )
         for (version in bad) assertIs<RulesResult.Invalid>(read(version), version)
         assertIs<RulesResult.Invalid>(RulesReader.read("""{"sources":[]}"""))
     }

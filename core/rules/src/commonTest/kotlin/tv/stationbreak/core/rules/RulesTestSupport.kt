@@ -71,7 +71,7 @@ internal fun readOk(text: String): ChannelRules {
     return result.rules
 }
 
-/** The rules of a result that decoded fully: Ok, or Unsupported because of a filler mode this version does not schedule. */
+/** The rules of a result that decoded fully: Ok, or Unsupported only because of a filler mode that is not scheduled. */
 internal fun rulesOf(result: RulesResult): ChannelRules? =
     when (result) {
         is RulesResult.Ok -> result.rules

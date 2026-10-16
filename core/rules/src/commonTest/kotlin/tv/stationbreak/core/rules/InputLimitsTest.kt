@@ -16,7 +16,7 @@ class InputLimitsTest {
         return result
     }
 
-    /** Wraps a number in [levels] lists. The result sits inside the top-level object, so it adds [levels] to the depth. */
+    /** Wraps a number in [levels] lists. It sits inside the top-level object, so it adds [levels] to the depth. */
     private fun nested(levels: Int): JsonElement {
         var text = "0"
         repeat(levels) { text = "[$text]" }
@@ -76,13 +76,15 @@ class InputLimitsTest {
 
     @Test
     fun aSourceListAtTheLimitIsReadAndOneMoreFails() {
-        assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("sources", sources(RulesLimits.MAX_LIST_ENTRIES)).text()))
+        val atLimit = minimalRules().with("sources", sources(RulesLimits.MAX_LIST_ENTRIES))
+        assertIs<RulesResult.Ok>(RulesReader.read(atLimit.text()))
         invalid(minimalRules().with("sources", sources(RulesLimits.MAX_LIST_ENTRIES + 1)).text())
     }
 
     @Test
     fun anExclusionListAtTheLimitIsReadAndOneMoreFails() {
-        assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("exclusions", sources(RulesLimits.MAX_LIST_ENTRIES)).text()))
+        val atLimit = minimalRules().with("exclusions", sources(RulesLimits.MAX_LIST_ENTRIES))
+        assertIs<RulesResult.Ok>(RulesReader.read(atLimit.text()))
         invalid(minimalRules().with("exclusions", sources(RulesLimits.MAX_LIST_ENTRIES + 1)).text())
     }
 
@@ -100,7 +102,10 @@ class InputLimitsTest {
     fun aSourceNameIsCountedInCodePoints() {
         val emoji = "😀"
 
-        fun genre(name: String) = minimalRules().with("sources", array(source("genre", "name" to JsonPrimitive(name)))).text()
+        fun genre(name: String): String {
+            val sources = array(source("genre", "name" to JsonPrimitive(name)))
+            return minimalRules().with("sources", sources).text()
+        }
         assertIs<RulesResult.Ok>(RulesReader.read(genre(emoji.repeat(256))))
         invalid(genre(emoji.repeat(257)))
         invalid(genre(""))
