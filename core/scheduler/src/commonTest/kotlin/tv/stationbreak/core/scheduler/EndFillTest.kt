@@ -226,7 +226,8 @@ internal fun generateCase(gen: SeededGen): GeneratedCase {
     val items =
         List(count) { index ->
             val extra = if (gen.chance(30)) gen.nextInt(0..59_999) else 0
-            val runtimeMs = (gen.pick(listOf(5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 200)) + gen.nextInt(0..4)) * MS_MINUTE + extra
+            val minutes = gen.pick(listOf(5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 200)) + gen.nextInt(0..4)
+            val runtimeMs = minutes * MS_MINUTE + extra
             val createdAtMs =
                 if (gen.chance(
                         20,

@@ -35,7 +35,8 @@ class Day internal constructor(
     val endMs: Long,
     val blocks: List<ScheduleBlock>,
     private val plan: RunPlan,
-    // A test seam: called once per comparison of the binary search, so WhatsOnStepsTest can count steps without a clock.
+    // A test seam: called once per comparison of the binary search, so WhatsOnStepsTest counts steps without a
+    // clock.
     // Production code builds days with buildDay, which passes null.
     private val onCompare: (() -> Unit)? = null,
 ) {

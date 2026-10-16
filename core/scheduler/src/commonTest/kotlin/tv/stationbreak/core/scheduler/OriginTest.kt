@@ -143,10 +143,17 @@ class OriginTest {
 
     @Test
     fun aDayThatStartsExactlyOnTheLastRunsBoundaryStartsAtTheLastRun() {
-        // Unaligned runtimes 20, 25, 35: Q = [0, 20, 45, 80] minutes, C = 80. Nepal +345 on a 15-minute grid, 1 h epochs
-        // from 00:45, so S + offset = 45 + 60n minutes on the channel's clock. For n = -4 that is -195 minutes, a negative
-        // time, and floorMod(-195, 80) = 45 = Q[2] with j = B - 1 = 2. (Truncating remainder would give -35.)
-        val s = settings(alignToGrid = false, gridMinutes = 15, epochHours = 1, startMinuteOfDay = 45, utcOffsetMinutes = 345)
+        // Unaligned runtimes 20, 25, 35: Q = [0, 20, 45, 80] minutes, C = 80. Nepal +345 on a 15-minute grid, 1 h
+        // epochs from 00:45, so S + offset = 45 + 60n minutes on the channel's clock. For n = -4 that is -195 minutes,
+        // a negative time, and floorMod(-195, 80) = 45 = Q[2] with j = B - 1 = 2. (Truncating remainder: -35.)
+        val s =
+            settings(
+                alignToGrid = false,
+                gridMinutes = 15,
+                epochHours = 1,
+                startMinuteOfDay = 45,
+                utcOffsetMinutes = 345,
+            )
         val items = listOf(movie('1', 20), movie('2', 25), movie('3', 35))
         val day = buildDay(s, items, -4L)
         assertEquals(-195 * MS_MINUTE - 345 * MS_MINUTE, day.startMs)
