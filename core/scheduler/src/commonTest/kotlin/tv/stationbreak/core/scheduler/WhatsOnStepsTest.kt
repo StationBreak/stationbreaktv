@@ -5,6 +5,7 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.testing.SyntheticLibrary
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -48,7 +49,9 @@ class WhatsOnStepsTest {
             worst = maxOf(worst, comparisons)
             assertTrue(comparisons <= allowed, "$comparisons comparisons for $blocks blocks at $t (allowed $allowed)")
         }
-        assertTrue(worst >= ceilLog2(blocks) - 1, "the counter did not count: worst was $worst")
+        assertTrue(worst >= 1, "the counter did not count")
+        // On a day of thousands of blocks the search takes exactly ceil(log2 B) comparisons at its worst.
+        if (blocks >= 1_000) assertEquals(ceilLog2(blocks), worst)
         val bound = ceilLog2(blocks)
         println("whatsOn steps: $mode, ${items.size} items, $blocks blocks, worst $worst, ceil(log2 B) = $bound")
     }
@@ -67,7 +70,7 @@ class WhatsOnStepsTest {
     }
 
     private companion object {
-        /** Binary search with the two checks of the final index: a constant, not a function of the day's size. */
-        const val SLACK = 2
+        /** No slack: the search takes at most ceil(log2 B) comparisons. */
+        const val SLACK = 0
     }
 }

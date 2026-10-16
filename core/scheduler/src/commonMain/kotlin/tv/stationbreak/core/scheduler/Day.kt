@@ -16,8 +16,11 @@ data class OnAir(
 )
 
 /**
- * How a day used the cycle, for the tests and the continuity guarantee: the run it starts at, the number of runs the
- * regular layout started, and the number of runs in the cycle (those not left out).
+ * How a day used the cycle: the run it starts at, the number of runs the regular layout started, and the number of
+ * runs in the cycle (those not left out).
+ *
+ * A test seam: nothing in production reads it. The continuity and end-fill tests need it to tell the regular layout
+ * from the end-of-day fill, which the blocks alone do not say.
  */
 internal class RunPlan(
     val startRun: Int,
@@ -32,8 +35,11 @@ class Day internal constructor(
     val endMs: Long,
     val blocks: List<ScheduleBlock>,
     private val plan: RunPlan,
+    // A test seam: called once per comparison of the binary search, so WhatsOnStepsTest can count steps without a clock.
+    // Production code builds days with buildDay, which passes null.
     private val onCompare: (() -> Unit)? = null,
 ) {
+    // Test seams (see RunPlan): internal, so only this module's tests read them.
     internal val startRunIndex: Int get() = plan.startRun
     internal val regularRunCount: Int get() = plan.regularRuns
     internal val cycleRunCount: Int get() = plan.cycleRuns
@@ -74,6 +80,7 @@ fun buildDay(
     n: Long,
 ): Day = buildDayCounting(settings, items, n, null)
 
+/** [buildDay] with a comparison counter injected into the day. A test seam, used by WhatsOnStepsTest. */
 internal fun buildDayCounting(
     settings: SchedulerSettings,
     items: List<ScheduleItem>,
@@ -150,8 +157,7 @@ internal object Timeline {
 
     /**
      * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's
-     * end
-     * when aligned, and the end of the day planned by [fillEnd] when the next run would end after [dayEnd].
+     * end when aligned, and the end of the day planned by [fillEnd] when the next run would end after [dayEnd].
      */
     fun layout(
         settings: SchedulerSettings,

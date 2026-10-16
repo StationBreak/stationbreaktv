@@ -199,44 +199,60 @@ internal class GeneratedCase(
     val n: Long,
 )
 
-/** Mixed modes, grids, offsets, series and runtimes, with epochs short enough for the end of the day to matter. */
+/**
+ * Mixed modes, grids, offsets, series and runtimes. Epochs run from 1 to 24 hours (short ones make the end of the day
+ * matter), day numbers sometimes reach plus or minus 30,000, pools sometimes hold 40 to 60 items, runs are 1 to 7
+ * items, some runtimes carry extra milliseconds, and some items were created at, just before or just after `S - G`, so
+ * the pool is partial.
+ */
 internal fun generateCase(gen: SeededGen): GeneratedCase {
     val grid = gen.pick(listOf(15, 30, 60))
     val settings =
         testSettings(
             orderingMode = gen.pick(OrderingMode.entries),
             seed = Seed(gen.nextULong()),
-            blockLength = gen.pick(listOf(1, 1, 2, 3)),
+            blockLength = gen.pick(listOf(1, 1, 2, 3, 5, 7)),
             alignToGrid = gen.chance(60),
             gridMinutes = grid,
-            epochHours = gen.pick(listOf(1, 2, 3, 4, 6)),
+            epochHours = gen.pick(listOf(1, 2, 3, 4, 6, 8, 12, 24)),
             utcOffsetMinutes = gen.nextInt(-48..56) * 15,
             startMinuteOfDay = grid * gen.nextInt(1440 / grid),
             graceHours = gen.nextInt(0..12),
         )
-    val count = gen.nextInt(1..14)
+    val n = if (gen.chance(15)) gen.nextInt(-30_000..30_000).toLong() else gen.nextInt(-5..5).toLong()
+    val cutoff = Epochs.epochStart(settings, n) - settings.graceMs
+    val count = if (gen.chance(10)) gen.nextInt(40..60) else gen.nextInt(1..14)
     val seriesIds = listOf('a', 'b', 'c')
     val items =
         List(count) { index ->
-            val minutes = gen.pick(listOf(5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 200)) + gen.nextInt(0..4)
-            val id = gen.hexId()
+            val extra = if (gen.chance(30)) gen.nextInt(0..59_999) else 0
+            val runtimeMs = (gen.pick(listOf(5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 200)) + gen.nextInt(0..4)) * MS_MINUTE + extra
+            val createdAtMs =
+                if (gen.chance(
+                        20,
+                    )
+                ) {
+                    cutoff + gen.nextInt(-1..1) * gen.pick(listOf(0, 1, 1_000, MS_MINUTE.toInt()))
+                } else {
+                    LONG_AGO
+                }
+            val id = CanonicalId.parse(gen.hexId())
             if (gen.chance(60)) {
-                val series = idOf(gen.pick(seriesIds))
                 ScheduleItem(
-                    id = CanonicalId.parse(id),
+                    id = id,
                     kind = ScheduleItemKind.Episode,
-                    runtimeMs = minutes * MS_MINUTE,
-                    createdAtMs = LONG_AGO,
+                    runtimeMs = runtimeMs,
+                    createdAtMs = createdAtMs,
                     deletedAtMs = null,
                     premiereDate = null,
                     productionYear = null,
-                    seriesId = series,
+                    seriesId = idOf(gen.pick(seriesIds)),
                     seasonNumber = 1 + index / 5,
                     episodeNumber = 1 + index,
                 )
             } else {
-                testItem(CanonicalId.parse(id), runtimeMs = minutes * MS_MINUTE, createdAtMs = LONG_AGO)
+                testItem(id, runtimeMs = runtimeMs, createdAtMs = createdAtMs)
             }
         }
-    return GeneratedCase(settings, items, gen.nextInt(-5..5).toLong())
+    return GeneratedCase(settings, items, n)
 }

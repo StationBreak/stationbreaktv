@@ -2,6 +2,9 @@
 package tv.stationbreak.core.scheduler.vectors
 
 /**
+ * TODO(4.0): delete this file and its test (TimelineDraftVectorsTest) and use `lineup.json` instead; task 4.0 publishes
+ * the real lineup vectors from the independent reference.
+ *
  * DRAFT day timelines from the independent reference (spec 08, task 3.0), held exactly as the reference wrote them.
  * They are not published under `docs/rules-format/vectors/`, so nothing checks this copy against a file. Task 4.0
  * replaces them with `lineup.json`. A case is never changed to suit the code.

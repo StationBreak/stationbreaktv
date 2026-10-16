@@ -23,8 +23,7 @@ internal object DayOracle {
         val dayStart = Epochs.epochStart(settings, n)
         val dayEnd = dayStart + settings.epochMs
         val pool = EpochPool.build(settings, items, n)
-        val all = Runs.cycle(settings, pool, Epochs.seedN(settings.seed, n))
-        val cycle = all.filter { slot(settings, it) <= settings.epochMs }
+        val cycle = cycle(settings, pool, Epochs.seedN(settings.seed, n))
         if (cycle.isEmpty()) return listOf(ScheduleBlock(dayStart, dayEnd, ScheduleContent.Slate))
 
         val shuffle = settings.orderingMode == OrderingMode.Shuffle
@@ -52,6 +51,13 @@ internal object DayOracle {
         if (cursor < dayEnd) out.add(ScheduleBlock(cursor, dayEnd, ScheduleContent.Slate))
         return out
     }
+
+    /** One cycle of runs without the runs whose slot is longer than the epoch, judged by the oracle's own slots. */
+    fun cycle(
+        settings: SchedulerSettings,
+        pool: List<ScheduleItem>,
+        seedN: ULong,
+    ): List<Run> = Runs.cycle(settings, pool, seedN).filter { slot(settings, it) <= settings.epochMs }
 
     /** Blocks of the runs that fit, and the index of the first run that did not (in the cycle, after wrapping). */
     private class Regular(
@@ -115,7 +121,7 @@ internal object DayOracle {
     }
 
     /** The run of the continuous playout that contains [dayStart]: the last run whose slot begins at or before pos. */
-    private fun continuousRun(
+    fun continuousRun(
         settings: SchedulerSettings,
         cycle: List<Run>,
         dayStart: Long,

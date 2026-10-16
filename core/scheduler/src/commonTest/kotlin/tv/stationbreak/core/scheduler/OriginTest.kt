@@ -133,28 +133,30 @@ class OriginTest {
             )
         val s = settings(mode = OrderingMode.RandomInOrder, alignToGrid = true, epochHours = 2, startMinuteOfDay = 0)
         for (n in -3L..3L) {
-            val cycle = Timeline.cycle(s, EpochPool.build(s, items, n), Epochs.seedN(s.seed, n))
-            val expected = oracleStartRun(s, cycle, Epochs.epochStart(s, n))
+            val cycle = DayOracle.cycle(s, EpochPool.build(s, items, n), Epochs.seedN(s.seed, n))
+            val expected = DayOracle.continuousRun(s, cycle, Epochs.epochStart(s, n))
             val day = buildDay(s, items, n)
             assertEquals(expected, day.startRunIndex, "n = $n")
             assertEquals(ScheduleContent.Program(cycle[expected].items.first().id), day.blocks.first().content)
         }
     }
 
-    /** The definition in the spec, as a linear scan. */
-    private fun oracleStartRun(
-        settings: SchedulerSettings,
-        cycle: List<Run>,
-        dayStart: Long,
-    ): Int {
-        var total = 0L
-        val prefix = mutableListOf(0L)
-        for (run in cycle) {
-            total += Timeline.slotMs(settings, run)
-            prefix.add(total)
-        }
-        val pos = (dayStart + settings.offsetMs).mod(total)
-        return (0 until cycle.size).last { prefix[it] <= pos }
+    @Test
+    fun aDayThatStartsExactlyOnTheLastRunsBoundaryStartsAtTheLastRun() {
+        // Unaligned runtimes 20, 25, 35: Q = [0, 20, 45, 80] minutes, C = 80. Nepal +345 on a 15-minute grid, 1 h epochs
+        // from 00:45, so S + offset = 45 + 60n minutes on the channel's clock. For n = -4 that is -195 minutes, a negative
+        // time, and floorMod(-195, 80) = 45 = Q[2] with j = B - 1 = 2. (Truncating remainder would give -35.)
+        val s = settings(alignToGrid = false, gridMinutes = 15, epochHours = 1, startMinuteOfDay = 45, utcOffsetMinutes = 345)
+        val items = listOf(movie('1', 20), movie('2', 25), movie('3', 35))
+        val day = buildDay(s, items, -4L)
+        assertEquals(-195 * MS_MINUTE - 345 * MS_MINUTE, day.startMs)
+        assertEquals(2, day.startRunIndex)
+        assertEquals(
+            listOf("-540--505:3", "-505--485:1", "-485--480:slate"),
+            day.describe(),
+        )
+        // A day at n = 0 has pos 45 too.
+        assertEquals(2, buildDay(s, items, 0L).startRunIndex)
     }
 
     // --- Nepal and India: every regular run starts on a grid mark ----------------------------------------------------
