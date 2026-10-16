@@ -25,6 +25,8 @@ dependencies {
     implementation(project(":core:model"))
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
+    // The first-sync worker (spec 06 task 3.0). Never in core:* (checkArchitecture).
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(testFixtures(project(":core:domain")))
     // The generated library the cache tests write (F0.6). Test sources only (checkArchitecture).

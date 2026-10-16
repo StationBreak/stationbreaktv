@@ -58,6 +58,9 @@ room = "2.8.5"
 # androidx.sqlite 2.7.1 (checked 2026-10-15) is Room 2.8.5's own SQLite line. Its bundled driver is TEST ONLY: it lets the
 # cache's unit tests run Room on the JVM. The app uses the platform SQLite.
 androidxSqlite = "2.7.1"
+# WorkManager 2.12.0 is the latest stable (checked 2026-10-16; released 2026-09-23): the sync worker in data:library only
+# (core:* may not declare it, checkArchitecture). minSdk 24, fine on API 25. CoroutineWorker is in the main artifact.
+work = "2.12.0"
 
 minSdk = "25"
 # Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
@@ -94,6 +97,8 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 # Test only: the JVM build of the bundled SQLite driver (it carries the Linux x64 native library) that the cache's unit tests
 # run Room on (see [versions]). The Android build of this artifact has no host library. Never in an APK.
 androidx-sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.ref = "androidxSqlite" }
+# The first-sync worker (a CoroutineWorker) in data:library only.
+androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
 
 jellyfin-sdk-core = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfinSdk" }
 jellyfin-sdk-api-okhttp = { module = "org.jellyfin.sdk:jellyfin-api-okhttp", version.ref = "jellyfinSdk" }
