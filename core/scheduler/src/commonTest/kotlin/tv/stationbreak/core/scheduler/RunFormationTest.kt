@@ -29,7 +29,9 @@ import kotlin.test.assertTrue
 class RunFormationTest {
     /** [count] movies with IDs 0, 1, 2 ... (as 32 hex digits) and runtimes of 1, 2, 3 ... minutes. */
     private fun itemsOf(count: Int): List<ScheduleItem> =
-        (0 until count).map { testItem(CanonicalId.parse(it.toString(16).padStart(32, '0')), runtimeMs = (it + 1) * MS_MINUTE) }
+        (0 until count).map {
+            testItem(CanonicalId.parse(it.toString(16).padStart(32, '0')), runtimeMs = (it + 1) * MS_MINUTE)
+        }
 
     private fun List<Run>.ids(): List<List<String>> = map { run -> run.items.map { it.id.value } }
 
@@ -72,7 +74,8 @@ class RunFormationTest {
         // 5 items, runs of 2: the cycle is [0 1][2 3][4]. The next cycle starts a new run at item 0, so item 4 does not
         // join item 0 into a run of two.
         val runs = Runs.form(itemsOf(5), 2)
-        assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4)), runs.map { r -> r.items.map { it.id.value.toInt(16) } })
+        val indexes = runs.map { r -> r.items.map { it.id.value.toInt(16) } }
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4)), indexes)
     }
 
     @Test
@@ -134,7 +137,8 @@ class RunFormationTest {
             val mode = OrderingMode.entries.first { it.wireName == case.string("mode") }
             val seed = case["seed"]?.let { Seed(u64(it)) } ?: Seed(0uL)
             val seedN = case["seedN"]?.let { u64(it) } ?: 0uL
-            val settings = testSettings(orderingMode = mode, seed = seed, blockLength = case.string("blockLength").toInt())
+            val blockLength = case.string("blockLength").toInt()
+            val settings = testSettings(orderingMode = mode, seed = seed, blockLength = blockLength)
             val expected = case.array("runs").map { run -> run.jsonArray.map { it.jsonPrimitive.content } }
             assertEquals(expected, Runs.cycle(settings, case.pool(), seedN).ids(), case.string("name"))
         }

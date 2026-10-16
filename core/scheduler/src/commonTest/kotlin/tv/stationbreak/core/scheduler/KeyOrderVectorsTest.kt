@@ -86,7 +86,7 @@ class KeyOrderVectorsTest {
     fun theWorkedExampleOfTheFormatDocIsThere() {
         val case = vectors.first { it.string("name").startsWith("chronological, the format doc's worked example") }
         val order = Orderings.chronological(case.pool()).ids()
-        // special, then the three 2020-01-01 items by group ID (1, 2, movie 4), then 01-02, 01-08, and the undated last.
+        // special, then the three 2020-01-01 items by group ID (1, 2, movie 4), then 01-02, 01-08, undated last.
         assertEquals(listOf('e', 'a', 'c', '4', 'd', 'b', 'f'), order.map { it.first() })
     }
 
@@ -123,7 +123,10 @@ class KeyOrderVectorsTest {
 
     private fun JsonObject.blockLength(): Int = getValue("blockLength").jsonPrimitive.content.toInt()
 
-    private fun JsonObject.expectedRuns(): List<List<String>> = array("runs").map { run -> run.jsonArray.map { it.jsonPrimitive.content } }
+    private fun JsonObject.expectedRuns(): List<List<String>> {
+        val runs = array("runs")
+        return runs.map { run -> run.jsonArray.map { it.jsonPrimitive.content } }
+    }
 
     @Test
     fun theShuffleSeedNComesFromTheChannelSeedAndN() {

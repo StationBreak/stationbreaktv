@@ -8,9 +8,9 @@ import tv.stationbreak.core.model.ordering.splitmix64
 import tv.stationbreak.core.model.schedule.ScheduleItem
 
 /**
- * The order a channel plays its pool in (docs/rules-format.md, "Ordering"; spec 08, Unit 2). Every order comes from hash
- * keys and a total sort, so no step uses a random-number stream or a bounded integer, and the result does not depend on
- * the order the pool is given in.
+ * The order a channel plays its pool in (docs/rules-format.md, "Ordering"; spec 08, Unit 2). Every order comes from
+ * hash keys and a total sort, so no step uses a random-number stream or a bounded integer, and the result does not
+ * depend on the order the pool is given in.
  *
  * Canonical IDs are 32 lower-case ASCII hex characters, so comparing them as strings is comparing their bytes.
  */
@@ -26,7 +26,8 @@ object Orderings {
      * numbers, with a tie going to the smaller canonical ID bytes. A tie needs two IDs with the same `fnv1a64`, because
      * `splitmix64` is a bijection.
      *
-     * Removing an item leaves the others in the same relative order, because a key depends only on the seed and the item.
+     * Removing an item leaves the others in the same relative order, because a key depends only on the seed and the
+     * item.
      */
     fun shuffle(
         pool: List<ScheduleItem>,
@@ -42,13 +43,16 @@ object Orderings {
      * The `chronological` order of [pool]: ascending by the six-part key (see [chronologicalComparator]). The key is a
      * total order, because its last part is the canonical ID.
      */
-    fun chronological(pool: List<ScheduleItem>): List<ScheduleItem> = pool.sortedWith(chronologicalComparator(withGroup = true))
+    fun chronological(pool: List<ScheduleItem>): List<ScheduleItem> {
+        val byKey = chronologicalComparator(withGroup = true)
+        return pool.sortedWith(byKey)
+    }
 
     /**
      * The `chronological` key as a comparator, compared from left to right:
      * 1. the undated flag (a dated item first);
      * 2. the date, as text; an undated item's date part is equal to every other undated item's;
-     * 3. the group ID, `seriesId ?: id` (left out when [withGroup] is false, which `randomInOrder` uses inside a group);
+     * 3. the group ID, `seriesId ?: id` (left out when [withGroup] is false, as `randomInOrder` does inside a group);
      * 4. the season number, a missing one after every present one; two missing seasons tie;
      * 5. the episode number, the same way;
      * 6. the canonical ID bytes.

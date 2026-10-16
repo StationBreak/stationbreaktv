@@ -22,8 +22,9 @@ private const val MAX_POOL = 12
 private const val MAX_BLOCK = 4
 
 /**
- * Items with few dates, series and seasons, so that ties on every part of the chronological key happen often. Movies and
- * episodes, dated by premiere or by production year or not at all, and an episode may have no series, season or number.
+ * Items with few dates, series and seasons, so that ties on every part of the chronological key happen often. Movies
+ * and episodes, dated by premiere or by production year or not at all, and an episode may have no series, season or
+ * number.
  */
 private fun SeededGen.pool(size: Int): List<ScheduleItem> {
     val series = List(SERIES) { CanonicalId.parse(hexId()) }
@@ -175,7 +176,10 @@ class OrderingPropertyTest {
             val groups = Orderings.groups(case.pool, case.seed)
             for (removed in case.pool) {
                 val rest = Orderings.groups(case.pool.without(removed), case.seed)
-                val expected = groups.map { it.groupId.value to it.items.without(removed).ids() }.filter { it.second.isNotEmpty() }
+                val expected =
+                    groups
+                        .map { it.groupId.value to it.items.without(removed).ids() }
+                        .filter { it.second.isNotEmpty() }
                 assertEquals(expected, rest.map { it.groupId.value to it.items.ids() }, "removed ${removed.id}")
             }
         }
