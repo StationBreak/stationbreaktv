@@ -39,7 +39,15 @@ class RulesFormatDocTest {
 
     @Test
     fun statesThePrimitiveConstants() {
-        for (c in listOf("0x9E3779B97F4A7C15", "0xBF58476D1CE4E5B9", "0x94D049BB133111EB", "0xcbf29ce484222325", "0x100000001b3")) {
+        val constants =
+            listOf(
+                "0x9E3779B97F4A7C15",
+                "0xBF58476D1CE4E5B9",
+                "0x94D049BB133111EB",
+                "0xcbf29ce484222325",
+                "0x100000001b3",
+            )
+        for (c in constants) {
             assertTrue(c in doc, "constant missing: $c")
         }
     }

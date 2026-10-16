@@ -16,7 +16,7 @@ internal object RulesFormatFiles {
 
     private val mapper = JsonMapper()
 
-    /** The JSON files directly in `examples/` (or `examples/invalid/`), by file name. Empty if the folder is missing. */
+    /** The JSON files directly in `examples/` (or `examples/invalid/`) by name; empty if the folder is missing. */
     private fun jsonFiles(sub: String): Map<String, String> =
         File(dir, sub)
             .listFiles { f -> f.isFile && f.name.endsWith(".json") }

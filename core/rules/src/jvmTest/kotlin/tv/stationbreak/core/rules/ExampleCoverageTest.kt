@@ -47,7 +47,10 @@ class ExampleCoverageTest {
     @Test
     fun aBroadcastDayWithANonZeroOffsetIsShown() {
         val offsets =
-            docs.mapNotNull { ((it["timing"] as? Map<*, *>)?.get("broadcastDay") as? Map<*, *>)?.get("utcOffsetMinutes") }
+            docs.mapNotNull {
+                val day = (it["timing"] as? Map<*, *>)?.get("broadcastDay") as? Map<*, *>
+                day?.get("utcOffsetMinutes")
+            }
         assertTrue(offsets.any { it != 0 })
     }
 
@@ -83,7 +86,17 @@ class ExampleCoverageTest {
         val knownKeys =
             mapOf(
                 "top" to
-                    setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler"),
+                    setOf(
+                        "formatVersion",
+                        "name",
+                        "seed",
+                        "sources",
+                        "exclusions",
+                        "maxRating",
+                        "ordering",
+                        "timing",
+                        "filler",
+                    ),
                 "source" to setOf("type", "id", "name", "from", "to"),
                 "ordering" to setOf("mode"),
                 "timing" to setOf("blockLength", "alignToGrid", "epochHours", "broadcastDay"),

@@ -26,7 +26,10 @@ class SchemaExamplesTest {
     fun everyValidExampleValidates() {
         val examples = RulesFormatFiles.valid
         assertTrue(examples.isNotEmpty(), "no files in examples/")
-        val failures = examples.mapNotNull { (name, text) -> errors(text).takeIf { it.isNotEmpty() }?.let { name to it } }
+        val failures =
+            examples.mapNotNull { (name, text) ->
+                errors(text).takeIf { it.isNotEmpty() }?.let { name to it }
+            }
         if (failures.isNotEmpty()) fail(failures.joinToString("\n") { (n, e) -> "$n: $e" })
     }
 
