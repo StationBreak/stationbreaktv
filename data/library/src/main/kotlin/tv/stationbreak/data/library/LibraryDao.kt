@@ -29,6 +29,11 @@ internal sealed interface PurgeOutcome {
         val versions: Int,
     ) : PurgeOutcome
 
+    /** The purge threw [cause]. The runner catches it and keeps it here; a purge failure never fails a sync. */
+    data class Failed(
+        val cause: Exception,
+    ) : PurgeOutcome
+
     /** The purge did not run, and nothing was deleted: the device clock looks wrong ([reason]). */
     data class Skipped(
         val reason: PurgeSkip,
