@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.time.Duration
 import kotlin.time.Instant
 
@@ -24,7 +25,14 @@ class InMemoryLibraryRepository : LibraryRepository {
         val tombstoned: Boolean,
     )
 
+    private class HeldRow(
+        val account: LibraryAccount,
+        val library: ItemId,
+        val item: ScheduleItem,
+    )
+
     private val rows = mutableListOf<Row>()
+    private val held = mutableListOf<HeldRow>()
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
     private val active = MutableStateFlow<LibraryAccount?>(null)
@@ -46,6 +54,18 @@ class InMemoryLibraryRepository : LibraryRepository {
         tombstoned: Boolean = false,
     ) {
         items.forEach { rows += Row(account, library, it, tombstoned) }
+    }
+
+    /**
+     * Saves [items] as the versions [scheduleItems] reads for [account] under [library]. The fake keeps no history: what
+     * is seeded is what every cut-off sees, except that an item with a `deletedAtMs` before the cut-off is left out.
+     */
+    fun seedSchedule(
+        account: LibraryAccount,
+        library: ItemId,
+        vararg items: ScheduleItem,
+    ) {
+        items.forEach { held += HeldRow(account, library, it) }
     }
 
     /** Sets what [status] reports for [account]. */
@@ -74,6 +94,19 @@ class InMemoryLibraryRepository : LibraryRepository {
             .filter { (it.dateCreated ?: return@filter false) < createdBefore && it.runtime.usable() }
             .sortedBy { it.id.value }
 
+    override suspend fun scheduleItems(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): List<ScheduleItem> {
+        val cutoffMs = cutoff.toEpochMilliseconds().let { if (Instant.fromEpochMilliseconds(it) < cutoff) it + 1 else it }
+        return held
+            .filter { it.account == account && it.library in libraries }
+            .map { it.item }
+            .filter { (it.deletedAtMs ?: Long.MAX_VALUE) >= cutoffMs }
+            .sortedBy { it.id.value }
+    }
+
     override suspend fun excludedCount(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -84,6 +117,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         libraries: Set<ItemId>,
     ) {
         rows.removeAll { it.account == account && it.library !in libraries }
+        held.removeAll { it.account == account && it.library !in libraries }
         val saved = rows.filter { it.account == account }.map { it.library }.toSet()
         val held = pending.getOrPut(account) { mutableSetOf() }
         held.retainAll(libraries)
@@ -96,6 +130,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         activated += account
         active.value = account
         rows.removeAll { it.account != account }
+        held.removeAll { it.account != account }
         pending.keys.retainAll(setOf(account))
         statuses.value = statuses.value.filterKeys { it == account }
     }
@@ -104,6 +139,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         forgotten += account
         check(!failForget) { "the cache could not be cleared" }
         rows.removeAll { it.account == account }
+        held.removeAll { it.account == account }
         pending.remove(account)
         statuses.value = statuses.value - account
         if (active.value == account) active.value = null

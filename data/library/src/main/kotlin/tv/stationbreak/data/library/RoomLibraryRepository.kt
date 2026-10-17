@@ -20,6 +20,7 @@ import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
@@ -107,6 +108,19 @@ class RoomLibraryRepository internal constructor(
             .snapshotRows(server, user, libraries.map { it.value }, createdBefore.ceilingMillis())
             .map { it.toItem() }
     }
+
+    override suspend fun scheduleItems(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
+
+    // RED STUB (spec 09 task 2.10): compiles the tests, fails them.
+    internal suspend fun scheduleInputs(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): ScheduleRead = ScheduleRead(emptyList(), emptyMap())
 
     override suspend fun excludedCount(
         account: LibraryAccount,

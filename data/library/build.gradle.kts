@@ -31,6 +31,8 @@ dependencies {
     testImplementation(testFixtures(project(":core:domain")))
     // The generated library the cache tests write (F0.6). Test sources only (checkArchitecture).
     testImplementation(project(":core:testing"))
+    // The edit-cutoff property test builds real days from the as-of read (spec 09 task 2.11). Test only (checkArchitecture).
+    testImplementation(project(":core:scheduler"))
     testImplementation(libs.kotlinx.coroutines.test)
     // The JVM build of the bundled SQLite driver: Room runs on the host in unit tests (test only, never in an APK).
     testImplementation(libs.androidx.sqlite.bundled.jvm)

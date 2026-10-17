@@ -6,6 +6,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.time.Instant
 
 /**
@@ -101,12 +102,38 @@ interface LibraryRepository : AccountCache {
      * The usable items of the [libraries] created before [createdBefore], ordered by item ID. An item that is deleted
      * (a tombstone), has no creation date, or has a missing, zero or negative running time is left out (S0.6.3): the
      * scheduler only ever sees items it can trust. F1.1 passes `epochStart - grace`.
+     *
+     * Not for the scheduler (spec 09, Vimes H4): it reads the current rows and hides tombstones, so an edit or a deletion
+     * made after a day's cut-off would reshuffle that day. The scheduler reads [scheduleItems].
      */
     suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         createdBefore: Instant,
     ): List<MediaItem>
+
+    /**
+     * The library as this TV held it before [cutoff], in the form the scheduler takes (spec 09, Unit 2). The scheduler
+     * passes `cutoff = S - G` for the day it builds, and every TV on the account then builds the same day, because an
+     * edit seen at or after the cut-off is not in it (docs/rules-format, "Edits").
+     *
+     * For each item, in any of the [libraries], it returns the version held before the cut-off: the newest version this
+     * TV first saw before it, or, when it has none that old (a new install, or an item first seen later), the oldest
+     * version it holds. The libraries, the deletion time (kept until `deletedAt < cutoff`) and the checks below are all
+     * applied to **that** version's fields, not to the item's current ones, so an item that moved library or came back
+     * after the cut-off is judged as it was.
+     *
+     * It leaves out, and never rejects, what the scheduler would refuse (an unsupported kind, an ID that is not
+     * canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed premiere date, a year outside
+     * 1..9999, a negative season or episode, a movie with series data). The result is in canonical-ID order.
+     *
+     * **The scheduler must use this and never [snapshot]**, which hides deleted items and uses the current fields.
+     */
+    suspend fun scheduleItems(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): List<ScheduleItem>
 
     /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the

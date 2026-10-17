@@ -5,7 +5,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 
 /** Writes [items] as a page of [library] with no checkpoint (a changed-since page): the cheapest way to edit rows. */
 internal suspend fun RoomLibraryRepository.put(
@@ -34,3 +37,20 @@ internal suspend fun RoomLibraryRepository.assertIntervalsContiguous(account: Li
         assertTrue("${current.itemId}: firstSeenMs is not after seenFromMs", current.firstSeenMs <= current.seenFromMs)
     }
 }
+
+/** A canonical item ID (32 lower-case hex digits) for the number [n]. */
+internal fun hexId(n: Int): String = n.toString(16).padStart(32, '0')
+
+/** A movie with a canonical ID, created a day before [EPOCH]; the shape the as-of read accepts. */
+internal fun sitem(
+    n: Int,
+    runtime: kotlin.time.Duration? = 90.minutes,
+    library: ItemId = MOVIES,
+) = MediaItem(
+    id = ItemId(hexId(n)),
+    name = "Name of $n",
+    kind = ItemKind.Movie,
+    runtime = runtime,
+    parentId = library,
+    dateCreated = EPOCH - 1.days,
+)

@@ -145,6 +145,34 @@ class ArchitectureRulesTest {
         )
     }
 
+    // data:library's tests may build days with the real scheduler (spec 09 task 2.11), and nothing else may.
+
+    @Test
+    fun dataLibraryTestsMayUseTheScheduler() {
+        for (configuration in listOf("testImplementation", "androidTestImplementation", "testDebugImplementation")) {
+            assertEquals(emptyList(), rulesBroken(":data:library", project(configuration, ":core:scheduler")), configuration)
+        }
+    }
+
+    @Test
+    fun dataLibraryMainCodeMayNotUseTheScheduler() {
+        for (configuration in listOf("implementation", "api", "debugImplementation")) {
+            assertEquals(
+                listOf(Rule.NOT_ALLOWLISTED),
+                rulesBroken(":data:library", project(configuration, ":core:scheduler")),
+                configuration,
+            )
+        }
+    }
+
+    @Test
+    fun otherDataModulesTestsMayNotUseTheScheduler() {
+        assertEquals(
+            listOf(Rule.NOT_ALLOWLISTED),
+            rulesBroken(":data:settings", project("testImplementation", ":core:scheduler")),
+        )
+    }
+
     // core:testing only in tests.
 
     @Test
