@@ -44,6 +44,24 @@ class PremiereDateTest {
     }
 
     @Test
+    fun aYearOutsideTheFormatsRangeHasNoPremiereDateAndNeverThrows() {
+        assertNull(premiereDateOf("+999999999-12-31T23:59:59-18:00"))
+        assertNull(premiereDateOf("+10000-01-01T00:00:00Z"))
+        assertNull(premiereDateOf("9999-12-31T23:59:59-05:00"), "the UTC year is 10000")
+        assertNull(premiereDateOf("-0001-06-01T00:00:00Z"))
+        assertNull(premiereDateOf("0000-06-01T00:00:00Z"))
+        assertNull(premiereDateOf("0001-01-01T00:00:00+01:00"), "the UTC year is 0")
+        assertEquals("0001-01-01", premiereDateOf("0001-01-01T00:00:00Z"))
+        assertEquals("9999-12-31", premiereDateOf("9999-12-31T23:59:59Z"))
+    }
+
+    @Test
+    fun aTimeWithNoOffsetIsReadAsUtc() {
+        assertEquals("2001-03-04", premiereDateOf("2001-03-04T00:00:00"))
+        assertEquals("2001-03-04", premiereDateOf("2001-03-04T23:59:59.1234567"))
+    }
+
+    @Test
     fun theItemCarriesItsPremiereDate() {
         val dto = ItemDto(id = "i1", premiereDate = "2001-03-04T23:30:00-05:00")
 

@@ -51,6 +51,25 @@ class PlaybackInfoTest {
     }
 
     @Test
+    fun aSourceRuntimeIsFloorDivOfTheTicksInMilliseconds() {
+        runBlocking {
+            val body = response.replace("36000000000", "36000009999")
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
+
+            val info = testAdapter().playbackInfo(testSession(jellyfin.address), ItemId("i1")).getOrNull()
+
+            assertEquals(
+                3_600_000L,
+                info
+                    ?.sources
+                    ?.single()
+                    ?.runtime
+                    ?.inWholeMilliseconds,
+            )
+        }
+    }
+
+    @Test
     fun theRequestBodyAndUrlCarryNoCredential() {
         runBlocking {
             val token = fake("token")

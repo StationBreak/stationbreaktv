@@ -69,6 +69,20 @@ class InputMappingPropertyTest {
     }
 
     @Test
+    fun aTimeWithNoOffsetIsReadAsUtc() {
+        val created = toMediaItem(ItemDto(id = "i", dateCreated = "2026-01-02T03:04:05.1239999")).dateCreated
+
+        assertEquals(Instant.parse("2026-01-02T03:04:05.123Z").toEpochMilli(), created?.toEpochMilliseconds())
+    }
+
+    @Test
+    fun aDateBeyondWhatMillisecondsCanHoldIsAbsentAndNeverThrows() {
+        assertNull(createdAtOf("+999999999-12-31T23:59:59Z"))
+        assertNull(createdAtOf("-999999999-01-01T00:00:00Z"))
+        assertNull(createdAtOf("+999999999-12-31T23:59:59-18:00"))
+    }
+
+    @Test
     fun aMissingOrOddDateIsAbsent() {
         assertNull(toMediaItem(ItemDto(id = "i")).dateCreated)
         assertNull(toMediaItem(ItemDto(id = "i", dateCreated = "garbage")).dateCreated)
@@ -86,7 +100,9 @@ class InputMappingPropertyTest {
         val minutes = nextInt(-MAX_OFFSET_MINUTES..MAX_OFFSET_MINUTES)
         val offset = if (chance(OFFSET_PERCENT)) ZoneOffset.ofTotalSeconds(minutes * 60) else ZoneOffset.UTC
         val moment = OffsetDateTime.ofInstant(Instant.ofEpochSecond(seconds, nanos), offset)
-        return moment.format(FORMAT)
+        // Some texts have no offset at all, which reads as UTC: the same instant, written in UTC without the "Z".
+        val utc = moment.withOffsetSameInstant(ZoneOffset.UTC)
+        return if (chance(ZONELESS_PERCENT)) utc.format(ZONELESS) else moment.format(FORMAT)
     }
 
     private companion object {
@@ -97,6 +113,8 @@ class InputMappingPropertyTest {
         const val OFFSET_PERCENT = 70
         const val MAX_SHIFT = 60
         const val MAX_OFFSET_MINUTES = 1080
+        const val ZONELESS_PERCENT = 10
+        val ZONELESS: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSS")
         val FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSSXXX")
     }
 }
