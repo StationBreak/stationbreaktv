@@ -129,4 +129,15 @@ class SchedulerSettingsTest {
             s,
         )
     }
+
+    @Test
+    fun theFormatLimitsAreTheLargestValuesTheTypeAccepts() {
+        // The history retention is checked against these (spec 09, Vimes L4), so they must be the real limits.
+        assertEquals(24 * 3_600_000L, SchedulerSettings.MAX_EPOCH_MS)
+        assertEquals(48 * 3_600_000L, SchedulerSettings.MAX_GRACE_MS)
+        val largest = settings(epochHours = 24, graceHours = 48)
+        assertEquals(SchedulerSettings.MAX_EPOCH_MS, largest.epochMs)
+        assertEquals(SchedulerSettings.MAX_GRACE_MS, largest.graceMs)
+        rejects { settings(graceHours = 49) }
+    }
 }
