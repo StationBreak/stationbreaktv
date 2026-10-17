@@ -27,7 +27,16 @@ class CacheRebuildTest {
     fun theExportedSchemaFileExistsAndNamesTheTables() {
         assertTrue("missing ${SchemaFile.file.path}", SchemaFile.file.isFile)
         assertEquals(
-            setOf("library", "item", "item_genre", "item_tag", "checkpoint", "account_state", "active_account"),
+            setOf(
+                "library",
+                "item",
+                "item_version",
+                "item_genre",
+                "item_tag",
+                "checkpoint",
+                "account_state",
+                "active_account",
+            ),
             SchemaFile.tableNames().toSet(),
         )
         assertTrue(SchemaFile.text().contains("\"version\": ${LibraryDatabase.VERSION}"))
@@ -40,6 +49,19 @@ class CacheRebuildTest {
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)
         assertTrue("runtimeNanos" !in columns)
+    }
+
+    @Test
+    fun theHistoryTableHoldsTheScheduleFieldsTheStampsAndTheEncodedListsAndCascadesFromItem() {
+        val text = SchemaFile.text()
+        val columns = SchemaFile.columnNames()
+        listOf("seenFromMs", "firstSeenMs", "supersededAtMs", "genres", "tags").forEach {
+            assertTrue("$it missing", it in columns)
+        }
+        assertTrue("item_version needs a cascading foreign key to item", text.contains("\"onDelete\": \"CASCADE\""))
+        assertTrue(text.contains("`serverId`, `userId`, `itemId`, `seenFromMs`"))
+        assertTrue(text.contains("(`serverId`, `userId`, `supersededAtMs`)"))
+        assertTrue(text.contains("(`serverId`, `userId`, `deletedAtMs`)"))
     }
 
     @Test

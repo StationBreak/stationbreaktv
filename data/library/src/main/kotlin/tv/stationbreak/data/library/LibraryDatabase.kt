@@ -12,12 +12,14 @@ import androidx.sqlite.execSQL
  * The saved library's database. It is a cache: it can be deleted and fetched again, so a schema change drops and
  * rebuilds it ([LibraryDatabases.builder]) instead of migrating. The schema is still versioned and exported to
  * `schemas/`, so a change shows in review. When [VERSION] goes up, the exported file of the new version is committed.
- * Version 2 added `active_account` (the signed-in account, which the sync checks before every write).
+ * Version 2 added `active_account` (the signed-in account, which the sync checks before every write). Version 3 added
+ * the premiere date, exact runtimes and the item history (`item_version`, spec 09).
  */
 @Database(
     entities = [
         LibraryEntity::class,
         ItemEntity::class,
+        ItemVersionEntity::class,
         GenreEntity::class,
         TagEntity::class,
         CheckpointEntity::class,

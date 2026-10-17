@@ -388,6 +388,7 @@ internal abstract class LibraryDao {
         user: String,
         checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
+        nowMs: Long,
         betweenItemsAndCheckpoint: (() -> Unit)?,
     ): PageWrite {
         requireActive(server, user)
@@ -402,8 +403,10 @@ internal abstract class LibraryDao {
         for ((id, rows) in items) {
             val old = existing[id]
             when {
-                old == null -> toInsert += rows.item
-                old != rows.item -> toUpdate += rows.item
+                old == null -> toInsert += rows.item.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
+                old != rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs) -> {
+                    toUpdate += rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
+                }
                 else -> unchanged++
             }
         }

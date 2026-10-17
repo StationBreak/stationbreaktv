@@ -164,7 +164,7 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
-        return dao.writePage(server, user, checkpoint, rows, faultBetweenItemsAndCheckpoint)
+        return dao.writePage(server, user, checkpoint, rows, clock.now().toEpochMilliseconds(), faultBetweenItemsAndCheckpoint)
     }
 
     /**
@@ -177,7 +177,8 @@ class RoomLibraryRepository internal constructor(
         items: List<MediaItem>,
     ): PageWrite {
         val (server, user) = account.keys()
-        return dao.writePage(server, user, null, rowsOf(items, server, user, library), faultBetweenItemsAndCheckpoint)
+        val rows = rowsOf(items, server, user, library)
+        return dao.writePage(server, user, null, rows, clock.now().toEpochMilliseconds(), faultBetweenItemsAndCheckpoint)
     }
 
     private fun rowsOf(
@@ -424,6 +425,9 @@ private fun MediaItem.toRows(
             productionYear = productionYear,
             officialRating = officialRating,
             deletedAtMs = null,
+            // The DAO stamps both when it writes the row (spec 09, Vimes H1).
+            seenFromMs = 0,
+            firstSeenMs = 0,
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
