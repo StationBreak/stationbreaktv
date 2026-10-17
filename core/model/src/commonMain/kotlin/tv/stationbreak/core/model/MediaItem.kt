@@ -30,6 +30,7 @@ data class MediaItem(
     val runtime: Duration?,
     val parentId: ItemId?,
     val dateCreated: Instant? = null,
+    val premiereDate: String? = null,
     val productionYear: Int? = null,
     val officialRating: String? = null,
     val genres: List<String> = emptyList(),

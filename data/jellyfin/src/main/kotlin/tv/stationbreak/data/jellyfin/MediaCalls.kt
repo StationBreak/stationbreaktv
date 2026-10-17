@@ -62,7 +62,7 @@ internal class MediaCalls(
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
-                convert { ItemPage(page.totalRecordCount ?: 0, page.startIndex, page.items.map(::item)) }
+                convert { ItemPage(page.totalRecordCount ?: 0, page.startIndex, page.items.map(::toMediaItem)) }
             }
         }
     }
@@ -83,7 +83,7 @@ internal class MediaCalls(
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
                 firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
-                    convert { LibraryItemsPage(startIndex, total, page.items.map(::item)) }
+                    convert { LibraryItemsPage(startIndex, total, page.items.map(::toMediaItem)) }
                 }
             }
         }
@@ -192,33 +192,6 @@ internal class MediaCalls(
         return Library(ItemId(view.id), view.name, kind)
     }
 
-    private fun item(dto: ItemDto): MediaItem =
-        MediaItem(
-            id = ItemId(dto.id),
-            name = dto.name,
-            kind = ITEM_KINDS[dto.type] ?: ItemKind.Other,
-            runtime = dto.runTimeTicks?.let(::duration),
-            parentId = dto.parentId?.let(::ItemId),
-            dateCreated = instant(dto.dateCreated),
-            productionYear = dto.productionYear,
-            officialRating = dto.officialRating,
-            genres = dto.genres.orEmpty(),
-            tags = dto.tags.orEmpty(),
-            seriesId = dto.seriesId?.let(::ItemId),
-            seasonNumber = dto.seasonNumber,
-            episodeNumber = dto.episodeNumber,
-        )
-
-    /** A date the server sent, or null when it is missing or unreadable: one odd date must not fail a page. */
-    private fun instant(text: String?): Instant? =
-        text?.let {
-            try {
-                Instant.parse(it)
-            } catch (_: IllegalArgumentException) {
-                null
-            }
-        }
-
     private fun playbackInfo(
         address: ServerAddress,
         item: ItemId,
@@ -243,12 +216,7 @@ internal class MediaCalls(
             supportsDirectStream = dto.supportsDirectStream,
         )
 
-    /** Ticks are 100 ns; a zero or negative runtime is nonsense for an item, so it reads as unknown. */
-    private fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MICROSECOND).microseconds.takeIf { ticks > 0 }
-
     private companion object {
-        const val TICKS_PER_MICROSECOND = 10L
-
         /** The video kinds the cache holds (spec 06): never series, seasons, folders or collections. */
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
 
@@ -265,19 +233,6 @@ internal class MediaCalls(
          * images and 2.9 kB without images and user data.
          */
         val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
-
-        val ITEM_KINDS =
-            mapOf(
-                "Movie" to ItemKind.Movie,
-                "Series" to ItemKind.Series,
-                "Season" to ItemKind.Season,
-                "Episode" to ItemKind.Episode,
-                "Video" to ItemKind.Video,
-                "MusicVideo" to ItemKind.MusicVideo,
-                "Folder" to ItemKind.Folder,
-                "CollectionFolder" to ItemKind.Folder,
-                "UserView" to ItemKind.Folder,
-            )
 
         /**
          * The wire values of the collection types worth a channel. An absent type is mixed content (checked against
@@ -328,3 +283,51 @@ private class DirectStreamUrls(
             .toString()
     }
 }
+
+/** One server item as the domain model's item. Dates and runtimes follow rules format v1, "Scheduler inputs". */
+internal fun toMediaItem(dto: ItemDto): MediaItem =
+    MediaItem(
+        id = ItemId(dto.id),
+        name = dto.name,
+        kind = ITEM_KINDS[dto.type] ?: ItemKind.Other,
+        runtime = dto.runTimeTicks?.let(::duration),
+        parentId = dto.parentId?.let(::ItemId),
+        dateCreated = instant(dto.dateCreated),
+        premiereDate = premiereDateOf(dto.premiereDate),
+        productionYear = dto.productionYear,
+        officialRating = dto.officialRating,
+        genres = dto.genres.orEmpty(),
+        tags = dto.tags.orEmpty(),
+        seriesId = dto.seriesId?.let(::ItemId),
+        seasonNumber = dto.seasonNumber,
+        episodeNumber = dto.episodeNumber,
+    )
+
+/** A date the server sent, or null when it is missing or unreadable: one odd date must not fail a page. */
+private fun instant(text: String?): Instant? =
+    text?.let {
+        try {
+            Instant.parse(it)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
+/** Ticks are 100 ns; a zero or negative runtime is nonsense for an item, so it reads as unknown. */
+internal fun duration(ticks: Long): Duration? = (ticks / 10L).microseconds.takeIf { ticks > 0 }
+
+/** Not yet the UTC date of `PremiereDate` (red stub). */
+internal fun premiereDateOf(text: String?): String? = null
+
+private val ITEM_KINDS =
+    mapOf(
+        "Movie" to ItemKind.Movie,
+        "Series" to ItemKind.Series,
+        "Season" to ItemKind.Season,
+        "Episode" to ItemKind.Episode,
+        "Video" to ItemKind.Video,
+        "MusicVideo" to ItemKind.MusicVideo,
+        "Folder" to ItemKind.Folder,
+        "CollectionFolder" to ItemKind.Folder,
+        "UserView" to ItemKind.Folder,
+    )

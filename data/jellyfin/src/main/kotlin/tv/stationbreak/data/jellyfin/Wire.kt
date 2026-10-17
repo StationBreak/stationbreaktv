@@ -112,6 +112,7 @@ internal class ItemDto(
     @SerialName("ParentId") val parentId: String? = null,
     // Dates stay text here and are read leniently in the mapper, so an odd one is absent, not a failed page.
     @SerialName("DateCreated") val dateCreated: String? = null,
+    @SerialName("PremiereDate") val premiereDate: String? = null,
     @SerialName("ProductionYear") val productionYear: Int? = null,
     @SerialName("OfficialRating") val officialRating: String? = null,
     @SerialName("Genres") val genres: List<String>? = null,
