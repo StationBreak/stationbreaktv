@@ -23,9 +23,11 @@ import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamUrls
+import java.time.DateTimeException
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeParseException
+import java.time.format.DateTimeFormatter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -310,20 +312,34 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
  * `DateCreated` as the server's creation moment, in whole milliseconds: `floorDiv(T, 10000)` for `T` the time in
  * 100 ns ticks since the epoch, any UTC offset honoured, before 1970 too. Jellyfin writes seven fraction digits,
  * which `java.time` reads in full, and the seconds are floored first, so the result is exactly the format's
- * formula. Null when the text is missing, unreadable or out of range: one odd date must not fail a page.
+ * formula. A time with no offset or zone is read as UTC. Null when the text is missing, unreadable or out of range:
+ * one odd date must not fail a page.
  */
 internal fun createdAtOf(text: String?): Instant? =
     text?.let {
         try {
-            val moment = OffsetDateTime.parse(it).toInstant()
-            // Instant keeps its nanoseconds in 0..999,999,999 also before 1970, so this is a floor.
-            val wholeSeconds = Math.multiplyExact(moment.epochSecond, MS_PER_SECOND)
-            Instant.fromEpochMilliseconds(Math.addExact(wholeSeconds, (moment.nano / NANOS_PER_MS).toLong()))
-        } catch (_: DateTimeParseException) {
+            val moment = momentOf(it)?.toInstant()
+            if (moment == null) {
+                null
+            } else {
+                // Instant keeps its nanoseconds in 0..999,999,999 also before 1970, so this is a floor.
+                val wholeSeconds = Math.multiplyExact(moment.epochSecond, MS_PER_SECOND)
+                // Any Long of milliseconds is inside kotlin's Instant range, so nothing is clamped; overflow throws.
+                Instant.fromEpochMilliseconds(Math.addExact(wholeSeconds, (moment.nano / NANOS_PER_MS).toLong()))
+            }
+        } catch (_: DateTimeException) {
             null
         } catch (_: ArithmeticException) {
             null
         }
+    }
+
+/** The text as a date and time with an offset, or null. A time with no offset or zone is read as UTC. */
+private fun momentOf(text: String): OffsetDateTime? =
+    when (val parsed = DateTimeFormatter.ISO_DATE_TIME.parseBest(text, OffsetDateTime::from, LocalDateTime::from)) {
+        is OffsetDateTime -> parsed
+        is LocalDateTime -> parsed.atOffset(ZoneOffset.UTC)
+        else -> null
     }
 
 /**
@@ -332,20 +348,22 @@ internal fun createdAtOf(text: String?): Instant? =
  */
 internal fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MS).milliseconds.takeIf { ticks > 0 }
 
-/** The UTC calendar date (`YYYY-MM-DD`) of a `PremiereDate`, or null if it is missing or unreadable. */
+/**
+ * The UTC calendar date (`YYYY-MM-DD`) of a `PremiereDate`, or null if it is missing, unreadable or its UTC year is
+ * outside 1 to 9999, which the rules format does not allow. A time with no offset or zone is read as UTC.
+ */
 internal fun premiereDateOf(text: String?): String? =
     text?.let {
         try {
-            OffsetDateTime
-                .parse(it)
-                .withOffsetSameInstant(ZoneOffset.UTC)
-                .toLocalDate()
-                .toString()
-        } catch (_: DateTimeParseException) {
+            val date = momentOf(it)?.withOffsetSameInstant(ZoneOffset.UTC)?.toLocalDate()
+            date?.takeIf { day -> day.year in FIRST_YEAR..LAST_YEAR }?.toString()
+        } catch (_: DateTimeException) {
             null
         }
     }
 
+private const val FIRST_YEAR = 1
+private const val LAST_YEAR = 9999
 private const val MS_PER_SECOND = 1000L
 private const val NANOS_PER_MS = 1_000_000
 private const val TICKS_PER_MS = 10_000L

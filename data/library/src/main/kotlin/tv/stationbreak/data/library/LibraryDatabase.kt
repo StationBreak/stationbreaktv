@@ -60,12 +60,17 @@ internal object LibraryDatabases {
             } else {
                 Room.databaseBuilder(context, LibraryDatabase::class.java, name)
             }
-        // The order matters: the downgrade call also sets "a migration is required", which the other call then clears.
-        // Reversed, an upgrade from an older schema fails to open instead of being dropped and rebuilt (found by
-        // CacheRebuildTest when the schema first moved to version 2).
-        return base
-            .addCallback(SecureDeleteCallback)
-            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
-            .fallbackToDestructiveMigration(dropAllTables = true)
+        return base.addCallback(SecureDeleteCallback).withDestructiveFallbacks()
     }
+
+    /**
+     * What the cache does with a schema it has no migration for, older or newer: drop everything and start empty. The
+     * order matters: the downgrade call also sets "a migration is required", which the other call then clears.
+     * Reversed, an upgrade from an older schema fails to open instead of being dropped and rebuilt (found by
+     * CacheRebuildTest when the schema first moved to version 2). Generic, so a test can give a stand-in database of
+     * another version exactly these settings.
+     */
+    fun <T : RoomDatabase> RoomDatabase.Builder<T>.withDestructiveFallbacks(): RoomDatabase.Builder<T> =
+        fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
+            .fallbackToDestructiveMigration(dropAllTables = true)
 }

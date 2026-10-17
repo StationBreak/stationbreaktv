@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import tv.stationbreak.data.library.LibraryDatabases.withDestructiveFallbacks
 
 /**
  * Spec 06 task 2.11: the database is a cache. A schema change drops it and it is fetched again, and the schema is
@@ -126,8 +127,7 @@ class CacheRebuildTest {
                     .databaseBuilder(context, OlderSchemaDatabase::class.java, "downgrade.db")
                     .setDriver(BundledSQLiteDriver())
                     .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
-                    .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .withDestructiveFallbacks() // The cache's own settings, so a change there changes this test.
                     .build()
             v2.otherDao().put(OtherRow("v2 works"))
             v2.close()
