@@ -14,6 +14,7 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.schedule.ScheduleItemProblem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.buildDay
@@ -117,6 +118,24 @@ class ScheduleInputFilterTest {
     }
 
     @Test
+    fun theSafetyNetNeverCatchesAnythingInTheWholeCorpus() {
+        // Granny M1: the fields ScheduleItem validates come from ScheduleItem.problem, so its init has nothing left to
+        // refuse. If the two ever drift, this count (and the live one in diagnostics) stops being 0.
+        val dated = ok.copy(premiereDate = "2001-02-03", productionYear = 2001)
+        val corpus = cases.map { it.row } + listOf(ok, episode, dated)
+        val net = Converted.Dropped(DropReason.RejectedByScheduleItem)
+        val rejected = corpus.map { ScheduleInputs.convert(it) }.count { it == net }
+        assertEquals(0, rejected)
+    }
+
+    @Test
+    fun everyProblemScheduleItemCanFindHasADropReasonThatNamesIt() {
+        ScheduleItemProblem.entries.forEach { problem ->
+            assertEquals(problem.name, DropReason.of(problem).name)
+        }
+    }
+
+    @Test
     fun everyAcceptedCaseIsAcceptedByTheSchedulersOwnValidation() {
         val accepted =
             listOf(
@@ -190,6 +209,7 @@ class ScheduleInputFilterTest {
                 ),
                 result.dropped,
             )
+            assertEquals(null, result.dropped[DropReason.RejectedByScheduleItem])
             // No throw anywhere: the scheduler builds a day from exactly what came back.
             assertEquals(0L, buildDay(settings, result.items, 0).n)
         }

@@ -24,8 +24,8 @@ import kotlin.time.Clock
  * Spec 09 task 2.13 (Goal 4): the as-of read of the generated 15,000-item library with three superseded versions per
  * item (45,000 `item_version` rows), on the API 25 emulator, over the platform SQLite that Fire OS 6 has. The heap
  * budget is the one `FirstSyncHeapOnDeviceTest` uses (spec 06): less than 64 MB of growth. The same test runs on the
- * JVM (`ScheduleItemsHeapTest`), which also holds the one-second limit; the device time is printed, not asserted,
- * because an emulator's speed says nothing about a Fire TV's. Generated placeholder data only.
+ * JVM (`ScheduleItemsHeapTest`), which holds the one-second limit; here the read must take under 3 s on the emulator
+ * (it measured about 350 ms). Generated placeholder data only.
  */
 @RunWith(AndroidJUnit4::class)
 class ScheduleItemsHeapOnDeviceTest {
@@ -113,6 +113,8 @@ class ScheduleItemsHeapOnDeviceTest {
                     "streaming peak grew it by ${streamed / KB} KB over $chunks chunks",
             )
             assertEquals(usable, read.items.size)
+            // Vimes M-1: the read must also be fast on API 25's SQLite (measured 351 ms on the emulator).
+            assertTrue("the read took $tookMs ms, the limit is $LIMIT_MS", tookMs < LIMIT_MS)
             assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
             assertTrue("streaming grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
         }
@@ -126,6 +128,7 @@ class ScheduleItemsHeapOnDeviceTest {
         const val KB = 1024L
         const val MB = KB * KB
         const val LIMIT_MB = 64L
+        const val LIMIT_MS = 3_000L
         const val NANOS_PER_MS = 1_000_000L
     }
 }

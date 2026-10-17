@@ -146,6 +146,34 @@ class InMemoryLibraryRepositoryTest {
         }
 
     @Test
+    fun scheduleItemsAlsoReadTheValidRowsSavedThroughTheSyncPath() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+
+            fun row(
+                hex: Char,
+                runtime: kotlin.time.Duration? = 90.minutes,
+                kind: ItemKind = ItemKind.Movie,
+            ) = MediaItem(
+                ItemId(hex.toString().repeat(32)),
+                "n",
+                kind,
+                runtime,
+                null,
+                dateCreated = epoch - 1.minutes,
+            )
+            repository.seed(alice, movies, row('c'), row('b'), row('d', runtime = null))
+            repository.seed(alice, movies, row('e', kind = ItemKind.Series))
+            repository.seed(alice, movies, row('f'), tombstoned = true)
+            repository.seed(alice, movies, item("not-canonical"))
+            repository.seedSchedule(alice, movies, held('a'))
+
+            val items = repository.scheduleItems(alice, setOf(movies), epoch)
+
+            assertEquals(listOf('a', 'b', 'c').map { it.toString().repeat(32) }, items.map { it.id.value })
+        }
+
+    @Test
     fun scheduleItemsFollowSelectionAndSignOutLikeTheOtherReads() =
         runBlocking {
             val repository = InMemoryLibraryRepository()

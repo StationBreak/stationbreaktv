@@ -99,6 +99,7 @@ class RoomLibraryRepository internal constructor(
             }
 
     /** Not for the scheduler: it reads the current rows and hides tombstones. The scheduler reads [scheduleItems]. */
+    @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -119,8 +120,9 @@ class RoomLibraryRepository internal constructor(
 
     /**
      * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
-     * diagnostics"). The port returns the items alone, because the scheduler needs nothing else and the port has to
-     * stay plain Kotlin; the counts are for tests and for the diagnostics screen to read later.
+     * diagnostics"). Internal on purpose (Granny L3): the port returns the items alone, because the scheduler needs
+     * nothing else and the port has to stay plain Kotlin. It widens when diagnostics or F1.2 need the counts; until
+     * then they are for tests to read.
      *
      * Selection comes first and runs over every item of the account, whatever its library (Vimes H4). The libraries
      * filter, the deletion test and the validity checks then apply to the **selected** version only.
@@ -160,6 +162,7 @@ class RoomLibraryRepository internal constructor(
         return ScheduleRead(items, dropped)
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(
         account: LibraryAccount,
         libraries: Set<ItemId>,

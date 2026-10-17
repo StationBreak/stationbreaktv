@@ -14,8 +14,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 import tv.stationbreak.data.library.LibraryDatabases.withDestructiveFallbacks
+import java.io.File
 
 /**
  * Spec 06 task 2.11: the database is a cache. A schema change drops it and it is fetched again, and the schema is
@@ -202,12 +202,13 @@ class CacheRebuildTest {
                     connection.execSQL(value.replace("\${TABLE_NAME}", table))
                 }
             }
-            connection.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            val master = "room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)"
+            connection.execSQL("CREATE TABLE IF NOT EXISTS $master")
             connection.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '$hash')")
             connection.execSQL("INSERT INTO library VALUES ('server-1', 'alice', 'lib-movies', 1)")
             connection.execSQL(
-                "INSERT INTO item VALUES ('server-1', 'alice', 'x', 'lib-movies', 'Movie', 'X', NULL, NULL, NULL, NULL, " +
-                    "5400000, 1, NULL, NULL, NULL, NULL)",
+                "INSERT INTO item VALUES ('server-1', 'alice', 'x', 'lib-movies', 'Movie', 'X', " +
+                    "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL)",
             )
             connection.execSQL("PRAGMA user_version = 3")
         } finally {

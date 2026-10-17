@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.schedule.ScheduleItemProblem
 
 /**
  * An item as one version of it held its schedule fields (spec 09, Unit 2): a current row or an `item_version` row, read
@@ -24,7 +25,12 @@ internal data class HeldRow(
     val seenFromMs: Long,
 )
 
-/** Why the as-of read left an item out, and the `ScheduleItem` check (or `buildDay` check) it mirrors (Vimes M3). */
+/**
+ * Why the as-of read left an item out, and the check it mirrors (Vimes M3). The reasons for the fields `ScheduleItem`
+ * itself validates come from [ScheduleItem.problem] (see [of]), so the rules live in one place (Granny M1); the others
+ * this layer's own: what is lost between a row and a `ScheduleItem` (a kind, an ID, a runtime, a time) and what only a
+ * whole list shows (a duplicate ID).
+ */
 internal enum class DropReason(
     val mirrors: String,
 ) {
@@ -41,6 +47,19 @@ internal enum class DropReason(
     MovieHasSeriesData("ScheduleItem: a movie has no series, season or episode number"),
     DuplicateId("EpochPool.build: an ID may be given only once"),
     RejectedByScheduleItem("ScheduleItem's own init refused what the checks above let through"),
+    ;
+
+    companion object {
+        /** The reason for a problem `ScheduleItem` found. Exhaustive, so a new problem is a compile error here. */
+        fun of(problem: ScheduleItemProblem): DropReason =
+            when (problem) {
+                ScheduleItemProblem.PremiereDateMalformed -> PremiereDateMalformed
+                ScheduleItemProblem.ProductionYearOutOfRange -> ProductionYearOutOfRange
+                ScheduleItemProblem.SeasonNegative -> SeasonNegative
+                ScheduleItemProblem.EpisodeNegative -> EpisodeNegative
+                ScheduleItemProblem.MovieHasSeriesData -> MovieHasSeriesData
+            }
+    }
 }
 
 /** One item turned into the scheduler's type, or the reason it was left out. */
@@ -54,23 +73,26 @@ internal sealed interface Converted {
     ) : Converted
 }
 
-/** What the as-of read returned, and what it left out by reason (diagnostics). */
+/**
+ * What the as-of read returned, and what it left out by reason (diagnostics). Internal on purpose: the port
+ * `LibraryRepository.scheduleItems` returns the items alone, and widens to carry the counts when diagnostics or F1.2's
+ * rule engine need them (Granny L3).
+ */
 internal class ScheduleRead(
     val items: List<ScheduleItem>,
     val dropped: Map<DropReason, Int>,
 )
 
 /**
- * Turns the fields one version held into the scheduler's [ScheduleItem], or says why it can't (Vimes M3). Each check is
- * the one `ScheduleItem`, `CanonicalId` or `buildDay` makes, written out so the reason has a name, and they run in the
- * order of the check list: an item is counted once, under the first reason that fits. The item is then built by
- * `ScheduleItem` itself, and anything its own validation still refuses is counted as
- * [DropReason.RejectedByScheduleItem] rather than thrown, so one bad item can never fail a whole day.
+ * Turns the fields one version held into the scheduler's [ScheduleItem], or says why it can't (Vimes M3). The checks of
+ * this layer run first, in the order of the list below, and the fields `ScheduleItem` validates are then asked of
+ * [ScheduleItem.problem], which `ScheduleItem`'s own init also uses. An item is counted once, under the first reason
+ * fits. The item is built by `ScheduleItem` itself, and anything its init still refuses is counted as
+ * [DropReason.RejectedByScheduleItem] rather than thrown, so one bad item can never fail a whole day. That count should
+ * stay 0; a test asserts it over the whole corpus.
  */
 internal object ScheduleInputs {
     private const val MAX_TIME_MS = 1L shl 52
-    private const val MAX_YEAR = 9999
-    private val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
 
     /** A row with its kind and IDs parsed once, for the checks. */
     private class Candidate(
@@ -81,15 +103,8 @@ internal object ScheduleInputs {
         val series: CanonicalId? = row.seriesId?.let { CanonicalId.parseOrNull(it) }
     }
 
-    // ScheduleItem's own date check: four digits, a month 01-12, a day 01-31, and a year other than 0000.
-    private fun validDate(text: String): Boolean = DATE.matches(text) && !text.startsWith("0000-")
-
     private fun timeOutOfRange(row: HeldRow): Boolean =
         listOfNotNull(row.createdAtMs, row.deletedAtMs).any { it !in -MAX_TIME_MS..MAX_TIME_MS }
-
-    private fun movieWithSeriesData(candidate: Candidate): Boolean =
-        candidate.kind == ScheduleItemKind.Movie &&
-            listOfNotNull(candidate.row.seriesId, candidate.row.seasonNumber, candidate.row.episodeNumber).isNotEmpty()
 
     private val checks: List<Pair<DropReason, (Candidate) -> Boolean>> =
         listOf(
@@ -99,17 +114,12 @@ internal object ScheduleInputs {
             DropReason.RuntimeMissing to { (it.row.runtimeMs ?: 0L) <= 0L },
             DropReason.CreatedAtMissing to { it.row.createdAtMs == null },
             DropReason.TimeOutOfRange to { timeOutOfRange(it.row) },
-            DropReason.PremiereDateMalformed to { it.row.premiereDate?.let(::validDate) == false },
-            DropReason.ProductionYearOutOfRange to { it.row.productionYear?.let { y -> y !in 1..MAX_YEAR } == true },
-            DropReason.SeasonNegative to { (it.row.seasonNumber ?: 0) < 0 },
-            DropReason.EpisodeNegative to { (it.row.episodeNumber ?: 0) < 0 },
-            DropReason.MovieHasSeriesData to ::movieWithSeriesData,
         )
 
     fun convert(row: HeldRow): Converted {
         val candidate = Candidate(row)
-        val reason = checks.firstOrNull { (_, fails) -> fails(candidate) }?.first
-        return if (reason != null) Converted.Dropped(reason) else build(candidate)
+        val own = checks.firstOrNull { (_, fails) -> fails(candidate) }?.first
+        return if (own != null) Converted.Dropped(own) else build(candidate)
     }
 
     private fun build(candidate: Candidate): Converted {
@@ -117,10 +127,21 @@ internal object ScheduleInputs {
         // The checks have passed, so nothing required is null; if one were, requireNotNull's refusal is caught below
         // like ScheduleItem's own, and the item is counted as rejected instead of crashing the read.
         return try {
+            val kind = requireNotNull(candidate.kind)
+            val problem =
+                ScheduleItem.problem(
+                    kind,
+                    row.premiereDate,
+                    row.productionYear,
+                    candidate.series,
+                    row.seasonNumber,
+                    row.episodeNumber,
+                )
+            if (problem != null) return Converted.Dropped(DropReason.of(problem))
             Converted.Accepted(
                 ScheduleItem(
                     id = requireNotNull(candidate.id),
-                    kind = requireNotNull(candidate.kind),
+                    kind = kind,
                     runtimeMs = requireNotNull(row.runtimeMs),
                     createdAtMs = requireNotNull(row.createdAtMs),
                     deletedAtMs = row.deletedAtMs,

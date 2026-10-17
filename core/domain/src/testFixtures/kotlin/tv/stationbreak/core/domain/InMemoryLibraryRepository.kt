@@ -5,9 +5,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.time.Duration
 import kotlin.time.Instant
 
@@ -58,8 +60,8 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     /**
      * Saves [items] as the versions [scheduleItems] reads for [account] under [library]. The fake keeps no history:
-     * what
-     * is seeded is what every cut-off sees, except that an item with a `deletedAtMs` before the cut-off is left out.
+     * what is seeded is what every cut-off sees, except that an item with a `deletedAtMs` before the cut-off is left
+     * out. Rows saved with [seed] are read too (see [scheduleItems]).
      */
     fun seedSchedule(
         account: LibraryAccount,
@@ -85,6 +87,7 @@ class InMemoryLibraryRepository : LibraryRepository {
             account?.let { all[it] ?: LibraryStatus(SyncState.NeverSynced, null) }
         }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -95,6 +98,12 @@ class InMemoryLibraryRepository : LibraryRepository {
             .filter { (it.dateCreated ?: return@filter false) < createdBefore && it.runtime.usable() }
             .sortedBy { it.id.value }
 
+    /**
+     * Reads what [seedSchedule] saved, and the live rows saved with [seed], turned into schedule items when they are
+     * valid (a movie or an episode with a canonical ID, a positive runtime, a creation time and fields `ScheduleItem`
+     * accepts; anything else is left out). A tombstoned [seed] row is left out too, because the fake keeps no deletion
+     * time for it. It keeps no history, so every cut-off sees the same fields.
+     */
     override suspend fun scheduleItems(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -102,13 +111,44 @@ class InMemoryLibraryRepository : LibraryRepository {
     ): List<ScheduleItem> {
         val floor = cutoff.toEpochMilliseconds()
         val cutoffMs = if (Instant.fromEpochMilliseconds(floor) < cutoff) floor + 1 else floor
-        return held
-            .filter { it.account == account && it.library in libraries }
-            .map { it.item }
+        val fromSync = live(account, libraries).mapNotNull { it.item.toScheduleItemOrNull() }
+        return (held.filter { it.account == account && it.library in libraries }.map { it.item } + fromSync)
             .filter { (it.deletedAtMs ?: Long.MAX_VALUE) >= cutoffMs }
             .sortedBy { it.id.value }
     }
 
+    private fun MediaItem.toScheduleItemOrNull(): ScheduleItem? {
+        val scheduleKind = ScheduleItemKind.entries.firstOrNull { it.name == kind.name }
+        val itemId = CanonicalId.parseOrNull(id.value)
+        val series = seriesId?.let { CanonicalId.parseOrNull(it.value) }
+        val runtimeMs = runtime?.inWholeMilliseconds
+        val created = dateCreated?.toEpochMilliseconds()
+        val usable =
+            scheduleKind != null && itemId != null && (seriesId == null || series != null) &&
+                runtimeMs != null && runtimeMs > 0 && created != null
+        val problem =
+            scheduleKind?.let {
+                ScheduleItem.problem(it, premiereDate, productionYear, series, seasonNumber, episodeNumber)
+            }
+        return if (usable && problem == null) {
+            ScheduleItem(
+                requireNotNull(itemId),
+                requireNotNull(scheduleKind),
+                requireNotNull(runtimeMs),
+                requireNotNull(created),
+                null,
+                premiereDate,
+                productionYear,
+                series,
+                seasonNumber,
+                episodeNumber,
+            )
+        } else {
+            null
+        }
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(
         account: LibraryAccount,
         libraries: Set<ItemId>,

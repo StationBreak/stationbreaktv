@@ -5,9 +5,15 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -109,6 +115,28 @@ class TombstoneHeldRuntimeTest {
 
             assertNull(only(revivedAt - 1))
             assertEquals(120.minutes.inWholeMilliseconds, only(revivedAt + 1)?.runtimeMs)
+        }
+
+    @Test
+    fun aDeletionThatLandsAfterTheCutoffDoesNotChangeTheDayBuiltFromIt() =
+        runBlocking {
+            // Day 0 of this channel starts at S = 6 h with a 6 h grace, so its cut-off S - G is the epoch (0 ms).
+            val settings = SchedulerSettings(OrderingMode.Shuffle, Seed(7uL), 1, true, 30, 24, 0, 360, 6, 60_000L)
+            val cutoff = 0L
+            repository.select(ALICE, setOf(MOVIES))
+            clock.atMs(cutoff - hour)
+            val old = Instant.fromEpochMilliseconds(-1)
+            repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes).copy(dateCreated = old))
+            clock.atMs(cutoff)
+            repository.tombstone(ALICE, listOf(a))
+
+            val held = read(cutoff)
+
+            assertEquals("deletedAt = the cut-off is still held", cutoff, held.single().deletedAtMs)
+            val withDeletion = buildDay(settings, held, 0).blocks
+            val withoutDeletion = buildDay(settings, held.map { it.copy(deletedAtMs = null) }, 0).blocks
+            assertEquals(withoutDeletion, withDeletion)
+            assertTrue("the item airs", withDeletion.any { it.content is ScheduleContent.Program })
         }
 
     @Test

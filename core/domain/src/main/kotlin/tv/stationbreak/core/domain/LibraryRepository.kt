@@ -106,6 +106,10 @@ interface LibraryRepository : AccountCache {
      * Not for the scheduler (spec 09, Vimes H4): it reads the current rows and hides tombstones, so an edit or a
      * deletion made after a day's cut-off would reshuffle that day. The scheduler reads [scheduleItems].
      */
+    @Deprecated(
+        "The scheduler must read scheduleItems, which holds the library as this TV saw it before the cut-off. " +
+            "Kept only for its current tests; to be removed (spec 09, Granny M2).",
+    )
     suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -127,6 +131,9 @@ interface LibraryRepository : AccountCache {
      * canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed premiere date, a year outside
      * 1..9999, a negative season or episode, a movie with series data). The result is in canonical-ID order.
      *
+     * [cutoff] must equal the `S - G` that `buildDay` uses for the day being built (the day's start minus its grace
+     * window). Any other instant gives inputs that day was not built from, and TVs on the account can then differ.
+     *
      * **The scheduler must use this and never [snapshot]**, which hides deleted items and uses the current fields.
      */
     suspend fun scheduleItems(
@@ -139,6 +146,9 @@ interface LibraryRepository : AccountCache {
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the
      * diagnostics number). The rows stay stored.
      */
+    @Deprecated(
+        "Counts what snapshot leaves out. scheduleItems has its own drop counts, held internally for now (spec 09).",
+    )
     suspend fun excludedCount(
         account: LibraryAccount,
         libraries: Set<ItemId>,
