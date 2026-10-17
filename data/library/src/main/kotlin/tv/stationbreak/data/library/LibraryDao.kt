@@ -28,6 +28,20 @@ internal sealed interface PurgeOutcome {
         val tombstones: Int,
         val versions: Int,
     ) : PurgeOutcome
+
+    /** The purge did not run, and nothing was deleted: the device clock looks wrong ([reason]). */
+    data class Skipped(
+        val reason: PurgeSkip,
+    ) : PurgeOutcome
+}
+
+/** Why a purge was skipped (Vimes L2). */
+internal enum class PurgeSkip {
+    /** `now` is before the last successful sync: the clock was set back. */
+    ClockBehindLastSync,
+
+    /** `now` is more than the retention period after the last successful sync: the clock jumped forward. */
+    ClockFarAhead,
 }
 
 /** An item row with its genre and tag rows. */
@@ -217,6 +231,10 @@ internal abstract class LibraryDao {
      * never touched, and a purged tombstone takes its genres, tags and versions with it (the foreign keys). The
      * versions go first, so the count is of the ones superseded long ago and not of the ones a tombstone takes with it.
      * Both deletes are plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
+     *
+     * A clock that looks wrong purges nothing (Vimes L2): [nowMs] before the last successful sync, or more than
+     * [retentionMs] after it, would make the age of every row meaningless. With no success recorded yet there is
+     * nothing to compare with, and the purge runs.
      */
     @Transaction
     open suspend fun purgeHistory(
@@ -226,6 +244,11 @@ internal abstract class LibraryDao {
         retentionMs: Long,
     ): PurgeOutcome {
         requireActive(serverId, userId)
+        val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
+        if (lastSuccessMs != null) {
+            if (nowMs < lastSuccessMs) return PurgeOutcome.Skipped(PurgeSkip.ClockBehindLastSync)
+            if (nowMs - lastSuccessMs > retentionMs) return PurgeOutcome.Skipped(PurgeSkip.ClockFarAhead)
+        }
         val cutoffMs = nowMs - retentionMs
         val versions = deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
         val tombstones = deleteTombstonesBefore(serverId, userId, cutoffMs)
