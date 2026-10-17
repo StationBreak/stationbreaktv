@@ -206,4 +206,34 @@ class ForgottenAccountTest {
 
             assertEquals(0, control.cancels)
         }
+
+    @Test
+    fun forgettingAnAccountLeavesNoVersionRowsOfItsItems() =
+        runBlocking {
+            signedInAndSelected()
+            repository.put(ALICE, MOVIES, item("a").copy(genres = listOf("x")))
+            repository.put(ALICE, MOVIES, item("a").copy(genres = listOf("y")))
+            assertEquals(1, repository.rowCounts().versions)
+
+            repository.forget(ALICE)
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+            assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
+        }
+
+    @Test
+    fun aSyncWritingAnEditAfterForgetStoresNoVersion() =
+        runBlocking {
+            signedInAndSelected()
+            repository.put(ALICE, MOVIES, item("a"))
+            repository.forget(ALICE)
+
+            assertThrows(AccountNotActiveException::class.java) {
+                runBlocking { repository.put(ALICE, MOVIES, item("a").copy(genres = listOf("late"))) }
+            }
+            assertThrows(AccountNotActiveException::class.java) {
+                runBlocking { repository.revive(ALICE, listOf(tv.stationbreak.core.model.ItemId("a"))) }
+            }
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+        }
 }
