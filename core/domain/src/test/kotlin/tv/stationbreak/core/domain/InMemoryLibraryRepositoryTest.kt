@@ -3,11 +3,14 @@ package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.minutes
@@ -109,5 +112,82 @@ class InMemoryLibraryRepositoryTest {
             repository.setStatus(alice, done)
 
             assertEquals(done, repository.status(alice).first())
+        }
+
+    private fun held(
+        hex: Char,
+        deletedAtMs: Long? = null,
+    ) = ScheduleItem(
+        id = CanonicalId.parse(hex.toString().repeat(32)),
+        kind = ScheduleItemKind.Movie,
+        runtimeMs = 5_400_000,
+        createdAtMs = 1_000,
+        deletedAtMs = deletedAtMs,
+        premiereDate = null,
+        productionYear = null,
+        seriesId = null,
+        seasonNumber = null,
+        episodeNumber = null,
+    )
+
+    @Test
+    fun scheduleItemsAreTheSeededOnesOfTheChosenLibrariesInIdOrderUntilTheirDeletion() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val cutoffMs = epoch.toEpochMilliseconds()
+            repository.seedSchedule(alice, movies, held('b'), held('a'), held('c', deletedAtMs = cutoffMs - 1))
+            repository.seedSchedule(alice, movies, held('d', deletedAtMs = cutoffMs))
+            repository.seedSchedule(alice, shows, held('e'))
+            repository.seedSchedule(bob, movies, held('f'))
+
+            val items = repository.scheduleItems(alice, setOf(movies), epoch)
+
+            assertEquals(listOf('a', 'b', 'd').map { it.toString().repeat(32) }, items.map { it.id.value })
+        }
+
+    @Test
+    fun scheduleItemsAlsoReadTheValidRowsSavedThroughTheSyncPath() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+
+            fun row(
+                hex: Char,
+                runtime: kotlin.time.Duration? = 90.minutes,
+                kind: ItemKind = ItemKind.Movie,
+            ) = MediaItem(
+                ItemId(hex.toString().repeat(32)),
+                "n",
+                kind,
+                runtime,
+                null,
+                dateCreated = epoch - 1.minutes,
+            )
+            repository.seed(alice, movies, row('c'), row('b'), row('d', runtime = null))
+            repository.seed(alice, movies, row('e', kind = ItemKind.Series))
+            repository.seed(alice, movies, row('f'), tombstoned = true)
+            repository.seed(alice, movies, item("not-canonical"))
+            repository.seedSchedule(alice, movies, held('a'))
+
+            val items = repository.scheduleItems(alice, setOf(movies), epoch)
+
+            assertEquals(listOf('a', 'b', 'c').map { it.toString().repeat(32) }, items.map { it.id.value })
+        }
+
+    @Test
+    fun scheduleItemsFollowSelectionAndSignOutLikeTheOtherReads() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.seedSchedule(alice, movies, held('a'))
+            repository.seedSchedule(alice, shows, held('b'))
+            repository.seedSchedule(bob, movies, held('c'))
+
+            repository.select(alice, setOf(movies))
+            assertEquals(emptyList(), repository.scheduleItems(alice, setOf(shows), epoch))
+
+            repository.useAccount(alice)
+            assertEquals(emptyList(), repository.scheduleItems(bob, setOf(movies), epoch))
+
+            repository.forget(alice)
+            assertEquals(emptyList(), repository.scheduleItems(alice, setOf(movies), epoch))
         }
 }

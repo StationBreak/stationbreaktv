@@ -12,12 +12,16 @@ import androidx.sqlite.execSQL
  * The saved library's database. It is a cache: it can be deleted and fetched again, so a schema change drops and
  * rebuilds it ([LibraryDatabases.builder]) instead of migrating. The schema is still versioned and exported to
  * `schemas/`, so a change shows in review. When [VERSION] goes up, the exported file of the new version is committed.
- * Version 2 added `active_account` (the signed-in account, which the sync checks before every write).
+ * Version 2 added `active_account` (the signed-in account, which the sync checks before every write). Version 3 added
+ * the premiere date and exact runtimes (spec 09 Unit 1, shipped in a debug build). Version 4 added the item history
+ * (`item_version`, `seenFromMs`, `firstSeenMs`; spec 09 Unit 2): a v3 file cannot be amended in place, because Room
+ * refuses a changed schema under an unchanged version, so it moves to 4 and the destructive fallback rebuilds it.
  */
 @Database(
     entities = [
         LibraryEntity::class,
         ItemEntity::class,
+        ItemVersionEntity::class,
         GenreEntity::class,
         TagEntity::class,
         CheckpointEntity::class,
@@ -31,7 +35,7 @@ internal abstract class LibraryDatabase : RoomDatabase() {
     abstract fun dao(): LibraryDao
 
     companion object {
-        const val VERSION = 3
+        const val VERSION = 4
     }
 }
 

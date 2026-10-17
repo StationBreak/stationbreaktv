@@ -38,7 +38,12 @@ internal data class LibraryEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index(value = ["serverId", "userId", "libraryId"]), Index(value = ["deletedAtMs"])],
+    indices =
+        [
+            Index(value = ["serverId", "userId", "libraryId"]),
+            // The per-account tombstone purge (spec 09, Unit 3).
+            Index(value = ["serverId", "userId", "deletedAtMs"]),
+        ],
 )
 internal data class ItemEntity(
     val serverId: String,
@@ -57,6 +62,51 @@ internal data class ItemEntity(
     val productionYear: Int?,
     val officialRating: String?,
     val deletedAtMs: Long?,
+    val seenFromMs: Long,
+    val firstSeenMs: Long,
+)
+
+/**
+ * An earlier version of an item's schedule fields (spec 09, Unit 2): the item row as it stood until [supersededAtMs].
+ * The item row is always the current version, and each item's versions form contiguous, strictly increasing intervals
+ * `[seenFromMs, supersededAtMs)` that end where the next one, or the item row's own `seenFromMs`, begins (Vimes H1).
+ * Only the fields the scheduler reads are kept (not the name), with [deletedAtMs] too, so a tombstone that was revived
+ * stays a tombstone in the version that held it. [genres] and [tags] are one [VersionCodec] column each (Vimes M1).
+ * The foreign key deletes the history with its item: sign-out, unticking a library and the purge of a tombstone (H5).
+ */
+@Entity(
+    tableName = "item_version",
+    primaryKeys = ["serverId", "userId", "itemId", "seenFromMs"],
+    foreignKeys = [
+        ForeignKey(
+            entity = ItemEntity::class,
+            parentColumns = ["serverId", "userId", "itemId"],
+            childColumns = ["serverId", "userId", "itemId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    // The purge of versions superseded long ago (spec 09, Unit 3).
+    indices = [Index(value = ["serverId", "userId", "supersededAtMs"])],
+)
+internal data class ItemVersionEntity(
+    val serverId: String,
+    val userId: String,
+    val itemId: String,
+    val seenFromMs: Long,
+    val supersededAtMs: Long,
+    val libraryId: String,
+    val kind: String,
+    val seriesId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val runtimeMs: Long?,
+    val createdAtMs: Long?,
+    val premiereDate: String?,
+    val productionYear: Int?,
+    val officialRating: String?,
+    val deletedAtMs: Long?,
+    val genres: String,
+    val tags: String,
 )
 
 /** One genre of an item, at [position] so the server's order is kept. */
@@ -153,4 +203,52 @@ internal data class AccountStateEntity(
 internal data class ActiveAccountEntity(
     val serverId: String,
     val userId: String,
+)
+
+/**
+ * The stamp of a new current row: now, but always after the stamp it replaces, so the intervals of an item's versions
+ * increase strictly and never overlap, whatever the clock does (Vimes H1).
+ */
+internal fun nextStamp(
+    old: ItemEntity,
+    nowMs: Long,
+): Long = maxOf(nowMs, old.seenFromMs + 1)
+
+/** True when every field the scheduler reads is equal. The name, the parent, the stamps and the tombstone are not. */
+internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
+    libraryId == other.libraryId &&
+        kind == other.kind &&
+        seriesId == other.seriesId &&
+        seasonNumber == other.seasonNumber &&
+        episodeNumber == other.episodeNumber &&
+        runtimeMs == other.runtimeMs &&
+        createdAtMs == other.createdAtMs &&
+        premiereDate == other.premiereDate &&
+        productionYear == other.productionYear &&
+        officialRating == other.officialRating
+
+/** This row as an earlier version, ending at [supersededAtMs], with the genres and tags it had. */
+internal fun ItemEntity.toVersion(
+    supersededAtMs: Long,
+    genres: List<String>,
+    tags: List<String>,
+) = ItemVersionEntity(
+    serverId = serverId,
+    userId = userId,
+    itemId = itemId,
+    seenFromMs = seenFromMs,
+    supersededAtMs = supersededAtMs,
+    libraryId = libraryId,
+    kind = kind,
+    seriesId = seriesId,
+    seasonNumber = seasonNumber,
+    episodeNumber = episodeNumber,
+    runtimeMs = runtimeMs,
+    createdAtMs = createdAtMs,
+    premiereDate = premiereDate,
+    productionYear = productionYear,
+    officialRating = officialRating,
+    deletedAtMs = deletedAtMs,
+    genres = VersionCodec.encode(genres),
+    tags = VersionCodec.encode(tags),
 )

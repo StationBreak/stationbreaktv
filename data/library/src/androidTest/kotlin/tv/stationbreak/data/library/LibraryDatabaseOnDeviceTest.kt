@@ -139,4 +139,49 @@ class LibraryDatabaseOnDeviceTest {
 
             assertEquals(1200, repository.snapshot(account, setOf(library), later).size)
         }
+
+    private fun canonical(n: Int) = n.toString(16).padStart(32, '0')
+
+    private fun movie(
+        n: Int,
+        runtime: Int,
+    ) = item(canonical(n)).copy(runtime = runtime.minutes)
+
+    @Test
+    fun anEditKeepsAVersionThatTheLibraryCascadeDeletes() =
+        runBlocking {
+            repository.select(account, setOf(library))
+            repository.upsertItems(account, library, listOf(movie(1, 90)))
+            repository.upsertItems(account, library, listOf(movie(1, 100)))
+            assertEquals(1, repository.rowCounts().versions)
+
+            repository.select(account, emptySet())
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+        }
+
+    @Test
+    fun theAsOfReadChoosesTheHeldVersionOnThePlatformSqlite() =
+        runBlocking {
+            repository.select(account, setOf(library))
+            repository.upsertItems(account, library, listOf(movie(1, 90), movie(2, 60)))
+            repository.upsertItems(account, library, listOf(movie(1, 100)))
+            val version = repository.versions(account).single()
+
+            fun runtimes(cutoffMs: Long) =
+                runBlocking {
+                    repository
+                        .scheduleItems(account, setOf(library), Instant.fromEpochMilliseconds(cutoffMs))
+                        .associate { it.id.value to it.runtimeMs / MS_PER_MINUTE }
+                }
+
+            // (c) nothing older than the cut-off: the oldest copy. (b) the version current just before it. (a) the row.
+            assertEquals(mapOf(canonical(1) to 90L, canonical(2) to 60L), runtimes(version.seenFromMs - 1))
+            assertEquals(mapOf(canonical(1) to 90L, canonical(2) to 60L), runtimes(version.supersededAtMs))
+            assertEquals(mapOf(canonical(1) to 100L, canonical(2) to 60L), runtimes(version.supersededAtMs + 1))
+        }
+
+    private companion object {
+        const val MS_PER_MINUTE = 60_000L
+    }
 }

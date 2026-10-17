@@ -9,6 +9,18 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+// The columns the as-of read takes from an item row or a version row, in the order of HeldRow.
+private const val HELD_COLUMNS =
+    "itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
+        "productionYear, deletedAtMs, seenFromMs"
+
+// The same, qualified by the alias v, with the names the mapping expects.
+private const val HELD_COLUMNS_OF_V =
+    "v.itemId AS itemId, v.libraryId AS libraryId, v.kind AS kind, v.seriesId AS seriesId, " +
+        "v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, v.runtimeMs AS runtimeMs, " +
+        "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
+        "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs"
+
 /** An item row with its genre and tag rows. */
 internal class ItemRows(
     val item: ItemEntity,
@@ -100,6 +112,9 @@ internal abstract class LibraryDao {
     @Update
     abstract suspend fun updateItems(rows: List<ItemEntity>)
 
+    @Insert
+    abstract suspend fun insertVersions(rows: List<ItemVersionEntity>)
+
     @Query(
         "SELECT * FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:libraries) " +
             "AND deletedAtMs IS NULL AND createdAtMs IS NOT NULL AND createdAtMs < :beforeMs " +
@@ -166,15 +181,55 @@ internal abstract class LibraryDao {
         atMs: Long,
     )
 
-    @Query("UPDATE item SET deletedAtMs = NULL WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids)")
-    abstract suspend fun revive(
-        serverId: String,
-        userId: String,
-        ids: List<String>,
-    )
-
     @Query("DELETE FROM item WHERE deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs")
     abstract suspend fun purgeTombstonesBefore(cutoffMs: Long): Int
+
+    // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one
+    // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by the 999
+    // variables of API 25's SQLite.
+
+    @Query(
+        "SELECT $HELD_COLUMNS FROM item " +
+            "WHERE serverId = :serverId AND userId = :userId AND itemId > :after ORDER BY itemId LIMIT :limit",
+    )
+    protected abstract suspend fun currentChunk(
+        serverId: String,
+        userId: String,
+        after: String,
+        limit: Int,
+    ): List<HeldRow>
+
+    // Case (b): the one version that was current just before the cut-off. The intervals are contiguous, so there is at
+    // most one per item.
+    @Query(
+        "SELECT $HELD_COLUMNS FROM item_version " +
+            "WHERE serverId = :serverId AND userId = :userId AND itemId > :after AND itemId <= :last " +
+            "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
+    )
+    protected abstract suspend fun coveringVersions(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+        cutoffMs: Long,
+    ): List<HeldRow>
+
+    // Case (c): the oldest version, found by probing the item's firstSeenMs, for an item that nothing older than the
+    // cut-off holds. The columns are the same, qualified by the version.
+    @Query(
+        "SELECT $HELD_COLUMNS_OF_V FROM item_version v " +
+            "JOIN item i ON i.serverId = v.serverId AND i.userId = v.userId AND i.itemId = v.itemId " +
+            "AND i.firstSeenMs = v.seenFromMs " +
+            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.itemId > :after AND v.itemId <= :last " +
+            "AND v.seenFromMs >= :cutoffMs",
+    )
+    protected abstract suspend fun oldestVersions(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+        cutoffMs: Long,
+    ): List<HeldRow>
 
     // Genres and tags.
 
@@ -321,6 +376,15 @@ internal abstract class LibraryDao {
     @Query("SELECT COUNT(*) FROM item_tag")
     abstract suspend fun countTags(): Int
 
+    @Query("SELECT COUNT(*) FROM item_version")
+    abstract suspend fun countVersions(): Int
+
+    @Query("SELECT * FROM item_version WHERE serverId = :serverId AND userId = :userId ORDER BY itemId, seenFromMs")
+    abstract suspend fun allVersions(
+        serverId: String,
+        userId: String,
+    ): List<ItemVersionEntity>
+
     @Query("SELECT COUNT(*) FROM library")
     abstract suspend fun countLibraries(): Int
 
@@ -378,16 +442,19 @@ internal abstract class LibraryDao {
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
      * no position). An item the database already holds, equal, is left alone; one that differs is updated and its
-     * genres and tags replaced; a new one is inserted. The account must still be signed in, which is checked inside
-     * this transaction. [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam;
-     * null in the app).
+     * genres and tags replaced; a new one is inserted. A change to a field the scheduler reads (genres and tags
+     * included), or a row that clears a tombstone, first keeps the old row as a version (spec 09). The account must
+     * still be signed in, which is checked inside this transaction. [nowMs] stamps new rows and versions.
+     * [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam; null in the app).
      */
     @Transaction
+    @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seam.
     open suspend fun writePage(
         server: String,
         user: String,
         checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
+        nowMs: Long,
         betweenItemsAndCheckpoint: (() -> Unit)?,
     ): PageWrite {
         requireActive(server, user)
@@ -396,30 +463,79 @@ internal abstract class LibraryDao {
                 .chunked(MAX_VARIABLES)
                 .flatMap { itemsByIds(server, user, it) }
                 .associateBy { it.itemId }
+        // The old genres and tags are read here, inside the transaction and before they are deleted below, so a version
+        // can hold them and a genre-only or tag-only edit is seen as a change (Vimes H3).
+        val oldGenres = genreNames(server, user, existing.keys)
+        val oldTags = tagNames(server, user, existing.keys)
         val toInsert = mutableListOf<ItemEntity>()
         val toUpdate = mutableListOf<ItemEntity>()
+        val versions = mutableListOf<ItemVersionEntity>()
         var unchanged = 0
         for ((id, rows) in items) {
             val old = existing[id]
+            if (old == null) {
+                toInsert += rows.item.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
+                continue
+            }
+            val genres = rows.genres.map { it.name }
+            val tags = rows.tags.map { it.name }
+            val changed =
+                !old.sameScheduleFields(rows.item) || oldGenres[id].orEmpty() != genres || oldTags[id].orEmpty() != tags
+            // A row that clears the tombstone is a change too, even when no field differs (Vimes H2).
+            val revived = old.deletedAtMs != null && rows.item.deletedAtMs == null
+            val kept = rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
             when {
-                old == null -> toInsert += rows.item
-                old != rows.item -> toUpdate += rows.item
-                else -> unchanged++
+                changed || revived -> {
+                    val stamp = nextStamp(old, nowMs)
+                    versions += old.toVersion(stamp, oldGenres[id].orEmpty(), oldTags[id].orEmpty())
+                    toUpdate += rows.item.copy(seenFromMs = stamp, firstSeenMs = old.firstSeenMs)
+                }
+
+                // Only the name or the parent differs: stored, but it is no new version of the schedule's inputs.
+                old != kept -> {
+                    toUpdate += kept
+                }
+
+                else -> {
+                    unchanged++
+                }
             }
         }
         insertItems(toInsert)
+        insertVersions(versions)
         updateItems(toUpdate)
-        val changed = (toInsert + toUpdate).map { it.itemId }
-        changed.chunked(MAX_VARIABLES).forEach {
+        val changedIds = (toInsert + toUpdate).map { it.itemId }
+        changedIds.chunked(MAX_VARIABLES).forEach {
             deleteGenres(server, user, it)
             deleteTags(server, user, it)
         }
-        insertGenres(changed.flatMap { items.getValue(it).genres })
-        insertTags(changed.flatMap { items.getValue(it).tags })
+        insertGenres(changedIds.flatMap { items.getValue(it).genres })
+        insertTags(changedIds.flatMap { items.getValue(it).tags })
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { saveCheckpoint(it) }
         return PageWrite(toInsert.size, toUpdate.size, unchanged)
     }
+
+    // The names of the genres (or tags) of [ids], in order, by item. Chunked under MAX_VARIABLES.
+    private suspend fun genreNames(
+        server: String,
+        user: String,
+        ids: Collection<String>,
+    ): Map<String, List<String>> =
+        ids
+            .chunked(MAX_VARIABLES)
+            .flatMap { genresFor(server, user, it) }
+            .groupBy({ it.itemId }, { it.name })
+
+    private suspend fun tagNames(
+        server: String,
+        user: String,
+        ids: Collection<String>,
+    ): Map<String, List<String>> =
+        ids
+            .chunked(MAX_VARIABLES)
+            .flatMap { tagsFor(server, user, it) }
+            .groupBy({ it.itemId }, { it.name })
 
     /** The first sync starts or starts again: running, no total yet, the last success (if any) kept. */
     @Transaction
@@ -470,15 +586,34 @@ internal abstract class LibraryDao {
         ids.chunked(MAX_VARIABLES).forEach { tombstone(serverId, userId, it, atMs) }
     }
 
-    /** Clears the tombstone of [ids]. */
+    /**
+     * Clears the tombstone of [ids] at [nowMs]. Each tombstoned row is copied as a version first, ending at the new
+     * stamp (Vimes H2), so a day built from before the revival still sees the deletion. An id that is not a tombstone
+     * is left alone.
+     */
     @Transaction
     open suspend fun reviveAll(
         serverId: String,
         userId: String,
         ids: List<String>,
+        nowMs: Long,
     ) {
         requireActive(serverId, userId)
-        ids.chunked(MAX_VARIABLES).forEach { revive(serverId, userId, it) }
+        ids.chunked(MAX_VARIABLES).forEach { chunk ->
+            val rows = itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
+            if (rows.isEmpty()) return@forEach
+            val rowIds = rows.map { it.itemId }
+            val genres = genreNames(serverId, userId, rowIds)
+            val tags = tagNames(serverId, userId, rowIds)
+            val stamps = rows.associate { it.itemId to nextStamp(it, nowMs) }
+            insertVersions(
+                rows.map {
+                    val id = it.itemId
+                    it.toVersion(stamps.getValue(id), genres[id].orEmpty(), tags[id].orEmpty())
+                },
+            )
+            updateItems(rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.itemId)) })
+        }
     }
 
     /** Page one said the whole sync holds [total] items. */
@@ -528,6 +663,53 @@ internal abstract class LibraryDao {
                 .flatMap { snapshotChunk(serverId, userId, it, beforeMs) }
                 .sortedBy { it.itemId }
         return withSideTables(serverId, userId, items)
+    }
+
+    /**
+     * The version of every item of the account that this TV held before [cutoffMs], read [chunkSize] items at a time
+     * in item-ID order inside one read transaction (Vimes H4, M2), and returned in item-ID order. Selection runs over
+     * every item first; only then are the rows of [libraries] kept, less those whose held version was deleted before
+     * the cut-off (`deletedAt < cutoffMs`). The validity checks are the caller's.
+     *
+     * It returns a list and takes no callback on purpose. An earlier version handed each chunk to a lambda; on API 25
+     * (ART 7.1) a second caller with a different lambda class made the JIT-compiled loop deoptimise, and the next GC
+     * checkpoint aborted the process with "Tried to mark 0xebadde09 not contained by any spaces" (found in PR 264's
+     * on-device heap test; reproduced 11 of 12 runs under CPU load, 0 of 6 with the JIT off). A call site that always
+     * sees one class never deoptimises, and a list has no call site to speak of.
+     *
+     * Per item: (a) the current row if it was first seen before the cut-off; else (b) the version that was current just
+     * before it; else (c) the oldest version, or the current row if the item has none. Cases (b) and (c) are looked up
+     * only for a chunk that has an item in need of them.
+     */
+    @Transaction
+    open suspend fun heldAsOf(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+        chunkSize: Int,
+        libraries: Set<String>,
+    ): List<HeldRow> {
+        val held = ArrayList<HeldRow>()
+        var after = ""
+        while (true) {
+            val current = currentChunk(serverId, userId, after, chunkSize)
+            if (current.isEmpty()) return held
+            val last = current.last().itemId
+            val needsHistory = current.any { it.seenFromMs >= cutoffMs }
+            val covering = mutableMapOf<String, HeldRow>()
+            val oldest = mutableMapOf<String, HeldRow>()
+            if (needsHistory) {
+                coveringVersions(serverId, userId, after, last, cutoffMs).associateByTo(covering) { it.itemId }
+                oldestVersions(serverId, userId, after, last, cutoffMs).associateByTo(oldest) { it.itemId }
+            }
+            for (row in current) {
+                val version = if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
+                val deletedAt = version.deletedAtMs
+                if (version.libraryId in libraries && (deletedAt == null || deletedAt >= cutoffMs)) held += version
+            }
+            if (current.size < chunkSize) return held
+            after = last
+        }
     }
 
     /** How many live items of [libraries] have no usable running time. [libraries] may be any length. */

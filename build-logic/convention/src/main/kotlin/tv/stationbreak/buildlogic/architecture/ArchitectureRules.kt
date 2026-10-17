@@ -140,6 +140,10 @@ object ArchitectureRules {
             ":data:settings" to ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:model", ":core:rules")),
         )
 
+    // Edges that only a module's tests may have, beyond its allowlist: data:library's edit-cutoff property test builds
+    // days with the real scheduler (spec 09 task 2.11). Its main code reaches the scheduler only through core:domain.
+    private val TEST_ONLY_EDGES = mapOf(":data:library" to setOf(":core:scheduler"))
+
     // Every feature:* module (all Android), matched by prefix.
     private val FEATURE =
         ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:ui", ":core:playback", ":core:model"))
@@ -268,6 +272,10 @@ object ArchitectureRules {
             }
 
             dependency.testFixtures && target == ":core:domain" -> {
+                null
+            }
+
+            isTest && target in TEST_ONLY_EDGES[module].orEmpty() -> {
                 null
             }
 

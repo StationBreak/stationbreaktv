@@ -44,6 +44,8 @@ class SignOutClearsCacheTest {
     private suspend fun fillFor(account: tv.stationbreak.core.domain.LibraryAccount) {
         repository.select(account, setOf(MOVIES))
         repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("g"))), 1, 1, run = 1)
+        // A genre-only edit keeps the old row as a version, so there is history for the sign-out to clear (Vimes H5).
+        repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("h"))), 1, 1, run = 2)
     }
 
     @Test
@@ -51,10 +53,12 @@ class SignOutClearsCacheTest {
         runBlocking {
             sessions.save(session(ALICE))
             fillFor(ALICE)
+            assertEquals("the test needs a version to clear", 1, repository.rowCounts().versions)
 
             sessions.signOut(session(ALICE))
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
+            assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
         }
 
     @Test
@@ -65,6 +69,9 @@ class SignOutClearsCacheTest {
 
             sessions.signOut(session(ALICE))
 
+            assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
+            assertEquals("Bob keeps his history", 1, repository.versions(BOB).size)
+
             assertEquals(emptyList<MediaItem>(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
             assertEquals(1, repository.snapshot(BOB, setOf(MOVIES), EPOCH).size)
         }
@@ -74,6 +81,7 @@ class SignOutClearsCacheTest {
         runBlocking {
             sessions.save(session(ALICE))
             fillFor(ALICE)
+            assertEquals(1, repository.rowCounts().versions)
 
             sessions.save(session(BOB))
 

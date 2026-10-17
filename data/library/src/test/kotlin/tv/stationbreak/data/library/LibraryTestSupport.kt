@@ -31,11 +31,26 @@ internal val TEST_QUERY_CONTEXT: kotlin.coroutines.CoroutineContext = Dispatcher
 /** A moment well after the test items were created. */
 internal val EPOCH: Instant = Instant.fromEpochMilliseconds(1_700_000_000_000)
 
-/** A clock a test moves by hand (the tombstone purge and the last-success time read it). */
+/** A clock a test moves by hand (the item stamps, the tombstone times and the last-success time read it). */
 internal class FakeClock(
     var instant: Instant = EPOCH,
 ) : Clock {
     override fun now(): Instant = instant
+
+    /** Moves the clock forward by [ms] milliseconds. */
+    fun stepMs(ms: Long) {
+        instant = Instant.fromEpochMilliseconds(instant.toEpochMilliseconds() + ms)
+    }
+
+    /** Moves the clock back by [ms] milliseconds: a device whose clock was set back. */
+    fun rewindMs(ms: Long) = stepMs(-ms)
+
+    /** Sets the clock to [ms] milliseconds since 1970. */
+    fun atMs(ms: Long) {
+        instant = Instant.fromEpochMilliseconds(ms)
+    }
+
+    val nowMs: Long get() = instant.toEpochMilliseconds()
 }
 
 /** A usable item: created a minute before [EPOCH], 90 minutes long. */

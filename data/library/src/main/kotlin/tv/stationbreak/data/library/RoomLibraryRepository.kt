@@ -20,6 +20,8 @@ import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import java.util.EnumMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
@@ -48,9 +50,10 @@ internal data class RowCounts(
     val libraries: Int,
     val checkpoints: Int,
     val states: Int,
+    val versions: Int = 0,
 ) {
     companion object {
-        val NONE = RowCounts(0, 0, 0, 0, 0, 0)
+        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -95,6 +98,8 @@ class RoomLibraryRepository internal constructor(
                 }
             }
 
+    /** Not for the scheduler: it reads the current rows and hides tombstones. The scheduler reads [scheduleItems]. */
+    @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -107,6 +112,53 @@ class RoomLibraryRepository internal constructor(
             .map { it.toItem() }
     }
 
+    override suspend fun scheduleItems(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
+
+    /**
+     * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
+     * diagnostics"). Internal on purpose (Granny L3): the port returns the items alone, because the scheduler needs
+     * nothing else and the port has to stay plain Kotlin. It widens when diagnostics or F1.2 need the counts; until
+     * then they are for tests to read.
+     *
+     * Selection comes first and runs over every item of the account, whatever its library (Vimes H4). The libraries
+     * filter, the deletion test and the validity checks then apply to the **selected** version only.
+     */
+    internal suspend fun scheduleInputs(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): ScheduleRead {
+        if (libraries.isEmpty()) return ScheduleRead(emptyList(), emptyMap())
+        val (server, user) = account.keys()
+        val cutoffMs = cutoff.ceilingMillis()
+        val wanted = libraries.mapTo(HashSet()) { it.value }
+        val items = ArrayList<ScheduleItem>()
+        val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
+        val seen = HashSet<String>()
+        for (row in dao.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
+            when (val converted = ScheduleInputs.convert(row)) {
+                is Converted.Dropped -> {
+                    dropped.merge(converted.reason, 1, Int::plus)
+                }
+
+                is Converted.Accepted -> {
+                    if (seen.add(converted.item.id.value)) {
+                        items += converted.item
+                    } else {
+                        dropped.merge(DropReason.DuplicateId, 1, Int::plus)
+                    }
+                }
+            }
+        }
+        items.sortBy { it.id.value }
+        return ScheduleRead(items, dropped)
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -164,7 +216,8 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
-        return dao.writePage(server, user, checkpoint, rows, faultBetweenItemsAndCheckpoint)
+        val now = clock.now().toEpochMilliseconds()
+        return dao.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndCheckpoint)
     }
 
     /**
@@ -177,7 +230,9 @@ class RoomLibraryRepository internal constructor(
         items: List<MediaItem>,
     ): PageWrite {
         val (server, user) = account.keys()
-        return dao.writePage(server, user, null, rowsOf(items, server, user, library), faultBetweenItemsAndCheckpoint)
+        val rows = rowsOf(items, server, user, library)
+        val now = clock.now().toEpochMilliseconds()
+        return dao.writePage(server, user, null, rows, now, faultBetweenItemsAndCheckpoint)
     }
 
     private fun rowsOf(
@@ -283,7 +338,7 @@ class RoomLibraryRepository internal constructor(
         ids: Collection<ItemId>,
     ) {
         val (server, user) = account.keys()
-        dao.reviveAll(server, user, ids.map { it.value })
+        dao.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
     /** The IDs of [library]'s live items, in order: what a reconciliation compares the server's list with. */
@@ -342,7 +397,20 @@ class RoomLibraryRepository internal constructor(
             libraries = dao.countLibraries(),
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
+            versions = dao.countVersions(),
         )
+
+    /** The account's item rows as they are on disk (the current versions), by item ID. */
+    internal suspend fun currentRows(account: LibraryAccount): List<ItemEntity> {
+        val (server, user) = account.keys()
+        return dao.allItems(server, user)
+    }
+
+    /** The account's kept earlier versions, by item ID and then time. */
+    internal suspend fun versions(account: LibraryAccount): List<ItemVersionEntity> {
+        val (server, user) = account.keys()
+        return dao.allVersions(server, user)
+    }
 
     /** Closes the database. The app keeps it open for its lifetime; tests close theirs. */
     fun close() = db.close()
@@ -371,6 +439,9 @@ class RoomLibraryRepository internal constructor(
     companion object {
         /** The database file's name, with no path: Android puts it in the app's `databases` directory. */
         const val DATABASE_NAME = "library.db"
+
+        /** The as-of read walks the account's items this many at a time (spec 09, Vimes M2). */
+        private const val AS_OF_CHUNK = 500
 
         /** Tombstones older than this are purged (T11). */
         const val TOMBSTONE_LIFETIME_DAYS = 30
@@ -424,6 +495,9 @@ private fun MediaItem.toRows(
             productionYear = productionYear,
             officialRating = officialRating,
             deletedAtMs = null,
+            // The DAO stamps both when it writes the row (spec 09, Vimes H1).
+            seenFromMs = 0,
+            firstSeenMs = 0,
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },

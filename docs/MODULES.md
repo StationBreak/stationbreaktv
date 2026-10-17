@@ -168,6 +168,8 @@ Also allowed (not drawn above):
 - `data:*` → `core:model`. `data:settings` → `core:rules` too, because it stores channels as rules JSON.
 - `core:domain` and `core:engine` → `core:model` directly.
 - `core:testing` → `core:model` and `core:rules`, to build fixtures and golden vectors.
+- `data:library`'s tests → `core:scheduler`, **test source sets only**, so the edit-cutoff property test can build real days from
+  the library's as-of read (spec 09). Its main code reaches the scheduler only through `core:domain`.
 - Any module → `core:testing`, **test source sets only** (`commonTest`, `jvmTest`, `test`, `androidTest`).
 - Any module's tests → `core:domain`'s `testFixtures`, for the port fakes.
 

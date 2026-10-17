@@ -68,10 +68,19 @@ class LibraryRepositoryPortSignatureTest {
             LibraryRepository::class.java.methods
                 .map { it.name }
                 .toSet()
-        // The snapshot, the status flow (sync state and last success), the exclusion count and the selection.
+        // The snapshot, the as-of-cut-off read for the scheduler, the status flow (sync state and last success), the
+        // exclusion count and the selection.
         assertTrue(
             methods.containsAll(
-                setOf("snapshot", "status", "activeStatus", "excludedCount", "select", "pendingLibraries"),
+                setOf(
+                    "snapshot",
+                    "scheduleItems",
+                    "status",
+                    "activeStatus",
+                    "excludedCount",
+                    "select",
+                    "pendingLibraries",
+                ),
             ),
             "found $methods",
         )
