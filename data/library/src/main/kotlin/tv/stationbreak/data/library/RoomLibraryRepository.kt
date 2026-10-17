@@ -285,7 +285,7 @@ class RoomLibraryRepository internal constructor(
         ids: Collection<ItemId>,
     ) {
         val (server, user) = account.keys()
-        dao.reviveAll(server, user, ids.map { it.value })
+        dao.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
     /** The IDs of [library]'s live items, in order: what a reconciliation compares the server's list with. */

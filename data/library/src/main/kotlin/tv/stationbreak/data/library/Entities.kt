@@ -204,3 +204,51 @@ internal data class ActiveAccountEntity(
     val serverId: String,
     val userId: String,
 )
+
+/**
+ * The stamp of a new current row: now, but always after the stamp it replaces, so the intervals of an item's versions
+ * increase strictly and never overlap, whatever the clock does (Vimes H1).
+ */
+internal fun nextStamp(
+    old: ItemEntity,
+    nowMs: Long,
+): Long = maxOf(nowMs, old.seenFromMs + 1)
+
+/** True when every field the scheduler reads is equal. The name, the parent, the stamps and the tombstone are not. */
+internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
+    libraryId == other.libraryId &&
+        kind == other.kind &&
+        seriesId == other.seriesId &&
+        seasonNumber == other.seasonNumber &&
+        episodeNumber == other.episodeNumber &&
+        runtimeMs == other.runtimeMs &&
+        createdAtMs == other.createdAtMs &&
+        premiereDate == other.premiereDate &&
+        productionYear == other.productionYear &&
+        officialRating == other.officialRating
+
+/** This row as an earlier version, ending at [supersededAtMs], with the genres and tags it had. */
+internal fun ItemEntity.toVersion(
+    supersededAtMs: Long,
+    genres: List<String>,
+    tags: List<String>,
+) = ItemVersionEntity(
+    serverId = serverId,
+    userId = userId,
+    itemId = itemId,
+    seenFromMs = seenFromMs,
+    supersededAtMs = supersededAtMs,
+    libraryId = libraryId,
+    kind = kind,
+    seriesId = seriesId,
+    seasonNumber = seasonNumber,
+    episodeNumber = episodeNumber,
+    runtimeMs = runtimeMs,
+    createdAtMs = createdAtMs,
+    premiereDate = premiereDate,
+    productionYear = productionYear,
+    officialRating = officialRating,
+    deletedAtMs = deletedAtMs,
+    genres = VersionCodec.encode(genres),
+    tags = VersionCodec.encode(tags),
+)

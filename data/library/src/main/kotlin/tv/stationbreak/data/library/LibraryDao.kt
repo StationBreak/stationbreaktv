@@ -100,6 +100,9 @@ internal abstract class LibraryDao {
     @Update
     abstract suspend fun updateItems(rows: List<ItemEntity>)
 
+    @Insert
+    abstract suspend fun insertVersions(rows: List<ItemVersionEntity>)
+
     @Query(
         "SELECT * FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:libraries) " +
             "AND deletedAtMs IS NULL AND createdAtMs IS NOT NULL AND createdAtMs < :beforeMs " +
@@ -164,13 +167,6 @@ internal abstract class LibraryDao {
         userId: String,
         ids: List<String>,
         atMs: Long,
-    )
-
-    @Query("UPDATE item SET deletedAtMs = NULL WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids)")
-    abstract suspend fun revive(
-        serverId: String,
-        userId: String,
-        ids: List<String>,
     )
 
     @Query("DELETE FROM item WHERE deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs")
@@ -406,32 +402,75 @@ internal abstract class LibraryDao {
                 .chunked(MAX_VARIABLES)
                 .flatMap { itemsByIds(server, user, it) }
                 .associateBy { it.itemId }
+        // The old genres and tags are read here, inside the transaction and before they are deleted below, so a version
+        // can hold them and a genre-only or tag-only edit is seen as a change (Vimes H3).
+        val oldGenres = genreNames(server, user, existing.keys)
+        val oldTags = tagNames(server, user, existing.keys)
         val toInsert = mutableListOf<ItemEntity>()
         val toUpdate = mutableListOf<ItemEntity>()
+        val versions = mutableListOf<ItemVersionEntity>()
         var unchanged = 0
         for ((id, rows) in items) {
             val old = existing[id]
+            if (old == null) {
+                toInsert += rows.item.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
+                continue
+            }
+            val genres = rows.genres.map { it.name }
+            val tags = rows.tags.map { it.name }
+            val changed =
+                !old.sameScheduleFields(rows.item) || oldGenres[id].orEmpty() != genres || oldTags[id].orEmpty() != tags
+            // A row that clears the tombstone is a change too, even when no field differs (Vimes H2).
+            val revived = old.deletedAtMs != null && rows.item.deletedAtMs == null
+            val kept = rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
             when {
-                old == null -> toInsert += rows.item.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
-                old != rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs) -> {
-                    toUpdate += rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
+                changed || revived -> {
+                    val stamp = nextStamp(old, nowMs)
+                    versions += old.toVersion(stamp, oldGenres[id].orEmpty(), oldTags[id].orEmpty())
+                    toUpdate += rows.item.copy(seenFromMs = stamp, firstSeenMs = old.firstSeenMs)
                 }
+
+                // Only the name or the parent differs: stored, but it is no new version of the schedule's inputs.
+                old != kept -> toUpdate += kept
+
                 else -> unchanged++
             }
         }
         insertItems(toInsert)
+        insertVersions(versions)
         updateItems(toUpdate)
-        val changed = (toInsert + toUpdate).map { it.itemId }
-        changed.chunked(MAX_VARIABLES).forEach {
+        val changedIds = (toInsert + toUpdate).map { it.itemId }
+        changedIds.chunked(MAX_VARIABLES).forEach {
             deleteGenres(server, user, it)
             deleteTags(server, user, it)
         }
-        insertGenres(changed.flatMap { items.getValue(it).genres })
-        insertTags(changed.flatMap { items.getValue(it).tags })
+        insertGenres(changedIds.flatMap { items.getValue(it).genres })
+        insertTags(changedIds.flatMap { items.getValue(it).tags })
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { saveCheckpoint(it) }
         return PageWrite(toInsert.size, toUpdate.size, unchanged)
     }
+
+    // The names of the genres (or tags) of [ids], in order, by item. Chunked under MAX_VARIABLES.
+    private suspend fun genreNames(
+        server: String,
+        user: String,
+        ids: Collection<String>,
+    ): Map<String, List<String>> =
+        ids
+            .chunked(MAX_VARIABLES)
+            .flatMap { genresFor(server, user, it) }
+            .groupBy({ it.itemId }, { it.name })
+
+    private suspend fun tagNames(
+        server: String,
+        user: String,
+        ids: Collection<String>,
+    ): Map<String, List<String>> =
+        ids
+            .chunked(MAX_VARIABLES)
+            .flatMap { tagsFor(server, user, it) }
+            .groupBy({ it.itemId }, { it.name })
 
     /** The first sync starts or starts again: running, no total yet, the last success (if any) kept. */
     @Transaction
@@ -482,15 +521,31 @@ internal abstract class LibraryDao {
         ids.chunked(MAX_VARIABLES).forEach { tombstone(serverId, userId, it, atMs) }
     }
 
-    /** Clears the tombstone of [ids]. */
+    /**
+     * Clears the tombstone of [ids] at [nowMs]. Each tombstoned row is copied as a version first, ending at the new
+     * stamp (Vimes H2), so a day built from before the revival still sees the deletion. An id that is not a tombstone
+     * is left alone.
+     */
     @Transaction
     open suspend fun reviveAll(
         serverId: String,
         userId: String,
         ids: List<String>,
+        nowMs: Long,
     ) {
         requireActive(serverId, userId)
-        ids.chunked(MAX_VARIABLES).forEach { revive(serverId, userId, it) }
+        ids.chunked(MAX_VARIABLES).forEach { chunk ->
+            val rows = itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
+            if (rows.isEmpty()) return@forEach
+            val rowIds = rows.map { it.itemId }
+            val genres = genreNames(serverId, userId, rowIds)
+            val tags = tagNames(serverId, userId, rowIds)
+            val stamps = rows.associate { it.itemId to nextStamp(it, nowMs) }
+            insertVersions(
+                rows.map { it.toVersion(stamps.getValue(it.itemId), genres[it.itemId].orEmpty(), tags[it.itemId].orEmpty()) },
+            )
+            updateItems(rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.itemId)) })
+        }
     }
 
     /** Page one said the whole sync holds [total] items. */
