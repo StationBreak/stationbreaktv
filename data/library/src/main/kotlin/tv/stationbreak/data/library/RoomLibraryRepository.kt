@@ -21,6 +21,7 @@ import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import java.util.EnumMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
@@ -115,12 +116,48 @@ class RoomLibraryRepository internal constructor(
         cutoff: Instant,
     ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
 
-    // RED STUB (spec 09 task 2.10): compiles the tests, fails them.
+    /**
+     * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
+     * diagnostics"). The port returns the items alone, because the scheduler needs nothing else and the port has to stay
+     * plain Kotlin; the counts are for tests and for the diagnostics screen to read later.
+     *
+     * Selection comes first and runs over every item of the account, whatever its library (Vimes H4). The libraries
+     * filter, the deletion test and the validity checks then apply to the **selected** version only.
+     */
     internal suspend fun scheduleInputs(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
-    ): ScheduleRead = ScheduleRead(emptyList(), emptyMap())
+    ): ScheduleRead {
+        if (libraries.isEmpty()) return ScheduleRead(emptyList(), emptyMap())
+        val (server, user) = account.keys()
+        val cutoffMs = cutoff.ceilingMillis()
+        val wanted = libraries.mapTo(HashSet()) { it.value }
+        val items = ArrayList<ScheduleItem>()
+        val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
+        val seen = HashSet<String>()
+        dao.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK) { chunk ->
+            for (row in chunk) {
+                val deletedAt = row.deletedAtMs
+                if (row.libraryId !in wanted || (deletedAt != null && deletedAt < cutoffMs)) continue
+                when (val converted = ScheduleInputs.convert(row)) {
+                    is Converted.Dropped -> {
+                        dropped.merge(converted.reason, 1, Int::plus)
+                    }
+
+                    is Converted.Accepted -> {
+                        if (seen.add(converted.item.id.value)) {
+                            items += converted.item
+                        } else {
+                            dropped.merge(DropReason.DuplicateId, 1, Int::plus)
+                        }
+                    }
+                }
+            }
+        }
+        items.sortBy { it.id.value }
+        return ScheduleRead(items, dropped)
+    }
 
     override suspend fun excludedCount(
         account: LibraryAccount,
@@ -400,6 +437,9 @@ class RoomLibraryRepository internal constructor(
     companion object {
         /** The database file's name, with no path: Android puts it in the app's `databases` directory. */
         const val DATABASE_NAME = "library.db"
+
+        /** The as-of read walks the account's items this many at a time (spec 09, Vimes M2). */
+        private const val AS_OF_CHUNK = 500
 
         /** Tombstones older than this are purged (T11). */
         const val TOMBSTONE_LIFETIME_DAYS = 30

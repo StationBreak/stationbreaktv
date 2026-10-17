@@ -211,16 +211,12 @@ class ScheduleInputFilterTest {
     fun twoRowsThatNormaliseToOneIdKeepOneAndCountTheOtherAsADuplicate() =
         runBlocking {
             repository.select(ALICE, setOf(MOVIES))
-            repository.put(
-                ALICE,
-                MOVIES,
-                sitem(1).copy(id = ItemId(hexId(1).uppercase())),
-                sitem(1),
-            )
+            // "...0B" and "...0b" are two rows in storage and one canonical ID: buildDay would throw on the pair.
+            repository.put(ALICE, MOVIES, sitem(11).copy(id = ItemId(hexId(11).uppercase())), sitem(11))
 
             val result = read()
 
-            assertEquals(listOf(hexId(1)), result.items.map { it.id.value })
+            assertEquals(listOf(hexId(11)), result.items.map { it.id.value })
             assertEquals(mapOf(DropReason.DuplicateId to 1), result.dropped)
             assertEquals(0L, buildDay(settings, result.items, 0).n)
         }
@@ -229,11 +225,11 @@ class ScheduleInputFilterTest {
     fun theItemsComeBackInCanonicalIdOrderNotStorageOrder() =
         runBlocking {
             repository.select(ALICE, setOf(MOVIES))
-            // The braced form sorts after the hex digits in storage, but its canonical ID is the smallest here.
-            repository.put(ALICE, MOVIES, sitem(3), sitem(1).copy(id = ItemId("{" + hexId(1) + "}")), sitem(2))
+            // In storage "...0B" sorts before "...0a"; as canonical IDs "...0a" is the smaller.
+            repository.put(ALICE, MOVIES, sitem(11).copy(id = ItemId(hexId(11).uppercase())), sitem(10))
 
             val ids = read().items.map { it.id.value }
 
-            assertEquals(listOf(hexId(1), hexId(2), hexId(3)), ids)
+            assertEquals(listOf(hexId(10), hexId(11)), ids)
         }
 }

@@ -172,6 +172,55 @@ internal abstract class LibraryDao {
     @Query("DELETE FROM item WHERE deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs")
     abstract suspend fun purgeTombstonesBefore(cutoffMs: Long): Int
 
+    // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one
+    // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by 999 variables.
+
+    @Query(
+        "SELECT itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
+            "productionYear, deletedAtMs, seenFromMs FROM item " +
+            "WHERE serverId = :serverId AND userId = :userId AND itemId > :after ORDER BY itemId LIMIT :limit",
+    )
+    protected abstract suspend fun currentChunk(
+        serverId: String,
+        userId: String,
+        after: String,
+        limit: Int,
+    ): List<HeldRow>
+
+    // Case (b): the one version that was current just before the cut-off. Intervals are contiguous, so at most one per item.
+    @Query(
+        "SELECT itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
+            "productionYear, deletedAtMs, seenFromMs FROM item_version " +
+            "WHERE serverId = :serverId AND userId = :userId AND itemId > :after AND itemId <= :last " +
+            "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
+    )
+    protected abstract suspend fun coveringVersions(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+        cutoffMs: Long,
+    ): List<HeldRow>
+
+    // Case (c): the oldest version, found by probing the item's firstSeenMs, for an item nothing older than the cut-off holds.
+    @Query(
+        "SELECT v.itemId AS itemId, v.libraryId AS libraryId, v.kind AS kind, v.seriesId AS seriesId, " +
+            "v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, v.runtimeMs AS runtimeMs, " +
+            "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
+            "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs FROM item_version v " +
+            "JOIN item i ON i.serverId = v.serverId AND i.userId = v.userId AND i.itemId = v.itemId " +
+            "AND i.firstSeenMs = v.seenFromMs " +
+            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.itemId > :after AND v.itemId <= :last " +
+            "AND v.seenFromMs >= :cutoffMs",
+    )
+    protected abstract suspend fun oldestVersions(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+        cutoffMs: Long,
+    ): List<HeldRow>
+
     // Genres and tags.
 
     @Insert
@@ -595,6 +644,39 @@ internal abstract class LibraryDao {
                 .flatMap { snapshotChunk(serverId, userId, it, beforeMs) }
                 .sortedBy { it.itemId }
         return withSideTables(serverId, userId, items)
+    }
+
+    /**
+     * Hands [sink] the version of every item of the account that this TV held before [cutoffMs], a chunk of at most
+     * [chunkSize] items at a time in item-ID order, all from one read transaction (Vimes H4, M2). Nothing is filtered:
+     * the libraries, the deletion time and the validity are the caller's, applied to what [sink] gets.
+     *
+     * Per item: (a) the current row if it was first seen before the cut-off; else (b) the version that was current just
+     * before it; else (c) the oldest version, or the current row if the item has none. Cases (b) and (c) are looked up
+     * only for a chunk that has an item in need of them.
+     */
+    @Transaction
+    open suspend fun heldAsOf(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+        chunkSize: Int,
+        sink: (List<HeldRow>) -> Unit,
+    ) {
+        var after = ""
+        while (true) {
+            val current = currentChunk(serverId, userId, after, chunkSize)
+            if (current.isEmpty()) return
+            val last = current.last().itemId
+            val needsHistory = current.any { it.seenFromMs >= cutoffMs }
+            val covering =
+                if (needsHistory) coveringVersions(serverId, userId, after, last, cutoffMs).associateBy { it.itemId } else emptyMap()
+            val oldest =
+                if (needsHistory) oldestVersions(serverId, userId, after, last, cutoffMs).associateBy { it.itemId } else emptyMap()
+            sink(current.map { row -> if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row })
+            if (current.size < chunkSize) return
+            after = last
+        }
     }
 
     /** How many live items of [libraries] have no usable running time. [libraries] may be any length. */

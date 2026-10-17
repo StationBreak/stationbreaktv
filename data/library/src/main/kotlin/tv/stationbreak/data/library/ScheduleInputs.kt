@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 
 /**
  * An item as one version of it held its schedule fields (spec 09, Unit 2): a current row or an `item_version` row, read
@@ -58,7 +60,71 @@ internal class ScheduleRead(
     val dropped: Map<DropReason, Int>,
 )
 
+/**
+ * Turns the fields one version held into the scheduler's [ScheduleItem], or says why it can't (Vimes M3). Each check is
+ * the one `ScheduleItem`, `CanonicalId` or `buildDay` makes, written out so the reason has a name; the item is then built
+ * by `ScheduleItem` itself, and anything its own validation still refuses is counted as
+ * [DropReason.RejectedByScheduleItem] rather than thrown, so one bad item can never fail a whole day.
+ */
 internal object ScheduleInputs {
-    // RED STUB (spec 09 task 2.8): compiles the tests, fails them.
-    fun convert(row: HeldRow): Converted = Converted.Dropped(DropReason.RejectedByScheduleItem)
+    private const val MAX_TIME_MS = 1L shl 52
+    private const val MAX_YEAR = 9999
+    private val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+
+    fun convert(row: HeldRow): Converted {
+        val kind = ScheduleItemKind.entries.firstOrNull { it.name == row.kind }
+        val id = CanonicalId.parseOrNull(row.itemId)
+        val series = row.seriesId?.let { CanonicalId.parseOrNull(it) }
+        val runtime = row.runtimeMs
+        val created = row.createdAtMs
+        val deleted = row.deletedAtMs
+        val reason =
+            when {
+                kind == null -> DropReason.KindNotMovieOrEpisode
+                id == null -> DropReason.IdNotCanonical
+                row.seriesId != null && series == null -> DropReason.SeriesIdNotCanonical
+                runtime == null || runtime <= 0 -> DropReason.RuntimeMissing
+                created == null -> DropReason.CreatedAtMissing
+                created !in -MAX_TIME_MS..MAX_TIME_MS || (deleted != null && deleted !in -MAX_TIME_MS..MAX_TIME_MS) -> {
+                    DropReason.TimeOutOfRange
+                }
+
+                row.premiereDate != null && !validDate(row.premiereDate) -> DropReason.PremiereDateMalformed
+                row.productionYear != null && row.productionYear !in 1..MAX_YEAR -> DropReason.ProductionYearOutOfRange
+                row.seasonNumber != null && row.seasonNumber < 0 -> DropReason.SeasonNegative
+                row.episodeNumber != null && row.episodeNumber < 0 -> DropReason.EpisodeNegative
+                kind == ScheduleItemKind.Movie &&
+                    (series != null || row.seasonNumber != null || row.episodeNumber != null) -> {
+                    DropReason.MovieHasSeriesData
+                }
+
+                else -> null
+            }
+        if (reason != null || kind == null || id == null || runtime == null || created == null) {
+            return Converted.Dropped(reason ?: DropReason.RejectedByScheduleItem)
+        }
+        return try {
+            Converted.Accepted(
+                ScheduleItem(
+                    id = id,
+                    kind = kind,
+                    runtimeMs = runtime,
+                    createdAtMs = created,
+                    deletedAtMs = deleted,
+                    premiereDate = row.premiereDate,
+                    productionYear = row.productionYear,
+                    seriesId = series,
+                    seasonNumber = row.seasonNumber,
+                    episodeNumber = row.episodeNumber,
+                ),
+            )
+        } catch (
+            @Suppress("SwallowedException") refused: IllegalArgumentException,
+        ) {
+            Converted.Dropped(DropReason.RejectedByScheduleItem)
+        }
+    }
+
+    // ScheduleItem's own date check: four digits, a month 01-12, a day 01-31, and a year other than 0000.
+    private fun validDate(text: String): Boolean = DATE.matches(text) && !text.startsWith("0000-")
 }
