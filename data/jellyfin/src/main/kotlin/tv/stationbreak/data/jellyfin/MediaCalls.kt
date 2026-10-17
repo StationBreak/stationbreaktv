@@ -23,8 +23,11 @@ import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamUrls
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeParseException
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -225,7 +228,7 @@ internal class MediaCalls(
          * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
          * runtime) come with every item, so asking for more would only make the answer bigger.
          */
-        const val ITEM_FIELDS = "DateCreated,Genres,Tags,ParentId"
+        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,ParentId"
 
         /**
          * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
@@ -292,7 +295,7 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         kind = ITEM_KINDS[dto.type] ?: ItemKind.Other,
         runtime = dto.runTimeTicks?.let(::duration),
         parentId = dto.parentId?.let(::ItemId),
-        dateCreated = instant(dto.dateCreated),
+        dateCreated = createdAtOf(dto.dateCreated),
         premiereDate = premiereDateOf(dto.premiereDate),
         productionYear = dto.productionYear,
         officialRating = dto.officialRating,
@@ -303,21 +306,45 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         episodeNumber = dto.episodeNumber,
     )
 
-/** A date the server sent, or null when it is missing or unreadable: one odd date must not fail a page. */
-private fun instant(text: String?): Instant? =
+/**
+ * `DateCreated` as the server's creation moment, in whole milliseconds: `floorDiv(T, 10000)` for `T` the time in
+ * 100 ns ticks since the epoch, any UTC offset honoured, before 1970 too. Jellyfin writes seven fraction digits, which
+ * `java.time` reads in full, and the seconds are floored first, so the result is exactly the format's formula. Null when
+ * the text is missing, unreadable or out of range: one odd date must not fail a page.
+ */
+internal fun createdAtOf(text: String?): Instant? =
     text?.let {
         try {
-            Instant.parse(it)
-        } catch (_: IllegalArgumentException) {
+            val moment = OffsetDateTime.parse(it).toInstant()
+            // Instant keeps its nanoseconds in 0..999,999,999 also before 1970, so this is a floor.
+            val ms = Math.addExact(Math.multiplyExact(moment.epochSecond, MS_PER_SECOND), (moment.nano / NANOS_PER_MS).toLong())
+            Instant.fromEpochMilliseconds(ms)
+        } catch (_: DateTimeParseException) {
+            null
+        } catch (_: ArithmeticException) {
             null
         }
     }
 
-/** Ticks are 100 ns; a zero or negative runtime is nonsense for an item, so it reads as unknown. */
-internal fun duration(ticks: Long): Duration? = (ticks / 10L).microseconds.takeIf { ticks > 0 }
+/**
+ * `RunTimeTicks` as the runtime, in exactly `floorDiv(ticks, 10000)` milliseconds. A missing, zero or negative value
+ * is no runtime.
+ */
+internal fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MS).milliseconds.takeIf { ticks > 0 }
 
-/** Not yet the UTC date of `PremiereDate` (red stub). */
-internal fun premiereDateOf(text: String?): String? = null
+/** The UTC calendar date (`YYYY-MM-DD`) of a `PremiereDate`, or null if it is missing or unreadable. */
+internal fun premiereDateOf(text: String?): String? =
+    text?.let {
+        try {
+            OffsetDateTime.parse(it).withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().toString()
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    }
+
+private const val MS_PER_SECOND = 1000L
+private const val NANOS_PER_MS = 1_000_000
+private const val TICKS_PER_MS = 10_000L
 
 private val ITEM_KINDS =
     mapOf(
