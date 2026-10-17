@@ -41,6 +41,8 @@ import tv.stationbreak.data.jellyfin.AuthHeaderBuilder
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
 import tv.stationbreak.data.jellyfin.ProbeTimeouts
 import tv.stationbreak.data.jellyfin.QuickConnectLimits
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -300,7 +302,8 @@ abstract class ContractSuite {
                 assertTrue((item.runtime ?: 0.seconds) > 5.minutes)
                 // The creation date is what the server holds, read back raw with the harness's own device.
                 val raw = rawItem(item.id.value)
-                assertEquals(Instant.parse(raw.getValue("DateCreated").jsonPrimitive.content), item.dateCreated)
+                val rawCreated = Instant.parse(raw.getValue("DateCreated").jsonPrimitive.content)
+                assertEquals(Instant.fromEpochMilliseconds(rawCreated.toEpochMilliseconds()), item.dateCreated)
             }
             val movies = Library(ItemId(server.seeded.moviesLibrary), "Movies", LibraryKind.Movies)
             val movieItems =
@@ -312,6 +315,38 @@ abstract class ContractSuite {
             assertEquals(server.seeded.movieIds.toSet(), movieItems.map { it.id.value }.toSet())
             assertTrue(movieItems.all { it.kind == ItemKind.Movie && it.dateCreated != null })
             assertTrue(movieItems.all { it.productionYear in FIRST_YEAR..LAST_YEAR })
+        }
+    }
+
+    @Test
+    fun premiereDateArrives() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+            assertTrue(server.seeded.premieres.size >= 2, "the server seeds at least two premiere dates")
+
+            val page = adapter.libraryItems(session, shows, 0, BIG_PAGE).getOrNull()
+
+            assertNotNull(page)
+            val byId = page.items.associateBy { it.id.value }
+            for ((id, expected) in server.seeded.premieres) {
+                assertEquals(expected, byId.getValue(id).premiereDate, "premiere date of $id")
+            }
+            // Every item agrees with the server's own text, read raw: the UTC date of it, or none.
+            for (item in page.items) {
+                val text = rawItem(item.id.value)["PremiereDate"]?.jsonPrimitive?.content
+                val utcDate =
+                    text?.let { OffsetDateTime.parse(it).withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().toString() }
+                assertEquals(utcDate, item.premiereDate, "premiere date of ${item.id.value} (raw $text)")
+            }
+            // Open question 1: does Jellyfin send PremiereDate without it being in Fields?
+            val query = listOf("parentId" to server.seeded.tvLibrary, "recursive" to "true", "includeItemTypes" to "Episode")
+            val bare = server.http.expectOk("items without fields", server.http.get("Items", harnessToken(), query))
+            val sent = bare.obj().getValue("Items").jsonArray.map { it.jsonObject }.count { "PremiereDate" in it }
+            finding("PremiereDate without Fields: $sent of ${server.seeded.episodeIds.size} episodes carried it")
+            val stored = server.seeded.premieres.keys.map { rawItem(it)["PremiereDate"]?.jsonPrimitive?.content }
+            finding("seeded premiere dates as the server stores them: $stored")
         }
     }
 

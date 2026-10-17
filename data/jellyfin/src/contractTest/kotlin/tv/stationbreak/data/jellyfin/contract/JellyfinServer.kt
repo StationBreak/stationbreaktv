@@ -34,6 +34,8 @@ internal class Seeded(
     val mixedLibrary: String,
     val movieIds: List<String>,
     val episodeIds: List<String>,
+    /** Item ID to the UTC calendar date its seeded `PremiereDate` must read as (spec 09). */
+    val premieres: Map<String, String> = emptyMap(),
 )
 
 /**
