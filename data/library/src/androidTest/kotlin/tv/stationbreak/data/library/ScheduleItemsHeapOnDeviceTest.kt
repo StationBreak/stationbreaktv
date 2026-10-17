@@ -56,6 +56,11 @@ class ScheduleItemsHeapOnDeviceTest {
         return runtime.totalMemory() - runtime.freeMemory()
     }
 
+    private fun rawUsedHeap(): Long {
+        val runtime = Runtime.getRuntime()
+        return runtime.totalMemory() - runtime.freeMemory()
+    }
+
     /** Writes the whole library once, with the rating of [round], so each round supersedes the one before. */
     private suspend fun writeRound(round: Int) {
         var start = 0
@@ -95,7 +100,10 @@ class ScheduleItemsHeapOnDeviceTest {
             var chunks = 0
             repository.dao.heldAsOf(account.server.value, account.user.value, cutoff.toEpochMilliseconds(), CHUNK) {
                 chunks++
-                if (chunks % SAMPLE_EVERY == 0) peak = maxOf(peak, usedHeap())
+                // No forced GC here: this runs on Room's query thread inside its transaction, and an explicit
+                // Runtime.gc() from there aborted the API 25 runtime ("Tried to mark ... not contained by any
+                // spaces"). The raw figure counts garbage too, so it is an upper bound on what the read keeps alive.
+                peak = maxOf(peak, rawUsedHeap())
             }
 
             val streamed = peak - baseline
@@ -113,7 +121,6 @@ class ScheduleItemsHeapOnDeviceTest {
         const val ITEMS = 15_000
         const val PAGE = 400
         const val CHUNK = 500
-        const val SAMPLE_EVERY = 8
         const val SETTLE_MS = 5L
         const val GCS = 2
         const val KB = 1024L
