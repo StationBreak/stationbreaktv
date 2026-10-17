@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "31e41b42bf77656ab0a1df47c9dcccff",
+    "identityHash": "adbf74642af269f6ab8ec4177fe95f08",
     "entities": [
       {
         "tableName": "library",
@@ -44,7 +44,7 @@
       },
       {
         "tableName": "item",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `kind` TEXT NOT NULL, `name` TEXT NOT NULL, `parentId` TEXT, `seriesId` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `runtimeMs` INTEGER, `createdAtMs` INTEGER, `premiereDate` TEXT, `productionYear` INTEGER, `officialRating` TEXT, `deletedAtMs` INTEGER, `seenFromMs` INTEGER NOT NULL, `firstSeenMs` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`, `itemId`), FOREIGN KEY(`serverId`, `userId`, `libraryId`) REFERENCES `library`(`serverId`, `userId`, `libraryId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `kind` TEXT NOT NULL, `name` TEXT NOT NULL, `parentId` TEXT, `seriesId` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `runtimeMs` INTEGER, `createdAtMs` INTEGER, `premiereDate` TEXT, `productionYear` INTEGER, `officialRating` TEXT, `deletedAtMs` INTEGER, PRIMARY KEY(`serverId`, `userId`, `itemId`), FOREIGN KEY(`serverId`, `userId`, `libraryId`) REFERENCES `library`(`serverId`, `userId`, `libraryId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "serverId",
@@ -131,18 +131,6 @@
             "fieldPath": "deletedAtMs",
             "columnName": "deletedAtMs",
             "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "seenFromMs",
-            "columnName": "seenFromMs",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "firstSeenMs",
-            "columnName": "firstSeenMs",
-            "affinity": "INTEGER",
-            "notNull": true
           }
         ],
         "primaryKey": {
@@ -166,15 +154,13 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_item_serverId_userId_libraryId` ON `${TABLE_NAME}` (`serverId`, `userId`, `libraryId`)"
           },
           {
-            "name": "index_item_serverId_userId_deletedAtMs",
+            "name": "index_item_deletedAtMs",
             "unique": false,
             "columnNames": [
-              "serverId",
-              "userId",
               "deletedAtMs"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_item_serverId_userId_deletedAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `deletedAtMs`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_item_deletedAtMs` ON `${TABLE_NAME}` (`deletedAtMs`)"
           }
         ],
         "foreignKeys": [
@@ -191,150 +177,6 @@
               "serverId",
               "userId",
               "libraryId"
-            ]
-          }
-        ]
-      },
-      {
-        "tableName": "item_version",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `seenFromMs` INTEGER NOT NULL, `supersededAtMs` INTEGER NOT NULL, `libraryId` TEXT NOT NULL, `kind` TEXT NOT NULL, `seriesId` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `runtimeMs` INTEGER, `createdAtMs` INTEGER, `premiereDate` TEXT, `productionYear` INTEGER, `officialRating` TEXT, `deletedAtMs` INTEGER, `genres` TEXT NOT NULL, `tags` TEXT NOT NULL, PRIMARY KEY(`serverId`, `userId`, `itemId`, `seenFromMs`), FOREIGN KEY(`serverId`, `userId`, `itemId`) REFERENCES `item`(`serverId`, `userId`, `itemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "serverId",
-            "columnName": "serverId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "userId",
-            "columnName": "userId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "itemId",
-            "columnName": "itemId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "seenFromMs",
-            "columnName": "seenFromMs",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "supersededAtMs",
-            "columnName": "supersededAtMs",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "libraryId",
-            "columnName": "libraryId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "kind",
-            "columnName": "kind",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "seriesId",
-            "columnName": "seriesId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "seasonNumber",
-            "columnName": "seasonNumber",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "episodeNumber",
-            "columnName": "episodeNumber",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "runtimeMs",
-            "columnName": "runtimeMs",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "createdAtMs",
-            "columnName": "createdAtMs",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "premiereDate",
-            "columnName": "premiereDate",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "productionYear",
-            "columnName": "productionYear",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "officialRating",
-            "columnName": "officialRating",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "deletedAtMs",
-            "columnName": "deletedAtMs",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "genres",
-            "columnName": "genres",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "tags",
-            "columnName": "tags",
-            "affinity": "TEXT",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "serverId",
-            "userId",
-            "itemId",
-            "seenFromMs"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_item_version_serverId_userId_supersededAtMs",
-            "unique": false,
-            "columnNames": [
-              "serverId",
-              "userId",
-              "supersededAtMs"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_item_version_serverId_userId_supersededAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "item",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "serverId",
-              "userId",
-              "itemId"
-            ],
-            "referencedColumns": [
-              "serverId",
-              "userId",
-              "itemId"
             ]
           }
         ]
@@ -603,7 +445,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '31e41b42bf77656ab0a1df47c9dcccff')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'adbf74642af269f6ab8ec4177fe95f08')"
     ]
   }
 }
