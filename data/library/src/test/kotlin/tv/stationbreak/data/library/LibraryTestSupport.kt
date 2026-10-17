@@ -123,8 +123,10 @@ internal object TestLibraries {
         sync: SyncControl = SyncControl.None,
         signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
         retention: HistoryRetention = HistoryRetention(),
-    ): RoomLibraryRepository =
-        signedIn(RoomLibraryRepository.testing(builder(null, null), clock, sync, retention), signedIn)
+    ): RoomLibraryRepository {
+        val repository = RoomLibraryRepository.testing(builder(null, null), clock, sync, retention)
+        return signedIn(repository, signedIn)
+    }
 
     /** A database file named [name] under [dir]; opening the same name again reads what the last open stored. */
     fun onDisk(

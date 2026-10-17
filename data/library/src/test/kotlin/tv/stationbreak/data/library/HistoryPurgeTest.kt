@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaItem
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 
@@ -34,6 +35,11 @@ class HistoryPurgeTest {
 
     private suspend fun rowIds(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) =
         repository.stored(account).map { it.item.id.value }.sorted()
+
+    private fun tagged(runtime: kotlin.time.Duration): MediaItem {
+        val plain = sitem(1, runtime = runtime)
+        return plain.copy(genres = listOf("g1"), tags = listOf("t1"))
+    }
 
     private suspend fun purged() = repository.purgeHistory(ALICE)
 
@@ -160,9 +166,9 @@ class HistoryPurgeTest {
     fun purgingATombstoneTakesItsGenresTagsAndVersionsWithIt() =
         runBlocking {
             fourItems()
-            repository.put(ALICE, MOVIES, sitem(1, runtime = 91.minutes).copy(genres = listOf("g1"), tags = listOf("t1")))
+            repository.put(ALICE, MOVIES, tagged(runtime = 91.minutes))
             clock.stepMs(1_000)
-            repository.put(ALICE, MOVIES, sitem(1, runtime = 92.minutes).copy(genres = listOf("g1"), tags = listOf("t1")))
+            repository.put(ALICE, MOVIES, tagged(runtime = 92.minutes))
             repository.tombstone(ALICE, listOf(id(1)))
             val rowsBefore = repository.rowCounts()
             clock.stepMs(thirtyDays + 1)

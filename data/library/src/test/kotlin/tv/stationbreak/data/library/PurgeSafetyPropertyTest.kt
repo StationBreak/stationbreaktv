@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ordering.splitmix64
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -83,8 +84,10 @@ class PurgeSafetyPropertyTest {
         }
     }
 
-    private suspend fun read(cutoffMs: Long) =
-        repository.scheduleItems(ALICE, libraries, Instant.fromEpochMilliseconds(cutoffMs))
+    private suspend fun read(cutoffMs: Long): List<ScheduleItem> {
+        val cutoff = Instant.fromEpochMilliseconds(cutoffMs)
+        return repository.scheduleItems(ALICE, libraries, cutoff)
+    }
 
     private suspend fun readAll(cutoffs: List<Long>) = cutoffs.map { read(it) }
 
@@ -100,7 +103,7 @@ class PurgeSafetyPropertyTest {
                 repository.select(ALICE, libraries)
                 timesOf(gen).forEach { apply(gen, it) }
                 clock.atMs(nowMs)
-                val fixed = listOf(safeFromMs, safeFromMs + 1, nowMs - 36.hours.inWholeMilliseconds, nowMs, nowMs + 3_600_000L)
+                val fixed = listOf(safeFromMs, safeFromMs + 1, nowMs - 36 * HOUR_MS, nowMs, nowMs + HOUR_MS)
                 val cutoffs = fixed + List(RANDOM_CUTOFFS) { safeFromMs + gen.nextLong(5.days.inWholeMilliseconds) }
                 val before = readAll(cutoffs)
 
@@ -163,14 +166,15 @@ class PurgeSafetyPropertyTest {
 
             val perItem = repository.versions(ALICE).groupBy { it.itemId }.mapValues { it.value.size }
             assertEquals(ITEMS, perItem.size)
-            // A daily edit supersedes one version a day. One superseded exactly 30 days ago is kept (the cut is strict),
-            // so 31 at most, and the current row is on top of them.
+            // A daily edit supersedes one version a day. One superseded exactly 30 days ago is kept (the cut is
+            // strict), so 31 at most, and the current row is on top of them.
             perItem.values.forEach { assertTrue("kept $it versions", it <= RETENTION_DAYS + 1) }
             // The history has stopped growing: the last 20 days added nothing.
             assertEquals(sizes[SIMULATED_DAYS - 21], sizes.last())
         }
 
     private companion object {
+        const val HOUR_MS = 3_600_000L
         const val CASES = 300
         const val BASE_SEED = 0x5EED_0009uL
         const val OPS_PER_CASE = 40

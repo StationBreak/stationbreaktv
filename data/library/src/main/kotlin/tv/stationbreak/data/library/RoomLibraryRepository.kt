@@ -59,7 +59,8 @@ internal data class RowCounts(
 /**
  * The saved library in Room (spec 06, Unit 2): the [LibraryRepository] port for the scheduler and the app, and the
  * internal calls the sync (3.0 and 4.0) uses to fill and tidy it. Every row is keyed by server and user, a page and its
- * checkpoint are written in one transaction, a deleted item is a tombstone until the history purge, and nothing here ever holds a
+ * checkpoint are written in one transaction, a deleted item is a tombstone until the history purge, and nothing here
+ * ever holds a
  * token. The database is a cache: it can be deleted and fetched again.
  */
 @Suppress("TooManyFunctions") // The port plus the sync's side: each is one call into a DAO transaction.

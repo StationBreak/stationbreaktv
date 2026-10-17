@@ -80,7 +80,7 @@ internal class AccountNotActiveException : IllegalStateException("The account is
  * SQLite on API 25 allows 999 variables in a statement, and the repository chunks.
  */
 @Dao
-@Suppress("TooManyFunctions") // The SQL surface of the cache: one method per statement or transaction.
+@Suppress("TooManyFunctions", "LargeClass") // The SQL surface of the cache: one method per statement or transaction.
 internal abstract class LibraryDao {
     // Libraries.
 
@@ -249,16 +249,25 @@ internal abstract class LibraryDao {
         retentionMs: Long,
     ): PurgeOutcome {
         requireActive(serverId, userId)
-        val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
-        if (lastSuccessMs != null) {
-            if (nowMs < lastSuccessMs) return PurgeOutcome.Skipped(PurgeSkip.ClockBehindLastSync)
-            if (nowMs - lastSuccessMs > retentionMs) return PurgeOutcome.Skipped(PurgeSkip.ClockFarAhead)
-        }
+        val skip = clockLooksWrong(state(serverId, userId)?.lastSuccessMs, nowMs, retentionMs)
+        if (skip != null) return PurgeOutcome.Skipped(skip)
         val cutoffMs = nowMs - retentionMs
         val versions = deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
         val tombstones = deleteTombstonesBefore(serverId, userId, cutoffMs)
         return PurgeOutcome.Purged(tombstones = tombstones, versions = versions)
     }
+
+    private fun clockLooksWrong(
+        lastSuccessMs: Long?,
+        nowMs: Long,
+        retentionMs: Long,
+    ): PurgeSkip? =
+        when {
+            lastSuccessMs == null -> null
+            nowMs < lastSuccessMs -> PurgeSkip.ClockBehindLastSync
+            nowMs - lastSuccessMs > retentionMs -> PurgeSkip.ClockFarAhead
+            else -> null
+        }
 
     // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one
     // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by the 999
