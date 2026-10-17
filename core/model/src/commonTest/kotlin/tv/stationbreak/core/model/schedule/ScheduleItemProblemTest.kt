@@ -15,6 +15,7 @@ class ScheduleItemProblemTest {
     private val id = CanonicalId.parse("11111111111111111111111111111111")
     private val series = CanonicalId.parse("22222222222222222222222222222222")
 
+    @Suppress("LongParameterList") // Mirrors the fields under test, all with defaults.
     private fun problem(
         kind: ScheduleItemKind = ScheduleItemKind.Episode,
         premiereDate: String? = null,
@@ -24,6 +25,7 @@ class ScheduleItemProblemTest {
         episodeNumber: Int? = null,
     ) = ScheduleItem.problem(kind, premiereDate, productionYear, seriesId, seasonNumber, episodeNumber)
 
+    @Suppress("LongParameterList") // Mirrors the fields under test, all with defaults.
     private fun build(
         kind: ScheduleItemKind = ScheduleItemKind.Episode,
         premiereDate: String? = null,
@@ -31,7 +33,18 @@ class ScheduleItemProblemTest {
         seriesId: CanonicalId? = null,
         seasonNumber: Int? = null,
         episodeNumber: Int? = null,
-    ) = ScheduleItem(id, kind, 1_800_000L, 0L, null, premiereDate, productionYear, seriesId, seasonNumber, episodeNumber)
+    ) = ScheduleItem(
+        id,
+        kind,
+        1_800_000L,
+        0L,
+        null,
+        premiereDate,
+        productionYear,
+        seriesId,
+        seasonNumber,
+        episodeNumber,
+    )
 
     @Test
     fun aValidItemHasNoProblem() {
@@ -43,7 +56,8 @@ class ScheduleItemProblemTest {
 
     @Test
     fun eachProblemIsNamed() {
-        for (bad in listOf("2020-1-1", "20200101", "2020-01-01T00:00:00Z", "", "yesterday", "0000-01-01", "2020-13-01")) {
+        val dates = listOf("2020-1-1", "20200101", "2020-01-01T00:00:00Z", "", "yesterday", "0000-01-01", "2020-13-01")
+        for (bad in dates) {
             assertEquals(ScheduleItemProblem.PremiereDateMalformed, problem(premiereDate = bad), bad)
         }
         for (bad in listOf(0, -1, 10_000)) {
@@ -85,7 +99,8 @@ class ScheduleItemProblemTest {
 
     @Test
     fun theMessagesAreTheOnesTheInitAlwaysHad() {
-        assertEquals("A premiere date is YYYY-MM-DD, with a year from 0001 to 9999", ScheduleItemProblem.PremiereDateMalformed.message)
+        val date = "A premiere date is YYYY-MM-DD, with a year from 0001 to 9999"
+        assertEquals(date, ScheduleItemProblem.PremiereDateMalformed.message)
         assertEquals("A production year is 1 to 9999", ScheduleItemProblem.ProductionYearOutOfRange.message)
         assertEquals("A season number is not negative", ScheduleItemProblem.SeasonNegative.message)
         assertEquals("An episode number is not negative", ScheduleItemProblem.EpisodeNegative.message)

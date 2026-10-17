@@ -9,7 +9,7 @@ enum class ScheduleItemKind {
     Episode,
 }
 
-/** What is wrong with a [ScheduleItem]'s fields, if anything: the checks its `init` makes, named. See [ScheduleItem.problem]. */
+/** What is wrong with a [ScheduleItem]'s fields: the checks its `init` makes, named. See [ScheduleItem.problem]. */
 enum class ScheduleItemProblem(
     val message: String,
 ) {
@@ -43,15 +43,8 @@ data class ScheduleItem(
     val episodeNumber: Int?,
 ) {
     init {
-        require(premiereDate == null || (DATE.matches(premiereDate) && !premiereDate.startsWith("0000-"))) {
-            "A premiere date is YYYY-MM-DD, with a year from 0001 to 9999"
-        }
-        require(productionYear == null || productionYear in 1..MAX_YEAR) { "A production year is 1 to 9999" }
-        require(seasonNumber == null || seasonNumber >= 0) { "A season number is not negative" }
-        require(episodeNumber == null || episodeNumber >= 0) { "An episode number is not negative" }
-        require(kind != ScheduleItemKind.Movie || (seriesId == null && seasonNumber == null && episodeNumber == null)) {
-            "A movie has no series, season or episode number"
-        }
+        val found = problem(kind, premiereDate, productionYear, seriesId, seasonNumber, episodeNumber)
+        require(found == null) { found?.message.orEmpty() }
     }
 
     /**
@@ -61,7 +54,11 @@ data class ScheduleItem(
     val groupId: CanonicalId get() = seriesId ?: id
 
     companion object {
-        // RED STUB (spec 09, Granny M1): compiles the tests, finds nothing.
+        /**
+         * The first thing wrong with these fields, in the order the checks run, or null. It never throws: `init`
+         * requires it to find nothing, and a caller that must not throw (the library cache's as-of read) asks it
+         * first, so the rules live in one place.
+         */
         fun problem(
             kind: ScheduleItemKind,
             premiereDate: String?,
@@ -69,7 +66,36 @@ data class ScheduleItem(
             seriesId: CanonicalId?,
             seasonNumber: Int?,
             episodeNumber: Int?,
-        ): ScheduleItemProblem? = null
+        ): ScheduleItemProblem? =
+            when {
+                premiereDate != null && !validDate(premiereDate) -> {
+                    ScheduleItemProblem.PremiereDateMalformed
+                }
+
+                productionYear != null && productionYear !in 1..MAX_YEAR -> {
+                    ScheduleItemProblem.ProductionYearOutOfRange
+                }
+
+                seasonNumber.isNegative() -> {
+                    ScheduleItemProblem.SeasonNegative
+                }
+
+                episodeNumber.isNegative() -> {
+                    ScheduleItemProblem.EpisodeNegative
+                }
+
+                kind == ScheduleItemKind.Movie && listOfNotNull(seriesId, seasonNumber, episodeNumber).isNotEmpty() -> {
+                    ScheduleItemProblem.MovieHasSeriesData
+                }
+
+                else -> {
+                    null
+                }
+            }
+
+        private fun validDate(text: String): Boolean = DATE.matches(text) && !text.startsWith("0000-")
+
+        private fun Int?.isNegative(): Boolean = this != null && this < 0
 
         private const val MAX_YEAR = 9999
         private val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
