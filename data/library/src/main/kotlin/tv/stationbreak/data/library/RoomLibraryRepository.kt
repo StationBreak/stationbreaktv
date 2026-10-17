@@ -23,7 +23,6 @@ import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import java.util.EnumMap
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -60,7 +59,7 @@ internal data class RowCounts(
 /**
  * The saved library in Room (spec 06, Unit 2): the [LibraryRepository] port for the scheduler and the app, and the
  * internal calls the sync (3.0 and 4.0) uses to fill and tidy it. Every row is keyed by server and user, a page and its
- * checkpoint are written in one transaction, a deleted item is a tombstone for 30 days, and nothing here ever holds a
+ * checkpoint are written in one transaction, a deleted item is a tombstone until the history purge, and nothing here ever holds a
  * token. The database is a cache: it can be deleted and fetched again.
  */
 @Suppress("TooManyFunctions") // The port plus the sync's side: each is one call into a DAO transaction.
@@ -68,6 +67,7 @@ class RoomLibraryRepository internal constructor(
     private val db: LibraryDatabase,
     private val clock: Clock,
     private val sync: SyncControl = SyncControl.None,
+    private val retention: HistoryRetention = HistoryRetention(),
 ) : LibraryRepository {
     internal val dao = db.dao()
 
@@ -365,10 +365,13 @@ class RoomLibraryRepository internal constructor(
         return dao.allItemIds(server, user).map(::ItemId)
     }
 
-    /** Deletes every tombstone more than [TOMBSTONE_LIFETIME_DAYS] days old, for every account. Returns how many. */
-    internal suspend fun purgeTombstones(): Int {
-        val cutoff = (clock.now() - TOMBSTONE_LIFETIME_DAYS.days).toEpochMilliseconds()
-        return dao.purgeTombstonesBefore(cutoff)
+    /**
+     * Purges [account]'s history older than the retention (30 days by default): its tombstones and its superseded
+     * versions, and nothing else (spec 09, Unit 3). Throws [AccountNotActiveException] if the account is signed out.
+     */
+    internal suspend fun purgeHistory(account: LibraryAccount): PurgeOutcome {
+        val (server, user) = account.keys()
+        return dao.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis)
     }
 
     // Reads for the tests and diagnostics.
@@ -443,18 +446,16 @@ class RoomLibraryRepository internal constructor(
         /** The as-of read walks the account's items this many at a time (spec 09, Vimes M2). */
         private const val AS_OF_CHUNK = 500
 
-        /** Tombstones older than this are purged (T11). */
-        const val TOMBSTONE_LIFETIME_DAYS = 30
-
         /** The saved library in the app's database file, over the platform SQLite. */
         fun create(
             context: Context,
             clock: Clock = Clock.System,
+            retention: HistoryRetention = HistoryRetention(),
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
             // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
             val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
-            return RoomLibraryRepository(builder.build(), clock, sync)
+            return RoomLibraryRepository(builder.build(), clock, sync, retention)
         }
 
         /** For tests: a database from a builder the test configured (a JVM driver, a file or memory). */
@@ -462,7 +463,8 @@ class RoomLibraryRepository internal constructor(
             builder: RoomDatabase.Builder<LibraryDatabase>,
             clock: Clock,
             sync: SyncControl = SyncControl.None,
-        ): RoomLibraryRepository = RoomLibraryRepository(builder.build(), clock, sync)
+            retention: HistoryRetention = HistoryRetention(),
+        ): RoomLibraryRepository = RoomLibraryRepository(builder.build(), clock, sync, retention)
     }
 }
 

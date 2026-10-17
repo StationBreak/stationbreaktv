@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.data.library.FirstSyncRunner
+import tv.stationbreak.data.library.HistoryRetention
 import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.data.library.WorkManagerFirstSync
 import javax.inject.Singleton
@@ -32,7 +33,7 @@ internal object LibraryModule {
     @Singleton
     fun roomLibraryRepository(
         @ApplicationContext context: Context,
-    ): RoomLibraryRepository = RoomLibraryRepository.create(context, Clock.System)
+    ): RoomLibraryRepository = RoomLibraryRepository.create(context, Clock.System, HistoryRetention())
 
     @Provides
     fun libraryRepository(repository: RoomLibraryRepository): LibraryRepository = repository

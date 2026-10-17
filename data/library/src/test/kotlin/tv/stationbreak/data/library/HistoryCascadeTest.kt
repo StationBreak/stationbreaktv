@@ -78,7 +78,8 @@ class HistoryCascadeTest {
 
             assertEquals(1, (repository.purgeHistory(ALICE) as PurgeOutcome.Purged).tombstones)
 
-            assertEquals(setOf(hexId(2), hexId(3)), repository.versions(ALICE).map { it.itemId }.toSet())
-            assertEquals(2, repository.currentRows(ALICE).size)
+            // The other items' versions were superseded just as long ago, so the same purge takes them too.
+            assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
+            assertEquals(setOf(hexId(2), hexId(3)), repository.currentRows(ALICE).map { it.itemId }.toSet())
         }
 }

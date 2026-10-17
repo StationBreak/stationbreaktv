@@ -21,6 +21,15 @@ private const val HELD_COLUMNS_OF_V =
         "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
         "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs"
 
+/** How a purge ended (spec 09, Unit 3). */
+internal sealed interface PurgeOutcome {
+    /** The purge ran: [tombstones] tombstoned items and [versions] superseded versions were deleted. */
+    data class Purged(
+        val tombstones: Int,
+        val versions: Int,
+    ) : PurgeOutcome
+}
+
 /** An item row with its genre and tag rows. */
 internal class ItemRows(
     val item: ItemEntity,
@@ -181,8 +190,47 @@ internal abstract class LibraryDao {
         atMs: Long,
     )
 
-    @Query("DELETE FROM item WHERE deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs")
-    abstract suspend fun purgeTombstonesBefore(cutoffMs: Long): Int
+    // The purge (spec 09, Unit 3). Plain DELETEs scoped to the account and driven by the two purge indexes; the
+    // foreign keys take the genres, tags and versions of a deleted item with it.
+    @Query(
+        "DELETE FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs",
+    )
+    protected abstract suspend fun deleteTombstonesBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    @Query(
+        "DELETE FROM item_version WHERE serverId = :serverId AND userId = :userId AND supersededAtMs < :cutoffMs",
+    )
+    protected abstract suspend fun deleteVersionsSupersededBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    /**
+     * Purges the account's history older than [retentionMs] at [nowMs], in one transaction after [requireActive]: the
+     * versions superseded, and the tombstones set, more than that long ago. The current version of a live item is
+     * never touched, and a purged tombstone takes its genres, tags and versions with it (the foreign keys). The
+     * versions go first, so the count is of the ones superseded long ago and not of the ones a tombstone takes with it.
+     * Both deletes are plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
+     */
+    @Transaction
+    open suspend fun purgeHistory(
+        serverId: String,
+        userId: String,
+        nowMs: Long,
+        retentionMs: Long,
+    ): PurgeOutcome {
+        requireActive(serverId, userId)
+        val cutoffMs = nowMs - retentionMs
+        val versions = deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val tombstones = deleteTombstonesBefore(serverId, userId, cutoffMs)
+        return PurgeOutcome.Purged(tombstones = tombstones, versions = versions)
+    }
 
     // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one
     // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by the 999
