@@ -321,6 +321,15 @@ internal abstract class LibraryDao {
     @Query("SELECT COUNT(*) FROM item_tag")
     abstract suspend fun countTags(): Int
 
+    @Query("SELECT COUNT(*) FROM item_version")
+    abstract suspend fun countVersions(): Int
+
+    @Query("SELECT * FROM item_version WHERE serverId = :serverId AND userId = :userId ORDER BY itemId, seenFromMs")
+    abstract suspend fun allVersions(
+        serverId: String,
+        userId: String,
+    ): List<ItemVersionEntity>
+
     @Query("SELECT COUNT(*) FROM library")
     abstract suspend fun countLibraries(): Int
 

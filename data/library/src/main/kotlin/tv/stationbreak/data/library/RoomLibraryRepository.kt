@@ -48,9 +48,10 @@ internal data class RowCounts(
     val libraries: Int,
     val checkpoints: Int,
     val states: Int,
+    val versions: Int = 0,
 ) {
     companion object {
-        val NONE = RowCounts(0, 0, 0, 0, 0, 0)
+        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -343,7 +344,20 @@ class RoomLibraryRepository internal constructor(
             libraries = dao.countLibraries(),
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
+            versions = dao.countVersions(),
         )
+
+    /** The account's item rows as they are on disk (the current versions), by item ID. */
+    internal suspend fun currentRows(account: LibraryAccount): List<ItemEntity> {
+        val (server, user) = account.keys()
+        return dao.allItems(server, user)
+    }
+
+    /** The account's kept earlier versions, by item ID and then time. */
+    internal suspend fun versions(account: LibraryAccount): List<ItemVersionEntity> {
+        val (server, user) = account.keys()
+        return dao.allVersions(server, user)
+    }
 
     /** Closes the database. The app keeps it open for its lifetime; tests close theirs. */
     fun close() = db.close()
