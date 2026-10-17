@@ -64,6 +64,7 @@ data class SchedulerSettings(
     companion object {
         private const val MS_PER_MINUTE = 60_000L
         private const val MS_PER_HOUR = 3_600_000L
+        private const val MAX_EPOCH_HOURS = 24
         private const val MINUTES_PER_DAY = 1440
         private const val MIN_BLOCK_LENGTH = 1
         private const val MAX_BLOCK_LENGTH = 100
@@ -73,6 +74,13 @@ data class SchedulerSettings(
         private const val MAX_GRACE_HOURS = 48
         private const val MIN_RUNTIME_MS = 1_000L
         private const val MAX_RUNTIME_MS = 3_600_000L
+
+        /** The longest epoch the format allows, in milliseconds (24 h). */
+        const val MAX_EPOCH_MS: Long = MAX_EPOCH_HOURS * MS_PER_HOUR
+
+        /** The largest grace window the format allows, in milliseconds (48 h). */
+        const val MAX_GRACE_MS: Long = MAX_GRACE_HOURS * MS_PER_HOUR
+
         private val GRID_MINUTES = setOf(15, 30, 60)
         private val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
     }
