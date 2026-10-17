@@ -134,6 +134,13 @@ interface LibraryRepository : AccountCache {
      * [cutoff] must equal the `S - G` that `buildDay` uses for the day being built (the day's start minus its grace
      * window). Any other instant gives inputs that day was not built from, and TVs on the account can then differ.
      *
+     * **The safe range is `cutoff >= now - 72 h`** (the longest epoch plus the largest grace window, Vimes L-1). The
+     * saved library purges history more than 30 days old, so a cut-off older than that retention can find its held
+     * version gone and is answered from a later copy (the current row, as for a new install). A coming day's cut-off is
+     * always inside the range. It is a documented contract and not a `require`: the cut-off comes from the day being
+     * built, and a read of a day long past should degrade to the newest copy, not throw on a device whose clock is off.
+     * `PurgeSafetyPropertyTest` pins both sides of the range.
+     *
      * **The scheduler must use this and never [snapshot]**, which hides deleted items and uses the current fields.
      */
     suspend fun scheduleItems(
