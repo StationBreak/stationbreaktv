@@ -666,9 +666,16 @@ internal abstract class LibraryDao {
     }
 
     /**
-     * Hands [sink] the version of every item of the account that this TV held before [cutoffMs], a chunk of at most
-     * [chunkSize] items at a time in item-ID order, all from one read transaction (Vimes H4, M2). Nothing is filtered:
-     * the libraries, the deletion time and the validity are the caller's, applied to what [sink] gets.
+     * The version of every item of the account that this TV held before [cutoffMs], read [chunkSize] items at a time
+     * in item-ID order inside one read transaction (Vimes H4, M2), and returned in item-ID order. Selection runs over
+     * every item first; only then are the rows of [libraries] kept, less those whose held version was deleted before
+     * the cut-off (`deletedAt < cutoffMs`). The validity checks are the caller's.
+     *
+     * It returns a list and takes no callback on purpose. An earlier version handed each chunk to a lambda; on API 25
+     * (ART 7.1) a second caller with a different lambda class made the JIT-compiled loop deoptimise, and the next GC
+     * checkpoint aborted the process with "Tried to mark 0xebadde09 not contained by any spaces" (found in PR 264's
+     * on-device heap test; reproduced 11 of 12 runs under CPU load, 0 of 6 with the JIT off). A call site that always
+     * sees one class never deoptimises, and a list has no call site to speak of.
      *
      * Per item: (a) the current row if it was first seen before the cut-off; else (b) the version that was current just
      * before it; else (c) the oldest version, or the current row if the item has none. Cases (b) and (c) are looked up
@@ -680,12 +687,13 @@ internal abstract class LibraryDao {
         userId: String,
         cutoffMs: Long,
         chunkSize: Int,
-        sink: (List<HeldRow>) -> Unit,
-    ) {
+        libraries: Set<String>,
+    ): List<HeldRow> {
+        val held = ArrayList<HeldRow>()
         var after = ""
         while (true) {
             val current = currentChunk(serverId, userId, after, chunkSize)
-            if (current.isEmpty()) return
+            if (current.isEmpty()) return held
             val last = current.last().itemId
             val needsHistory = current.any { it.seenFromMs >= cutoffMs }
             val covering = mutableMapOf<String, HeldRow>()
@@ -694,12 +702,12 @@ internal abstract class LibraryDao {
                 coveringVersions(serverId, userId, after, last, cutoffMs).associateByTo(covering) { it.itemId }
                 oldestVersions(serverId, userId, after, last, cutoffMs).associateByTo(oldest) { it.itemId }
             }
-            sink(
-                current.map { row ->
-                    if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
-                },
-            )
-            if (current.size < chunkSize) return
+            for (row in current) {
+                val version = if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
+                val deletedAt = version.deletedAtMs
+                if (version.libraryId in libraries && (deletedAt == null || deletedAt >= cutoffMs)) held += version
+            }
+            if (current.size < chunkSize) return held
             after = last
         }
     }

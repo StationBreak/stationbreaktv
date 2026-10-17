@@ -139,21 +139,17 @@ class RoomLibraryRepository internal constructor(
         val items = ArrayList<ScheduleItem>()
         val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
         val seen = HashSet<String>()
-        dao.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK) { chunk ->
-            for (row in chunk) {
-                val deletedAt = row.deletedAtMs
-                if (row.libraryId !in wanted || (deletedAt != null && deletedAt < cutoffMs)) continue
-                when (val converted = ScheduleInputs.convert(row)) {
-                    is Converted.Dropped -> {
-                        dropped.merge(converted.reason, 1, Int::plus)
-                    }
+        for (row in dao.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
+            when (val converted = ScheduleInputs.convert(row)) {
+                is Converted.Dropped -> {
+                    dropped.merge(converted.reason, 1, Int::plus)
+                }
 
-                    is Converted.Accepted -> {
-                        if (seen.add(converted.item.id.value)) {
-                            items += converted.item
-                        } else {
-                            dropped.merge(DropReason.DuplicateId, 1, Int::plus)
-                        }
+                is Converted.Accepted -> {
+                    if (seen.add(converted.item.id.value)) {
+                        items += converted.item
+                    } else {
+                        dropped.merge(DropReason.DuplicateId, 1, Int::plus)
                     }
                 }
             }

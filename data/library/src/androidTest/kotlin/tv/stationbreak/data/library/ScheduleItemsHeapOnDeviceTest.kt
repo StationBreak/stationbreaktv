@@ -2,6 +2,7 @@
 package tv.stationbreak.data.library
 
 import android.content.Context
+import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.delay
@@ -26,6 +27,10 @@ import kotlin.time.Clock
  * budget is the one `FirstSyncHeapOnDeviceTest` uses (spec 06): less than 64 MB of growth. The same test runs on the
  * JVM (`ScheduleItemsHeapTest`), which holds the one-second limit; here the read must take under 3 s on the emulator
  * (it measured about 350 ms). Generated placeholder data only.
+ *
+ * It reads three times, as the app does for each channel, and samples the raw heap from a plain thread while it reads.
+ * It must not call the DAO with a second, different callback: that made API 25's JIT deoptimise the read loop, and the
+ * next GC aborted the runtime (see `LibraryDao.heldAsOf`).
  */
 @RunWith(AndroidJUnit4::class)
 class ScheduleItemsHeapOnDeviceTest {
@@ -61,6 +66,33 @@ class ScheduleItemsHeapOnDeviceTest {
         return runtime.totalMemory() - runtime.freeMemory()
     }
 
+    /** Polls the raw heap (no forced GC, garbage included) until stopped; [peak] is the highest figure seen. */
+    private class HeapSampler(
+        start: Long,
+        private val sample: () -> Long,
+    ) : Thread("heap-sampler") {
+        @Volatile var peak = start
+
+        @Volatile private var running = true
+
+        init {
+            isDaemon = true
+        }
+
+        override fun run() {
+            while (running) {
+                peak = maxOf(peak, sample())
+                sleep(SAMPLE_MS)
+            }
+        }
+
+        fun finish(): Long {
+            running = false
+            join()
+            return peak
+        }
+    }
+
     /** Writes the whole library once, with the rating of [round], so each round supersedes the one before. */
     private suspend fun writeRound(round: Int) {
         var start = 0
@@ -69,6 +101,7 @@ class ScheduleItemsHeapOnDeviceTest {
             repository.upsertItems(account, movies, page)
             start += PAGE
         }
+        Log.i(TAG, "write round $round done")
     }
 
     @Test
@@ -91,38 +124,38 @@ class ScheduleItemsHeapOnDeviceTest {
                 }
             val baseline = usedHeap()
 
-            val started = System.nanoTime()
-            val read = repository.scheduleInputs(account, setOf(movies), cutoff)
-            val tookMs = (System.nanoTime() - started) / NANOS_PER_MS
+            val sampler = HeapSampler(baseline, ::rawUsedHeap).also { it.start() }
+            val times = mutableListOf<Long>()
+            var read = repository.scheduleInputs(account, setOf(movies), cutoff)
+            repeat(READS) {
+                val started = System.nanoTime()
+                read = repository.scheduleInputs(account, setOf(movies), cutoff)
+                times += (System.nanoTime() - started) / NANOS_PER_MS
+            }
+            val peak = sampler.finish()
+            Log.i(TAG, "reads done $times")
             val retained = usedHeap() - baseline
 
-            var peak = baseline
-            var chunks = 0
-            repository.dao.heldAsOf(account.server.value, account.user.value, cutoff.toEpochMilliseconds(), CHUNK) {
-                chunks++
-                // No forced GC here: this runs on Room's query thread inside its transaction, and an explicit
-                // Runtime.gc() from there aborted the API 25 runtime ("Tried to mark ... not contained by any
-                // spaces"). The raw figure counts garbage too, so it is an upper bound on what the read keeps alive.
-                peak = maxOf(peak, rawUsedHeap())
-            }
-
             val streamed = peak - baseline
+            val tookMs = times.sorted()[times.size / 2]
             println(
-                "SCHEDULE READ on the device: $tookMs ms; ${read.items.size} items of " +
+                "SCHEDULE READ on the device: reads $times ms, median $tookMs ms; ${read.items.size} items of " +
                     "${repository.rowCounts().items}; kept result grew the heap by ${retained / KB} KB; " +
-                    "streaming peak grew it by ${streamed / KB} KB over $chunks chunks",
+                    "raw peak while reading grew it by ${streamed / KB} KB",
             )
             assertEquals(usable, read.items.size)
-            // Vimes M-1: the read must also be fast on API 25's SQLite (measured 351 ms on the emulator).
-            assertTrue("the read took $tookMs ms, the limit is $LIMIT_MS", tookMs < LIMIT_MS)
+            // Vimes M-1: the read must also be fast on API 25's SQLite (measured about 350 ms on the emulator).
+            assertTrue("the read took $tookMs ms (all: $times), the limit is $LIMIT_MS", tookMs < LIMIT_MS)
             assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
-            assertTrue("streaming grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
+            assertTrue("reading grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
         }
 
     private companion object {
+        const val TAG = "SIH"
         const val ITEMS = 15_000
         const val PAGE = 400
-        const val CHUNK = 500
+        const val READS = 3
+        const val SAMPLE_MS = 5L
         const val SETTLE_MS = 5L
         const val GCS = 2
         const val KB = 1024L

@@ -68,25 +68,14 @@ class ScheduleItemsHeapTest {
             val read = kept!!
             val retained = usedHeap() - baseline
 
-            // Streaming: nothing is retained between chunks, so a heap sampled after a GC at each chunk stays small.
-            var peak = baseline
-            var chunks = 0
-            repository.dao.heldAsOf(ALICE.server.value, ALICE.user.value, cutoff.toEpochMilliseconds(), 500) {
-                chunks++
-                if (chunks % SAMPLE_EVERY == 0) peak = maxOf(peak, usedHeap())
-            }
-
             val median = times.sorted()[times.size / 2]
             println(
                 "SCHEDULE READ on the JVM: reads $times ms, median $median ms; ${read.items.size} items of " +
-                    "${repository.rowCounts().items}; kept result grew the heap by ${retained / KB} KB; " +
-                    "streaming peak grew it by ${(peak - baseline) / KB} KB over $chunks chunks",
+                    "${repository.rowCounts().items}; kept result grew the heap by ${retained / KB} KB",
             )
             assertEquals(usable, read.items.size)
             assertTrue("the read took $median ms (all: $times), the limit is 1000", median < LIMIT_MS)
-            val streamed = peak - baseline
             assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
-            assertTrue("streaming grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
         }
 
     private companion object {
@@ -94,7 +83,6 @@ class ScheduleItemsHeapTest {
         const val ROUNDS = 4
         const val PAGE = 400
         const val READS = 3
-        const val SAMPLE_EVERY = 8
         const val GCS = 2
         const val KB = 1024L
         const val MB = KB * KB
