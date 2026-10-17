@@ -8,8 +8,8 @@ import org.junit.Test
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /** Spec 06 task 2.7: every field of an item survives a write and a read (FR: stored fields). */
@@ -86,10 +86,11 @@ class ItemRoundTripTest {
     fun runtimeAndCreatedAtKeepEveryMillisecondAtTheExtremes() =
         runBlocking {
             val runtimes = listOf(1L, 999L, 1_000L, Long.MAX_VALUE / 10_000L)
-            val created = listOf(Long.MIN_VALUE / 10_000L, -1L, 0L, 1L, 4_503_599_627_370_496L)
+            val created = listOf(Long.MIN_VALUE / 10_000L, -1L, 0L, 4_503_599_627_370_496L)
             val items =
-                runtimes.zip(created + created.take(1)).mapIndexed { index, (runtimeMs, createdMs) ->
-                    item("edge-$index", created = Instant.fromEpochMilliseconds(createdMs), runtime = runtimeMs.milliseconds)
+                runtimes.indices.map { index ->
+                    val moment = Instant.fromEpochMilliseconds(created[index])
+                    item("edge-$index", created = moment, runtime = runtimes[index].milliseconds)
                 }
             repository.select(ALICE, setOf(MOVIES))
             repository.writePage(ALICE, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
@@ -97,15 +98,22 @@ class ItemRoundTripTest {
             val read = repository.stored(ALICE).map { it.item }.sortedBy { it.id.value }
 
             assertEquals(runtimes, read.map { it.runtime?.inWholeMilliseconds })
-            assertEquals(created.take(runtimes.size), read.map { it.dateCreated?.toEpochMilliseconds() })
+            assertEquals(created, read.map { it.dateCreated?.toEpochMilliseconds() })
         }
 
     @Test
     fun anItemWithNoPremiereDateReadsBackWithNone() =
         runBlocking {
             repository.select(ALICE, setOf(MOVIES))
-            repository.writePage(ALICE, MOVIES, listOf(item("no-premiere")), nextStartIndex = 1, totalCount = 1, run = 1)
+            val bare = listOf(item("no-premiere"))
+            repository.writePage(ALICE, MOVIES, bare, nextStartIndex = 1, totalCount = 1, run = 1)
 
-            assertEquals(null, repository.stored(ALICE).single().item.premiereDate)
+            assertEquals(
+                null,
+                repository
+                    .stored(ALICE)
+                    .single()
+                    .item.premiereDate,
+            )
         }
 }

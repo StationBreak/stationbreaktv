@@ -74,14 +74,17 @@ class InputMappingPropertyTest {
         assertNull(toMediaItem(ItemDto(id = "i", dateCreated = "garbage")).dateCreated)
     }
 
-    private fun Gen.ticks(): Long = if (chance(EDGE_PERCENT)) pick(edges) else nextULong().toLong() shr nextInt(MAX_SHIFT)
+    private fun Gen.ticks(): Long {
+        val random = nextULong().toLong() shr nextInt(MAX_SHIFT)
+        return if (chance(EDGE_PERCENT)) pick(edges) else random
+    }
 
     /** [ticks] as ISO text in a random offset with 7 fraction digits, as Jellyfin writes it. */
     private fun Gen.dateText(ticks: Long): String {
         val seconds = Math.floorDiv(ticks, TICKS_PER_SECOND)
         val nanos = Math.floorMod(ticks, TICKS_PER_SECOND) * NANOS_PER_TICK
-        val offset =
-            if (chance(OFFSET_PERCENT)) ZoneOffset.ofTotalSeconds(nextInt(-MAX_OFFSET_MINUTES..MAX_OFFSET_MINUTES) * 60) else ZoneOffset.UTC
+        val minutes = nextInt(-MAX_OFFSET_MINUTES..MAX_OFFSET_MINUTES)
+        val offset = if (chance(OFFSET_PERCENT)) ZoneOffset.ofTotalSeconds(minutes * 60) else ZoneOffset.UTC
         val moment = OffsetDateTime.ofInstant(Instant.ofEpochSecond(seconds, nanos), offset)
         return moment.format(FORMAT)
     }

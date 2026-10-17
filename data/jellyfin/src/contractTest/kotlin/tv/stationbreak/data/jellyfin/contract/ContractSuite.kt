@@ -337,15 +337,30 @@ abstract class ContractSuite {
             for (item in page.items) {
                 val text = rawItem(item.id.value)["PremiereDate"]?.jsonPrimitive?.content
                 val utcDate =
-                    text?.let { OffsetDateTime.parse(it).withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().toString() }
+                    text?.let {
+                        OffsetDateTime
+                            .parse(it)
+                            .withOffsetSameInstant(ZoneOffset.UTC)
+                            .toLocalDate()
+                            .toString()
+                    }
                 assertEquals(utcDate, item.premiereDate, "premiere date of ${item.id.value} (raw $text)")
             }
             // Open question 1: does Jellyfin send PremiereDate without it being in Fields?
-            val query = listOf("parentId" to server.seeded.tvLibrary, "recursive" to "true", "includeItemTypes" to "Episode")
+            val query =
+                listOf("parentId" to server.seeded.tvLibrary, "recursive" to "true", "includeItemTypes" to "Episode")
             val bare = server.http.expectOk("items without fields", server.http.get("Items", harnessToken(), query))
-            val sent = bare.obj().getValue("Items").jsonArray.map { it.jsonObject }.count { "PremiereDate" in it }
+            val sent =
+                bare
+                    .obj()
+                    .getValue("Items")
+                    .jsonArray
+                    .map { it.jsonObject }
+                    .count { "PremiereDate" in it }
             finding("PremiereDate without Fields: $sent of ${server.seeded.episodeIds.size} episodes carried it")
-            val stored = server.seeded.premieres.keys.map { rawItem(it)["PremiereDate"]?.jsonPrimitive?.content }
+            val stored =
+                server.seeded.premieres.keys
+                    .map { rawItem(it)["PremiereDate"]?.jsonPrimitive?.content }
             finding("seeded premiere dates as the server stores them: $stored")
         }
     }

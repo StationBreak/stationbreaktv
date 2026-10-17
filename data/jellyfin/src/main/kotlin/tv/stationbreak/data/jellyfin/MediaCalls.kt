@@ -308,17 +308,17 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
 
 /**
  * `DateCreated` as the server's creation moment, in whole milliseconds: `floorDiv(T, 10000)` for `T` the time in
- * 100 ns ticks since the epoch, any UTC offset honoured, before 1970 too. Jellyfin writes seven fraction digits, which
- * `java.time` reads in full, and the seconds are floored first, so the result is exactly the format's formula. Null when
- * the text is missing, unreadable or out of range: one odd date must not fail a page.
+ * 100 ns ticks since the epoch, any UTC offset honoured, before 1970 too. Jellyfin writes seven fraction digits,
+ * which `java.time` reads in full, and the seconds are floored first, so the result is exactly the format's
+ * formula. Null when the text is missing, unreadable or out of range: one odd date must not fail a page.
  */
 internal fun createdAtOf(text: String?): Instant? =
     text?.let {
         try {
             val moment = OffsetDateTime.parse(it).toInstant()
             // Instant keeps its nanoseconds in 0..999,999,999 also before 1970, so this is a floor.
-            val ms = Math.addExact(Math.multiplyExact(moment.epochSecond, MS_PER_SECOND), (moment.nano / NANOS_PER_MS).toLong())
-            Instant.fromEpochMilliseconds(ms)
+            val wholeSeconds = Math.multiplyExact(moment.epochSecond, MS_PER_SECOND)
+            Instant.fromEpochMilliseconds(Math.addExact(wholeSeconds, (moment.nano / NANOS_PER_MS).toLong()))
         } catch (_: DateTimeParseException) {
             null
         } catch (_: ArithmeticException) {
@@ -336,7 +336,11 @@ internal fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MS).milliseco
 internal fun premiereDateOf(text: String?): String? =
     text?.let {
         try {
-            OffsetDateTime.parse(it).withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().toString()
+            OffsetDateTime
+                .parse(it)
+                .withOffsetSameInstant(ZoneOffset.UTC)
+                .toLocalDate()
+                .toString()
         } catch (_: DateTimeParseException) {
             null
         }
