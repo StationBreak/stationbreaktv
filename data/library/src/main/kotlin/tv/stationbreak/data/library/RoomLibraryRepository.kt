@@ -98,6 +98,7 @@ class RoomLibraryRepository internal constructor(
                 }
             }
 
+    /** Not for the scheduler: it reads the current rows and hides tombstones. The scheduler reads [scheduleItems]. */
     override suspend fun snapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
