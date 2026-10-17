@@ -150,7 +150,8 @@ class ArchitectureRulesTest {
     @Test
     fun dataLibraryTestsMayUseTheScheduler() {
         for (configuration in listOf("testImplementation", "androidTestImplementation", "testDebugImplementation")) {
-            assertEquals(emptyList(), rulesBroken(":data:library", project(configuration, ":core:scheduler")), configuration)
+            val broken = rulesBroken(":data:library", project(configuration, ":core:scheduler"))
+            assertEquals(emptyList(), broken, configuration)
         }
     }
 

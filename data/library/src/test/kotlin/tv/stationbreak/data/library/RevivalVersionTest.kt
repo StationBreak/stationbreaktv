@@ -110,7 +110,13 @@ class RevivalVersionTest {
             val version = repository.versions(ALICE).single()
             assertEquals(listOf("Drama"), VersionCodec.decode(version.genres))
             assertEquals(start + 10_000, version.deletedAtMs)
-            assertEquals(listOf("Horror"), repository.stored(ALICE).single().item.genres)
+            assertEquals(
+                listOf("Horror"),
+                repository
+                    .stored(ALICE)
+                    .single()
+                    .item.genres,
+            )
         }
 
     @Test

@@ -25,7 +25,7 @@ class NewInstallOldestCopyTest {
 
     private fun at(ms: Long): Instant = Instant.fromEpochMilliseconds(ms)
 
-    private suspend fun read(cutoffMs: Long): List<ScheduleItem> = repository.scheduleItems(ALICE, setOf(MOVIES), at(cutoffMs))
+    private suspend fun read(cutoffMs: Long) = repository.scheduleItems(ALICE, setOf(MOVIES), at(cutoffMs))
 
     private suspend fun runtimes(cutoffMs: Long) = read(cutoffMs).associate { it.id.value to it.runtimeMs }
 
@@ -63,7 +63,7 @@ class NewInstallOldestCopyTest {
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes))
 
-            // seenFrom < cutoff is strict: at t0 nothing is older, so the oldest copy; one ms later the first version is.
+            // seenFrom < cutoff is strict: at t0 nothing is older, so the oldest copy; one ms later the first is.
             assertEquals(90.minutes.inWholeMilliseconds, runtimes(t0)[hexId(1)])
             assertEquals(90.minutes.inWholeMilliseconds, runtimes(t0 + 1)[hexId(1)])
             assertEquals(90.minutes.inWholeMilliseconds, runtimes(t0 + 10_000)[hexId(1)])

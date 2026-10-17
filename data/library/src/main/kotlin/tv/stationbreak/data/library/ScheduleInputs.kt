@@ -62,8 +62,9 @@ internal class ScheduleRead(
 
 /**
  * Turns the fields one version held into the scheduler's [ScheduleItem], or says why it can't (Vimes M3). Each check is
- * the one `ScheduleItem`, `CanonicalId` or `buildDay` makes, written out so the reason has a name; the item is then built
- * by `ScheduleItem` itself, and anything its own validation still refuses is counted as
+ * the one `ScheduleItem`, `CanonicalId` or `buildDay` makes, written out so the reason has a name, and they run in the
+ * order of the check list: an item is counted once, under the first reason that fits. The item is then built by
+ * `ScheduleItem` itself, and anything its own validation still refuses is counted as
  * [DropReason.RejectedByScheduleItem] rather than thrown, so one bad item can never fail a whole day.
  */
 internal object ScheduleInputs {
@@ -71,49 +72,61 @@ internal object ScheduleInputs {
     private const val MAX_YEAR = 9999
     private val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
 
+    /** A row with its kind and IDs parsed once, for the checks. */
+    private class Candidate(
+        val row: HeldRow,
+    ) {
+        val kind: ScheduleItemKind? = ScheduleItemKind.entries.firstOrNull { it.name == row.kind }
+        val id: CanonicalId? = CanonicalId.parseOrNull(row.itemId)
+        val series: CanonicalId? = row.seriesId?.let { CanonicalId.parseOrNull(it) }
+    }
+
+    // ScheduleItem's own date check: four digits, a month 01-12, a day 01-31, and a year other than 0000.
+    private fun validDate(text: String): Boolean = DATE.matches(text) && !text.startsWith("0000-")
+
+    private fun timeOutOfRange(row: HeldRow): Boolean =
+        listOfNotNull(row.createdAtMs, row.deletedAtMs).any { it !in -MAX_TIME_MS..MAX_TIME_MS }
+
+    private fun movieWithSeriesData(candidate: Candidate): Boolean =
+        candidate.kind == ScheduleItemKind.Movie &&
+            listOfNotNull(candidate.row.seriesId, candidate.row.seasonNumber, candidate.row.episodeNumber).isNotEmpty()
+
+    private val checks: List<Pair<DropReason, (Candidate) -> Boolean>> =
+        listOf(
+            DropReason.KindNotMovieOrEpisode to { it.kind == null },
+            DropReason.IdNotCanonical to { it.id == null },
+            DropReason.SeriesIdNotCanonical to { it.row.seriesId != null && it.series == null },
+            DropReason.RuntimeMissing to { (it.row.runtimeMs ?: 0L) <= 0L },
+            DropReason.CreatedAtMissing to { it.row.createdAtMs == null },
+            DropReason.TimeOutOfRange to { timeOutOfRange(it.row) },
+            DropReason.PremiereDateMalformed to { it.row.premiereDate?.let(::validDate) == false },
+            DropReason.ProductionYearOutOfRange to { it.row.productionYear?.let { y -> y !in 1..MAX_YEAR } == true },
+            DropReason.SeasonNegative to { (it.row.seasonNumber ?: 0) < 0 },
+            DropReason.EpisodeNegative to { (it.row.episodeNumber ?: 0) < 0 },
+            DropReason.MovieHasSeriesData to ::movieWithSeriesData,
+        )
+
     fun convert(row: HeldRow): Converted {
-        val kind = ScheduleItemKind.entries.firstOrNull { it.name == row.kind }
-        val id = CanonicalId.parseOrNull(row.itemId)
-        val series = row.seriesId?.let { CanonicalId.parseOrNull(it) }
-        val runtime = row.runtimeMs
-        val created = row.createdAtMs
-        val deleted = row.deletedAtMs
-        val reason =
-            when {
-                kind == null -> DropReason.KindNotMovieOrEpisode
-                id == null -> DropReason.IdNotCanonical
-                row.seriesId != null && series == null -> DropReason.SeriesIdNotCanonical
-                runtime == null || runtime <= 0 -> DropReason.RuntimeMissing
-                created == null -> DropReason.CreatedAtMissing
-                created !in -MAX_TIME_MS..MAX_TIME_MS || (deleted != null && deleted !in -MAX_TIME_MS..MAX_TIME_MS) -> {
-                    DropReason.TimeOutOfRange
-                }
+        val candidate = Candidate(row)
+        val reason = checks.firstOrNull { (_, fails) -> fails(candidate) }?.first
+        return if (reason != null) Converted.Dropped(reason) else build(candidate)
+    }
 
-                row.premiereDate != null && !validDate(row.premiereDate) -> DropReason.PremiereDateMalformed
-                row.productionYear != null && row.productionYear !in 1..MAX_YEAR -> DropReason.ProductionYearOutOfRange
-                row.seasonNumber != null && row.seasonNumber < 0 -> DropReason.SeasonNegative
-                row.episodeNumber != null && row.episodeNumber < 0 -> DropReason.EpisodeNegative
-                kind == ScheduleItemKind.Movie &&
-                    (series != null || row.seasonNumber != null || row.episodeNumber != null) -> {
-                    DropReason.MovieHasSeriesData
-                }
-
-                else -> null
-            }
-        if (reason != null || kind == null || id == null || runtime == null || created == null) {
-            return Converted.Dropped(reason ?: DropReason.RejectedByScheduleItem)
-        }
+    private fun build(candidate: Candidate): Converted {
+        val row = candidate.row
+        // The checks have passed, so nothing required is null; if one were, requireNotNull's refusal is caught below
+        // like ScheduleItem's own, and the item is counted as rejected instead of crashing the read.
         return try {
             Converted.Accepted(
                 ScheduleItem(
-                    id = id,
-                    kind = kind,
-                    runtimeMs = runtime,
-                    createdAtMs = created,
-                    deletedAtMs = deleted,
+                    id = requireNotNull(candidate.id),
+                    kind = requireNotNull(candidate.kind),
+                    runtimeMs = requireNotNull(row.runtimeMs),
+                    createdAtMs = requireNotNull(row.createdAtMs),
+                    deletedAtMs = row.deletedAtMs,
                     premiereDate = row.premiereDate,
                     productionYear = row.productionYear,
-                    seriesId = series,
+                    seriesId = candidate.series,
                     seasonNumber = row.seasonNumber,
                     episodeNumber = row.episodeNumber,
                 ),
@@ -124,7 +137,4 @@ internal object ScheduleInputs {
             Converted.Dropped(DropReason.RejectedByScheduleItem)
         }
     }
-
-    // ScheduleItem's own date check: four digits, a month 01-12, a day 01-31, and a year other than 0000.
-    private fun validDate(text: String): Boolean = DATE.matches(text) && !text.startsWith("0000-")
 }

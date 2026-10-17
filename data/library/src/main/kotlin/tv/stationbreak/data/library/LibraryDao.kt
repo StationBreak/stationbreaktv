@@ -9,6 +9,18 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+// The columns the as-of read takes from an item row or a version row, in the order of HeldRow.
+private const val HELD_COLUMNS =
+    "itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
+        "productionYear, deletedAtMs, seenFromMs"
+
+// The same, qualified by the alias v, with the names the mapping expects.
+private const val HELD_COLUMNS_OF_V =
+    "v.itemId AS itemId, v.libraryId AS libraryId, v.kind AS kind, v.seriesId AS seriesId, " +
+        "v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, v.runtimeMs AS runtimeMs, " +
+        "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
+        "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs"
+
 /** An item row with its genre and tag rows. */
 internal class ItemRows(
     val item: ItemEntity,
@@ -173,11 +185,11 @@ internal abstract class LibraryDao {
     abstract suspend fun purgeTombstonesBefore(cutoffMs: Long): Int
 
     // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one
-    // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by 999 variables.
+    // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by the 999
+    // variables of API 25's SQLite.
 
     @Query(
-        "SELECT itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
-            "productionYear, deletedAtMs, seenFromMs FROM item " +
+        "SELECT $HELD_COLUMNS FROM item " +
             "WHERE serverId = :serverId AND userId = :userId AND itemId > :after ORDER BY itemId LIMIT :limit",
     )
     protected abstract suspend fun currentChunk(
@@ -187,10 +199,10 @@ internal abstract class LibraryDao {
         limit: Int,
     ): List<HeldRow>
 
-    // Case (b): the one version that was current just before the cut-off. Intervals are contiguous, so at most one per item.
+    // Case (b): the one version that was current just before the cut-off. The intervals are contiguous, so there is at
+    // most one per item.
     @Query(
-        "SELECT itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
-            "productionYear, deletedAtMs, seenFromMs FROM item_version " +
+        "SELECT $HELD_COLUMNS FROM item_version " +
             "WHERE serverId = :serverId AND userId = :userId AND itemId > :after AND itemId <= :last " +
             "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
     )
@@ -202,12 +214,10 @@ internal abstract class LibraryDao {
         cutoffMs: Long,
     ): List<HeldRow>
 
-    // Case (c): the oldest version, found by probing the item's firstSeenMs, for an item nothing older than the cut-off holds.
+    // Case (c): the oldest version, found by probing the item's firstSeenMs, for an item that nothing older than the
+    // cut-off holds. The columns are the same, qualified by the version.
     @Query(
-        "SELECT v.itemId AS itemId, v.libraryId AS libraryId, v.kind AS kind, v.seriesId AS seriesId, " +
-            "v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, v.runtimeMs AS runtimeMs, " +
-            "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
-            "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs FROM item_version v " +
+        "SELECT $HELD_COLUMNS_OF_V FROM item_version v " +
             "JOIN item i ON i.serverId = v.serverId AND i.userId = v.userId AND i.itemId = v.itemId " +
             "AND i.firstSeenMs = v.seenFromMs " +
             "WHERE v.serverId = :serverId AND v.userId = :userId AND v.itemId > :after AND v.itemId <= :last " +
@@ -432,11 +442,13 @@ internal abstract class LibraryDao {
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
      * no position). An item the database already holds, equal, is left alone; one that differs is updated and its
-     * genres and tags replaced; a new one is inserted. The account must still be signed in, which is checked inside
-     * this transaction. [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam;
-     * null in the app).
+     * genres and tags replaced; a new one is inserted. A change to a field the scheduler reads (genres and tags
+     * included), or a row that clears a tombstone, first keeps the old row as a version (spec 09). The account must
+     * still be signed in, which is checked inside this transaction. [nowMs] stamps new rows and versions.
+     * [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam; null in the app).
      */
     @Transaction
+    @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seam.
     open suspend fun writePage(
         server: String,
         user: String,
@@ -480,9 +492,13 @@ internal abstract class LibraryDao {
                 }
 
                 // Only the name or the parent differs: stored, but it is no new version of the schedule's inputs.
-                old != kept -> toUpdate += kept
+                old != kept -> {
+                    toUpdate += kept
+                }
 
-                else -> unchanged++
+                else -> {
+                    unchanged++
+                }
             }
         }
         insertItems(toInsert)
@@ -591,7 +607,10 @@ internal abstract class LibraryDao {
             val tags = tagNames(serverId, userId, rowIds)
             val stamps = rows.associate { it.itemId to nextStamp(it, nowMs) }
             insertVersions(
-                rows.map { it.toVersion(stamps.getValue(it.itemId), genres[it.itemId].orEmpty(), tags[it.itemId].orEmpty()) },
+                rows.map {
+                    val id = it.itemId
+                    it.toVersion(stamps.getValue(id), genres[id].orEmpty(), tags[id].orEmpty())
+                },
             )
             updateItems(rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.itemId)) })
         }
@@ -669,11 +688,17 @@ internal abstract class LibraryDao {
             if (current.isEmpty()) return
             val last = current.last().itemId
             val needsHistory = current.any { it.seenFromMs >= cutoffMs }
-            val covering =
-                if (needsHistory) coveringVersions(serverId, userId, after, last, cutoffMs).associateBy { it.itemId } else emptyMap()
-            val oldest =
-                if (needsHistory) oldestVersions(serverId, userId, after, last, cutoffMs).associateBy { it.itemId } else emptyMap()
-            sink(current.map { row -> if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row })
+            val covering = mutableMapOf<String, HeldRow>()
+            val oldest = mutableMapOf<String, HeldRow>()
+            if (needsHistory) {
+                coveringVersions(serverId, userId, after, last, cutoffMs).associateByTo(covering) { it.itemId }
+                oldestVersions(serverId, userId, after, last, cutoffMs).associateByTo(oldest) { it.itemId }
+            }
+            sink(
+                current.map { row ->
+                    if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
+                },
+            )
             if (current.size < chunkSize) return
             after = last
         }

@@ -103,8 +103,8 @@ interface LibraryRepository : AccountCache {
      * (a tombstone), has no creation date, or has a missing, zero or negative running time is left out (S0.6.3): the
      * scheduler only ever sees items it can trust. F1.1 passes `epochStart - grace`.
      *
-     * Not for the scheduler (spec 09, Vimes H4): it reads the current rows and hides tombstones, so an edit or a deletion
-     * made after a day's cut-off would reshuffle that day. The scheduler reads [scheduleItems].
+     * Not for the scheduler (spec 09, Vimes H4): it reads the current rows and hides tombstones, so an edit or a
+     * deletion made after a day's cut-off would reshuffle that day. The scheduler reads [scheduleItems].
      */
     suspend fun snapshot(
         account: LibraryAccount,

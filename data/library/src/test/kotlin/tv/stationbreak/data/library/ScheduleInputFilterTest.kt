@@ -36,7 +36,7 @@ class ScheduleInputFilterTest {
     private val episode = ok.copy(kind = "Episode", seriesId = series, seasonNumber = 1, episodeNumber = 2)
     private val beyond = (1L shl 52) + 1
 
-    /** The item the scheduler would be given for [row], built directly with no filter in between. Throws if it can't be. */
+    /** The item the scheduler would be given for [row], built directly with no filter. Throws if it can't be. */
     private fun direct(row: HeldRow): ScheduleItem {
         val item =
             ScheduleItem(
@@ -95,10 +95,12 @@ class ScheduleInputFilterTest {
             assertEquals("${case.row}", Converted.Dropped(case.reason), converted)
             // The other direction: built directly from the same fields, the scheduler's own types refuse it. A runtime
             // that is not positive is the one exception: the format calls it "no runtime" and the pool leaves it out.
-            if (case.reason == DropReason.RuntimeMissing && case.row.runtimeMs != null) {
+            val notPositive = case.row.runtimeMs
+            if (case.reason == DropReason.RuntimeMissing && notPositive != null) {
                 val item = direct(case.row.copy(runtimeMs = 5_400_000L, createdAtMs = -1_000L))
                 assertEquals("control: the pool takes it", 1, EpochPool.build(settings, listOf(item), 0).size)
-                assertEquals(emptyList<ScheduleItem>(), EpochPool.build(settings, listOf(item.copy(runtimeMs = case.row.runtimeMs!!)), 0))
+                val noRuntime = listOf(item.copy(runtimeMs = notPositive))
+                assertEquals(emptyList<ScheduleItem>(), EpochPool.build(settings, noRuntime, 0))
             } else {
                 assertThrows("${case.row} should be refused", Exception::class.java) { direct(case.row) }
             }
@@ -109,7 +111,8 @@ class ScheduleInputFilterTest {
     fun everyDropReasonIsNamedAndCoveredByACase() {
         val covered = cases.map { it.reason }.toSet()
         // The duplicate ID is the read's own (it sees many items), and the last reason is the safety net.
-        assertEquals(DropReason.entries.toSet() - setOf(DropReason.DuplicateId, DropReason.RejectedByScheduleItem), covered)
+        val readsOwn = setOf(DropReason.DuplicateId, DropReason.RejectedByScheduleItem)
+        assertEquals(DropReason.entries.toSet() - readsOwn, covered)
         DropReason.entries.forEach { assertTrue(it.name, it.mirrors.isNotBlank()) }
     }
 

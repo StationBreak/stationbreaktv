@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -22,9 +23,9 @@ import kotlin.time.Clock
 /**
  * Spec 09 task 2.13 (Goal 4): the as-of read of the generated 15,000-item library with three superseded versions per
  * item (45,000 `item_version` rows), on the API 25 emulator, over the platform SQLite that Fire OS 6 has. The heap
- * budget is the one `FirstSyncHeapOnDeviceTest` uses (spec 06): less than 64 MB of growth. The same test runs on the JVM
- * (`ScheduleItemsHeapTest`), which also holds the one-second limit; the device time is printed, not asserted, because an
- * emulator's speed says nothing about a Fire TV's. Generated placeholder data only.
+ * budget is the one `FirstSyncHeapOnDeviceTest` uses (spec 06): less than 64 MB of growth. The same test runs on the
+ * JVM (`ScheduleItemsHeapTest`), which also holds the one-second limit; the device time is printed, not asserted,
+ * because an emulator's speed says nothing about a Fire TV's. Generated placeholder data only.
  */
 @RunWith(AndroidJUnit4::class)
 class ScheduleItemsHeapOnDeviceTest {
@@ -59,7 +60,8 @@ class ScheduleItemsHeapOnDeviceTest {
     private suspend fun writeRound(round: Int) {
         var start = 0
         while (start < ITEMS) {
-            repository.upsertItems(account, movies, library.page(start, PAGE).map { it.copy(officialRating = "R$round") })
+            val page = library.page(start, PAGE).map { it.copy(officialRating = "R$round") }
+            repository.upsertItems(account, movies, page)
             start += PAGE
         }
     }
@@ -71,10 +73,10 @@ class ScheduleItemsHeapOnDeviceTest {
             repository.select(account, setOf(movies))
             writeRound(0)
             writeRound(1)
-            Thread.sleep(SETTLE_MS)
+            delay(SETTLE_MS)
             // A cut-off after the second round: most items are answered by case (b), a version, as on the JVM.
             val cutoff = Clock.System.now()
-            Thread.sleep(SETTLE_MS)
+            delay(SETTLE_MS)
             writeRound(2)
             writeRound(3)
             assertEquals(ITEMS * 3, repository.rowCounts().versions)
@@ -96,14 +98,15 @@ class ScheduleItemsHeapOnDeviceTest {
                 if (chunks % SAMPLE_EVERY == 0) peak = maxOf(peak, usedHeap())
             }
 
+            val streamed = peak - baseline
             println(
-                "SCHEDULE READ on the device: $tookMs ms; ${read.items.size} items of ${repository.rowCounts().items}; " +
-                    "kept result grew the heap by ${retained / KB} KB; streaming peak grew it by ${(peak - baseline) / KB} KB " +
-                    "over $chunks chunks",
+                "SCHEDULE READ on the device: $tookMs ms; ${read.items.size} items of " +
+                    "${repository.rowCounts().items}; kept result grew the heap by ${retained / KB} KB; " +
+                    "streaming peak grew it by ${streamed / KB} KB over $chunks chunks",
             )
             assertEquals(usable, read.items.size)
-            assertTrue("the kept result grew the heap by ${retained / MB} MB, the limit is $LIMIT_MB", retained / MB < LIMIT_MB)
-            assertTrue("streaming grew the heap by ${(peak - baseline) / MB} MB, the limit is $LIMIT_MB", (peak - baseline) / MB < LIMIT_MB)
+            assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
+            assertTrue("streaming grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
         }
 
     private companion object {

@@ -39,7 +39,13 @@ class GenreOnlyEditTest {
             val version = repository.versions(ALICE).single()
             assertEquals(listOf("Drama", "Comedy"), VersionCodec.decode(version.genres))
             assertEquals(listOf("x", "y"), VersionCodec.decode(version.tags))
-            assertEquals(listOf("Drama", "Horror"), repository.stored(ALICE).single().item.genres)
+            assertEquals(
+                listOf("Drama", "Horror"),
+                repository
+                    .stored(ALICE)
+                    .single()
+                    .item.genres,
+            )
         }
 
     @Test
@@ -83,8 +89,15 @@ class GenreOnlyEditTest {
 
             assertEquals(PageWrite(inserted = 0, updated = 1, unchanged = 0), write)
             assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
-            assertEquals("A new name", repository.stored(ALICE).single().item.name)
-            assertEquals(repository.currentRows(ALICE).single().firstSeenMs, repository.currentRows(ALICE).single().seenFromMs)
+            assertEquals(
+                "A new name",
+                repository
+                    .stored(ALICE)
+                    .single()
+                    .item.name,
+            )
+            val row = repository.currentRows(ALICE).single()
+            assertEquals(row.firstSeenMs, row.seenFromMs)
         }
 
     @Test
@@ -117,7 +130,9 @@ class GenreOnlyEditTest {
         runBlocking {
             val full =
                 base.copy(
-                    seriesId = tv.stationbreak.core.model.ItemId("series-1"),
+                    seriesId =
+                        tv.stationbreak.core.model
+                            .ItemId("series-1"),
                     seasonNumber = 2,
                     episodeNumber = 3,
                     premiereDate = "2001-02-03",

@@ -25,16 +25,17 @@ internal suspend fun RoomLibraryRepository.put(
 internal suspend fun RoomLibraryRepository.assertIntervalsContiguous(account: LibraryAccount) {
     val versions = versions(account).groupBy { it.itemId }
     currentRows(account).forEach { current ->
-        val own = versions[current.itemId].orEmpty().sortedBy { it.seenFromMs }
+        val id = current.itemId
+        val own = versions[id].orEmpty().sortedBy { it.seenFromMs }
         if (own.isEmpty()) {
-            assertEquals("${current.itemId}: no versions, so it starts when first seen", current.firstSeenMs, current.seenFromMs)
+            assertEquals("$id: no versions, so it starts when first seen", current.firstSeenMs, current.seenFromMs)
         } else {
-            assertEquals("${current.itemId}: the first version starts at firstSeenMs", current.firstSeenMs, own.first().seenFromMs)
-            own.forEach { assertTrue("${current.itemId}: an empty interval $it", it.seenFromMs < it.supersededAtMs) }
-            own.zipWithNext { a, b -> assertEquals("${current.itemId}: a gap or an overlap", a.supersededAtMs, b.seenFromMs) }
-            assertEquals("${current.itemId}: the current row starts at the last cut", own.last().supersededAtMs, current.seenFromMs)
+            assertEquals("$id: the first version starts at firstSeenMs", current.firstSeenMs, own.first().seenFromMs)
+            own.forEach { assertTrue("$id: an empty interval $it", it.seenFromMs < it.supersededAtMs) }
+            own.zipWithNext { a, b -> assertEquals("$id: a gap or an overlap", a.supersededAtMs, b.seenFromMs) }
+            assertEquals("$id: the current row starts at the last cut", own.last().supersededAtMs, current.seenFromMs)
         }
-        assertTrue("${current.itemId}: firstSeenMs is not after seenFromMs", current.firstSeenMs <= current.seenFromMs)
+        assertTrue("$id: firstSeenMs is not after seenFromMs", current.firstSeenMs <= current.seenFromMs)
     }
 }
 

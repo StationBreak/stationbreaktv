@@ -105,7 +105,15 @@ class LibraryMoveCutoffTest {
 
             assertEquals(listOf(hexId(1), hexId(2)), movies)
             assertEquals(emptyList<String>(), shows)
-            assertEquals(listOf(hexId(1), hexId(2)), repository.scheduleItems(ALICE, setOf(MOVIES, SHOWS), Instant.fromEpochMilliseconds(cutoff)).map { it.id.value })
+            assertEquals(
+                listOf(
+                    hexId(1),
+                    hexId(2),
+                ),
+                repository.scheduleItems(ALICE, setOf(MOVIES, SHOWS), Instant.fromEpochMilliseconds(cutoff)).map {
+                    it.id.value
+                },
+            )
         }
 
     @Test

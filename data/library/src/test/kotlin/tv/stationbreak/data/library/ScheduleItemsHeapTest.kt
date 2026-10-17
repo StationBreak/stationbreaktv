@@ -84,8 +84,9 @@ class ScheduleItemsHeapTest {
             )
             assertEquals(usable, read.items.size)
             assertTrue("the read took $median ms (all: $times), the limit is 1000", median < LIMIT_MS)
-            assertTrue("the kept result grew the heap by ${retained / MB} MB, the limit is $LIMIT_MB", retained / MB < LIMIT_MB)
-            assertTrue("streaming grew the heap by ${(peak - baseline) / MB} MB, the limit is $LIMIT_MB", (peak - baseline) / MB < LIMIT_MB)
+            val streamed = peak - baseline
+            assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
+            assertTrue("streaming grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
         }
 
     private companion object {

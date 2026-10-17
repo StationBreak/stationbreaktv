@@ -232,7 +232,15 @@ class ForgottenAccountTest {
                 runBlocking { repository.put(ALICE, MOVIES, item("a").copy(genres = listOf("late"))) }
             }
             assertThrows(AccountNotActiveException::class.java) {
-                runBlocking { repository.revive(ALICE, listOf(tv.stationbreak.core.model.ItemId("a"))) }
+                runBlocking {
+                    repository.revive(
+                        ALICE,
+                        listOf(
+                            tv.stationbreak.core.model
+                                .ItemId("a"),
+                        ),
+                    )
+                }
             }
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }

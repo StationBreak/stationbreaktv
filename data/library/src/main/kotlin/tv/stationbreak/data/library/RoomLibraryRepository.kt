@@ -119,8 +119,8 @@ class RoomLibraryRepository internal constructor(
 
     /**
      * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
-     * diagnostics"). The port returns the items alone, because the scheduler needs nothing else and the port has to stay
-     * plain Kotlin; the counts are for tests and for the diagnostics screen to read later.
+     * diagnostics"). The port returns the items alone, because the scheduler needs nothing else and the port has to
+     * stay plain Kotlin; the counts are for tests and for the diagnostics screen to read later.
      *
      * Selection comes first and runs over every item of the account, whatever its library (Vimes H4). The libraries
      * filter, the deletion test and the validity checks then apply to the **selected** version only.
@@ -217,7 +217,8 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
-        return dao.writePage(server, user, checkpoint, rows, clock.now().toEpochMilliseconds(), faultBetweenItemsAndCheckpoint)
+        val now = clock.now().toEpochMilliseconds()
+        return dao.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndCheckpoint)
     }
 
     /**
@@ -231,7 +232,8 @@ class RoomLibraryRepository internal constructor(
     ): PageWrite {
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
-        return dao.writePage(server, user, null, rows, clock.now().toEpochMilliseconds(), faultBetweenItemsAndCheckpoint)
+        val now = clock.now().toEpochMilliseconds()
+        return dao.writePage(server, user, null, rows, now, faultBetweenItemsAndCheckpoint)
     }
 
     private fun rowsOf(

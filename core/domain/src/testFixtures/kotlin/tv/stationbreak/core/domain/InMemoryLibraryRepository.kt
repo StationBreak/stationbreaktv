@@ -57,7 +57,8 @@ class InMemoryLibraryRepository : LibraryRepository {
     }
 
     /**
-     * Saves [items] as the versions [scheduleItems] reads for [account] under [library]. The fake keeps no history: what
+     * Saves [items] as the versions [scheduleItems] reads for [account] under [library]. The fake keeps no history:
+     * what
      * is seeded is what every cut-off sees, except that an item with a `deletedAtMs` before the cut-off is left out.
      */
     fun seedSchedule(
@@ -99,7 +100,8 @@ class InMemoryLibraryRepository : LibraryRepository {
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): List<ScheduleItem> {
-        val cutoffMs = cutoff.toEpochMilliseconds().let { if (Instant.fromEpochMilliseconds(it) < cutoff) it + 1 else it }
+        val floor = cutoff.toEpochMilliseconds()
+        val cutoffMs = if (Instant.fromEpochMilliseconds(floor) < cutoff) floor + 1 else floor
         return held
             .filter { it.account == account && it.library in libraries }
             .map { it.item }
