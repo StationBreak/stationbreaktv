@@ -103,7 +103,7 @@ internal abstract class LibraryDao {
     @Query(
         "SELECT * FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:libraries) " +
             "AND deletedAtMs IS NULL AND createdAtMs IS NOT NULL AND createdAtMs < :beforeMs " +
-            "AND runtimeNanos IS NOT NULL AND runtimeNanos > 0 ORDER BY itemId",
+            "AND runtimeMs IS NOT NULL AND runtimeMs > 0 ORDER BY itemId",
     )
     protected abstract suspend fun snapshotChunk(
         serverId: String,
@@ -114,7 +114,7 @@ internal abstract class LibraryDao {
 
     @Query(
         "SELECT COUNT(*) FROM item WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:libraries) " +
-            "AND deletedAtMs IS NULL AND (runtimeNanos IS NULL OR runtimeNanos <= 0)",
+            "AND deletedAtMs IS NULL AND (runtimeMs IS NULL OR runtimeMs <= 0)",
     )
     protected abstract suspend fun excludedChunk(
         serverId: String,

@@ -31,7 +31,7 @@ internal abstract class LibraryDatabase : RoomDatabase() {
     abstract fun dao(): LibraryDao
 
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }
 

@@ -22,7 +22,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /** Where the sync of one library stands (see [CheckpointEntity]). */
@@ -418,8 +418,9 @@ private fun MediaItem.toRows(
             seriesId = seriesId?.value,
             seasonNumber = seasonNumber,
             episodeNumber = episodeNumber,
-            runtimeNanos = runtime?.inWholeNanoseconds,
+            runtimeMs = runtime?.inWholeMilliseconds,
             createdAtMs = dateCreated?.toEpochMilliseconds(),
+            premiereDate = premiereDate,
             productionYear = productionYear,
             officialRating = officialRating,
             deletedAtMs = null,
@@ -433,9 +434,10 @@ private fun ItemRows.toItem() =
         id = ItemId(item.itemId),
         name = item.name,
         kind = ItemKind.entries.firstOrNull { it.name == item.kind } ?: ItemKind.Other,
-        runtime = item.runtimeNanos?.nanoseconds,
+        runtime = item.runtimeMs?.milliseconds,
         parentId = item.parentId?.let(::ItemId),
         dateCreated = item.createdAtMs?.let(Instant::fromEpochMilliseconds),
+        premiereDate = item.premiereDate,
         productionYear = item.productionYear,
         officialRating = item.officialRating,
         genres = genres.map { it.name },
