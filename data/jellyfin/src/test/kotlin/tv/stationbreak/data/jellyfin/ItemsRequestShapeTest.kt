@@ -54,7 +54,7 @@ class ItemsRequestShapeTest {
         val url = sent()
 
         assertEquals(
-            setOf("DateCreated", "Genres", "Tags", "ParentId"),
+            setOf("DateCreated", "PremiereDate", "Genres", "Tags", "ParentId"),
             url.listOf("fields").toSet(),
         )
     }

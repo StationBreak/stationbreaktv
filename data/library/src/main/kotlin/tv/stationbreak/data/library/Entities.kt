@@ -23,8 +23,9 @@ internal data class LibraryEntity(
 
 /**
  * One video item. [deletedAtMs] is the tombstone: set when the server no longer has the item, cleared if it returns,
- * and the row is purged 30 days after it. The runtime is kept in nanoseconds so a Jellyfin tick (100 ns) is exact; it
- * may be null, zero or negative, and then the item is stored but never in a snapshot.
+ * and the row is purged 30 days after it. The runtime is kept in whole milliseconds, exactly
+ * floorDiv(RunTimeTicks, 10000) (rules format v1); it may be null, zero or negative, and then the item is stored
+ * but never in a snapshot.
  */
 @Entity(
     tableName = "item",
@@ -50,8 +51,9 @@ internal data class ItemEntity(
     val seriesId: String?,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
-    val runtimeNanos: Long?,
+    val runtimeMs: Long?,
     val createdAtMs: Long?,
+    val premiereDate: String?,
     val productionYear: Int?,
     val officialRating: String?,
     val deletedAtMs: Long?,

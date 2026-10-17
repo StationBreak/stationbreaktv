@@ -22,6 +22,7 @@ class MediaItemFieldsTest {
         val item = MediaItem(ItemId("i1"), "Heat", ItemKind.Movie, null, null)
 
         assertNull(item.dateCreated)
+        assertNull(item.premiereDate)
         assertNull(item.productionYear)
         assertNull(item.officialRating)
         assertEquals(emptyList(), item.genres)
@@ -43,6 +44,7 @@ class MediaItemFieldsTest {
                 runtime = 22.minutes,
                 parentId = ItemId("season1"),
                 dateCreated = created,
+                premiereDate = "1994-09-22",
                 productionYear = 1994,
                 officialRating = "TV-14",
                 genres = listOf("Comedy"),
@@ -53,6 +55,7 @@ class MediaItemFieldsTest {
             )
 
         assertEquals(created, item.dateCreated)
+        assertEquals("1994-09-22", item.premiereDate)
         assertEquals(1994, item.productionYear)
         assertEquals("TV-14", item.officialRating)
         assertEquals(listOf("Comedy"), item.genres)

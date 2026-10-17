@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import tv.stationbreak.data.library.LibraryDatabases.withDestructiveFallbacks
 
 /**
  * Spec 06 task 2.11: the database is a cache. A schema change drops it and it is fetched again, and the schema is
@@ -30,6 +31,15 @@ class CacheRebuildTest {
             SchemaFile.tableNames().toSet(),
         )
         assertTrue(SchemaFile.text().contains("\"version\": ${LibraryDatabase.VERSION}"))
+    }
+
+    @Test
+    fun theSchemaIsVersion3WithThePremiereDateAndExactMillisecondColumns() {
+        assertEquals(3, LibraryDatabase.VERSION)
+        val columns = SchemaFile.columnNames()
+        assertTrue("premiereDate" in columns)
+        assertTrue("runtimeMs" in columns)
+        assertTrue("runtimeNanos" !in columns)
     }
 
     @Test
@@ -98,6 +108,37 @@ class CacheRebuildTest {
             repository.select(ALICE, setOf(MOVIES))
             assertEquals(setOf(MOVIES), repository.pendingLibraries(ALICE))
             repository.close()
+        }
+
+    @Test
+    fun aVersion3FileOpenedByVersion2CodeIsDroppedAndRebuiltEmpty() =
+        runBlocking {
+            // The rollback path (the app goes back from v3 to v2): the file is NEWER than the code. A v2 builder with
+            // the same destructive-on-downgrade setting the cache uses must drop every table, not throw.
+            val context = TestContext(folder.root)
+            val current = TestLibraries.onDisk(folder.root, name = "downgrade.db")
+            current.select(ALICE, setOf(MOVIES))
+            current.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            assertEquals(1, current.stored(ALICE).size)
+            current.close()
+
+            val v2 =
+                Room
+                    .databaseBuilder(context, OlderSchemaDatabase::class.java, "downgrade.db")
+                    .setDriver(BundledSQLiteDriver())
+                    .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
+                    .withDestructiveFallbacks() // The cache's own settings, so a change there changes this test.
+                    .build()
+            v2.otherDao().put(OtherRow("v2 works"))
+            v2.close()
+
+            // Back on v3 the cache is empty and usable: the v3 data did not survive the round trip.
+            val again = TestLibraries.onDisk(folder.root, name = "downgrade.db")
+            assertEquals(RowCounts.NONE, again.rowCounts())
+            again.useAccount(ALICE)
+            again.select(ALICE, setOf(MOVIES))
+            assertEquals(setOf(MOVIES), again.pendingLibraries(ALICE))
+            again.close()
         }
 
     @Test

@@ -23,8 +23,13 @@ import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamUrls
+import java.time.DateTimeException
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -62,7 +67,7 @@ internal class MediaCalls(
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
-                convert { ItemPage(page.totalRecordCount ?: 0, page.startIndex, page.items.map(::item)) }
+                convert { ItemPage(page.totalRecordCount ?: 0, page.startIndex, page.items.map(::toMediaItem)) }
             }
         }
     }
@@ -83,7 +88,7 @@ internal class MediaCalls(
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
                 firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
-                    convert { LibraryItemsPage(startIndex, total, page.items.map(::item)) }
+                    convert { LibraryItemsPage(startIndex, total, page.items.map(::toMediaItem)) }
                 }
             }
         }
@@ -192,33 +197,6 @@ internal class MediaCalls(
         return Library(ItemId(view.id), view.name, kind)
     }
 
-    private fun item(dto: ItemDto): MediaItem =
-        MediaItem(
-            id = ItemId(dto.id),
-            name = dto.name,
-            kind = ITEM_KINDS[dto.type] ?: ItemKind.Other,
-            runtime = dto.runTimeTicks?.let(::duration),
-            parentId = dto.parentId?.let(::ItemId),
-            dateCreated = instant(dto.dateCreated),
-            productionYear = dto.productionYear,
-            officialRating = dto.officialRating,
-            genres = dto.genres.orEmpty(),
-            tags = dto.tags.orEmpty(),
-            seriesId = dto.seriesId?.let(::ItemId),
-            seasonNumber = dto.seasonNumber,
-            episodeNumber = dto.episodeNumber,
-        )
-
-    /** A date the server sent, or null when it is missing or unreadable: one odd date must not fail a page. */
-    private fun instant(text: String?): Instant? =
-        text?.let {
-            try {
-                Instant.parse(it)
-            } catch (_: IllegalArgumentException) {
-                null
-            }
-        }
-
     private fun playbackInfo(
         address: ServerAddress,
         item: ItemId,
@@ -243,12 +221,7 @@ internal class MediaCalls(
             supportsDirectStream = dto.supportsDirectStream,
         )
 
-    /** Ticks are 100 ns; a zero or negative runtime is nonsense for an item, so it reads as unknown. */
-    private fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MICROSECOND).microseconds.takeIf { ticks > 0 }
-
     private companion object {
-        const val TICKS_PER_MICROSECOND = 10L
-
         /** The video kinds the cache holds (spec 06): never series, seasons, folders or collections. */
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
 
@@ -257,7 +230,7 @@ internal class MediaCalls(
          * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
          * runtime) come with every item, so asking for more would only make the answer bigger.
          */
-        const val ITEM_FIELDS = "DateCreated,Genres,Tags,ParentId"
+        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,ParentId"
 
         /**
          * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
@@ -265,19 +238,6 @@ internal class MediaCalls(
          * images and 2.9 kB without images and user data.
          */
         val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
-
-        val ITEM_KINDS =
-            mapOf(
-                "Movie" to ItemKind.Movie,
-                "Series" to ItemKind.Series,
-                "Season" to ItemKind.Season,
-                "Episode" to ItemKind.Episode,
-                "Video" to ItemKind.Video,
-                "MusicVideo" to ItemKind.MusicVideo,
-                "Folder" to ItemKind.Folder,
-                "CollectionFolder" to ItemKind.Folder,
-                "UserView" to ItemKind.Folder,
-            )
 
         /**
          * The wire values of the collection types worth a channel. An absent type is mixed content (checked against
@@ -328,3 +288,95 @@ private class DirectStreamUrls(
             .toString()
     }
 }
+
+/** One server item as the domain model's item. Dates and runtimes follow rules format v1, "Scheduler inputs". */
+internal fun toMediaItem(dto: ItemDto): MediaItem =
+    MediaItem(
+        id = ItemId(dto.id),
+        name = dto.name,
+        kind = ITEM_KINDS[dto.type] ?: ItemKind.Other,
+        runtime = dto.runTimeTicks?.let(::duration),
+        parentId = dto.parentId?.let(::ItemId),
+        dateCreated = createdAtOf(dto.dateCreated),
+        premiereDate = premiereDateOf(dto.premiereDate),
+        productionYear = dto.productionYear,
+        officialRating = dto.officialRating,
+        genres = dto.genres.orEmpty(),
+        tags = dto.tags.orEmpty(),
+        seriesId = dto.seriesId?.let(::ItemId),
+        seasonNumber = dto.seasonNumber,
+        episodeNumber = dto.episodeNumber,
+    )
+
+/**
+ * `DateCreated` as the server's creation moment, in whole milliseconds: `floorDiv(T, 10000)` for `T` the time in
+ * 100 ns ticks since the epoch, any UTC offset honoured, before 1970 too. Jellyfin writes seven fraction digits,
+ * which `java.time` reads in full, and the seconds are floored first, so the result is exactly the format's
+ * formula. A time with no offset or zone is read as UTC. Null when the text is missing, unreadable or out of range:
+ * one odd date must not fail a page.
+ */
+internal fun createdAtOf(text: String?): Instant? =
+    text?.let {
+        try {
+            val moment = momentOf(it)?.toInstant()
+            if (moment == null) {
+                null
+            } else {
+                // Instant keeps its nanoseconds in 0..999,999,999 also before 1970, so this is a floor.
+                val wholeSeconds = Math.multiplyExact(moment.epochSecond, MS_PER_SECOND)
+                // Any Long of milliseconds is inside kotlin's Instant range, so nothing is clamped; overflow throws.
+                Instant.fromEpochMilliseconds(Math.addExact(wholeSeconds, (moment.nano / NANOS_PER_MS).toLong()))
+            }
+        } catch (_: DateTimeException) {
+            null
+        } catch (_: ArithmeticException) {
+            null
+        }
+    }
+
+/** The text as a date and time with an offset, or null. A time with no offset or zone is read as UTC. */
+private fun momentOf(text: String): OffsetDateTime? =
+    when (val parsed = DateTimeFormatter.ISO_DATE_TIME.parseBest(text, OffsetDateTime::from, LocalDateTime::from)) {
+        is OffsetDateTime -> parsed
+        is LocalDateTime -> parsed.atOffset(ZoneOffset.UTC)
+        else -> null
+    }
+
+/**
+ * `RunTimeTicks` as the runtime, in exactly `floorDiv(ticks, 10000)` milliseconds. A missing, zero or negative value
+ * is no runtime.
+ */
+internal fun duration(ticks: Long): Duration? = (ticks / TICKS_PER_MS).milliseconds.takeIf { ticks > 0 }
+
+/**
+ * The UTC calendar date (`YYYY-MM-DD`) of a `PremiereDate`, or null if it is missing, unreadable or its UTC year is
+ * outside 1 to 9999, which the rules format does not allow. A time with no offset or zone is read as UTC.
+ */
+internal fun premiereDateOf(text: String?): String? =
+    text?.let {
+        try {
+            val date = momentOf(it)?.withOffsetSameInstant(ZoneOffset.UTC)?.toLocalDate()
+            date?.takeIf { day -> day.year in FIRST_YEAR..LAST_YEAR }?.toString()
+        } catch (_: DateTimeException) {
+            null
+        }
+    }
+
+private const val FIRST_YEAR = 1
+private const val LAST_YEAR = 9999
+private const val MS_PER_SECOND = 1000L
+private const val NANOS_PER_MS = 1_000_000
+private const val TICKS_PER_MS = 10_000L
+
+private val ITEM_KINDS =
+    mapOf(
+        "Movie" to ItemKind.Movie,
+        "Series" to ItemKind.Series,
+        "Season" to ItemKind.Season,
+        "Episode" to ItemKind.Episode,
+        "Video" to ItemKind.Video,
+        "MusicVideo" to ItemKind.MusicVideo,
+        "Folder" to ItemKind.Folder,
+        "CollectionFolder" to ItemKind.Folder,
+        "UserView" to ItemKind.Folder,
+    )

@@ -21,6 +21,7 @@ import java.util.UUID
  * inside the container with the `jellyfin-ffmpeg` it ships, a non-admin viewer, a disabled user, Quick Connect on.
  * Every step names itself and its status code when it fails; a request body or an answer is never printed.
  */
+@Suppress("TooManyFunctions") // One function per seeding step.
 internal object ServerSeeding {
     class Accounts {
         val admin = Account("admin", "A-${UUID.randomUUID()}")
@@ -57,7 +58,37 @@ internal object ServerSeeding {
             libraries.getValue("mixed"),
             movies,
             episodes,
+            seedPremiereDates(http, token, episodes),
         )
+    }
+
+    /**
+     * Gives the episodes known premiere dates (spec 09): one a few minutes before midnight in a UTC-5 offset, so its
+     * UTC date is the next day, and one before 1970. Returns the UTC date each must read as. The server converts the
+     * offset to UTC on the way in (the contract case records what it keeps).
+     */
+    private fun seedPremiereDates(
+        http: Harness,
+        token: String,
+        episodes: List<String>,
+    ): Map<String, String> {
+        val wanted =
+            listOf(
+                Triple("2001-03-04T23:30:00-05:00", "2001-03-05", episodes[0]),
+                Triple("1969-07-20T20:17:00Z", "1969-07-20", episodes[1]),
+            )
+        val adminId =
+            http
+                .expectOk("read admin", http.get("Users/Me", token))
+                .obj()
+                .getValue("Id")
+                .jsonPrimitive.content
+        for ((text, _, id) in wanted) {
+            val dto = http.expectOk("read item", http.get("Users/$adminId/Items/$id", token)).obj()
+            val edited = JsonObject(dto + ("PremiereDate" to JsonPrimitive(text)))
+            http.expectOk("set premiere date", http.post("Items/$id", edited.toString(), token))
+        }
+        return wanted.associate { (_, utcDate, id) -> id to utcDate }
     }
 
     private fun completeWizard(
