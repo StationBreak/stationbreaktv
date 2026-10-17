@@ -76,7 +76,7 @@ class HistoryCascadeTest {
             repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
             clock.stepMs(31 * 86_400_000L)
 
-            assertEquals(1, repository.purgeTombstones())
+            assertEquals(1, (repository.purgeHistory(ALICE) as PurgeOutcome.Purged).tombstones)
 
             assertEquals(setOf(hexId(2), hexId(3)), repository.versions(ALICE).map { it.itemId }.toSet())
             assertEquals(2, repository.currentRows(ALICE).size)
