@@ -9,6 +9,17 @@ enum class ScheduleItemKind {
     Episode,
 }
 
+/** What is wrong with a [ScheduleItem]'s fields, if anything: the checks its `init` makes, named. See [ScheduleItem.problem]. */
+enum class ScheduleItemProblem(
+    val message: String,
+) {
+    PremiereDateMalformed("A premiere date is YYYY-MM-DD, with a year from 0001 to 9999"),
+    ProductionYearOutOfRange("A production year is 1 to 9999"),
+    SeasonNegative("A season number is not negative"),
+    EpisodeNegative("An episode number is not negative"),
+    MovieHasSeriesData("A movie has no series, season or episode number"),
+}
+
 /**
  * One item offered to the scheduler. All times are milliseconds since 1970-01-01T00:00:00Z.
  *
@@ -49,8 +60,18 @@ data class ScheduleItem(
      */
     val groupId: CanonicalId get() = seriesId ?: id
 
-    private companion object {
-        const val MAX_YEAR = 9999
-        val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+    companion object {
+        // RED STUB (spec 09, Granny M1): compiles the tests, finds nothing.
+        fun problem(
+            kind: ScheduleItemKind,
+            premiereDate: String?,
+            productionYear: Int?,
+            seriesId: CanonicalId?,
+            seasonNumber: Int?,
+            episodeNumber: Int?,
+        ): ScheduleItemProblem? = null
+
+        private const val MAX_YEAR = 9999
+        private val DATE = Regex("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
     }
 }
