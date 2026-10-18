@@ -122,6 +122,23 @@ internal class ItemDto(
     @SerialName("IndexNumber") val episodeNumber: Int? = null,
 )
 
+/** A page of series: only what `SeriesInfo` holds is read, so no other field can fail the page. */
+@Serializable
+internal class SeriesItemsDto(
+    @SerialName("Items") val items: List<SeriesDto> = emptyList(),
+    @SerialName("TotalRecordCount") val totalRecordCount: Int? = null,
+    @SerialName("StartIndex") val startIndex: Int = 0,
+)
+
+@Serializable
+internal class SeriesDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String = "",
+    @SerialName("OfficialRating") val officialRating: String? = null,
+    @SerialName("Genres") val genres: List<String>? = null,
+    @SerialName("Tags") val tags: List<String>? = null,
+)
+
 /** An ID-only listing: the answer carries more, but only the ID is read. */
 @Serializable
 internal class ItemIdsDto(

@@ -6,6 +6,8 @@ import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.SeriesInfo
+import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.Session
 import kotlin.time.Instant
 
@@ -44,7 +46,20 @@ class ListLibrarySource(
     override fun savedAt(item: MediaItem): Instant = saved[item.id] ?: item.dateCreated ?: Instant.fromEpochMilliseconds(0)
 }
 
-/** One call [PagedMediaServer] served, as it saw it. */
+/**
+ * The series of one library as a server holds them, in the order it pages them. A test edits [series] and [saved]
+ * while a sync runs; a series with no entry in [saved] was saved at the epoch.
+ */
+class SeriesSource(
+    val series: MutableList<SeriesInfo> = mutableListOf(),
+) {
+    /** When the server last saved a series: what a changed-since page compares with. */
+    val saved = mutableMapOf<ItemId, Instant>()
+
+    fun savedAt(series: SeriesInfo): Instant = saved[series.id] ?: Instant.fromEpochMilliseconds(0)
+}
+
+/** One call [PagedMediaServer] served, as it saw it. [series] is true for a series call. */
 data class PagedCall(
     val number: Int,
     val library: Library,
@@ -52,6 +67,7 @@ data class PagedCall(
     val limit: Int,
     val changedSince: Instant?,
     val idsOnly: Boolean,
+    val series: Boolean = false,
 )
 
 /**
@@ -82,10 +98,13 @@ class PagedMediaServer(
     /** Items the ID listing names but the item pages never return (a listed ID that cannot be fetched). */
     var hiddenFromItems: Set<ItemId> = emptySet()
 
+    /** The series of each library, for [librarySeries] and [librarySeriesIds]. A library with none has no series. */
+    val seriesSources = mutableMapOf<ItemId, SeriesSource>()
+
     /** What [libraries] answers, when it should fail. */
     var librariesFailure: MediaServerError? = null
 
-    val itemCalls: List<PagedCall> get() = calls.filter { !it.idsOnly }
+    val itemCalls: List<PagedCall> get() = calls.filter { !it.idsOnly && !it.series }
 
     override suspend fun libraries(session: Session): ServerResult<List<Library>> {
         librariesFailure?.let { return ServerResult.Failure(it) }
@@ -124,6 +143,38 @@ class PagedMediaServer(
         val source = sources.getValue(library.id)
         val ids = source.page(startIndex, limit).map { it.id }
         return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) source.size else null, ids))
+    }
+
+    override suspend fun librarySeries(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<SeriesPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        val call = PagedCall(calls.size + 1, library, startIndex, limit, changedSince, idsOnly = false, series = true)
+        calls += call
+        respond(call)?.let { return ServerResult.Failure(it) }
+        val source = seriesSources[library.id] ?: SeriesSource()
+        val matching = source.series.filter { changedSince == null || source.savedAt(it) >= changedSince }
+        val total = if (startIndex == 0) matching.size else null
+        return ServerResult.Success(SeriesPage(startIndex, total, matching.drop(startIndex).take(limit)))
+    }
+
+    override suspend fun librarySeriesIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        val call = PagedCall(calls.size + 1, library, startIndex, limit, null, idsOnly = true, series = true)
+        calls += call
+        respond(call)?.let { return ServerResult.Failure(it) }
+        val all = seriesSources[library.id]?.series.orEmpty()
+        val ids = all.drop(startIndex).take(limit).map { it.id }
+        return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) all.size else null, ids))
     }
 
     private fun selected(

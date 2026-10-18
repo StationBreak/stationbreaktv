@@ -84,7 +84,7 @@ class PagedMediaServerSeriesTest {
 
             assertEquals(2, server.calls.size)
             assertEquals(emptyList(), server.itemCalls)
-            assertEquals(listOf(true, false), server.calls.map { it.idsOnly })
+            assertEquals(listOf(false, true), server.calls.map { it.idsOnly })
             assertEquals(listOf(true, true), server.calls.map { it.series })
         }
 }
