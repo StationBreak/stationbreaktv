@@ -45,7 +45,7 @@ internal enum class PurgeSkip {
     /** `now` is before the last successful sync: the clock was set back. */
     ClockBehindLastSync,
 
-    /** `now` is more than the retention period after the last successful sync: the clock jumped forward. */
+    /** `now` is more than the retention minus 72 h after the last successful sync: the clock jumped forward. */
     ClockFarAhead,
 }
 
@@ -237,9 +237,10 @@ internal abstract class LibraryDao {
      * versions go first, so the count is of the ones superseded long ago and not of the ones a tombstone takes with it.
      * Both deletes are plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
      *
-     * A clock that looks wrong purges nothing (Vimes L2): [nowMs] before the last successful sync, or more than
-     * [retentionMs] after it, would make the age of every row meaningless. With no success recorded yet there is
-     * nothing to compare with, and the purge runs.
+     * A clock that looks wrong purges nothing (Vimes L2): [nowMs] before [referenceMs], or more than the retention
+     * minus the 72 h safe look-back after it, would make the age of every row meaningless. [referenceMs] is the last
+     * successful sync as the caller read it **before** its run recorded a new one (Vimes M-1 on #268), so this does not
+     * read the account state. With no reference there is nothing to compare with, and the purge runs.
      */
     @Transaction
     open suspend fun purgeHistory(
@@ -247,9 +248,10 @@ internal abstract class LibraryDao {
         userId: String,
         nowMs: Long,
         retentionMs: Long,
+        referenceMs: Long?,
     ): PurgeOutcome {
         requireActive(serverId, userId)
-        val skip = clockLooksWrong(state(serverId, userId)?.lastSuccessMs, nowMs, retentionMs)
+        val skip = clockLooksWrong(referenceMs, nowMs, retentionMs)
         if (skip != null) return PurgeOutcome.Skipped(skip)
         val cutoffMs = nowMs - retentionMs
         val versions = deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
@@ -258,14 +260,14 @@ internal abstract class LibraryDao {
     }
 
     private fun clockLooksWrong(
-        lastSuccessMs: Long?,
+        referenceMs: Long?,
         nowMs: Long,
         retentionMs: Long,
     ): PurgeSkip? =
         when {
-            lastSuccessMs == null -> null
-            nowMs < lastSuccessMs -> PurgeSkip.ClockBehindLastSync
-            nowMs - lastSuccessMs > retentionMs -> PurgeSkip.ClockFarAhead
+            referenceMs == null -> null
+            nowMs < referenceMs -> PurgeSkip.ClockBehindLastSync
+            nowMs - referenceMs > retentionMs - HistoryRetention.SAFE_LOOKBACK_MS -> PurgeSkip.ClockFarAhead
             else -> null
         }
 

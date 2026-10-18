@@ -369,10 +369,23 @@ class RoomLibraryRepository internal constructor(
     /**
      * Purges [account]'s history older than the retention (30 days by default): its tombstones and its superseded
      * versions, and nothing else (spec 09, Unit 3). Throws [AccountNotActiveException] if the account is signed out.
+     *
+     * [reference] is the clock guard's anchor: the last successful sync as it stood before the run that calls this
+     * recorded a new one. Without it, the one stored now is used, which is only right for a caller that has not just
+     * synced.
      */
     internal suspend fun purgeHistory(account: LibraryAccount): PurgeOutcome {
+        return purgeHistory(account, lastSuccess(account))
+    }
+
+    /** As [purgeHistory] for [account], with the guard's [reference] given (null: nothing to compare with). */
+    internal suspend fun purgeHistory(
+        account: LibraryAccount,
+        reference: Instant?,
+    ): PurgeOutcome {
         val (server, user) = account.keys()
-        return dao.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis)
+        val referenceMs = reference?.toEpochMilliseconds()
+        return dao.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis, referenceMs)
     }
 
     // Reads for the tests and diagnostics.

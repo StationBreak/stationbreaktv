@@ -14,6 +14,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Which of the two stay-current passes a run does: the incremental pass (items changed since the last one) and the ID
@@ -67,7 +68,8 @@ class StayCurrentRunner(
         private set
 
     /** Test seam: the purge the run does after a completed reconcile. The repository's own in the app. */
-    internal var purge: suspend (LibraryAccount) -> PurgeOutcome = { repository.purgeHistory(it) }
+    internal var purge: suspend (LibraryAccount, Instant?) -> PurgeOutcome =
+        { account, reference -> repository.purgeHistory(account, reference) }
 
     /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
     val isRunning: Boolean get() = gate.isLocked
@@ -123,23 +125,28 @@ class StayCurrentRunner(
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
+        // The incremental pass records a new success; the purge's clock guard needs the one from before this run.
+        val reference = repository.lastSuccess(account)
         if (plan.incremental) {
             val incremental = engine.incremental(session, account, chosen).outcome
             if (incremental != SyncOutcome.Completed) return incremental
         }
         if (!plan.reconcile) return SyncOutcome.Completed
         val reconciled = engine.reconcile(session, account, chosen).outcome
-        if (reconciled == SyncOutcome.Completed) purgeHistory(account)
+        if (reconciled == SyncOutcome.Completed) purgeHistory(account, reference)
         return reconciled
     }
 
     // Housekeeping after a pass that completed: a failure is kept and never fails the run. Cancellation and a sign-out
     // pass through, the same as for the passes.
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun purgeHistory(account: LibraryAccount) {
+    private suspend fun purgeHistory(
+        account: LibraryAccount,
+        reference: Instant?,
+    ) {
         lastPurge =
             try {
-                purge(account)
+                purge(account, reference)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (signedOut: AccountNotActiveException) {
