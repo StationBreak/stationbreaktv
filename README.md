@@ -1,5 +1,7 @@
 # StationBreak
 
+![StationBreak: a TV set showing a pause symbol, and "We'll be right back"](art/placeholder/repo-banner.png)
+
 Turn your Jellyfin library into always-on, flip-through broadcast channels on Fire TV and Android TV.
 
 > **Status:** Phase 0 (Foundations). The module skeleton (convention plugins, the Kotlin Multiplatform shared core
@@ -22,7 +24,11 @@ Turn your Jellyfin library into always-on, flip-through broadcast channels on Fi
 
 ## Assets
 
-Placeholder banner and launcher icons are rendered from Noto Sans Bold (SIL OFL 1.1); no font file is shipped.
+The TV banner, the launcher icons and the banner at the top of this README are **placeholders**, not final brand art.
+They come from the "StationBreak Logo" design canvas: the sign-off test card is the app icon and, widened to 16:9, the
+TV banner; the TV mark and wordmark are the README banner. The SVG sources are in `art/placeholder/`, and
+`scripts/render-placeholder-art.sh <font-dir>` renders every PNG at its exact size. The text is set in Archivo Black
+and Space Mono Bold (both SIL OFL 1.1, from `github.com/google/fonts`); no font file is shipped.
 
 ## Contributing
 

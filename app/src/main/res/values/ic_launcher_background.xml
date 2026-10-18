@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The test card's ground, from art/placeholder/launcher-icon.svg. -->
+    <color name="ic_launcher_background">#CFCBC2</color>
+</resources>
