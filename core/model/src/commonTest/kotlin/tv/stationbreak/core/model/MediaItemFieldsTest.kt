@@ -28,6 +28,7 @@ class MediaItemFieldsTest {
         assertEquals(emptyList(), item.genres)
         assertEquals(emptyList(), item.tags)
         assertNull(item.seriesId)
+        assertNull(item.seasonId)
         assertNull(item.seasonNumber)
         assertNull(item.episodeNumber)
     }
@@ -63,5 +64,14 @@ class MediaItemFieldsTest {
         assertEquals(ItemId("series1"), item.seriesId)
         assertEquals(1, item.seasonNumber)
         assertEquals(2, item.episodeNumber)
+    }
+
+    @Test
+    fun theSeasonIdIsAnOptionalParameterSoEarlierCallersStillCompile() {
+        val plain = MediaItem(ItemId("e1"), "Pilot", ItemKind.Episode, null, null, seriesId = ItemId("s1"))
+        val withSeason = plain.copy(seasonId = ItemId("season1"))
+
+        assertNull(plain.seasonId)
+        assertEquals(ItemId("season1"), withSeason.seasonId)
     }
 }
