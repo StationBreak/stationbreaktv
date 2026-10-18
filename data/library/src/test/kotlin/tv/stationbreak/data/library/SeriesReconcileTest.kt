@@ -77,6 +77,8 @@ class SeriesReconcileTest {
             assertEquals(ReconcileSummary(), summary)
             // The series IDs were listed once (100 a page, then the empty page): nothing was missing, no second read.
             assertEquals(4, server.calls.count { it.series && it.idsOnly })
+            // And nothing was missing, so no series page was walked.
+            assertEquals(0, server.calls.count { it.series && !it.idsOnly })
         }
 
     @Test
@@ -206,5 +208,43 @@ class SeriesReconcileTest {
             assertEquals(SyncOutcome.Completed, reconcile())
             assertEquals(1, tombstoned().size)
             assertEquals(1, repository.stored(ALICE).count { it.deletedAt != null })
+        }
+
+    // Vimes M-1: a series the cache lacks (a page skipped in the first walk, a malformed page) comes back.
+    @Test
+    fun aSeriesMissingFromTheCacheComesBackAfterOneReconcile() =
+        runBlocking {
+            firstSyncDone()
+            val before = repository.currentSeries(ALICE)
+            seriesSource.series += series("s999", "G", listOf("New"))
+
+            val outcome = reconcile()
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            val after = repository.currentSeries(ALICE)
+            assertEquals(251, after.size)
+            assertEquals("G", after.single { it.seriesId == "s999" }.officialRating)
+            // Only the missing one was written: the others are untouched, and nothing was versioned.
+            assertEquals(before, after.filter { it.seriesId != "s999" })
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertTrue(server.calls.any { it.series && !it.idsOnly })
+        }
+
+    @Test
+    fun aMissingSeriesTheServerNeverReturnsCostsABoundedWalkAndNothingElse() =
+        runBlocking {
+            firstSyncDone()
+            seriesSource.series += series("s999")
+            server.malformed =
+                setOf(
+                    tv.stationbreak.core.model
+                        .ItemId("s999"),
+                )
+
+            val outcome = reconcile()
+
+            // A malformed page is skipped item by item, as in the first sync; the pass still completes.
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertEquals(250, repository.currentSeries(ALICE).size)
         }
 }

@@ -6,8 +6,10 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.SeriesSource
+import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
 import kotlin.time.Duration.Companion.hours
@@ -76,5 +78,22 @@ class ItemReconcileIgnoresSeriesTest {
 
             assertEquals(ReconcileSummary(seriesTombstoned = 1), second.summary)
             assertEquals(1, repository.stored(ALICE).count { it.deletedAt != null })
+        }
+
+    // Granny M1 and Vimes L-2: a series listing that fails must not stop the item reconcile's own work.
+    @Test
+    fun aFailedSeriesListingStillLetsTheMissingItemsBeFetched() =
+        runBlocking {
+            firstSyncDone()
+            episodes.items += SyncWorld.item("e", 999, SHOWS)
+            server.respond = { call ->
+                if (call.series && call.idsOnly) MediaServerError.Timeout() else null
+            }
+
+            val result = reconcile()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Network), result.outcome)
+            assertTrue(repository.stored(ALICE).any { it.item.id.value == "e-00999" })
+            assertEquals(1, result.summary.fetched)
         }
 }

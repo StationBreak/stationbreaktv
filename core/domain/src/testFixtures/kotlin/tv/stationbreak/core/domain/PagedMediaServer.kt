@@ -159,7 +159,9 @@ class PagedMediaServer(
         val source = seriesSources[library.id] ?: SeriesSource()
         val matching = source.series.filter { changedSince == null || source.savedAt(it) >= changedSince }
         val total = if (startIndex == 0) matching.size else null
-        return ServerResult.Success(SeriesPage(startIndex, total, matching.drop(startIndex).take(limit)))
+        val page = matching.drop(startIndex).take(limit)
+        if (page.any { it.id in malformed }) return ServerResult.Failure(MediaServerError.NotJellyfin())
+        return ServerResult.Success(SeriesPage(startIndex, total, page))
     }
 
     override suspend fun librarySeriesIds(
