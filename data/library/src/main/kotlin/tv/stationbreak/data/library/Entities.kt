@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import tv.stationbreak.core.model.CollectionMemberKind
 
 // The saved library's tables (spec 06, Unit 2). Every row is keyed by server and user (ADR-0002). All times are UTC
 // milliseconds. Nothing here can hold a token or a password: the columns are IDs, names, numbers and dates.
@@ -460,3 +461,24 @@ internal fun ItemEntity.toVersion(
     genres = VersionCodec.encode(genres),
     tags = VersionCodec.encode(tags),
 )
+
+/**
+ * The `memberKind` column for a collection member of [kind], or null when the cache does not store that kind: a nested
+ * collection is never followed, and anything else (music, photos) is not a rule input (spec 10, Unit 2).
+ */
+internal fun storedMemberKind(kind: CollectionMemberKind): String? =
+    when (kind) {
+        CollectionMemberKind.Movie -> MemberKinds.MOVIE
+        CollectionMemberKind.Episode -> MemberKinds.EPISODE
+        CollectionMemberKind.Series -> MemberKinds.SERIES
+        CollectionMemberKind.Season -> MemberKinds.SEASON
+        CollectionMemberKind.Collection, CollectionMemberKind.Other -> null
+    }
+
+/** The values of `collection_member.memberKind`. */
+internal object MemberKinds {
+    const val MOVIE = "movie"
+    const val EPISODE = "episode"
+    const val SERIES = "series"
+    const val SEASON = "season"
+}

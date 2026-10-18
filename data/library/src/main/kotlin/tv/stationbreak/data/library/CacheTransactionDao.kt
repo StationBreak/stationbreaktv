@@ -27,6 +27,7 @@ internal abstract class CacheTransactionDao(
     private val library get() = db.dao()
     private val history get() = db.itemHistoryDao()
     private val series get() = db.seriesDao()
+    private val collections get() = db.collectionDao()
 
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
@@ -244,6 +245,38 @@ internal abstract class CacheTransactionDao(
         val seriesTombstones = series.deleteTombstonesBefore(serverId, userId, cutoffMs)
         return PurgeOutcome.Purged(tombstones, versions, seriesTombstones, seriesVersions)
     }
+
+    /** Red stub: the green commit writes it. */
+    @Transaction
+    @Suppress("LongParameterList", "UnusedParameter") // One cohesive call, and the stub of the next commit.
+    open suspend fun writeCollection(
+        serverId: String,
+        userId: String,
+        collectionId: String,
+        name: String,
+        members: List<CollectionMemberEntity>,
+        nowMs: Long,
+        betweenCollectionAndMembers: (() -> Unit)?,
+    ): CollectionWrite = TODO("red")
+
+    /** Red stub: the green commit writes it. */
+    @Transaction
+    @Suppress("UnusedParameter") // The stub of the next commit.
+    open suspend fun tombstoneCollections(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ): Unit = TODO("red")
+
+    /** Red stub: the green commit writes it. */
+    @Transaction
+    @Suppress("UnusedParameter") // The stub of the next commit.
+    open suspend fun heldCollections(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): List<HeldCollection> = TODO("red")
 
     private fun clockLooksWrong(
         referenceMs: Long?,

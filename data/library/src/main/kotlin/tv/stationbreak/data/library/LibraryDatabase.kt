@@ -47,6 +47,8 @@ internal abstract class LibraryDatabase : RoomDatabase() {
 
     abstract fun seriesDao(): SeriesDao
 
+    abstract fun collectionDao(): CollectionDao
+
     abstract fun cacheTransactionDao(): CacheTransactionDao
 
     companion object {
