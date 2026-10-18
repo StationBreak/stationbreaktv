@@ -27,7 +27,10 @@ class RuleSnapshotCollectionsTest {
     private suspend fun write(
         n: Int,
         vararg members: Pair<Int, CollectionMemberKind>,
-    ) = repository.writeCollection(ALICE, ItemId(hexId(n)), "Name of $n", members.map { (id, kind) -> cm(hexId(id), kind) })
+    ): CollectionWrite {
+        val list = members.map { cm(hexId(it.first), it.second) }
+        return repository.writeCollection(ALICE, ItemId(hexId(n)), "Name of $n", list)
+    }
 
     private suspend fun snapshotAt(
         cutoffMs: Long,
@@ -49,7 +52,13 @@ class RuleSnapshotCollectionsTest {
             val collection = snapshotAt(start + 1).collections
 
             val expected =
-                RuleCollection(canon(1000), setOf(canon(1), canon(2)), setOf(canon(3)), setOf(canon(4)), setOf(canon(5)))
+                RuleCollection(
+                    canon(1000),
+                    setOf(canon(1), canon(2)),
+                    setOf(canon(3)),
+                    setOf(canon(4)),
+                    setOf(canon(5)),
+                )
             assertEquals(mapOf(canon(1000) to expected), collection)
         }
 
@@ -86,7 +95,8 @@ class RuleSnapshotCollectionsTest {
             write(1000, 1 to CollectionMemberKind.Movie, 2 to CollectionMemberKind.Movie)
 
             assertEquals(setOf(canon(1)), snapshotAt(cutoff).collections.getValue(canon(1000)).movies)
-            assertEquals(setOf(canon(1), canon(2)), snapshotAt(clock.nowMs + 1).collections.getValue(canon(1000)).movies)
+            val later = snapshotAt(clock.nowMs + 1).collections.getValue(canon(1000))
+            assertEquals(setOf(canon(1), canon(2)), later.movies)
         }
 
     @Test

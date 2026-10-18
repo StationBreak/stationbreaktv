@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSeries
 
@@ -35,7 +36,10 @@ class RuleSnapshotSeriesTest {
         tags: List<String> = emptyList(),
     ) = repository.putSeries(ALICE, RULE_LIBRARY, series(hexId(n), rating, genres, tags))
 
-    private suspend fun seriesAt(cutoffMs: Long) = repository.ruleSnapshot(ALICE, setOf(RULE_LIBRARY), at(cutoffMs)).series
+    private suspend fun seriesAt(cutoffMs: Long): Map<CanonicalId, RuleSeries> {
+        val libraries = setOf(RULE_LIBRARY)
+        return repository.ruleSnapshot(ALICE, libraries, at(cutoffMs)).series
+    }
 
     private fun held(
         n: Int,
@@ -59,7 +63,8 @@ class RuleSnapshotSeriesTest {
             assertEquals(mapOf(canon(show) to held(show, "PG", listOf("Drama"), listOf("slow"))), seriesAt(cutoff))
             // Case (a): the current row, first seen before this cut-off.
             val later = clock.nowMs + 1
-            assertEquals(mapOf(canon(show) to held(show, "R", listOf("Drama", "Crime"), listOf("fast"))), seriesAt(later))
+            val edited = held(show, "R", listOf("Drama", "Crime"), listOf("fast"))
+            assertEquals(mapOf(canon(show) to edited), seriesAt(later))
         }
 
     @Test

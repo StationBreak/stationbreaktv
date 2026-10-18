@@ -25,11 +25,13 @@ class RuleSnapshotSingleReadTest {
     val folder = TemporaryFolder()
 
     private val clock = FakeClock()
-    private val start = clock.nowMs
-    private val reader by lazy { TestLibraries.onDisk(folder.root, name = "single.db", clock = clock, signedIn = listOf(ALICE)) }
-    private val writer by lazy { TestLibraries.onDisk(folder.root, name = "single.db", clock = clock, signedIn = listOf(ALICE)) }
+    private val reader by lazy { open() }
+    private val writer by lazy { open() }
     private val show = ItemId(hexId(900))
     private val box = ItemId(hexId(1000))
+
+    // Two repositories over one file: two connection pools, as a sync and a read are.
+    private fun open() = TestLibraries.onDisk(folder.root, name = "single.db", clock = clock, signedIn = listOf(ALICE))
 
     @After
     fun close() {
@@ -67,7 +69,8 @@ class RuleSnapshotSingleReadTest {
             // The read holds the database's writer lock, so the write is refused (database locked) and nothing of it
             // lands; a read in several transactions would let it in, and the assertions below would then fail.
             assertTrue("the write was tried inside the read", attempt != null)
-            println("RuleSnapshotSingleReadTest: the write inside the read ${attempt?.exceptionOrNull() ?: "went through"}")
+            val outcome = attempt?.exceptionOrNull() ?: "went through"
+            println("RuleSnapshotSingleReadTest: the write inside the read $outcome")
             assertEquals("PG", snapshot.series.getValue(canon(900)).officialRating)
             assertEquals(setOf(canon(1)), snapshot.collections.getValue(canon(1000)).movies)
             assertEquals(emptySet<Any>(), snapshot.collections.getValue(canon(1000)).episodes)

@@ -23,7 +23,9 @@ class RuleSnapshotRatingTest {
     fun itemRatingsStayAsStored() =
         runBlocking {
             repository.select(ALICE, setOf(RULE_LIBRARY))
-            ratings.forEachIndexed { n, rating -> repository.put(ALICE, RULE_LIBRARY, episodeOf(n + 1, null, rating = rating)) }
+            ratings.forEachIndexed { n, rating ->
+                repository.put(ALICE, RULE_LIBRARY, episodeOf(n + 1, null, rating = rating))
+            }
 
             val snapshot = repository.ruleSnapshot(ALICE, setOf(RULE_LIBRARY), at(start + 1))
 

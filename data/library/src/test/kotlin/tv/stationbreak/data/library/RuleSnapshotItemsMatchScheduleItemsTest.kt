@@ -36,7 +36,8 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
                     val wanted = selected.toSet()
                     val snapshot = repository.ruleSnapshot(ALICE, wanted, cutoff)
                     val expected = repository.scheduleItems(ALICE, wanted, cutoff)
-                    assertEquals("items, cut-off $cutoff, libraries $selected", expected, snapshot.items.map { it.item })
+                    val label = "items, cut-off $cutoff, libraries $selected"
+                    assertEquals(label, expected, snapshot.items.map { it.item })
                     assertEquals(cutoff.toEpochMilliseconds(), snapshot.cutoffMs)
                     assertEquals(wanted.map { CanonicalId.parse(it.value) }.toSet(), snapshot.libraries)
                     assertEquals(
@@ -51,7 +52,7 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
             reads
         }
 
-    // The lookups carry no order meaning, but they are built in canonical-ID order, and only series an episode points to.
+    // The lookups carry no order meaning, but are built in canonical-ID order, with only series an episode points to.
     private fun assertOrderedAndComplete(snapshot: RuleSnapshot) {
         val pointedTo =
             snapshot.items
@@ -89,7 +90,7 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
             } catch (
                 @Suppress("TooGenericExceptionCaught") failure: Throwable,
             ) {
-                val message = "RuleSnapshotItemsMatchScheduleItemsTest: case $index failed, seed $seed: ${failure.message}"
+                val message = "$NAME: case $index failed, seed $seed: ${failure.message}"
                 println(message)
                 throw AssertionError(message, failure)
             }
@@ -100,6 +101,7 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
     }
 
     private companion object {
+        const val NAME = "RuleSnapshotItemsMatchScheduleItemsTest"
         const val CASES = 1000
         const val BASE_SEED = 0x5EED_1003uL
     }

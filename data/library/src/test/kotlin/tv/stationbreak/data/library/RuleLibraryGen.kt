@@ -91,7 +91,7 @@ internal object RuleLibraryGen {
             times += at
             for (id in ids) {
                 if (!gen.chance(WRITE_PERCENT)) continue
-                if (gen.chance(MOVE_PERCENT)) library[id] = if (library.getValue(id) == LIBRARY_A) LIBRARY_B else LIBRARY_A
+                if (gen.chance(MOVE_PERCENT)) library[id] = other(library.getValue(id))
                 repository.put(ALICE, library.getValue(id), randomItem(gen, id, start))
             }
             if (gen.chance(DELETE_PERCENT)) repository.tombstone(ALICE, listOf(gen.pick(ids)))
@@ -111,7 +111,8 @@ internal object RuleLibraryGen {
         for (show in SERIES) {
             if (!gen.chance(SERIES_WRITE_PERCENT)) continue
             val genres = List(gen.nextInt(3)) { gen.pick(GENRES) }
-            repository.putSeries(ALICE, LIBRARY_A, series(show, gen.pick(RATINGS), genres, List(gen.nextInt(3)) { gen.pick(TAGS) }))
+            val tags = List(gen.nextInt(3)) { gen.pick(TAGS) }
+            repository.putSeries(ALICE, LIBRARY_A, series(show, gen.pick(RATINGS), genres, tags))
         }
         if (gen.chance(DELETE_PERCENT)) repository.tombstoneSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
         if (gen.chance(REVIVE_PERCENT)) repository.reviveSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
@@ -127,7 +128,8 @@ internal object RuleLibraryGen {
             if (!gen.chance(COLLECTION_WRITE_PERCENT)) continue
             val members =
                 List(gen.nextInt(MAX_MEMBERS)) {
-                    val member = if (gen.chance(HELD_MEMBER_PERCENT)) gen.pick(ids).value else hexId(0xF00 + gen.nextInt(MAX_MEMBERS))
+                    val held = gen.chance(HELD_MEMBER_PERCENT)
+                    val member = if (held) gen.pick(ids).value else hexId(0xF00 + gen.nextInt(MAX_MEMBERS))
                     cm(
                         member,
                         gen.pick(
@@ -196,7 +198,7 @@ internal object RuleLibraryGen {
             kind = kind,
             runtime = if (gen.chance(ODD_PERCENT)) gen.pick(listOf(null, 0L, -5L))?.milliseconds else runtimeOf(gen),
             parentId = null,
-            dateCreated = if (gen.chance(ODD_PERCENT)) null else Instant.fromEpochMilliseconds(start - 1 - gen.nextLong(DAY_MS)),
+            dateCreated = if (gen.chance(ODD_PERCENT)) null else createdBefore(gen, start),
             premiereDate = if (gen.chance(ODD_PERCENT)) gen.pick(listOf("2001-13-01", "last week")) else dateOf(gen),
             productionYear = if (gen.chance(ODD_PERCENT)) gen.pick(listOf(0, 10_000)) else yearOf(gen),
             officialRating = gen.pick(RATINGS),
@@ -208,6 +210,13 @@ internal object RuleLibraryGen {
             episodeNumber = if (episode || series != null) numberOf(gen) else null,
         )
     }
+
+    private fun other(library: ItemId) = if (library == LIBRARY_A) LIBRARY_B else LIBRARY_A
+
+    private fun createdBefore(
+        gen: SeededGen,
+        start: Long,
+    ) = Instant.fromEpochMilliseconds(start - 1 - gen.nextLong(DAY_MS))
 
     private fun runtimeOf(gen: SeededGen) = ((1 + gen.nextInt(MAX_MINUTES)) * 60_000L).milliseconds
 

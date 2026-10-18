@@ -259,7 +259,8 @@ internal object RuleInputs {
         val seen = HashSet<CanonicalId>()
         for (item in items) {
             val id = item.item.seriesId
-            if (item.item.kind == ScheduleItemKind.Episode && id != null && id in byId && seen.add(id)) wanted += id
+            if (item.item.kind != ScheduleItemKind.Episode || id == null || id !in byId) continue
+            if (seen.add(id)) wanted += id
         }
         wanted.sortBy { it.value }
         val result = LinkedHashMap<CanonicalId, RuleSeries>(wanted.size * 2)
@@ -304,7 +305,7 @@ internal object RuleInputs {
         return RuleCollection(id, ordered(movies), ordered(episodes), ordered(series), ordered(seasons))
     }
 
-    // A set in canonical-ID order, without duplicates: the stored spellings may sort differently from the canonical ones.
+    // A set in canonical-ID order, without duplicates: stored spellings may sort differently from canonical ones.
     private fun ordered(ids: ArrayList<CanonicalId>): Set<CanonicalId> {
         ids.sortBy { it.value }
         return LinkedHashSet(ids)

@@ -215,6 +215,7 @@ class InMemoryLibraryRepositoryTest {
         episodeNumber = 1,
     )
 
+    @Suppress("LongParameterList") // A plain carrier for the fields a test sets, the rest left at their defaults.
     private fun ruleItem(
         item: ScheduleItem,
         library: CanonicalId = moviesId,
@@ -318,7 +319,8 @@ class InMemoryLibraryRepositoryTest {
             val cutoffMs = epoch.toEpochMilliseconds()
             repository.seedRule(alice, ruleItem(episode('1', series = '5')), ruleItem(episode('2', series = '4')))
             repository.seedSeries(alice, RuleSeries(id('5'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs)
-            repository.seedSeries(alice, RuleSeries(id('4'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs - 1)
+            val plain = RuleSeries(id('4'), null, emptyList(), emptyList())
+            repository.seedSeries(alice, plain, deletedAtMs = cutoffMs - 1)
 
             val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
 

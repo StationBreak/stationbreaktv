@@ -133,7 +133,8 @@ internal abstract class SeriesDao {
         "SELECT v.* FROM series_version v " +
             "JOIN series s ON s.serverId = v.serverId AND s.userId = v.userId AND s.seriesId = v.seriesId " +
             "AND s.firstSeenMs = v.seenFromMs " +
-            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.seriesId IN (:ids) AND v.seenFromMs >= :cutoffMs",
+            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.seriesId IN (:ids) " +
+            "AND v.seenFromMs >= :cutoffMs",
     )
     protected abstract suspend fun oldestVersions(
         serverId: String,
