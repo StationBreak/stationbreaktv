@@ -210,10 +210,12 @@ internal abstract class LibraryDao {
     )
 
     // The purge (spec 09, Unit 3). Plain DELETEs scoped to the account and driven by the two purge indexes; the
-    // foreign keys take the genres, tags and versions of a deleted item with it.
+    // foreign keys take the genres, tags and versions of a deleted item with it. A tombstone also needs
+    // seenFromMs < cutoff: after a clock set back, deletedAt can be older than the row itself, and the cascade would
+    // take versions superseded inside the retention (Vimes L-1 on #268).
     @Query(
         "DELETE FROM item WHERE serverId = :serverId AND userId = :userId " +
-            "AND deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs",
+            "AND deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs AND seenFromMs < :cutoffMs",
     )
     protected abstract suspend fun deleteTombstonesBefore(
         serverId: String,
