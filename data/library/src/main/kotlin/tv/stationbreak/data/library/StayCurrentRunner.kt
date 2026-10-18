@@ -67,6 +67,10 @@ class StayCurrentRunner(
     internal var lastPurge: PurgeOutcome? = null
         private set
 
+    /** Red stub: how the last collection pass of this process ended. */
+    internal var lastCollectionPass: CollectionResult? = null
+        private set
+
     /** Test seam: the purge the run does after a completed reconcile. The repository's own in the app. */
     internal var purge: suspend (LibraryAccount, Instant?) -> PurgeOutcome =
         { account, reference -> repository.purgeHistory(account, reference) }
