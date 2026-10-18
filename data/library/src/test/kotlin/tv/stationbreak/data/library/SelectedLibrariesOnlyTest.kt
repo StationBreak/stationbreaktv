@@ -86,7 +86,7 @@ class SelectedLibrariesOnlyTest {
             repository.useAccount(ALICE)
             val seen = mutableListOf<LibraryStatus>()
             server.respond = { call ->
-                if (!call.idsOnly) runBlocking { seen += repository.activeStatus().first()!! }
+                if (!call.idsOnly && !call.series) runBlocking { seen += repository.activeStatus().first()!! }
                 null
             }
 

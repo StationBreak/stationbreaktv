@@ -194,6 +194,9 @@ internal class StayCurrentEngine(
                         true
                     }
                 if (failed != null) return StayResult(failed, passed)
+                // The series follow the library's items, from the same cursor; a failed page fails the pass.
+                val seriesFailed = walkSeries(library, since)
+                if (seriesFailed != null) return StayResult(seriesFailed, passed)
             }
             currentCoroutineContext().ensureActive()
             repository.finishSync(account, started)
@@ -332,6 +335,33 @@ internal class StayCurrentEngine(
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
                         if (!onPage(fetched.items)) return null
+                    }
+                }
+            }
+        }
+
+        // Reads the series of [library] saved since [since], saving each page. Null when it reached the end.
+        private suspend fun walkSeries(
+            library: Library,
+            since: Instant,
+        ): SyncOutcome? {
+            val limit = PageLimit(pageSize)
+            var next = 0
+            while (true) {
+                when (val fetched = server.fetchSeriesPage(session, library, next, since, limit)) {
+                    is Fetched.Failed -> {
+                        return fail(fetched.error)
+                    }
+
+                    Fetched.Malformed -> {
+                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        next += 1
+                    }
+
+                    is Fetched.Page -> {
+                        if (fetched.items.isEmpty()) return null
+                        next += fetched.items.size
+                        repository.upsertSeries(account, library.id, fetched.items)
                     }
                 }
             }

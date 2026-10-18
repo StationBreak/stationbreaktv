@@ -143,6 +143,12 @@ internal class FirstSyncEngine(
                     repository.upsertItems(account, library.id, items)
                 }
             if (caught != null) return caught
+            // The series follow the library's items, through the same page loop and from the same cursor: the walk's
+            // start less the margin. They are written by upsert, so a resume simply reads them again from the start.
+            val seriesWalked = readSeries(library, null, limit)
+            if (seriesWalked != null) return seriesWalked
+            val seriesCaught = readSeries(library, since, limit)
+            if (seriesCaught != null) return seriesCaught
             repository.markFetched(account, library.id)
             return null
         }
@@ -175,6 +181,33 @@ internal class FirstSyncEngine(
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
                         onPage(fetched.items, next, if (fetched.startIndex == 0) fetched.totalCount else null)
+                    }
+                }
+            }
+        }
+
+        /** Reads [library]'s series from the start, saving each page. Null when it reached the end. */
+        private suspend fun readSeries(
+            library: Library,
+            changedSince: Instant?,
+            limit: PageLimit,
+        ): SyncOutcome? {
+            var next = 0
+            while (true) {
+                when (val fetched = server.fetchSeriesPage(session, library, next, changedSince, limit)) {
+                    is Fetched.Failed -> {
+                        return fail(fetched.error)
+                    }
+
+                    Fetched.Malformed -> {
+                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        next += 1
+                    }
+
+                    is Fetched.Page -> {
+                        if (fetched.items.isEmpty()) return null
+                        next += fetched.items.size
+                        repository.upsertSeries(account, library.id, fetched.items)
                     }
                 }
             }
