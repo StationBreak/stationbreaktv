@@ -373,4 +373,21 @@ class StayCurrentRunnerTest {
             assertEquals(before, given)
             assertTrue(rig.repository.lastSuccess(ALICE)!! > before!!)
         }
+
+    // Vimes L1: a sign-out during the collection pass ends the run as cancelled; it is not a pass result to keep.
+    @Test
+    fun aSignOutDuringTheCollectionPassIsNotKeptAsAFailedPass() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            rig.server.respondToCollections = {
+                runBlocking { rig.repository.forget(ALICE) }
+                null
+            }
+
+            val outcome = rig.runner.outcome(SyncPlan(incremental = true, reconcile = true))
+
+            assertEquals(SyncOutcome.Cancelled, outcome)
+            assertEquals(null, rig.runner.lastCollectionPass)
+        }
 }

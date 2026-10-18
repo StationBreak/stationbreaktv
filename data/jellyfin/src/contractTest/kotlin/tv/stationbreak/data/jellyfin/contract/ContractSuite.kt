@@ -29,6 +29,7 @@ import tv.stationbreak.core.domain.errorOrNull
 import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
+import tv.stationbreak.core.model.CollectionMemberKind
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.Library
@@ -887,6 +888,293 @@ abstract class ContractSuite {
                 assertNotNull(item.dateCreated)
                 assertTrue((item.runtime ?: 0.seconds) > 0.seconds)
             }
+        }
+    }
+
+    // Spec 10, Unit 2 (collections). Each case makes its own BoxSets and removes them again, so the seeded BoxSet that
+    // moviesInBoxSetStillList reads is never touched.
+
+    @Test
+    fun collectionMembersMixedKinds() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val admin = adminToken()
+            val seeded = server.seeded
+            val shows = Library(ItemId(seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+            val season = seasonIdOf(adapter, session, shows)
+            val inner = createBoxSet(admin, "Contract Inner", listOf(seeded.movieIds[2]))
+            val members = listOf(seeded.movieIds[0], seeded.episodeIds[0], seeded.seriesId, season)
+            val outer = createBoxSet(admin, "Contract Mixed", members)
+            try {
+                server.http.expectOk(
+                    "nest BoxSet",
+                    server.http.post(
+                        "Collections/$outer/Items",
+                        token = admin,
+                        query =
+                            listOf("ids" to inner),
+                    ),
+                )
+                delay(SETTLE_MS)
+                val expected =
+                    mapOf(
+                        seeded.movieIds[0] to CollectionMemberKind.Movie,
+                        seeded.episodeIds[0] to CollectionMemberKind.Episode,
+                        seeded.seriesId to CollectionMemberKind.Series,
+                        season to CollectionMemberKind.Season,
+                        inner to CollectionMemberKind.Collection,
+                    )
+                val page = adapter.collectionMembers(session, ItemId(outer), 0, BIG_PAGE).getOrNull()
+                assertNotNull(page)
+                finding("mixed members arrive as ${page.members.map { it.kind }}")
+                assertEquals(expected, page.members.associate { it.id.value to it.kind })
+                assertEquals(expected.size, page.totalCount)
+                // The nested BoxSet is a member and is not followed: its own movie is not in the outer list.
+                assertTrue(seeded.movieIds[2] !in page.members.map { it.id.value }, "a nested BoxSet is not flattened")
+                val paged = pagedMembers(adapter, session, outer).toSet()
+                assertEquals(expected.keys, paged, "paging reads the same members")
+                val listed = listedBoxSets(adapter, session)
+                assertTrue(listed.containsAll(listOf(outer, inner)), "the viewer lists both BoxSets: $listed")
+            } finally {
+                runCatching { server.http.delete("Items/$outer", admin) }
+                runCatching { server.http.delete("Items/$inner", admin) }
+            }
+        }
+    }
+
+    /**
+     * ADR-0015, pinned on 12.1 and 12.2. Adding and removing a member, and renaming the BoxSet, each make the BoxSet
+     * appear in a `MinDateLastSaved` query; renaming a member does not (the spec expected it to); a deleted BoxSet is
+     * missing from the BoxSet ID listing; a member deleted through a scan does NOT bump the BoxSet, yet is gone from
+     * the item ID listing and from the member list.
+     */
+    @Test
+    fun collectionChangesDetected() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            ChurnLibrary(server).use { churn ->
+                // The churn library's own admin token: a second sign-in from the harness's device would revoke it.
+                val admin = churn.admin
+                churn.create(listOf("Churn A", "Churn B", "Churn C"))
+                val library = Library(ItemId(churn.id), "Churn", LibraryKind.Movies)
+                awaitProbed(adapter, session, library, count = CHURN_FILES)
+                val ids = churnIds(adapter, session, library)
+                val box = createBoxSet(admin, "Contract Changes", listOf(ids.getValue("Churn A")))
+                try {
+                    assertMembershipEditsBumpTheBoxSet(adapter, session, admin, box, ids)
+                    assertMemberRenameAndBoxSetRename(adapter, session, admin, box, ids.getValue("Churn A"))
+                    val doomed = Doomed(churn, library, ids.getValue("Churn C"))
+                    assertDeletedMemberIsSilent(adapter, session, admin, box, doomed)
+                    server.http.expectOk("delete BoxSet", server.http.delete("Items/$box", admin))
+                    delay(SETTLE_MS * EDIT_SETTLE)
+                    val remaining = listedBoxSets(adapter, session)
+                    assertTrue(box !in remaining, "a deleted BoxSet is missing from the ID listing")
+                } finally {
+                    runCatching { server.http.delete("Items/$box", admin) }
+                }
+            }
+        }
+    }
+
+    private suspend fun assertMembershipEditsBumpTheBoxSet(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        admin: String,
+        box: String,
+        ids: Map<String, String>,
+    ) {
+        val added = ids.getValue("Churn B")
+        val first = settledMark()
+        val quiet = boxSetsChangedSince(adapter, session, first)
+        assertEquals(emptySet<String>(), quiet, "nothing was saved since the mark")
+        addToBoxSet(admin, box, added)
+        delay(SETTLE_MS * EDIT_SETTLE)
+        assertTrue(box in boxSetsChangedSince(adapter, session, first), "adding a member bumps the BoxSet")
+        assertEquals(setOf(ids.getValue("Churn A"), added), pagedMembers(adapter, session, box).toSet())
+
+        val second = settledMark()
+        val removal = server.http.delete("Collections/$box/Items", admin, listOf("ids" to added))
+        server.http.expectOk("remove member", removal)
+        delay(SETTLE_MS * EDIT_SETTLE)
+        assertTrue(box in boxSetsChangedSince(adapter, session, second), "removing a member bumps the BoxSet")
+        assertEquals(listOf(ids.getValue("Churn A")), pagedMembers(adapter, session, box))
+    }
+
+    private suspend fun assertMemberRenameAndBoxSetRename(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        admin: String,
+        box: String,
+        member: String,
+    ) {
+        val memberMark = settledMark()
+        renameItem(admin, member, "Contract Renamed Member")
+        delay(SETTLE_MS * EDIT_SETTLE)
+        val memberBumped = box in boxSetsChangedSince(adapter, session, memberMark)
+        finding("renaming a member bumps its BoxSet: $memberBumped")
+        // Spec 10 says a rename of a member bumps its BoxSet; 12.1 and 12.2 do not (this pins what they do, so a
+        // change is noticed). The cache stores no member name, so nothing depends on it either way.
+        assertTrue(!memberBumped, "renaming a member does not bump the BoxSet (recorded; the spec expected it to)")
+
+        val boxMark = settledMark()
+        renameItem(admin, box, "Contract Changes Renamed")
+        delay(SETTLE_MS * EDIT_SETTLE)
+        assertTrue(box in boxSetsChangedSince(adapter, session, boxMark), "renaming the BoxSet bumps it")
+    }
+
+    // A member the case deletes: the throwaway library it lives in, and its ID.
+    private data class Doomed(
+        val churn: ChurnLibrary,
+        val library: Library,
+        val id: String,
+    )
+
+    private suspend fun assertDeletedMemberIsSilent(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        admin: String,
+        box: String,
+        doomed: Doomed,
+    ) {
+        val (churn, library, id) = doomed
+        addToBoxSet(admin, box, id)
+        delay(SETTLE_MS * EDIT_SETTLE)
+        assertTrue(id in pagedMembers(adapter, session, box), "the member to delete is in the BoxSet")
+        val mark = settledMark()
+
+        churn.removeFile("Churn C")
+        churn.refresh()
+        awaitIds(adapter, session, library, "the delete") { id !in it }
+        delay(SETTLE_MS * EDIT_SETTLE)
+
+        val bumped = box in boxSetsChangedSince(adapter, session, mark)
+        finding("a deleted member bumps its BoxSet: $bumped")
+        assertTrue(!bumped, "a deleted member does not bump the BoxSet (ADR-0015)")
+        assertTrue(id !in pagedMembers(adapter, session, box), "the deleted member left the member list")
+    }
+
+    private fun addToBoxSet(
+        admin: String,
+        box: String,
+        member: String,
+    ) {
+        val reply = server.http.post("Collections/$box/Items", token = admin, query = listOf("ids" to member))
+        server.http.expectOk("add member", reply)
+    }
+
+    private fun adminToken(): String = server.http.signIn(server.admin.name, server.admin.rawPassword())
+
+    private fun createBoxSet(
+        admin: String,
+        name: String,
+        members: List<String>,
+    ): String =
+        server.http
+            .expectOk(
+                "create BoxSet",
+                server.http.post(
+                    "Collections",
+                    token = admin,
+                    query =
+                        listOf(
+                            "name" to name,
+                            "ids" to members.joinToString(","),
+                        ),
+                ),
+            ).obj()
+            .getValue("Id")
+            .jsonPrimitive.content
+
+    // Renames an item as the admin, the way the series edit does: read it, change one field, post it back.
+    private fun renameItem(
+        admin: String,
+        id: String,
+        name: String,
+    ) {
+        val adminId =
+            server.http
+                .get("Users/Me", admin)
+                .obj()
+                .getValue("Id")
+                .jsonPrimitive.content
+        val dto = server.http.expectOk("read item", server.http.get("Users/$adminId/Items/$id", admin)).obj()
+        val edited = JsonObject(dto + ("Name" to JsonPrimitive(name)))
+        server.http.expectOk("rename item", server.http.post("Items/$id", edited.toString(), admin))
+    }
+
+    /** The moment now, with a pause either side so no earlier save falls on it. */
+    private suspend fun settledMark(): Instant {
+        delay(SETTLE_MS)
+        val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+        delay(SETTLE_MS)
+        return mark
+    }
+
+    private suspend fun churnIds(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        library: Library,
+    ): Map<String, String> =
+        adapter
+            .libraryItems(session, library, 0, BIG_PAGE)
+            .getOrNull()
+            ?.items
+            .orEmpty()
+            .associate { item -> item.name.substringBefore(" (").let { it to item.id.value } }
+
+    private suspend fun seasonIdOf(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        shows: Library,
+    ): String =
+        adapter
+            .libraryItems(session, shows, 0, BIG_PAGE)
+            .getOrNull()
+            ?.items
+            .orEmpty()
+            .firstNotNullOf { it.seasonId?.value }
+
+    /** Every BoxSet ID the viewer is listed, by the ID listing. */
+    private suspend fun listedBoxSets(
+        adapter: JellyfinMediaServer,
+        session: Session,
+    ): Set<String> =
+        adapter
+            .collectionIds(session, 0, BIG_PAGE)
+            .getOrNull()
+            ?.ids
+            .orEmpty()
+            .map { it.value }
+            .toSet()
+
+    /** The BoxSets a `MinDateLastSaved` query from [since] returns. */
+    private suspend fun boxSetsChangedSince(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        since: Instant,
+    ): Set<String> =
+        adapter
+            .collections(session, 0, BIG_PAGE, since)
+            .getOrNull()
+            ?.collections
+            .orEmpty()
+            .map { it.id.value }
+            .toSet()
+
+    /** All members of [box] read two to a page, in the order the server gives them. */
+    private suspend fun pagedMembers(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        box: String,
+    ): List<String> {
+        val members = mutableListOf<String>()
+        while (true) {
+            val page = adapter.collectionMembers(session, ItemId(box), members.size, PAGE_SIZE).getOrNull()
+            assertNotNull(page)
+            if (page.members.isEmpty()) return members
+            members += page.members.map { it.id.value }
         }
     }
 

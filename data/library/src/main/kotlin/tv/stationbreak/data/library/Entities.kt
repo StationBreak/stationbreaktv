@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import tv.stationbreak.core.model.CollectionMemberKind
 
 // The saved library's tables (spec 06, Unit 2). Every row is keyed by server and user (ADR-0002). All times are UTC
 // milliseconds. Nothing here can hold a token or a password: the columns are IDs, names, numbers and dates.
@@ -186,6 +187,106 @@ internal data class SeriesVersionEntity(
     val deletedAtMs: Long?,
 )
 
+/**
+ * A collection (a Jellyfin BoxSet) the account can see (spec 10, Unit 2). It belongs to no library, so it has no
+ * library foreign key: sign-out and a change of account delete it explicitly. [name] is text a person typed; it is
+ * stored for spec 12 and never logged. The row is the current lifecycle version: [deletedAtMs] is the tombstone, and
+ * [seenFromMs] and [firstSeenMs] work as on [ItemEntity]. It is inserted only together with its first complete member
+ * list, at one stamp, so [firstSeenMs] equals its first members' [CollectionMemberEntity.seenFromMs] (Vimes H2).
+ */
+@Entity(
+    tableName = "collection",
+    primaryKeys = ["serverId", "userId", "collectionId"],
+    // The per-account tombstone purge.
+    indices = [Index(value = ["serverId", "userId", "deletedAtMs"])],
+)
+internal data class CollectionEntity(
+    val serverId: String,
+    val userId: String,
+    val collectionId: String,
+    val name: String,
+    val deletedAtMs: Long?,
+    val seenFromMs: Long,
+    val firstSeenMs: Long,
+)
+
+/**
+ * An earlier lifecycle of a collection, with the rules of [ItemVersionEntity]: the collection row as it stood until
+ * [supersededAtMs], in contiguous, strictly increasing intervals that end where the next one, or the collection row's
+ * own `seenFromMs`, begins. One is written at every stamp, copying the lifecycle it ends, so a tombstone that was
+ * revived stays a tombstone in the version that held it. The members are not copied: see [CollectionMemberEntity].
+ */
+@Entity(
+    tableName = "collection_version",
+    primaryKeys = ["serverId", "userId", "collectionId", "seenFromMs"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CollectionEntity::class,
+            parentColumns = ["serverId", "userId", "collectionId"],
+            childColumns = ["serverId", "userId", "collectionId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    // The purge of versions superseded long ago.
+    indices = [Index(value = ["serverId", "userId", "supersededAtMs"])],
+)
+internal data class CollectionVersionEntity(
+    val serverId: String,
+    val userId: String,
+    val collectionId: String,
+    val seenFromMs: Long,
+    val supersededAtMs: Long,
+    val deletedAtMs: Long?,
+)
+
+/**
+ * One member of a collection over the time it was held: the interval `[seenFromMs, supersededAtMs)`, open while
+ * [supersededAtMs] is null. A change is a removal (the stamp goes in [supersededAtMs]) and an addition (a new row at
+ * the same stamp), so a member's history is its rows, and only the changes are stored, however big the collection
+ * (Vimes H1). A member whose kind changed is a removal and an addition at one stamp. [memberKind] is `movie`,
+ * `episode`, `series` or `season`: nested collections and other types are never stored. At most one row per
+ * (collection, member) has a null [supersededAtMs]; Room cannot declare a partial unique index, so the tests assert it
+ * after every write.
+ */
+@Entity(
+    tableName = "collection_member",
+    primaryKeys = ["serverId", "userId", "collectionId", "memberId", "seenFromMs"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CollectionEntity::class,
+            parentColumns = ["serverId", "userId", "collectionId"],
+            childColumns = ["serverId", "userId", "collectionId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    // The purge of members superseded long ago, and (with memberId) the tombstone cascade, which finds a member's
+    // current rows by ID without scanning the account's members.
+    indices = [Index(value = ["serverId", "userId", "supersededAtMs", "memberId"])],
+)
+internal data class CollectionMemberEntity(
+    val serverId: String,
+    val userId: String,
+    val collectionId: String,
+    val memberId: String,
+    val seenFromMs: Long,
+    val memberKind: String,
+    val supersededAtMs: Long?,
+)
+
+/**
+ * Where the collection pass of one account stands (spec 10, Vimes H4, M2): [collectionsSinceMs] is the start of the
+ * last whole pass, and [lastRelistMs] the start of the last full re-list. A row of its own, not columns of
+ * [AccountStateEntity], because that is written whole with `INSERT OR REPLACE` on every sync and would wipe them. No
+ * row, or a null field, means that pass has not completed. Deleted with the rest of the account.
+ */
+@Entity(tableName = "collection_sync", primaryKeys = ["serverId", "userId"])
+internal data class CollectionSyncEntity(
+    val serverId: String,
+    val userId: String,
+    val collectionsSinceMs: Long?,
+    val lastRelistMs: Long?,
+)
+
 /** One genre of an item, at [position] so the server's order is kept. */
 @Entity(
     tableName = "item_genre",
@@ -362,3 +463,34 @@ internal fun ItemEntity.toVersion(
     genres = VersionCodec.encode(genres),
     tags = VersionCodec.encode(tags),
 )
+
+/**
+ * The `memberKind` column for a collection member of [kind], or null when the cache does not store that kind: a nested
+ * collection is never followed, and anything else (music, photos) is not a rule input (spec 10, Unit 2).
+ */
+internal fun storedMemberKind(kind: CollectionMemberKind): String? =
+    when (kind) {
+        CollectionMemberKind.Movie -> MemberKinds.MOVIE
+        CollectionMemberKind.Episode -> MemberKinds.EPISODE
+        CollectionMemberKind.Series -> MemberKinds.SERIES
+        CollectionMemberKind.Season -> MemberKinds.SEASON
+        CollectionMemberKind.Collection, CollectionMemberKind.Other -> null
+    }
+
+/** The values of `collection_member.memberKind`. */
+internal object MemberKinds {
+    const val MOVIE = "movie"
+    const val EPISODE = "episode"
+    const val SERIES = "series"
+    const val SEASON = "season"
+
+    /** The shared constant for a stored [column], so a read of thousands of members holds four strings, not more. */
+    fun shared(column: String): String =
+        when (column) {
+            MOVIE -> MOVIE
+            EPISODE -> EPISODE
+            SERIES -> SERIES
+            SEASON -> SEASON
+            else -> column
+        }
+}

@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.data.library.CollectionRelist
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.HistoryRetention
 import tv.stationbreak.data.library.RoomLibraryRepository
@@ -33,7 +34,10 @@ internal object LibraryModule {
     @Singleton
     fun roomLibraryRepository(
         @ApplicationContext context: Context,
-    ): RoomLibraryRepository = RoomLibraryRepository.create(context, Clock.System, HistoryRetention())
+    ): RoomLibraryRepository {
+        val relist = CollectionRelist()
+        return RoomLibraryRepository.create(context, Clock.System, HistoryRetention(), relist)
+    }
 
     @Provides
     fun libraryRepository(repository: RoomLibraryRepository): LibraryRepository = repository

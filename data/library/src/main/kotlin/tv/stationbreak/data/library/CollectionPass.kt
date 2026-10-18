@@ -1,0 +1,338 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.library
+
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.map
+import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.CollectionInfo
+import tv.stationbreak.core.model.CollectionMember
+import tv.stationbreak.core.model.CollectionMemberKind
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Session
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Instant
+
+/** What a collection pass did. Counts only: no ID and no name, so it is safe to log. */
+internal data class CollectionSummary(
+    val read: Int = 0,
+    val inserted: Int = 0,
+    val revived: Int = 0,
+    val changed: Int = 0,
+    val unchanged: Int = 0,
+    val tombstoned: Int = 0,
+    val skippedNested: Int = 0,
+    val skippedOther: Int = 0,
+    val skippedIds: Int = 0,
+    val failed: Int = 0,
+    val relisted: Boolean = false,
+)
+
+/** This summary with more members skipped: nested collections, other types, or IDs that are not canonical. */
+private fun CollectionSummary.skipped(
+    nested: Int = 0,
+    other: Int = 0,
+    ids: Int = 0,
+) = copy(skippedNested = skippedNested + nested, skippedOther = skippedOther + other, skippedIds = skippedIds + ids)
+
+/** How a collection pass ended and what it did. */
+internal data class CollectionResult(
+    val outcome: SyncOutcome,
+    val summary: CollectionSummary,
+)
+
+/** One page of a listing the pass reads: the total (first page only) and the items. */
+private class ListPage<T>(
+    val total: Int?,
+    val items: List<T>,
+)
+
+/** How reading one whole listing ended. */
+private sealed interface Read<out T> {
+    class Complete<T>(
+        val items: List<T>,
+    ) : Read<T>
+
+    /** Stops the pass as [outcome]: a failed page, or a read that did not add up to the first page's total. */
+    class Stopped(
+        val outcome: SyncOutcome,
+    ) : Read<Nothing>
+}
+
+/**
+ * The collection pass (spec 10, Unit 2): lists the BoxSets, re-reads the member list of each one that is new, changed
+ * or back, lists every BoxSet ID and tombstones the ones that are gone. It follows the item reconcile's guards (Vimes
+ * H3): the sort is stable, a read counts only when every page was read and the distinct IDs read equal the first
+ * page's total, an empty listing while collections are stored is suspect, and before a collection is tombstoned or a
+ * non-empty member list emptied the list is read a second time and only what both reads lack is removed.
+ *
+ * A failed pass writes nothing more and is not recorded in the account's sync state: it is returned for the caller to
+ * keep, so a collection problem never shows as a failed library. Collection names are never logged here, and nothing
+ * here logs at all.
+ */
+@Suppress("LongParameterList", "TooManyFunctions") // The same knobs as the engines; one method per step of the pass.
+internal class CollectionPass(
+    private val repository: RoomLibraryRepository,
+    private val server: MediaServer,
+    private val clock: Clock,
+    private val pageSize: Int = MediaServer.MAX_PAGE_SIZE,
+    private val margin: Duration = FirstSyncEngine.DEFAULT_MARGIN,
+    private val relistInterval: Duration = CollectionRelist.DEFAULT_INTERVAL,
+) {
+    init {
+        require(pageSize in 1..MediaServer.MAX_PAGE_SIZE) { "pageSize must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
+    }
+
+    /**
+     * Runs one pass for [account]. An account that stops being the signed-in one ends it by exception, as for items.
+     */
+    suspend fun run(
+        session: Session,
+        account: LibraryAccount,
+    ): CollectionResult = Run(session, account).execute()
+
+    @Suppress("ReturnCount") // Early returns carry a stopped read out of the steps.
+    private inner class Run(
+        private val session: Session,
+        private val account: LibraryAccount,
+    ) {
+        private var summary = CollectionSummary()
+
+        suspend fun execute(): CollectionResult {
+            val outcome = pass()
+            return CollectionResult(outcome, summary)
+        }
+
+        private suspend fun pass(): SyncOutcome {
+            val started = clock.now()
+            val state = repository.collectionSync(account)
+            val relist = needsRelist(state?.lastRelistMs, started)
+            val since = if (relist) null else sinceOf(state, started)
+            summary = summary.copy(relisted = relist)
+            val listing =
+                when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, since) }) {
+                    is Read.Stopped -> return read.outcome
+                    is Read.Complete -> read.items
+                }
+            val ids =
+                when (val read = readAll({ it.value }) { start -> idsPage(start) }) {
+                    is Read.Stopped -> return read.outcome
+                    is Read.Complete -> read.items.toSet()
+                }
+            // The cache first, then the server's answer is compared with it.
+            val live = repository.liveCollectionIds(account).toSet()
+            val tombstoned = repository.tombstonedCollectionIds(account).toSet()
+            val gone =
+                when (val decided = decideGone(live, ids)) {
+                    is Gone.Stopped -> return decided.outcome
+                    is Gone.Ids -> decided.ids
+                }
+            val targets =
+                when (val found = targets(listing.filter { it.id in ids }, ids, live, tombstoned, since)) {
+                    is Read.Stopped -> return found.outcome
+                    is Read.Complete -> found.items
+                }
+            for (target in targets) {
+                currentCoroutineContext().ensureActive()
+                writeOne(target)?.let { return it }
+            }
+            if (gone.isNotEmpty()) repository.tombstoneCollections(account, gone)
+            summary = summary.copy(tombstoned = gone.size)
+            currentCoroutineContext().ensureActive()
+            // A BoxSet that could not be read leaves the cursor and the re-list, so the next pass asks again.
+            if (summary.failed > 0) return SyncOutcome.Failed(SyncFailure.Server)
+            // Only now: a pass that stopped anywhere above leaves the cursor, and the re-list, as they were.
+            repository.recordCollectionPass(account, started, relisted = relist)
+            return SyncOutcome.Completed
+        }
+
+        // A cursor ahead of now means the clock went back: count from the older of the two, less the margin.
+        private fun sinceOf(
+            state: CollectionSyncEntity?,
+            started: Instant,
+        ): Instant {
+            val cursor = Instant.fromEpochMilliseconds(requireNotNull(state?.collectionsSinceMs))
+            return minOf(cursor, started) - margin
+        }
+
+        // The BoxSets to read the members of: those listed, and in an incremental pass also those that are back or that
+        // the cache lacks, which may not be among the changed ones (they were saved before the cursor). The ID listing
+        // finds them, and a full listing gives their names.
+        private suspend fun targets(
+            listed: List<CollectionInfo>,
+            ids: Set<ItemId>,
+            live: Set<ItemId>,
+            tombstoned: Set<ItemId>,
+            since: Instant?,
+        ): Read<CollectionInfo> {
+            if (since == null) return Read.Complete(listed)
+            val wanted = ((ids intersect tombstoned) + (ids - live - tombstoned)) - listed.map { it.id }.toSet()
+            if (wanted.isEmpty()) return Read.Complete(listed)
+            return when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, null) }) {
+                is Read.Stopped -> read
+                is Read.Complete -> Read.Complete(listed + read.items.filter { it.id in wanted })
+            }
+        }
+
+        // A full re-list runs when none has completed, when the last one is ahead of now (the clock went back), or when
+        // it is at least the interval old (Vimes M2, M5).
+        private fun needsRelist(
+            lastRelistMs: Long?,
+            now: Instant,
+        ): Boolean {
+            if (lastRelistMs == null) return true
+            val last = Instant.fromEpochMilliseconds(lastRelistMs)
+            return last > now || now - last >= relistInterval
+        }
+
+        // Nothing at all, while collections are stored, is more likely a server fault than every BoxSet deleted.
+        private suspend fun decideGone(
+            live: Set<ItemId>,
+            ids: Set<ItemId>,
+        ): Gone =
+            if (ids.isEmpty() && live.isNotEmpty()) {
+                Gone.Stopped(SyncOutcome.Failed(SyncFailure.Suspect))
+            } else {
+                confirmGone(live - ids)
+            }
+
+        // What a second read of the ID listing still lacks: a shift that leaves the size right looks sound once.
+        private suspend fun confirmGone(first: Set<ItemId>): Gone {
+            if (first.isEmpty()) return Gone.Ids(emptySet())
+            val again =
+                when (val read = readAll({ it.value }) { start -> idsPage(start) }) {
+                    is Read.Stopped -> return Gone.Stopped(read.outcome)
+                    is Read.Complete -> read.items.toSet()
+                }
+            if (again.isEmpty()) return Gone.Stopped(SyncOutcome.Failed(SyncFailure.Suspect))
+            return Gone.Ids(first - again)
+        }
+
+        // Reads one BoxSet's members and writes it with them. Null when it was written, else why the pass stops.
+        private suspend fun writeOne(target: CollectionInfo): SyncOutcome? {
+            val members =
+                when (val read = members(target.id)) {
+                    is Read.Stopped -> return stopOrSkip(read.outcome)
+                    is Read.Complete -> read.items
+                }
+            val write = repository.writeCollection(account, target.id, target.name, members)
+            summary =
+                summary.copy(
+                    read = summary.read + 1,
+                    inserted = summary.inserted + if (write.inserted) 1 else 0,
+                    revived = summary.revived + if (write.revived) 1 else 0,
+                    changed = summary.changed + if (write.stamp != null && !write.inserted && !write.revived) 1 else 0,
+                    unchanged = summary.unchanged + if (write.stamp == null) 1 else 0,
+                )
+            return null
+        }
+
+        // A bad BoxSet must not starve the rest (Vimes M3): a read that failed or did not add up is counted and
+        // skipped. An auth or transport failure stops the pass at once, as it does the item pass.
+        private fun stopOrSkip(outcome: SyncOutcome): SyncOutcome? {
+            val failure = (outcome as? SyncOutcome.Failed)?.failure
+            if (failure != SyncFailure.Server) return outcome
+            summary = summary.copy(failed = summary.failed + 1)
+            return null
+        }
+
+        // The stored members of [id]: what the server lists, less what the cache does not hold. A list that reads empty
+        // for a collection that has members is read again, and only what both reads lack is removed.
+        private suspend fun members(id: ItemId): Read<CollectionMember> {
+            val first =
+                when (val read = readMembers(id)) {
+                    is Read.Stopped -> return read
+                    is Read.Complete -> read.items
+                }
+            if (first.isNotEmpty() || repository.currentMemberCount(account, id) == 0) return Read.Complete(first)
+            return readMembers(id)
+        }
+
+        // All pages of one BoxSet's members, filtered to the kinds and IDs the cache stores; the skips are counted.
+        private suspend fun readMembers(id: ItemId): Read<CollectionMember> {
+            val all =
+                when (val read = readAll({ it.id.value }) { start -> membersPage(id, start) }) {
+                    is Read.Stopped -> return read
+                    is Read.Complete -> read.items
+                }
+            val stored = ArrayList<CollectionMember>(all.size)
+            for (member in all) {
+                val canonical = CanonicalId.parseOrNull(member.id.value)
+                when {
+                    member.kind == CollectionMemberKind.Collection -> summary = summary.skipped(nested = 1)
+                    storedMemberKind(member.kind) == null -> summary = summary.skipped(other = 1)
+                    canonical == null -> summary = summary.skipped(ids = 1)
+                    else -> stored += CollectionMember(ItemId(canonical.value), member.kind)
+                }
+            }
+            return Read.Complete(stored)
+        }
+
+        private suspend fun collectionsPage(
+            start: Int,
+            since: Instant?,
+        ): ServerResult<ListPage<CollectionInfo>> =
+            server.collections(session, start, pageSize, since).map { ListPage(it.totalCount, it.collections) }
+
+        private suspend fun idsPage(start: Int): ServerResult<ListPage<ItemId>> =
+            server.collectionIds(session, start, pageSize).map { ListPage(it.totalCount, it.ids) }
+
+        private suspend fun membersPage(
+            id: ItemId,
+            start: Int,
+        ): ServerResult<ListPage<CollectionMember>> =
+            server.collectionMembers(session, id, start, pageSize).map { ListPage(it.totalCount, it.members) }
+
+        // Inline, so the three listings' lambdas are not three classes behind one call in a loop (ART 7.1, #264).
+        // Reads every page of a listing, or stops: a failed page, a page that adds nothing, or a read whose distinct
+        // IDs do not equal the first page's total (a short count, or a page that shifted) counts as nothing.
+        private inline fun <T> readAll(
+            key: (T) -> String,
+            page: (start: Int) -> ServerResult<ListPage<T>>,
+        ): Read<T> {
+            val items = ArrayList<T>()
+            val seen = HashSet<String>()
+            var total: Int? = null
+            while (true) {
+                when (val result = page(items.size)) {
+                    is ServerResult.Failure -> {
+                        return Read.Stopped(failed(result.error.toSyncFailure()))
+                    }
+
+                    is ServerResult.Success -> {
+                        val chunk = result.value
+                        if (items.isEmpty()) total = chunk.total
+                        for (item in chunk.items) {
+                            items += item
+                            seen += key(item)
+                        }
+                        val expected = total
+                        val done = chunk.items.isEmpty() || (expected != null && items.size >= expected)
+                        if (done) {
+                            // A duplicate within one read is the server's: planWrite stores a member once.
+                            val sound = expected != null && items.size == expected
+                            return if (sound) Read.Complete(items) else Read.Stopped(failed(SyncFailure.Server))
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun failed(failure: SyncFailure) = SyncOutcome.Failed(failure)
+    }
+
+    private sealed interface Gone {
+        class Ids(
+            val ids: Set<ItemId>,
+        ) : Gone
+
+        class Stopped(
+            val outcome: SyncOutcome,
+        ) : Gone
+    }
+}

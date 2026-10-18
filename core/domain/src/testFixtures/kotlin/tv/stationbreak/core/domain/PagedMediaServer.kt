@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import tv.stationbreak.core.model.CollectionInfo
+import tv.stationbreak.core.model.CollectionMember
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.Library
@@ -59,6 +63,36 @@ class SeriesSource(
     fun savedAt(series: SeriesInfo): Instant = saved[series.id] ?: Instant.fromEpochMilliseconds(0)
 }
 
+/**
+ * The BoxSets of an account as a server holds them, in the order it pages them, and each one's direct members. A test
+ * edits [collections], [members] and [saved] while a sync runs; a BoxSet with no entry in [saved] was saved at the
+ * epoch, and one with no entry in [members] is empty.
+ */
+class CollectionSource(
+    val collections: MutableList<CollectionInfo> = mutableListOf(),
+) {
+    /** The direct members of each BoxSet, in the order the server pages them. */
+    val members = mutableMapOf<ItemId, MutableList<CollectionMember>>()
+
+    /** When the server last saved a BoxSet: what a changed-since page compares with. */
+    val saved = mutableMapOf<ItemId, Instant>()
+
+    fun savedAt(collection: CollectionInfo): Instant = saved[collection.id] ?: Instant.fromEpochMilliseconds(0)
+}
+
+/** Which collection call [PagedMediaServer] served. */
+enum class CollectionCallKind { Listing, Ids, Members }
+
+/** One collection call [PagedMediaServer] served, as it saw it. [collection] is set for a members call only. */
+data class PagedCollectionCall(
+    val number: Int,
+    val kind: CollectionCallKind,
+    val collection: ItemId?,
+    val startIndex: Int,
+    val limit: Int,
+    val changedSince: Instant?,
+)
+
 /** One call [PagedMediaServer] served, as it saw it. [series] is true for a series call. */
 data class PagedCall(
     val number: Int,
@@ -100,6 +134,15 @@ class PagedMediaServer(
 
     /** The series of each library, for [librarySeries] and [librarySeriesIds]. A library with none has no series. */
     val seriesSources = mutableMapOf<ItemId, SeriesSource>()
+
+    /** The account's BoxSets and their members, for [collections], [collectionIds] and [collectionMembers]. */
+    var collectionSource = CollectionSource()
+
+    /** Every collection call, in order. */
+    val collectionCalls = mutableListOf<PagedCollectionCall>()
+
+    /** Runs before each collection call is served. Return an error to fail the call, or null to serve it. */
+    var respondToCollections: (PagedCollectionCall) -> MediaServerError? = { null }
 
     /** What [libraries] answers, when it should fail. */
     var librariesFailure: MediaServerError? = null
@@ -177,6 +220,57 @@ class PagedMediaServer(
         val all = seriesSources[library.id]?.series.orEmpty()
         val ids = all.drop(startIndex).take(limit).map { it.id }
         return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) all.size else null, ids))
+    }
+
+    override suspend fun collections(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<CollectionPage> {
+        val call = collectionCall(CollectionCallKind.Listing, null, startIndex, limit, changedSince)
+        respondToCollections(call)?.let { return ServerResult.Failure(it) }
+        val source = collectionSource
+        val matching = source.collections.filter { changedSince == null || source.savedAt(it) >= changedSince }
+        val total = if (startIndex == 0) matching.size else null
+        return ServerResult.Success(CollectionPage(startIndex, total, matching.drop(startIndex).take(limit)))
+    }
+
+    override suspend fun collectionIds(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        val call = collectionCall(CollectionCallKind.Ids, null, startIndex, limit, null)
+        respondToCollections(call)?.let { return ServerResult.Failure(it) }
+        val all = collectionSource.collections
+        val ids = all.drop(startIndex).take(limit).map { it.id }
+        return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) all.size else null, ids))
+    }
+
+    override suspend fun collectionMembers(
+        session: Session,
+        collection: ItemId,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<CollectionMemberPage> {
+        val call = collectionCall(CollectionCallKind.Members, collection, startIndex, limit, null)
+        respondToCollections(call)?.let { return ServerResult.Failure(it) }
+        val all = collectionSource.members[collection].orEmpty()
+        val members = all.drop(startIndex).take(limit)
+        return ServerResult.Success(CollectionMemberPage(startIndex, if (startIndex == 0) all.size else null, members))
+    }
+
+    private fun collectionCall(
+        kind: CollectionCallKind,
+        collection: ItemId?,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): PagedCollectionCall {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        return PagedCollectionCall(collectionCalls.size + 1, kind, collection, startIndex, limit, changedSince)
+            .also { collectionCalls += it }
     }
 
     private fun selected(

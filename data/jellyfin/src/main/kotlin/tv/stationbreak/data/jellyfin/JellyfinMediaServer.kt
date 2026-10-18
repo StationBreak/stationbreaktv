@@ -16,6 +16,8 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
@@ -213,6 +215,26 @@ class JellyfinMediaServer internal constructor(
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemIdPage> = media.librarySeriesIds(session, library, startIndex, limit)
+
+    override suspend fun collections(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<CollectionPage> = media.collections(session, startIndex, limit, changedSince)
+
+    override suspend fun collectionIds(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> = media.collectionIds(session, startIndex, limit)
+
+    override suspend fun collectionMembers(
+        session: Session,
+        collection: ItemId,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<CollectionMemberPage> = media.collectionMembers(session, collection, startIndex, limit)
 
     override suspend fun playbackInfo(
         session: Session,

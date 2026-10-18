@@ -3,6 +3,7 @@ package tv.stationbreak.data.library
 
 import androidx.room.Dao
 import androidx.room.Transaction
+import tv.stationbreak.core.model.CanonicalId
 
 /** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
 internal data class PageResult(
@@ -20,13 +21,15 @@ internal data class PageResult(
  * that deoptimised the JIT-compiled loop and aborted the process (see [ItemHistoryDao.heldAsOf]).
  */
 @Dao
-@Suppress("AbstractClassCanBeConcreteClass") // Room generates the implementation of an abstract @Dao.
+// One method per transaction that spans DAOs; Room generates the implementation of an abstract @Dao.
+@Suppress("TooManyFunctions", "AbstractClassCanBeConcreteClass")
 internal abstract class CacheTransactionDao(
     private val db: LibraryDatabase,
 ) {
     private val library get() = db.dao()
     private val history get() = db.itemHistoryDao()
     private val series get() = db.seriesDao()
+    private val collections get() = db.collectionDao()
 
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
@@ -100,7 +103,10 @@ internal abstract class CacheTransactionDao(
         return PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged)
     }
 
-    /** Marks the series [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. */
+    /**
+     * Marks the series [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. Each ID's
+     * current member rows in every collection end at [atMs], in the same transaction (ADR-0015).
+     */
     @Transaction
     open suspend fun tombstoneSeries(
         serverId: String,
@@ -110,6 +116,38 @@ internal abstract class CacheTransactionDao(
     ) {
         library.requireActive(serverId, userId)
         tombstoneSeriesIn(serverId, userId, ids, atMs)
+        supersedeMembersIn(serverId, userId, ids, atMs)
+    }
+
+    /**
+     * Marks the items [ids] deleted at [atMs] (an existing tombstone keeps its time), and ends each ID's current member
+     * rows in every collection of the account at [atMs], in the same transaction (ADR-0015): Jellyfin does not bump a
+     * collection when a member is deleted, so the item reconcile is what sees the deletion. A later revival re-adds
+     * nothing.
+     */
+    @Transaction
+    open suspend fun tombstoneItems(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ) {
+        library.requireActive(serverId, userId)
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, atMs)
+        supersedeMembersIn(serverId, userId, ids, atMs)
+    }
+
+    private suspend fun supersedeMembersIn(
+        serverId: String,
+        userId: String,
+        memberIds: List<String>,
+        stamp: Long,
+    ) {
+        // Items and series are stored as the server sent their IDs, members in canonical form (Vimes M1).
+        val canonical = memberIds.mapNotNull { CanonicalId.parseOrNull(it)?.value }.distinct()
+        for (chunk in canonical.chunked(LibraryDao.MAX_VARIABLES)) {
+            collections.supersedeMember(serverId, userId, chunk, stamp)
+        }
     }
 
     /**
@@ -188,8 +226,9 @@ internal abstract class CacheTransactionDao(
     /**
      * One reconcile's decisions for a library, written together (spec 10, Vimes M3): the items and the series that
      * are gone are tombstoned at [nowMs], and those that came back are revived, each with its version, in one
-     * transaction after the account check. Tombstones go first, then the revives. [betweenTombstonesAndRevives] runs
-     * between them (a test seam; null in the app).
+     * transaction after the account check. Tombstones go first, with the end of their IDs' member rows in every
+     * collection (ADR-0015), then the revives. [betweenTombstonesAndRevives] runs between them (a test seam; null in
+     * the app).
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the four decisions, the time and the test seam.
@@ -206,6 +245,8 @@ internal abstract class CacheTransactionDao(
         library.requireActive(serverId, userId)
         for (chunk in itemsGone.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, nowMs)
         tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
+        // Before the seam, so a fault there rolls back the tombstones and the cascade together.
+        supersedeMembersIn(serverId, userId, itemsGone + seriesGone, nowMs)
         betweenTombstonesAndRevives?.invoke()
         reviveItemsIn(serverId, userId, itemsReturning, nowMs)
         reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
@@ -213,7 +254,8 @@ internal abstract class CacheTransactionDao(
 
     /**
      * Purges the account's history older than [retentionMs] at [nowMs], in one transaction after the account is
-     * checked: the versions superseded, and the tombstones set, more than that long ago, for items and for series. The
+     * checked: the versions superseded, and the tombstones set, more than that long ago, for items, series and
+     * collections (whose member rows superseded that long ago go too). The
      * current version of a live item or series is never touched, and a purged tombstone takes its genres, tags and
      * versions with it (the foreign keys). The versions go first, so the count is of the ones superseded long ago and
      * not of the ones a tombstone takes with it. A tombstone also needs `seenFromMs < cutoff` (Vimes L-1 on #268).
@@ -240,10 +282,128 @@ internal abstract class CacheTransactionDao(
         // the ones a tombstone takes with it. The current row of a live item or series is never touched.
         val versions = history.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
         val seriesVersions = series.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val collectionVersions = collections.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val collectionMembers = collections.deleteMembersSupersededBefore(serverId, userId, cutoffMs)
         val tombstones = library.deleteTombstonesBefore(serverId, userId, cutoffMs)
         val seriesTombstones = series.deleteTombstonesBefore(serverId, userId, cutoffMs)
-        return PurgeOutcome.Purged(tombstones, versions, seriesTombstones, seriesVersions)
+        val collectionTombstones = collections.deleteTombstonesBefore(serverId, userId, cutoffMs)
+        return PurgeOutcome.Purged(
+            tombstones,
+            versions,
+            seriesTombstones,
+            seriesVersions,
+            collectionTombstones,
+            collectionVersions,
+            collectionMembers,
+        )
     }
+
+    /**
+     * Writes one collection and its complete member list in one transaction after the account check (spec 10, Vimes
+     * H1, H2, M4). A new collection is inserted only with its first members, at one stamp. A collection that exists is
+     * diffed by member (see [CollectionDao.planWrite]): any change takes one stamp, which ends the removed members,
+     * begins the added ones, moves the collection row and keeps the lifecycle it ends as a `collection_version`. A
+     * tombstoned collection that is written is revived at that same stamp. A read that changes nothing writes nothing
+     * but a new name. [members] are the whole list, already filtered to the kinds the cache stores.
+     * [betweenCollectionAndMembers] runs after the collection row and its version, before the members (a test seam;
+     * null in the app).
+     */
+    @Transaction
+    @Suppress("LongParameterList") // One cohesive call: the collection, its list, the time and the test seam.
+    open suspend fun writeCollection(
+        serverId: String,
+        userId: String,
+        collectionId: String,
+        name: String,
+        members: List<CollectionMemberEntity>,
+        nowMs: Long,
+        betweenCollectionAndMembers: (() -> Unit)?,
+    ): CollectionWrite {
+        library.requireActive(serverId, userId)
+        val existing = collections.byId(serverId, userId, collectionId)
+        val current = if (existing == null) emptyList() else collections.currentMembers(serverId, userId, collectionId)
+        val plan = collections.planWrite(serverId, userId, collectionId, name, members, existing, current, nowMs)
+        plan.insert?.let { collections.insert(it) }
+        plan.version?.let { collections.insertVersion(it) }
+        plan.update?.let { collections.update(it) }
+        val stamp = plan.stamp
+        if (stamp != null) {
+            for (chunk in plan.removed.chunked(LibraryDao.MAX_VARIABLES)) {
+                collections.endMembers(serverId, userId, collectionId, chunk, stamp)
+            }
+            betweenCollectionAndMembers?.invoke()
+            collections.insertMembers(plan.add)
+        }
+        return CollectionWrite(stamp, plan.insert != null, plan.revived, plan.add.size, plan.removed.size)
+    }
+
+    /** Marks the collections [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. */
+    @Transaction
+    open suspend fun tombstoneCollections(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ) {
+        library.requireActive(serverId, userId)
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) collections.tombstone(serverId, userId, chunk, atMs)
+    }
+
+    /**
+     * Records that a collection pass that began at [startedMs] completed (Vimes H4, M2): the cursor moves to its start,
+     * and when it was a full re-list so does `lastRelistMs`. Called only after the whole pass succeeded. It reads and
+     * writes the `collection_sync` row only, never `account_state`.
+     */
+    @Transaction
+    open suspend fun recordCollectionPass(
+        serverId: String,
+        userId: String,
+        startedMs: Long,
+        relisted: Boolean,
+    ) {
+        library.requireActive(serverId, userId)
+        val before = collections.syncRow(serverId, userId)
+        val relistMs = if (relisted) startedMs else before?.lastRelistMs
+        collections.saveSyncRow(CollectionSyncEntity(serverId, userId, startedMs, relistMs))
+    }
+
+    /**
+     * [serverId] and [userId] are signed in: every other account's rows go, collections and their sync rows included
+     * (they belong to no library, so deleting the libraries does not reach them; Vimes M7). One transaction.
+     */
+    @Transaction
+    open suspend fun activate(
+        serverId: String,
+        userId: String,
+    ) {
+        library.deleteOtherLibraries(serverId, userId)
+        collections.deleteOtherCollections(serverId, userId)
+        collections.deleteOtherSyncRows(serverId, userId)
+        library.deleteOtherStates(serverId, userId)
+        library.deleteOtherActive(serverId, userId)
+        library.insertActive(ActiveAccountEntity(serverId, userId))
+    }
+
+    /** The account signed out: its rows go, collections and their sync row included. One transaction. */
+    @Transaction
+    open suspend fun forget(
+        serverId: String,
+        userId: String,
+    ) {
+        library.deleteLibraries(serverId, userId)
+        collections.deleteCollections(serverId, userId)
+        collections.deleteSyncRow(serverId, userId)
+        library.deleteState(serverId, userId)
+        library.deleteActive(serverId, userId)
+    }
+
+    /** The collections the account held before [cutoffMs], with their members: [CollectionDao.heldAsOf]. */
+    @Transaction
+    open suspend fun heldCollections(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): List<HeldCollection> = collections.heldAsOf(serverId, userId, cutoffMs, COLLECTION_CHUNK)
 
     private fun clockLooksWrong(
         referenceMs: Long?,
@@ -256,4 +416,9 @@ internal abstract class CacheTransactionDao(
             nowMs - referenceMs > retentionMs - HistoryRetention.SAFE_LOOKBACK_MS -> PurgeSkip.ClockFarAhead
             else -> null
         }
+
+    private companion object {
+        /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */
+        const val COLLECTION_CHUNK = 100
+    }
 }

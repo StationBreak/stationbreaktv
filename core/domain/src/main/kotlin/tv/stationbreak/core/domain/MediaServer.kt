@@ -3,6 +3,8 @@ package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
@@ -184,6 +186,44 @@ interface MediaServer {
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemIdPage>
+
+    /**
+     * One page of the collections (BoxSets) the signed-in account can see, with no library (`Recursive=true` and
+     * `IncludeItemTypes=BoxSet`), for the library cache (spec 10). Paging, the stable order, the total count on the
+     * first page only, [changedSince] (`MinDateLastSaved`: a BoxSet whose members changed is returned, because that
+     * bumps the BoxSet) and the argument rules are those of [libraryItems]. Throws [IllegalArgumentException] for a bad
+     * [startIndex] or [limit].
+     */
+    suspend fun collections(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant? = null,
+    ): ServerResult<CollectionPage>
+
+    /**
+     * One page of the IDs of the collections [collections] returns, with nothing else, for finding the collections the
+     * server no longer has. Paging and the total count work as for [libraryItemIds], and the argument rules are the
+     * same.
+     */
+    suspend fun collectionIds(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage>
+
+    /**
+     * One page of the direct members of [collection] (`ParentId`, never recursive: a recursive call would flatten
+     * nested collections), each as its ID and kind. Images and user data are not asked for. Paging, the stable order,
+     * the total count on the first page only and the argument rules are those of [libraryItems]. Throws
+     * [IllegalArgumentException] for a bad [startIndex] or [limit].
+     */
+    suspend fun collectionMembers(
+        session: Session,
+        collection: ItemId,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<CollectionMemberPage>
 
     /**
      * Asks how [item] can be played, with a conservative static device profile (a placeholder until F1.6's capability

@@ -4,6 +4,11 @@ package tv.stationbreak.core.domain
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.CollectionInfo
+import tv.stationbreak.core.model.CollectionMember
+import tv.stationbreak.core.model.CollectionMemberKind
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
@@ -155,6 +160,42 @@ class FakeMediaServerTest {
             assertFailsWith<IllegalArgumentException> { fake.librarySeries(session(), library, 0, tooMany) }
             assertFailsWith<IllegalArgumentException> { fake.librarySeriesIds(session(), library, -1, 10) }
             assertFailsWith<IllegalArgumentException> { fake.librarySeriesIds(session(), library, 0, 0) }
+        }
+    }
+
+    @Test
+    fun answersTheCollectionCallsWithWhatItWasToldAndRecordsThem() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val box = ItemId("box")
+            val since = Instant.parse("2026-03-04T05:06:07Z")
+            val page = CollectionPage(0, 1, listOf(CollectionInfo(box, "Night films")))
+            val ids = ItemIdPage(0, 1, listOf(box))
+            val members = CollectionMemberPage(0, 1, listOf(CollectionMember(ItemId("m1"), CollectionMemberKind.Movie)))
+            fake.collectionsResult = ServerResult.Success(page)
+            fake.collectionIdsResult = ServerResult.Success(ids)
+            fake.collectionMembersResult = ServerResult.Success(members)
+
+            assertEquals(ServerResult.Success(page), fake.collections(session(), 0, 10, since))
+            assertEquals(ServerResult.Success(page), fake.collections(session(), 10, 20))
+            assertEquals(ServerResult.Success(ids), fake.collectionIds(session(), 5, 7))
+            assertEquals(ServerResult.Success(members), fake.collectionMembers(session(), box, 3, 4))
+
+            assertEquals(listOf(Triple(0, 10, since), Triple(10, 20, null)), fake.collectionsCalls)
+            assertEquals(listOf(5 to 7), fake.collectionIdsCalls)
+            assertEquals(listOf(Triple(box, 3, 4)), fake.collectionMembersCalls)
+        }
+    }
+
+    @Test
+    fun refusesABadCollectionPageRequestAsTheRealPortDoes() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val tooMany = MediaServer.MAX_PAGE_SIZE + 1
+
+            assertFailsWith<IllegalArgumentException> { fake.collections(session(), -1, 10) }
+            assertFailsWith<IllegalArgumentException> { fake.collectionIds(session(), 0, tooMany) }
+            assertFailsWith<IllegalArgumentException> { fake.collectionMembers(session(), ItemId("box"), 0, 0) }
         }
     }
 }

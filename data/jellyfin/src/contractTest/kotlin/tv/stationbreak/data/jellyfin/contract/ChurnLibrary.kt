@@ -18,7 +18,8 @@ import kotlinx.serialization.json.putJsonObject
 internal class ChurnLibrary(
     private val server: JellyfinServer,
 ) : AutoCloseable {
-    private val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+    /** The admin token this library uses. Jellyfin revokes a device's earlier token on a new sign-in, so share it. */
+    val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
     private var created = false
 
     /** The library's ID, once [create] has run. */

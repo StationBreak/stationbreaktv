@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
@@ -53,9 +54,13 @@ internal data class RowCounts(
     val versions: Int = 0,
     val series: Int = 0,
     val seriesVersions: Int = 0,
+    val collections: Int = 0,
+    val collectionVersions: Int = 0,
+    val collectionMembers: Int = 0,
+    val collectionSyncs: Int = 0,
 ) {
     companion object {
-        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -72,10 +77,12 @@ class RoomLibraryRepository internal constructor(
     private val clock: Clock,
     private val sync: SyncControl = SyncControl.None,
     private val retention: HistoryRetention = HistoryRetention(),
+    internal val collectionRelist: CollectionRelist = CollectionRelist(),
 ) : LibraryRepository {
     internal val dao = db.dao()
     internal val history = db.itemHistoryDao()
     private val seriesDao = db.seriesDao()
+    private val collectionDao = db.collectionDao()
     private val transactions = db.cacheTransactionDao()
 
     /**
@@ -96,6 +103,12 @@ class RoomLibraryRepository internal constructor(
      * items' and the series' changes are kept together or not at all. Null in the app.
      */
     internal var faultBetweenReconcileTombstonesAndRevives: (() -> Unit)? = null
+
+    /**
+     * Test seam: runs inside [writeCollection]'s transaction after the collection row and before its members, to prove
+     * a collection is never stored without its first complete member list. Null in the app.
+     */
+    internal var faultBetweenCollectionAndMembers: (() -> Unit)? = null
 
     // The port.
 
@@ -207,13 +220,13 @@ class RoomLibraryRepository internal constructor(
         // The unique sync work goes first, unless this is the account already syncing (the worker restores the
         // session itself, which names it again). Cancelling is asynchronous: the DAO checks the account regardless.
         if (dao.activeAccounts() != listOf(ActiveAccountEntity(server, user))) sync.cancelFirstSync()
-        dao.activate(server, user)
+        transactions.activate(server, user)
     }
 
     override suspend fun forget(account: LibraryAccount) {
         val (server, user) = account.keys()
         sync.cancelFirstSync()
-        dao.forget(server, user)
+        transactions.forget(server, user)
     }
 
     // The sync's side.
@@ -462,7 +475,7 @@ class RoomLibraryRepository internal constructor(
         ids: Collection<ItemId>,
     ) {
         val (server, user) = account.keys()
-        dao.tombstoneAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+        transactions.tombstoneItems(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
     /** Clears the tombstone of [ids]: they are back in snapshots. For tests: the reconcile uses [applyReconcile]. */
@@ -550,6 +563,10 @@ class RoomLibraryRepository internal constructor(
             versions = history.countVersions(),
             series = seriesDao.count(),
             seriesVersions = seriesDao.countVersions(),
+            collections = collectionDao.count(),
+            collectionVersions = collectionDao.countVersions(),
+            collectionMembers = collectionDao.countMembers(),
+            collectionSyncs = collectionDao.countSyncRows(),
         )
 
     /** The account's item rows as they are on disk (the current versions), by item ID. */
@@ -562,6 +579,109 @@ class RoomLibraryRepository internal constructor(
     internal suspend fun versions(account: LibraryAccount): List<ItemVersionEntity> {
         val (server, user) = account.keys()
         return history.allVersions(server, user)
+    }
+
+    /**
+     * Writes one collection and its complete member list in one transaction (see
+     * [CacheTransactionDao.writeCollection]). [members] hold only the kinds the cache stores (movie, episode, series,
+     * season): the sync skips nested collections and other types before it gets here.
+     */
+    internal suspend fun writeCollection(
+        account: LibraryAccount,
+        id: ItemId,
+        name: String,
+        members: List<CollectionMember>,
+    ): CollectionWrite {
+        val (server, user) = account.keys()
+        val rows = members.map { it.toEntity(server, user, id.value) }
+        return transactions.writeCollection(
+            server,
+            user,
+            id.value,
+            name,
+            rows,
+            clock.now().toEpochMilliseconds(),
+            faultBetweenCollectionAndMembers,
+        )
+    }
+
+    /** Marks the collections [ids] deleted as of now; an existing tombstone keeps its time, and no version is added. */
+    internal suspend fun tombstoneCollections(
+        account: LibraryAccount,
+        ids: Collection<ItemId>,
+    ) {
+        val (server, user) = account.keys()
+        transactions.tombstoneCollections(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+    }
+
+    /** The collections this TV held before [cutoff], with their members, in ID order (see [CollectionDao]). */
+    internal suspend fun heldCollections(
+        account: LibraryAccount,
+        cutoff: Instant,
+    ): List<HeldCollection> {
+        val (server, user) = account.keys()
+        return transactions.heldCollections(server, user, cutoff.toEpochMilliseconds())
+    }
+
+    /** The IDs of the account's live collections, in order: what the collection pass compares the server's list to. */
+    internal suspend fun liveCollectionIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return collectionDao.liveIds(server, user).map(::ItemId)
+    }
+
+    /** The IDs of the account's tombstoned collections: deleted on the server, not yet purged. */
+    internal suspend fun tombstonedCollectionIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return collectionDao.tombstonedIds(server, user).map(::ItemId)
+    }
+
+    /** How many members of [collection] are current. */
+    internal suspend fun currentMemberCount(
+        account: LibraryAccount,
+        collection: ItemId,
+    ): Int {
+        val (server, user) = account.keys()
+        return collectionDao.currentMemberCount(server, user, collection.value)
+    }
+
+    /** Where the account's collection pass stands, or null if none has completed. */
+    internal suspend fun collectionSync(account: LibraryAccount): CollectionSyncEntity? {
+        val (server, user) = account.keys()
+        return collectionDao.syncRow(server, user)
+    }
+
+    /** True once a full collection pass (a re-list) has succeeded for the account since the cache was built. */
+    internal suspend fun collectionsSynced(account: LibraryAccount): Boolean {
+        val row = collectionSync(account)
+        return row?.lastRelistMs != null
+    }
+
+    /** Records a collection pass that began at [started] and completed (see [CacheTransactionDao]). */
+    internal suspend fun recordCollectionPass(
+        account: LibraryAccount,
+        started: Instant,
+        relisted: Boolean,
+    ) {
+        val (server, user) = account.keys()
+        transactions.recordCollectionPass(server, user, started.toEpochMilliseconds(), relisted)
+    }
+
+    /** The account's collection rows as they are on disk (the current lifecycle), by collection ID. */
+    internal suspend fun collections(account: LibraryAccount): List<CollectionEntity> {
+        val (server, user) = account.keys()
+        return collectionDao.all(server, user)
+    }
+
+    /** The account's kept earlier collection lifecycles, by collection ID and then time. */
+    internal suspend fun collectionVersions(account: LibraryAccount): List<CollectionVersionEntity> {
+        val (server, user) = account.keys()
+        return collectionDao.allVersions(server, user)
+    }
+
+    /** The account's member rows, current and superseded, by collection, member and then time. */
+    internal suspend fun collectionMembers(account: LibraryAccount): List<CollectionMemberEntity> {
+        val (server, user) = account.keys()
+        return collectionDao.allMembers(server, user)
     }
 
     /** The account's series rows as they are on disk (the current versions), by series ID. */
@@ -612,11 +732,12 @@ class RoomLibraryRepository internal constructor(
             context: Context,
             clock: Clock = Clock.System,
             retention: HistoryRetention = HistoryRetention(),
+            collectionRelist: CollectionRelist = CollectionRelist(),
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
             // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
             val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
-            return RoomLibraryRepository(builder.build(), clock, sync, retention)
+            return RoomLibraryRepository(builder.build(), clock, sync, retention, collectionRelist)
         }
 
         /** For tests: a database from a builder the test configured (a JVM driver, a file or memory). */
@@ -665,6 +786,21 @@ private fun MediaItem.toRows(
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
+)
+
+private fun CollectionMember.toEntity(
+    server: String,
+    user: String,
+    collection: String,
+) = CollectionMemberEntity(
+    serverId = server,
+    userId = user,
+    collectionId = collection,
+    memberId = id.value,
+    memberKind = requireNotNull(storedMemberKind(kind)) { "A $kind member is not stored" },
+    // The DAO stamps both when it writes the row.
+    seenFromMs = 0,
+    supersededAtMs = null,
 )
 
 private fun SeriesInfo.toEntity(

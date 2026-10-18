@@ -5,6 +5,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
@@ -43,6 +45,9 @@ class FakeMediaServer : MediaServer {
     var libraryItemIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
     var librarySeriesResult: ServerResult<SeriesPage> = ServerResult.Failure(MediaServerError.Unknown())
     var librarySeriesIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var collectionsResult: ServerResult<CollectionPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var collectionIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var collectionMembersResult: ServerResult<CollectionMemberPage> = ServerResult.Failure(MediaServerError.Unknown())
     var playbackInfoResult: ServerResult<PlaybackInfo> = ServerResult.Failure(MediaServerError.Unknown())
     var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
@@ -76,6 +81,15 @@ class FakeMediaServer : MediaServer {
 
     /** The library, start index and limit of each [librarySeriesIds] call. */
     val librarySeriesIdsCalls = mutableListOf<Triple<Library, Int, Int>>()
+
+    /** Each [collections] call: start index, limit and the changed-since moment. */
+    val collectionsCalls = mutableListOf<Triple<Int, Int, Instant?>>()
+
+    /** The start index and limit of each [collectionIds] call. */
+    val collectionIdsCalls = mutableListOf<Pair<Int, Int>>()
+
+    /** The collection, start index and limit of each [collectionMembers] call. */
+    val collectionMembersCalls = mutableListOf<Triple<ItemId, Int, Int>>()
     val playbackInfoCalls = mutableListOf<ItemId>()
 
     /** The reports sent, in order, as the call name and the report. */
@@ -192,6 +206,38 @@ class FakeMediaServer : MediaServer {
         require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
         librarySeriesIdsCalls += Triple(library, startIndex, limit)
         return librarySeriesIdsResult
+    }
+
+    override suspend fun collections(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<CollectionPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        collectionsCalls += Triple(startIndex, limit, changedSince)
+        return collectionsResult
+    }
+
+    override suspend fun collectionIds(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        collectionIdsCalls += startIndex to limit
+        return collectionIdsResult
+    }
+
+    override suspend fun collectionMembers(
+        session: Session,
+        collection: ItemId,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<CollectionMemberPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        collectionMembersCalls += Triple(collection, startIndex, limit)
+        return collectionMembersResult
     }
 
     override suspend fun playbackInfo(

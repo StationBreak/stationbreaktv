@@ -1,0 +1,359 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.library
+
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Test
+import tv.stationbreak.core.domain.CollectionCallKind
+import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.PagedCollectionCall
+import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.model.CollectionInfo
+import tv.stationbreak.core.model.ItemId
+
+/**
+ * Spec 10 task 2.5 (Vimes H3): the collection pass reads BoxSet listings, BoxSet ID listings and member lists under the
+ * item reconcile's guards. A read counts only when every page was read and the IDs read equal the first page's total;
+ * an
+ * empty listing while collections are stored is suspect; before a collection is tombstoned, or a non-empty member list
+ * emptied, the list is read a second time and only what both reads lack is removed. A failed or untrusted read changes
+ * nothing.
+ */
+class CollectionListingGuardTest {
+    private val rig = CollectionRig(pageSize = 2)
+    private val repository get() = rig.repository
+
+    @After
+    fun close() = repository.close()
+
+    private suspend fun stored() = repository.collections(ALICE).map { it.collectionId to it.deletedAtMs }
+
+    private suspend fun seed() {
+        (1..5).forEach { rig.serve(it, *rig.movies(it * 10, it * 10 + 1)) }
+        assertEquals(SyncOutcome.Completed, rig.run().outcome)
+        rig.age()
+        rig.clock.stepMs(60_000)
+    }
+
+    private suspend fun assertNothingChanged(
+        before: List<Pair<String, Long?>>,
+        members: List<CollectionMemberEntity>,
+    ) {
+        assertEquals(before, stored())
+        assertEquals(members, repository.collectionMembers(ALICE))
+    }
+
+    @Test
+    fun anUnchangedServerTombstonesNothingAndWritesNothing() =
+        runBlocking {
+            seed()
+            val before = repository.collectionMembers(ALICE)
+            val versions = repository.collectionVersions(ALICE)
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(0, result.summary.tombstoned)
+            // Nothing was saved since the cursor, so no member list is read again.
+            assertEquals(0, result.summary.read)
+            assertEquals(before, repository.collectionMembers(ALICE))
+            assertEquals(versions, repository.collectionVersions(ALICE))
+        }
+
+    @Test
+    fun aGoneCollectionIsTombstonedAfterASecondRead() =
+        runBlocking {
+            seed()
+            rig.source.collections.removeAll { it.id == rig.box(3) }
+            rig.server.collectionCalls.clear()
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(1, result.summary.tombstoned)
+            val tombstone = repository.collections(ALICE).single { it.collectionId == rig.box(3).value }
+            assertEquals(rig.clock.nowMs, tombstone.deletedAtMs)
+            // Two reads of the ID listing: the first found it missing, the second confirmed it.
+            val idReads = rig.server.collectionCalls.filter { it.kind == CollectionCallKind.Ids && it.startIndex == 0 }
+            assertEquals(2, idReads.size)
+        }
+
+    @Test
+    fun aCollectionTheSecondReadStillListsIsNotTombstoned() =
+        runBlocking {
+            seed()
+            val gone = rig.source.collections.single { it.id == rig.box(3) }
+            rig.source.collections.remove(gone)
+            var reads = 0
+            rig.server.respondToCollections = {
+                val second = it.kind == CollectionCallKind.Ids && it.startIndex == 0 && ++reads == 2
+                if (second) rig.source.collections += gone
+                null
+            }
+
+            val result = rig.run()
+
+            assertEquals(0, result.summary.tombstoned)
+            assertNull(repository.collections(ALICE).single { it.collectionId == rig.box(3).value }.deletedAtMs)
+        }
+
+    @Test
+    fun aFailedListingPageChangesNothing() =
+        runBlocking {
+            seed()
+            val before = stored()
+            val members = repository.collectionMembers(ALICE)
+            rig.source.collections.removeAll { it.id == rig.box(1) }
+            (7..9).forEach { rig.serve(it, *rig.movies(it * 10)) }
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Listing && it.startIndex > 0) MediaServerError.Timeout() else null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Network), result.outcome)
+            assertNothingChanged(before, members)
+        }
+
+    @Test
+    fun aFailedIdListingPageChangesNothing() =
+        runBlocking {
+            seed()
+            val before = stored()
+            val members = repository.collectionMembers(ALICE)
+            rig.source.collections.removeAll { it.id == rig.box(1) }
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Ids && it.startIndex > 0) MediaServerError.ServerError() else null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertNothingChanged(before, members)
+        }
+
+    @Test
+    fun aShortCountTombstonesNothing() =
+        runBlocking {
+            seed()
+            val before = stored()
+            val members = repository.collectionMembers(ALICE)
+            // The second ID page loses a collection that page one's total counted.
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Ids && it.startIndex == 2) rig.source.collections.removeAt(4)
+                null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertNothingChanged(before, members)
+        }
+
+    @Test
+    fun aShiftedPageTombstonesNothing() =
+        runBlocking {
+            seed()
+            val before = stored()
+            val members = repository.collectionMembers(ALICE)
+            // A collection is added in front between the pages, so page two repeats one and the last is never reached.
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Ids && it.startIndex == 2) {
+                    rig.source.collections.add(0, CollectionInfo(ItemId(hexId(1)), "New"))
+                }
+                null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertNothingChanged(before, members)
+        }
+
+    @Test
+    fun anEmptyListingWhileCollectionsAreStoredIsSuspectAndTombstonesNothing() =
+        runBlocking {
+            seed()
+            val before = stored()
+            val members = repository.collectionMembers(ALICE)
+            rig.source.collections.clear()
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), result.outcome)
+            assertNothingChanged(before, members)
+        }
+
+    @Test
+    fun anEmptyListingWhenNothingIsStoredIsFine() =
+        runBlocking {
+            assertEquals(SyncOutcome.Completed, rig.run().outcome)
+            assertEquals(emptyList<CollectionEntity>(), repository.collections(ALICE))
+        }
+
+    @Test
+    fun aFailedMemberReadInsertsNoCollection() =
+        runBlocking {
+            rig.serve(1, *rig.movies(10, 11))
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Members) MediaServerError.Timeout() else null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Network), result.outcome)
+            assertEquals(emptyList<CollectionEntity>(), repository.collections(ALICE))
+            assertEquals(emptyList<CollectionMemberEntity>(), repository.collectionMembers(ALICE))
+        }
+
+    @Test
+    fun aMemberListWithAShortCountChangesNothing() =
+        runBlocking {
+            seed()
+            val members = repository.collectionMembers(ALICE)
+            rig.serve(1, *rig.movies(10, 11, 12, 13, 14))
+            // The second member page loses a member that page one's total counted.
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Members && it.startIndex == 2) {
+                    rig.source.members
+                        .getValue(rig.box(1))
+                        .removeAt(4)
+                }
+                null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertEquals(members, repository.collectionMembers(ALICE))
+        }
+
+    @Test
+    fun aNonEmptyMemberListThatReadsEmptyIsReadAgainAndKeptIfTheSecondReadHasMembers() =
+        runBlocking {
+            seed()
+            val saved =
+                rig.source.members
+                    .getValue(rig.box(2))
+                    .toList()
+            rig.source.members
+                .getValue(rig.box(2))
+                .clear()
+            rig.saved(2)
+            var reads = 0
+            rig.server.respondToCollections = {
+                val first = it.kind == CollectionCallKind.Members && it.collection == rig.box(2) && it.startIndex == 0
+                if (first && ++reads == 2) rig.source.members.getValue(rig.box(2)) += saved
+                null
+            }
+
+            rig.run()
+
+            assertEquals(2, reads)
+            assertEquals(listOf(rig.film(20).value, rig.film(21).value), rig.current(2))
+        }
+
+    @Test
+    fun aMemberListThatReadsEmptyTwiceIsEmptied() =
+        runBlocking {
+            seed()
+            rig.source.members
+                .getValue(rig.box(2))
+                .clear()
+            rig.saved(2)
+
+            rig.run()
+
+            assertEquals(emptyList<String>(), rig.current(2))
+        }
+
+    @Test
+    fun aListedTombstoneIsRevivedAndItsMembersReReadUnderOneStamp() =
+        runBlocking {
+            seed()
+            val gone = rig.source.collections.single { it.id == rig.box(4) }
+            rig.source.collections.remove(gone)
+            rig.run()
+            rig.clock.stepMs(60_000)
+            rig.source.collections += gone
+            rig.source.members.getValue(rig.box(4)) += rig.movies(99)
+
+            val result = rig.run()
+
+            assertEquals(1, result.summary.revived)
+            val row = repository.collections(ALICE).single { it.collectionId == rig.box(4).value }
+            assertNull(row.deletedAtMs)
+            assertEquals(rig.clock.nowMs, row.seenFromMs)
+            val added = repository.collectionMembers(ALICE).single { it.memberId == rig.film(99).value }
+            assertEquals(row.seenFromMs, added.seenFromMs)
+            val versions = repository.collectionVersions(ALICE).filter { it.collectionId == row.collectionId }
+            assertNotNull(versions.singleOrNull { it.deletedAtMs != null })
+        }
+
+    // Vimes M3: one bad BoxSet must not starve the rest.
+
+    private fun failMembersOfBox1(
+        call: PagedCollectionCall,
+        error: MediaServerError,
+    ) = if (call.kind == CollectionCallKind.Members && call.collection == rig.box(1)) error else null
+
+    @Test
+    fun aBoxSetWhoseMemberReadFailsIsSkippedAndTheOthersAreWritten() =
+        runBlocking {
+            seed()
+            val sync = repository.collectionSync(ALICE)
+            (1..3).forEach {
+                rig.source.members.getValue(rig.box(it)) += rig.movies(it * 10 + 5)
+                rig.saved(it)
+            }
+            rig.server.respondToCollections = {
+                failMembersOfBox1(it, MediaServerError.ServerError())
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertEquals(1, result.summary.failed)
+            assertEquals(2, result.summary.changed)
+            assertEquals(listOf(rig.film(10).value, rig.film(11).value), rig.current(1))
+            assertEquals(listOf(rig.film(20).value, rig.film(21).value, rig.film(25).value), rig.current(2))
+            assertEquals(listOf(rig.film(30).value, rig.film(31).value, rig.film(35).value), rig.current(3))
+            // Neither the cursor nor the re-list moved, so the next pass asks for the same changes.
+            assertEquals(sync, repository.collectionSync(ALICE))
+        }
+
+    @Test
+    fun anAuthOrTransportFailureStopsAtOnce() =
+        runBlocking {
+            seed()
+            rig.server.collectionCalls.clear()
+            (1..3).forEach {
+                rig.source.members.getValue(rig.box(it)) += rig.movies(it * 10 + 5)
+                rig.saved(it)
+            }
+            rig.server.respondToCollections = {
+                failMembersOfBox1(it, MediaServerError.SessionExpired())
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.SessionExpired), result.outcome)
+            assertEquals(listOf(rig.film(20).value, rig.film(21).value), rig.current(2))
+            assertEquals(1, rig.server.collectionCalls.count { it.kind == CollectionCallKind.Members })
+        }
+
+    @Test
+    fun aMemberListedTwiceInOneReadIsStoredOnceAndThePassSucceeds() =
+        runBlocking {
+            rig.serve(1, *rig.movies(10, 11, 10))
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(listOf(rig.film(10).value, rig.film(11).value), rig.current(1))
+            assertEquals(1, repository.collectionMembers(ALICE).count { it.memberId == rig.film(10).value })
+        }
+}
