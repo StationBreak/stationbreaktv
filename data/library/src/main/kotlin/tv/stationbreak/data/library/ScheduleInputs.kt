@@ -2,9 +2,11 @@
 package tv.stationbreak.data.library
 
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.ScheduleItemProblem
+import java.util.EnumMap
 
 /**
  * An item as one version of it held its schedule fields (spec 09, Unit 2): a current row or an `item_version` row, read
@@ -78,6 +80,22 @@ internal sealed interface Converted {
     ) : Converted
 }
 
+/** An item the as-of read kept: the [row] that one version of it held, and the scheduler's [item] built from it. */
+internal class AcceptedItem(
+    val row: HeldRow,
+    val item: ScheduleItem,
+)
+
+/**
+ * What the as-of read kept, in canonical-ID order, and what it left out by reason (diagnostics). It is the one result
+ * both `scheduleItems` (which takes the [AcceptedItem.item]) and `ruleSnapshot` (which maps the rows to a `RuleItem`)
+ * are made from, so they cannot disagree about which items are in (spec 10, Unit 3).
+ */
+internal class ItemRead(
+    val accepted: List<AcceptedItem>,
+    val dropped: Map<DropReason, Int>,
+)
+
 /**
  * What the as-of read returned, and what it left out by reason (diagnostics). Internal on purpose: the port
  * `LibraryRepository.scheduleItems` returns the items alone, and widens to carry the counts when diagnostics or F1.2's
@@ -121,6 +139,34 @@ internal object ScheduleInputs {
             DropReason.TimeOutOfRange to { timeOutOfRange(it.row) },
         )
 
+    /**
+     * Turns the rows of the as-of read, in the order it returned them, into the items it keeps: each is converted, the
+     * first row of an ID that was already taken wins (the rest count as [DropReason.DuplicateId]), and the result is in
+     * canonical-ID order.
+     */
+    fun read(rows: List<HeldRow>): ItemRead {
+        val accepted = ArrayList<AcceptedItem>()
+        val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
+        val seen = HashSet<String>()
+        for (row in rows) {
+            when (val converted = convert(row)) {
+                is Converted.Dropped -> {
+                    dropped.merge(converted.reason, 1, Int::plus)
+                }
+
+                is Converted.Accepted -> {
+                    if (seen.add(converted.item.id.value)) {
+                        accepted += AcceptedItem(row, converted.item)
+                    } else {
+                        dropped.merge(DropReason.DuplicateId, 1, Int::plus)
+                    }
+                }
+            }
+        }
+        accepted.sortBy { it.item.id.value }
+        return ItemRead(accepted, dropped)
+    }
+
     fun convert(row: HeldRow): Converted {
         val candidate = Candidate(row)
         val own = checks.firstOrNull { (_, fails) -> fails(candidate) }?.first
@@ -163,4 +209,30 @@ internal object ScheduleInputs {
             Converted.Dropped(DropReason.RejectedByScheduleItem)
         }
     }
+}
+
+/**
+ * Maps the items of an [ItemRead] to the rule engine's [RuleItem], sharing one `String` per distinct library ID, season
+ * ID and rating within the read (spec 10, Vimes L5; the genres and tags are shared by the read itself). An item whose
+ * library ID is not a canonical ID has no place in a `RuleSnapshot`, so it is left out; a season ID that is not one
+ * reads as no season.
+ */
+internal class RuleItemMapper {
+    private val ids = HashMap<String, CanonicalId?>()
+    private val ratings = Interner()
+
+    fun of(accepted: AcceptedItem): RuleItem? {
+        val row = accepted.row
+        val library = id(row.libraryId) ?: return null
+        return RuleItem(
+            item = accepted.item,
+            libraryId = library,
+            seasonId = row.seasonId?.let(::id),
+            officialRating = row.officialRating?.let(ratings::of),
+            genres = row.genres,
+            tags = row.tags,
+        )
+    }
+
+    private fun id(raw: String): CanonicalId? = ids.getOrPut(raw) { CanonicalId.parseOrNull(raw) }
 }

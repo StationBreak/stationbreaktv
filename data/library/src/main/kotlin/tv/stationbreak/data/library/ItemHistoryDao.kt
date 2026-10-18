@@ -57,7 +57,7 @@ private class SideLists {
 }
 
 // One String per distinct value within a read: a catalogue repeats a few hundred genres and tags over 15,000 items.
-private class Interner {
+internal class Interner {
     private val strings = HashMap<String, String>()
 
     fun of(value: String): String {

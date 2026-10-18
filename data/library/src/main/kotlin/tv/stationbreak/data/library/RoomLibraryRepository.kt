@@ -20,12 +20,12 @@ import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
-import java.util.EnumMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -153,20 +153,44 @@ class RoomLibraryRepository internal constructor(
         cutoff: Instant,
     ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
 
-    // Placeholder for the red commit: no items, no series, no collections. The read comes with the next commit.
+    /**
+     * The rule engine's input as held before [cutoff] (spec 10, Unit 3). The items are made from the same rows as
+     * [scheduleItems], by [heldRows] and [ScheduleInputs.read], so `items.map { it.item }` is what [scheduleItems]
+     * returns. An item whose library is not a canonical ID has no place in the snapshot.
+     */
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
-    ): RuleSnapshot =
-        RuleSnapshot(
-            cutoff.ceilingMillis(),
-            libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
-            emptyList(),
-            emptyMap(),
-            emptyMap(),
-            false,
+    ): RuleSnapshot {
+        val (server, user) = account.keys()
+        val cutoffMs = cutoff.ceilingMillis()
+        val read = ScheduleInputs.read(heldRows(server, user, cutoffMs, libraries))
+        val mapper = RuleItemMapper()
+        val items = ArrayList<RuleItem>(read.accepted.size)
+        for (accepted in read.accepted) mapper.of(accepted)?.let { items += it }
+        return RuleSnapshot(
+            cutoffMs = cutoffMs,
+            libraries = libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
+            items = items,
+            series = emptyMap(),
+            collections = emptyMap(),
+            collectionsSynced = false,
         )
+    }
+
+    // The one as-of item read: the version of every item held before the cut-off, in ID chunks, as rows. Selection runs
+    // over every item first, the libraries filter and the deletion test after (Vimes H4). [scheduleInputs] and
+    // [ruleSnapshot] both start from it.
+    private suspend fun heldRows(
+        server: String,
+        user: String,
+        cutoffMs: Long,
+        libraries: Set<ItemId>,
+    ): List<HeldRow> {
+        if (libraries.isEmpty()) return emptyList()
+        return history.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, libraries.mapTo(HashSet()) { it.value })
+    }
 
     /**
      * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
@@ -182,30 +206,9 @@ class RoomLibraryRepository internal constructor(
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): ScheduleRead {
-        if (libraries.isEmpty()) return ScheduleRead(emptyList(), emptyMap())
         val (server, user) = account.keys()
-        val cutoffMs = cutoff.ceilingMillis()
-        val wanted = libraries.mapTo(HashSet()) { it.value }
-        val items = ArrayList<ScheduleItem>()
-        val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
-        val seen = HashSet<String>()
-        for (row in history.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
-            when (val converted = ScheduleInputs.convert(row)) {
-                is Converted.Dropped -> {
-                    dropped.merge(converted.reason, 1, Int::plus)
-                }
-
-                is Converted.Accepted -> {
-                    if (seen.add(converted.item.id.value)) {
-                        items += converted.item
-                    } else {
-                        dropped.merge(DropReason.DuplicateId, 1, Int::plus)
-                    }
-                }
-            }
-        }
-        items.sortBy { it.id.value }
-        return ScheduleRead(items, dropped)
+        val read = ScheduleInputs.read(heldRows(server, user, cutoff.ceilingMillis(), libraries))
+        return ScheduleRead(read.accepted.map { it.item }, read.dropped)
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
