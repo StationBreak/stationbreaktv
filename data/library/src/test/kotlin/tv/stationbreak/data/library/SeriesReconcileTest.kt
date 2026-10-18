@@ -75,8 +75,8 @@ class SeriesReconcileTest {
             assertEquals(before, repository.currentSeries(ALICE))
             assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
             assertEquals(ReconcileSummary(), summary)
-            // The series IDs were listed (3 pages of 100), once: nothing was missing, so no second read.
-            assertEquals(3, server.calls.count { it.series && it.idsOnly })
+            // The series IDs were listed once (100 a page, then the empty page): nothing was missing, no second read.
+            assertEquals(4, server.calls.count { it.series && it.idsOnly })
         }
 
     @Test
@@ -90,8 +90,8 @@ class SeriesReconcileTest {
             assertEquals(SyncOutcome.Completed, outcome)
             assertEquals(setOf(gone.id.value), tombstoned())
             assertEquals(1, summary.seriesTombstoned)
-            // Two full reads of the 249 left: three pages each.
-            assertEquals(6, server.calls.count { it.series && it.idsOnly })
+            // Two full reads of the 249 left, four calls each.
+            assertEquals(8, server.calls.count { it.series && it.idsOnly })
             assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
         }
 
@@ -157,7 +157,8 @@ class SeriesReconcileTest {
             firstSyncDone()
             var changed = false
             server.respond = { call ->
-                if (call.series && call.idsOnly && call.startIndex == 100 && !changed) {
+                val secondPageOfIds = call.series && call.idsOnly && call.startIndex == 100
+                if (secondPageOfIds && !changed) {
                     changed = true
                     seriesSource.series.removeAt(10)
                 }

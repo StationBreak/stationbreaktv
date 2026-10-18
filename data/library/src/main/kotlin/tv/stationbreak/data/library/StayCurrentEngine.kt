@@ -9,6 +9,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.Session
@@ -29,14 +30,25 @@ internal data class PassSummary(
     }
 }
 
-/** What a reconciliation did: items tombstoned, tombstones cleared, and items the cache lacked that were fetched. */
+/**
+ * What a reconciliation did: items tombstoned, tombstones cleared, and items the cache lacked that were fetched; and,
+ * for the series pass, series tombstoned and revived.
+ */
 internal data class ReconcileSummary(
     val tombstoned: Int = 0,
     val revived: Int = 0,
     val fetched: Int = 0,
+    val seriesTombstoned: Int = 0,
+    val seriesRevived: Int = 0,
 ) {
     operator fun plus(other: ReconcileSummary) =
-        ReconcileSummary(tombstoned + other.tombstoned, revived + other.revived, fetched + other.fetched)
+        ReconcileSummary(
+            tombstoned + other.tombstoned,
+            revived + other.revived,
+            fetched + other.fetched,
+            seriesTombstoned + other.seriesTombstoned,
+            seriesRevived + other.seriesRevived,
+        )
 }
 
 /** How a pass ended and what it did. Returned, not kept in the engine, so nothing mutable is shared. */
@@ -96,6 +108,23 @@ private sealed interface IdsRead {
     class Failed(
         val error: MediaServerError,
     ) : IdsRead
+}
+
+/** One page of an ID listing, from a start index and a count: the item listing or the series listing. */
+private typealias IdLister = suspend (start: Int, count: Int) -> ServerResult<ItemIdPage>
+
+/** What one complete, guarded ID read of items or series decided: what is [gone], and what is [returning]. */
+private sealed interface Decision {
+    class Ready(
+        val list: IdList,
+        val gone: Set<ItemId>,
+        val returning: Set<ItemId>,
+    ) : Decision
+
+    /** The read failed or was suspect: [outcome] is what the pass ends as, and nothing is to be written for it. */
+    class Stop(
+        val outcome: SyncOutcome,
+    ) : Decision
 }
 
 /**
@@ -223,38 +252,68 @@ internal class StayCurrentEngine(
             val live = repository.liveItemIds(account, library.id).toSet()
             val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
             val known = repository.allItemIds(account).toSet()
-            val list =
-                when (val read = readIds(library)) {
-                    is IdsRead.Failed -> return fail(read.error)
+            val itemIds: IdLister = { start, count -> server.libraryItemIds(session, library, start, count) }
+            val items =
+                when (val decided = decide(live, tombstoned, itemIds)) {
+                    is Decision.Stop -> return decided.outcome
+                    is Decision.Ready -> decided
+                }
+            // The series are a separate pass with their own sets (Vimes M3), read after the items'. If it stops, the
+            // items' decision is still written, and the pass ends with the series' outcome.
+            val seriesLive = repository.liveSeriesIds(account, library.id).toSet()
+            val seriesTombstoned = repository.tombstonedSeriesIds(account, library.id).toSet()
+            val seriesIds: IdLister = { start, count -> server.librarySeriesIds(session, library, start, count) }
+            val series = decide(seriesLive, seriesTombstoned, seriesIds)
+            val seriesGone = (series as? Decision.Ready)?.gone.orEmpty()
+            val seriesReturning = (series as? Decision.Ready)?.returning.orEmpty()
+            // One transaction for both (the item reconcile and the series reconcile).
+            repository.applyReconcile(account, items.gone, items.returning, seriesGone, seriesReturning)
+            reconciled +=
+                ReconcileSummary(
+                    tombstoned = items.gone.size,
+                    revived = items.returning.size,
+                    seriesTombstoned = seriesGone.size,
+                    seriesRevived = seriesReturning.size,
+                )
+            if (series is Decision.Stop) return series.outcome
+            return fetchMissing(library, items.list, items.list.ids - known)
+        }
+
+        // Reads the complete ID list with [list] and decides, under the guards both reconciles share: a read that fails
+        // or is suspect (empty for a library that had rows) stops; what is gone must be missing from a second read too.
+        private suspend fun decide(
+            live: Set<ItemId>,
+            tombstoned: Set<ItemId>,
+            list: IdLister,
+        ): Decision {
+            val first =
+                when (val read = readIds(list)) {
+                    is IdsRead.Failed -> return Decision.Stop(fail(read.error))
                     is IdsRead.Complete -> read.list
                 }
-            // Nothing at all, for a library that had items, is more likely a server fault than an emptied library.
-            if (list.ids.isEmpty() && live.isNotEmpty()) return suspect()
-            var gone = if (list.trusted) live - list.ids else emptySet()
+            // Nothing at all, for a library that had rows, is more likely a server fault than an emptied library.
+            if (first.ids.isEmpty() && live.isNotEmpty()) return Decision.Stop(suspect())
+            var gone = if (first.trusted) live - first.ids else emptySet()
             if (gone.isNotEmpty()) {
                 // A shift that leaves the size unchanged looks sound once: only what a second read also lacks is gone.
                 val again =
-                    when (val read = readIds(library)) {
-                        is IdsRead.Failed -> return fail(read.error)
+                    when (val read = readIds(list)) {
+                        is IdsRead.Failed -> return Decision.Stop(fail(read.error))
                         is IdsRead.Complete -> read.list
                     }
-                if (again.ids.isEmpty()) return suspect()
+                if (again.ids.isEmpty()) return Decision.Stop(suspect())
                 gone = if (again.trusted) gone - again.ids else emptySet()
             }
-            val returning = tombstoned intersect list.ids
-            if (gone.isNotEmpty()) repository.tombstone(account, gone)
-            if (returning.isNotEmpty()) repository.revive(account, returning)
-            reconciled += ReconcileSummary(tombstoned = gone.size, revived = returning.size)
-            return fetchMissing(library, list, list.ids - known)
+            return Decision.Ready(first, gone, tombstoned intersect first.ids)
         }
 
         // The whole list or nothing: a failure part way, a page that adds nothing, or a list far past its total fails.
-        private suspend fun readIds(library: Library): IdsRead {
+        private suspend fun readIds(list: IdLister): IdsRead {
             val ids = LinkedHashSet<ItemId>()
             var read = 0
             var total: Int? = null
             while (true) {
-                when (val page = server.libraryItemIds(session, library, read, pageSize)) {
+                when (val page = list(read, pageSize)) {
                     is ServerResult.Failure -> {
                         return IdsRead.Failed(page.error)
                     }

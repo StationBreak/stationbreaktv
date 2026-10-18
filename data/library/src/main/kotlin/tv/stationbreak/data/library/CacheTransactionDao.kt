@@ -157,9 +157,18 @@ internal abstract class CacheTransactionDao(
         nowMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        ids.chunked(LibraryDao.MAX_VARIABLES).forEach { chunk ->
+        reviveItemsIn(serverId, userId, ids, nowMs)
+    }
+
+    private suspend fun reviveItemsIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        nowMs: Long,
+    ) {
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
             val rows = library.itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
-            if (rows.isEmpty()) return@forEach
+            if (rows.isEmpty()) continue
             val rowIds = rows.map { it.itemId }
             val genres = library.genreNames(serverId, userId, rowIds)
             val tags = library.tagNames(serverId, userId, rowIds)
@@ -167,6 +176,32 @@ internal abstract class CacheTransactionDao(
             history.insertVersions(plan.versions)
             library.updateItems(plan.revived)
         }
+    }
+
+    /**
+     * One reconcile's decisions for a library, written together (spec 10, Vimes M3): the items and the series that
+     * are gone are tombstoned at [nowMs], and those that came back are revived, each with its version, in one
+     * transaction after the account check. Tombstones go first, then the revives. [betweenTombstonesAndRevives] runs
+     * between them (a test seam; null in the app).
+     */
+    @Transaction
+    @Suppress("LongParameterList") // One cohesive call: the four decisions, the time and the test seam.
+    open suspend fun reconcileWrite(
+        serverId: String,
+        userId: String,
+        itemsGone: List<String>,
+        itemsReturning: List<String>,
+        seriesGone: List<String>,
+        seriesReturning: List<String>,
+        nowMs: Long,
+        betweenTombstonesAndRevives: (() -> Unit)?,
+    ) {
+        library.requireActive(serverId, userId)
+        for (chunk in itemsGone.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, nowMs)
+        tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
+        betweenTombstonesAndRevives?.invoke()
+        reviveItemsIn(serverId, userId, itemsReturning, nowMs)
+        reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
     }
 
     /**

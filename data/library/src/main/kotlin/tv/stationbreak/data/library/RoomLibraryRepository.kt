@@ -91,6 +91,12 @@ class RoomLibraryRepository internal constructor(
      */
     internal var faultBetweenItemsAndHistory: (() -> Unit)? = null
 
+    /**
+     * Test seam: runs inside [applyReconcile]'s transaction after the tombstones and before the revives, to prove the
+     * items' and the series' changes are kept together or not at all. Null in the app.
+     */
+    internal var faultBetweenReconcileTombstonesAndRevives: (() -> Unit)? = null
+
     // The port.
 
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
@@ -305,6 +311,31 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         transactions.reviveSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+    }
+
+    /**
+     * Writes one library's reconcile decisions in one transaction: the items and series that are gone are tombstoned,
+     * and those that returned are revived, each with its version. Nothing is written when there is nothing to write.
+     */
+    internal suspend fun applyReconcile(
+        account: LibraryAccount,
+        itemsGone: Collection<ItemId>,
+        itemsReturning: Collection<ItemId>,
+        seriesGone: Collection<ItemId>,
+        seriesReturning: Collection<ItemId>,
+    ) {
+        if (listOf(itemsGone, itemsReturning, seriesGone, seriesReturning).all { it.isEmpty() }) return
+        val (server, user) = account.keys()
+        transactions.reconcileWrite(
+            server,
+            user,
+            itemsGone.map { it.value },
+            itemsReturning.map { it.value },
+            seriesGone.map { it.value },
+            seriesReturning.map { it.value },
+            clock.now().toEpochMilliseconds(),
+            faultBetweenReconcileTombstonesAndRevives,
+        )
     }
 
     /** The IDs of [library]'s live series, in order: what the series reconcile compares the server's list with. */

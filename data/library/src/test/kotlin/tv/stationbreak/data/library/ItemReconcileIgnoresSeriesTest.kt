@@ -14,8 +14,8 @@ import kotlin.time.Duration.Companion.hours
 
 /**
  * Spec 10 task 1.7.1: the item reconcile never sees series IDs. Its sets (live, tombstoned, known) come from the `item`
- * table, so a series ID is neither tombstoned as a missing item nor fetched as an item the account lacks, and removing an
- * item or a series on the server touches only its own table.
+ * table, so a series ID is neither tombstoned as a missing item nor fetched as an item the account lacks, and
+ * removing an item or a series on the server touches only its own table.
  */
 class ItemReconcileIgnoresSeriesTest {
     private val clock = FakeClock()
@@ -39,7 +39,10 @@ class ItemReconcileIgnoresSeriesTest {
         clock.instant += 1.hours
     }
 
-    private suspend fun reconcile() = StayCurrentWorld.engine(repository, server, clock).reconcile(session, ALICE, setOf(SHOWS))
+    private suspend fun reconcile(): StayResult<ReconcileSummary> {
+        val engine = StayCurrentWorld.engine(repository, server, clock)
+        return engine.reconcile(session, ALICE, setOf(SHOWS))
+    }
 
     @Test
     fun theItemSetsHoldNoSeriesIdAndNoItemIsWalkedForWhenNothingIsMissing() =
