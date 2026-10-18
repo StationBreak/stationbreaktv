@@ -39,7 +39,8 @@ acceptance criteria are checked during PR review.
      request's head commit before installing.
    - Pull request APKs are kept for 7 days. `main` APKs are kept for 30 days, set explicitly in the workflow (owner, 2026-10-11).
    - Release signing secrets are never available to pull request runs.
-6. **Renovate's pull requests get test APKs too.** Installing one runs exactly the code a merge would ship, so
+6. *(Superseded by the Amendment: Renovate's pull requests no longer get test APKs.)*
+   **Renovate's pull requests get test APKs too.** Installing one runs exactly the code a merge would ship, so
    testing a dependency update on the device before merging is safer than after. The owner installs a
    Renovate APK only once CI is green, and only after reading the diff, including any `verification-metadata.xml`
    changes. A Renovate pull request that touches `.github/` gets extra scrutiny first. Renovate has the app's
@@ -84,6 +85,11 @@ administrator token, so Angua rated the risk HIGH before the repository goes pub
 4. A push to `main` without the secrets fails. A pull request from a fork gets no secrets (`pull_request`, never
    `pull_request_target`), never reaches `sign-debug`, and uploads no APK, as before (item 5).
 5. Local builds and the `emulator` job use Android's per-machine debug key. They can't update a CI install.
+6. **Renovate's pull requests get no APK** (owner, 2026-10-18, on Angua's pre-public review). They still build and
+   run every test. A compromised dependency in a Renovate bump would otherwise get an APK signed with the key the TVs
+   trust, downloadable by anyone once the repository is public. Item 5 says test APKs come only from code the owner
+   controls, and a bot's dependency bump isn't that. A dependency update reaches the TVs in the first `main` APK after
+   it merges. `sign-debug` and the upload that feeds it skip pull requests opened by `renovate[bot]`.
 
 **The retired key** stays in the history and stays allowlisted in `.gitleaks.toml` by its exact path. Once a TV runs
 a build signed with the CI debug key, Android refuses an update signed with the retired key. The one-time cost is an
@@ -91,6 +97,6 @@ uninstall and a fresh set-up on each TV. Only CI APKs signed with the CI debug k
 **Before the repository goes public, both TVs are reinstalled from a CI build signed with the CI debug key**, and the
 installed signature is checked (`apksigner verify --print-certs` on the pulled APK shows `0047…6522`).
 
-**What stays.** Items 2, 3, 5, 6 and 7 stand, and item 4 except that the key is no longer public. Item 7 (a
+**What stays.** Items 2, 3, 5 and 7 stand, and item 4 except that the key is no longer public. Item 7 (a
 low-privilege Jellyfin user for debug builds) is still the right practice; this amendment removes the dependency on
 it, not the advice. The CI debug key is single-purpose (item 4) and is never used for a release. If it leaks, it is replaced the same way: a new key, new secrets, and one uninstall per TV.

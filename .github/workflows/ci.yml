@@ -498,9 +498,9 @@ jobs:
           done
 
       # Handed to `sign-debug`, which re-signs it with the CI debug key. Kept a day: only that job reads it. Main and
-      # same-repo PRs only: fork PRs build and test but never get an APK (ADR-0011).
+      # same-repo PRs only: fork PRs and Renovate's PRs build and test but never get an APK (ADR-0011).
       - name: Upload the debug APK for signing
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'renovate[bot]')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debug-apk-runner-key
@@ -512,10 +512,10 @@ jobs:
   # CI debug key, held in secrets, so each CI debug APK installs over the last on a test device. It is a separate job
   # so the key is only ever decoded on a fresh runner that runs no repository code: no checkout, no Gradle, nothing a
   # build step could have left behind in the environment, PATH or a background process. Only this job reads the
-  # DEBUG_KEYSTORE_* secrets. Fork PRs never reach it. A push to main without the key fails.
+  # DEBUG_KEYSTORE_* secrets. Fork PRs and Renovate's PRs never reach it. A push to main without the key fails.
   sign-debug:
     needs: assemble
-    if: ${{ !cancelled() && needs.assemble.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    if: ${{ !cancelled() && needs.assemble.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'renovate[bot]')) }}
     runs-on: ubuntu-latest
     # Under a minute: a download, a re-sign and an upload.
     timeout-minutes: 10
