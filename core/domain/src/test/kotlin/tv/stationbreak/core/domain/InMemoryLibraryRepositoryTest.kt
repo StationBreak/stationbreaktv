@@ -286,25 +286,29 @@ class InMemoryLibraryRepositoryTest {
             val items = repository.ruleSnapshot(alice, setOf(moviesLib), epoch).items
 
             assertEquals(listOf(id('b')), items.map { it.item.id })
-            assertEquals(ruleItem(held('b'), rating = "", genres = listOf("g"), tags = listOf("t")), items.single())
+            val only = items.single()
+            assertEquals(
+                listOf(moviesId, null, "", listOf("g"), listOf("t")),
+                listOf(only.libraryId, only.seasonId, only.officialRating, only.genres, only.tags),
+            )
         }
 
     @Test
     fun aRuleSnapshotHoldsTheSeriesOfTheReturnedEpisodesOnly() =
         runBlocking {
             val repository = InMemoryLibraryRepository()
-            repository.seedRule(alice, ruleItem(episode('1', series = 's')), ruleItem(episode('2', series = 'x')))
-            repository.seedRule(alice, ruleItem(episode('3', series = 'u'), library = showsId))
+            repository.seedRule(alice, ruleItem(episode('1', series = '5')), ruleItem(episode('2', series = '6')))
+            repository.seedRule(alice, ruleItem(episode('3', series = '7'), library = showsId))
             repository.seedRule(alice, ruleItem(held('4')))
-            repository.seedSeries(alice, RuleSeries(id('s'), "TV-14", listOf("Drama"), listOf("t")))
-            repository.seedSeries(alice, RuleSeries(id('u'), null, emptyList(), emptyList()))
-            repository.seedSeries(alice, RuleSeries(id('z'), null, emptyList(), emptyList()))
+            repository.seedSeries(alice, RuleSeries(id('5'), "TV-14", listOf("Drama"), listOf("t")))
+            repository.seedSeries(alice, RuleSeries(id('7'), null, emptyList(), emptyList()))
+            repository.seedSeries(alice, RuleSeries(id('8'), null, emptyList(), emptyList()))
 
             val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
 
-            // 'x' is unknown and has no entry; 'u' is in a library not asked for; 'z' has no returned episode.
-            assertEquals(listOf(id('s')), snapshot.series.keys.toList())
-            assertEquals(RuleSeries(id('s'), "TV-14", listOf("Drama"), listOf("t")), snapshot.series.getValue(id('s')))
+            // '6' is unknown and has no entry; '7' is in a library not asked for; '8' has no returned episode.
+            assertEquals(listOf(id('5')), snapshot.series.keys.toList())
+            assertEquals(RuleSeries(id('5'), "TV-14", listOf("Drama"), listOf("t")), snapshot.series.getValue(id('5')))
         }
 
     @Test
@@ -312,13 +316,13 @@ class InMemoryLibraryRepositoryTest {
         runBlocking {
             val repository = InMemoryLibraryRepository()
             val cutoffMs = epoch.toEpochMilliseconds()
-            repository.seedRule(alice, ruleItem(episode('1', series = 's')), ruleItem(episode('2', series = 't')))
-            repository.seedSeries(alice, RuleSeries(id('s'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs)
-            repository.seedSeries(alice, RuleSeries(id('t'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs - 1)
+            repository.seedRule(alice, ruleItem(episode('1', series = '5')), ruleItem(episode('2', series = '4')))
+            repository.seedSeries(alice, RuleSeries(id('5'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs)
+            repository.seedSeries(alice, RuleSeries(id('4'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs - 1)
 
             val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
 
-            assertEquals(listOf(id('s')), snapshot.series.keys.toList())
+            assertEquals(listOf(id('5')), snapshot.series.keys.toList())
         }
 
     @Test
