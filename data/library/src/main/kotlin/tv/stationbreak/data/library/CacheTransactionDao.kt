@@ -4,6 +4,12 @@ package tv.stationbreak.data.library
 import androidx.room.Dao
 import androidx.room.Transaction
 
+/** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
+internal data class PageResult(
+    val items: PageWrite,
+    val series: PageWrite,
+)
+
 /**
  * The transactions that span more than one DAO (spec 10, Unit 1). Each is one `@Transaction` method here that reads
  * and writes through the entity DAOs ([LibraryDao], [ItemHistoryDao]) in turn; the entity DAOs never call each other.
@@ -14,6 +20,7 @@ import androidx.room.Transaction
  * that deoptimised the JIT-compiled loop and aborted the process (see [ItemHistoryDao.heldAsOf]).
  */
 @Dao
+@Suppress("AbstractClassCanBeConcreteClass") // Room generates the implementation of an abstract @Dao.
 internal abstract class CacheTransactionDao(
     private val db: LibraryDatabase,
 ) {

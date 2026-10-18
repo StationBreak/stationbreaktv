@@ -30,6 +30,7 @@ private const val HELD_COLUMNS_OF_V =
  * columns of a version, and null for an item row, whose lists are in the side tables. [ItemHistoryDao.heldAsOf] turns
  * it into a [HeldRow].
  */
+@Suppress("LongParameterList") // One property per column of the as-of read, as Room maps them.
 internal class HeldRaw(
     val itemId: String,
     val libraryId: String,
@@ -294,6 +295,7 @@ internal abstract class ItemHistoryDao {
 
     // The held version of each item of a chunk, kept when it belongs to a wanted library and was not deleted before the
     // cut-off. Cases (b) and (c) are looked up only when some item of the chunk needs them.
+    @Suppress("LongParameterList") // The account, the chunk, the cut-off and the libraries: one read.
     private suspend fun chosenInChunk(
         serverId: String,
         userId: String,

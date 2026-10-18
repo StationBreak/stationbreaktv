@@ -71,7 +71,7 @@ class CrossDaoTransactionOnDeviceTest {
 
             // The second page edits "a" (which makes a version) and adds "b".
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(account, library, listOf(item("a", 100), item("b", 90)), 2, 2, run = 1) }
+                runBlocking { repository.writePage(account, library, secondPage(), 2, 2, run = 1) }
             }
 
             assertEquals(before, repository.rowCounts())
@@ -87,7 +87,7 @@ class CrossDaoTransactionOnDeviceTest {
             repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1)
             repository.faultBetweenItemsAndHistory = { error("the process died here") }
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(account, library, listOf(item("a", 100), item("b", 90)), 2, 2, run = 1) }
+                runBlocking { repository.writePage(account, library, secondPage(), 2, 2, run = 1) }
             }
             repository.faultBetweenItemsAndHistory = null
 
@@ -97,6 +97,9 @@ class CrossDaoTransactionOnDeviceTest {
             assertEquals(1, repository.versions(account).size)
             assertEquals(2, repository.checkpoint(account, library)?.nextStartIndex)
         }
+
+    // The second page edits "a" (which makes a version) and adds "b".
+    private fun secondPage() = listOf(item("a", 100), item("b", 90))
 
     private fun series(
         id: String,

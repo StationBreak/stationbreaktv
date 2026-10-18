@@ -22,12 +22,6 @@ internal class SeriesRevival(
     val revived: List<SeriesEntity>,
 )
 
-/** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
-internal data class PageResult(
-    val items: PageWrite,
-    val series: PageWrite,
-)
-
 /**
  * The SQL of the cached series and their history (spec 10, Unit 1), with the same rules as [ItemHistoryDao]. A series
  * and its `series_version` rows belong to one DAO because a series has no separate current state to keep apart. It

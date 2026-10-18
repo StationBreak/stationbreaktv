@@ -65,8 +65,9 @@ internal suspend fun MediaServer.fetchSeriesPage(
         }
     }
 
+// Inline, so the two callers' lambdas are not two classes behind one call in a loop (ART 7.1, #264).
 @Suppress("ReturnCount") // Each return is one way a page can come back.
-private suspend fun <T> fetchHalving(
+private suspend inline fun <T> fetchHalving(
     limit: PageLimit,
     ask: suspend (asking: Int) -> ServerResult<Fetched.Page<T>>,
 ): Fetched<T> {

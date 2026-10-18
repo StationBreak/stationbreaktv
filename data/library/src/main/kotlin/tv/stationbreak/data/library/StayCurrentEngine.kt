@@ -279,9 +279,11 @@ internal class StayCurrentEngine(
             return fetchMissing(library, items.list, items.list.ids - known)
         }
 
+        // Inline, so the item listing's and the series listing's lambdas are not two classes behind one call in a loop
+        // (ART 7.1, #264).
         // Reads the complete ID list with [list] and decides, under the guards both reconciles share: a read that fails
         // or is suspect (empty for a library that had rows) stops; what is gone must be missing from a second read too.
-        private suspend fun decide(
+        private suspend inline fun decide(
             live: Set<ItemId>,
             tombstoned: Set<ItemId>,
             list: IdLister,
@@ -308,7 +310,7 @@ internal class StayCurrentEngine(
         }
 
         // The whole list or nothing: a failure part way, a page that adds nothing, or a list far past its total fails.
-        private suspend fun readIds(list: IdLister): IdsRead {
+        private suspend inline fun readIds(list: IdLister): IdsRead {
             val ids = LinkedHashSet<ItemId>()
             var read = 0
             var total: Int? = null

@@ -223,8 +223,8 @@ class RoomLibraryRepository internal constructor(
      * are there or neither is. Writing the same page again changes nothing (an item that is unchanged is not
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
      * [library] must have been chosen with [select] first. [series], if any, are written in the same transaction (the
-     * transactions across DAOs are one method of `CacheTransactionDao`); the sync itself writes series apart, with
-     * [upsertSeries].
+     * transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests: the sync writes
+     * series apart, with [upsertSeries].
      */
     @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
     internal suspend fun writePage(
@@ -295,7 +295,10 @@ class RoomLibraryRepository internal constructor(
         return write(server, user, null, emptyMap(), rows, clock.now().toEpochMilliseconds()).series
     }
 
-    /** Marks the series [ids] deleted as of now. A series that is already a tombstone keeps its first time. */
+    /**
+     * Marks the series [ids] deleted as of now. A series that is already a tombstone keeps its first time. For tests:
+     * the reconcile writes through [applyReconcile].
+     */
     internal suspend fun tombstoneSeries(
         account: LibraryAccount,
         ids: Collection<ItemId>,
@@ -304,7 +307,7 @@ class RoomLibraryRepository internal constructor(
         transactions.tombstoneSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
-    /** Clears the tombstone of the series [ids]: each is kept as a version first. */
+    /** Clears the tombstone of the series [ids]: each is kept as a version first. For tests, as [tombstoneSeries]. */
     internal suspend fun reviveSeries(
         account: LibraryAccount,
         ids: Collection<ItemId>,
@@ -450,7 +453,10 @@ class RoomLibraryRepository internal constructor(
         dao.failSync(server, user, failure.ordinal)
     }
 
-    /** Marks [ids] deleted as of now. An id that is already a tombstone keeps its first time. */
+    /**
+     * Marks [ids] deleted as of now. An id that is already a tombstone keeps its first time. For tests: the reconcile
+     * writes through [applyReconcile].
+     */
     internal suspend fun tombstone(
         account: LibraryAccount,
         ids: Collection<ItemId>,
@@ -459,7 +465,7 @@ class RoomLibraryRepository internal constructor(
         dao.tombstoneAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
-    /** Clears the tombstone of [ids]: they are back in snapshots. */
+    /** Clears the tombstone of [ids]: they are back in snapshots. For tests: the reconcile uses [applyReconcile]. */
     internal suspend fun revive(
         account: LibraryAccount,
         ids: Collection<ItemId>,
