@@ -38,7 +38,10 @@ class RuleEditCutoffPropertyTest {
     @After
     fun close() = repository.close()
 
-    private fun RuleSnapshot.withoutDeletionTimes() = copy(items = items.map { it.copy(item = it.item.copy(deletedAtMs = null)) })
+    private fun RuleSnapshot.withoutDeletionTimes(): RuleSnapshot {
+        val kept = items.map { it.copy(item = it.item.copy(deletedAtMs = null)) }
+        return copy(items = kept)
+    }
 
     private suspend fun snapshot(
         libraries: List<ItemId>,
@@ -51,8 +54,8 @@ class RuleEditCutoffPropertyTest {
             val row = gen.pick(stored)
             val id = row.item.id
             when (gen.nextInt(ITEM_EDIT_KINDS)) {
-                0 -> repository.put(ALICE, row.library, row.item.copy(officialRating = gen.pick(RuleLibraryGen.RATINGS)))
-                1 -> repository.put(ALICE, row.library, row.item.copy(genres = row.item.genres + gen.pick(RuleLibraryGen.GENRES)))
+                0 -> repository.put(ALICE, row.library, row.item.copy(officialRating = gen.pick(RATINGS)))
+                1 -> repository.put(ALICE, row.library, row.item.copy(genres = row.item.genres + gen.pick(GENRES)))
                 2 -> repository.put(ALICE, row.library, row.item.copy(tags = listOf(gen.pick(RuleLibraryGen.TAGS))))
                 3 -> repository.put(ALICE, row.library, row.item.copy(seasonId = ItemId(hexId(0x800 + gen.nextInt(4)))))
                 4 -> repository.put(ALICE, otherLibrary(row.library), row.item)
@@ -80,7 +83,7 @@ class RuleEditCutoffPropertyTest {
             val id = ItemId(row.seriesId)
             when (gen.nextInt(SERIES_EDIT_KINDS)) {
                 0 -> {
-                    repository.putSeries(ALICE, ItemId(row.libraryId), series(row.seriesId, gen.pick(RuleLibraryGen.RATINGS)))
+                    repository.putSeries(ALICE, ItemId(row.libraryId), series(row.seriesId, gen.pick(RATINGS)))
                 }
 
                 1 -> {
@@ -142,7 +145,7 @@ class RuleEditCutoffPropertyTest {
                         ALICE,
                         id,
                         "Name",
-                        members.map { if (gen.chance(HALF)) it.copy(kind = gen.pick(KINDS)) else it },
+                        members.map { member -> if (gen.chance(HALF)) member.copy(kind = gen.pick(KINDS)) else member },
                     )
                 }
 
@@ -212,7 +215,8 @@ class RuleEditCutoffPropertyTest {
             editCollections(gen)
 
             val dayN = snapshot(library.libraries, cutoffMs)
-            assertEquals("day n changed by an edit at or after its cut-off", before.withoutDeletionTimes(), dayN.withoutDeletionTimes())
+            val message = "day n changed by an edit at or after its cut-off"
+            assertEquals(message, before.withoutDeletionTimes(), dayN.withoutDeletionTimes())
             val next = snapshot(library.libraries, clock.nowMs + 1)
             assertShowsCurrentState(next, clock.nowMs + 1)
             next.withoutDeletionTimes().copy(cutoffMs = cutoffMs) != before.withoutDeletionTimes()
@@ -249,7 +253,8 @@ class RuleEditCutoffPropertyTest {
         const val ITEM_EDIT_KINDS = 7
         const val SERIES_EDIT_KINDS = 5
         const val COLLECTION_EDIT_KINDS = 5
-        val KINDS =
-            listOf(CollectionMemberKind.Movie, CollectionMemberKind.Episode, CollectionMemberKind.Series, CollectionMemberKind.Season)
+        val KINDS = CollectionMemberKind.entries - setOf(CollectionMemberKind.Collection, CollectionMemberKind.Other)
+        val RATINGS = RuleLibraryGen.RATINGS
+        val GENRES = RuleLibraryGen.GENRES
     }
 }

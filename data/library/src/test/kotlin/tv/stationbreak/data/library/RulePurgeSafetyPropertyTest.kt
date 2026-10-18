@@ -52,7 +52,10 @@ class RulePurgeSafetyPropertyTest {
 
     private fun box(n: Int) = ItemId(hexId(n))
 
-    private fun members(vararg numbers: Int) = numbers.map { CollectionMember(ItemId(hexId(it)), CollectionMemberKind.Episode) }
+    private fun members(vararg numbers: Int): List<CollectionMember> {
+        val kind = CollectionMemberKind.Episode
+        return numbers.map { CollectionMember(ItemId(hexId(it)), kind) }
+    }
 
     private suspend fun writeBox(
         n: Int,
@@ -108,7 +111,8 @@ class RulePurgeSafetyPropertyTest {
             }
 
             2 -> {
-                repository.put(ALICE, library, episodeOf(n, show, library).copy(genres = listOf("g${gen.nextInt(GENRES)}")))
+                val genres = listOf("g${gen.nextInt(GENRES)}")
+                repository.put(ALICE, library, episodeOf(n, show, library).copy(genres = genres))
             }
 
             3 -> {
@@ -142,7 +146,8 @@ class RulePurgeSafetyPropertyTest {
             }
 
             7 -> {
-                repository.writeCollection(ALICE, boxId, "Name", members(*IntArray(gen.nextInt(MEMBERS)) { 1 + gen.nextInt(ITEMS) }))
+                val numbers = IntArray(gen.nextInt(MEMBERS)) { 1 + gen.nextInt(ITEMS) }
+                repository.writeCollection(ALICE, boxId, "Name", members(*numbers))
             }
 
             else -> {
@@ -174,7 +179,11 @@ class RulePurgeSafetyPropertyTest {
         return fixed + List(RANDOM_CUTOFFS) { safeFromMs + gen.nextLong(5.days.inWholeMilliseconds) }
     }
 
-    private suspend fun readAll(cutoffs: List<Long>): List<RuleSnapshot> = cutoffs.map { repository.ruleSnapshot(ALICE, libraries, at(it)) }
+    private suspend fun readAll(cutoffs: List<Long>): List<RuleSnapshot> {
+        val read = ArrayList<RuleSnapshot>()
+        for (cutoff in cutoffs) read += repository.ruleSnapshot(ALICE, libraries, at(cutoff))
+        return read
+    }
 
     @Test
     fun aPurgeChangesNothingAnyCutOffFromSeventyTwoHoursBackCanSee() =
@@ -189,7 +198,8 @@ class RulePurgeSafetyPropertyTest {
 
                 val outcome = repository.purgeHistory(ALICE) as PurgeOutcome.Purged
 
-                if (outcome.versions + outcome.collectionMembers + outcome.collectionVersions + outcome.tombstones > 0) purgedSomething++
+                val versions = outcome.versions + outcome.collectionVersions
+                if (versions + outcome.collectionMembers + outcome.tombstones > 0) purgedSomething++
                 assertEquals("case $case, seed $seed", before, readAll(cutoffs))
             }
             // The property is not vacuous: most cases had something old to purge.
@@ -219,7 +229,8 @@ class RulePurgeSafetyPropertyTest {
                 if (before != readAll(cutoffs)) caught++
             }
             println("RulePurgeSafetyPropertyTest: the mutated purge was caught in $caught of $MUTATION_CASES cases")
-            assertTrue("the mutated purge was caught in only $caught of $MUTATION_CASES cases", caught > MUTATION_CASES / 2)
+            val message = "the mutated purge was caught in only $caught of $MUTATION_CASES cases"
+            assertTrue(message, caught > MUTATION_CASES / 2)
         }
 
     @Test
