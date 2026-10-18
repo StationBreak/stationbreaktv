@@ -34,6 +34,10 @@ import androidx.sqlite.execSQL
 internal abstract class LibraryDatabase : RoomDatabase() {
     abstract fun dao(): LibraryDao
 
+    abstract fun itemHistoryDao(): ItemHistoryDao
+
+    abstract fun cacheTransactionDao(): CacheTransactionDao
+
     companion object {
         const val VERSION = 4
     }

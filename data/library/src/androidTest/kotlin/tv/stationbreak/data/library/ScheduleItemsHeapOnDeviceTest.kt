@@ -30,7 +30,7 @@ import kotlin.time.Clock
  *
  * It reads three times, as the app does for each channel, and samples the raw heap from a plain thread while it reads.
  * It must not call the DAO with a second, different callback: that made API 25's JIT deoptimise the read loop, and the
- * next GC aborted the runtime (see `LibraryDao.heldAsOf`).
+ * next GC aborted the runtime (see `ItemHistoryDao.heldAsOf`).
  */
 @RunWith(AndroidJUnit4::class)
 class ScheduleItemsHeapOnDeviceTest {

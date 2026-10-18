@@ -71,6 +71,8 @@ class RoomLibraryRepository internal constructor(
     private val retention: HistoryRetention = HistoryRetention(),
 ) : LibraryRepository {
     internal val dao = db.dao()
+    internal val history = db.itemHistoryDao()
+    private val transactions = db.cacheTransactionDao()
 
     /**
      * Test seam: runs inside [writePage]'s transaction after the items are written and before the checkpoint is, so a
@@ -140,7 +142,7 @@ class RoomLibraryRepository internal constructor(
         val items = ArrayList<ScheduleItem>()
         val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
         val seen = HashSet<String>()
-        for (row in dao.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
+        for (row in history.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
             when (val converted = ScheduleInputs.convert(row)) {
                 is Converted.Dropped -> {
                     dropped.merge(converted.reason, 1, Int::plus)
@@ -218,7 +220,7 @@ class RoomLibraryRepository internal constructor(
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return dao.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndCheckpoint)
+        return transactions.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndCheckpoint)
     }
 
     /**
@@ -233,7 +235,7 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return dao.writePage(server, user, null, rows, now, faultBetweenItemsAndCheckpoint)
+        return transactions.writePage(server, user, null, rows, now, faultBetweenItemsAndCheckpoint)
     }
 
     private fun rowsOf(
@@ -339,7 +341,7 @@ class RoomLibraryRepository internal constructor(
         ids: Collection<ItemId>,
     ) {
         val (server, user) = account.keys()
-        dao.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+        transactions.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
     /** The IDs of [library]'s live items, in order: what a reconciliation compares the server's list with. */
@@ -386,7 +388,7 @@ class RoomLibraryRepository internal constructor(
     ): PurgeOutcome {
         val (server, user) = account.keys()
         val referenceMs = reference?.toEpochMilliseconds()
-        return dao.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis, referenceMs)
+        return transactions.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis, referenceMs)
     }
 
     // Reads for the tests and diagnostics.
@@ -415,7 +417,7 @@ class RoomLibraryRepository internal constructor(
             libraries = dao.countLibraries(),
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
-            versions = dao.countVersions(),
+            versions = history.countVersions(),
         )
 
     /** The account's item rows as they are on disk (the current versions), by item ID. */
@@ -427,7 +429,7 @@ class RoomLibraryRepository internal constructor(
     /** The account's kept earlier versions, by item ID and then time. */
     internal suspend fun versions(account: LibraryAccount): List<ItemVersionEntity> {
         val (server, user) = account.keys()
-        return dao.allVersions(server, user)
+        return history.allVersions(server, user)
     }
 
     /** Closes the database. The app keeps it open for its lifetime; tests close theirs. */
