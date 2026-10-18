@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -527,6 +528,127 @@ abstract class ContractSuite {
                 }
             // Pinned on 12.1 and 12.2: a watched mark is user data, not an item save, so it is not a change.
             assertEquals(emptySet(), watch, "a watched mark does not count as a change")
+        }
+    }
+
+    // Spec 10 task 1.9.1.
+
+    @Test
+    fun seriesMetadataArrives() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+            val seeded = server.seeded
+
+            val page = adapter.librarySeries(session, shows, 0, BIG_PAGE).getOrNull()
+
+            assertNotNull(page)
+            assertEquals(1, page.totalCount)
+            val series = page.series.single()
+            assertEquals(ItemId(seeded.seriesId), series.id)
+            assertEquals(ServerSeeding.SERIES_RATING, series.officialRating)
+            // Genres and tags arrive; whether the server keeps their order is recorded (the cache stores the order).
+            assertEquals(ServerSeeding.SERIES_GENRES.toSet(), series.genres.toSet())
+            assertEquals(ServerSeeding.SERIES_TAGS.toSet(), series.tags.toSet())
+            finding("series genres arrive as ${series.genres} tags ${series.tags}")
+            val ids = adapter.librarySeriesIds(session, shows, 0, BIG_PAGE).getOrNull()
+            assertEquals(listOf(ItemId(seeded.seriesId)), ids?.ids)
+            assertEquals(1, ids?.totalCount)
+
+            // Episodes carry the series and the season; an episode in the series folder is recorded, not assumed.
+            val episodes =
+                adapter
+                    .libraryItems(session, shows, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+            assertEquals(seeded.episodeIds.toSet(), episodes.map { it.id.value }.toSet())
+            for (episode in episodes) {
+                assertEquals(ItemId(seeded.seriesId), episode.seriesId, "series of ${episode.id.value}")
+                if (episode.id.value != seeded.looseEpisodeId) {
+                    assertNotNull(episode.seasonId, "an episode in a season folder names its season")
+                }
+            }
+            val loose = episodes.single { it.id.value == seeded.looseEpisodeId }
+            val seasons = episodes.filter { it !== loose }.mapNotNull { it.seasonId }.toSet()
+            finding("episode with no season folder: SeasonId=${loose.seasonId}, the others share $seasons")
+            // An episode with no rating of its own gives null, not an empty text and not its series' rating.
+            finding("episode ratings: ${episodes.map { it.officialRating }}")
+            assertTrue(episodes.all { it.officialRating == null }, "an episode with no rating maps to null")
+
+            // OQ2: an edit to the series' genres is returned by MinDateLastSaved; the item walk never returns series.
+            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+            val adminId =
+                server.http
+                    .get("Users/Me", admin)
+                    .obj()
+                    .getValue("Id")
+                    .jsonPrimitive.content
+            delay(SETTLE_MS)
+            val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+            delay(SETTLE_MS)
+            val before = adapter.librarySeries(session, shows, 0, BIG_PAGE, mark).getOrNull()
+            assertEquals(emptyList(), before?.series, "nothing was saved since the mark")
+            val dto = server.http.get("Users/$adminId/Items/${seeded.seriesId}", admin).obj()
+            val genres = JsonArray(listOf(JsonPrimitive("Contract Edited")))
+            val edited = JsonObject(dto + ("Genres" to genres))
+            val post = server.http.post("Items/${seeded.seriesId}", edited.toString(), admin)
+            server.http.expectOk("edit series genres", post)
+            delay(SETTLE_MS * EDIT_SETTLE)
+
+            val changed = adapter.librarySeries(session, shows, 0, BIG_PAGE, mark).getOrNull()
+            assertEquals(listOf("Contract Edited"), changed?.series?.single()?.genres)
+            val itemsSince =
+                adapter
+                    .libraryItems(session, shows, 0, BIG_PAGE, mark)
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+            assertTrue(itemsSince.none { it.kind == ItemKind.Series }, "the item walk never returns a series")
+        }
+    }
+
+    @Test
+    fun moviesInBoxSetStillList() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val movies = Library(ItemId(server.seeded.moviesLibrary), "Movies", LibraryKind.Movies)
+            val seeded = server.seeded
+            assertTrue(seeded.boxSetMembers.size >= 2, "the server seeds a BoxSet with at least two movies")
+
+            // The hazard, for the record: a server asked to collapse BoxSets hides their movies behind the BoxSet.
+            val collapsing =
+                listOf(
+                    "parentId" to seeded.moviesLibrary,
+                    "recursive" to "true",
+                    "includeItemTypes" to "Movie,Episode,Video,MusicVideo",
+                    "collapseBoxSetItems" to "true",
+                )
+            val raw = server.http.expectOk("collapsing walk", server.http.get("Items", harnessToken(), collapsing))
+            val hidden =
+                raw
+                    .obj()
+                    .getValue("Items")
+                    .jsonArray
+                    .map {
+                        it.jsonObject
+                            .getValue("Id")
+                            .jsonPrimitive.content
+                    }
+            finding("collapseBoxSetItems=true lists $hidden; the BoxSet's movies are ${seeded.boxSetMembers}")
+
+            // The adapter sends collapseBoxSetItems=false, so the walk and the ID listing both list every movie.
+            val walked = adapter.libraryItems(session, movies, 0, BIG_PAGE).getOrNull()
+            assertNotNull(walked)
+            val walkedIds = walked.items.map { it.id.value }.toSet()
+            assertEquals(seeded.movieIds.toSet(), walkedIds)
+            assertTrue(walkedIds.containsAll(seeded.boxSetMembers), "the walk lists the BoxSet's movies")
+            val listed = adapter.libraryItemIds(session, movies, 0, BIG_PAGE).getOrNull()
+            assertEquals(seeded.movieIds.toSet(), listed?.ids?.map { it.value }?.toSet())
+            assertEquals(seeded.movieIds.size, listed?.totalCount)
+            assertEquals(seeded.movieIds.size, walked.totalCount)
         }
     }
 
