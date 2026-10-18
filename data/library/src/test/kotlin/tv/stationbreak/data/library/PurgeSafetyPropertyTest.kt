@@ -215,6 +215,92 @@ class PurgeSafetyPropertyTest {
             assertEquals(sizes[SIMULATED_DAYS - 21], sizes.last())
         }
 
+    // Spec 10 task 1.8: the same property for series. There is no series as-of read yet (spec 10 Unit 3), so the test
+    // holds its own: the version of each series this TV held before a cut-off, by the same three cases as the items'.
+
+    private data class HeldSeries(
+        val id: String,
+        val rating: String?,
+        val genres: String,
+        val tags: String,
+    )
+
+    private suspend fun heldSeriesAsOf(cutoffMs: Long): List<HeldSeries> {
+        val versions = repository.seriesVersions(ALICE).groupBy { it.seriesId }
+        return repository.currentSeries(ALICE).mapNotNull { row ->
+            val own = versions[row.seriesId].orEmpty()
+            val held =
+                if (row.seenFromMs < cutoffMs) {
+                    HeldSeries(row.seriesId, row.officialRating, row.genres, row.tags) to row.deletedAtMs
+                } else {
+                    val covering = own.firstOrNull { it.seenFromMs < cutoffMs && it.supersededAtMs >= cutoffMs }
+                    val oldest = own.firstOrNull { it.seenFromMs == row.firstSeenMs }
+                    val version = covering ?: oldest
+                    if (version != null) {
+                        val held = HeldSeries(row.seriesId, version.officialRating, version.genres, version.tags)
+                        held to version.deletedAtMs
+                    } else {
+                        HeldSeries(row.seriesId, row.officialRating, row.genres, row.tags) to row.deletedAtMs
+                    }
+                }
+            held.first.takeIf { held.second == null || held.second!! >= cutoffMs }
+        }
+    }
+
+    private fun oneOf(gen: PurgeGen) = "v${gen.nextInt(GENRES)}"
+
+    private suspend fun applySeries(
+        gen: PurgeGen,
+        step: Step,
+    ) {
+        clock.atMs(step.atMs)
+        val n = step.n ?: (1 + gen.nextInt(ITEMS))
+        val id = ItemId(hexId(n))
+        when (step.kind ?: gen.nextInt(OP_KINDS)) {
+            EDIT -> repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(n), genres = listOf("f${step.atMs}"))))
+            TOMBSTONE -> repository.tombstoneSeries(ALICE, listOf(id))
+            REVIVE -> repository.reviveSeries(ALICE, listOf(id))
+            0, 1 -> repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(n), "R${gen.nextInt(GENRES)}")))
+            2 -> repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(n), genres = listOf(oneOf(gen)))))
+            3 -> repository.upsertSeries(ALICE, MOVIES, listOf(series(hexId(n), tags = listOf(oneOf(gen)))))
+            4 -> repository.tombstoneSeries(ALICE, listOf(id))
+            else -> repository.reviveSeries(ALICE, listOf(id))
+        }
+    }
+
+    @Test
+    fun aPurgeChangesNothingAnyCutOffFromSeventyTwoHoursBackCanSeeInTheSeries() =
+        runBlocking {
+            var purgedSomething = 0
+            for (case in 0 until CASES) {
+                val seed = BASE_SEED + 0x5E71E5uL + case.toULong()
+                val gen = PurgeGen(seed)
+                repository.forget(ALICE)
+                repository.useAccount(ALICE)
+                repository.select(ALICE, libraries)
+                val steps = (timesOf(gen).map { Step(it) } + fixedSteps()).sortedBy { it.atMs }
+                steps.forEach { applySeries(gen, it) }
+                steppedBackSeriesTombstone()
+                clock.atMs(nowMs)
+                val fixed = listOf(safeFromMs, safeFromMs + 1, nowMs - 36 * HOUR_MS, nowMs, nowMs + HOUR_MS)
+                val cutoffs = fixed + List(RANDOM_CUTOFFS) { safeFromMs + gen.nextLong(5.days.inWholeMilliseconds) }
+                val before = cutoffs.map { heldSeriesAsOf(it) }
+
+                val outcome = repository.purgeHistory(ALICE) as PurgeOutcome.Purged
+
+                if (outcome.seriesTombstones + outcome.seriesVersions > 0) purgedSomething++
+                assertEquals("case $case, seed $seed", before, cutoffs.map { heldSeriesAsOf(it) })
+            }
+            assertTrue("only $purgedSomething of $CASES cases purged a series row", purgedSomething > CASES / 2)
+        }
+
+    // As for items: the clock is set back 40 days and series 12 is deleted, so only its seenFrom keeps its recent
+    // versions out of the purge.
+    private suspend fun steppedBackSeriesTombstone() {
+        clock.atMs(nowMs - 40.days.inWholeMilliseconds)
+        repository.tombstoneSeries(ALICE, listOf(ItemId(hexId(12))))
+    }
+
     private companion object {
         const val EDIT = 7
         const val TOMBSTONE = 4

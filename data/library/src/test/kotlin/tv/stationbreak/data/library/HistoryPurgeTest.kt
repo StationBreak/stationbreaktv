@@ -261,4 +261,129 @@ class HistoryPurgeTest {
                 short.close()
             }
         }
+
+    // Spec 10 task 1.8: the same purge for series and series_version, with the same retention and the same safeguards.
+
+    private fun sid(n: Int) = ItemId(hexId(n))
+
+    private suspend fun fourSeries(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) {
+        repository.select(account, setOf(SHOWS))
+        val rows = (1..4).map { series(hexId(it), "TV-14", listOf("g$it"), listOf("t$it")) }
+        repository.upsertSeries(account, SHOWS, rows)
+    }
+
+    // Series 1: first seen at the start, edited 1 s later. The first version is superseded at start + 1000.
+    private suspend fun oneEditedSeries() {
+        repository.select(ALICE, setOf(SHOWS))
+        repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-14")))
+        clock.stepMs(1_000)
+        repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA")))
+    }
+
+    @Test
+    fun aSeriesTombstoneThirtyDaysOldStaysAndOneMillisecondOlderGoes() =
+        runBlocking {
+            fourSeries()
+            repository.tombstoneSeries(ALICE, listOf(sid(1)))
+            clock.stepMs(thirtyDays)
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0), purged())
+            assertEquals(4, repository.currentSeries(ALICE).size)
+            clock.stepMs(1)
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0, seriesTombstones = 1), purged())
+            assertEquals(listOf(hexId(2), hexId(3), hexId(4)), repository.currentSeries(ALICE).map { it.seriesId })
+        }
+
+    @Test
+    fun aSeriesVersionSupersededThirtyDaysAgoStaysAndOneMillisecondOlderGoes() =
+        runBlocking {
+            oneEditedSeries()
+            clock.stepMs(thirtyDays)
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0), purged())
+            assertEquals(1, repository.seriesVersions(ALICE).size)
+            clock.stepMs(1)
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0, seriesVersions = 1), purged())
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+        }
+
+    @Test
+    fun theCurrentSeriesRowIsNeverPurgedHoweverOldItIs() =
+        runBlocking {
+            oneEditedSeries()
+            val before = repository.currentSeries(ALICE)
+            clock.stepMs(400.days.inWholeMilliseconds)
+
+            purged()
+
+            assertEquals(before, repository.currentSeries(ALICE))
+        }
+
+    @Test
+    fun theCountsAreOfEachTableAndVersionsAreCountedBeforeATombstoneTakesThemWithIt() =
+        runBlocking {
+            fourItems()
+            repository.tombstone(ALICE, listOf(id(1)))
+            oneEditedSeries() // series 1: one version, superseded at start + 1000
+            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(2)), series(hexId(3), "G")))
+            repository.tombstoneSeries(ALICE, listOf(sid(1))) // its old version goes with the tombstone
+            clock.stepMs(thirtyDays + 2_000)
+
+            val outcome = purged()
+
+            // The version was superseded long ago, so it is counted as a version, not as part of the tombstone.
+            val expected = PurgeOutcome.Purged(tombstones = 1, versions = 0, seriesTombstones = 1, seriesVersions = 1)
+            assertEquals(expected, outcome)
+            assertEquals(0, repository.rowCounts().seriesVersions)
+        }
+
+    @Test
+    fun aSeriesTombstoneStampedBeforeTheSeriesWasSeenKeepsItsRecentHistory() =
+        runBlocking {
+            fourSeries()
+            clock.stepMs(1.days.inWholeMilliseconds)
+            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA"))) // version 1 superseded now
+            val seenFrom = clock.nowMs
+            clock.atMs(seenFrom - 40.days.inWholeMilliseconds) // the clock is set back
+            repository.tombstoneSeries(ALICE, listOf(sid(1)))
+            clock.atMs(seenFrom + 1.days.inWholeMilliseconds) // deletedAt is 41 days old, the version 1 day old
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0), purged())
+
+            assertEquals(4, repository.currentSeries(ALICE).size)
+            assertEquals(1, repository.seriesVersions(ALICE).size)
+        }
+
+    @Test
+    fun anotherAccountsSeriesAreNeverTouched() =
+        runBlocking {
+            fourSeries()
+            fourSeries(BOB)
+            repository.tombstoneSeries(ALICE, listOf(sid(1)))
+            repository.tombstoneSeries(BOB, listOf(sid(1)))
+            repository.upsertSeries(BOB, SHOWS, listOf(series(hexId(2), "R")))
+            val bobBefore = repository.currentSeries(BOB) to repository.seriesVersions(BOB)
+            clock.stepMs(thirtyDays + 1)
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0, seriesTombstones = 1), purged())
+
+            assertEquals(bobBefore, repository.currentSeries(BOB) to repository.seriesVersions(BOB))
+            assertEquals(3, repository.currentSeries(ALICE).size)
+        }
+
+    @Test
+    fun anAccountThatIsNotSignedInLosesNoSeries() =
+        runBlocking {
+            oneEditedSeries()
+            repository.tombstoneSeries(ALICE, listOf(sid(1)))
+            clock.stepMs(thirtyDays + 2_000)
+            repository.dao.deleteActive(ALICE.server.value, ALICE.user.value)
+
+            assertThrows(AccountNotActiveException::class.java) { runBlocking { repository.purgeHistory(ALICE) } }
+
+            assertEquals(1, repository.currentSeries(ALICE).size)
+            assertEquals(1, repository.seriesVersions(ALICE).size)
+        }
 }

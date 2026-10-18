@@ -146,4 +146,26 @@ class PurgeClockGuardTest {
                 short.close()
             }
         }
+
+    // Spec 10 task 1.8: the same guard covers the series tables.
+
+    @Test
+    fun aWrongClockLeavesSeriesAndTheirVersionsAlone() =
+        runBlocking {
+            syncedAtEpoch()
+            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            clock.atMs(epochMs - 400.days.inWholeMilliseconds)
+            repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "A"), series("s2")))
+            clock.stepMs(1_000)
+            repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "B")))
+            repository.tombstoneSeries(ALICE, listOf(ItemId("s2")))
+            val before = repository.currentSeries(ALICE) to repository.seriesVersions(ALICE)
+
+            clock.atMs(epochMs - 1)
+            assertEquals(PurgeOutcome.Skipped(PurgeSkip.ClockBehindLastSync), repository.purgeHistory(ALICE))
+            clock.atMs(epochMs + limitMs + 1)
+            assertEquals(PurgeOutcome.Skipped(PurgeSkip.ClockFarAhead), repository.purgeHistory(ALICE))
+
+            assertEquals(before, repository.currentSeries(ALICE) to repository.seriesVersions(ALICE))
+        }
 }
