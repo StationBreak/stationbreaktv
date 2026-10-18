@@ -65,6 +65,7 @@ CI, starting with the F0.2 hello-world. Nothing is built by hand.
   injected fault (clearing app data, deleting the key, a flipped or truncated blob) fails safely, and a Firestick 4K
   matched. Fail-closed handling now covers any failure, wiping only on definitive ones.
 - **SP-4 jellyfin-sdk-kotlin fitness.** ✅ **Done 2026-10-06** ([ADR-0006](adr/0006-jellyfin-12-only.md)). The SDK passes on 12.x: injected OkHttp client (pinning), subpath base URLs, and distinguishable TLS and connection errors. It fails on 10.11, so StationBreak supports **Jellyfin 12.0+ only**.
+- **SP-5 Jellyfin change signals.** ✅ Done 2026-10-18 ([ADR-0015](adr/0015-jellyfin-change-signals-spike.md)). Series and BoxSet edits are signalled by `MinDateLastSaved` on 12.1 and 12.2, but a deleted collection member is not: it silently leaves the member list, so the sync drops tombstoned items from their collections.
 
 ## Phase 1 — Live core
 
