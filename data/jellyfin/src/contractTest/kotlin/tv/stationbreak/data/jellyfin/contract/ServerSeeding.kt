@@ -62,6 +62,7 @@ internal object ServerSeeding {
         createUser(http, token, accounts.viewer)
         disable(http, token, createUser(http, token, accounts.disabled))
         enableQuickConnect(http, token)
+        enableGroupingIntoCollections(http, token)
         val (movies, episodes) = waitForScan(http, token, libraries.getValue("movies"))
         val premieres = seedPremiereDates(http, token, episodes)
         val seriesId = seedSeriesMetadata(http, token, libraries.getValue("tv"))
@@ -329,6 +330,24 @@ internal object ServerSeeding {
         http.expectOk("enable Quick Connect", http.post("System/Configuration", enabled.toString(), token))
         val status = http.expectOk("Quick Connect status", http.get("QuickConnect/Enabled", token))
         check(status.json().jsonPrimitive.boolean) { "Quick Connect did not turn on" }
+    }
+
+    /**
+     * Turns on the server-wide "group movies into collections" setting (`EnableGroupingMoviesIntoCollections` in
+     * `System/Configuration`; the same on 12.1 and 12.2), so a request
+     * that doesn't say otherwise hides a BoxSet's movies behind the BoxSet (spec 10, Vimes H5).
+     */
+    private fun enableGroupingIntoCollections(
+        http: Harness,
+        token: String,
+    ) {
+        val configuration = http.expectOk("read configuration", http.get("System/Configuration", token)).obj()
+        check("EnableGroupingMoviesIntoCollections" in configuration) { "the server has no grouping setting" }
+        val enabled = JsonObject(configuration + ("EnableGroupingMoviesIntoCollections" to JsonPrimitive(true)))
+        http.expectOk("enable grouping", http.post("System/Configuration", enabled.toString(), token))
+        val again = http.expectOk("read configuration back", http.get("System/Configuration", token)).obj()
+        val on = again["EnableGroupingMoviesIntoCollections"]?.jsonPrimitive?.boolean
+        check(on == true) { "grouping did not turn on" }
     }
 
     /** Starts a scan and waits, bounded, until every file is in the library with its runtime known. */

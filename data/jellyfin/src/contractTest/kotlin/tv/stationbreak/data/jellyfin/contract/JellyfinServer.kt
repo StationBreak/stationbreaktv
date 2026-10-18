@@ -28,6 +28,7 @@ internal class Account(
 }
 
 /** What the seeded server holds, by ID, for the cases to ask about. */
+@Suppress("LongParameterList") // One property per seeded fact the cases ask about.
 internal class Seeded(
     val moviesLibrary: String,
     val tvLibrary: String,

@@ -34,6 +34,7 @@ import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.data.jellyfin.AdapterLog
@@ -60,7 +61,7 @@ import kotlin.time.Instant
  * consumer. Each case uses a fresh adapter and device ID, because Jellyfin revokes a device's earlier token when the
  * same device signs in again.
  */
-@Suppress("TooManyFunctions") // One function per contract case, plus the helpers they share.
+@Suppress("TooManyFunctions", "LargeClass") // One function per contract case, plus the helpers they share.
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class ContractSuite {
     internal abstract fun startServer(image: String): JellyfinServer
@@ -533,80 +534,112 @@ abstract class ContractSuite {
 
     // Spec 10 task 1.9.1.
 
+    /**
+     * The series' genres, tags and rating arrive, its episodes carry `SeriesId` and `SeasonId`, and an edit to the
+     * series is returned by `MinDateLastSaved`.
+     *
+     * **Episode ratings (recorded on 12.1 and 12.2, identical).** An episode does not come back null just because it
+     * has no rating of its own: an episode in a season folder is sent with its series' rating (`OfficialRating` as
+     * sent, and so as mapped), while an episode in the series folder itself has none and maps to null. So the server
+     * may already do rules-format rule 4's fallback to the series' rating for most episodes, and the cache must not
+     * assume an episode's own rating is absent when the series has one. The adapter passes the value through untouched.
+     */
     @Test
     fun seriesMetadataArrives() {
         runBlocking {
             val adapter = adapter()
             val session = session(adapter)
             val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
-            val seeded = server.seeded
 
-            val page = adapter.librarySeries(session, shows, 0, BIG_PAGE).getOrNull()
-
-            assertNotNull(page)
-            assertEquals(1, page.totalCount)
-            val series = page.series.single()
-            assertEquals(ItemId(seeded.seriesId), series.id)
-            assertEquals(ServerSeeding.SERIES_RATING, series.officialRating)
-            // Genres and tags arrive; whether the server keeps their order is recorded (the cache stores the order).
-            assertEquals(ServerSeeding.SERIES_GENRES.toSet(), series.genres.toSet())
-            assertEquals(ServerSeeding.SERIES_TAGS.toSet(), series.tags.toSet())
-            finding("series genres arrive as ${series.genres} tags ${series.tags}")
-            val ids = adapter.librarySeriesIds(session, shows, 0, BIG_PAGE).getOrNull()
-            assertEquals(listOf(ItemId(seeded.seriesId)), ids?.ids)
-            assertEquals(1, ids?.totalCount)
-
-            // Episodes carry the series and the season; an episode in the series folder is recorded, not assumed.
-            val episodes =
-                adapter
-                    .libraryItems(session, shows, 0, BIG_PAGE)
-                    .getOrNull()
-                    ?.items
-                    .orEmpty()
-            assertEquals(seeded.episodeIds.toSet(), episodes.map { it.id.value }.toSet())
-            for (episode in episodes) {
-                assertEquals(ItemId(seeded.seriesId), episode.seriesId, "series of ${episode.id.value}")
-                if (episode.id.value != seeded.looseEpisodeId) {
-                    assertNotNull(episode.seasonId, "an episode in a season folder names its season")
-                }
-            }
-            val loose = episodes.single { it.id.value == seeded.looseEpisodeId }
-            val seasons = episodes.filter { it !== loose }.mapNotNull { it.seasonId }.toSet()
-            finding("episode with no season folder: SeasonId=${loose.seasonId}, the others share $seasons")
-            // An episode with no rating of its own gives null, not an empty text and not its series' rating.
-            finding("episode ratings: ${episodes.map { it.officialRating }}")
-            assertTrue(episodes.all { it.officialRating == null }, "an episode with no rating maps to null")
-
-            // OQ2: an edit to the series' genres is returned by MinDateLastSaved; the item walk never returns series.
-            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
-            val adminId =
-                server.http
-                    .get("Users/Me", admin)
-                    .obj()
-                    .getValue("Id")
-                    .jsonPrimitive.content
-            delay(SETTLE_MS)
-            val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
-            delay(SETTLE_MS)
-            val before = adapter.librarySeries(session, shows, 0, BIG_PAGE, mark).getOrNull()
-            assertEquals(emptyList(), before?.series, "nothing was saved since the mark")
-            val dto = server.http.get("Users/$adminId/Items/${seeded.seriesId}", admin).obj()
-            val genres = JsonArray(listOf(JsonPrimitive("Contract Edited")))
-            val edited = JsonObject(dto + ("Genres" to genres))
-            val post = server.http.post("Items/${seeded.seriesId}", edited.toString(), admin)
-            server.http.expectOk("edit series genres", post)
-            delay(SETTLE_MS * EDIT_SETTLE)
-
-            val changed = adapter.librarySeries(session, shows, 0, BIG_PAGE, mark).getOrNull()
-            assertEquals(listOf("Contract Edited"), changed?.series?.single()?.genres)
-            val itemsSince =
-                adapter
-                    .libraryItems(session, shows, 0, BIG_PAGE, mark)
-                    .getOrNull()
-                    ?.items
-                    .orEmpty()
-            assertTrue(itemsSince.none { it.kind == ItemKind.Series }, "the item walk never returns a series")
+            val series = assertSeriesFields(adapter, session, shows)
+            assertEpisodeSeasonsAndRatings(adapter, session, shows, series)
+            assertSeriesEditIsChangedSince(adapter, session, shows)
         }
+    }
+
+    private suspend fun assertSeriesFields(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        shows: Library,
+    ): SeriesInfo {
+        val seeded = server.seeded
+        val page = adapter.librarySeries(session, shows, 0, BIG_PAGE).getOrNull()
+        assertNotNull(page)
+        assertEquals(1, page.totalCount)
+        val series = page.series.single()
+        assertEquals(ItemId(seeded.seriesId), series.id)
+        assertEquals(ServerSeeding.SERIES_RATING, series.officialRating)
+        // Genres and tags arrive; whether the server keeps their order is recorded (the cache stores the order).
+        assertEquals(ServerSeeding.SERIES_GENRES.toSet(), series.genres.toSet())
+        assertEquals(ServerSeeding.SERIES_TAGS.toSet(), series.tags.toSet())
+        finding("series genres arrive as ${series.genres} tags ${series.tags}")
+        val ids = adapter.librarySeriesIds(session, shows, 0, BIG_PAGE).getOrNull()
+        assertEquals(listOf(ItemId(seeded.seriesId)), ids?.ids)
+        assertEquals(1, ids?.totalCount)
+        return series
+    }
+
+    private suspend fun assertEpisodeSeasonsAndRatings(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        shows: Library,
+        series: SeriesInfo,
+    ) {
+        val seeded = server.seeded
+        val episodes =
+            adapter
+                .libraryItems(session, shows, 0, BIG_PAGE)
+                .getOrNull()
+                ?.items
+                .orEmpty()
+        assertEquals(seeded.episodeIds.toSet(), episodes.map { it.id.value }.toSet())
+        for (episode in episodes) {
+            assertEquals(ItemId(seeded.seriesId), episode.seriesId, "series of ${episode.id.value}")
+            val loose = episode.id.value == seeded.looseEpisodeId
+            if (!loose) assertNotNull(episode.seasonId, "an episode in a season folder names its season")
+            val raw = rawItem(episode.id.value)["OfficialRating"]?.jsonPrimitive?.content
+            val where = if (loose) "in the series folder" else "in a season folder"
+            finding("episode $where: SeasonId=${episode.seasonId}, adapter rating=${episode.officialRating}, sent=$raw")
+            // The adapter passes the server's value through; a season-folder episode carries the series' rating.
+            assertEquals(raw, episode.officialRating, "the adapter does not change an episode's rating")
+            val expected = if (loose) null else series.officialRating
+            assertEquals(expected, episode.officialRating, "rating of an episode $where")
+        }
+    }
+
+    // OQ2: an edit to the series' genres is returned by MinDateLastSaved; the item walk never returns a series.
+    private suspend fun assertSeriesEditIsChangedSince(
+        adapter: JellyfinMediaServer,
+        session: Session,
+        shows: Library,
+    ) {
+        val seriesId = server.seeded.seriesId
+        val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+        val adminId =
+            server.http
+                .get("Users/Me", admin)
+                .obj()
+                .getValue("Id")
+                .jsonPrimitive.content
+        delay(SETTLE_MS)
+        val mark = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+        delay(SETTLE_MS)
+        val before = adapter.librarySeries(session, shows, 0, BIG_PAGE, mark).getOrNull()
+        assertEquals(emptyList(), before?.series, "nothing was saved since the mark")
+        val dto = server.http.get("Users/$adminId/Items/$seriesId", admin).obj()
+        val edited = JsonObject(dto + ("Genres" to JsonArray(listOf(JsonPrimitive("Contract Edited")))))
+        server.http.expectOk("edit series genres", server.http.post("Items/$seriesId", edited.toString(), admin))
+        delay(SETTLE_MS * EDIT_SETTLE)
+
+        val changed = adapter.librarySeries(session, shows, 0, BIG_PAGE, mark).getOrNull()
+        assertEquals(listOf("Contract Edited"), changed?.series?.single()?.genres)
+        val itemsSince =
+            adapter
+                .libraryItems(session, shows, 0, BIG_PAGE, mark)
+                .getOrNull()
+                ?.items
+                .orEmpty()
+        assertTrue(itemsSince.none { it.kind == ItemKind.Series }, "the item walk never returns a series")
     }
 
     @Test
@@ -618,26 +651,20 @@ abstract class ContractSuite {
             val seeded = server.seeded
             assertTrue(seeded.boxSetMembers.size >= 2, "the server seeds a BoxSet with at least two movies")
 
-            // The hazard, for the record: a server asked to collapse BoxSets hides their movies behind the BoxSet.
-            val collapsing =
+            // The hazard is real on this server: with the server-wide grouping setting on (seeded), a request that
+            // doesn't say otherwise, or says true, hides BoxSet movies behind the BoxSet.
+            val base =
                 listOf(
                     "parentId" to seeded.moviesLibrary,
                     "recursive" to "true",
                     "includeItemTypes" to "Movie,Episode,Video,MusicVideo",
-                    "collapseBoxSetItems" to "true",
                 )
-            val raw = server.http.expectOk("collapsing walk", server.http.get("Items", harnessToken(), collapsing))
-            val hidden =
-                raw
-                    .obj()
-                    .getValue("Items")
-                    .jsonArray
-                    .map {
-                        it.jsonObject
-                            .getValue("Id")
-                            .jsonPrimitive.content
-                    }
-            finding("collapseBoxSetItems=true lists $hidden; the BoxSet's movies are ${seeded.boxSetMembers}")
+            val unflagged = listedIds(base)
+            val collapsing = listedIds(base + ("collapseBoxSetItems" to "true"))
+            finding("without the flag: $unflagged; with true: $collapsing")
+            finding("the BoxSet's movies: ${seeded.boxSetMembers}")
+            assertTrue(seeded.boxSetMembers.any { it !in unflagged }, "an unflagged walk hides a BoxSet movie")
+            assertTrue(seeded.boxSetMembers.any { it !in collapsing }, "collapseBoxSetItems=true hides a BoxSet movie")
 
             // The adapter sends collapseBoxSetItems=false, so the walk and the ID listing both list every movie.
             val walked = adapter.libraryItems(session, movies, 0, BIG_PAGE).getOrNull()
@@ -651,6 +678,19 @@ abstract class ContractSuite {
             assertEquals(seeded.movieIds.size, walked.totalCount)
         }
     }
+
+    /** The IDs the server lists for a raw `Items` request made with the harness's device. */
+    private fun listedIds(query: List<Pair<String, String>>): Set<String> =
+        server.http
+            .expectOk("raw walk", server.http.get("Items", harnessToken(), query))
+            .obj()
+            .getValue("Items")
+            .jsonArray
+            .map {
+                it.jsonObject
+                    .getValue("Id")
+                    .jsonPrimitive.content
+            }.toSet()
 
     private fun finding(text: String) = println("FINDING: $text")
 
