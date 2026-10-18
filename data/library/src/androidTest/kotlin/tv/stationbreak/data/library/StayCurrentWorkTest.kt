@@ -243,12 +243,32 @@ class StayCurrentWorkTest {
 
     // Spec 09 task 3.7: the purge, on the real Room (API 25), after a reconcile that completed and only then.
 
-    // An item the server does not have, deleted 31 days ago, so a purge at the real clock takes it.
+    // An item the server does not have, first seen 40 days ago and deleted 31 days ago, so a purge at the real clock
+    // takes it (the purge needs both the tombstone and the row to be older than the retention).
     private suspend fun anOldTombstone() {
-        val extra = MediaItem(ItemId("extra"), "Extra", ItemKind.Movie, 90.minutes, movies.id, dateCreated = created)
-        repository.upsertItems(account, movies.id, listOf(extra))
-        val deletedAt = (Clock.System.now() - 31.days).toEpochMilliseconds()
-        repository.dao.tombstoneAll(account.server.value, account.user.value, listOf("extra"), deletedAt)
+        val now = Clock.System.now()
+        val row =
+            ItemEntity(
+                serverId = account.server.value,
+                userId = account.user.value,
+                itemId = "extra",
+                libraryId = movies.id.value,
+                kind = ItemKind.Movie.name,
+                name = "Extra",
+                parentId = null,
+                seriesId = null,
+                seasonNumber = null,
+                episodeNumber = null,
+                runtimeMs = 90.minutes.inWholeMilliseconds,
+                createdAtMs = created.toEpochMilliseconds(),
+                premiereDate = null,
+                productionYear = null,
+                officialRating = null,
+                deletedAtMs = (now - 31.days).toEpochMilliseconds(),
+                seenFromMs = (now - 40.days).toEpochMilliseconds(),
+                firstSeenMs = (now - 40.days).toEpochMilliseconds(),
+            )
+        repository.dao.insertItems(listOf(row))
     }
 
     private suspend fun extraIsStored() = repository.stored(account).any { it.item.id.value == "extra" }
