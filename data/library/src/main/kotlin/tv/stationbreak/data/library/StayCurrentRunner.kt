@@ -67,7 +67,11 @@ class StayCurrentRunner(
     internal var lastPurge: PurgeOutcome? = null
         private set
 
-    /** Red stub: how the last collection pass of this process ended. */
+    /**
+     * How the last collection pass of this process ended, or null if none has run: the record of a failure. Like a
+     * failed purge, a failed collection pass never fails the run (the next run is the retry), and it is not written to
+     * the account's sync state.
+     */
     internal var lastCollectionPass: CollectionResult? = null
         private set
 
@@ -135,10 +139,34 @@ class StayCurrentRunner(
             val incremental = engine.incremental(session, account, chosen).outcome
             if (incremental != SyncOutcome.Completed) return incremental
         }
-        if (!plan.reconcile) return SyncOutcome.Completed
+        if (!plan.reconcile) {
+            collections(engine, session, account)
+            return SyncOutcome.Completed
+        }
         val reconciled = engine.reconcile(session, account, chosen).outcome
-        if (reconciled == SyncOutcome.Completed) purgeHistory(account, reference)
+        if (reconciled == SyncOutcome.Completed) {
+            collections(engine, session, account)
+            purgeHistory(account, reference)
+        }
         return reconciled
+    }
+
+    // The collection pass follows the item passes. Its failure is kept for the record and never fails the run;
+    // cancellation and a sign-out pass through, the same as for the passes.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun collections(
+        engine: StayCurrentEngine,
+        session: Session,
+        account: LibraryAccount,
+    ) {
+        lastCollectionPass =
+            try {
+                engine.collections(session, account)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                CollectionResult(SyncOutcome.Failed(SyncFailure.Server), CollectionSummary())
+            }
     }
 
     // Housekeeping after a pass that completed: a failure is kept and never fails the run. Cancellation and a sign-out

@@ -144,11 +144,15 @@ class CollectionCursorTest {
         }
 
     @Test
-    fun aClockSetBackAsksFromNowLessTheMarginAndRecordsNow() =
+    fun aClockSetBackBehindTheCursorAsksFromNowLessTheMarginAndRecordsNow() =
         runBlocking {
             firstPass()
-            rig.clock.rewindMs(2 * 60 * 60_000)
+            rig.clock.stepMs(60 * 60_000)
+            rig.run()
+            // The cursor is now an hour ahead of the clock, but the last re-list is not (that would re-list).
+            rig.clock.rewindMs(50 * 60_000)
             val now = rig.clock.nowMs
+            rig.server.collectionCalls.clear()
 
             rig.run()
 

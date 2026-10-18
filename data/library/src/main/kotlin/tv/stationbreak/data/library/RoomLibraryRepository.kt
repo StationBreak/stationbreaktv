@@ -73,6 +73,7 @@ class RoomLibraryRepository internal constructor(
     private val clock: Clock,
     private val sync: SyncControl = SyncControl.None,
     private val retention: HistoryRetention = HistoryRetention(),
+    internal val collectionRelist: CollectionRelist = CollectionRelist(),
 ) : LibraryRepository {
     internal val dao = db.dao()
     internal val history = db.itemHistoryDao()
@@ -720,11 +721,12 @@ class RoomLibraryRepository internal constructor(
             context: Context,
             clock: Clock = Clock.System,
             retention: HistoryRetention = HistoryRetention(),
+            collectionRelist: CollectionRelist = CollectionRelist(),
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
             // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
             val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
-            return RoomLibraryRepository(builder.build(), clock, sync, retention)
+            return RoomLibraryRepository(builder.build(), clock, sync, retention, collectionRelist)
         }
 
         /** For tests: a database from a builder the test configured (a JVM driver, a file or memory). */

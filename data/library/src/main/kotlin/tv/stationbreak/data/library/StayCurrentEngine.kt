@@ -195,6 +195,23 @@ internal class StayCurrentEngine(
             StayResult(SyncOutcome.Cancelled, ReconcileSummary())
         }
 
+    /**
+     * Brings the saved collections in line with the server's (spec 10, Unit 2): see [CollectionPass]. It runs after the
+     * item passes. A failure is returned and recorded nowhere in the account's sync state, so it never shows as a failed
+     * library; an account that stops being the signed-in one ends it as [SyncOutcome.Cancelled].
+     */
+    suspend fun collections(
+        session: Session,
+        account: LibraryAccount,
+    ): CollectionResult =
+        try {
+            collectionPass().run(session, account)
+        } catch (_: AccountNotActiveException) {
+            CollectionResult(SyncOutcome.Cancelled, CollectionSummary())
+        }
+
+    private fun collectionPass() = CollectionPass(repository, server, clock, pageSize, margin, repository.collectionRelist.interval)
+
     @Suppress("ReturnCount", "TooManyFunctions") // Early returns carry a failure out of the loops.
     private inner class Pass(
         private val session: Session,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -52,6 +53,10 @@ internal class FirstSyncEngine(
     private val margin: Duration = DEFAULT_MARGIN,
     private val maxSkippedItems: Int = MAX_SKIPPED_ITEMS,
 ) {
+    /** How the collection pass at the end of the last run ended, or null if it did not get that far. */
+    internal var lastCollectionPass: CollectionResult? = null
+        private set
+
     init {
         require(pageSize in 1..MediaServer.MAX_PAGE_SIZE) { "pageSize must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
     }
@@ -120,7 +125,26 @@ internal class FirstSyncEngine(
             (pending - libraries.map { it.id }.toSet()).forEach { repository.markFetched(account, it) }
             // Recorded as when the walk began, never when it ended: changes made during it are fetched next time.
             repository.finishSync(account, earliestWalk)
+            collections()
             return SyncOutcome.Completed
+        }
+
+        // The collections follow the library (spec 10, Unit 2). They are not part of "the first sync finished": a failed
+        // pass is kept in [lastCollectionPass], leaves collectionsSynced false, and the periodic job retries it (no
+        // re-list has completed, so its pass is a full one). Cancellation and a sign-out pass through.
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun collections() {
+            lastCollectionPass =
+                try {
+                    CollectionPass(repository, server, clock, pageSize, margin, repository.collectionRelist.interval)
+                        .run(session, account)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (signedOut: AccountNotActiveException) {
+                    throw signedOut
+                } catch (_: Exception) {
+                    CollectionResult(SyncOutcome.Failed(SyncFailure.Server), CollectionSummary())
+                }
         }
 
         private suspend fun sync(

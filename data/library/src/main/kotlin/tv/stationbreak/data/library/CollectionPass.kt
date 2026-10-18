@@ -101,7 +101,7 @@ internal class CollectionPass(
         private suspend fun pass(): SyncOutcome {
             val started = clock.now()
             val state = repository.collectionSync(account)
-            val relist = state?.lastRelistMs == null
+            val relist = needsRelist(state?.lastRelistMs, started)
             // A cursor ahead of now means the clock went back: count from the older of the two.
             val since =
                 if (relist) {
@@ -154,6 +154,17 @@ internal class CollectionPass(
             // Only now: a pass that stopped anywhere above leaves the cursor, and the re-list, as they were.
             repository.recordCollectionPass(account, started, relisted = relist)
             return SyncOutcome.Completed
+        }
+
+        // A full re-list runs when none has completed, when the last one is ahead of now (the clock went back), or when
+        // it is at least the interval old (Vimes M2, M5).
+        private fun needsRelist(
+            lastRelistMs: Long?,
+            now: Instant,
+        ): Boolean {
+            if (lastRelistMs == null) return true
+            val last = Instant.fromEpochMilliseconds(lastRelistMs)
+            return last > now || now - last >= relistInterval
         }
 
         // What a second read of the ID listing still lacks: a shift that leaves the size right looks sound once.
