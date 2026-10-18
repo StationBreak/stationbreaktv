@@ -326,8 +326,11 @@ class HistoryPurgeTest {
         runBlocking {
             fourItems()
             repository.tombstone(ALICE, listOf(id(1)))
-            oneEditedSeries() // series 1: one version, superseded at start + 1000
-            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(2)), series(hexId(3), "G")))
+            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            val three = listOf(series(hexId(1), "TV-14"), series(hexId(2)), series(hexId(3), "G"))
+            repository.upsertSeries(ALICE, SHOWS, three)
+            clock.stepMs(1_000)
+            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA"))) // one version, superseded at +1000
             repository.tombstoneSeries(ALICE, listOf(sid(1))) // its old version goes with the tombstone
             clock.stepMs(thirtyDays + 2_000)
 

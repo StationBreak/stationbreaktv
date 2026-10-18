@@ -206,10 +206,11 @@ internal abstract class CacheTransactionDao(
 
     /**
      * Purges the account's history older than [retentionMs] at [nowMs], in one transaction after the account is
-     * checked: the versions superseded, and the tombstones set, more than that long ago. The current version of a live
-     * item is never touched, and a purged tombstone takes its genres, tags and versions with it (the foreign keys). The
-     * versions go first, so the count is of the ones superseded long ago and not of the ones a tombstone takes with it.
-     * Both deletes are plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
+     * checked: the versions superseded, and the tombstones set, more than that long ago, for items and for series. The
+     * current version of a live item or series is never touched, and a purged tombstone takes its genres, tags and
+     * versions with it (the foreign keys). The versions go first, so the count is of the ones superseded long ago and
+     * not of the ones a tombstone takes with it. A tombstone also needs `seenFromMs < cutoff` (Vimes L-1 on #268).
+     * Every delete is plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
      *
      * A clock that looks wrong purges nothing (Vimes L2): [nowMs] before [referenceMs], or more than the retention
      * minus the 72 h safe look-back after it, would make the age of every row meaningless. [referenceMs] is the last
@@ -228,9 +229,13 @@ internal abstract class CacheTransactionDao(
         val skip = clockLooksWrong(referenceMs, nowMs, retentionMs)
         if (skip != null) return PurgeOutcome.Skipped(skip)
         val cutoffMs = nowMs - retentionMs
+        // Versions go before tombstones in each table, so the counts are of the versions superseded long ago and not of
+        // the ones a tombstone takes with it. The current row of a live item or series is never touched.
         val versions = history.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val seriesVersions = series.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
         val tombstones = library.deleteTombstonesBefore(serverId, userId, cutoffMs)
-        return PurgeOutcome.Purged(tombstones = tombstones, versions = versions)
+        val seriesTombstones = series.deleteTombstonesBefore(serverId, userId, cutoffMs)
+        return PurgeOutcome.Purged(tombstones, versions, seriesTombstones, seriesVersions)
     }
 
     private fun clockLooksWrong(
