@@ -334,6 +334,24 @@ internal abstract class CacheTransactionDao(
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) collections.tombstone(serverId, userId, chunk, atMs)
     }
 
+    /**
+     * Records that a collection pass that began at [startedMs] completed (Vimes H4, M2): the cursor moves to its start,
+     * and when it was a full re-list so does `lastRelistMs`. Called only after the whole pass succeeded. It reads and
+     * writes the `collection_sync` row only, never `account_state`.
+     */
+    @Transaction
+    open suspend fun recordCollectionPass(
+        serverId: String,
+        userId: String,
+        startedMs: Long,
+        relisted: Boolean,
+    ) {
+        library.requireActive(serverId, userId)
+        val before = collections.syncRow(serverId, userId)
+        val relistMs = if (relisted) startedMs else before?.lastRelistMs
+        collections.saveSyncRow(CollectionSyncEntity(serverId, userId, startedMs, relistMs))
+    }
+
     /** The collections the account held before [cutoffMs], with their members: [CollectionDao.heldAsOf]. */
     @Transaction
     open suspend fun heldCollections(

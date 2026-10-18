@@ -614,6 +614,46 @@ class RoomLibraryRepository internal constructor(
         return transactions.heldCollections(server, user, cutoff.toEpochMilliseconds())
     }
 
+    /** The IDs of the account's live collections, in order: what the collection pass compares the server's list with. */
+    internal suspend fun liveCollectionIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return collectionDao.liveIds(server, user).map(::ItemId)
+    }
+
+    /** The IDs of the account's tombstoned collections: deleted on the server, not yet purged. */
+    internal suspend fun tombstonedCollectionIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return collectionDao.tombstonedIds(server, user).map(::ItemId)
+    }
+
+    /** How many members of [collection] are current. */
+    internal suspend fun currentMemberCount(
+        account: LibraryAccount,
+        collection: ItemId,
+    ): Int {
+        val (server, user) = account.keys()
+        return collectionDao.currentMemberCount(server, user, collection.value)
+    }
+
+    /** Where the account's collection pass stands, or null if none has completed. */
+    internal suspend fun collectionSync(account: LibraryAccount): CollectionSyncEntity? {
+        val (server, user) = account.keys()
+        return collectionDao.syncRow(server, user)
+    }
+
+    /** True once a full collection pass (a re-list) has succeeded for the account since the cache was built. */
+    internal suspend fun collectionsSynced(account: LibraryAccount): Boolean = collectionSync(account)?.lastRelistMs != null
+
+    /** Records a collection pass that began at [started] and completed; see [CacheTransactionDao.recordCollectionPass]. */
+    internal suspend fun recordCollectionPass(
+        account: LibraryAccount,
+        started: Instant,
+        relisted: Boolean,
+    ) {
+        val (server, user) = account.keys()
+        transactions.recordCollectionPass(server, user, started.toEpochMilliseconds(), relisted)
+    }
+
     /** The account's collection rows as they are on disk (the current lifecycle), by collection ID. */
     internal suspend fun collections(account: LibraryAccount): List<CollectionEntity> {
         val (server, user) = account.keys()

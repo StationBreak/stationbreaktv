@@ -3,6 +3,7 @@ package tv.stationbreak.data.library
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -350,6 +351,47 @@ internal abstract class CollectionDao {
             CollectionPlan(null, row, ended, began, removed, stamp, revived)
         }
     }
+
+    // The IDs the collection pass compares the server's list with.
+
+    @Query(
+        "SELECT collectionId FROM collection WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NULL ORDER BY collectionId",
+    )
+    abstract suspend fun liveIds(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    @Query(
+        "SELECT collectionId FROM collection WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NOT NULL ORDER BY collectionId",
+    )
+    abstract suspend fun tombstonedIds(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    @Query(
+        "SELECT COUNT(*) FROM collection_member WHERE serverId = :serverId AND userId = :userId " +
+            "AND collectionId = :collectionId AND supersededAtMs IS NULL",
+    )
+    abstract suspend fun currentMemberCount(
+        serverId: String,
+        userId: String,
+        collectionId: String,
+    ): Int
+
+    // The collection pass's own row (Vimes H4, M2): a row of its own, never a column of account_state.
+
+    @Query("SELECT * FROM collection_sync WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun syncRow(
+        serverId: String,
+        userId: String,
+    ): CollectionSyncEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun saveSyncRow(row: CollectionSyncEntity)
 
     // Reads, for the tests and diagnostics.
     // Reads, for the tests and diagnostics.
