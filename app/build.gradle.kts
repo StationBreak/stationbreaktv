@@ -22,22 +22,12 @@ android {
         testInstrumentationRunner = "tv.stationbreak.app.HiltTestRunner"
     }
 
-    signingConfigs {
-        // Public, throwaway and debug-only (ADR-0011): committed so every CI debug build installs over the last.
-        // It must never sign a release.
-        getByName("debug") {
-            storeFile = rootProject.file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
+    // Debug builds use Android's per-machine debug key. CI re-signs its debug APK with the CI debug key in a separate
+    // step, outside Gradle, so no build code ever sees that key (ADR-0011, amended 2026-10-18).
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
-            signingConfig = signingConfigs.getByName("debug")
         }
         release {
             // No signing config: release signing comes only from protected secrets (S4.1.1).

@@ -11,10 +11,9 @@ captures/
 .idea/
 *.iml
 
-# Signing material and build outputs: never commit these. debug.keystore is public and throwaway (ADR-0011).
+# Signing material and build outputs: never commit these. The CI debug key lives in secrets (ADR-0011, amended).
 *.jks
 *.keystore
-!/debug.keystore
 *.p12
 keystore.properties
 *.apk
