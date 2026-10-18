@@ -7,6 +7,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.SeriesInfo
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 
@@ -55,3 +56,37 @@ internal fun sitem(
     parentId = library,
     dateCreated = EPOCH - 1.days,
 )
+
+/** A series as the server describes it, with a rating and lists given or empty. */
+internal fun series(
+    id: String,
+    rating: String? = null,
+    genres: List<String> = emptyList(),
+    tags: List<String> = emptyList(),
+    name: String = "Series $id",
+) = SeriesInfo(ItemId(id), name, rating, genres, tags)
+
+/** As [put], for series. */
+internal suspend fun RoomLibraryRepository.putSeries(
+    account: LibraryAccount,
+    library: ItemId,
+    vararg series: SeriesInfo,
+): PageWrite = upsertSeries(account, library, series.toList())
+
+/** [assertIntervalsContiguous] for the series of [account] and their versions (spec 10, Vimes H1). */
+internal suspend fun RoomLibraryRepository.assertSeriesIntervalsContiguous(account: LibraryAccount) {
+    val versions = seriesVersions(account).groupBy { it.seriesId }
+    currentSeries(account).forEach { current ->
+        val id = current.seriesId
+        val own = versions[id].orEmpty().sortedBy { it.seenFromMs }
+        if (own.isEmpty()) {
+            assertEquals("$id: no versions, so it starts when first seen", current.firstSeenMs, current.seenFromMs)
+        } else {
+            assertEquals("$id: the first version starts at firstSeenMs", current.firstSeenMs, own.first().seenFromMs)
+            own.forEach { assertTrue("$id: an empty interval $it", it.seenFromMs < it.supersededAtMs) }
+            own.zipWithNext { a, b -> assertEquals("$id: a gap or an overlap", a.supersededAtMs, b.seenFromMs) }
+            assertEquals("$id: the current row starts at the last cut", own.last().supersededAtMs, current.seenFromMs)
+        }
+        assertTrue("$id: firstSeenMs is not after seenFromMs", current.firstSeenMs <= current.seenFromMs)
+    }
+}
