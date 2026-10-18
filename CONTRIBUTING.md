@@ -219,18 +219,22 @@ A new entry for a dependency nobody added, or any change to an unchanged version
 
 ## Debug signing key
 
-`debug.keystore` at the root of the repository is **public, throwaway and for debug builds only**
-([ADR-0011](docs/adr/0011-debug-build-signing.md)). It's committed so every CI debug build is signed with the same
-key and installs over the previous one. It never signs a release build, and it must not be used for anything
-else. Its password is `android`.
+CI signs debug builds with the **CI debug key**, which is kept in the repository's Actions secrets
+(`DEBUG_KEYSTORE_B64`, `DEBUG_KEYSTORE_PASSWORD`), never in the repository
+([ADR-0011](docs/adr/0011-debug-build-signing.md), amended 2026-10-18). Every CI debug APK has the same signature, so
+each one installs over the previous one on a test device. The key never signs a release build.
 
-Its certificate's SHA-256 fingerprint is:
+A debug build on your machine, or in CI for a pull request from a fork, is signed with Android's own per-machine debug
+key instead. It works the same, but it can't install over a CI build: uninstall `tv.stationbreak.app.debug` first.
+
+The CI debug certificate's SHA-256 fingerprint is:
 
 ```text
-57:4B:E8:75:93:09:FF:2E:AE:16:57:9B:89:55:4D:84:E8:7B:2B:4E:96:D7:FF:82:D1:51:CC:59:19:BA:80:B1
+00:47:8A:2B:61:D1:ED:A5:77:93:77:13:57:0A:AB:17:9E:55:FD:C2:85:F8:4E:D2:28:3E:15:B7:E4:21:65:22
 ```
 
-Anyone can sign an APK with this key, so only install debug APKs built by this repository's CI.
+Until 2026-10-18 debug builds were signed with a public key committed as `debug.keystore` (fingerprint
+`57:4B:E8:75:…:BA:80:B1`). It is retired: anyone can still sign with it, so never install an APK signed with it.
 
 ## Code of conduct and security
 

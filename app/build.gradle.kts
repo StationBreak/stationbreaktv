@@ -22,14 +22,21 @@ android {
         testInstrumentationRunner = "tv.stationbreak.app.HiltTestRunner"
     }
 
-    signingConfigs {
-        // Public, throwaway and debug-only (ADR-0011): committed so every CI debug build installs over the last.
-        // It must never sign a release.
-        getByName("debug") {
-            storeFile = rootProject.file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+    // ADR-0011 (amended 2026-10-18): CI signs debug builds with the CI debug key, which lives in secrets and is
+    // handed over in these two variables, so each CI debug build installs over the last. Without them (a laptop, a
+    // fork PR), the debug build is signed with Android's per-machine debug key and can't update a CI install.
+    // The CI debug key must never sign a release.
+    val ciDebugKeystore = providers.environmentVariable("STATIONBREAK_DEBUG_KEYSTORE").orNull?.takeIf { it.isNotBlank() }
+    if (ciDebugKeystore != null) {
+        signingConfigs {
+            create("ciDebug") {
+                val password = providers.environmentVariable("STATIONBREAK_DEBUG_KEYSTORE_PASSWORD").get()
+                storeFile = file(ciDebugKeystore)
+                storeType = "PKCS12"
+                storePassword = password
+                keyAlias = "stationbreak-debug"
+                keyPassword = password
+            }
         }
     }
 
@@ -37,7 +44,9 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
-            signingConfig = signingConfigs.getByName("debug")
+            if (ciDebugKeystore != null) {
+                signingConfig = signingConfigs.getByName("ciDebug")
+            }
         }
         release {
             // No signing config: release signing comes only from protected secrets (S4.1.1).

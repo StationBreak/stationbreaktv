@@ -398,10 +398,50 @@ jobs:
       # lints and unit-tests the variant. Its dex merge was the slowest task in the old combined job.
       # The release variants are built only on main and for a PR that can change what they contain (see `checks`);
       # the github debug APK is built every time, for the device tests.
+      # ADR-0011 (amended 2026-10-18): the debug APK is signed with the CI debug key, held in secrets, so each one
+      # installs over the last on a test device. The key is decoded here and handed to the Assemble step only; its
+      # password goes to that step's env, never to $GITHUB_ENV, so no other step or action sees it. A fork PR gets no
+      # secrets: it builds with the runner's own debug key and uploads no APK. A push to main without the key fails.
+      - name: Decode the CI debug key
+        id: debugkey
+        env:
+          KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            if [ "$EVENT_NAME" = push ]; then
+              echo "::error::the CI debug key secrets are missing (ADR-0011)"
+              exit 1
+            fi
+            echo "No CI debug key (a fork PR): the debug APK gets the runner's own key and is not uploaded."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          store="$RUNNER_TEMP/stationbreak-debug.p12"
+          (umask 077 && base64 -d <<<"$KEYSTORE_B64" > "$store")
+          # The certificate's SHA-256, lower-case hex without colons as apksigner prints it. It is public.
+          sha256="$(keytool -list -v -keystore "$store" -storetype PKCS12 -storepass:env KEYSTORE_PASSWORD \
+            | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [ -z "$sha256" ]; then
+            echo "::error::could not read the CI debug key's certificate"
+            exit 1
+          fi
+          {
+            echo "signed=true"
+            echo "store=$store"
+            echo "sha256=$sha256"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Assemble
         env:
           RELEASE: ${{ needs.checks.outputs.release }}
+          # Both empty for a fork PR: Gradle then uses the runner's own debug key (app/build.gradle.kts).
+          STATIONBREAK_DEBUG_KEYSTORE: ${{ steps.debugkey.outputs.store }}
+          STATIONBREAK_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
         run: |
+          # The key file goes when this step ends, whatever the outcome.
+          trap 'rm -f "$STATIONBREAK_DEBUG_KEYSTORE"' EXIT
           tasks=(assembleGithubDebug)
           # Only an explicit false narrows it; an empty output runs everything.
           if [ "$RELEASE" != false ]; then
@@ -455,6 +495,8 @@ jobs:
           # AGP 9.4's default build-tools version.
           BUILD_TOOLS_VERSION: 36.0.0
           DEBUG_APK: ${{ steps.apk.outputs.path }}
+          DEBUG_SIGNED: ${{ steps.debugkey.outputs.signed }}
+          DEBUG_CERT_SHA256: ${{ steps.debugkey.outputs.sha256 }}
           # One release APK per flavor (amazon, github). Update when a flavor is added (play, F4.3). None when the
           # release variants weren't built (see `checks`).
           # Strings, not numbers: in an expression the number 0 is falsy, so `&& 0 || 2` would always give 2.
@@ -462,8 +504,18 @@ jobs:
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
           echo "::group::apksigner verify --print-certs (github debug)"
-          "$BUILD_TOOLS/apksigner" verify --print-certs "$DEBUG_APK"
+          certs="$("$BUILD_TOOLS/apksigner" verify --print-certs "$DEBUG_APK")"
+          echo "$certs"
           echo "::endgroup::"
+          # ADR-0011 (amended): a debug APK that will be uploaded carries the CI debug key, and only that key.
+          if [ "$DEBUG_SIGNED" = true ]; then
+            signers="$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' <<<"$certs" | sort -u)"
+            if [ "$signers" != "$DEBUG_CERT_SHA256" ]; then
+              echo "::error::the debug APK is not signed with the CI debug key alone (ADR-0011)"
+              exit 1
+            fi
+            echo "debug APK signed with the CI debug key"
+          fi
           BADGING_FIELDS='^(package|minSdkVersion|sdkVersion|targetSdkVersion|application-debuggable)'
           # Each dump is assigned first, so a missing APK or an aapt2 error fails the step (bash -e) instead of
           # being hidden by a pipe.
@@ -492,7 +544,7 @@ jobs:
 
       # Same-repo PRs only: fork PRs build and test but never get an APK (ADR-0011).
       - name: Upload PR debug APK
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.debugkey.outputs.signed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: ${{ steps.apk.outputs.path }}
@@ -501,7 +553,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload main debug APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.debugkey.outputs.signed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: ${{ steps.apk.outputs.path }}

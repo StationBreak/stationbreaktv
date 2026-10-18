@@ -1,6 +1,6 @@
 # ADR-0011: Debug build signing and test APKs
 
-- **Status:** Accepted
+- **Status:** Accepted; amended 2026-10-18 (see Amendment: the debug key moves to CI secrets)
 - **Date:** 2026-10-11
 - **Decided by:** Phil Critchfield, with a security ruling from Angua (Security)
 - **Resolves:** Q-8 from the Phase 0 decision packet
@@ -56,3 +56,33 @@ acceptance criteria are checked during PR review.
   limits what a debug token can do.
 - **Standing rule:** if anyone else gets push access to the repository (a collaborator, app or bot), item 5 is
   reviewed again, because it relies on only the owner being able to push branches.
+
+## Amendment, 2026-10-18: the debug key moves to CI secrets
+
+- **Decided by:** Phil Critchfield, on a security ruling from Angua (Security) in the pre-public review.
+
+**Why.** The Consequences above accepted a public debug key on the condition in item 7: debug builds sign in with a
+low-privilege Jellyfin user. On the owner's TVs, debug builds are signed in with an administrator account, the one
+the owner streams with. A public key would let anyone build an APK that installs over that build and inherits an
+administrator token, so Angua rated the risk HIGH before the repository goes public.
+
+**What changes.**
+1. `debug.keystore` is removed from the repository. A new debug key, the **CI debug key**, was generated off the
+   repository and is held in the Actions secrets `DEBUG_KEYSTORE_B64` and `DEBUG_KEYSTORE_PASSWORD`. Item 1 now reads:
+   debug builds from CI are signed with the CI debug key.
+2. The `assemble` job decodes the key into the runner's temporary directory and passes it to the Gradle step only,
+   through two environment variables (`STATIONBREAK_DEBUG_KEYSTORE`, `STATIONBREAK_DEBUG_KEYSTORE_PASSWORD`). No other
+   step, and no third-party action, sees the password. The file is deleted when the Gradle step ends.
+3. The "Inspect APKs" step checks that the debug APK's certificate is the CI debug key's. An APK is uploaded only when
+   it was signed with the CI debug key.
+4. A push to `main` without the secrets fails. A pull request from a fork gets no secrets (`pull_request`, never
+   `pull_request_target`), builds with Android's per-machine debug key, and uploads no APK, as before (item 5).
+5. Local builds and the `emulator` job use Android's per-machine debug key. They can't update a CI install.
+
+**The retired key** stays in the history and stays allowlisted in `.gitleaks.toml` by its exact path. Once a TV runs
+a build signed with the CI debug key, Android refuses an update signed with the retired key. The one-time cost is an
+uninstall and a fresh set-up on each TV. Only CI APKs signed with the CI debug key are installed from then on.
+
+**What stays.** Items 2 to 7 stand. Item 7 (a low-privilege Jellyfin user for debug builds) is still the right
+practice; this amendment removes the dependency on it, not the advice. The CI debug key is single-purpose (item 4) and
+is never used for a release. If it leaks, it is replaced the same way: a new key, new secrets, and one uninstall per TV.

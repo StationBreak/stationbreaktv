@@ -5,8 +5,9 @@ title = "StationBreak gitleaks config"
 [extend]
 useDefault = true
 
-# debug.keystore is the public, throwaway debug signing key (ADR-0011), committed on purpose. Allowlisted by its
-# exact, anchored path only; nothing else is exempt.
+# debug.keystore was the public, throwaway debug signing key (ADR-0011), committed on purpose until 2026-10-18. It is
+# retired and removed, but stays in the history, so the path stays allowlisted. Exact, anchored path only; nothing
+# else is exempt. Don't add a key at this path again: debug builds are signed from a CI secret (ADR-0011, amended).
 [[allowlists]]
-description = "Public debug signing key (ADR-0011)"
+description = "Retired public debug signing key, still in history (ADR-0011)"
 paths = ['''^debug\.keystore$''']
