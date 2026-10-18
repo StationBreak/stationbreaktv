@@ -50,6 +50,7 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
@@ -238,5 +239,65 @@ class StayCurrentWorkTest {
             assertTrue(job.isCancelled)
             assertEquals(before, repository.activeStatus().first())
             assertFalse(runner.isRunning)
+        }
+
+    // Spec 09 task 3.7: the purge, on the real Room (API 25), after a reconcile that completed and only then.
+
+    // An item the server does not have, first seen 40 days ago and deleted 31 days ago, so a purge at the real clock
+    // takes it (the purge needs both the tombstone and the row to be older than the retention).
+    private suspend fun anOldTombstone() {
+        val now = Clock.System.now()
+        val row =
+            ItemEntity(
+                serverId = account.server.value,
+                userId = account.user.value,
+                itemId = "extra",
+                libraryId = movies.id.value,
+                kind = ItemKind.Movie.name,
+                name = "Extra",
+                parentId = null,
+                seriesId = null,
+                seasonNumber = null,
+                episodeNumber = null,
+                runtimeMs = 90.minutes.inWholeMilliseconds,
+                createdAtMs = created.toEpochMilliseconds(),
+                premiereDate = null,
+                productionYear = null,
+                officialRating = null,
+                deletedAtMs = (now - 31.days).toEpochMilliseconds(),
+                seenFromMs = (now - 40.days).toEpochMilliseconds(),
+                firstSeenMs = (now - 40.days).toEpochMilliseconds(),
+            )
+        repository.dao.insertItems(listOf(row))
+    }
+
+    private suspend fun extraIsStored() = repository.stored(account).any { it.item.id.value == "extra" }
+
+    @Test
+    fun thePeriodicRunPurgesAfterASuccessfulReconcile() =
+        runBlocking {
+            anOldTombstone()
+            assertTrue(extraIsStored())
+
+            val result = worker(incremental = true, reconcile = true).doWork()
+
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertFalse(extraIsStored())
+            assertEquals(PurgeOutcome.Purged(tombstones = 1, versions = 0), provider.stayCurrent().runner.lastPurge)
+        }
+
+    @Test
+    fun thePeriodicRunSkipsThePurgeWhenTheReconcileFails() =
+        runBlocking {
+            anOldTombstone()
+            server.respond = { call -> if (call.idsOnly) MediaServerError.Timeout() else null }
+
+            val result = worker(incremental = true, reconcile = true).doWork()
+
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertTrue(extraIsStored())
+            assertEquals(null, provider.stayCurrent().runner.lastPurge)
+            val status = repository.activeStatus().first()!!
+            assertEquals(SyncState.LastSyncFailed(SyncFailure.Network), status.state)
         }
 }

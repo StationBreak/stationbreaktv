@@ -13,6 +13,8 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.model.ItemId
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 
 /**
@@ -217,5 +219,158 @@ class StayCurrentRunnerTest {
             assertTrue(job.isCancelled)
             assertEquals(before, rig.repository.activeStatus().first())
             assertFalse(rig.runner.isRunning)
+        }
+
+    // Spec 09 task 3.7: the history purge runs after a reconcile that completed, and never fails the run.
+
+    // An item the server does not have, deleted at t0. A sync succeeded at t0 + 10 d and the run is at t0 + 31 d: the
+    // tombstone is more than 30 days old and the last success is under 27 days old, so the guard lets the purge run.
+    private suspend fun anOldTombstoneAndTheRunDay() {
+        rig.firstSyncDone()
+        rig.repository.upsertItems(ALICE, MOVIES, listOf(item("extra")))
+        rig.repository.tombstone(ALICE, listOf(ItemId("extra")))
+        rig.clock.instant += 10.days
+        rig.repository.finishSync(ALICE)
+        rig.clock.instant += 21.days
+    }
+
+    private suspend fun extraIsStored() = rig.repository.stored(ALICE).any { it.item.id.value == "extra" }
+
+    @Test
+    fun aCompletedReconcilePurgesTheHistory() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Success, verdict)
+            assertFalse(extraIsStored())
+            assertEquals(PurgeOutcome.Purged(tombstones = 1, versions = 0), rig.runner.lastPurge)
+        }
+
+    @Test
+    fun anIncrementalOnlyRunNeverPurges() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+
+            rig.runner.run(SyncPlan(incremental = true, reconcile = false))
+
+            assertTrue(extraIsStored())
+            assertEquals(null, rig.runner.lastPurge)
+        }
+
+    @Test
+    fun aReconcileThatFailedDoesNotPurge() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            server.respond = { call -> if (call.idsOnly) MediaServerError.Timeout() else null }
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Failure, verdict)
+            assertTrue(extraIsStored())
+            assertEquals(null, rig.runner.lastPurge)
+        }
+
+    @Test
+    fun aFailedIncrementalPassDoesNotPurge() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            server.respond = { MediaServerError.Timeout() }
+
+            rig.runner.run(both)
+
+            assertTrue(extraIsStored())
+            assertEquals(null, rig.runner.lastPurge)
+        }
+
+    @Test
+    fun aPurgeThatThrowsIsRecordedAndTheRunStillSucceeds() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            val boom = IllegalStateException("the disk is full")
+            rig.runner.purge = { _, _ -> throw boom }
+            val recorded =
+                rig.repository
+                    .activeStatus()
+                    .first()
+                    ?.lastSuccess
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Success, verdict)
+            assertEquals(PurgeOutcome.Failed(boom), rig.runner.lastPurge)
+            val status = rig.repository.activeStatus().first()!!
+            assertEquals(SyncState.Idle, status.state)
+            assertTrue(status.lastSuccess!! > recorded!!)
+            assertFalse(rig.runner.isRunning)
+        }
+
+    @Test
+    fun aClockBehindTheLastSuccessSkipsThePurgeAndTheSkipIsRecorded() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            // A reconcile-only run does not move the recorded moment, so the clock set back is behind it.
+            rig.repository.finishSync(ALICE, rig.clock.now())
+            rig.clock.instant -= 1.hours
+
+            val verdict = rig.runner.run(SyncPlan(incremental = false, reconcile = true))
+
+            assertEquals(SyncVerdict.Success, verdict)
+            assertTrue(extraIsStored())
+            assertEquals(PurgeOutcome.Skipped(PurgeSkip.ClockBehindLastSync), rig.runner.lastPurge)
+        }
+
+    @Test
+    fun aSignOutDuringThePurgeEndsTheRunQuietlyWithNothingRecordedAsAFailure() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            rig.runner.purge = { _, _ -> throw AccountNotActiveException() }
+
+            val outcome = rig.runner.outcome(both)
+
+            assertEquals(SyncOutcome.Cancelled, outcome)
+            val status = rig.repository.activeStatus().first()!!
+            assertEquals(SyncState.Idle, status.state)
+        }
+
+    // Vimes M-1 on #268: the incremental pass overwrites the last success, so the guard is given the one from
+    // before the run.
+    @Test
+    fun aRunAMonthAfterTheLastSuccessSkipsThePurgeAndTheNextRunPurges() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.repository.upsertItems(ALICE, MOVIES, listOf(item("extra")))
+            rig.repository.tombstone(ALICE, listOf(ItemId("extra")))
+            rig.clock.instant += 31.days
+
+            rig.runner.run(both)
+
+            assertTrue(extraIsStored())
+            assertEquals(PurgeOutcome.Skipped(PurgeSkip.ClockFarAhead), rig.runner.lastPurge)
+
+            // The run recorded a fresh success, so the next one has a fresh reference.
+            rig.clock.instant += 1.hours
+            rig.runner.run(both)
+
+            assertFalse(extraIsStored())
+            assertEquals(PurgeOutcome.Purged(tombstones = 1, versions = 0), rig.runner.lastPurge)
+        }
+
+    @Test
+    fun thePurgeIsGivenTheSuccessRecordedBeforeTheRun() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            val before = rig.repository.lastSuccess(ALICE)
+            var given: kotlin.time.Instant? = null
+            rig.runner.purge = { _, reference ->
+                given = reference
+                PurgeOutcome.Purged(0, 0)
+            }
+
+            rig.runner.run(both)
+
+            assertEquals(before, given)
+            assertTrue(rig.repository.lastSuccess(ALICE)!! > before!!)
         }
 }

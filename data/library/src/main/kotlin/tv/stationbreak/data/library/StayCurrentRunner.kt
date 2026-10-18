@@ -14,6 +14,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Which of the two stay-current passes a run does: the incremental pass (items changed since the last one) and the ID
@@ -41,6 +42,10 @@ data class SyncPlan(
  * [FirstSyncRunner] does, so no token passes through WorkManager. It is quiet by construction: it only ever writes the
  * saved library, never shows anything, and never puts the account back into the first-sync state.
  *
+ * After a reconcile that completed it also purges the account's history older than the retention (spec 09, Unit 3).
+ * The purge is housekeeping: a purge that fails, or is skipped for a clock that looks wrong, is kept in [lastPurge] and
+ * never fails the run.
+ *
  * Only one run goes at a time in the process (a second one, from another trigger, does nothing), and a run leaves an
  * account whose first sync has not finished to the first sync. A failure is recorded in the saved library for Phase 1's
  * banner to read; none of it retries, because the next open or the next periodic run is the retry.
@@ -57,6 +62,14 @@ class StayCurrentRunner(
 
     // What a walk could not find, kept across runs in this process.
     private val unfindable = UnfindableIds()
+
+    /** How the last purge of this process ended, or null if none has run: the record of a skip or a failure. */
+    internal var lastPurge: PurgeOutcome? = null
+        private set
+
+    /** Test seam: the purge the run does after a completed reconcile. The repository's own in the app. */
+    internal var purge: suspend (LibraryAccount, Instant?) -> PurgeOutcome =
+        { account, reference -> repository.purgeHistory(account, reference) }
 
     /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
     val isRunning: Boolean get() = gate.isLocked
@@ -112,11 +125,35 @@ class StayCurrentRunner(
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
+        // The incremental pass records a new success; the purge's clock guard needs the one from before this run.
+        val reference = repository.lastSuccess(account)
         if (plan.incremental) {
             val incremental = engine.incremental(session, account, chosen).outcome
             if (incremental != SyncOutcome.Completed) return incremental
         }
-        return if (plan.reconcile) engine.reconcile(session, account, chosen).outcome else SyncOutcome.Completed
+        if (!plan.reconcile) return SyncOutcome.Completed
+        val reconciled = engine.reconcile(session, account, chosen).outcome
+        if (reconciled == SyncOutcome.Completed) purgeHistory(account, reference)
+        return reconciled
+    }
+
+    // Housekeeping after a pass that completed: a failure is kept and never fails the run. Cancellation and a sign-out
+    // pass through, the same as for the passes.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun purgeHistory(
+        account: LibraryAccount,
+        reference: Instant?,
+    ) {
+        lastPurge =
+            try {
+                purge(account, reference)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (signedOut: AccountNotActiveException) {
+                throw signedOut
+            } catch (failure: Exception) {
+                PurgeOutcome.Failed(failure)
+            }
     }
 
     // Anything unexpected is a server failure for the record, never a crash; cancellation and a sign-out pass through.

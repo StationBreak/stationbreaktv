@@ -21,6 +21,34 @@ private const val HELD_COLUMNS_OF_V =
         "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
         "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs"
 
+/** How a purge ended (spec 09, Unit 3). */
+internal sealed interface PurgeOutcome {
+    /** The purge ran: [tombstones] tombstoned items and [versions] superseded versions were deleted. */
+    data class Purged(
+        val tombstones: Int,
+        val versions: Int,
+    ) : PurgeOutcome
+
+    /** The purge threw [cause]. The runner catches it and keeps it here; a purge failure never fails a sync. */
+    data class Failed(
+        val cause: Exception,
+    ) : PurgeOutcome
+
+    /** The purge did not run, and nothing was deleted: the device clock looks wrong ([reason]). */
+    data class Skipped(
+        val reason: PurgeSkip,
+    ) : PurgeOutcome
+}
+
+/** Why a purge was skipped (Vimes L2). */
+internal enum class PurgeSkip {
+    /** `now` is before the last successful sync: the clock was set back. */
+    ClockBehindLastSync,
+
+    /** `now` is more than the retention minus 72 h after the last successful sync: the clock jumped forward. */
+    ClockFarAhead,
+}
+
 /** An item row with its genre and tag rows. */
 internal class ItemRows(
     val item: ItemEntity,
@@ -52,7 +80,7 @@ internal class AccountNotActiveException : IllegalStateException("The account is
  * SQLite on API 25 allows 999 variables in a statement, and the repository chunks.
  */
 @Dao
-@Suppress("TooManyFunctions") // The SQL surface of the cache: one method per statement or transaction.
+@Suppress("TooManyFunctions", "LargeClass") // The SQL surface of the cache: one method per statement or transaction.
 internal abstract class LibraryDao {
     // Libraries.
 
@@ -181,8 +209,69 @@ internal abstract class LibraryDao {
         atMs: Long,
     )
 
-    @Query("DELETE FROM item WHERE deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs")
-    abstract suspend fun purgeTombstonesBefore(cutoffMs: Long): Int
+    // The purge (spec 09, Unit 3). Plain DELETEs scoped to the account and driven by the two purge indexes; the
+    // foreign keys take the genres, tags and versions of a deleted item with it. A tombstone also needs
+    // seenFromMs < cutoff: after a clock set back, deletedAt can be older than the row itself, and the cascade would
+    // take versions superseded inside the retention (Vimes L-1 on #268).
+    @Query(
+        "DELETE FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs AND seenFromMs < :cutoffMs",
+    )
+    protected abstract suspend fun deleteTombstonesBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    @Query(
+        "DELETE FROM item_version WHERE serverId = :serverId AND userId = :userId AND supersededAtMs < :cutoffMs",
+    )
+    protected abstract suspend fun deleteVersionsSupersededBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    /**
+     * Purges the account's history older than [retentionMs] at [nowMs], in one transaction after [requireActive]: the
+     * versions superseded, and the tombstones set, more than that long ago. The current version of a live item is
+     * never touched, and a purged tombstone takes its genres, tags and versions with it (the foreign keys). The
+     * versions go first, so the count is of the ones superseded long ago and not of the ones a tombstone takes with it.
+     * Both deletes are plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
+     *
+     * A clock that looks wrong purges nothing (Vimes L2): [nowMs] before [referenceMs], or more than the retention
+     * minus the 72 h safe look-back after it, would make the age of every row meaningless. [referenceMs] is the last
+     * successful sync as the caller read it **before** its run recorded a new one (Vimes M-1 on #268), so this does not
+     * read the account state. With no reference there is nothing to compare with, and the purge runs.
+     */
+    @Transaction
+    open suspend fun purgeHistory(
+        serverId: String,
+        userId: String,
+        nowMs: Long,
+        retentionMs: Long,
+        referenceMs: Long?,
+    ): PurgeOutcome {
+        requireActive(serverId, userId)
+        val skip = clockLooksWrong(referenceMs, nowMs, retentionMs)
+        if (skip != null) return PurgeOutcome.Skipped(skip)
+        val cutoffMs = nowMs - retentionMs
+        val versions = deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val tombstones = deleteTombstonesBefore(serverId, userId, cutoffMs)
+        return PurgeOutcome.Purged(tombstones = tombstones, versions = versions)
+    }
+
+    private fun clockLooksWrong(
+        referenceMs: Long?,
+        nowMs: Long,
+        retentionMs: Long,
+    ): PurgeSkip? =
+        when {
+            referenceMs == null -> null
+            nowMs < referenceMs -> PurgeSkip.ClockBehindLastSync
+            nowMs - referenceMs > retentionMs - HistoryRetention.SAFE_LOOKBACK_MS -> PurgeSkip.ClockFarAhead
+            else -> null
+        }
 
     // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one
     // mapping serves both. They page by item-ID range (no IN lists), so a chunk is bounded by LIMIT, not by the 999
