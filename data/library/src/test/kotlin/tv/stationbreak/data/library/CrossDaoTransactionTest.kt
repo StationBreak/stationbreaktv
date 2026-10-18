@@ -71,4 +71,65 @@ class CrossDaoTransactionTest {
             assertEquals(2, repository.checkpoint(ALICE, MOVIES)?.nextStartIndex)
             repository.assertIntervalsContiguous(ALICE)
         }
+
+    // Task 1.5.2: the same rollback reaches the series rows, which are written after the item versions.
+
+    private val seriesFirst = listOf(series("s1", rating = "A", genres = listOf("x")))
+    private val seriesSecond = listOf(series("s1", rating = "B", genres = listOf("x")), series("s2"))
+
+    private suspend fun writeFirstWithSeries() {
+        repository.select(ALICE, setOf(MOVIES))
+        repository.writePage(ALICE, MOVIES, first, nextStartIndex = 1, totalCount = 2, run = 1, series = seriesFirst)
+        clock.stepMs(10_000)
+    }
+
+    private suspend fun writeSecondWithSeries() =
+        repository.writePage(ALICE, MOVIES, second, nextStartIndex = 2, totalCount = 2, run = 1, series = seriesSecond)
+
+    @Test
+    fun aFaultAfterTheSeriesRowsLeavesNoItemSeriesVersionOrCheckpointRow() =
+        runBlocking {
+            writeFirstWithSeries()
+            val before = repository.rowCounts()
+            val seriesBefore = repository.currentSeries(ALICE)
+            repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
+
+            assertThrows(IllegalStateException::class.java) { runBlocking { writeSecondWithSeries() } }
+
+            assertEquals(before, repository.rowCounts())
+            assertEquals(seriesBefore, repository.currentSeries(ALICE))
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
+            assertEquals(1, repository.checkpoint(ALICE, MOVIES)?.nextStartIndex)
+        }
+
+    @Test
+    fun aFaultBetweenTheItemRowsAndTheHistoryRowsLeavesNoSeriesRowEither() =
+        runBlocking {
+            writeFirstWithSeries()
+            val before = repository.rowCounts()
+            repository.faultBetweenItemsAndHistory = { error("the process died here") }
+
+            assertThrows(IllegalStateException::class.java) { runBlocking { writeSecondWithSeries() } }
+
+            assertEquals(before, repository.rowCounts())
+            assertEquals(listOf("s1"), repository.currentSeries(ALICE).map { it.seriesId })
+        }
+
+    @Test
+    fun theSamePageWithSeriesWritesWholeOnceTheFaultIsGone() =
+        runBlocking {
+            writeFirstWithSeries()
+            repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
+            assertThrows(IllegalStateException::class.java) { runBlocking { writeSecondWithSeries() } }
+            repository.faultBetweenItemsAndCheckpoint = null
+
+            writeSecondWithSeries()
+
+            assertEquals(listOf("s1", "s2"), repository.currentSeries(ALICE).map { it.seriesId })
+            assertEquals(1, repository.seriesVersions(ALICE).size)
+            assertEquals(1, repository.versions(ALICE).size)
+            assertEquals(2, repository.checkpoint(ALICE, MOVIES)?.nextStartIndex)
+            repository.assertSeriesIntervalsContiguous(ALICE)
+        }
 }

@@ -18,6 +18,7 @@ import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -50,9 +51,11 @@ internal data class RowCounts(
     val checkpoints: Int,
     val states: Int,
     val versions: Int = 0,
+    val series: Int = 0,
+    val seriesVersions: Int = 0,
 ) {
     companion object {
-        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0)
+        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -72,6 +75,7 @@ class RoomLibraryRepository internal constructor(
 ) : LibraryRepository {
     internal val dao = db.dao()
     internal val history = db.itemHistoryDao()
+    private val seriesDao = db.seriesDao()
     private val transactions = db.cacheTransactionDao()
 
     /**
@@ -212,7 +216,9 @@ class RoomLibraryRepository internal constructor(
      * Saves one [page][items] of [library] and the checkpoint that goes with it, in one transaction: after a crash both
      * are there or neither is. Writing the same page again changes nothing (an item that is unchanged is not
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
-     * [library] must have been chosen with [select] first.
+     * [library] must have been chosen with [select] first. [series], if any, are written in the same transaction (the
+     * transactions across DAOs are one method of `CacheTransactionDao`); the sync itself writes series apart, with
+     * [upsertSeries].
      */
     @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
     internal suspend fun writePage(
@@ -222,12 +228,15 @@ class RoomLibraryRepository internal constructor(
         nextStartIndex: Int,
         totalCount: Int?,
         run: Long,
+        series: List<SeriesInfo> = emptyList(),
     ): PageWrite {
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
+        val seriesRows = LinkedHashMap<String, SeriesEntity>()
+        series.forEach { seriesRows[it.id.value] = it.toEntity(server, user, library.value) }
         val now = clock.now().toEpochMilliseconds()
-        return write(server, user, checkpoint, rows, now)
+        return write(server, user, checkpoint, rows, seriesRows, now).items
     }
 
     /**
@@ -242,24 +251,85 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return write(server, user, null, rows, now)
+        return write(server, user, null, rows, emptyMap(), now).items
     }
 
+    @Suppress("LongParameterList") // The page, its checkpoint, the time: what the transaction takes.
     private suspend fun write(
         server: String,
         user: String,
         checkpoint: CheckpointEntity?,
         rows: Map<String, ItemRows>,
+        seriesRows: Map<String, SeriesEntity>,
         now: Long,
     ) = transactions.writePage(
         server,
         user,
         checkpoint,
         rows,
+        seriesRows,
         now,
         faultBetweenItemsAndHistory,
         faultBetweenItemsAndCheckpoint,
     )
+
+    /**
+     * Saves [series] of [library], with no checkpoint: a series page of the first sync or of a changed-since pass. The
+     * same idempotent upsert as for items, in one transaction after the check that the account is still signed in.
+     * The counts are of series.
+     */
+    internal suspend fun upsertSeries(
+        account: LibraryAccount,
+        library: ItemId,
+        series: List<SeriesInfo>,
+    ): PageWrite {
+        val (server, user) = account.keys()
+        val rows = LinkedHashMap<String, SeriesEntity>()
+        series.forEach { rows[it.id.value] = it.toEntity(server, user, library.value) }
+        return write(server, user, null, emptyMap(), rows, clock.now().toEpochMilliseconds()).series
+    }
+
+    /** Marks the series [ids] deleted as of now. A series that is already a tombstone keeps its first time. */
+    internal suspend fun tombstoneSeries(
+        account: LibraryAccount,
+        ids: Collection<ItemId>,
+    ) {
+        val (server, user) = account.keys()
+        transactions.tombstoneSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+    }
+
+    /** Clears the tombstone of the series [ids]: each is kept as a version first. */
+    internal suspend fun reviveSeries(
+        account: LibraryAccount,
+        ids: Collection<ItemId>,
+    ) {
+        val (server, user) = account.keys()
+        transactions.reviveSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+    }
+
+    /** The IDs of [library]'s live series, in order: what the series reconcile compares the server's list with. */
+    internal suspend fun liveSeriesIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.liveIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of [library]'s tombstoned series: deleted on the server, not yet purged. */
+    internal suspend fun tombstonedSeriesIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.tombstonedIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of every series the account has, live or tombstoned, in any library. */
+    internal suspend fun allSeriesIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.allIds(server, user).map(::ItemId)
+    }
 
     private fun rowsOf(
         items: List<MediaItem>,
@@ -441,6 +511,8 @@ class RoomLibraryRepository internal constructor(
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
             versions = history.countVersions(),
+            series = seriesDao.count(),
+            seriesVersions = seriesDao.countVersions(),
         )
 
     /** The account's item rows as they are on disk (the current versions), by item ID. */
@@ -453,6 +525,18 @@ class RoomLibraryRepository internal constructor(
     internal suspend fun versions(account: LibraryAccount): List<ItemVersionEntity> {
         val (server, user) = account.keys()
         return history.allVersions(server, user)
+    }
+
+    /** The account's series rows as they are on disk (the current versions), by series ID. */
+    internal suspend fun currentSeries(account: LibraryAccount): List<SeriesEntity> {
+        val (server, user) = account.keys()
+        return seriesDao.all(server, user)
+    }
+
+    /** The account's kept earlier series versions, by series ID and then time. */
+    internal suspend fun seriesVersions(account: LibraryAccount): List<SeriesVersionEntity> {
+        val (server, user) = account.keys()
+        return seriesDao.allVersions(server, user)
     }
 
     /** Closes the database. The app keeps it open for its lifetime; tests close theirs. */
@@ -544,6 +628,25 @@ private fun MediaItem.toRows(
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
+)
+
+private fun SeriesInfo.toEntity(
+    server: String,
+    user: String,
+    library: String,
+) = SeriesEntity(
+    serverId = server,
+    userId = user,
+    seriesId = id.value,
+    libraryId = library,
+    name = name,
+    officialRating = officialRating,
+    genres = VersionCodec.encode(genres),
+    tags = VersionCodec.encode(tags),
+    deletedAtMs = null,
+    // The DAO stamps both when it writes the row.
+    seenFromMs = 0,
+    firstSeenMs = 0,
 )
 
 private fun ItemRows.toItem() =

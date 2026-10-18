@@ -286,7 +286,38 @@ internal data class ActiveAccountEntity(
 internal fun nextStamp(
     old: ItemEntity,
     nowMs: Long,
-): Long = maxOf(nowMs, old.seenFromMs + 1)
+): Long = nextStamp(old.seenFromMs, nowMs)
+
+/** The same rule for any row with a stamp: [oldSeenFromMs] is the stamp of the row being replaced. */
+internal fun nextStamp(
+    oldSeenFromMs: Long,
+    nowMs: Long,
+): Long = maxOf(nowMs, oldSeenFromMs + 1)
+
+/**
+ * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags and
+ * the tombstone. The name and the library are not (Vimes L2).
+ */
+internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
+    officialRating == other.officialRating &&
+        genres == other.genres &&
+        tags == other.tags &&
+        deletedAtMs == other.deletedAtMs
+
+/** This row as an earlier version, ending at [supersededAtMs]. */
+internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
+    SeriesVersionEntity(
+        serverId = serverId,
+        userId = userId,
+        seriesId = seriesId,
+        seenFromMs = seenFromMs,
+        supersededAtMs = supersededAtMs,
+        libraryId = libraryId,
+        officialRating = officialRating,
+        genres = genres,
+        tags = tags,
+        deletedAtMs = deletedAtMs,
+    )
 
 /** True when every field the scheduler reads is equal. The name, the parent, the stamps and the tombstone are not. */
 internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =

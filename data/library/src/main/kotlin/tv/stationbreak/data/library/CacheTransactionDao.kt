@@ -19,6 +19,7 @@ internal abstract class CacheTransactionDao(
 ) {
     private val library get() = db.dao()
     private val history get() = db.itemHistoryDao()
+    private val series get() = db.seriesDao()
 
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
@@ -31,6 +32,9 @@ internal abstract class CacheTransactionDao(
      * [ItemHistoryDao], then the checkpoint. [betweenItemsAndHistory] runs after the first and before the second, and
      * [betweenItemsAndCheckpoint] after the second and before the checkpoint. Both are test seams, null in the app: a
      * test makes the write die at either point and proves nothing before it is kept.
+     *
+     * [seriesRows] are the page's series (a series page holds no items, and an item page no series). They are written
+     * through [SeriesDao] after the item versions and before the second seam, in the same transaction.
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
@@ -39,10 +43,11 @@ internal abstract class CacheTransactionDao(
         user: String,
         checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
+        seriesRows: Map<String, SeriesEntity>,
         nowMs: Long,
         betweenItemsAndHistory: (() -> Unit)?,
         betweenItemsAndCheckpoint: (() -> Unit)?,
-    ): PageWrite {
+    ): PageResult {
         library.requireActive(server, user)
         val existing =
             items.keys
@@ -64,9 +69,79 @@ internal abstract class CacheTransactionDao(
         library.insertTags(changedIds.flatMap { items.getValue(it).tags })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
+        val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
+        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite)
+    }
+
+    private suspend fun writeSeries(
+        server: String,
+        user: String,
+        rows: Map<String, SeriesEntity>,
+        nowMs: Long,
+    ): PageWrite {
+        val existing =
+            rows.keys
+                .chunked(LibraryDao.MAX_VARIABLES)
+                .flatMap { series.byIds(server, user, it) }
+                .associateBy { it.seriesId }
+        val plan = series.planPage(rows, existing, nowMs)
+        series.insert(plan.toInsert)
+        series.update(plan.toUpdate)
+        series.insertVersions(plan.versions)
         return PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged)
+    }
+
+    /** Marks the series [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. */
+    @Transaction
+    open suspend fun tombstoneSeries(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ) {
+        library.requireActive(serverId, userId)
+        tombstoneSeriesIn(serverId, userId, ids, atMs)
+    }
+
+    /**
+     * Clears the tombstone of the series [ids] at [nowMs], each tombstoned row copied as a version first (as
+     * [reviveAll] does for items). An id that is not a tombstone is left alone.
+     */
+    @Transaction
+    open suspend fun reviveSeries(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        nowMs: Long,
+    ) {
+        library.requireActive(serverId, userId)
+        reviveSeriesIn(serverId, userId, ids, nowMs)
+    }
+
+    private suspend fun tombstoneSeriesIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ) {
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) series.tombstone(serverId, userId, chunk, atMs)
+    }
+
+    private suspend fun reviveSeriesIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        nowMs: Long,
+    ) {
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
+            val rows = series.byIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
+            if (rows.isEmpty()) continue
+            val plan = series.planRevival(rows, nowMs)
+            series.insertVersions(plan.versions)
+            series.update(plan.revived)
+        }
     }
 
     /**

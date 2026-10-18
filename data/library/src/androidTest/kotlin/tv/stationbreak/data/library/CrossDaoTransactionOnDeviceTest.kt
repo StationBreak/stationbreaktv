@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Duration.Companion.minutes
@@ -95,5 +96,35 @@ class CrossDaoTransactionOnDeviceTest {
             assertEquals(2, repository.currentRows(account).size)
             assertEquals(1, repository.versions(account).size)
             assertEquals(2, repository.checkpoint(account, library)?.nextStartIndex)
+        }
+
+    private fun series(
+        id: String,
+        rating: String? = null,
+    ) = SeriesInfo(ItemId(id), "Series $id", rating, listOf("x"), emptyList())
+
+    @Test
+    fun aFaultAfterTheSeriesRowsLeavesNoItemSeriesVersionOrCheckpointRow() =
+        runBlocking {
+            repository.select(account, setOf(library))
+            val firstSeries = listOf(series("s1", "A"))
+            repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1, series = firstSeries)
+            val before = repository.rowCounts()
+            val seriesBefore = repository.currentSeries(account)
+            repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
+
+            // The second page edits "a" and "s1" (two versions) and adds "b" and "s2".
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking {
+                    val items = listOf(item("a", 100), item("b", 90))
+                    val edited = listOf(series("s1", "B"), series("s2"))
+                    repository.writePage(account, library, items, 2, 2, run = 1, series = edited)
+                }
+            }
+
+            assertEquals(before, repository.rowCounts())
+            assertEquals(seriesBefore, repository.currentSeries(account))
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(account))
+            assertEquals(1, repository.checkpoint(account, library)?.nextStartIndex)
         }
 }
