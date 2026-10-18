@@ -54,9 +54,13 @@ internal data class RowCounts(
     val versions: Int = 0,
     val series: Int = 0,
     val seriesVersions: Int = 0,
+    val collections: Int = 0,
+    val collectionVersions: Int = 0,
+    val collectionMembers: Int = 0,
+    val collectionSyncs: Int = 0,
 ) {
     companion object {
-        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -559,6 +563,10 @@ class RoomLibraryRepository internal constructor(
             versions = history.countVersions(),
             series = seriesDao.count(),
             seriesVersions = seriesDao.countVersions(),
+            collections = collectionDao.count(),
+            collectionVersions = collectionDao.countVersions(),
+            collectionMembers = collectionDao.countMembers(),
+            collectionSyncs = collectionDao.countSyncRows(),
         )
 
     /** The account's item rows as they are on disk (the current versions), by item ID. */

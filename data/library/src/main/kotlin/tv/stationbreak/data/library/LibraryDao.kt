@@ -13,13 +13,17 @@ import kotlinx.coroutines.flow.Flow
 internal sealed interface PurgeOutcome {
     /**
      * The purge ran: [tombstones] tombstoned items and [versions] superseded item versions were deleted, and
-     * [seriesTombstones] and [seriesVersions] the same for series (spec 10).
+     * [seriesTombstones] and [seriesVersions] the same for series, and [collectionTombstones], [collectionVersions]
+     * and [collectionMembers] (member rows superseded long ago) for collections (spec 10).
      */
     data class Purged(
         val tombstones: Int,
         val versions: Int,
         val seriesTombstones: Int = 0,
         val seriesVersions: Int = 0,
+        val collectionTombstones: Int = 0,
+        val collectionVersions: Int = 0,
+        val collectionMembers: Int = 0,
     ) : PurgeOutcome
 
     /** The purge threw [cause]. The runner catches it and keeps it here; a purge failure never fails a sync. */

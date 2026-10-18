@@ -394,6 +394,18 @@ internal abstract class CollectionDao {
     abstract suspend fun saveSyncRow(row: CollectionSyncEntity)
 
     // Reads, for the tests and diagnostics.
+
+    @Query("SELECT COUNT(*) FROM collection")
+    abstract suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM collection_version")
+    abstract suspend fun countVersions(): Int
+
+    @Query("SELECT COUNT(*) FROM collection_member")
+    abstract suspend fun countMembers(): Int
+
+    @Query("SELECT COUNT(*) FROM collection_sync")
+    abstract suspend fun countSyncRows(): Int
     // Reads, for the tests and diagnostics.
 
     @Query("SELECT * FROM collection WHERE serverId = :serverId AND userId = :userId ORDER BY collectionId")

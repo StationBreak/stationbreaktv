@@ -244,4 +244,46 @@ class ForgottenAccountTest {
             }
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
+
+    // Spec 10 task 2.6 (Vimes M7): the collections of a forgotten account go with it, and a write after that stores nothing.
+
+    @Test
+    fun forgetDeletesTheAccountsCollectionsVersionsMembersAndSyncRow() =
+        runBlocking {
+            signedInAndSelected()
+            val box =
+                tv.stationbreak.core.model
+                    .ItemId("box01")
+            repository.writeCollection(ALICE, box, "n", movies("a", "b"))
+            repository.writeCollection(ALICE, box, "n", movies("b"))
+            repository.recordCollectionPass(ALICE, kotlin.time.Instant.fromEpochMilliseconds(1), relisted = true)
+
+            repository.forget(ALICE)
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+        }
+
+    @Test
+    fun aCollectionWriteAfterForgetLeavesNothingBehindAndSaysSo() =
+        runBlocking {
+            signedInAndSelected()
+            repository.forget(ALICE)
+
+            assertThrows(AccountNotActiveException::class.java) {
+                runBlocking {
+                    repository.writeCollection(
+                        ALICE,
+                        tv.stationbreak.core.model
+                            .ItemId("box01"),
+                        "n",
+                        movies("a"),
+                    )
+                }
+            }
+            assertThrows(AccountNotActiveException::class.java) {
+                runBlocking { repository.recordCollectionPass(ALICE, kotlin.time.Instant.fromEpochMilliseconds(1), relisted = true) }
+            }
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+        }
 }

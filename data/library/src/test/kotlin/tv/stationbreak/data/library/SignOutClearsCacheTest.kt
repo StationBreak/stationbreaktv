@@ -9,12 +9,14 @@ import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
+import kotlin.time.Instant
 
 /**
  * Spec 06 task 2.12, end to end: the real [SessionRepository] over the real database. Signing out clears the
@@ -50,6 +52,10 @@ class SignOutClearsCacheTest {
         repository.select(account, setOf(MOVIES, SHOWS))
         repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "A"), series("s2")))
         repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "B")))
+        // Collections too (spec 10): a member change keeps the old lifecycle as a version, and a pass leaves its row.
+        repository.writeCollection(account, ItemId("box01"), "n", movies("a", "b"))
+        repository.writeCollection(account, ItemId("box01"), "n", movies("b"))
+        repository.recordCollectionPass(account, Instant.fromEpochMilliseconds(EPOCH.toEpochMilliseconds()), relisted = true)
     }
 
     @Test
@@ -60,6 +66,11 @@ class SignOutClearsCacheTest {
             assertEquals("the test needs a version to clear", 1, repository.rowCounts().versions)
             val counts = repository.rowCounts()
             assertEquals("and two series with a version", 2 to 1, counts.series to counts.seriesVersions)
+            assertEquals(
+                "and a collection with a version, two member rows and a sync row",
+                listOf(1, 1, 2, 1),
+                listOf(counts.collections, counts.collectionVersions, counts.collectionMembers, counts.collectionSyncs),
+            )
 
             sessions.signOut(session(ALICE))
 
