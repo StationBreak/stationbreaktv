@@ -635,6 +635,9 @@ jobs:
       - name: Was the failure infrastructure?
         id: infra
         if: steps.tests.outcome != 'success'
+        # The modules that should have reported, so a cut-off step with a module missing is recognised.
+        env:
+          CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
         run: |
           # Not a pipe into tee: the exit status of the script is the answer.
           if reason="$(bash .github/scripts/instrumented-infra.sh classify instrumented-diag/attempt1)"; then
