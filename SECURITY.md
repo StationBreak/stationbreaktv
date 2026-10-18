@@ -2,7 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please report security vulnerabilities privately by email to **security@stationbreak.tv**.
+Please report security vulnerabilities privately through GitHub: on the repository's **Security** tab, choose
+**Report a vulnerability**. Only the maintainers see the report until a fix is published. See GitHub's guide,
+[Privately reporting a security vulnerability](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability).
 
 **Don't report them in public issues, pull requests or discussions.** A public report tells everyone about the
 problem before there's a fix.

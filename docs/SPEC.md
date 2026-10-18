@@ -96,7 +96,7 @@ Fire TV / Android TV first, in native Kotlin, because playback quality and remot
 | Min SDK | Android 7.1 (API 25) | Covers older and budget Fire TV sticks |
 | Distribution | Amazon Appstore, Google Play, GitHub APK | Store install for normal users, sideload for everyone else |
 
-Put the scheduler and channel engine in a pure Kotlin module with no Android dependencies. It can then be reused by a future companion server and unit tested on the Omarchy box.
+Put the scheduler and channel engine in a pure Kotlin module with no Android dependencies. It can then be reused by a future companion server and unit tested on any JVM.
 
 **Later platforms:** Roku (BrightScript/SceneGraph, separate repo) and Apple TV (Swift) consume the same channel rules format. After those, long-term: Samsung (Tizen), LG (webOS), and Vizio (SmartCast) via a shared web app, then Xbox if demand appears. Other Android TV brands (Sony, TCL, Hisense) are covered by the v1 build.
 
