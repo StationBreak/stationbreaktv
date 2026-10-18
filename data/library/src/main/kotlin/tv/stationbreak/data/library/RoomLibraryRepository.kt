@@ -227,7 +227,7 @@ class RoomLibraryRepository internal constructor(
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return transactions.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndHistory, faultBetweenItemsAndCheckpoint)
+        return write(server, user, checkpoint, rows, now)
     }
 
     /**
@@ -242,8 +242,24 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return transactions.writePage(server, user, null, rows, now, faultBetweenItemsAndHistory, faultBetweenItemsAndCheckpoint)
+        return write(server, user, null, rows, now)
     }
+
+    private suspend fun write(
+        server: String,
+        user: String,
+        checkpoint: CheckpointEntity?,
+        rows: Map<String, ItemRows>,
+        now: Long,
+    ) = transactions.writePage(
+        server,
+        user,
+        checkpoint,
+        rows,
+        now,
+        faultBetweenItemsAndHistory,
+        faultBetweenItemsAndCheckpoint,
+    )
 
     private fun rowsOf(
         items: List<MediaItem>,

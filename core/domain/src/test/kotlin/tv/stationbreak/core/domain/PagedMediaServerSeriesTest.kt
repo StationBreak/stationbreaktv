@@ -20,14 +20,14 @@ import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
-/** `PagedMediaServer` pages a library's series the way the adapter does: the total on page one, `changedSince`, faults. */
+/** `PagedMediaServer` pages a library's series as the adapter does: the total on page one, `changedSince`, faults. */
 class PagedMediaServerSeriesTest {
     private val library = Library(ItemId("lib"), "Shows", LibraryKind.TvShows)
     private val source = SeriesSource()
     private val server = PagedMediaServer(listOf(library), mapOf(library.id to ListLibrarySource()))
     private val address = ServerAddress(Scheme.Https, "media.example.com", 443)
-    private val session =
-        Session(UserId("u1"), AccessToken("tok"), ServerInfo("Home", ServerId("abc"), ServerVersion(12, 2, 0)), address, null, false)
+    private val info = ServerInfo("Home", ServerId("abc"), ServerVersion(12, 2, 0))
+    private val session = Session(UserId("u1"), AccessToken("tok"), info, address, null, false)
 
     init {
         (1..5).forEach { source.series += SeriesInfo(ItemId("s$it"), "Series $it", null, emptyList(), emptyList()) }
@@ -72,8 +72,9 @@ class PagedMediaServerSeriesTest {
 
             server.respond = { MediaServerError.Timeout() }
 
-            assertEquals(ServerResult.Failure(MediaServerError.Timeout()), server.librarySeriesIds(session, library, 0, 3))
-            assertEquals(ServerResult.Failure(MediaServerError.Timeout()), server.librarySeries(session, library, 0, 3))
+            val timeout = ServerResult.Failure(MediaServerError.Timeout())
+            assertEquals(timeout, server.librarySeriesIds(session, library, 0, 3))
+            assertEquals(timeout, server.librarySeries(session, library, 0, 3))
         }
 
     @Test

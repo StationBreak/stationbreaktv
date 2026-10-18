@@ -33,6 +33,13 @@ class ItemHistoryDaoSplitTest {
         genres: List<String> = emptyList(),
     ) = ItemRows(item, genres.mapIndexed { i, name -> GenreEntity(server, user, item.itemId, i, name) }, emptyList())
 
+    // Plans writing [new] over the held row [old], with the old row's genres and tags empty.
+    private fun plan(
+        old: ItemEntity,
+        new: ItemRows,
+        nowMs: Long,
+    ) = history.planPage(mapOf(old.itemId to new), mapOf(old.itemId to old), emptyMap(), emptyMap(), nowMs)
+
     @Test
     fun theVersionsAreKeptAndReadByTheHistoryDao() =
         runBlocking {
@@ -60,7 +67,10 @@ class ItemHistoryDaoSplitTest {
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes))
             val libraries = setOf(MOVIES.value)
 
-            fun runtimeAt(cutoffMs: Long) = runBlocking { history.heldAsOf(server, user, cutoffMs, 100, libraries) }.single().runtimeMs
+            fun runtimeAt(cutoffMs: Long): Long? {
+                val held = runBlocking { history.heldAsOf(server, user, cutoffMs, 100, libraries) }
+                return held.single().runtimeMs
+            }
 
             // Between the two stamps the old version was current; after both, the current row; before both, the oldest.
             assertEquals(90.minutes.inWholeMilliseconds, runtimeAt(t0 + 5_000))
@@ -75,21 +85,15 @@ class ItemHistoryDaoSplitTest {
             repository.put(ALICE, MOVIES, sitem(1))
             val old = stored(hexId(1))
 
-            val same = history.planPage(mapOf(old.itemId to rows(old)), mapOf(old.itemId to old), emptyMap(), emptyMap(), t0 + 1)
+            val same = plan(old, rows(old), t0 + 1)
             val renamed = old.copy(name = "A new name")
             val nameOnly =
-                history.planPage(mapOf(old.itemId to rows(renamed)), mapOf(old.itemId to old), emptyMap(), emptyMap(), t0 + 1)
+                plan(old, rows(renamed), t0 + 1)
             val longer = old.copy(runtimeMs = 1)
             val edited =
-                history.planPage(mapOf(old.itemId to rows(longer)), mapOf(old.itemId to old), emptyMap(), emptyMap(), t0 + 1)
+                plan(old, rows(longer), t0 + 1)
             val withGenre =
-                history.planPage(
-                    mapOf(old.itemId to rows(old, listOf("Drama"))),
-                    mapOf(old.itemId to old),
-                    emptyMap(),
-                    emptyMap(),
-                    t0 + 1,
-                )
+                plan(old, rows(old, listOf("Drama")), t0 + 1)
 
             assertEquals(1, same.unchanged)
             assertEquals(emptyList<ItemVersionEntity>(), nameOnly.versions)
@@ -107,9 +111,9 @@ class ItemHistoryDaoSplitTest {
             val edit = old.copy(runtimeMs = 1)
 
             // The clock reads the same millisecond, and then an earlier one.
-            val sameMs = history.planPage(mapOf(old.itemId to rows(edit)), mapOf(old.itemId to old), emptyMap(), emptyMap(), t0)
+            val sameMs = plan(old, rows(edit), t0)
             val backwards =
-                history.planPage(mapOf(old.itemId to rows(edit)), mapOf(old.itemId to old), emptyMap(), emptyMap(), t0 - 5_000)
+                plan(old, rows(edit), t0 - 5_000)
 
             assertEquals(t0 + 1, sameMs.toUpdate.single().seenFromMs)
             assertEquals(t0 + 1, sameMs.versions.single().supersededAtMs)
@@ -138,7 +142,8 @@ class ItemHistoryDaoSplitTest {
             repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
             val tombstoned = stored(hexId(1))
 
-            val plan = history.planRevival(listOf(tombstoned), mapOf(tombstoned.itemId to listOf("Drama")), emptyMap(), t0 + 20_000)
+            val genres = mapOf(tombstoned.itemId to listOf("Drama"))
+            val plan = history.planRevival(listOf(tombstoned), genres, emptyMap(), t0 + 20_000)
 
             val version = plan.versions.single()
             assertEquals(t0, version.seenFromMs)

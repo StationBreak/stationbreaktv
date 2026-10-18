@@ -33,7 +33,10 @@ class CrossDaoTransactionTest {
         clock.stepMs(10_000)
     }
 
-    private suspend fun writeSecond() = repository.writePage(ALICE, MOVIES, second, nextStartIndex = 2, totalCount = 2, run = 1)
+    private suspend fun writeSecond(): PageWrite {
+        val page = repository.writePage(ALICE, MOVIES, second, nextStartIndex = 2, totalCount = 2, run = 1)
+        return page
+    }
 
     @Test
     fun aFaultAfterTheItemRowsLeavesNoItemVersionOrCheckpointRow() =
