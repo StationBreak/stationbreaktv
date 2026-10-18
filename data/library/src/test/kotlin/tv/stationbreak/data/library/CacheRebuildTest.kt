@@ -33,6 +33,8 @@ class CacheRebuildTest {
                 "library",
                 "item",
                 "item_version",
+                "series",
+                "series_version",
                 "item_genre",
                 "item_tag",
                 "checkpoint",
@@ -45,12 +47,27 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion4WithThePremiereDateAndExactMillisecondColumns() {
-        assertEquals(4, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion5WithThePremiereDateExactMillisecondsAndTheSeasonId() {
+        assertEquals(5, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)
         assertTrue("runtimeNanos" !in columns)
+        assertTrue("seasonId" in columns)
+    }
+
+    @Test
+    fun theSeriesTablesHoldTheirFieldsAndCascadeFromLibraryAndSeries() {
+        val text = SchemaFile.text()
+        assertTrue(text.contains("\"tableName\": \"series\""))
+        assertTrue(text.contains("\"tableName\": \"series_version\""))
+        // series: cascades from library, indexed for that cascade and for the tombstone purge.
+        assertTrue(text.contains("`serverId`, `userId`, `seriesId`, `seenFromMs`"))
+        assertTrue(text.contains("(`serverId`, `userId`, `libraryId`)"))
+        assertTrue(text.contains("(`serverId`, `userId`, `deletedAtMs`)"))
+        // series_version: the purge of versions superseded long ago.
+        assertTrue(text.contains("(`serverId`, `userId`, `supersededAtMs`)"))
+        assertTrue(text.contains("\"table\": \"series\""))
     }
 
     @Test
@@ -135,9 +152,9 @@ class CacheRebuildTest {
         }
 
     @Test
-    fun aVersion4FileOpenedByVersion3CodeIsDroppedAndRebuiltEmpty() =
+    fun aVersion5FileOpenedByVersion4CodeIsDroppedAndRebuiltEmpty() =
         runBlocking {
-            // The rollback path (the app goes back from v4 to v3): the file is NEWER than the code. A v3 builder with
+            // The rollback path (the app goes back from v5 to v4): the file is NEWER than the code. A v4 builder with
             // the same destructive-on-downgrade setting the cache uses must drop every table, not throw.
             val context = TestContext(folder.root)
             val current = TestLibraries.onDisk(folder.root, name = "downgrade.db")
@@ -146,17 +163,17 @@ class CacheRebuildTest {
             assertEquals(1, current.stored(ALICE).size)
             current.close()
 
-            val v2 =
+            val older =
                 Room
                     .databaseBuilder(context, OlderSchemaDatabase::class.java, "downgrade.db")
                     .setDriver(BundledSQLiteDriver())
                     .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
                     .withDestructiveFallbacks() // The cache's own settings, so a change there changes this test.
                     .build()
-            v2.otherDao().put(OtherRow("v2 works"))
-            v2.close()
+            older.otherDao().put(OtherRow("v4 works"))
+            older.close()
 
-            // Back on v4 the cache is empty and usable: the v4 data did not survive the round trip.
+            // Back on v5 the cache is empty and usable: the v5 data did not survive the round trip.
             val again = TestLibraries.onDisk(folder.root, name = "downgrade.db")
             assertEquals(RowCounts.NONE, again.rowCounts())
             again.useAccount(ALICE)
@@ -185,11 +202,36 @@ class CacheRebuildTest {
             repository.close()
         }
 
-    // Creates the Unit 1 database from the committed 3.json (its CREATE statements, its identity hash, user_version 3),
-    // with one library and one item in it, so there is something to lose.
-    private fun writeVersion3File(file: File) {
-        val text = File("schemas/tv.stationbreak.data.library.LibraryDatabase/3.json").readText()
-        assertTrue(text.contains("\"version\": 3"))
+    @Test
+    fun aRealVersion4FileFromSpec09IsDroppedAndRebuiltEmptyWithoutThrowing() =
+        runBlocking {
+            // Version 4 shipped (in a debug build) with the schema in the committed 4.json. A file made from exactly
+            // that schema, opened by v5 code, must be rebuilt empty, as the v3 file was.
+            val v4 = File(folder.root, "spec09.db")
+            writeSchemaFile(v4, 4, "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL, 1, 1")
+
+            val repository = TestLibraries.onDisk(folder.root, name = "spec09.db")
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            assertEquals(1, repository.stored(ALICE).size)
+            repository.close()
+        }
+
+    private fun writeVersion3File(file: File) = writeSchemaFile(file, 3, "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL")
+
+    // Creates the database of schema [version] from its committed file (its CREATE statements, its identity hash,
+    // user_version), with one library and one item in it, so there is something to lose. [itemTail] is the item
+    // row's columns after its name.
+    private fun writeSchemaFile(
+        file: File,
+        version: Int,
+        itemTail: String,
+    ) {
+        val text = File("schemas/tv.stationbreak.data.library.LibraryDatabase/$version.json").readText()
+        assertTrue(text.contains("\"version\": $version"))
         val hash = Regex("\"identityHash\":\\s*\"([0-9a-f]+)\"").find(text)!!.groupValues[1]
         val connection = BundledSQLiteDriver().open(file.path)
         try {
@@ -207,10 +249,9 @@ class CacheRebuildTest {
             connection.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '$hash')")
             connection.execSQL("INSERT INTO library VALUES ('server-1', 'alice', 'lib-movies', 1)")
             connection.execSQL(
-                "INSERT INTO item VALUES ('server-1', 'alice', 'x', 'lib-movies', 'Movie', 'X', " +
-                    "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL)",
+                "INSERT INTO item VALUES ('server-1', 'alice', 'x', 'lib-movies', 'Movie', 'X', $itemTail)",
             )
-            connection.execSQL("PRAGMA user_version = 3")
+            connection.execSQL("PRAGMA user_version = $version")
         } finally {
             connection.close()
         }
