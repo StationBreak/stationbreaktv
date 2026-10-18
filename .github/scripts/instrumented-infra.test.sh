@@ -207,6 +207,40 @@ xml '<testcase name="x"/>'
 expect "finished run, a module missing, no timeout marker" 1 "genuine"
 unset CONNECTED_TASKS
 
+# (b) Marker but no CONNECTED_TASKS: the cut-off rule cannot tell what is missing, so the old behaviour holds.
+cut_off_case
+unset CONNECTED_TASKS
+xml '<testcase name="x"/>'
+expect "marker, CONNECTED_TASKS unset, results present" 1 "genuine"
+
+# (c) The app's results are the missing ones; a library module's are there.
+cut_off_case
+rm -rf "$case_dir/root/app"
+mkdir -p "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug"
+results="$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug/TEST-device.xml"
+xml '<testcase name="x"/>'
+expect "cut off, the app's results missing" 0 "no results from: app"
+
+# (d) Marker and no results at all: the cut-off message, still exit 0.
+cut_off_case
+rm -rf "$case_dir/root/app"
+expect "marker and no results at all" 0 "cut off"
+
+# A glob or odd word in CONNECTED_TASKS is skipped with a note and never expanded.
+cut_off_case
+xml '<testcase name="x"/>'
+export CONNECTED_TASKS='* :feature:onboarding:connectedDebugAndroidTest'
+globdir="$case_dir/globs"
+mkdir -p "$globdir" && touch "$globdir/a.txt" "$globdir/b.txt"
+out="$(cd "$globdir" && bash "$script" classify "$case_dir/diag" "$case_dir/root" 2>&1)"
+got=$?
+if [ "$got" -eq 0 ] && grep -qF 'skipping' <<<"$out" && grep -qF 'feature/onboarding' <<<"$out" && ! grep -qF 'a.txt' <<<"$out"; then
+  echo "ok   a glob in CONNECTED_TASKS is skipped, not expanded (exit $got)"
+else
+  fail "glob in CONNECTED_TASKS" "exit $got" "$out"
+fi
+unset CONNECTED_TASKS
+
 # Usage errors.
 if bash "$script" >/dev/null 2>&1; then fail "usage" "no arguments exited 0"; else echo "ok   usage (no arguments fail)"; fi
 if bash "$script" nonsense "$work" >/dev/null 2>&1; then fail "usage" "unknown mode exited 0"; else echo "ok   usage (unknown mode fails)"; fi
