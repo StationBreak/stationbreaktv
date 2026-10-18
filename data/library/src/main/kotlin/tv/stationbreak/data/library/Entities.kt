@@ -481,4 +481,14 @@ internal object MemberKinds {
     const val EPISODE = "episode"
     const val SERIES = "series"
     const val SEASON = "season"
+
+    /** The shared constant for a stored [column], so a read of thousands of members holds four strings, not thousands. */
+    fun shared(column: String): String =
+        when (column) {
+            MOVIE -> MOVIE
+            EPISODE -> EPISODE
+            SERIES -> SERIES
+            SEASON -> SEASON
+            else -> column
+        }
 }

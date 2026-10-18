@@ -246,9 +246,17 @@ internal abstract class CacheTransactionDao(
         return PurgeOutcome.Purged(tombstones, versions, seriesTombstones, seriesVersions)
     }
 
-    /** Red stub: the green commit writes it. */
+    /**
+     * Writes one collection and its complete member list in one transaction after the account check (spec 10, Vimes
+     * H1, H2, M4). A new collection is inserted only with its first members, at one stamp. A collection that exists is
+     * diffed by member (see [CollectionDao.planWrite]): any change takes one stamp, which ends the removed members, begins
+     * the added ones, moves the collection row and keeps the lifecycle it ends as a `collection_version`. A tombstoned
+     * collection that is written is revived at that same stamp. A read that changes nothing writes nothing but a new
+     * name. [members] are the whole list, already filtered to the kinds the cache stores. [betweenCollectionAndMembers]
+     * runs after the collection row and its version, before the members (a test seam; null in the app).
+     */
     @Transaction
-    @Suppress("LongParameterList", "UnusedParameter") // One cohesive call, and the stub of the next commit.
+    @Suppress("LongParameterList") // One cohesive call: the collection, its list, the time and the test seam.
     open suspend fun writeCollection(
         serverId: String,
         userId: String,
@@ -257,26 +265,44 @@ internal abstract class CacheTransactionDao(
         members: List<CollectionMemberEntity>,
         nowMs: Long,
         betweenCollectionAndMembers: (() -> Unit)?,
-    ): CollectionWrite = TODO("red")
+    ): CollectionWrite {
+        library.requireActive(serverId, userId)
+        val existing = collections.byId(serverId, userId, collectionId)
+        val current = if (existing == null) emptyList() else collections.currentMembers(serverId, userId, collectionId)
+        val plan = collections.planWrite(serverId, userId, collectionId, name, members, existing, current, nowMs)
+        plan.insert?.let { collections.insert(it) }
+        plan.version?.let { collections.insertVersion(it) }
+        plan.update?.let { collections.update(it) }
+        val stamp = plan.stamp
+        if (stamp != null) {
+            for (chunk in plan.removed.chunked(LibraryDao.MAX_VARIABLES)) {
+                collections.endMembers(serverId, userId, collectionId, chunk, stamp)
+            }
+            betweenCollectionAndMembers?.invoke()
+            collections.insertMembers(plan.add)
+        }
+        return CollectionWrite(stamp, plan.insert != null, plan.revived, plan.add.size, plan.removed.size)
+    }
 
-    /** Red stub: the green commit writes it. */
+    /** Marks the collections [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. */
     @Transaction
-    @Suppress("UnusedParameter") // The stub of the next commit.
     open suspend fun tombstoneCollections(
         serverId: String,
         userId: String,
         ids: List<String>,
         atMs: Long,
-    ): Unit = TODO("red")
+    ) {
+        library.requireActive(serverId, userId)
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) collections.tombstone(serverId, userId, chunk, atMs)
+    }
 
-    /** Red stub: the green commit writes it. */
+    /** The collections the account held before [cutoffMs], with their members: [CollectionDao.heldAsOf]. */
     @Transaction
-    @Suppress("UnusedParameter") // The stub of the next commit.
     open suspend fun heldCollections(
         serverId: String,
         userId: String,
         cutoffMs: Long,
-    ): List<HeldCollection> = TODO("red")
+    ): List<HeldCollection> = collections.heldAsOf(serverId, userId, cutoffMs, COLLECTION_CHUNK)
 
     private fun clockLooksWrong(
         referenceMs: Long?,
@@ -289,4 +315,9 @@ internal abstract class CacheTransactionDao(
             nowMs - referenceMs > retentionMs - HistoryRetention.SAFE_LOOKBACK_MS -> PurgeSkip.ClockFarAhead
             else -> null
         }
+
+    private companion object {
+        /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */
+        const val COLLECTION_CHUNK = 100
+    }
 }
