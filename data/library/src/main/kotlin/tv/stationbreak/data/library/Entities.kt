@@ -324,6 +324,7 @@ internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
     libraryId == other.libraryId &&
         kind == other.kind &&
         seriesId == other.seriesId &&
+        seasonId == other.seasonId &&
         seasonNumber == other.seasonNumber &&
         episodeNumber == other.episodeNumber &&
         runtimeMs == other.runtimeMs &&

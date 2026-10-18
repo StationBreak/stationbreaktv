@@ -8,15 +8,71 @@ import androidx.room.Transaction
 
 // The columns the as-of read takes from an item row or a version row, in the order of HeldRow.
 private const val HELD_COLUMNS =
-    "itemId, libraryId, kind, seriesId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
-        "productionYear, deletedAtMs, seenFromMs"
+    "itemId, libraryId, kind, seriesId, seasonId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
+        "productionYear, officialRating, deletedAtMs, seenFromMs"
+
+// The same from an item row, which keeps its genres and tags in side tables: the two list columns are null there.
+private const val HELD_COLUMNS_OF_ITEM = "$HELD_COLUMNS, NULL AS genres, NULL AS tags"
+
+// The same from a version row, whose genres and tags are codec columns.
+private const val HELD_COLUMNS_OF_VERSION = "$HELD_COLUMNS, genres, tags"
 
 // The same, qualified by the alias v, with the names the mapping expects.
 private const val HELD_COLUMNS_OF_V =
     "v.itemId AS itemId, v.libraryId AS libraryId, v.kind AS kind, v.seriesId AS seriesId, " +
-        "v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, v.runtimeMs AS runtimeMs, " +
-        "v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, v.productionYear AS productionYear, " +
-        "v.deletedAtMs AS deletedAtMs, v.seenFromMs AS seenFromMs"
+        "v.seasonId AS seasonId, v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, " +
+        "v.runtimeMs AS runtimeMs, v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, " +
+        "v.productionYear AS productionYear, v.officialRating AS officialRating, v.deletedAtMs AS deletedAtMs, " +
+        "v.seenFromMs AS seenFromMs, v.genres AS genres, v.tags AS tags"
+
+/**
+ * One row of the as-of read as Room maps it, from an item row or a version row. [genres] and [tags] are the codec
+ * columns of a version, and null for an item row, whose lists are in the side tables. [ItemHistoryDao.heldAsOf] turns
+ * it into a [HeldRow].
+ */
+internal class HeldRaw(
+    val itemId: String,
+    val libraryId: String,
+    val kind: String,
+    val seriesId: String?,
+    val seasonId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val runtimeMs: Long?,
+    val createdAtMs: Long?,
+    val premiereDate: String?,
+    val productionYear: Int?,
+    val officialRating: String?,
+    val deletedAtMs: Long?,
+    val seenFromMs: Long,
+    val genres: String?,
+    val tags: String?,
+)
+
+// The genres and tags of the current rows of one chunk, by item.
+private class SideLists {
+    val genres = HashMap<String, MutableList<String>>()
+    val tags = HashMap<String, MutableList<String>>()
+}
+
+// One String per distinct value within a read: a catalogue repeats a few hundred genres and tags over 15,000 items.
+private class Interner {
+    private val strings = HashMap<String, String>()
+
+    fun of(value: String): String {
+        val known = strings[value]
+        if (known != null) return known
+        strings[value] = value
+        return value
+    }
+
+    fun all(values: List<String>): List<String> {
+        if (values.isEmpty()) return emptyList()
+        val shared = ArrayList<String>(values.size)
+        for (value in values) shared.add(of(value))
+        return shared
+    }
+}
 
 /**
  * What a page does to its items, worked out by [ItemHistoryDao.planPage] and written by the caller: [toInsert] are new,
@@ -43,6 +99,7 @@ internal class RevivalPlan(
  * method of [CacheTransactionDao], which reads and writes through each in turn.
  */
 @Dao
+@Suppress("TooManyFunctions") // The SQL of the history and its as-of read, plus the two plans.
 internal abstract class ItemHistoryDao {
     @Insert
     abstract suspend fun insertVersions(rows: List<ItemVersionEntity>)
@@ -129,7 +186,7 @@ internal abstract class ItemHistoryDao {
     // variables of API 25's SQLite.
 
     @Query(
-        "SELECT $HELD_COLUMNS FROM item " +
+        "SELECT $HELD_COLUMNS_OF_ITEM FROM item " +
             "WHERE serverId = :serverId AND userId = :userId AND itemId > :after ORDER BY itemId LIMIT :limit",
     )
     protected abstract suspend fun currentChunk(
@@ -137,12 +194,12 @@ internal abstract class ItemHistoryDao {
         userId: String,
         after: String,
         limit: Int,
-    ): List<HeldRow>
+    ): List<HeldRaw>
 
     // Case (b): the one version that was current just before the cut-off. The intervals are contiguous, so there is at
     // most one per item.
     @Query(
-        "SELECT $HELD_COLUMNS FROM item_version " +
+        "SELECT $HELD_COLUMNS_OF_VERSION FROM item_version " +
             "WHERE serverId = :serverId AND userId = :userId AND itemId > :after AND itemId <= :last " +
             "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
     )
@@ -152,7 +209,7 @@ internal abstract class ItemHistoryDao {
         after: String,
         last: String,
         cutoffMs: Long,
-    ): List<HeldRow>
+    ): List<HeldRaw>
 
     // Case (c): the oldest version, found by probing the item's firstSeenMs, for an item that nothing older than the
     // cut-off holds. The columns are the same, qualified by the version.
@@ -169,7 +226,30 @@ internal abstract class ItemHistoryDao {
         after: String,
         last: String,
         cutoffMs: Long,
-    ): List<HeldRow>
+    ): List<HeldRaw>
+
+    // Genres and tags of the current rows of one chunk, by item-ID range, in the server's order.
+    @Query(
+        "SELECT * FROM item_genre WHERE serverId = :serverId AND userId = :userId AND itemId > :after " +
+            "AND itemId <= :last ORDER BY itemId, position",
+    )
+    protected abstract suspend fun genresInRange(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+    ): List<GenreEntity>
+
+    @Query(
+        "SELECT * FROM item_tag WHERE serverId = :serverId AND userId = :userId AND itemId > :after " +
+            "AND itemId <= :last ORDER BY itemId, position",
+    )
+    protected abstract suspend fun tagsInRange(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+    ): List<TagEntity>
 
     /**
      * The version of every item of the account that this TV held before [cutoffMs], read [chunkSize] items at a time
@@ -196,27 +276,87 @@ internal abstract class ItemHistoryDao {
         libraries: Set<String>,
     ): List<HeldRow> {
         val held = ArrayList<HeldRow>()
+        val strings = Interner()
         var after = ""
         while (true) {
             val current = currentChunk(serverId, userId, after, chunkSize)
             if (current.isEmpty()) return held
             val last = current.last().itemId
-            val needsHistory = current.any { it.seenFromMs >= cutoffMs }
-            val covering = mutableMapOf<String, HeldRow>()
-            val oldest = mutableMapOf<String, HeldRow>()
-            if (needsHistory) {
-                coveringVersions(serverId, userId, after, last, cutoffMs).associateByTo(covering) { it.itemId }
-                oldestVersions(serverId, userId, after, last, cutoffMs).associateByTo(oldest) { it.itemId }
-            }
-            for (row in current) {
-                val version = if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
-                val deletedAt = version.deletedAtMs
-                if (version.libraryId in libraries && (deletedAt == null || deletedAt >= cutoffMs)) held += version
-            }
+            val chosen = chosenInChunk(serverId, userId, after, current, cutoffMs, libraries)
+            // The side tables are read for the chunk only when a chosen row is a current row (its lists are not codec).
+            val needsSide = chosen.any { it.genres == null }
+            val side = if (needsSide) readSide(serverId, userId, after, last, strings) else SideLists()
+            for (raw in chosen) held += raw.toHeld(side, strings)
             if (current.size < chunkSize) return held
             after = last
         }
     }
+
+    // The held version of each item of a chunk, kept when it belongs to a wanted library and was not deleted before the
+    // cut-off. Cases (b) and (c) are looked up only when some item of the chunk needs them.
+    private suspend fun chosenInChunk(
+        serverId: String,
+        userId: String,
+        after: String,
+        current: List<HeldRaw>,
+        cutoffMs: Long,
+        libraries: Set<String>,
+    ): List<HeldRaw> {
+        val last = current.last().itemId
+        val covering = mutableMapOf<String, HeldRaw>()
+        val oldest = mutableMapOf<String, HeldRaw>()
+        if (current.any { it.seenFromMs >= cutoffMs }) {
+            coveringVersions(serverId, userId, after, last, cutoffMs).associateByTo(covering) { it.itemId }
+            oldestVersions(serverId, userId, after, last, cutoffMs).associateByTo(oldest) { it.itemId }
+        }
+        val chosen = ArrayList<HeldRaw>()
+        for (row in current) {
+            val version = if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
+            val deletedAt = version.deletedAtMs
+            if (version.libraryId in libraries && (deletedAt == null || deletedAt >= cutoffMs)) chosen += version
+        }
+        return chosen
+    }
+
+    // The genres and tags of the current rows in an ID range, by item, in the server's order.
+    private suspend fun readSide(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+        strings: Interner,
+    ): SideLists {
+        val side = SideLists()
+        for (row in genresInRange(serverId, userId, after, last)) {
+            side.genres.getOrPut(row.itemId) { ArrayList() }.add(strings.of(row.name))
+        }
+        for (row in tagsInRange(serverId, userId, after, last)) {
+            side.tags.getOrPut(row.itemId) { ArrayList() }.add(strings.of(row.name))
+        }
+        return side
+    }
+
+    private fun HeldRaw.toHeld(
+        side: SideLists,
+        strings: Interner,
+    ) = HeldRow(
+        itemId = itemId,
+        libraryId = libraryId,
+        kind = kind,
+        seriesId = seriesId,
+        seasonNumber = seasonNumber,
+        episodeNumber = episodeNumber,
+        runtimeMs = runtimeMs,
+        createdAtMs = createdAtMs,
+        premiereDate = premiereDate,
+        productionYear = productionYear,
+        deletedAtMs = deletedAtMs,
+        seenFromMs = seenFromMs,
+        officialRating = officialRating,
+        genres = if (genres != null) strings.all(VersionCodec.decode(genres)) else side.genres[itemId].orEmpty(),
+        tags = if (tags != null) strings.all(VersionCodec.decode(tags)) else side.tags[itemId].orEmpty(),
+        seasonId = seasonId,
+    )
 
     // Counts and reads, for the tests and diagnostics.
 
