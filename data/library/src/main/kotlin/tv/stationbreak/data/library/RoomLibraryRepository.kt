@@ -15,10 +15,12 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
@@ -150,6 +152,21 @@ class RoomLibraryRepository internal constructor(
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
+
+    // Placeholder for the red commit: no items, no series, no collections. The read comes with the next commit.
+    override suspend fun ruleSnapshot(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): RuleSnapshot =
+        RuleSnapshot(
+            cutoff.ceilingMillis(),
+            libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
+            emptyList(),
+            emptyMap(),
+            emptyMap(),
+            false,
+        )
 
     /**
      * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
