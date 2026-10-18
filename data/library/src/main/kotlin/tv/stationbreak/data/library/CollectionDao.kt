@@ -41,6 +41,7 @@ internal class MemberRaw(
  * to [add] and the IDs of those to end ([removed]), all at one [stamp]. A plan with no stamp writes nothing, or at most
  * a new name.
  */
+@Suppress("LongParameterList") // One property per part of the write.
 internal class CollectionPlan(
     val insert: CollectionEntity?,
     val update: CollectionEntity?,
@@ -149,7 +150,8 @@ internal abstract class CollectionDao {
     // Case (b): the one lifecycle that was current just before the cut-off. The intervals are contiguous.
     @Query(
         "SELECT * FROM collection_version WHERE serverId = :serverId AND userId = :userId " +
-            "AND collectionId > :after AND collectionId <= :last AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
+            "AND collectionId > :after AND collectionId <= :last " +
+            "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
     )
     protected abstract suspend fun coveringVersions(
         serverId: String,
@@ -162,10 +164,10 @@ internal abstract class CollectionDao {
     // Case (c): the oldest lifecycle, found by probing the collection's firstSeenMs, for one nothing older holds.
     @Query(
         "SELECT v.* FROM collection_version v " +
-            "JOIN collection c ON c.serverId = v.serverId AND c.userId = v.userId AND c.collectionId = v.collectionId " +
-            "AND c.firstSeenMs = v.seenFromMs " +
-            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.collectionId > :after AND v.collectionId <= :last " +
-            "AND v.seenFromMs >= :cutoffMs",
+            "JOIN collection c ON c.serverId = v.serverId AND c.userId = v.userId " +
+            "AND c.collectionId = v.collectionId AND c.firstSeenMs = v.seenFromMs " +
+            "WHERE v.serverId = :serverId AND v.userId = :userId " +
+            "AND v.collectionId > :after AND v.collectionId <= :last AND v.seenFromMs >= :cutoffMs",
     )
     protected abstract suspend fun oldestVersions(
         serverId: String,
@@ -194,7 +196,8 @@ internal abstract class CollectionDao {
     @Query(
         "SELECT m.collectionId AS collectionId, m.memberId AS memberId, m.memberKind AS memberKind " +
             "FROM collection_member m " +
-            "JOIN collection c ON c.serverId = m.serverId AND c.userId = m.userId AND c.collectionId = m.collectionId " +
+            "JOIN collection c ON c.serverId = m.serverId AND c.userId = m.userId " +
+            "AND c.collectionId = m.collectionId " +
             "WHERE m.serverId = :serverId AND m.userId = :userId AND m.collectionId IN (:ids) " +
             "AND m.seenFromMs <= c.firstSeenMs AND (m.supersededAtMs IS NULL OR m.supersededAtMs > c.firstSeenMs) " +
             "ORDER BY m.collectionId, m.memberId",
@@ -260,15 +263,12 @@ internal abstract class CollectionDao {
         for (row in current) {
             val id = row.collectionId
             val version = covering[id]
-            val inCaseC = row.seenFromMs >= cutoffMs && version == null
-            val deletedAt =
-                when {
-                    row.seenFromMs < cutoffMs -> row.deletedAtMs
-                    version != null -> version.deletedAtMs
-                    else -> oldest[id]?.deletedAtMs ?: row.deletedAtMs
-                }
-            if (deletedAt != null && deletedAt < cutoffMs) continue
-            if (inCaseC) atOldest += id else atCutoff += id
+            val deletedAt = lifecycleDeletedAt(row, version, oldest[id], cutoffMs)
+            when {
+                deletedAt != null && deletedAt < cutoffMs -> Unit
+                row.seenFromMs >= cutoffMs && version == null -> atOldest += id
+                else -> atCutoff += id
+            }
         }
         val members = HashMap<String, ArrayList<HeldMember>>()
         if (atCutoff.isNotEmpty()) addMembers(members, membersAt(serverId, userId, atCutoff, cutoffMs))
@@ -276,16 +276,34 @@ internal abstract class CollectionDao {
         val result = ArrayList<HeldCollection>()
         for (row in current) {
             val id = row.collectionId
-            if (id in atCutoff || id in atOldest) result += HeldCollection(id, members[id] ?: emptyList())
+            if (id in atCutoff || id in atOldest) result += HeldCollection(id, members[id].orEmpty())
         }
         return result
     }
+
+    // When the lifecycle held at the cut-off was deleted: the current row's if it began before the cut-off (a), else
+    // the covering version's (b), else the oldest version's, or the current row's if there is none (c).
+    private fun lifecycleDeletedAt(
+        row: CollectionEntity,
+        covering: CollectionVersionEntity?,
+        oldest: CollectionVersionEntity?,
+        cutoffMs: Long,
+    ): Long? =
+        when {
+            row.seenFromMs < cutoffMs -> row.deletedAtMs
+            covering != null -> covering.deletedAtMs
+            oldest != null -> oldest.deletedAtMs
+            else -> row.deletedAtMs
+        }
 
     private fun addMembers(
         into: HashMap<String, ArrayList<HeldMember>>,
         rows: List<MemberRaw>,
     ) {
-        for (row in rows) into.getOrPut(row.collectionId) { ArrayList() }.add(HeldMember(row.memberId, MemberKinds.shared(row.memberKind)))
+        for (row in rows) {
+            val kind = MemberKinds.shared(row.memberKind)
+            into.getOrPut(row.collectionId) { ArrayList() }.add(HeldMember(row.memberId, kind))
+        }
     }
 
     /**
@@ -319,14 +337,18 @@ internal abstract class CollectionDao {
         val add = wanted.values.filter { held[it.memberId]?.memberKind != it.memberKind }
         val removed = held.values.filter { wanted[it.memberId]?.memberKind != it.memberKind }.map { it.memberId }
         val revived = existing.deletedAtMs != null
-        if (add.isEmpty() && removed.isEmpty() && !revived) {
+        return if (add.isEmpty() && removed.isEmpty() && !revived) {
+            // Nothing changed: no stamp, no version. A new name is stored as it is.
             val renamed = existing.takeIf { it.name != name }?.copy(name = name)
-            return CollectionPlan(null, renamed, null, emptyList(), emptyList(), null, revived = false)
+            CollectionPlan(null, renamed, null, emptyList(), emptyList(), null, revived = false)
+        } else {
+            val stamp = nextStamp(existing.seenFromMs, nowMs)
+            val from = existing.seenFromMs
+            val ended = CollectionVersionEntity(serverId, userId, collectionId, from, stamp, existing.deletedAtMs)
+            val began = add.map { it.copy(seenFromMs = stamp, supersededAtMs = null) }
+            val row = existing.copy(name = name, deletedAtMs = null, seenFromMs = stamp)
+            CollectionPlan(null, row, ended, began, removed, stamp, revived)
         }
-        val stamp = nextStamp(existing.seenFromMs, nowMs)
-        val version = CollectionVersionEntity(serverId, userId, collectionId, existing.seenFromMs, stamp, existing.deletedAtMs)
-        val row = existing.copy(name = name, deletedAtMs = null, seenFromMs = stamp)
-        return CollectionPlan(null, row, version, add.map { it.copy(seenFromMs = stamp, supersededAtMs = null) }, removed, stamp, revived)
     }
 
     // Reads, for the tests and diagnostics.

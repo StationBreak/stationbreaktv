@@ -13,9 +13,9 @@ import tv.stationbreak.core.model.ItemId
 
 /**
  * Spec 10 task 2.3 (Vimes H1, H2): membership history as member rows with intervals, stamped once per collection write.
- * A diff by member ID gives one stamp `max(now, collection.seenFromMs + 1)` to every addition and removal of a write; an
- * unchanged read takes none; a collection is inserted only with its first complete member list. After EVERY write, at
- * most one current row exists per (collection, member), and the intervals stay sound.
+ * A diff by member ID gives one stamp `max(now, collection.seenFromMs + 1)` to every addition and removal of a write;
+ * an unchanged read takes none; a collection is inserted only with its first complete member list. After EVERY write,
+ * at most one current row exists per (collection, member), and the intervals stay sound.
  */
 class CollectionHistoryTest {
     private val clock = FakeClock()
@@ -37,6 +37,13 @@ class CollectionHistoryTest {
         return write
     }
 
+    // What a write that changed an existing, live collection reports.
+    private fun change(
+        stamp: Long?,
+        added: Int = 0,
+        removed: Int = 0,
+    ) = CollectionWrite(stamp, inserted = false, revived = false, added = added, removed = removed)
+
     private suspend fun current() = repository.collections(ALICE).single()
 
     private suspend fun rowsOf(member: String) = repository.collectionMembers(ALICE).filter { it.memberId == member }
@@ -46,7 +53,7 @@ class CollectionHistoryTest {
         runBlocking {
             val write = write(cm("a"), cm("b", CollectionMemberKind.Series))
 
-            assertEquals(CollectionWrite(stamp = start, inserted = true, revived = false, added = 2, removed = 0), write)
+            assertEquals(CollectionWrite(start, inserted = true, revived = false, added = 2, removed = 0), write)
             val row = current()
             assertEquals(start, row.seenFromMs)
             assertEquals(start, row.firstSeenMs)
@@ -81,7 +88,7 @@ class CollectionHistoryTest {
 
             val write = write(cm("a"), cm("b"))
 
-            assertEquals(CollectionWrite(start + 5_000, inserted = false, revived = false, added = 1, removed = 0), write)
+            assertEquals(change(start + 5_000, added = 1), write)
             assertEquals(start, rowsOf("a").single().seenFromMs)
             assertEquals(start + 5_000, rowsOf("b").single().seenFromMs)
             assertEquals(start + 5_000, current().seenFromMs)
@@ -98,7 +105,7 @@ class CollectionHistoryTest {
 
             val write = write(cm("a"))
 
-            assertEquals(CollectionWrite(start + 5_000, inserted = false, revived = false, added = 0, removed = 1), write)
+            assertEquals(change(start + 5_000, removed = 1), write)
             assertEquals(start + 5_000, rowsOf("b").single().supersededAtMs)
             assertNull(rowsOf("a").single().supersededAtMs)
             assertEquals(listOf("a:movie"), repository.currentMembers(ALICE, box.value))
@@ -112,7 +119,7 @@ class CollectionHistoryTest {
 
             val write = write(cm("b"), cm("c"))
 
-            assertEquals(CollectionWrite(start + 5_000, inserted = false, revived = false, added = 1, removed = 1), write)
+            assertEquals(change(start + 5_000, added = 1, removed = 1), write)
             assertEquals(start + 5_000, rowsOf("a").single().supersededAtMs)
             assertEquals(start + 5_000, rowsOf("c").single().seenFromMs)
             assertEquals(1, repository.collectionVersions(ALICE).size)
@@ -127,7 +134,7 @@ class CollectionHistoryTest {
 
             val write = write(cm("b"), cm("a"))
 
-            assertEquals(CollectionWrite(stamp = null, inserted = false, revived = false, added = 0, removed = 0), write)
+            assertEquals(change(null), write)
             assertEquals(before, repository.collectionMembers(ALICE))
             assertEquals(start, current().seenFromMs)
             assertEquals(emptyList<CollectionVersionEntity>(), repository.collectionVersions(ALICE))
@@ -155,7 +162,7 @@ class CollectionHistoryTest {
 
             val write = write(cm("a", CollectionMemberKind.Episode))
 
-            assertEquals(CollectionWrite(start + 5_000, inserted = false, revived = false, added = 1, removed = 1), write)
+            assertEquals(change(start + 5_000, added = 1, removed = 1), write)
             val rows = rowsOf("a").sortedBy { it.seenFromMs }
             assertEquals(listOf("movie", "episode"), rows.map { it.memberKind })
             assertEquals(start + 5_000, rows[0].supersededAtMs)

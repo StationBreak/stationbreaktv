@@ -20,7 +20,8 @@ internal data class PageResult(
  * that deoptimised the JIT-compiled loop and aborted the process (see [ItemHistoryDao.heldAsOf]).
  */
 @Dao
-@Suppress("AbstractClassCanBeConcreteClass") // Room generates the implementation of an abstract @Dao.
+// One method per transaction that spans DAOs; Room generates the implementation of an abstract @Dao.
+@Suppress("TooManyFunctions", "AbstractClassCanBeConcreteClass")
 internal abstract class CacheTransactionDao(
     private val db: LibraryDatabase,
 ) {
@@ -141,7 +142,9 @@ internal abstract class CacheTransactionDao(
         memberIds: List<String>,
         stamp: Long,
     ) {
-        for (chunk in memberIds.chunked(LibraryDao.MAX_VARIABLES)) collections.supersedeMember(serverId, userId, chunk, stamp)
+        for (chunk in memberIds.chunked(LibraryDao.MAX_VARIABLES)) {
+            collections.supersedeMember(serverId, userId, chunk, stamp)
+        }
     }
 
     /**
@@ -221,8 +224,8 @@ internal abstract class CacheTransactionDao(
      * One reconcile's decisions for a library, written together (spec 10, Vimes M3): the items and the series that
      * are gone are tombstoned at [nowMs], and those that came back are revived, each with its version, in one
      * transaction after the account check. Tombstones go first, with the end of their IDs' member rows in every
-     * collection (ADR-0015), then the revives. [betweenTombstonesAndRevives] runs between them (a test seam; null in the
-     * app).
+     * collection (ADR-0015), then the revives. [betweenTombstonesAndRevives] runs between them (a test seam; null in
+     * the app).
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the four decisions, the time and the test seam.
@@ -283,11 +286,12 @@ internal abstract class CacheTransactionDao(
     /**
      * Writes one collection and its complete member list in one transaction after the account check (spec 10, Vimes
      * H1, H2, M4). A new collection is inserted only with its first members, at one stamp. A collection that exists is
-     * diffed by member (see [CollectionDao.planWrite]): any change takes one stamp, which ends the removed members, begins
-     * the added ones, moves the collection row and keeps the lifecycle it ends as a `collection_version`. A tombstoned
-     * collection that is written is revived at that same stamp. A read that changes nothing writes nothing but a new
-     * name. [members] are the whole list, already filtered to the kinds the cache stores. [betweenCollectionAndMembers]
-     * runs after the collection row and its version, before the members (a test seam; null in the app).
+     * diffed by member (see [CollectionDao.planWrite]): any change takes one stamp, which ends the removed members,
+     * begins the added ones, moves the collection row and keeps the lifecycle it ends as a `collection_version`. A
+     * tombstoned collection that is written is revived at that same stamp. A read that changes nothing writes nothing
+     * but a new name. [members] are the whole list, already filtered to the kinds the cache stores.
+     * [betweenCollectionAndMembers] runs after the collection row and its version, before the members (a test seam;
+     * null in the app).
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the collection, its list, the time and the test seam.

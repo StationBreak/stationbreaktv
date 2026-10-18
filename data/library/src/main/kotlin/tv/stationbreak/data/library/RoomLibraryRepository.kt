@@ -573,9 +573,9 @@ class RoomLibraryRepository internal constructor(
     }
 
     /**
-     * Writes one collection and its complete member list in one transaction (see [CacheTransactionDao.writeCollection]).
-     * [members] hold only the kinds the cache stores (movie, episode, series, season): the sync skips nested
-     * collections and other types before it gets here.
+     * Writes one collection and its complete member list in one transaction (see
+     * [CacheTransactionDao.writeCollection]). [members] hold only the kinds the cache stores (movie, episode, series,
+     * season): the sync skips nested collections and other types before it gets here.
      */
     internal suspend fun writeCollection(
         account: LibraryAccount,

@@ -44,6 +44,12 @@ class CollectionMemberKindMappingTest {
         type: String,
     ) = """{"Id":"$id","Name":"Name of $id","Type":"$type"}"""
 
+    // A members page with one member per type, m0, m1 and so on.
+    private fun pageOf(types: List<String>): String {
+        val items = types.mapIndexed { n, type -> member("m$n", type) }.joinToString(",")
+        return "{\"Items\":[$items],\"TotalRecordCount\":${types.size}}"
+    }
+
     @Test
     fun eachMemberTypeMapsToItsKind() {
         val types =
@@ -54,7 +60,7 @@ class CollectionMemberKindMappingTest {
                 "Season" to CollectionMemberKind.Season,
                 "BoxSet" to CollectionMemberKind.Collection,
             )
-        val body = types.keys.mapIndexed { n, type -> member("m$n", type) }.joinToString(",", "{\"Items\":[", "],\"TotalRecordCount\":5}")
+        val body = pageOf(types.keys.toList())
 
         val page = members(body).getOrNull()
 
@@ -65,7 +71,7 @@ class CollectionMemberKindMappingTest {
     @Test
     fun musicPhotosAndUnknownTypesAreOther() {
         val types = listOf("Audio", "MusicAlbum", "Photo", "Video", "MusicVideo", "Playlist", "SomethingNew", "")
-        val body = types.mapIndexed { n, type -> member("m$n", type) }.joinToString(",", "{\"Items\":[", "],\"TotalRecordCount\":8}")
+        val body = pageOf(types)
 
         val page = members(body).getOrNull()
 
@@ -102,8 +108,8 @@ class CollectionMemberKindMappingTest {
     @Test
     fun aBoxSetListingDecodesIdAndNameAndNothingElse() {
         val body =
-            """{"Items":[{"Id":"b1","Name":"Night films","Type":"BoxSet","OfficialRating":"X","Genres":["g"],"ChildCount":9},
-            {"Id":"b2","Type":"BoxSet"}],"TotalRecordCount":2,"StartIndex":0}"""
+            """{"Items":[{"Id":"b1","Name":"Night films","Type":"BoxSet","OfficialRating":"X","Genres":["g"],
+            "ChildCount":9},{"Id":"b2","Type":"BoxSet"}],"TotalRecordCount":2,"StartIndex":0}"""
 
         val page =
             runBlocking {
@@ -119,9 +125,10 @@ class CollectionMemberKindMappingTest {
 
     @Test
     fun theIdListingReturnsIdsInPagesAndNothingElse() {
+        val body = """{"Items":[{"Id":"b1","Name":"x"},{"Id":"b2"}],"TotalRecordCount":2}"""
         val page =
             runBlocking {
-                jellyfin.on("GET", "/Items") { jellyfin.json("""{"Items":[{"Id":"b1","Name":"x"},{"Id":"b2"}],"TotalRecordCount":2}""") }
+                jellyfin.on("GET", "/Items") { jellyfin.json(body) }
                 testAdapter().collectionIds(testSession(jellyfin.address), 0, 50).getOrNull()
             }
 

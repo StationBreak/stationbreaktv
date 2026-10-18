@@ -34,12 +34,25 @@ class CollectionTombstoneCascadeTest {
         repository.select(ALICE, setOf(MOVIES, SHOWS))
         repository.put(ALICE, MOVIES, sitem(1), sitem(2))
         repository.putSeries(ALICE, SHOWS, series("s1"))
-        repository.writeCollection(ALICE, boxA, "A", listOf(cm(film.value), cm(other.value), cm("s1", CollectionMemberKind.Series)))
+        val aMembers = listOf(cm(film.value), cm(other.value), cm("s1", CollectionMemberKind.Series))
+        repository.writeCollection(ALICE, boxA, "A", aMembers)
         repository.writeCollection(ALICE, boxB, "B", listOf(cm(film.value), cm("x")))
         clock.stepMs(10_000)
     }
 
-    private suspend fun current(collection: ItemId) = repository.currentMembers(ALICE, collection.value).map { it.substringBefore(':') }
+    private suspend fun current(collection: ItemId): List<String> {
+        val members = repository.currentMembers(ALICE, collection.value)
+        return members.map { it.substringBefore(':') }
+    }
+
+    // The account's member rows of [collection] for [member], oldest first.
+    private suspend fun rows(
+        collection: ItemId,
+        member: ItemId,
+    ): List<CollectionMemberEntity> {
+        val all = repository.collectionMembers(ALICE)
+        return all.filter { it.collectionId == collection.value && it.memberId == member.value }
+    }
 
     private suspend fun heldBefore(cutoffMs: Long) =
         repository
@@ -127,7 +140,7 @@ class CollectionTombstoneCascadeTest {
             repository.writeCollection(ALICE, boxB, "B", listOf(cm(film.value), cm("x")))
 
             assertEquals(listOf(film.value, "x"), current(boxB))
-            assertEquals(2, repository.collectionMembers(ALICE).count { it.collectionId == boxB.value && it.memberId == film.value })
+            assertEquals(2, rows(boxB, film).size)
             repository.assertMemberIntervalsSound(ALICE)
         }
 
@@ -138,7 +151,8 @@ class CollectionTombstoneCascadeTest {
             val before = clock.nowMs
             repository.tombstone(ALICE, listOf(film))
 
-            assertEquals(mapOf("box01" to listOf(film.value, other.value, "s1"), "box02" to listOf(film.value, "x")), heldBefore(before))
+            val both = mapOf("box01" to listOf(film.value, other.value, "s1"), "box02" to listOf(film.value, "x"))
+            assertEquals(both, heldBefore(before))
             assertEquals(mapOf("box01" to listOf(other.value, "s1"), "box02" to listOf("x")), heldBefore(before + 1))
         }
 
@@ -159,12 +173,12 @@ class CollectionTombstoneCascadeTest {
             world()
             clock.stepMs(5_000)
             repository.writeCollection(ALICE, boxB, "B", listOf(cm("x")))
-            val ended = repository.collectionMembers(ALICE).single { it.collectionId == boxB.value && it.memberId == film.value }
+            val ended = rows(boxB, film).single()
             clock.stepMs(5_000)
 
             repository.tombstone(ALICE, listOf(film))
 
-            val after = repository.collectionMembers(ALICE).single { it.collectionId == boxB.value && it.memberId == film.value }
+            val after = rows(boxB, film).single()
             assertEquals(ended.supersededAtMs, after.supersededAtMs)
         }
 

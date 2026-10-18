@@ -144,7 +144,8 @@ internal class MediaCalls(
         limit: Int,
         changedSince: Instant?,
     ): ServerResult<CollectionPage> {
-        val query = boxSetQuery(startIndex, limit) + listOfNotNull(changedSince?.let { "minDateLastSaved" to utcMillis(it) })
+        val query =
+            boxSetQuery(startIndex, limit) + listOfNotNull(changedSince?.let { "minDateLastSaved" to utcMillis(it) })
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, CollectionsDto.serializer()).flatMap { page ->
                 firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
@@ -190,7 +191,10 @@ internal class MediaCalls(
         startIndex: Int,
         limit: Int,
         types: String,
-    ): ServerResult<ItemIdPage> = idPage(session, recursiveQuery(library, startIndex, limit, types) + ID_ONLY, startIndex)
+    ): ServerResult<ItemIdPage> {
+        val query = recursiveQuery(library, startIndex, limit, types) + ID_ONLY
+        return idPage(session, query, startIndex)
+    }
 
     private suspend fun idPage(
         session: Session,

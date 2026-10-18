@@ -10,8 +10,8 @@ import tv.stationbreak.core.model.ItemId
 
 /**
  * Spec 10 task 2.3 (Vimes M4): a collection that was tombstoned and is listed again has its members re-read in the same
- * pass, and the revival, its `collection_version` row and the member diff take ONE stamp in one transaction. A tombstone
- * adds no version. At the DAO level the write API takes the revival and the member list together.
+ * pass, and the revival, its `collection_version` row and the member diff take ONE stamp in one transaction. A
+ * tombstone adds no version. At the DAO level the write API takes the revival and the member list together.
  */
 class CollectionReviveTest {
     private val clock = FakeClock()

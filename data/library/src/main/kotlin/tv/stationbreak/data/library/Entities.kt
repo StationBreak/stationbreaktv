@@ -241,11 +241,12 @@ internal data class CollectionVersionEntity(
 
 /**
  * One member of a collection over the time it was held: the interval `[seenFromMs, supersededAtMs)`, open while
- * [supersededAtMs] is null. A change is a removal (the stamp goes in [supersededAtMs]) and an addition (a new row at the
- * same stamp), so a member's history is its rows, and only the changes are stored, however big the collection (Vimes
- * H1). A member whose kind changed is a removal and an addition at one stamp. [memberKind] is `movie`, `episode`,
- * `series` or `season`: nested collections and other types are never stored. At most one row per (collection, member)
- * has a null [supersededAtMs]; Room cannot declare a partial unique index, so the tests assert it after every write.
+ * [supersededAtMs] is null. A change is a removal (the stamp goes in [supersededAtMs]) and an addition (a new row at
+ * the same stamp), so a member's history is its rows, and only the changes are stored, however big the collection
+ * (Vimes H1). A member whose kind changed is a removal and an addition at one stamp. [memberKind] is `movie`,
+ * `episode`, `series` or `season`: nested collections and other types are never stored. At most one row per
+ * (collection, member) has a null [supersededAtMs]; Room cannot declare a partial unique index, so the tests assert it
+ * after every write.
  */
 @Entity(
     tableName = "collection_member",
@@ -482,7 +483,7 @@ internal object MemberKinds {
     const val SERIES = "series"
     const val SEASON = "season"
 
-    /** The shared constant for a stored [column], so a read of thousands of members holds four strings, not thousands. */
+    /** The shared constant for a stored [column], so a read of thousands of members holds four strings, not more. */
     fun shared(column: String): String =
         when (column) {
             MOVIE -> MOVIE

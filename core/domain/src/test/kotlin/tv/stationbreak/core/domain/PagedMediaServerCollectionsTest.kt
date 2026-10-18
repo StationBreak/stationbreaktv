@@ -24,7 +24,10 @@ import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
-/** `PagedMediaServer` pages BoxSets and their members as the adapter does: the total on page one, `changedSince`, faults. */
+/**
+ * `PagedMediaServer` pages BoxSets and their members as the adapter does: the total on page one, `changedSince`,
+ * faults.
+ */
 class PagedMediaServerCollectionsTest {
     private val library = Library(ItemId("lib"), "Films", LibraryKind.Movies)
     private val source = CollectionSource()
@@ -109,7 +112,9 @@ class PagedMediaServerCollectionsTest {
     @Test
     fun aFaultHookCanFailAnyCollectionCall() =
         runBlocking {
-            server.respondToCollections = { if (it.kind == CollectionCallKind.Members) MediaServerError.Timeout() else null }
+            server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Members) MediaServerError.Timeout() else null
+            }
 
             assertIs<MediaServerError.Timeout>(server.collectionMembers(session, ItemId("c1"), 0, 2).errorOrNull())
             assertEquals(5, server.collections(session, 0, 2).getOrNull()?.totalCount)

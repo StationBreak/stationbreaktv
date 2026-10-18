@@ -90,7 +90,8 @@ class CacheRebuildTest {
             assertTrue("$table needs a foreign key to collection", block.contains("\"table\": \"collection\""))
             assertTrue("$table needs ON DELETE CASCADE", block.contains("\"onDelete\": \"CASCADE\""))
         }
-        assertTrue("collection must not reference library", !tableBlock(text, "collection").contains("\"table\": \"library\""))
+        val collection = tableBlock(text, "collection")
+        assertTrue("collection must not reference library", !collection.contains("\"table\": \"library\""))
         val columns = SchemaFile.columnNames()
         listOf("memberKind", "memberId", "collectionsSinceMs", "lastRelistMs").forEach {
             assertTrue("$it missing", it in columns)

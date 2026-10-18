@@ -86,7 +86,7 @@ class CollectionAsOfTest {
             // Case (c): the cut-off is before the collection was first seen, so it holds the first complete set.
             assertEquals(mapOf("box01" to listOf("a:movie", "b:movie")), heldBefore(cutoff))
             assertEquals(mapOf("box01" to listOf("a:movie", "b:movie")), heldBefore(start))
-            assertEquals(mapOf("box01" to listOf("a:movie", "b:movie")), heldBefore(start + 1).also { assertTrue(it.isNotEmpty()) })
+            assertEquals(mapOf("box01" to listOf("a:movie", "b:movie")), heldBefore(start + 1))
         }
 
     @Test
