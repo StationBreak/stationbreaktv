@@ -20,6 +20,8 @@ import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.SeriesInfo
+import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamUrls
@@ -64,6 +66,7 @@ internal class MediaCalls(
                 "limit" to limit.toString(),
                 "sortBy" to "SortName",
                 "sortOrder" to "Ascending",
+                COLLAPSE_BOX_SETS_OFF,
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
@@ -99,8 +102,45 @@ internal class MediaCalls(
         library: Library,
         startIndex: Int,
         limit: Int,
+    ): ServerResult<ItemIdPage> = idListing(session, library, startIndex, limit, CACHED_TYPES)
+
+    suspend fun librarySeries(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<SeriesPage> {
+        val query =
+            recursiveQuery(library, startIndex, limit, SERIES_TYPE) +
+                listOfNotNull(
+                    "fields" to SERIES_FIELDS,
+                    changedSince?.let { "minDateLastSaved" to utcMillis(it) },
+                )
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, SeriesItemsDto.serializer()).flatMap { page ->
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { SeriesPage(startIndex, total, page.items.map(::toSeriesInfo)) }
+                }
+            }
+        }
+    }
+
+    suspend fun librarySeriesIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> = idListing(session, library, startIndex, limit, SERIES_TYPE)
+
+    private suspend fun idListing(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        types: String,
     ): ServerResult<ItemIdPage> {
-        val query = recursiveQuery(library, startIndex, limit) + ID_ONLY
+        val query = recursiveQuery(library, startIndex, limit, types) + ID_ONLY
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemIdsDto.serializer()).flatMap { page ->
                 firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
@@ -111,20 +151,22 @@ internal class MediaCalls(
     }
 
     /**
-     * The query both cache calls share: the library's video items at any depth, in a stable order. The total
+     * The query the cache calls share: the library's items of [types] at any depth, in a stable order. The total
      * count is asked for on the first page only, because the server counts the whole library for it.
      */
     private fun recursiveQuery(
         library: Library,
         startIndex: Int,
         limit: Int,
+        types: String = CACHED_TYPES,
     ): List<Pair<String, String>> {
         require(startIndex >= 0) { "startIndex can't be negative" }
         require(limit in 1..MediaServer.MAX_PAGE_SIZE) { "limit must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
         return listOf(
             "parentId" to library.id.value,
             "recursive" to "true",
-            "includeItemTypes" to CACHED_TYPES,
+            "includeItemTypes" to types,
+            COLLAPSE_BOX_SETS_OFF,
             // Jellyfin 12 has no sort by ID (an unknown key is ignored), but it breaks every tie on the ID, in
             // ascending order whatever the direction (contract test: tiedNamesPageStably), so this order is total.
             "sortBy" to "SortName",
@@ -222,6 +264,13 @@ internal class MediaCalls(
         )
 
     private companion object {
+        /**
+         * With the user's "group movies into collections" setting on, the server hides a BoxSet's movies behind the
+         * BoxSet unless an item call says otherwise. Every item call says so (spec 10, Vimes H5), so the cache lists
+         * the movies whatever the setting.
+         */
+        val COLLAPSE_BOX_SETS_OFF = "collapseBoxSetItems" to "false"
+
         /** The video kinds the cache holds (spec 06): never series, seasons, folders or collections. */
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
 
@@ -231,6 +280,12 @@ internal class MediaCalls(
          * runtime) come with every item, so asking for more would only make the answer bigger.
          */
         const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,ParentId"
+
+        /** The series calls (spec 10): only Series, never an episode, with the two fields a rule matches on. */
+        const val SERIES_TYPE = "Series"
+
+        /** `OfficialRating` and the name come with every item, so a series needs only these two asked for. */
+        const val SERIES_FIELDS = "Genres,Tags"
 
         /**
          * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
@@ -304,8 +359,19 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         genres = dto.genres.orEmpty(),
         tags = dto.tags.orEmpty(),
         seriesId = dto.seriesId?.let(::ItemId),
+        seasonId = dto.seasonId?.let(::ItemId),
         seasonNumber = dto.seasonNumber,
         episodeNumber = dto.episodeNumber,
+    )
+
+/** One series of a page. The rating is passed on exactly as the server sent it: never trimmed, never blank-to-null. */
+internal fun toSeriesInfo(dto: SeriesDto): SeriesInfo =
+    SeriesInfo(
+        id = ItemId(dto.id),
+        name = dto.name,
+        officialRating = dto.officialRating,
+        genres = dto.genres.orEmpty(),
+        tags = dto.tags.orEmpty(),
     )
 
 /**

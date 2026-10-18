@@ -66,6 +66,7 @@ internal fun wireItem(
         item.productionYear?.let { put("ProductionYear", it) }
         item.officialRating?.let { put("OfficialRating", it) }
         item.seriesId?.let { put("SeriesId", it.value) }
+        item.seasonId?.let { put("SeasonId", it.value) }
         item.seasonNumber?.let { put("ParentIndexNumber", it) }
         item.episodeNumber?.let { put("IndexNumber", it) }
         if ("ParentId" in fields) item.parentId?.let { put("ParentId", it.value) }

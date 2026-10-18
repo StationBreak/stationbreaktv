@@ -46,6 +46,10 @@ class SignOutClearsCacheTest {
         repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("g"))), 1, 1, run = 1)
         // A genre-only edit keeps the old row as a version, so there is history for the sign-out to clear (Vimes H5).
         repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("h"))), 1, 1, run = 2)
+        // Series and a series version too (spec 10): a rating edit keeps the old row as a version.
+        repository.select(account, setOf(MOVIES, SHOWS))
+        repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "A"), series("s2")))
+        repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "B")))
     }
 
     @Test
@@ -54,6 +58,8 @@ class SignOutClearsCacheTest {
             sessions.save(session(ALICE))
             fillFor(ALICE)
             assertEquals("the test needs a version to clear", 1, repository.rowCounts().versions)
+            val counts = repository.rowCounts()
+            assertEquals("and two series with a version", 2 to 1, counts.series to counts.seriesVersions)
 
             sessions.signOut(session(ALICE))
 
@@ -71,6 +77,10 @@ class SignOutClearsCacheTest {
 
             assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
             assertEquals("Bob keeps his history", 1, repository.versions(BOB).size)
+            assertEquals(emptyList<SeriesEntity>(), repository.currentSeries(ALICE))
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertEquals("Bob keeps his series", 2, repository.currentSeries(BOB).size)
+            assertEquals("and their history", 1, repository.seriesVersions(BOB).size)
 
             assertEquals(emptyList<MediaItem>(), repository.snapshot(ALICE, setOf(MOVIES), EPOCH))
             assertEquals(1, repository.snapshot(BOB, setOf(MOVIES), EPOCH).size)

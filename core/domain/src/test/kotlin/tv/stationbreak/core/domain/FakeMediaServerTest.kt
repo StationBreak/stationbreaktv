@@ -15,6 +15,8 @@ import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.Scheme
+import tv.stationbreak.core.model.SeriesInfo
+import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.ServerInfo
@@ -116,6 +118,43 @@ class FakeMediaServerTest {
             assertFailsWith<IllegalArgumentException> { fake.libraryItems(session(), library, 0, tooMany) }
             assertFailsWith<IllegalArgumentException> { fake.libraryItemIds(session(), library, -1, 10) }
             assertFailsWith<IllegalArgumentException> { fake.libraryItemIds(session(), library, 0, 0) }
+        }
+    }
+
+    @Test
+    fun answersTheSeriesCallsWithWhatItWasToldAndRecordsThem() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val library = Library(ItemId("lib"), "Shows", LibraryKind.TvShows)
+            val page = SeriesPage(0, 1, listOf(SeriesInfo(ItemId("s1"), "Heat", null, listOf("Crime"), emptyList())))
+            val ids = ItemIdPage(0, 1, listOf(ItemId("s1")))
+            val since = Instant.parse("2026-03-04T05:06:07Z")
+            fake.librarySeriesResult = ServerResult.Success(page)
+            fake.librarySeriesIdsResult = ServerResult.Success(ids)
+
+            assertEquals(ServerResult.Success(page), fake.librarySeries(session(), library, 0, 10, since))
+            assertEquals(ServerResult.Success(page), fake.librarySeries(session(), library, 10, 20))
+            assertEquals(ServerResult.Success(ids), fake.librarySeriesIds(session(), library, 5, 7))
+
+            assertEquals(
+                listOf(LibraryItemsCall(library, 0, 10, since), LibraryItemsCall(library, 10, 20, null)),
+                fake.librarySeriesCalls,
+            )
+            assertEquals(listOf(Triple(library, 5, 7)), fake.librarySeriesIdsCalls)
+        }
+    }
+
+    @Test
+    fun refusesABadSeriesPageRequestAsTheRealPortDoes() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val library = Library(ItemId("lib"), "Shows", LibraryKind.TvShows)
+            val tooMany = MediaServer.MAX_PAGE_SIZE + 1
+
+            assertFailsWith<IllegalArgumentException> { fake.librarySeries(session(), library, -1, 10) }
+            assertFailsWith<IllegalArgumentException> { fake.librarySeries(session(), library, 0, tooMany) }
+            assertFailsWith<IllegalArgumentException> { fake.librarySeriesIds(session(), library, -1, 10) }
+            assertFailsWith<IllegalArgumentException> { fake.librarySeriesIds(session(), library, 0, 0) }
         }
     }
 }

@@ -28,6 +28,7 @@ internal class Account(
 }
 
 /** What the seeded server holds, by ID, for the cases to ask about. */
+@Suppress("LongParameterList") // One property per seeded fact the cases ask about.
 internal class Seeded(
     val moviesLibrary: String,
     val tvLibrary: String,
@@ -36,6 +37,13 @@ internal class Seeded(
     val episodeIds: List<String>,
     /** Item ID to the UTC calendar date its seeded `PremiereDate` must read as (spec 09). */
     val premieres: Map<String, String> = emptyMap(),
+    /** The one series in the TV library, with the genres, tags and rating [ServerSeeding] gave it (spec 10). */
+    val seriesId: String = "",
+    /** The episode that sits in the series folder itself, not in a season folder (spec 10, Vimes L9). */
+    val looseEpisodeId: String = "",
+    /** A BoxSet holding the first two movies, and those movies (spec 10, Vimes H5). */
+    val boxSetId: String = "",
+    val boxSetMembers: List<String> = emptyList(),
 )
 
 /**

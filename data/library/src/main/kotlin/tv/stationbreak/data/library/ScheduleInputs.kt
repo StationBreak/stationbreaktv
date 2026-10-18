@@ -8,7 +8,8 @@ import tv.stationbreak.core.model.schedule.ScheduleItemProblem
 
 /**
  * An item as one version of it held its schedule fields (spec 09, Unit 2): a current row or an `item_version` row, read
- * with the same columns so both feed one mapping.
+ * with the same columns so both feed one mapping. It carries the rating exactly as received (null, `""` and `" "` are
+ * three values), the ordered genres and tags, and an episode's season (spec 10, Unit 1).
  */
 internal data class HeldRow(
     val itemId: String,
@@ -23,6 +24,10 @@ internal data class HeldRow(
     val productionYear: Int?,
     val deletedAtMs: Long?,
     val seenFromMs: Long,
+    val officialRating: String? = null,
+    val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val seasonId: String? = null,
 )
 
 /**

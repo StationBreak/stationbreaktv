@@ -10,6 +10,7 @@ import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.Session
@@ -152,6 +153,32 @@ interface MediaServer {
      * longer has. Paging and the total count work as for [libraryItems], and the argument rules are the same.
      */
     suspend fun libraryItemIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage>
+
+    /**
+     * One page of the series under [library], at any depth, for the library cache (spec 10): each with its name, its
+     * official rating (exactly as the server sends it, or null), and its genres and tags. Paging, the stable order, the
+     * total count on the first page only, [changedSince] (`MinDateLastSaved`) and the argument rules are those of
+     * [libraryItems], which still leaves series out. Throws [IllegalArgumentException] for a bad [startIndex] or
+     * [limit].
+     */
+    suspend fun librarySeries(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant? = null,
+    ): ServerResult<SeriesPage>
+
+    /**
+     * One page of the IDs of the series [librarySeries] returns, with nothing else, for finding the series the server
+     * no longer has. Paging and the total count work as for [libraryItemIds], and the argument rules are the same.
+     */
+    suspend fun librarySeriesIds(
         session: Session,
         library: Library,
         startIndex: Int,

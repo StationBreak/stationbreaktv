@@ -82,4 +82,71 @@ class HistoryCascadeTest {
             assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
             assertEquals(setOf(hexId(2), hexId(3)), repository.currentRows(ALICE).map { it.itemId }.toSet())
         }
+
+    // Spec 10 task 1.8: the series and their versions follow the same cascades.
+
+    private suspend fun twoLibrariesWithSeriesHistory() {
+        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.upsertSeries(ALICE, MOVIES, listOf(series("m1", "A")))
+        repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "A"), series("s2", "A")))
+        clock.stepMs(1_000)
+        repository.upsertSeries(ALICE, MOVIES, listOf(series("m1", "B")))
+        repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "B"), series("s2", "B")))
+    }
+
+    @Test
+    fun unTickingALibraryDeletesItsSeriesAndTheirVersionsOnly() =
+        runBlocking {
+            twoLibrariesWithSeriesHistory()
+            assertEquals(3, repository.seriesVersions(ALICE).size)
+
+            repository.select(ALICE, setOf(MOVIES))
+
+            assertEquals(listOf("m1"), repository.currentSeries(ALICE).map { it.seriesId })
+            assertEquals(listOf("m1"), repository.seriesVersions(ALICE).map { it.seriesId })
+        }
+
+    @Test
+    fun aChangeOfAccountDeletesTheOtherAccountsSeriesAndVersions() =
+        runBlocking {
+            twoLibrariesWithSeriesHistory()
+            repository.select(BOB, setOf(SHOWS))
+            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "A")))
+            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "B")))
+
+            repository.useAccount(BOB)
+
+            assertEquals(emptyList<SeriesEntity>(), repository.currentSeries(ALICE))
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertEquals(1, repository.seriesVersions(BOB).size)
+        }
+
+    @Test
+    fun forgetDeletesTheSeriesAndTheirVersionsAndLeavesAnotherAccountsAlone() =
+        runBlocking {
+            twoLibrariesWithSeriesHistory()
+            repository.select(BOB, setOf(SHOWS))
+            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "A")))
+            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "B")))
+
+            repository.forget(ALICE)
+
+            assertEquals(emptyList<SeriesEntity>(), repository.currentSeries(ALICE))
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertEquals(1, repository.currentSeries(BOB).size)
+            assertEquals(1, repository.seriesVersions(BOB).size)
+        }
+
+    @Test
+    fun thePurgeOfASeriesTombstoneDeletesItsVersions() =
+        runBlocking {
+            twoLibrariesWithSeriesHistory()
+            repository.tombstoneSeries(ALICE, listOf(ItemId("s1")))
+            clock.stepMs(31 * 86_400_000L)
+
+            assertEquals(1, (repository.purgeHistory(ALICE) as PurgeOutcome.Purged).seriesTombstones)
+
+            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertEquals(setOf("m1", "s2"), repository.currentSeries(ALICE).map { it.seriesId }.toSet())
+        }
 }

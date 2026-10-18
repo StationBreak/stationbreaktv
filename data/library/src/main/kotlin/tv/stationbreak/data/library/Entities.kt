@@ -54,6 +54,7 @@ internal data class ItemEntity(
     val name: String,
     val parentId: String?,
     val seriesId: String?,
+    val seasonId: String? = null,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
     val runtimeMs: Long?,
@@ -97,6 +98,7 @@ internal data class ItemVersionEntity(
     val libraryId: String,
     val kind: String,
     val seriesId: String?,
+    val seasonId: String? = null,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
     val runtimeMs: Long?,
@@ -107,6 +109,81 @@ internal data class ItemVersionEntity(
     val deletedAtMs: Long?,
     val genres: String,
     val tags: String,
+)
+
+/**
+ * A series of a selected library (spec 10, Unit 1): the fields a rule reads that its episodes do not carry. [genres]
+ * and [tags] are one [VersionCodec] column each, because nothing queries them in SQL and the evaluator reads whole
+ * series. [officialRating] is kept as the server sent it: null, `""` and `" "` are three values. The row is the current
+ * version; [seenFromMs] and [firstSeenMs] work as on [ItemEntity]. Deleting a `library` row deletes its series.
+ *
+ * A series listed in two ticked libraries has one row: each write flips [libraryId] to the library that wrote it (an
+ * unversioned update), and unticking either library removes the series. Items behave the same way (spec 09).
+ */
+@Entity(
+    tableName = "series",
+    primaryKeys = ["serverId", "userId", "seriesId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = LibraryEntity::class,
+            parentColumns = ["serverId", "userId", "libraryId"],
+            childColumns = ["serverId", "userId", "libraryId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices =
+        [
+            // The cascade from library, and the unticking of one.
+            Index(value = ["serverId", "userId", "libraryId"]),
+            // The per-account tombstone purge.
+            Index(value = ["serverId", "userId", "deletedAtMs"]),
+        ],
+)
+internal data class SeriesEntity(
+    val serverId: String,
+    val userId: String,
+    val seriesId: String,
+    val libraryId: String,
+    val name: String,
+    val officialRating: String?,
+    val genres: String,
+    val tags: String,
+    val deletedAtMs: Long?,
+    val seenFromMs: Long,
+    val firstSeenMs: Long,
+)
+
+/**
+ * An earlier version of a series, with the same rules as [ItemVersionEntity]: the series row as it stood until
+ * [supersededAtMs], in contiguous, strictly increasing intervals that end where the next one, or the series row's own
+ * `seenFromMs`, begins. Only what a rule reads is kept, with [deletedAtMs]. The foreign key deletes the history with
+ * its series.
+ */
+@Entity(
+    tableName = "series_version",
+    primaryKeys = ["serverId", "userId", "seriesId", "seenFromMs"],
+    foreignKeys = [
+        ForeignKey(
+            entity = SeriesEntity::class,
+            parentColumns = ["serverId", "userId", "seriesId"],
+            childColumns = ["serverId", "userId", "seriesId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    // The purge of versions superseded long ago.
+    indices = [Index(value = ["serverId", "userId", "supersededAtMs"])],
+)
+internal data class SeriesVersionEntity(
+    val serverId: String,
+    val userId: String,
+    val seriesId: String,
+    val seenFromMs: Long,
+    val supersededAtMs: Long,
+    val libraryId: String,
+    val officialRating: String?,
+    val genres: String,
+    val tags: String,
+    val deletedAtMs: Long?,
 )
 
 /** One genre of an item, at [position] so the server's order is kept. */
@@ -212,13 +289,45 @@ internal data class ActiveAccountEntity(
 internal fun nextStamp(
     old: ItemEntity,
     nowMs: Long,
-): Long = maxOf(nowMs, old.seenFromMs + 1)
+): Long = nextStamp(old.seenFromMs, nowMs)
+
+/** The same rule for any row with a stamp: [oldSeenFromMs] is the stamp of the row being replaced. */
+internal fun nextStamp(
+    oldSeenFromMs: Long,
+    nowMs: Long,
+): Long = maxOf(nowMs, oldSeenFromMs + 1)
+
+/**
+ * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags and
+ * the tombstone. The name and the library are not (Vimes L2).
+ */
+internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
+    officialRating == other.officialRating &&
+        genres == other.genres &&
+        tags == other.tags &&
+        deletedAtMs == other.deletedAtMs
+
+/** This row as an earlier version, ending at [supersededAtMs]. */
+internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
+    SeriesVersionEntity(
+        serverId = serverId,
+        userId = userId,
+        seriesId = seriesId,
+        seenFromMs = seenFromMs,
+        supersededAtMs = supersededAtMs,
+        libraryId = libraryId,
+        officialRating = officialRating,
+        genres = genres,
+        tags = tags,
+        deletedAtMs = deletedAtMs,
+    )
 
 /** True when every field the scheduler reads is equal. The name, the parent, the stamps and the tombstone are not. */
 internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
     libraryId == other.libraryId &&
         kind == other.kind &&
         seriesId == other.seriesId &&
+        seasonId == other.seasonId &&
         seasonNumber == other.seasonNumber &&
         episodeNumber == other.episodeNumber &&
         runtimeMs == other.runtimeMs &&
@@ -241,6 +350,7 @@ internal fun ItemEntity.toVersion(
     libraryId = libraryId,
     kind = kind,
     seriesId = seriesId,
+    seasonId = seasonId,
     seasonNumber = seasonNumber,
     episodeNumber = episodeNumber,
     runtimeMs = runtimeMs,

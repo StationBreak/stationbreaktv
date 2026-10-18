@@ -34,7 +34,18 @@ internal object ServerSeeding {
     // Longer than 5 minutes, so a stopped report stores a resume position (ADR-0006).
     private const val MEDIA_SECONDS = 330
     private const val MOVIES = 3
-    private const val EPISODES = 2
+
+    // Two episodes in the season folder, and a third in the series folder itself (spec 10: an episode with no season
+    // folder).
+    private const val SEASON_EPISODES = 2
+    private const val EPISODES = SEASON_EPISODES + 1
+
+    /** The metadata the one series is given (spec 10). Synthetic. */
+    val SERIES_GENRES = listOf("Contract Drama", "Contract Mystery")
+    val SERIES_TAGS = listOf("contract slow burn")
+    const val SERIES_RATING = "TV-14"
+    private const val BOX_SET_NAME = "Contract Box"
+    private const val BOX_SET_MEMBERS = 2
     private val SCAN_TIMEOUT: Duration = Duration.ofMinutes(4)
     private val POLL: Duration = Duration.ofSeconds(2)
     private val WIZARD_TIMEOUT: Duration = Duration.ofMinutes(2)
@@ -51,15 +62,102 @@ internal object ServerSeeding {
         createUser(http, token, accounts.viewer)
         disable(http, token, createUser(http, token, accounts.disabled))
         enableQuickConnect(http, token)
+        enableGroupingIntoCollections(http, token)
         val (movies, episodes) = waitForScan(http, token, libraries.getValue("movies"))
+        val premieres = seedPremiereDates(http, token, episodes)
+        val seriesId = seedSeriesMetadata(http, token, libraries.getValue("tv"))
+        val boxSetMembers = movies.take(BOX_SET_MEMBERS)
         return Seeded(
             libraries.getValue("movies"),
             libraries.getValue("tv"),
             libraries.getValue("mixed"),
             movies,
             episodes,
-            seedPremiereDates(http, token, episodes),
+            premieres,
+            seriesId,
+            findLooseEpisode(http, token),
+            seedBoxSet(http, token, boxSetMembers),
+            boxSetMembers,
         )
+    }
+
+    private fun adminId(
+        http: Harness,
+        token: String,
+    ): String =
+        http
+            .expectOk("read admin", http.get("Users/Me", token))
+            .obj()
+            .getValue("Id")
+            .jsonPrimitive.content
+
+    /** Gives the series genres, tags and a rating (spec 10), and returns its ID. Episodes are left without any. */
+    private fun seedSeriesMetadata(
+        http: Harness,
+        token: String,
+        tvLibrary: String,
+    ): String {
+        val query = listOf("recursive" to "true", "includeItemTypes" to "Series", "parentId" to tvLibrary)
+        val found =
+            http
+                .expectOk("list series", http.get("Items", token, query))
+                .obj()
+                .getValue("Items")
+                .jsonArray
+        check(found.size == 1) { "the TV library should hold one series, not ${found.size}" }
+        val id =
+            found
+                .single()
+                .jsonObject
+                .getValue("Id")
+                .jsonPrimitive.content
+        val dto = http.expectOk("read series", http.get("Users/${adminId(http, token)}/Items/$id", token)).obj()
+        val edited =
+            JsonObject(
+                dto +
+                    mapOf(
+                        "Genres" to JsonArray(SERIES_GENRES.map(::JsonPrimitive)),
+                        "Tags" to JsonArray(SERIES_TAGS.map(::JsonPrimitive)),
+                        "OfficialRating" to JsonPrimitive(SERIES_RATING),
+                    ),
+            )
+        http.expectOk("set series metadata", http.post("Items/$id", edited.toString(), token))
+        return id
+    }
+
+    /** The episode whose file is in the series folder, not under `Season 01`. */
+    private fun findLooseEpisode(
+        http: Harness,
+        token: String,
+    ): String {
+        val query = listOf("recursive" to "true", "includeItemTypes" to "Episode", "fields" to "Path")
+        val episodes =
+            http
+                .expectOk("list episodes", http.get("Items", token, query))
+                .obj()
+                .getValue("Items")
+                .jsonArray
+        val loose =
+            episodes.map { it.jsonObject }.filter { "/Season 01/" !in it.getValue("Path").jsonPrimitive.content }
+        check(loose.size == 1) { "exactly one episode should sit outside a season folder, not ${loose.size}" }
+        return loose
+            .single()
+            .getValue("Id")
+            .jsonPrimitive.content
+    }
+
+    /** A BoxSet holding [members] (spec 10, Vimes H5): the movies that "group into collections" would hide. */
+    private fun seedBoxSet(
+        http: Harness,
+        token: String,
+        members: List<String>,
+    ): String {
+        val query = listOf("name" to BOX_SET_NAME, "ids" to members.joinToString(","))
+        return http
+            .expectOk("create BoxSet", http.post("Collections", token = token, query = query))
+            .obj()
+            .getValue("Id")
+            .jsonPrimitive.content
     }
 
     /**
@@ -140,9 +238,11 @@ internal object ServerSeeding {
             val folder = "/media/movies/Movie $n (200$n)"
             sh("movie $n", "mkdir -p '$folder' && cp $source '$folder/Movie $n (200$n).mp4'")
         }
-        for (n in 1..EPISODES) {
+        for (n in 1..SEASON_EPISODES) {
             sh("episode $n", "cp $source '/media/tv/Test Show/Season 01/Test Show - S01E0$n.mp4'")
         }
+        // The same series folder, no season folder: its SeasonId is recorded by the contract suite (spec 10).
+        sh("loose episode", "cp $source '/media/tv/Test Show/Test Show - S01E03.mp4'")
         val mixed = "/media/mixed/Mixed One (2004)"
         sh("mixed", "mkdir -p '$mixed' && cp $source '$mixed/Mixed One (2004).mp4'")
         sh("tidy", "rm $source")
@@ -230,6 +330,24 @@ internal object ServerSeeding {
         http.expectOk("enable Quick Connect", http.post("System/Configuration", enabled.toString(), token))
         val status = http.expectOk("Quick Connect status", http.get("QuickConnect/Enabled", token))
         check(status.json().jsonPrimitive.boolean) { "Quick Connect did not turn on" }
+    }
+
+    /**
+     * Turns on the server-wide "group movies into collections" setting (`EnableGroupingMoviesIntoCollections` in
+     * `System/Configuration`; the same on 12.1 and 12.2), so a request
+     * that doesn't say otherwise hides a BoxSet's movies behind the BoxSet (spec 10, Vimes H5).
+     */
+    private fun enableGroupingIntoCollections(
+        http: Harness,
+        token: String,
+    ) {
+        val configuration = http.expectOk("read configuration", http.get("System/Configuration", token)).obj()
+        check("EnableGroupingMoviesIntoCollections" in configuration) { "the server has no grouping setting" }
+        val enabled = JsonObject(configuration + ("EnableGroupingMoviesIntoCollections" to JsonPrimitive(true)))
+        http.expectOk("enable grouping", http.post("System/Configuration", enabled.toString(), token))
+        val again = http.expectOk("read configuration back", http.get("System/Configuration", token)).obj()
+        val on = again["EnableGroupingMoviesIntoCollections"]?.jsonPrimitive?.boolean
+        check(on == true) { "grouping did not turn on" }
     }
 
     /** Starts a scan and waits, bounded, until every file is in the library with its runtime known. */

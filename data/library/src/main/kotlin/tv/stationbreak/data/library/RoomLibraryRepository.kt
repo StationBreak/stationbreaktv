@@ -18,6 +18,7 @@ import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -50,9 +51,11 @@ internal data class RowCounts(
     val checkpoints: Int,
     val states: Int,
     val versions: Int = 0,
+    val series: Int = 0,
+    val seriesVersions: Int = 0,
 ) {
     companion object {
-        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0)
+        val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -71,12 +74,28 @@ class RoomLibraryRepository internal constructor(
     private val retention: HistoryRetention = HistoryRetention(),
 ) : LibraryRepository {
     internal val dao = db.dao()
+    internal val history = db.itemHistoryDao()
+    private val seriesDao = db.seriesDao()
+    private val transactions = db.cacheTransactionDao()
 
     /**
      * Test seam: runs inside [writePage]'s transaction after the items are written and before the checkpoint is, so a
      * test can make the write die in between and prove neither is kept. Null in the app.
      */
     internal var faultBetweenItemsAndCheckpoint: (() -> Unit)? = null
+
+    /**
+     * Test seam: runs inside [writePage]'s transaction after the item rows are written through `LibraryDao` and before
+     * the versions are written through `ItemHistoryDao`, to prove a transaction across DAOs rolls back whole. Null in
+     * the app.
+     */
+    internal var faultBetweenItemsAndHistory: (() -> Unit)? = null
+
+    /**
+     * Test seam: runs inside [applyReconcile]'s transaction after the tombstones and before the revives, to prove the
+     * items' and the series' changes are kept together or not at all. Null in the app.
+     */
+    internal var faultBetweenReconcileTombstonesAndRevives: (() -> Unit)? = null
 
     // The port.
 
@@ -140,7 +159,7 @@ class RoomLibraryRepository internal constructor(
         val items = ArrayList<ScheduleItem>()
         val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
         val seen = HashSet<String>()
-        for (row in dao.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
+        for (row in history.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
             when (val converted = ScheduleInputs.convert(row)) {
                 is Converted.Dropped -> {
                     dropped.merge(converted.reason, 1, Int::plus)
@@ -203,7 +222,9 @@ class RoomLibraryRepository internal constructor(
      * Saves one [page][items] of [library] and the checkpoint that goes with it, in one transaction: after a crash both
      * are there or neither is. Writing the same page again changes nothing (an item that is unchanged is not
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
-     * [library] must have been chosen with [select] first.
+     * [library] must have been chosen with [select] first. [series], if any, are written in the same transaction (the
+     * transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests: the sync writes
+     * series apart, with [upsertSeries].
      */
     @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
     internal suspend fun writePage(
@@ -213,12 +234,15 @@ class RoomLibraryRepository internal constructor(
         nextStartIndex: Int,
         totalCount: Int?,
         run: Long,
+        series: List<SeriesInfo> = emptyList(),
     ): PageWrite {
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
+        val seriesRows = LinkedHashMap<String, SeriesEntity>()
+        series.forEach { seriesRows[it.id.value] = it.toEntity(server, user, library.value) }
         val now = clock.now().toEpochMilliseconds()
-        return dao.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndCheckpoint)
+        return write(server, user, checkpoint, rows, seriesRows, now).items
     }
 
     /**
@@ -233,7 +257,112 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return dao.writePage(server, user, null, rows, now, faultBetweenItemsAndCheckpoint)
+        return write(server, user, null, rows, emptyMap(), now).items
+    }
+
+    @Suppress("LongParameterList") // The page, its checkpoint, the time: what the transaction takes.
+    private suspend fun write(
+        server: String,
+        user: String,
+        checkpoint: CheckpointEntity?,
+        rows: Map<String, ItemRows>,
+        seriesRows: Map<String, SeriesEntity>,
+        now: Long,
+    ) = transactions.writePage(
+        server,
+        user,
+        checkpoint,
+        rows,
+        seriesRows,
+        now,
+        faultBetweenItemsAndHistory,
+        faultBetweenItemsAndCheckpoint,
+    )
+
+    /**
+     * Saves [series] of [library], with no checkpoint: a series page of the first sync or of a changed-since pass. The
+     * same idempotent upsert as for items, in one transaction after the check that the account is still signed in.
+     * The counts are of series.
+     */
+    internal suspend fun upsertSeries(
+        account: LibraryAccount,
+        library: ItemId,
+        series: List<SeriesInfo>,
+    ): PageWrite {
+        val (server, user) = account.keys()
+        val rows = LinkedHashMap<String, SeriesEntity>()
+        series.forEach { rows[it.id.value] = it.toEntity(server, user, library.value) }
+        return write(server, user, null, emptyMap(), rows, clock.now().toEpochMilliseconds()).series
+    }
+
+    /**
+     * Marks the series [ids] deleted as of now. A series that is already a tombstone keeps its first time. For tests:
+     * the reconcile writes through [applyReconcile].
+     */
+    internal suspend fun tombstoneSeries(
+        account: LibraryAccount,
+        ids: Collection<ItemId>,
+    ) {
+        val (server, user) = account.keys()
+        transactions.tombstoneSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+    }
+
+    /** Clears the tombstone of the series [ids]: each is kept as a version first. For tests, as [tombstoneSeries]. */
+    internal suspend fun reviveSeries(
+        account: LibraryAccount,
+        ids: Collection<ItemId>,
+    ) {
+        val (server, user) = account.keys()
+        transactions.reviveSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+    }
+
+    /**
+     * Writes one library's reconcile decisions in one transaction: the items and series that are gone are tombstoned,
+     * and those that returned are revived, each with its version. Nothing is written when there is nothing to write.
+     */
+    internal suspend fun applyReconcile(
+        account: LibraryAccount,
+        itemsGone: Collection<ItemId>,
+        itemsReturning: Collection<ItemId>,
+        seriesGone: Collection<ItemId>,
+        seriesReturning: Collection<ItemId>,
+    ) {
+        if (listOf(itemsGone, itemsReturning, seriesGone, seriesReturning).all { it.isEmpty() }) return
+        val (server, user) = account.keys()
+        transactions.reconcileWrite(
+            server,
+            user,
+            itemsGone.map { it.value },
+            itemsReturning.map { it.value },
+            seriesGone.map { it.value },
+            seriesReturning.map { it.value },
+            clock.now().toEpochMilliseconds(),
+            faultBetweenReconcileTombstonesAndRevives,
+        )
+    }
+
+    /** The IDs of [library]'s live series, in order: what the series reconcile compares the server's list with. */
+    internal suspend fun liveSeriesIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.liveIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of [library]'s tombstoned series: deleted on the server, not yet purged. */
+    internal suspend fun tombstonedSeriesIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.tombstonedIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of every series the account has, live or tombstoned, in any library. */
+    internal suspend fun allSeriesIds(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.allIds(server, user).map(::ItemId)
     }
 
     private fun rowsOf(
@@ -324,7 +453,10 @@ class RoomLibraryRepository internal constructor(
         dao.failSync(server, user, failure.ordinal)
     }
 
-    /** Marks [ids] deleted as of now. An id that is already a tombstone keeps its first time. */
+    /**
+     * Marks [ids] deleted as of now. An id that is already a tombstone keeps its first time. For tests: the reconcile
+     * writes through [applyReconcile].
+     */
     internal suspend fun tombstone(
         account: LibraryAccount,
         ids: Collection<ItemId>,
@@ -333,13 +465,13 @@ class RoomLibraryRepository internal constructor(
         dao.tombstoneAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
-    /** Clears the tombstone of [ids]: they are back in snapshots. */
+    /** Clears the tombstone of [ids]: they are back in snapshots. For tests: the reconcile uses [applyReconcile]. */
     internal suspend fun revive(
         account: LibraryAccount,
         ids: Collection<ItemId>,
     ) {
         val (server, user) = account.keys()
-        dao.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+        transactions.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
     /** The IDs of [library]'s live items, in order: what a reconciliation compares the server's list with. */
@@ -386,7 +518,7 @@ class RoomLibraryRepository internal constructor(
     ): PurgeOutcome {
         val (server, user) = account.keys()
         val referenceMs = reference?.toEpochMilliseconds()
-        return dao.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis, referenceMs)
+        return transactions.purgeHistory(server, user, clock.now().toEpochMilliseconds(), retention.millis, referenceMs)
     }
 
     // Reads for the tests and diagnostics.
@@ -415,7 +547,9 @@ class RoomLibraryRepository internal constructor(
             libraries = dao.countLibraries(),
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
-            versions = dao.countVersions(),
+            versions = history.countVersions(),
+            series = seriesDao.count(),
+            seriesVersions = seriesDao.countVersions(),
         )
 
     /** The account's item rows as they are on disk (the current versions), by item ID. */
@@ -427,7 +561,19 @@ class RoomLibraryRepository internal constructor(
     /** The account's kept earlier versions, by item ID and then time. */
     internal suspend fun versions(account: LibraryAccount): List<ItemVersionEntity> {
         val (server, user) = account.keys()
-        return dao.allVersions(server, user)
+        return history.allVersions(server, user)
+    }
+
+    /** The account's series rows as they are on disk (the current versions), by series ID. */
+    internal suspend fun currentSeries(account: LibraryAccount): List<SeriesEntity> {
+        val (server, user) = account.keys()
+        return seriesDao.all(server, user)
+    }
+
+    /** The account's kept earlier series versions, by series ID and then time. */
+    internal suspend fun seriesVersions(account: LibraryAccount): List<SeriesVersionEntity> {
+        val (server, user) = account.keys()
+        return seriesDao.allVersions(server, user)
     }
 
     /** Closes the database. The app keeps it open for its lifetime; tests close theirs. */
@@ -504,6 +650,7 @@ private fun MediaItem.toRows(
             name = name,
             parentId = parentId?.value,
             seriesId = seriesId?.value,
+            seasonId = seasonId?.value,
             seasonNumber = seasonNumber,
             episodeNumber = episodeNumber,
             runtimeMs = runtime?.inWholeMilliseconds,
@@ -520,6 +667,25 @@ private fun MediaItem.toRows(
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
 )
 
+private fun SeriesInfo.toEntity(
+    server: String,
+    user: String,
+    library: String,
+) = SeriesEntity(
+    serverId = server,
+    userId = user,
+    seriesId = id.value,
+    libraryId = library,
+    name = name,
+    officialRating = officialRating,
+    genres = VersionCodec.encode(genres),
+    tags = VersionCodec.encode(tags),
+    deletedAtMs = null,
+    // The DAO stamps both when it writes the row.
+    seenFromMs = 0,
+    firstSeenMs = 0,
+)
+
 private fun ItemRows.toItem() =
     MediaItem(
         id = ItemId(item.itemId),
@@ -534,6 +700,7 @@ private fun ItemRows.toItem() =
         genres = genres.map { it.name },
         tags = tags.map { it.name },
         seriesId = item.seriesId?.let(::ItemId),
+        seasonId = item.seasonId?.let(::ItemId),
         seasonNumber = item.seasonNumber,
         episodeNumber = item.episodeNumber,
     )

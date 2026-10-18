@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
@@ -40,6 +41,8 @@ class FakeMediaServer : MediaServer {
     var itemsResult: ServerResult<ItemPage> = ServerResult.Failure(MediaServerError.Unknown())
     var libraryItemsResult: ServerResult<LibraryItemsPage> = ServerResult.Failure(MediaServerError.Unknown())
     var libraryItemIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var librarySeriesResult: ServerResult<SeriesPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var librarySeriesIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
     var playbackInfoResult: ServerResult<PlaybackInfo> = ServerResult.Failure(MediaServerError.Unknown())
     var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
@@ -67,6 +70,12 @@ class FakeMediaServer : MediaServer {
 
     /** The library, start index and limit of each [libraryItemIds] call. */
     val libraryItemIdsCalls = mutableListOf<Triple<Library, Int, Int>>()
+
+    /** Each [librarySeries] call, as the arguments of a [libraryItems] call. */
+    val librarySeriesCalls = mutableListOf<LibraryItemsCall>()
+
+    /** The library, start index and limit of each [librarySeriesIds] call. */
+    val librarySeriesIdsCalls = mutableListOf<Triple<Library, Int, Int>>()
     val playbackInfoCalls = mutableListOf<ItemId>()
 
     /** The reports sent, in order, as the call name and the report. */
@@ -160,6 +169,29 @@ class FakeMediaServer : MediaServer {
         require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
         libraryItemIdsCalls += Triple(library, startIndex, limit)
         return libraryItemIdsResult
+    }
+
+    override suspend fun librarySeries(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<SeriesPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        librarySeriesCalls += LibraryItemsCall(library, startIndex, limit, changedSince)
+        return librarySeriesResult
+    }
+
+    override suspend fun librarySeriesIds(
+        session: Session,
+        library: Library,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        librarySeriesIdsCalls += Triple(library, startIndex, limit)
+        return librarySeriesIdsResult
     }
 
     override suspend fun playbackInfo(
