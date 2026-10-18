@@ -128,8 +128,9 @@ class PortSignatureTest {
 
     @Test
     fun theLibraryCacheCallsAreOnThePortAndUseOnlyDomainTypes() {
-        val calls = MediaServer::class.java.methods.filter { it.name in setOf("libraryItems", "libraryItemIds") }
-        assertEquals(setOf("libraryItems", "libraryItemIds"), calls.map { it.name }.toSet())
+        val names = setOf("libraryItems", "libraryItemIds", "librarySeries", "librarySeriesIds")
+        val calls = MediaServer::class.java.methods.filter { it.name in names }
+        assertEquals(names, calls.map { it.name }.toSet())
         val types = calls.flatMap { it.genericParameterTypes.toList() + it.genericReturnType }
         assertEquals(emptyList(), disallowedIn(types))
     }
