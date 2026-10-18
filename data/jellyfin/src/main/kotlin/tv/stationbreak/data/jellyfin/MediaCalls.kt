@@ -7,6 +7,9 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.domain.map
+import tv.stationbreak.core.model.CollectionInfo
+import tv.stationbreak.core.model.CollectionMember
+import tv.stationbreak.core.model.CollectionMemberKind
 import tv.stationbreak.core.model.CollectionMemberPage
 import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
@@ -135,28 +138,51 @@ internal class MediaCalls(
         limit: Int,
     ): ServerResult<ItemIdPage> = idListing(session, library, startIndex, limit, SERIES_TYPE)
 
-    @Suppress("UnusedParameter") // Red: the stub of the next commit's implementation.
     suspend fun collections(
         session: Session,
         startIndex: Int,
         limit: Int,
         changedSince: Instant?,
-    ): ServerResult<CollectionPage> = ServerResult.Failure(MediaServerError.Unknown())
+    ): ServerResult<CollectionPage> {
+        val query = boxSetQuery(startIndex, limit) + listOfNotNull(changedSince?.let { "minDateLastSaved" to utcMillis(it) })
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, CollectionsDto.serializer()).flatMap { page ->
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { CollectionPage(startIndex, total, page.items.map(::toCollectionInfo)) }
+                }
+            }
+        }
+    }
 
-    @Suppress("UnusedParameter") // Red: the stub of the next commit's implementation.
     suspend fun collectionIds(
         session: Session,
         startIndex: Int,
         limit: Int,
-    ): ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
+    ): ServerResult<ItemIdPage> = idPage(session, boxSetQuery(startIndex, limit), startIndex)
 
-    @Suppress("UnusedParameter") // Red: the stub of the next commit's implementation.
     suspend fun collectionMembers(
         session: Session,
         collection: ItemId,
         startIndex: Int,
         limit: Int,
-    ): ServerResult<CollectionMemberPage> = ServerResult.Failure(MediaServerError.Unknown())
+    ): ServerResult<CollectionMemberPage> {
+        // The direct children only: a recursive call would flatten nested BoxSets into the member list.
+        val query = listOf("parentId" to collection.value) + pagedQuery(startIndex, limit) + NO_EXTRAS
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, CollectionMembersDto.serializer()).flatMap { page ->
+                firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
+                    convert { CollectionMemberPage(startIndex, total, page.items.map(::toCollectionMember)) }
+                }
+            }
+        }
+    }
+
+    /** Every BoxSet the account can see, in any place: no `parentId`, because a collection is under no library. */
+    private fun boxSetQuery(
+        startIndex: Int,
+        limit: Int,
+    ): List<Pair<String, String>> =
+        listOf("recursive" to "true", "includeItemTypes" to BOX_SET_TYPE) + pagedQuery(startIndex, limit) + NO_EXTRAS
 
     private suspend fun idListing(
         session: Session,
@@ -164,16 +190,20 @@ internal class MediaCalls(
         startIndex: Int,
         limit: Int,
         types: String,
-    ): ServerResult<ItemIdPage> {
-        val query = recursiveQuery(library, startIndex, limit, types) + ID_ONLY
-        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+    ): ServerResult<ItemIdPage> = idPage(session, recursiveQuery(library, startIndex, limit, types) + ID_ONLY, startIndex)
+
+    private suspend fun idPage(
+        session: Session,
+        query: List<Pair<String, String>>,
+        startIndex: Int,
+    ): ServerResult<ItemIdPage> =
+        calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemIdsDto.serializer()).flatMap { page ->
                 firstPageTotal(startIndex, page.totalRecordCount).flatMap { total ->
                     convert { ItemIdPage(startIndex, total, page.items.map { ItemId(it.id) }) }
                 }
             }
         }
-    }
 
     /**
      * The query the cache calls share: the library's items of [types] at any depth, in a stable order. The total
@@ -184,16 +214,26 @@ internal class MediaCalls(
         startIndex: Int,
         limit: Int,
         types: String = CACHED_TYPES,
-    ): List<Pair<String, String>> {
-        require(startIndex >= 0) { "startIndex can't be negative" }
-        require(limit in 1..MediaServer.MAX_PAGE_SIZE) { "limit must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
-        return listOf(
+    ): List<Pair<String, String>> =
+        listOf(
             "parentId" to library.id.value,
             "recursive" to "true",
             "includeItemTypes" to types,
             COLLAPSE_BOX_SETS_OFF,
-            // Jellyfin 12 has no sort by ID (an unknown key is ignored), but it breaks every tie on the ID, in
-            // ascending order whatever the direction (contract test: tiedNamesPageStably), so this order is total.
+        ) + pagedQuery(startIndex, limit)
+
+    /**
+     * The paging every cache call shares, after the argument checks: a stable order and the total asked for on the
+     * first page only. Jellyfin 12 has no sort by ID (an unknown key is ignored), but it breaks every tie on the ID, in
+     * ascending order whatever the direction (contract test: tiedNamesPageStably), so this order is total.
+     */
+    private fun pagedQuery(
+        startIndex: Int,
+        limit: Int,
+    ): List<Pair<String, String>> {
+        require(startIndex >= 0) { "startIndex can't be negative" }
+        require(limit in 1..MediaServer.MAX_PAGE_SIZE) { "limit must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
+        return listOf(
             "sortBy" to "SortName",
             "sortOrder" to "Ascending",
             "startIndex" to startIndex.toString(),
@@ -312,12 +352,22 @@ internal class MediaCalls(
         /** `OfficialRating` and the name come with every item, so a series needs only these two asked for. */
         const val SERIES_FIELDS = "Genres,Tags"
 
+        /** The collection calls (spec 10, Unit 2): BoxSets, listed and read by their members. */
+        const val BOX_SET_TYPE = "BoxSet"
+
         /**
          * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
          * neither: on 12.1 and 12.2 a 6-item page measured 7.5 kB with the cache fields, 5.9 kB bare, 4.0 kB without
          * images and 2.9 kB without images and user data.
          */
         val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
+
+        /**
+         * The collection calls read IDs, names and types, so they ask for no images, no user data and no fields
+         * (Jellyfin issue #18069: out-of-memory on a huge collection library on 12.1). They send the item calls' flag
+         * too, so the "group movies into collections" setting can't hide a member behind its BoxSet.
+         */
+        val NO_EXTRAS = ID_ONLY + COLLAPSE_BOX_SETS_OFF
 
         /**
          * The wire values of the collection types worth a channel. An absent type is mixed content (checked against
@@ -388,6 +438,13 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         seasonNumber = dto.seasonNumber,
         episodeNumber = dto.episodeNumber,
     )
+
+/** One BoxSet of a page: its ID and the name a person gave it. */
+internal fun toCollectionInfo(dto: CollectionDto): CollectionInfo = CollectionInfo(ItemId(dto.id), dto.name)
+
+/** One member of a BoxSet: its ID and what the server says it is. Only the type is read, never the item. */
+internal fun toCollectionMember(dto: CollectionMemberDto): CollectionMember =
+    CollectionMember(ItemId(dto.id), MEMBER_KINDS[dto.type] ?: CollectionMemberKind.Other)
 
 /** One series of a page. The rating is passed on exactly as the server sent it: never trimmed, never blank-to-null. */
 internal fun toSeriesInfo(dto: SeriesDto): SeriesInfo =
@@ -470,4 +527,14 @@ private val ITEM_KINDS =
         "Folder" to ItemKind.Folder,
         "CollectionFolder" to ItemKind.Folder,
         "UserView" to ItemKind.Folder,
+    )
+
+// What a BoxSet's member can be to the cache; every other type, and a missing one, is Other.
+private val MEMBER_KINDS =
+    mapOf(
+        "Movie" to CollectionMemberKind.Movie,
+        "Episode" to CollectionMemberKind.Episode,
+        "Series" to CollectionMemberKind.Series,
+        "Season" to CollectionMemberKind.Season,
+        "BoxSet" to CollectionMemberKind.Collection,
     )

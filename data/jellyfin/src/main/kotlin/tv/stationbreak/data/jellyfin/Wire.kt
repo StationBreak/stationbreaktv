@@ -140,6 +140,34 @@ internal class SeriesDto(
     @SerialName("Tags") val tags: List<String>? = null,
 )
 
+/** A page of BoxSets: only the ID and the name are read. */
+@Serializable
+internal class CollectionsDto(
+    @SerialName("Items") val items: List<CollectionDto> = emptyList(),
+    @SerialName("TotalRecordCount") val totalRecordCount: Int? = null,
+    @SerialName("StartIndex") val startIndex: Int = 0,
+)
+
+@Serializable
+internal class CollectionDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String = "",
+)
+
+/** A page of a BoxSet's members: only the ID and the type are read, so no other field can fail the page. */
+@Serializable
+internal class CollectionMembersDto(
+    @SerialName("Items") val items: List<CollectionMemberDto> = emptyList(),
+    @SerialName("TotalRecordCount") val totalRecordCount: Int? = null,
+    @SerialName("StartIndex") val startIndex: Int = 0,
+)
+
+@Serializable
+internal class CollectionMemberDto(
+    @SerialName("Id") val id: String,
+    @SerialName("Type") val type: String = "",
+)
+
 /** An ID-only listing: the answer carries more, but only the ID is read. */
 @Serializable
 internal class ItemIdsDto(

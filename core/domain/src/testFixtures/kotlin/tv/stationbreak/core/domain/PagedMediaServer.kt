@@ -3,6 +3,8 @@ package tv.stationbreak.core.domain
 
 import tv.stationbreak.core.model.CollectionInfo
 import tv.stationbreak.core.model.CollectionMember
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.Library
@@ -218,6 +220,57 @@ class PagedMediaServer(
         val all = seriesSources[library.id]?.series.orEmpty()
         val ids = all.drop(startIndex).take(limit).map { it.id }
         return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) all.size else null, ids))
+    }
+
+    override suspend fun collections(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<CollectionPage> {
+        val call = collectionCall(CollectionCallKind.Listing, null, startIndex, limit, changedSince)
+        respondToCollections(call)?.let { return ServerResult.Failure(it) }
+        val source = collectionSource
+        val matching = source.collections.filter { changedSince == null || source.savedAt(it) >= changedSince }
+        val total = if (startIndex == 0) matching.size else null
+        return ServerResult.Success(CollectionPage(startIndex, total, matching.drop(startIndex).take(limit)))
+    }
+
+    override suspend fun collectionIds(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> {
+        val call = collectionCall(CollectionCallKind.Ids, null, startIndex, limit, null)
+        respondToCollections(call)?.let { return ServerResult.Failure(it) }
+        val all = collectionSource.collections
+        val ids = all.drop(startIndex).take(limit).map { it.id }
+        return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) all.size else null, ids))
+    }
+
+    override suspend fun collectionMembers(
+        session: Session,
+        collection: ItemId,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<CollectionMemberPage> {
+        val call = collectionCall(CollectionCallKind.Members, collection, startIndex, limit, null)
+        respondToCollections(call)?.let { return ServerResult.Failure(it) }
+        val all = collectionSource.members[collection].orEmpty()
+        val members = all.drop(startIndex).take(limit)
+        return ServerResult.Success(CollectionMemberPage(startIndex, if (startIndex == 0) all.size else null, members))
+    }
+
+    private fun collectionCall(
+        kind: CollectionCallKind,
+        collection: ItemId?,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): PagedCollectionCall {
+        require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
+        return PagedCollectionCall(collectionCalls.size + 1, kind, collection, startIndex, limit, changedSince)
+            .also { collectionCalls += it }
     }
 
     private fun selected(

@@ -138,8 +138,9 @@ class PortSignatureTest {
                 "collectionIds",
                 "collectionMembers",
             )
-        val calls = MediaServer::class.java.methods.filter { it.name in names }
-        assertEquals(names, calls.map { it.name }.toSet())
+        // A method taking a value class (collectionMembers takes an ItemId) has a mangled name: "name-hash".
+        val calls = MediaServer::class.java.methods.filter { it.name.substringBefore('-') in names }
+        assertEquals(names, calls.map { it.name.substringBefore('-') }.toSet())
         val types = calls.flatMap { it.genericParameterTypes.toList() + it.genericReturnType }
         assertEquals(emptyList(), disallowedIn(types))
     }
