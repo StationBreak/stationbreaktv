@@ -99,9 +99,20 @@ internal class CollectionPass(
         }
 
         private suspend fun pass(): SyncOutcome {
-            summary = summary.copy(relisted = true)
+            val started = clock.now()
+            val state = repository.collectionSync(account)
+            val relist = state?.lastRelistMs == null
+            // A cursor ahead of now means the clock went back: count from the older of the two.
+            val since =
+                if (relist) {
+                    null
+                } else {
+                    minOf(Instant.fromEpochMilliseconds(requireNotNull(state?.collectionsSinceMs)), started) -
+                        margin
+                }
+            summary = summary.copy(relisted = relist)
             val listing =
-                when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, null) }) {
+                when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, since) }) {
                     is Read.Stopped -> return read.outcome
                     is Read.Complete -> read.items
                 }
@@ -120,7 +131,19 @@ internal class CollectionPass(
                     is Gone.Stopped -> return decided.outcome
                     is Gone.Ids -> decided.ids
                 }
-            val targets = listing.filter { it.id in ids }
+            val targets = listing.filter { it.id in ids }.toMutableList()
+            if (since != null) {
+                // A BoxSet that is back, or that the cache lacks, may not be among the changed ones (it was saved before
+                // the cursor): the ID listing finds it, and a full listing gives its name.
+                val listed = targets.map { it.id }.toSet()
+                val wanted = ((ids intersect tombstoned) + (ids - live - tombstoned)) - listed
+                if (wanted.isNotEmpty()) {
+                    when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, null) }) {
+                        is Read.Stopped -> return read.outcome
+                        is Read.Complete -> targets += read.items.filter { it.id in wanted }
+                    }
+                }
+            }
             for (target in targets) {
                 currentCoroutineContext().ensureActive()
                 writeOne(target)?.let { return it }
@@ -128,6 +151,8 @@ internal class CollectionPass(
             if (gone.isNotEmpty()) repository.tombstoneCollections(account, gone)
             summary = summary.copy(tombstoned = gone.size)
             currentCoroutineContext().ensureActive()
+            // Only now: a pass that stopped anywhere above leaves the cursor, and the re-list, as they were.
+            repository.recordCollectionPass(account, started, relisted = relist)
             return SyncOutcome.Completed
         }
 

@@ -31,6 +31,7 @@ class CollectionCursorTest {
     private suspend fun firstPass() {
         (1..3).forEach { rig.serve(it, *rig.movies(it * 10)) }
         assertEquals(SyncOutcome.Completed, rig.run().outcome)
+        rig.age()
         rig.server.collectionCalls.clear()
     }
 

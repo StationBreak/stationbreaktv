@@ -32,6 +32,7 @@ class CollectionListingGuardTest {
     private suspend fun seed() {
         (1..5).forEach { rig.serve(it, *rig.movies(it * 10, it * 10 + 1)) }
         assertEquals(SyncOutcome.Completed, rig.run().outcome)
+        rig.age()
         rig.clock.stepMs(60_000)
     }
 
@@ -54,7 +55,8 @@ class CollectionListingGuardTest {
 
             assertEquals(SyncOutcome.Completed, result.outcome)
             assertEquals(0, result.summary.tombstoned)
-            assertEquals(5, result.summary.unchanged)
+            // Nothing was saved since the cursor, so no member list is read again.
+            assertEquals(0, result.summary.read)
             assertEquals(before, repository.collectionMembers(ALICE))
             assertEquals(versions, repository.collectionVersions(ALICE))
         }
@@ -101,7 +103,7 @@ class CollectionListingGuardTest {
             val before = stored()
             val members = repository.collectionMembers(ALICE)
             rig.source.collections.removeAll { it.id == rig.box(1) }
-            rig.serve(9, *rig.movies(90))
+            (7..9).forEach { rig.serve(it, *rig.movies(it * 10)) }
             rig.server.respondToCollections = {
                 if (it.kind == CollectionCallKind.Listing && it.startIndex > 0) MediaServerError.Timeout() else null
             }
@@ -236,6 +238,7 @@ class CollectionListingGuardTest {
             rig.source.members
                 .getValue(rig.box(2))
                 .clear()
+            rig.saved(2)
             var reads = 0
             rig.server.respondToCollections = {
                 if (it.kind == CollectionCallKind.Members && it.collection == rig.box(2) && it.startIndex == 0 && ++reads == 2) {
@@ -257,6 +260,7 @@ class CollectionListingGuardTest {
             rig.source.members
                 .getValue(rig.box(2))
                 .clear()
+            rig.saved(2)
 
             rig.run()
 

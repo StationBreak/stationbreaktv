@@ -10,6 +10,7 @@ import tv.stationbreak.core.model.ItemId
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Instant
 
 /**
  * One signed-in account and a fake server that holds BoxSets (spec 10, task 2.5): the world the collection pass tests
@@ -37,6 +38,17 @@ internal class CollectionRig(
         source.collections.removeAll { it.id == box(n) }
         source.collections += CollectionInfo(box(n), name)
         source.members[box(n)] = members.toMutableList()
+        saved(n)
+    }
+
+    /** Every BoxSet was last saved an hour ago: before a later pass's cursor, less its margin. */
+    fun age() {
+        source.collections.forEach { source.saved[it.id] = Instant.fromEpochMilliseconds(clock.nowMs - 60 * 60_000) }
+    }
+
+    /** The server saved BoxSet [n] now, as it does when a member is added, removed or renamed. */
+    fun saved(n: Int) {
+        source.saved[box(n)] = Instant.fromEpochMilliseconds(clock.nowMs)
     }
 
     fun movies(vararg numbers: Int) = numbers.map { CollectionMember(film(it), CollectionMemberKind.Movie) }.toTypedArray()
