@@ -1,8 +1,8 @@
 # ADR-0015: Jellyfin change signals for collections and series (spike SP-5 result)
 
-- **Status:** Proposed (accepted when the owner merges it)
+- **Status:** Accepted (spike requested by the owner; the sync strategy is a technical decision)
 - **Date:** 2026-10-18
-- **Decided by:** Phil Critchfield
+- **Decided by:** Rincewind, on the owner's request for the spike
 - **Resolves:** spike SP-5 ([ROADMAP.md](../ROADMAP.md)); Open Questions 1 and 2 of spec 10 (library rule inputs)
 - **Informs:** spec 10 units 1 and 2, R-JF-1
 
