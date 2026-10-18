@@ -10,7 +10,8 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /**
- * Spec 10 task 2.6 (Vimes M6): the purge covers `collection`, `collection_version` and `collection_member` with the same
+ * Spec 10 task 2.6 (Vimes M6): the purge covers `collection`, `collection_version` and `collection_member` with the
+ * same
  * retention, clock guard and safeguards as items and series. A tombstone goes only when `deletedAtMs < cutoff` and
  * `seenFromMs < cutoff`; versions and member rows superseded more than the retention ago go first; a current member
  * row (null `supersededAtMs`) never goes; every table has its own count; another account is never touched.
@@ -24,6 +25,14 @@ class CollectionPurgeTest {
 
     @After
     fun close() = repository.close()
+
+    // Every collection row of [account]: the collections, their versions and their member rows.
+    private suspend fun rowsOf(account: tv.stationbreak.core.domain.LibraryAccount) =
+        Triple(
+            repository.collections(account),
+            repository.collectionVersions(account),
+            repository.collectionMembers(account),
+        )
 
     private suspend fun purged() = repository.purgeHistory(ALICE)
 
@@ -127,7 +136,8 @@ class CollectionPurgeTest {
 
             // The version and the ended member were superseded long ago, so they are counted as such, not as part of
             // the tombstone; the two current members go with the tombstone and are counted nowhere.
-            val expected = PurgeOutcome.Purged(0, 0, collectionTombstones = 1, collectionVersions = 1, collectionMembers = 1)
+            val expected =
+                PurgeOutcome.Purged(0, 0, collectionTombstones = 1, collectionVersions = 1, collectionMembers = 1)
             assertEquals(expected, outcome)
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -138,12 +148,12 @@ class CollectionPurgeTest {
             editedCollection()
             editedCollection(BOB)
             repository.tombstoneCollections(BOB, listOf(box))
-            val bob = Triple(repository.collections(BOB), repository.collectionVersions(BOB), repository.collectionMembers(BOB))
+            val bob = rowsOf(BOB)
             clock.stepMs(thirtyDays + 2_000)
 
             purged()
 
-            assertEquals(bob, Triple(repository.collections(BOB), repository.collectionVersions(BOB), repository.collectionMembers(BOB)))
+            assertEquals(bob, rowsOf(BOB))
         }
 
     @Test
@@ -155,7 +165,8 @@ class CollectionPurgeTest {
             clock.stepMs(100.days.inWholeMilliseconds)
 
             // The last sync was a day after the start; now is far ahead of it.
-            val outcome = repository.purgeHistory(ALICE, Instant.fromEpochMilliseconds(start + 1.days.inWholeMilliseconds))
+            val lastSync = Instant.fromEpochMilliseconds(start + 1.days.inWholeMilliseconds)
+            val outcome = repository.purgeHistory(ALICE, lastSync)
 
             assertEquals(PurgeOutcome.Skipped(PurgeSkip.ClockFarAhead), outcome)
             assertEquals(before, repository.rowCounts())

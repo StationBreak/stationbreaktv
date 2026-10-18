@@ -29,7 +29,7 @@ internal class CollectionRig(
 
     fun film(n: Int) = ItemId(hexId(n))
 
-    /** Adds (or replaces) the BoxSet [n] on the server, holding [members] as movies unless they are [CollectionMember]. */
+    /** Adds (or replaces) the BoxSet [n] on the server, holding [members] (see [movies]). */
     fun serve(
         n: Int,
         vararg members: CollectionMember,
@@ -51,12 +51,20 @@ internal class CollectionRig(
         source.saved[box(n)] = Instant.fromEpochMilliseconds(clock.nowMs)
     }
 
-    fun movies(vararg numbers: Int) = numbers.map { CollectionMember(film(it), CollectionMemberKind.Movie) }.toTypedArray()
+    fun movies(vararg numbers: Int): Array<CollectionMember> {
+        val kind = CollectionMemberKind.Movie
+        return numbers.map { CollectionMember(film(it), kind) }.toTypedArray()
+    }
 
-    fun pass(clock: Clock = this.clock) = CollectionPass(repository, server, clock, pageSize = pageSize, relistInterval = relist)
+    fun pass(clock: Clock = this.clock): CollectionPass =
+        CollectionPass(repository, server, clock, pageSize = pageSize, relistInterval = relist)
 
+    @Suppress("RedundantSuspendModifier") // CollectionPass.run suspends; detekt does not see it across the module.
     suspend fun run(): CollectionResult = pass().run(SyncWorld.session, ALICE)
 
     /** The current members of [n] as numbers of films, in order. */
-    suspend fun current(n: Int): List<String> = repository.currentMembers(ALICE, box(n).value).map { it.substringBefore(':') }
+    suspend fun current(n: Int): List<String> {
+        val members = repository.currentMembers(ALICE, box(n).value)
+        return members.map { it.substringBefore(':') }
+    }
 }

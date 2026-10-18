@@ -623,7 +623,7 @@ class RoomLibraryRepository internal constructor(
         return transactions.heldCollections(server, user, cutoff.toEpochMilliseconds())
     }
 
-    /** The IDs of the account's live collections, in order: what the collection pass compares the server's list with. */
+    /** The IDs of the account's live collections, in order: what the collection pass compares the server's list to. */
     internal suspend fun liveCollectionIds(account: LibraryAccount): List<ItemId> {
         val (server, user) = account.keys()
         return collectionDao.liveIds(server, user).map(::ItemId)
@@ -651,9 +651,12 @@ class RoomLibraryRepository internal constructor(
     }
 
     /** True once a full collection pass (a re-list) has succeeded for the account since the cache was built. */
-    internal suspend fun collectionsSynced(account: LibraryAccount): Boolean = collectionSync(account)?.lastRelistMs != null
+    internal suspend fun collectionsSynced(account: LibraryAccount): Boolean {
+        val row = collectionSync(account)
+        return row?.lastRelistMs != null
+    }
 
-    /** Records a collection pass that began at [started] and completed; see [CacheTransactionDao.recordCollectionPass]. */
+    /** Records a collection pass that began at [started] and completed (see [CacheTransactionDao]). */
     internal suspend fun recordCollectionPass(
         account: LibraryAccount,
         started: Instant,

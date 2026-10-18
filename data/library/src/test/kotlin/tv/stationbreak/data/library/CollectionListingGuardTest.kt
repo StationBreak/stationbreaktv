@@ -15,7 +15,8 @@ import tv.stationbreak.core.model.ItemId
 
 /**
  * Spec 10 task 2.5 (Vimes H3): the collection pass reads BoxSet listings, BoxSet ID listings and member lists under the
- * item reconcile's guards. A read counts only when every page was read and the IDs read equal the first page's total; an
+ * item reconcile's guards. A read counts only when every page was read and the IDs read equal the first page's total;
+ * an
  * empty listing while collections are stored is suspect; before a collection is tombstoned, or a non-empty member list
  * emptied, the list is read a second time and only what both reads lack is removed. A failed or untrusted read changes
  * nothing.
@@ -72,7 +73,8 @@ class CollectionListingGuardTest {
 
             assertEquals(SyncOutcome.Completed, result.outcome)
             assertEquals(1, result.summary.tombstoned)
-            assertEquals(rig.clock.nowMs, repository.collections(ALICE).single { it.collectionId == rig.box(3).value }.deletedAtMs)
+            val tombstone = repository.collections(ALICE).single { it.collectionId == rig.box(3).value }
+            assertEquals(rig.clock.nowMs, tombstone.deletedAtMs)
             // Two reads of the ID listing: the first found it missing, the second confirmed it.
             val idReads = rig.server.collectionCalls.filter { it.kind == CollectionCallKind.Ids && it.startIndex == 0 }
             assertEquals(2, idReads.size)
@@ -86,7 +88,8 @@ class CollectionListingGuardTest {
             rig.source.collections.remove(gone)
             var reads = 0
             rig.server.respondToCollections = {
-                if (it.kind == CollectionCallKind.Ids && it.startIndex == 0 && ++reads == 2) rig.source.collections += gone
+                val second = it.kind == CollectionCallKind.Ids && it.startIndex == 0 && ++reads == 2
+                if (second) rig.source.collections += gone
                 null
             }
 
@@ -241,16 +244,15 @@ class CollectionListingGuardTest {
             rig.saved(2)
             var reads = 0
             rig.server.respondToCollections = {
-                if (it.kind == CollectionCallKind.Members && it.collection == rig.box(2) && it.startIndex == 0 && ++reads == 2) {
-                    rig.source.members.getValue(rig.box(2)) += saved
-                }
+                val first = it.kind == CollectionCallKind.Members && it.collection == rig.box(2) && it.startIndex == 0
+                if (first && ++reads == 2) rig.source.members.getValue(rig.box(2)) += saved
                 null
             }
 
             rig.run()
 
             assertEquals(2, reads)
-            assertEquals(listOf(rig.film(20).value, rig.film(21).value), rig.current(2).map { it })
+            assertEquals(listOf(rig.film(20).value, rig.film(21).value), rig.current(2))
         }
 
     @Test
@@ -286,8 +288,7 @@ class CollectionListingGuardTest {
             assertEquals(rig.clock.nowMs, row.seenFromMs)
             val added = repository.collectionMembers(ALICE).single { it.memberId == rig.film(99).value }
             assertEquals(row.seenFromMs, added.seenFromMs)
-            assertNotNull(
-                repository.collectionVersions(ALICE).singleOrNull { it.collectionId == row.collectionId && it.deletedAtMs != null },
-            )
+            val versions = repository.collectionVersions(ALICE).filter { it.collectionId == row.collectionId }
+            assertNotNull(versions.singleOrNull { it.deletedAtMs != null })
         }
 }

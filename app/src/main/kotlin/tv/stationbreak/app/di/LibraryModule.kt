@@ -34,7 +34,10 @@ internal object LibraryModule {
     @Singleton
     fun roomLibraryRepository(
         @ApplicationContext context: Context,
-    ): RoomLibraryRepository = RoomLibraryRepository.create(context, Clock.System, HistoryRetention(), CollectionRelist())
+    ): RoomLibraryRepository {
+        val relist = CollectionRelist()
+        return RoomLibraryRepository.create(context, Clock.System, HistoryRetention(), relist)
+    }
 
     @Provides
     fun libraryRepository(repository: RoomLibraryRepository): LibraryRepository = repository

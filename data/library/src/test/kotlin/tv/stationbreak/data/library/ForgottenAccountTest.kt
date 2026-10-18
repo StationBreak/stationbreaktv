@@ -245,7 +245,8 @@ class ForgottenAccountTest {
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
 
-    // Spec 10 task 2.6 (Vimes M7): the collections of a forgotten account go with it, and a write after that stores nothing.
+    // Spec 10 task 2.6 (Vimes M7): the collections of a forgotten account go with it, and a write after that stores
+    // nothing.
 
     @Test
     fun forgetDeletesTheAccountsCollectionsVersionsMembersAndSyncRow() =
@@ -281,7 +282,8 @@ class ForgottenAccountTest {
                 }
             }
             assertThrows(AccountNotActiveException::class.java) {
-                runBlocking { repository.recordCollectionPass(ALICE, kotlin.time.Instant.fromEpochMilliseconds(1), relisted = true) }
+                val at = kotlin.time.Instant.fromEpochMilliseconds(1)
+                runBlocking { repository.recordCollectionPass(ALICE, at, relisted = true) }
             }
 
             assertEquals(RowCounts.NONE, repository.rowCounts())

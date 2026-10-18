@@ -48,7 +48,8 @@ class NestedCollectionTest {
     @Test
     fun aNestedCollectionIsNeverFollowed() =
         runBlocking {
-            rig.serve(1, member(10, CollectionMemberKind.Movie), CollectionMember(rig.box(2), CollectionMemberKind.Collection))
+            val nested = CollectionMember(rig.box(2), CollectionMemberKind.Collection)
+            rig.serve(1, member(10, CollectionMemberKind.Movie), nested)
             // BoxSet 2 is not listed at the top (say it is nested only), so nothing may ask for its members.
             rig.run()
 
@@ -86,6 +87,7 @@ class NestedCollectionTest {
 
             rig.run()
 
-            assertEquals(listOf("abcdef0123456789abcdef0123456789:movie"), rig.repository.currentMembers(ALICE, rig.box(1).value))
+            val stored = rig.repository.currentMembers(ALICE, rig.box(1).value)
+            assertEquals(listOf("abcdef0123456789abcdef0123456789:movie"), stored)
         }
 }

@@ -8,6 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import tv.stationbreak.core.domain.CollectionCallKind
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.PagedCollectionCall
 import tv.stationbreak.core.domain.SyncFailure
 import kotlin.time.Instant
 
@@ -26,7 +27,16 @@ class CollectionCursorTest {
     @After
     fun close() = repository.close()
 
-    private fun listingCalls() = rig.server.collectionCalls.filter { it.kind == CollectionCallKind.Listing && it.startIndex == 0 }
+    private fun listingCalls(): List<PagedCollectionCall> {
+        val calls = rig.server.collectionCalls
+        return calls.filter { it.kind == CollectionCallKind.Listing && it.startIndex == 0 }
+    }
+
+    // A fault hook that times out every call of one kind.
+    private fun timeoutFor(
+        kind: CollectionCallKind,
+        call: PagedCollectionCall,
+    ) = if (call.kind == kind) MediaServerError.Timeout() else null
 
     private suspend fun firstPass() {
         (1..3).forEach { rig.serve(it, *rig.movies(it * 10)) }
@@ -111,7 +121,7 @@ class CollectionCursorTest {
             rig.clock.stepMs(30 * 60_000)
             rig.source.saved[rig.box(2)] = Instant.fromEpochMilliseconds(rig.clock.nowMs)
             rig.source.members.getValue(rig.box(2)) += rig.movies(99)
-            rig.server.respondToCollections = { if (it.kind == CollectionCallKind.Members) MediaServerError.Timeout() else null }
+            rig.server.respondToCollections = { timeoutFor(CollectionCallKind.Members, it) }
 
             val failed = rig.run()
 
@@ -135,7 +145,7 @@ class CollectionCursorTest {
     fun aFailedPassNeverMovesTheRelist() =
         runBlocking {
             (1..3).forEach { rig.serve(it, *rig.movies(it * 10)) }
-            rig.server.respondToCollections = { if (it.kind == CollectionCallKind.Ids) MediaServerError.Timeout() else null }
+            rig.server.respondToCollections = { timeoutFor(CollectionCallKind.Ids, it) }
 
             rig.run()
 
@@ -199,7 +209,8 @@ class CollectionCursorTest {
             firstPass()
             val row = repository.collectionSync(ALICE)
 
-            // account_state is written whole with INSERT OR REPLACE by each of these; collection_sync is not a column of it.
+            // account_state is written whole with INSERT OR REPLACE by each of these; collection_sync is not a column
+            // of it.
             repository.beginFirstSync(ALICE)
             repository.setTotal(ALICE, 10)
             repository.finishSync(ALICE, Instant.fromEpochMilliseconds(start))

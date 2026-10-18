@@ -32,6 +32,13 @@ internal data class CollectionSummary(
     val relisted: Boolean = false,
 )
 
+/** This summary with more members skipped: nested collections, other types, or IDs that are not canonical. */
+private fun CollectionSummary.skipped(
+    nested: Int = 0,
+    other: Int = 0,
+    ids: Int = 0,
+) = copy(skippedNested = skippedNested + nested, skippedOther = skippedOther + other, skippedIds = skippedIds + ids)
+
 /** How a collection pass ended and what it did. */
 internal data class CollectionResult(
     val outcome: SyncOutcome,
@@ -80,11 +87,13 @@ internal class CollectionPass(
         require(pageSize in 1..MediaServer.MAX_PAGE_SIZE) { "pageSize must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
     }
 
-    /** Runs one pass for [account]. An account that stops being the signed-in one ends it by exception, as for items. */
+    /**
+     * Runs one pass for [account]. An account that stops being the signed-in one ends it by exception, as for items.
+     */
     suspend fun run(
         session: Session,
         account: LibraryAccount,
-    ): CollectionResult = Run(session, account).run()
+    ): CollectionResult = Run(session, account).execute()
 
     @Suppress("ReturnCount") // Early returns carry a stopped read out of the steps.
     private inner class Run(
@@ -93,7 +102,7 @@ internal class CollectionPass(
     ) {
         private var summary = CollectionSummary()
 
-        suspend fun run(): CollectionResult {
+        suspend fun execute(): CollectionResult {
             val outcome = pass()
             return CollectionResult(outcome, summary)
         }
@@ -102,14 +111,7 @@ internal class CollectionPass(
             val started = clock.now()
             val state = repository.collectionSync(account)
             val relist = needsRelist(state?.lastRelistMs, started)
-            // A cursor ahead of now means the clock went back: count from the older of the two.
-            val since =
-                if (relist) {
-                    null
-                } else {
-                    minOf(Instant.fromEpochMilliseconds(requireNotNull(state?.collectionsSinceMs)), started) -
-                        margin
-                }
+            val since = if (relist) null else sinceOf(state, started)
             summary = summary.copy(relisted = relist)
             val listing =
                 when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, since) }) {
@@ -124,26 +126,16 @@ internal class CollectionPass(
             // The cache first, then the server's answer is compared with it.
             val live = repository.liveCollectionIds(account).toSet()
             val tombstoned = repository.tombstonedCollectionIds(account).toSet()
-            // Nothing at all, while collections are stored, is more likely a server fault than every BoxSet deleted.
-            if (ids.isEmpty() && live.isNotEmpty()) return SyncOutcome.Failed(SyncFailure.Suspect)
             val gone =
-                when (val decided = confirmGone(live - ids)) {
+                when (val decided = decideGone(live, ids)) {
                     is Gone.Stopped -> return decided.outcome
                     is Gone.Ids -> decided.ids
                 }
-            val targets = listing.filter { it.id in ids }.toMutableList()
-            if (since != null) {
-                // A BoxSet that is back, or that the cache lacks, may not be among the changed ones (it was saved before
-                // the cursor): the ID listing finds it, and a full listing gives its name.
-                val listed = targets.map { it.id }.toSet()
-                val wanted = ((ids intersect tombstoned) + (ids - live - tombstoned)) - listed
-                if (wanted.isNotEmpty()) {
-                    when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, null) }) {
-                        is Read.Stopped -> return read.outcome
-                        is Read.Complete -> targets += read.items.filter { it.id in wanted }
-                    }
+            val targets =
+                when (val found = targets(listing.filter { it.id in ids }, ids, live, tombstoned, since)) {
+                    is Read.Stopped -> return found.outcome
+                    is Read.Complete -> found.items
                 }
-            }
             for (target in targets) {
                 currentCoroutineContext().ensureActive()
                 writeOne(target)?.let { return it }
@@ -156,6 +148,34 @@ internal class CollectionPass(
             return SyncOutcome.Completed
         }
 
+        // A cursor ahead of now means the clock went back: count from the older of the two, less the margin.
+        private fun sinceOf(
+            state: CollectionSyncEntity?,
+            started: Instant,
+        ): Instant {
+            val cursor = Instant.fromEpochMilliseconds(requireNotNull(state?.collectionsSinceMs))
+            return minOf(cursor, started) - margin
+        }
+
+        // The BoxSets to read the members of: those listed, and in an incremental pass also those that are back or that
+        // the cache lacks, which may not be among the changed ones (they were saved before the cursor). The ID listing
+        // finds them, and a full listing gives their names.
+        private suspend fun targets(
+            listed: List<CollectionInfo>,
+            ids: Set<ItemId>,
+            live: Set<ItemId>,
+            tombstoned: Set<ItemId>,
+            since: Instant?,
+        ): Read<CollectionInfo> {
+            if (since == null) return Read.Complete(listed)
+            val wanted = ((ids intersect tombstoned) + (ids - live - tombstoned)) - listed.map { it.id }.toSet()
+            if (wanted.isEmpty()) return Read.Complete(listed)
+            return when (val read = readAll({ it.id.value }) { start -> collectionsPage(start, null) }) {
+                is Read.Stopped -> read
+                is Read.Complete -> Read.Complete(listed + read.items.filter { it.id in wanted })
+            }
+        }
+
         // A full re-list runs when none has completed, when the last one is ahead of now (the clock went back), or when
         // it is at least the interval old (Vimes M2, M5).
         private fun needsRelist(
@@ -166,6 +186,17 @@ internal class CollectionPass(
             val last = Instant.fromEpochMilliseconds(lastRelistMs)
             return last > now || now - last >= relistInterval
         }
+
+        // Nothing at all, while collections are stored, is more likely a server fault than every BoxSet deleted.
+        private suspend fun decideGone(
+            live: Set<ItemId>,
+            ids: Set<ItemId>,
+        ): Gone =
+            if (ids.isEmpty() && live.isNotEmpty()) {
+                Gone.Stopped(SyncOutcome.Failed(SyncFailure.Suspect))
+            } else {
+                confirmGone(live - ids)
+            }
 
         // What a second read of the ID listing still lacks: a shift that leaves the size right looks sound once.
         private suspend fun confirmGone(first: Set<ItemId>): Gone {
@@ -221,9 +252,9 @@ internal class CollectionPass(
             for (member in all) {
                 val canonical = CanonicalId.parseOrNull(member.id.value)
                 when {
-                    member.kind == CollectionMemberKind.Collection -> summary = summary.copy(skippedNested = summary.skippedNested + 1)
-                    storedMemberKind(member.kind) == null -> summary = summary.copy(skippedOther = summary.skippedOther + 1)
-                    canonical == null -> summary = summary.copy(skippedIds = summary.skippedIds + 1)
+                    member.kind == CollectionMemberKind.Collection -> summary = summary.skipped(nested = 1)
+                    storedMemberKind(member.kind) == null -> summary = summary.skipped(other = 1)
+                    canonical == null -> summary = summary.skipped(ids = 1)
                     else -> stored += CollectionMember(ItemId(canonical.value), member.kind)
                 }
             }
@@ -248,7 +279,7 @@ internal class CollectionPass(
         // Inline, so the three listings' lambdas are not three classes behind one call in a loop (ART 7.1, #264).
         // Reads every page of a listing, or stops: a failed page, a page that adds nothing, or a read whose distinct
         // IDs do not equal the first page's total (a short count, or a page that shifted) counts as nothing.
-        private suspend inline fun <T> readAll(
+        private inline fun <T> readAll(
             key: (T) -> String,
             page: (start: Int) -> ServerResult<ListPage<T>>,
         ): Read<T> {

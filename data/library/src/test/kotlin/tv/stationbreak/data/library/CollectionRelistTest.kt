@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.CollectionCallKind
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.PagedCollectionCall
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import kotlin.time.Duration.Companion.days
@@ -29,6 +30,12 @@ class CollectionRelistTest {
 
     @After
     fun close() = repository.close()
+
+    // A fault hook that times out every call of one kind.
+    private fun timeoutFor(
+        kind: CollectionCallKind,
+        call: PagedCollectionCall,
+    ) = if (call.kind == kind) MediaServerError.Timeout() else null
 
     private suspend fun seed() {
         (1..3).forEach { rig.serve(it, *rig.movies(it * 10)) }
@@ -146,7 +153,7 @@ class CollectionRelistTest {
             seed()
             val before = repository.collectionSync(ALICE)
             rig.clock.stepMs(7 * 60 * 60_000L)
-            rig.server.respondToCollections = { if (it.kind == CollectionCallKind.Members) MediaServerError.Timeout() else null }
+            rig.server.respondToCollections = { timeoutFor(CollectionCallKind.Members, it) }
 
             val failed = rig.run()
 
@@ -177,7 +184,7 @@ class CollectionRelistTest {
     fun collectionsSyncedIsTrueOnlyOnceARelistSucceeded() =
         runBlocking {
             assertFalse(repository.collectionsSynced(ALICE))
-            rig.server.respondToCollections = { if (it.kind == CollectionCallKind.Ids) MediaServerError.Timeout() else null }
+            rig.server.respondToCollections = { timeoutFor(CollectionCallKind.Ids, it) }
             rig.run()
             assertFalse(repository.collectionsSynced(ALICE))
             rig.server.respondToCollections = { null }
@@ -194,7 +201,7 @@ class CollectionRelistTest {
     }
 }
 
-/** The worker's side (spec 10, 2.5.4): the periodic job runs the pass after the item passes, and its failure is kept. */
+/** The worker's side (spec 10, 2.5.4): the job runs the pass after the item passes, and keeps its failure. */
 class CollectionPassInTheJobTest {
     private val rig = StayCurrentRig()
 

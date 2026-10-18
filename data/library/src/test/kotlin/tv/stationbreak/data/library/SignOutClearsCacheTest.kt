@@ -16,7 +16,6 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
-import kotlin.time.Instant
 
 /**
  * Spec 06 task 2.12, end to end: the real [SessionRepository] over the real database. Signing out clears the
@@ -55,7 +54,7 @@ class SignOutClearsCacheTest {
         // Collections too (spec 10): a member change keeps the old lifecycle as a version, and a pass leaves its row.
         repository.writeCollection(account, ItemId("box01"), "n", movies("a", "b"))
         repository.writeCollection(account, ItemId("box01"), "n", movies("b"))
-        repository.recordCollectionPass(account, Instant.fromEpochMilliseconds(EPOCH.toEpochMilliseconds()), relisted = true)
+        repository.recordCollectionPass(account, EPOCH, relisted = true)
     }
 
     @Test

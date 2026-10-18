@@ -8,7 +8,8 @@ import org.junit.Test
 import kotlin.time.Instant
 
 /**
- * Spec 10 task 2.5 (pool universe, rules-format rule 5): a member that lives outside the selected libraries is stored as
+ * Spec 10 task 2.5 (pool universe, rules-format rule 5): a member that lives outside the selected libraries is stored
+ * as
  * an ID, and is in the collection's member set; it simply never matches an item of the snapshot.
  */
 class OutsideLibraryMemberTest {

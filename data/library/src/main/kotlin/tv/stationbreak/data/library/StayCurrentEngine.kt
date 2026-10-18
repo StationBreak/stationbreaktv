@@ -197,7 +197,8 @@ internal class StayCurrentEngine(
 
     /**
      * Brings the saved collections in line with the server's (spec 10, Unit 2): see [CollectionPass]. It runs after the
-     * item passes. A failure is returned and recorded nowhere in the account's sync state, so it never shows as a failed
+     * item passes. A failure is returned and recorded nowhere in the account's sync state, so it never shows as a
+     * failed
      * library; an account that stops being the signed-in one ends it as [SyncOutcome.Cancelled].
      */
     suspend fun collections(
@@ -210,7 +211,10 @@ internal class StayCurrentEngine(
             CollectionResult(SyncOutcome.Cancelled, CollectionSummary())
         }
 
-    private fun collectionPass() = CollectionPass(repository, server, clock, pageSize, margin, repository.collectionRelist.interval)
+    private fun collectionPass(): CollectionPass {
+        val interval = repository.collectionRelist.interval
+        return CollectionPass(repository, server, clock, pageSize, margin, interval)
+    }
 
     @Suppress("ReturnCount", "TooManyFunctions") // Early returns carry a failure out of the loops.
     private inner class Pass(
