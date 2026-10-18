@@ -192,20 +192,58 @@ class HistoryPurgeTest {
             assertEquals(4, rowIds().size)
         }
 
+    // Vimes L-2 on #268: the same repository, the account signed out with its rows still there, so a purge that
+    // forgot requireActive would delete them.
     @Test
     fun anAccountThatIsNotSignedInIsRefusedAndNothingIsDeleted() =
         runBlocking {
             fourItems()
+            repository.put(ALICE, MOVIES, sitem(2, runtime = 91.minutes))
+            clock.stepMs(1_000)
+            repository.put(ALICE, MOVIES, sitem(2, runtime = 92.minutes))
             repository.tombstone(ALICE, listOf(id(1)))
             clock.stepMs(thirtyDays + 1)
-            val signedOut = TestLibraries.inMemory(clock, signedIn = listOf(BOB))
-            try {
-                assertThrows(AccountNotActiveException::class.java) { runBlocking { signedOut.purgeHistory(ALICE) } }
-            } finally {
-                signedOut.close()
-            }
+            repository.dao.deleteActive(ALICE.server.value, ALICE.user.value)
+
+            assertThrows(AccountNotActiveException::class.java) { runBlocking { repository.purgeHistory(ALICE) } }
 
             assertEquals(4, rowIds().size)
+            assertEquals(2, repository.versions(ALICE).size)
+            assertEquals(1, repository.stored(ALICE).count { it.deletedAt != null })
+        }
+
+    // Vimes L-1 on #268: a tombstone set while the clock was behind the item's own stamp has deletedAt < seenFrom.
+    // The versions it holds were superseded inside the retention, so the purge must leave the whole item.
+    @Test
+    fun aTombstoneStampedBeforeTheItemWasSeenKeepsItsRecentHistory() =
+        runBlocking {
+            fourItems()
+            clock.stepMs(1.days.inWholeMilliseconds)
+            repository.put(ALICE, MOVIES, sitem(1, runtime = 91.minutes)) // version 1 superseded now; seenFrom = now
+            val seenFrom = clock.nowMs
+            clock.atMs(seenFrom - 40.days.inWholeMilliseconds) // the clock is set back
+            repository.tombstone(ALICE, listOf(id(1)))
+            clock.atMs(seenFrom + 1.days.inWholeMilliseconds) // deletedAt is 41 days old, the version 1 day old
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 0, versions = 0), purged())
+
+            assertEquals(4, rowIds().size)
+            assertEquals(1, repository.versions(ALICE).size)
+        }
+
+    @Test
+    fun aTombstoneStampedBeforeTheItemWasSeenGoesOnceTheItemIsOldToo() =
+        runBlocking {
+            fourItems()
+            clock.stepMs(1.days.inWholeMilliseconds)
+            repository.put(ALICE, MOVIES, sitem(1, runtime = 91.minutes))
+            val seenFrom = clock.nowMs
+            clock.atMs(seenFrom - 40.days.inWholeMilliseconds)
+            repository.tombstone(ALICE, listOf(id(1)))
+            clock.atMs(seenFrom + thirtyDays + 1)
+
+            assertEquals(PurgeOutcome.Purged(tombstones = 1, versions = 1), purged())
+            assertEquals(3, rowIds().size)
         }
 
     @Test
