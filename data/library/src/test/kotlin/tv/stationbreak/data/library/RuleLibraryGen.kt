@@ -65,9 +65,9 @@ internal object RuleLibraryGen {
     private val SERIES = (0 until 3).map { hexId(0x900 + it) }
     private val SEASONS = (0 until 4).map { hexId(0x800 + it) }
     private val COLLECTIONS = (0 until 3).map { hexId(0xC00 + it) }
-    private val RATINGS = listOf(null, "", " ", "G", "PG", "TV-14", "R")
-    private val GENRES = listOf("Drama", "Comedy", "Horror", "Action", "Sci-Fi")
-    private val TAGS = listOf("a", "b", "c", "noir", "new")
+    val RATINGS = listOf(null, "", " ", "G", "PG", "TV-14", "R")
+    val GENRES = listOf("Drama", "Comedy", "Horror", "Action", "Sci-Fi")
+    val TAGS = listOf("a", "b", "c", "noir", "new")
     private const val HOUR_MS = 3_600_000L
     private const val DAY_MS = 24 * HOUR_MS
 
