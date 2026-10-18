@@ -7,6 +7,8 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.domain.map
+import tv.stationbreak.core.model.CollectionMemberPage
+import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
@@ -132,6 +134,29 @@ internal class MediaCalls(
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemIdPage> = idListing(session, library, startIndex, limit, SERIES_TYPE)
+
+    @Suppress("UnusedParameter") // Red: the stub of the next commit's implementation.
+    suspend fun collections(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+        changedSince: Instant?,
+    ): ServerResult<CollectionPage> = ServerResult.Failure(MediaServerError.Unknown())
+
+    @Suppress("UnusedParameter") // Red: the stub of the next commit's implementation.
+    suspend fun collectionIds(
+        session: Session,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
+
+    @Suppress("UnusedParameter") // Red: the stub of the next commit's implementation.
+    suspend fun collectionMembers(
+        session: Session,
+        collection: ItemId,
+        startIndex: Int,
+        limit: Int,
+    ): ServerResult<CollectionMemberPage> = ServerResult.Failure(MediaServerError.Unknown())
 
     private suspend fun idListing(
         session: Session,
