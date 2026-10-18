@@ -517,10 +517,9 @@ jobs:
     needs: checks
     if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' }}
     runs-on: ubuntu-latest
-    # Cold boot plus tests takes 3.5 to 8 minutes, and the APK build before it up to 5 on a cold build cache. A failed
-    # attempt that is retried (see the test steps) adds a second boot, so 20 leaves room for that on a warm cache and
-    # still catches a hang well before the default 6 hours.
-    timeout-minutes: 20
+    # Measured: checkout and setup ~3, build ~6, attempt up to 12 (step limit), retry up to 12: 3 + 6 + 12 + 12 = 33,
+    # plus cleanup and uploads ~2, so 35. Still catches a hang well before the default 6 hours.
+    timeout-minutes: 35
     # Repeats the workflow default so this job stays read-only if the top level is ever widened for another job.
     permissions:
       contents: read
@@ -612,12 +611,13 @@ jobs:
       # The emulator itself is the flaky part (a surfaceflinger crash, a boot that never finishes, a stalled run),
       # so a failed attempt is retried once, and only when .github/scripts/instrumented-infra.sh says the failure
       # was infrastructure: an empty <failure>, a system crash in the logcat, a dead emulator or adb, no results at
-      # all (a boot failure or this step's timeout). A failure with a message is a real test failure and fails the job
+      # all (a boot failure), or a step cut off by its timeout with a module's results missing. A failure with a message is a real test failure and fails the job
       # at once. Each attempt's own timeout is below the job's, so a stall to the limit can still be retried.
       - name: Instrumented tests (API 25 Android TV)
         id: tests
         continue-on-error: true
-        timeout-minutes: 9
+        # A normal attempt takes 7 to 8 minutes (boot ~1.5, tests ~6); 12 leaves 50% headroom for a slow runner.
+        timeout-minutes: 12
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
@@ -653,7 +653,8 @@ jobs:
       - name: Instrumented tests, retry (API 25 Android TV)
         id: tests-retry
         if: steps.infra.outputs.retry == 'true'
-        timeout-minutes: 9
+        # A normal attempt takes 7 to 8 minutes (boot ~1.5, tests ~6); 12 leaves 50% headroom for a slow runner.
+        timeout-minutes: 12
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
