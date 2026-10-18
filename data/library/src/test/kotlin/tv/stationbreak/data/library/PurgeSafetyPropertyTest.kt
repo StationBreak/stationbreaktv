@@ -67,15 +67,55 @@ class PurgeSafetyPropertyTest {
             nowMs - gen.nextLong(span)
         }.sorted()
 
+    // One step of a case: a random op at [atMs], or, when [n] and [kind] are given, that op on that item.
+    private class Step(
+        val atMs: Long,
+        val n: Int? = null,
+        val kind: Int? = null,
+    )
+
+    // The ops every case also has (Vimes L-3 on #268), on items of their own, at the edges of the two ranges: the safe
+    // edge (now - 72 h) and the retention edge (now - 30 d). Kind 7 always changes the item (a new genre name).
+    private fun fixedSteps(): List<Step> {
+        val retentionEdge = nowMs - HistoryRetention().millis
+        val longAgo = nowMs - 40.days.inWholeMilliseconds
+        return listOf(
+            // 9: an edit at exactly the retention edge, and one at exactly the safe edge.
+            Step(longAgo, 9, EDIT),
+            Step(retentionEdge, 9, EDIT),
+            Step(safeFromMs, 9, EDIT),
+            // 10: a tombstone at exactly the retention edge.
+            Step(longAgo, 10, EDIT),
+            Step(retentionEdge, 10, TOMBSTONE),
+            // 11: deleted long ago, revived 1 ms after the safe edge.
+            Step(longAgo, 11, EDIT),
+            Step(nowMs - 35.days.inWholeMilliseconds, 11, TOMBSTONE),
+            Step(safeFromMs + 1, 11, REVIVE),
+            // 12: a recent history that the clock step back below stamps a tombstone before.
+            Step(nowMs - 2.days.inWholeMilliseconds, 12, EDIT),
+            Step(nowMs - 1.days.inWholeMilliseconds, 12, EDIT),
+        )
+    }
+
+    // The clock is set back 40 days and item 12 is deleted: its tombstone is older than the item's own stamp, so only
+    // its seenFrom keeps its recent versions out of the purge (Vimes L-1 on #268).
+    private suspend fun steppedBackTombstone() {
+        clock.atMs(nowMs - 40.days.inWholeMilliseconds)
+        repository.tombstone(ALICE, listOf(ItemId(hexId(12))))
+    }
+
     // One random op at [atMs] on one of eight items. A library move is a write into the other library.
     private suspend fun apply(
         gen: PurgeGen,
-        atMs: Long,
+        step: Step,
     ) {
-        clock.atMs(atMs)
-        val n = 1 + gen.nextInt(ITEMS)
+        clock.atMs(step.atMs)
+        val n = step.n ?: (1 + gen.nextInt(ITEMS))
         val id = ItemId(hexId(n))
-        when (gen.nextInt(OP_KINDS)) {
+        when (step.kind ?: gen.nextInt(OP_KINDS)) {
+            EDIT -> repository.put(ALICE, MOVIES, sitem(n).copy(genres = listOf("f${step.atMs}")))
+            TOMBSTONE -> repository.tombstone(ALICE, listOf(id))
+            REVIVE -> repository.revive(ALICE, listOf(id))
             0, 1 -> repository.put(ALICE, MOVIES, sitem(n, runtime = (30 + gen.nextInt(120)).minutes))
             2 -> repository.put(ALICE, MOVIES, sitem(n).copy(genres = listOf("g${gen.nextInt(GENRES)}")))
             3 -> repository.put(ALICE, SHOWS, sitem(n, library = SHOWS))
@@ -101,7 +141,9 @@ class PurgeSafetyPropertyTest {
                 repository.forget(ALICE)
                 repository.useAccount(ALICE)
                 repository.select(ALICE, libraries)
-                timesOf(gen).forEach { apply(gen, it) }
+                val steps = (timesOf(gen).map { Step(it) } + fixedSteps()).sortedBy { it.atMs }
+                steps.forEach { apply(gen, it) }
+                steppedBackTombstone()
                 clock.atMs(nowMs)
                 val fixed = listOf(safeFromMs, safeFromMs + 1, nowMs - 36 * HOUR_MS, nowMs, nowMs + HOUR_MS)
                 val cutoffs = fixed + List(RANDOM_CUTOFFS) { safeFromMs + gen.nextLong(5.days.inWholeMilliseconds) }
@@ -174,6 +216,9 @@ class PurgeSafetyPropertyTest {
         }
 
     private companion object {
+        const val EDIT = 7
+        const val TOMBSTONE = 4
+        const val REVIVE = 5
         const val HOUR_MS = 3_600_000L
         const val CASES = 300
         const val BASE_SEED = 0x5EED_0009uL

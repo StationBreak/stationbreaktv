@@ -334,7 +334,8 @@ class StayCurrentRunnerTest {
             assertEquals(SyncState.Idle, status.state)
         }
 
-    // Vimes M-1 on #268: the incremental pass overwrites the last success, so the guard is given the one read before it.
+    // Vimes M-1 on #268: the incremental pass overwrites the last success, so the guard is given the one from
+    // before the run.
     @Test
     fun aRunAMonthAfterTheLastSuccessSkipsThePurgeAndTheNextRunPurges() =
         runBlocking {

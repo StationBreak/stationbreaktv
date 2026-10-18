@@ -375,7 +375,8 @@ class RoomLibraryRepository internal constructor(
      * synced.
      */
     internal suspend fun purgeHistory(account: LibraryAccount): PurgeOutcome {
-        return purgeHistory(account, lastSuccess(account))
+        val stored = lastSuccess(account)
+        return purgeHistory(account, stored)
     }
 
     /** As [purgeHistory] for [account], with the guard's [reference] given (null: nothing to compare with). */
