@@ -259,8 +259,9 @@ internal data class CollectionVersionEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    // The purge of members superseded long ago.
-    indices = [Index(value = ["serverId", "userId", "supersededAtMs"])],
+    // The purge of members superseded long ago, and (with memberId) the tombstone cascade, which finds a member's
+    // current rows by ID without scanning the account's members.
+    indices = [Index(value = ["serverId", "userId", "supersededAtMs", "memberId"])],
 )
 internal data class CollectionMemberEntity(
     val serverId: String,

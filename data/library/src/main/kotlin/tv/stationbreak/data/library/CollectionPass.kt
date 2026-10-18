@@ -144,6 +144,8 @@ internal class CollectionPass(
             if (gone.isNotEmpty()) repository.tombstoneCollections(account, gone)
             summary = summary.copy(tombstoned = gone.size)
             currentCoroutineContext().ensureActive()
+            // A BoxSet that could not be read leaves the cursor and the re-list, so the next pass asks again.
+            if (summary.failed > 0) return SyncOutcome.Failed(SyncFailure.Server)
             // Only now: a pass that stopped anywhere above leaves the cursor, and the re-list, as they were.
             repository.recordCollectionPass(account, started, relisted = relist)
             return SyncOutcome.Completed
@@ -215,7 +217,7 @@ internal class CollectionPass(
         private suspend fun writeOne(target: CollectionInfo): SyncOutcome? {
             val members =
                 when (val read = members(target.id)) {
-                    is Read.Stopped -> return read.outcome
+                    is Read.Stopped -> return stopOrSkip(read.outcome)
                     is Read.Complete -> read.items
                 }
             val write = repository.writeCollection(account, target.id, target.name, members)
@@ -227,6 +229,15 @@ internal class CollectionPass(
                     changed = summary.changed + if (write.stamp != null && !write.inserted && !write.revived) 1 else 0,
                     unchanged = summary.unchanged + if (write.stamp == null) 1 else 0,
                 )
+            return null
+        }
+
+        // A bad BoxSet must not starve the rest (Vimes M3): a read that failed or did not add up is counted and
+        // skipped. An auth or transport failure stops the pass at once, as it does the item pass.
+        private fun stopOrSkip(outcome: SyncOutcome): SyncOutcome? {
+            val failure = (outcome as? SyncOutcome.Failed)?.failure
+            if (failure != SyncFailure.Server) return outcome
+            summary = summary.copy(failed = summary.failed + 1)
             return null
         }
 
@@ -303,7 +314,8 @@ internal class CollectionPass(
                         val expected = total
                         val done = chunk.items.isEmpty() || (expected != null && items.size >= expected)
                         if (done) {
-                            val sound = expected != null && items.size == expected && seen.size == expected
+                            // A duplicate within one read is the server's: planWrite stores a member once.
+                            val sound = expected != null && items.size == expected
                             return if (sound) Read.Complete(items) else Read.Stopped(failed(SyncFailure.Server))
                         }
                     }

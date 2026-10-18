@@ -3,6 +3,7 @@ package tv.stationbreak.data.library
 
 import androidx.room.Dao
 import androidx.room.Transaction
+import tv.stationbreak.core.model.CanonicalId
 
 /** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
 internal data class PageResult(
@@ -142,7 +143,9 @@ internal abstract class CacheTransactionDao(
         memberIds: List<String>,
         stamp: Long,
     ) {
-        for (chunk in memberIds.chunked(LibraryDao.MAX_VARIABLES)) {
+        // Items and series are stored as the server sent their IDs, members in canonical form (Vimes M1).
+        val canonical = memberIds.mapNotNull { CanonicalId.parseOrNull(it)?.value }.distinct()
+        for (chunk in canonical.chunked(LibraryDao.MAX_VARIABLES)) {
             collections.supersedeMember(serverId, userId, chunk, stamp)
         }
     }

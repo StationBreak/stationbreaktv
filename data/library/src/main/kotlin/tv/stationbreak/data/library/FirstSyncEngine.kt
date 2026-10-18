@@ -130,9 +130,8 @@ internal class FirstSyncEngine(
         }
 
         // The collections follow the library (spec 10, Unit 2). They are not part of "the first sync finished": a
-        // failed
-        // pass is kept in [lastCollectionPass], leaves collectionsSynced false, and the periodic job retries it (no
-        // re-list has completed, so its pass is a full one). Cancellation and a sign-out pass through.
+        // failed pass is kept in [lastCollectionPass], leaves collectionsSynced false, and the periodic job retries it
+        // (no re-list has completed, so its pass is a full one). Cancellation and a sign-out pass through.
         @Suppress("TooGenericExceptionCaught")
         private suspend fun collections() {
             lastCollectionPass =

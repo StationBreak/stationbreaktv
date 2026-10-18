@@ -164,6 +164,8 @@ class StayCurrentRunner(
                 engine.collections(session, account)
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (signedOut: AccountNotActiveException) {
+                throw signedOut
             } catch (_: Exception) {
                 CollectionResult(SyncOutcome.Failed(SyncFailure.Server), CollectionSummary())
             }

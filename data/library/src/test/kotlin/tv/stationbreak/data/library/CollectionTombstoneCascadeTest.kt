@@ -22,7 +22,7 @@ class CollectionTombstoneCascadeTest {
     private val start = clock.nowMs
     private val film = ItemId(hexId(1))
     private val other = ItemId(hexId(2))
-    private val show = ItemId("s1")
+    private val show = ItemId(hexId(500))
     private val boxA = ItemId("box01")
     private val boxB = ItemId("box02")
 
@@ -33,8 +33,8 @@ class CollectionTombstoneCascadeTest {
     private suspend fun world() {
         repository.select(ALICE, setOf(MOVIES, SHOWS))
         repository.put(ALICE, MOVIES, sitem(1), sitem(2))
-        repository.putSeries(ALICE, SHOWS, series("s1"))
-        val aMembers = listOf(cm(film.value), cm(other.value), cm("s1", CollectionMemberKind.Series))
+        repository.putSeries(ALICE, SHOWS, series(show.value))
+        val aMembers = listOf(cm(film.value), cm(other.value), cm(show.value, CollectionMemberKind.Series))
         repository.writeCollection(ALICE, boxA, "A", aMembers)
         repository.writeCollection(ALICE, boxB, "B", listOf(cm(film.value), cm("x")))
         clock.stepMs(10_000)
@@ -67,7 +67,7 @@ class CollectionTombstoneCascadeTest {
 
             repository.tombstone(ALICE, listOf(film))
 
-            assertEquals(listOf(other.value, "s1"), current(boxA))
+            assertEquals(listOf(other.value, show.value), current(boxA))
             assertEquals(listOf("x"), current(boxB))
             val ended = repository.collectionMembers(ALICE).filter { it.memberId == film.value }
             assertEquals(listOf(stamp, stamp), ended.map { it.supersededAtMs })
@@ -83,7 +83,7 @@ class CollectionTombstoneCascadeTest {
             repository.tombstoneSeries(ALICE, listOf(show))
 
             assertEquals(listOf(film.value, other.value), current(boxA))
-            assertEquals(stamp, repository.collectionMembers(ALICE).single { it.memberId == "s1" }.supersededAtMs)
+            assertEquals(stamp, repository.collectionMembers(ALICE).single { it.memberId == show.value }.supersededAtMs)
         }
 
     @Test
@@ -151,9 +151,10 @@ class CollectionTombstoneCascadeTest {
             val before = clock.nowMs
             repository.tombstone(ALICE, listOf(film))
 
-            val both = mapOf("box01" to listOf(film.value, other.value, "s1"), "box02" to listOf(film.value, "x"))
+            val both = mapOf("box01" to listOf(film.value, other.value, show.value), "box02" to listOf(film.value, "x"))
             assertEquals(both, heldBefore(before))
-            assertEquals(mapOf("box01" to listOf(other.value, "s1"), "box02" to listOf("x")), heldBefore(before + 1))
+            val after = mapOf("box01" to listOf(other.value, show.value), "box02" to listOf("x"))
+            assertEquals(after, heldBefore(before + 1))
         }
 
     @Test
@@ -253,7 +254,7 @@ class CollectionTombstoneCascadeTest {
             repository.applyReconcile(ALICE, listOf(film), emptyList(), emptyList(), emptyList())
 
             assertEquals(clock.nowMs, repository.currentRows(ALICE).first { it.itemId == film.value }.deletedAtMs)
-            assertEquals(listOf(other.value, "s1"), current(boxA))
+            assertEquals(listOf(other.value, show.value), current(boxA))
         }
 
     // Items and series are stored as the server sent their IDs; members are stored in canonical form (32 lower-case
@@ -299,7 +300,8 @@ class CollectionTombstoneCascadeTest {
         runBlocking {
             rawWorld()
 
-            repository.applyReconcile(ALICE, listOf(ItemId(rawFilm)), emptyList(), listOf(ItemId(rawFilm.replace('A', 'B'))), emptyList())
+            val rawSeries = ItemId(rawFilm.replace('A', 'B'))
+            repository.applyReconcile(ALICE, listOf(ItemId(rawFilm)), emptyList(), listOf(rawSeries), emptyList())
 
             assertEquals(emptyList<String>(), current(boxA))
         }

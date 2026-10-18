@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import tv.stationbreak.core.domain.CollectionCallKind
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.PagedCollectionCall
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.CollectionInfo
 import tv.stationbreak.core.model.ItemId
@@ -294,6 +295,11 @@ class CollectionListingGuardTest {
 
     // Vimes M3: one bad BoxSet must not starve the rest.
 
+    private fun failMembersOfBox1(
+        call: PagedCollectionCall,
+        error: MediaServerError,
+    ) = if (call.kind == CollectionCallKind.Members && call.collection == rig.box(1)) error else null
+
     @Test
     fun aBoxSetWhoseMemberReadFailsIsSkippedAndTheOthersAreWritten() =
         runBlocking {
@@ -304,7 +310,7 @@ class CollectionListingGuardTest {
                 rig.saved(it)
             }
             rig.server.respondToCollections = {
-                if (it.kind == CollectionCallKind.Members && it.collection == rig.box(1)) MediaServerError.ServerError() else null
+                failMembersOfBox1(it, MediaServerError.ServerError())
             }
 
             val result = rig.run()
@@ -323,12 +329,13 @@ class CollectionListingGuardTest {
     fun anAuthOrTransportFailureStopsAtOnce() =
         runBlocking {
             seed()
+            rig.server.collectionCalls.clear()
             (1..3).forEach {
                 rig.source.members.getValue(rig.box(it)) += rig.movies(it * 10 + 5)
                 rig.saved(it)
             }
             rig.server.respondToCollections = {
-                if (it.kind == CollectionCallKind.Members && it.collection == rig.box(1)) MediaServerError.SessionExpired() else null
+                failMembersOfBox1(it, MediaServerError.SessionExpired())
             }
 
             val result = rig.run()

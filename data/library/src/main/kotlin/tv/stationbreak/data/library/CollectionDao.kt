@@ -361,8 +361,11 @@ internal abstract class CollectionDao {
         rows: List<MemberRaw>,
     ) {
         for (row in rows) {
-            val kind = MemberKinds.shared(row.memberKind)
-            into.getOrPut(row.collectionId) { ArrayList() }.add(HeldMember(row.memberId, kind))
+            val members = into.getOrPut(row.collectionId) { ArrayList() }
+            // Rows come in member order; two rows of one member (their intervals overlap after a clock step back) are
+            // one member.
+            if (members.lastOrNull()?.memberId == row.memberId) continue
+            members.add(HeldMember(row.memberId, MemberKinds.shared(row.memberKind)))
         }
     }
 

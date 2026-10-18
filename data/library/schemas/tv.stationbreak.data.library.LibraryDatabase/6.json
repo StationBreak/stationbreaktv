@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "d7b5234153823c4c132fc64436b7f895",
+    "identityHash": "4570b24aedbf223cb90f6494ea2e6b92",
     "entities": [
       {
         "tableName": "library",
@@ -777,15 +777,16 @@
         },
         "indices": [
           {
-            "name": "index_collection_member_serverId_userId_supersededAtMs",
+            "name": "index_collection_member_serverId_userId_supersededAtMs_memberId",
             "unique": false,
             "columnNames": [
               "serverId",
               "userId",
-              "supersededAtMs"
+              "supersededAtMs",
+              "memberId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_member_serverId_userId_supersededAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_member_serverId_userId_supersededAtMs_memberId` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`, `memberId`)"
           }
         ],
         "foreignKeys": [
@@ -1105,7 +1106,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd7b5234153823c4c132fc64436b7f895')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4570b24aedbf223cb90f6494ea2e6b92')"
     ]
   }
 }
