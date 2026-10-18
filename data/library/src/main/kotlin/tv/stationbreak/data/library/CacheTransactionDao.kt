@@ -101,7 +101,10 @@ internal abstract class CacheTransactionDao(
         return PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged)
     }
 
-    /** Marks the series [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. */
+    /**
+     * Marks the series [ids] deleted at [atMs] (an existing tombstone keeps its time). No version is added. Each ID's
+     * current member rows in every collection end at [atMs], in the same transaction (ADR-0015).
+     */
     @Transaction
     open suspend fun tombstoneSeries(
         serverId: String,
@@ -111,6 +114,34 @@ internal abstract class CacheTransactionDao(
     ) {
         library.requireActive(serverId, userId)
         tombstoneSeriesIn(serverId, userId, ids, atMs)
+        supersedeMembersIn(serverId, userId, ids, atMs)
+    }
+
+    /**
+     * Marks the items [ids] deleted at [atMs] (an existing tombstone keeps its time), and ends each ID's current member
+     * rows in every collection of the account at [atMs], in the same transaction (ADR-0015): Jellyfin does not bump a
+     * collection when a member is deleted, so the item reconcile is what sees the deletion. A later revival re-adds
+     * nothing.
+     */
+    @Transaction
+    open suspend fun tombstoneItems(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ) {
+        library.requireActive(serverId, userId)
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, atMs)
+        supersedeMembersIn(serverId, userId, ids, atMs)
+    }
+
+    private suspend fun supersedeMembersIn(
+        serverId: String,
+        userId: String,
+        memberIds: List<String>,
+        stamp: Long,
+    ) {
+        for (chunk in memberIds.chunked(LibraryDao.MAX_VARIABLES)) collections.supersedeMember(serverId, userId, chunk, stamp)
     }
 
     /**
@@ -189,8 +220,9 @@ internal abstract class CacheTransactionDao(
     /**
      * One reconcile's decisions for a library, written together (spec 10, Vimes M3): the items and the series that
      * are gone are tombstoned at [nowMs], and those that came back are revived, each with its version, in one
-     * transaction after the account check. Tombstones go first, then the revives. [betweenTombstonesAndRevives] runs
-     * between them (a test seam; null in the app).
+     * transaction after the account check. Tombstones go first, with the end of their IDs' member rows in every
+     * collection (ADR-0015), then the revives. [betweenTombstonesAndRevives] runs between them (a test seam; null in the
+     * app).
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the four decisions, the time and the test seam.
@@ -207,6 +239,8 @@ internal abstract class CacheTransactionDao(
         library.requireActive(serverId, userId)
         for (chunk in itemsGone.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, nowMs)
         tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
+        // Before the seam, so a fault there rolls back the tombstones and the cascade together.
+        supersedeMembersIn(serverId, userId, itemsGone + seriesGone, nowMs)
         betweenTombstonesAndRevives?.invoke()
         reviveItemsIn(serverId, userId, itemsReturning, nowMs)
         reviveSeriesIn(serverId, userId, seriesReturning, nowMs)

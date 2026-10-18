@@ -470,18 +470,6 @@ internal abstract class LibraryDao {
         saveState(AccountStateEntity(serverId, userId, idle, old.total, null, old.lastSuccessMs))
     }
 
-    /** Marks [ids] deleted at [atMs] (an existing tombstone keeps its time). */
-    @Transaction
-    open suspend fun tombstoneAll(
-        serverId: String,
-        userId: String,
-        ids: List<String>,
-        atMs: Long,
-    ) {
-        requireActive(serverId, userId)
-        ids.chunked(MAX_VARIABLES).forEach { tombstone(serverId, userId, it, atMs) }
-    }
-
     /** Page one said the whole sync holds [total] items. */
     @Transaction
     open suspend fun setTotal(

@@ -470,7 +470,7 @@ class RoomLibraryRepository internal constructor(
         ids: Collection<ItemId>,
     ) {
         val (server, user) = account.keys()
-        dao.tombstoneAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
+        transactions.tombstoneItems(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
     }
 
     /** Clears the tombstone of [ids]: they are back in snapshots. For tests: the reconcile uses [applyReconcile]. */
