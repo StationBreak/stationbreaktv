@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import tv.stationbreak.core.model.CollectionMemberKind
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
@@ -53,7 +54,9 @@ internal class GeneratedLibrary(
  * movie or an episode, an ID that is not canonical, the same ID in two spellings). The edits touch the rating
  * (null, `""`, `" "` and real ones), the genres, the tags and the season, so a `RuleItem` has something to carry.
  *
- * It is the corpus of `RuleSnapshotItemsMatchScheduleItemsTest`; the later property tests extend it.
+ * It also writes series (edited, deleted and revived) and collections with members of every kind, some of them items
+ * the library does not hold. It is the corpus of `RuleSnapshotItemsMatchScheduleItemsTest`; the later property tests
+ * extend it.
  */
 internal object RuleLibraryGen {
     val LIBRARY_A = ItemId(hexId(0xA001))
@@ -61,6 +64,7 @@ internal object RuleLibraryGen {
 
     private val SERIES = (0 until 3).map { hexId(0x900 + it) }
     private val SEASONS = (0 until 4).map { hexId(0x800 + it) }
+    private val COLLECTIONS = (0 until 3).map { hexId(0xC00 + it) }
     private val RATINGS = listOf(null, "", " ", "G", "PG", "TV-14", "R")
     private val GENRES = listOf("Drama", "Comedy", "Horror", "Action", "Sci-Fi")
     private val TAGS = listOf("a", "b", "c", "noir", "new")
@@ -92,9 +96,53 @@ internal object RuleLibraryGen {
             }
             if (gen.chance(DELETE_PERCENT)) repository.tombstone(ALICE, listOf(gen.pick(ids)))
             if (gen.chance(REVIVE_PERCENT)) repository.revive(ALICE, listOf(gen.pick(ids)))
+            writeSeries(repository, gen)
+            writeCollections(repository, gen, ids)
             at += 1 + gen.nextLong(3 * HOUR_MS)
         }
         return GeneratedLibrary(libraries, cutoffsAround(gen, start, times.last()))
+    }
+
+    // Series metadata edits, tombstones and revivals, as the series pass makes them.
+    private suspend fun writeSeries(
+        repository: RoomLibraryRepository,
+        gen: SeededGen,
+    ) {
+        for (show in SERIES) {
+            if (!gen.chance(SERIES_WRITE_PERCENT)) continue
+            val genres = List(gen.nextInt(3)) { gen.pick(GENRES) }
+            repository.putSeries(ALICE, LIBRARY_A, series(show, gen.pick(RATINGS), genres, List(gen.nextInt(3)) { gen.pick(TAGS) }))
+        }
+        if (gen.chance(DELETE_PERCENT)) repository.tombstoneSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
+        if (gen.chance(REVIVE_PERCENT)) repository.reviveSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
+    }
+
+    // Collections with members of every kind, some of them items the library does not hold.
+    private suspend fun writeCollections(
+        repository: RoomLibraryRepository,
+        gen: SeededGen,
+        ids: List<ItemId>,
+    ) {
+        for (box in COLLECTIONS) {
+            if (!gen.chance(COLLECTION_WRITE_PERCENT)) continue
+            val members =
+                List(gen.nextInt(MAX_MEMBERS)) {
+                    val member = if (gen.chance(HELD_MEMBER_PERCENT)) gen.pick(ids).value else hexId(0xF00 + gen.nextInt(MAX_MEMBERS))
+                    cm(
+                        member,
+                        gen.pick(
+                            listOf(
+                                CollectionMemberKind.Movie,
+                                CollectionMemberKind.Episode,
+                                CollectionMemberKind.Series,
+                                CollectionMemberKind.Season,
+                            ),
+                        ),
+                    )
+                }
+            repository.writeCollection(ALICE, ItemId(box), "Name of $box", members)
+        }
+        if (gen.chance(DELETE_PERCENT)) repository.tombstoneCollections(ALICE, listOf(ItemId(gen.pick(COLLECTIONS))))
     }
 
     // Mostly canonical IDs; now and then an ID that is not one, and a second spelling of another item's ID.
@@ -188,5 +236,9 @@ internal object RuleLibraryGen {
     private const val MAX_MINUTES = 180
     private const val MAX_NUMBER = 20
     private const val YEARS = 70
+    private const val SERIES_WRITE_PERCENT = 40
+    private const val COLLECTION_WRITE_PERCENT = 50
+    private const val MAX_MEMBERS = 8
+    private const val HELD_MEMBER_PERCENT = 60
     private const val CUTOFFS = 3
 }

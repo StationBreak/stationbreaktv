@@ -112,6 +112,13 @@ class RoomLibraryRepository internal constructor(
      */
     internal var faultBetweenCollectionAndMembers: (() -> Unit)? = null
 
+    /**
+     * Test seam: runs inside [ruleSnapshot]'s transaction after the items are read and before the series and the
+     * collections are, so a test can write there and prove the snapshot does not see it (one transaction, one state).
+     * Null in the app.
+     */
+    internal var faultDuringRuleSnapshot: (() -> Unit)? = null
+
     // The port.
 
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
@@ -154,9 +161,11 @@ class RoomLibraryRepository internal constructor(
     ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
 
     /**
-     * The rule engine's input as held before [cutoff] (spec 10, Unit 3). The items are made from the same rows as
-     * [scheduleItems], by [heldRows] and [ScheduleInputs.read], so `items.map { it.item }` is what [scheduleItems]
-     * returns. An item whose library is not a canonical ID has no place in the snapshot.
+     * The rule engine's input as held before [cutoff] (spec 10, Unit 3), read in one transaction
+     * ([CacheTransactionDao.ruleSnapshot]) so the items, the series and the collections are one state. The items are
+     * made from the same rows as [scheduleItems], by [ScheduleInputs.read], so `items.map { it.item }` is what
+     * [scheduleItems] returns. An item whose library is not a canonical ID has no place in the snapshot, and nor has a
+     * series or collection whose own ID is not one. Everything is in canonical-ID order, with no duplicates.
      */
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
@@ -165,23 +174,28 @@ class RoomLibraryRepository internal constructor(
     ): RuleSnapshot {
         val (server, user) = account.keys()
         val cutoffMs = cutoff.ceilingMillis()
-        val read = ScheduleInputs.read(heldRows(server, user, cutoffMs, libraries))
+        val wanted = libraries.mapTo(HashSet()) { it.value }
+        val rows = transactions.ruleSnapshot(server, user, cutoffMs, AS_OF_CHUNK, wanted, faultDuringRuleSnapshot)
+        val read = ScheduleInputs.read(rows.items)
         val mapper = RuleItemMapper()
         val items = ArrayList<RuleItem>(read.accepted.size)
-        for (accepted in read.accepted) mapper.of(accepted)?.let { items += it }
+        for (accepted in read.accepted) {
+            val item = mapper.of(accepted)
+            if (item != null) items += item
+        }
         return RuleSnapshot(
             cutoffMs = cutoffMs,
             libraries = libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
             items = items,
-            series = emptyMap(),
-            collections = emptyMap(),
-            collectionsSynced = false,
+            series = RuleInputs.series(items, rows.series),
+            collections = RuleInputs.collections(rows.collections),
+            collectionsSynced = rows.collectionsSynced,
         )
     }
 
     // The one as-of item read: the version of every item held before the cut-off, in ID chunks, as rows. Selection runs
-    // over every item first, the libraries filter and the deletion test after (Vimes H4). [scheduleInputs] and
-    // [ruleSnapshot] both start from it.
+    // over every item first, the libraries filter and the deletion test after (Vimes H4). [scheduleInputs] calls it,
+    // and [CacheTransactionDao.ruleSnapshot] calls the same [ItemHistoryDao.heldAsOf] inside its transaction.
     private suspend fun heldRows(
         server: String,
         user: String,

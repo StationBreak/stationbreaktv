@@ -8,7 +8,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ordering.splitmix64
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 
 /**
  * Spec 10 task 3.2, the second guard after the shared private read: over 1,000 generated libraries,
@@ -42,11 +44,40 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
                         snapshot.items.map { it.item.id.value }.sorted(),
                         snapshot.items.map { it.item.id.value },
                     )
+                    assertOrderedAndComplete(snapshot)
                     reads += expected.size
                 }
             }
             reads
         }
+
+    // The lookups carry no order meaning, but they are built in canonical-ID order, and only series an episode points to.
+    private fun assertOrderedAndComplete(snapshot: RuleSnapshot) {
+        val pointedTo =
+            snapshot.items
+                .filter { it.item.kind == ScheduleItemKind.Episode }
+                .mapNotNull { it.item.seriesId }
+                .toSet()
+        assertTrue("series not pointed to", pointedTo.containsAll(snapshot.series.keys))
+        assertEquals(
+            snapshot.series.keys
+                .map { it.value }
+                .sorted(),
+            snapshot.series.keys.map { it.value },
+        )
+        snapshot.series.forEach { (id, series) -> assertEquals(id, series.id) }
+        assertEquals(
+            snapshot.collections.keys
+                .map { it.value }
+                .sorted(),
+            snapshot.collections.keys.map { it.value },
+        )
+        snapshot.collections.values.forEach { box ->
+            listOf(box.movies, box.episodes, box.series, box.seasons).forEach { members ->
+                assertEquals(members.map { it.value }.sorted(), members.map { it.value })
+            }
+        }
+    }
 
     @Test
     fun theSnapshotsItemsAreTheSchedulersItemsOverAThousandGeneratedLibraries() {

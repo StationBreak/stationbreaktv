@@ -258,6 +258,9 @@ internal abstract class ItemHistoryDao {
      * every item first; only then are the rows of [libraries] kept, less those whose held version was deleted before
      * the cut-off (`deletedAt < cutoffMs`). The validity checks are the caller's.
      *
+     * [strings] shares one `String` per distinct genre, tag, rating, library ID and season ID with whoever else reads in
+     * the same transaction (the rule snapshot does); a caller that has no one to share with passes none.
+     *
      * It returns a list and takes no callback on purpose. An earlier version handed each chunk to a lambda; on API 25
      * (ART 7.1) a second caller with a different lambda class made the JIT-compiled loop deoptimise, and the next GC
      * checkpoint aborted the process with "Tried to mark 0xebadde09 not contained by any spaces" (found in PR 264's
@@ -275,9 +278,9 @@ internal abstract class ItemHistoryDao {
         cutoffMs: Long,
         chunkSize: Int,
         libraries: Set<String>,
+        strings: Interner = Interner(),
     ): List<HeldRow> {
         val held = ArrayList<HeldRow>()
-        val strings = Interner()
         var after = ""
         while (true) {
             val current = currentChunk(serverId, userId, after, chunkSize)
@@ -343,7 +346,7 @@ internal abstract class ItemHistoryDao {
         strings: Interner,
     ) = HeldRow(
         itemId = itemId,
-        libraryId = libraryId,
+        libraryId = strings.of(libraryId),
         kind = kind,
         seriesId = seriesId,
         seasonNumber = seasonNumber,
@@ -354,10 +357,10 @@ internal abstract class ItemHistoryDao {
         productionYear = productionYear,
         deletedAtMs = deletedAtMs,
         seenFromMs = seenFromMs,
-        officialRating = officialRating,
+        officialRating = officialRating?.let(strings::of),
         genres = if (genres != null) strings.all(VersionCodec.decode(genres)) else side.genres[itemId].orEmpty(),
         tags = if (tags != null) strings.all(VersionCodec.decode(tags)) else side.tags[itemId].orEmpty(),
-        seasonId = seasonId,
+        seasonId = seasonId?.let(strings::of),
     )
 
     // Counts and reads, for the tests and diagnostics.

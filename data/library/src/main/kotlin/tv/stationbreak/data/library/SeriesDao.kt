@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 
 /**
@@ -20,6 +21,14 @@ internal class SeriesPlan(
 internal class SeriesRevival(
     val versions: List<SeriesVersionEntity>,
     val revived: List<SeriesEntity>,
+)
+
+/** One series as this TV held it before a cut-off: [seriesId] as stored, and the fields a rule reads. */
+internal class HeldSeries(
+    val seriesId: String,
+    val officialRating: String?,
+    val genres: List<String>,
+    val tags: List<String>,
 )
 
 /**
@@ -105,6 +114,87 @@ internal abstract class SeriesDao {
         cutoffMs: Long,
     ): Int
 
+    // The as-of read, by the IDs it is given. It follows the item read's cases (a, b, c), for series.
+
+    // Case (b): the one version that was current just before the cut-off. The intervals are contiguous.
+    @Query(
+        "SELECT * FROM series_version WHERE serverId = :serverId AND userId = :userId AND seriesId IN (:ids) " +
+            "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
+    )
+    protected abstract suspend fun coveringVersions(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        cutoffMs: Long,
+    ): List<SeriesVersionEntity>
+
+    // Case (c): the oldest version, found by probing the series' firstSeenMs, for a series nothing older holds.
+    @Query(
+        "SELECT v.* FROM series_version v " +
+            "JOIN series s ON s.serverId = v.serverId AND s.userId = v.userId AND s.seriesId = v.seriesId " +
+            "AND s.firstSeenMs = v.seenFromMs " +
+            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.seriesId IN (:ids) AND v.seenFromMs >= :cutoffMs",
+    )
+    protected abstract suspend fun oldestVersions(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        cutoffMs: Long,
+    ): List<SeriesVersionEntity>
+
+    /**
+     * The series [ids] as this TV held them before [cutoffMs], in the order of [ids], read [MAX_CHUNK] at a time into a
+     * list. Per series: (a) the current row if it was first seen before the cut-off; else (b) the version that was
+     * current just before it; else (c) the oldest version, or the current row if it has none. A series is left out when
+     * it is unknown, or when the version held was deleted before the cut-off (`deletedAt < cutoffMs`): a tombstone is
+     * kept until then. Genres and tags share their strings through [strings].
+     *
+     * It returns a list and takes no callback, for the reason given on [ItemHistoryDao.heldAsOf].
+     */
+    @Transaction
+    open suspend fun heldAsOf(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+        ids: List<String>,
+        strings: Interner,
+    ): List<HeldSeries> {
+        val held = ArrayList<HeldSeries>()
+        for (chunk in ids.chunked(MAX_CHUNK)) {
+            val current = byIds(serverId, userId, chunk).sortedBy { it.seriesId }
+            val covering = HashMap<String, SeriesVersionEntity>()
+            val oldest = HashMap<String, SeriesVersionEntity>()
+            if (current.any { it.seenFromMs >= cutoffMs }) {
+                coveringVersions(serverId, userId, chunk, cutoffMs).associateByTo(covering) { it.seriesId }
+                oldestVersions(serverId, userId, chunk, cutoffMs).associateByTo(oldest) { it.seriesId }
+            }
+            for (row in current) {
+                val id = row.seriesId
+                val version = if (row.seenFromMs < cutoffMs) null else covering[id] ?: oldest[id]
+                val deletedAt = if (version != null) version.deletedAtMs else row.deletedAtMs
+                if (deletedAt != null && deletedAt < cutoffMs) continue
+                held += heldFrom(row, version, strings)
+            }
+        }
+        return held
+    }
+
+    private fun heldFrom(
+        row: SeriesEntity,
+        version: SeriesVersionEntity?,
+        strings: Interner,
+    ): HeldSeries {
+        val rating = if (version != null) version.officialRating else row.officialRating
+        val genres = if (version != null) version.genres else row.genres
+        val tags = if (version != null) version.tags else row.tags
+        return HeldSeries(
+            row.seriesId,
+            rating?.let(strings::of),
+            strings.all(VersionCodec.decode(genres)),
+            strings.all(VersionCodec.decode(tags)),
+        )
+    }
+
     // Counts and reads, for the tests and diagnostics.
 
     @Query("SELECT COUNT(*) FROM series")
@@ -180,5 +270,10 @@ internal abstract class SeriesDao {
         val versions = rows.map { it.toVersion(stamps.getValue(it.seriesId)) }
         val revived = rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.seriesId)) }
         return SeriesRevival(versions, revived)
+    }
+
+    companion object {
+        /** The most series [heldAsOf] reads at once: their IDs go in one `IN` list, under SQLite 3.9's 999. */
+        const val MAX_CHUNK = LibraryDao.MAX_VARIABLES - 3
     }
 }

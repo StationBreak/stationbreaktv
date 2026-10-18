@@ -2,7 +2,9 @@
 package tv.stationbreak.data.library
 
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.ScheduleItemProblem
@@ -212,27 +214,99 @@ internal object ScheduleInputs {
 }
 
 /**
- * Maps the items of an [ItemRead] to the rule engine's [RuleItem], sharing one `String` per distinct library ID, season
- * ID and rating within the read (spec 10, Vimes L5; the genres and tags are shared by the read itself). An item whose
- * library ID is not a canonical ID has no place in a `RuleSnapshot`, so it is left out; a season ID that is not one
- * reads as no season.
+ * Maps the items of an [ItemRead] to the rule engine's [RuleItem]. The strings (genres, tags, rating, library ID and
+ * season ID) were shared by the read itself (spec 10, Vimes L5); this keeps one `CanonicalId` per distinct ID. An item
+ * whose library ID is not a canonical ID has no place in a `RuleSnapshot`, so it is left out; a season ID that is not
+ * one reads as no season.
  */
 internal class RuleItemMapper {
     private val ids = HashMap<String, CanonicalId?>()
-    private val ratings = Interner()
 
     fun of(accepted: AcceptedItem): RuleItem? {
         val row = accepted.row
         val library = id(row.libraryId) ?: return null
+        val season = row.seasonId
         return RuleItem(
             item = accepted.item,
             libraryId = library,
-            seasonId = row.seasonId?.let(::id),
-            officialRating = row.officialRating?.let(ratings::of),
+            seasonId = if (season != null) id(season) else null,
+            officialRating = row.officialRating,
             genres = row.genres,
             tags = row.tags,
         )
     }
 
     private fun id(raw: String): CanonicalId? = ids.getOrPut(raw) { CanonicalId.parseOrNull(raw) }
+}
+
+/**
+ * Builds the series and the collections of a `RuleSnapshot` from what the transaction read: maps in canonical-ID
+ * order with no duplicates (spec 10, Vimes L4). Where two stored spellings of an ID give one canonical ID, the first
+ * in stored order wins, as for items.
+ */
+internal object RuleInputs {
+    /** The series that an episode among [items] points to, as held. A series the cache does not hold has no entry. */
+    fun series(
+        items: List<RuleItem>,
+        held: List<HeldSeries>,
+    ): Map<CanonicalId, RuleSeries> {
+        val byId = HashMap<CanonicalId, HeldSeries>()
+        for (series in held) {
+            val id = CanonicalId.parseOrNull(series.seriesId)
+            if (id != null && id !in byId) byId[id] = series
+        }
+        val wanted = ArrayList<CanonicalId>()
+        val seen = HashSet<CanonicalId>()
+        for (item in items) {
+            val id = item.item.seriesId
+            if (item.item.kind == ScheduleItemKind.Episode && id != null && id in byId && seen.add(id)) wanted += id
+        }
+        wanted.sortBy { it.value }
+        val result = LinkedHashMap<CanonicalId, RuleSeries>(wanted.size * 2)
+        for (id in wanted) {
+            val series = byId.getValue(id)
+            result[id] = RuleSeries(id, series.officialRating, series.genres, series.tags)
+        }
+        return result
+    }
+
+    /** The collections held, each with its members in the four sets by kind. */
+    fun collections(held: List<HeldCollection>): Map<CanonicalId, RuleCollection> {
+        val built = ArrayList<RuleCollection>(held.size)
+        val seen = HashSet<CanonicalId>()
+        for (collection in held) {
+            val id = CanonicalId.parseOrNull(collection.collectionId)
+            if (id != null && seen.add(id)) built += members(id, collection.members)
+        }
+        built.sortBy { it.id.value }
+        val result = LinkedHashMap<CanonicalId, RuleCollection>(built.size * 2)
+        for (collection in built) result[collection.id] = collection
+        return result
+    }
+
+    private fun members(
+        id: CanonicalId,
+        held: List<HeldMember>,
+    ): RuleCollection {
+        val movies = ArrayList<CanonicalId>()
+        val episodes = ArrayList<CanonicalId>()
+        val series = ArrayList<CanonicalId>()
+        val seasons = ArrayList<CanonicalId>()
+        for (member in held) {
+            val memberId = CanonicalId.parseOrNull(member.memberId) ?: continue
+            when (member.kind) {
+                MemberKinds.MOVIE -> movies += memberId
+                MemberKinds.EPISODE -> episodes += memberId
+                MemberKinds.SERIES -> series += memberId
+                MemberKinds.SEASON -> seasons += memberId
+            }
+        }
+        return RuleCollection(id, ordered(movies), ordered(episodes), ordered(series), ordered(seasons))
+    }
+
+    // A set in canonical-ID order, without duplicates: the stored spellings may sort differently from the canonical ones.
+    private fun ordered(ids: ArrayList<CanonicalId>): Set<CanonicalId> {
+        ids.sortBy { it.value }
+        return LinkedHashSet(ids)
+    }
 }
