@@ -20,10 +20,11 @@ enum class ItemKind {
  * An item as the server describes it. [runtime] is null when the server doesn't say; [parentId] is the folder or
  * library the item is in. F0.6 adds what the library cache and the scheduler need (S0.6.3). Every one of those fields
  * is optional, because an incomplete server answer must never fail a page: [dateCreated] is the server's
- * own UTC moment, [genres] and [tags] are empty when the server sends none, and [seriesId], [seasonNumber]
- * and [episodeNumber] only mean something for an episode. [runtime] is in whole milliseconds and [dateCreated] at
- * millisecond precision, exactly as the rules format maps them (spec 09); [premiereDate] is the UTC calendar date
- * of the premiere as `YYYY-MM-DD`.
+ * own UTC moment, [genres] and [tags] are empty when the server sends none, and [seriesId], [seasonId],
+ * [seasonNumber] and [episodeNumber] only mean something for an episode ([seasonId] is null for an episode with no
+ * season folder). [runtime] is in whole milliseconds and [dateCreated] at millisecond precision, exactly as the rules
+ * format maps them (spec 09); [premiereDate] is the UTC calendar date of the premiere as `YYYY-MM-DD`.
+ * [officialRating] is the server's text as sent: null, `""` and `" "` are three different values.
  */
 data class MediaItem(
     val id: ItemId,
@@ -38,6 +39,7 @@ data class MediaItem(
     val genres: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     val seriesId: ItemId? = null,
+    val seasonId: ItemId? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
 )

@@ -359,6 +359,7 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         genres = dto.genres.orEmpty(),
         tags = dto.tags.orEmpty(),
         seriesId = dto.seriesId?.let(::ItemId),
+        seasonId = dto.seasonId?.let(::ItemId),
         seasonNumber = dto.seasonNumber,
         episodeNumber = dto.episodeNumber,
     )

@@ -118,6 +118,7 @@ internal class ItemDto(
     @SerialName("Genres") val genres: List<String>? = null,
     @SerialName("Tags") val tags: List<String>? = null,
     @SerialName("SeriesId") val seriesId: String? = null,
+    @SerialName("SeasonId") val seasonId: String? = null,
     @SerialName("ParentIndexNumber") val seasonNumber: Int? = null,
     @SerialName("IndexNumber") val episodeNumber: Int? = null,
 )
