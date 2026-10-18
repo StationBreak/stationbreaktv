@@ -398,50 +398,10 @@ jobs:
       # lints and unit-tests the variant. Its dex merge was the slowest task in the old combined job.
       # The release variants are built only on main and for a PR that can change what they contain (see `checks`);
       # the github debug APK is built every time, for the device tests.
-      # ADR-0011 (amended 2026-10-18): the debug APK is signed with the CI debug key, held in secrets, so each one
-      # installs over the last on a test device. The key is decoded here and handed to the Assemble step only; its
-      # password goes to that step's env, never to $GITHUB_ENV, so no other step or action sees it. A fork PR gets no
-      # secrets: it builds with the runner's own debug key and uploads no APK. A push to main without the key fails.
-      - name: Decode the CI debug key
-        id: debugkey
-        env:
-          KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
-            if [ "$EVENT_NAME" = push ]; then
-              echo "::error::the CI debug key secrets are missing (ADR-0011)"
-              exit 1
-            fi
-            echo "No CI debug key (a fork PR): the debug APK gets the runner's own key and is not uploaded."
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          store="$RUNNER_TEMP/stationbreak-debug.p12"
-          (umask 077 && base64 -d <<<"$KEYSTORE_B64" > "$store")
-          # The certificate's SHA-256, lower-case hex without colons as apksigner prints it. It is public.
-          sha256="$(keytool -list -v -keystore "$store" -storetype PKCS12 -storepass:env KEYSTORE_PASSWORD \
-            | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-          if [ -z "$sha256" ]; then
-            echo "::error::could not read the CI debug key's certificate"
-            exit 1
-          fi
-          {
-            echo "signed=true"
-            echo "store=$store"
-            echo "sha256=$sha256"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Assemble
         env:
           RELEASE: ${{ needs.checks.outputs.release }}
-          # Both empty for a fork PR: Gradle then uses the runner's own debug key (app/build.gradle.kts).
-          STATIONBREAK_DEBUG_KEYSTORE: ${{ steps.debugkey.outputs.store }}
-          STATIONBREAK_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
         run: |
-          # The key file goes when this step ends, whatever the outcome.
-          trap 'rm -f "$STATIONBREAK_DEBUG_KEYSTORE"' EXIT
           tasks=(assembleGithubDebug)
           # Only an explicit false narrows it; an empty output runs everything.
           if [ "$RELEASE" != false ]; then
@@ -489,6 +449,51 @@ jobs:
           mkdir -p dist
           cp app/build/outputs/apk/github/debug/app-github-debug.apk "dist/${name}"
           echo "path=dist/${name}" >> "$GITHUB_OUTPUT"
+
+      # ADR-0011 (amended 2026-10-18): Gradle signs the debug APK with the runner's own key; this step re-signs it with
+      # the CI debug key, held in secrets, so each CI debug APK installs over the last on a test device. Only the SDK's
+      # apksigner and keytool run here, after every Gradle step and before any third-party action that follows, so no
+      # build code sees the key. The password reaches the tools through env only. The key file is deleted at the end.
+      # A fork PR gets no secrets: its APK keeps the runner's key and is not uploaded. A push to main without the key
+      # fails.
+      - name: Sign the debug APK with the CI debug key
+        id: debugkey
+        env:
+          BUILD_TOOLS_VERSION: 36.0.0
+          DEBUG_APK: ${{ steps.apk.outputs.path }}
+          KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            if [ "$EVENT_NAME" = push ]; then
+              echo "::error::the CI debug key secrets are missing (ADR-0011)"
+              exit 1
+            fi
+            echo "No CI debug key (a fork PR): the debug APK keeps the runner's own key and is not uploaded."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          store="$RUNNER_TEMP/stationbreak-debug.p12"
+          trap 'rm -f "$store" "$DEBUG_APK.unsigned"' EXIT
+          (umask 077 && base64 -d <<<"$KEYSTORE_B64" > "$store")
+          # The certificate's SHA-256, lower-case hex without colons as apksigner prints it. It is public.
+          sha256="$(keytool -list -v -keystore "$store" -storetype PKCS12 -storepass:env KEYSTORE_PASSWORD \
+            | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [ -z "$sha256" ]; then
+            echo "::error::could not read the CI debug key's certificate"
+            exit 1
+          fi
+          mv "$DEBUG_APK" "$DEBUG_APK.unsigned"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" sign \
+            --ks "$store" --ks-type PKCS12 --ks-key-alias stationbreak-debug \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --v4-signing-enabled false \
+            --out "$DEBUG_APK" "$DEBUG_APK.unsigned"
+          {
+            echo "signed=true"
+            echo "sha256=$sha256"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Inspect APKs
         env:
