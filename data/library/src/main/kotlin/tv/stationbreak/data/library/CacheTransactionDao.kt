@@ -26,16 +26,21 @@ internal abstract class CacheTransactionDao(
      * genres and tags replaced; a new one is inserted. A change to a field the scheduler reads (genres and tags
      * included), or a row that clears a tombstone, first keeps the old row as a version (spec 09). The account must
      * still be signed in, which is checked inside this transaction. [nowMs] stamps new rows and versions.
-     * [betweenItemsAndCheckpoint] runs after the items and before the checkpoint (a test seam; null in the app).
+     *
+     * The item rows (with their genres and tags) are written through [LibraryDao] first, then the versions through
+     * [ItemHistoryDao], then the checkpoint. [betweenItemsAndHistory] runs after the first and before the second, and
+     * [betweenItemsAndCheckpoint] after the second and before the checkpoint. Both are test seams, null in the app: a
+     * test makes the write die at either point and proves nothing before it is kept.
      */
     @Transaction
-    @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seam.
+    @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
     open suspend fun writePage(
         server: String,
         user: String,
         checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
         nowMs: Long,
+        betweenItemsAndHistory: (() -> Unit)?,
         betweenItemsAndCheckpoint: (() -> Unit)?,
     ): PageWrite {
         library.requireActive(server, user)
@@ -49,7 +54,6 @@ internal abstract class CacheTransactionDao(
         val oldTags = library.tagNames(server, user, existing.keys)
         val plan = history.planPage(items, existing, oldGenres, oldTags, nowMs)
         library.insertItems(plan.toInsert)
-        history.insertVersions(plan.versions)
         library.updateItems(plan.toUpdate)
         val changedIds = (plan.toInsert + plan.toUpdate).map { it.itemId }
         changedIds.chunked(LibraryDao.MAX_VARIABLES).forEach {
@@ -58,6 +62,8 @@ internal abstract class CacheTransactionDao(
         }
         library.insertGenres(changedIds.flatMap { items.getValue(it).genres })
         library.insertTags(changedIds.flatMap { items.getValue(it).tags })
+        betweenItemsAndHistory?.invoke()
+        history.insertVersions(plan.versions)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
         return PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged)

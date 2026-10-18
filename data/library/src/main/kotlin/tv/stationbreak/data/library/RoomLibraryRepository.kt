@@ -80,6 +80,13 @@ class RoomLibraryRepository internal constructor(
      */
     internal var faultBetweenItemsAndCheckpoint: (() -> Unit)? = null
 
+    /**
+     * Test seam: runs inside [writePage]'s transaction after the item rows are written through `LibraryDao` and before
+     * the versions are written through `ItemHistoryDao`, to prove a transaction across DAOs rolls back whole. Null in
+     * the app.
+     */
+    internal var faultBetweenItemsAndHistory: (() -> Unit)? = null
+
     // The port.
 
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
@@ -220,7 +227,7 @@ class RoomLibraryRepository internal constructor(
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return transactions.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndCheckpoint)
+        return transactions.writePage(server, user, checkpoint, rows, now, faultBetweenItemsAndHistory, faultBetweenItemsAndCheckpoint)
     }
 
     /**
@@ -235,7 +242,7 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return transactions.writePage(server, user, null, rows, now, faultBetweenItemsAndCheckpoint)
+        return transactions.writePage(server, user, null, rows, now, faultBetweenItemsAndHistory, faultBetweenItemsAndCheckpoint)
     }
 
     private fun rowsOf(
