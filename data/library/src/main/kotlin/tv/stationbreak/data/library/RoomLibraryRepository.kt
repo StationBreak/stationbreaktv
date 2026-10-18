@@ -220,13 +220,13 @@ class RoomLibraryRepository internal constructor(
         // The unique sync work goes first, unless this is the account already syncing (the worker restores the
         // session itself, which names it again). Cancelling is asynchronous: the DAO checks the account regardless.
         if (dao.activeAccounts() != listOf(ActiveAccountEntity(server, user))) sync.cancelFirstSync()
-        dao.activate(server, user)
+        transactions.activate(server, user)
     }
 
     override suspend fun forget(account: LibraryAccount) {
         val (server, user) = account.keys()
         sync.cancelFirstSync()
-        dao.forget(server, user)
+        transactions.forget(server, user)
     }
 
     // The sync's side.

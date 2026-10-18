@@ -251,7 +251,8 @@ internal abstract class CacheTransactionDao(
 
     /**
      * Purges the account's history older than [retentionMs] at [nowMs], in one transaction after the account is
-     * checked: the versions superseded, and the tombstones set, more than that long ago, for items and for series. The
+     * checked: the versions superseded, and the tombstones set, more than that long ago, for items, series and
+     * collections (whose member rows superseded that long ago go too). The
      * current version of a live item or series is never touched, and a purged tombstone takes its genres, tags and
      * versions with it (the foreign keys). The versions go first, so the count is of the ones superseded long ago and
      * not of the ones a tombstone takes with it. A tombstone also needs `seenFromMs < cutoff` (Vimes L-1 on #268).
@@ -278,9 +279,20 @@ internal abstract class CacheTransactionDao(
         // the ones a tombstone takes with it. The current row of a live item or series is never touched.
         val versions = history.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
         val seriesVersions = series.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val collectionVersions = collections.deleteVersionsSupersededBefore(serverId, userId, cutoffMs)
+        val collectionMembers = collections.deleteMembersSupersededBefore(serverId, userId, cutoffMs)
         val tombstones = library.deleteTombstonesBefore(serverId, userId, cutoffMs)
         val seriesTombstones = series.deleteTombstonesBefore(serverId, userId, cutoffMs)
-        return PurgeOutcome.Purged(tombstones, versions, seriesTombstones, seriesVersions)
+        val collectionTombstones = collections.deleteTombstonesBefore(serverId, userId, cutoffMs)
+        return PurgeOutcome.Purged(
+            tombstones,
+            versions,
+            seriesTombstones,
+            seriesVersions,
+            collectionTombstones,
+            collectionVersions,
+            collectionMembers,
+        )
     }
 
     /**
@@ -350,6 +362,36 @@ internal abstract class CacheTransactionDao(
         val before = collections.syncRow(serverId, userId)
         val relistMs = if (relisted) startedMs else before?.lastRelistMs
         collections.saveSyncRow(CollectionSyncEntity(serverId, userId, startedMs, relistMs))
+    }
+
+    /**
+     * [serverId] and [userId] are signed in: every other account's rows go, collections and their sync rows included
+     * (they belong to no library, so deleting the libraries does not reach them; Vimes M7). One transaction.
+     */
+    @Transaction
+    open suspend fun activate(
+        serverId: String,
+        userId: String,
+    ) {
+        library.deleteOtherLibraries(serverId, userId)
+        collections.deleteOtherCollections(serverId, userId)
+        collections.deleteOtherSyncRows(serverId, userId)
+        library.deleteOtherStates(serverId, userId)
+        library.deleteOtherActive(serverId, userId)
+        library.insertActive(ActiveAccountEntity(serverId, userId))
+    }
+
+    /** The account signed out: its rows go, collections and their sync row included. One transaction. */
+    @Transaction
+    open suspend fun forget(
+        serverId: String,
+        userId: String,
+    ) {
+        library.deleteLibraries(serverId, userId)
+        collections.deleteCollections(serverId, userId)
+        collections.deleteSyncRow(serverId, userId)
+        library.deleteState(serverId, userId)
+        library.deleteActive(serverId, userId)
     }
 
     /** The collections the account held before [cutoffMs], with their members: [CollectionDao.heldAsOf]. */

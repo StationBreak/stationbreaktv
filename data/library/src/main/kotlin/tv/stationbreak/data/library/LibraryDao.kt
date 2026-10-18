@@ -335,7 +335,7 @@ internal abstract class LibraryDao {
     )
 
     @Query("DELETE FROM active_account WHERE NOT (serverId = :serverId AND userId = :userId)")
-    protected abstract suspend fun deleteOtherActive(
+    abstract suspend fun deleteOtherActive(
         serverId: String,
         userId: String,
     )
@@ -391,29 +391,6 @@ internal abstract class LibraryDao {
         }
         val rows = chosen.map { LibraryEntity(serverId, userId, it, fetched = false) }
         rows.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
-    }
-
-    /** [serverId] and [userId] are signed in: every other account's rows go. */
-    @Transaction
-    open suspend fun activate(
-        serverId: String,
-        userId: String,
-    ) {
-        deleteOtherLibraries(serverId, userId)
-        deleteOtherStates(serverId, userId)
-        deleteOtherActive(serverId, userId)
-        insertActive(ActiveAccountEntity(serverId, userId))
-    }
-
-    /** The account signed out: its rows go. */
-    @Transaction
-    open suspend fun forget(
-        serverId: String,
-        userId: String,
-    ) {
-        deleteLibraries(serverId, userId)
-        deleteState(serverId, userId)
-        deleteActive(serverId, userId)
     }
 
     // The names of the genres (or tags) of [ids], in order, by item. Chunked under MAX_VARIABLES.

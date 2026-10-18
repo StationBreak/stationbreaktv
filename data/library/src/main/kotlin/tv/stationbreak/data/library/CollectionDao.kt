@@ -135,6 +135,65 @@ internal abstract class CollectionDao {
         atMs: Long,
     )
 
+    // The purge: plain DELETEs scoped to the account and driven by the purge indexes. As for items and series, a
+    // tombstone also needs seenFromMs < cutoff, because the cascade would take versions and members superseded inside
+    // the retention. A current member row (null supersededAtMs) never matches the member DELETE.
+
+    @Query(
+        "DELETE FROM collection_version WHERE serverId = :serverId AND userId = :userId AND supersededAtMs < :cutoffMs",
+    )
+    abstract suspend fun deleteVersionsSupersededBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    @Query(
+        "DELETE FROM collection_member WHERE serverId = :serverId AND userId = :userId AND supersededAtMs < :cutoffMs",
+    )
+    abstract suspend fun deleteMembersSupersededBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    @Query(
+        "DELETE FROM collection WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NOT NULL AND deletedAtMs < :cutoffMs AND seenFromMs < :cutoffMs",
+    )
+    abstract suspend fun deleteTombstonesBefore(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+    ): Int
+
+    // Sign-out and a change of account: collections belong to no library, so the library cascade does not reach them.
+    // Their versions and members follow by cascade.
+
+    @Query("DELETE FROM collection WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun deleteCollections(
+        serverId: String,
+        userId: String,
+    )
+
+    @Query("DELETE FROM collection WHERE NOT (serverId = :serverId AND userId = :userId)")
+    abstract suspend fun deleteOtherCollections(
+        serverId: String,
+        userId: String,
+    )
+
+    @Query("DELETE FROM collection_sync WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun deleteSyncRow(
+        serverId: String,
+        userId: String,
+    )
+
+    @Query("DELETE FROM collection_sync WHERE NOT (serverId = :serverId AND userId = :userId)")
+    abstract suspend fun deleteOtherSyncRows(
+        serverId: String,
+        userId: String,
+    )
+
     // The as-of read. It pages by collection-ID range, as the item read does, and reads members by the IDs it chose.
 
     @Query(
