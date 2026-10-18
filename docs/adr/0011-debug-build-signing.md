@@ -73,15 +73,16 @@ administrator token, so Angua rated the risk HIGH before the repository goes pub
 1. `debug.keystore` is removed from the repository. A new debug key, the **CI debug key**, was generated off the
    repository and is held in the Actions secrets `DEBUG_KEYSTORE_B64` and `DEBUG_KEYSTORE_PASSWORD`. Item 1 now reads:
    debug builds from CI are signed with the CI debug key.
-2. **Gradle never sees the key.** Gradle signs the debug APK with the runner's own per-machine key. After every
-   Gradle step, a separate step in the `assemble` job decodes the CI debug key into the runner's temporary directory
-   and re-signs the APK with the SDK's `apksigner`. Only `apksigner` and `keytool` run in that step, the password
-   reaches them through the step's environment only, and the key file is deleted when the step ends. No build script,
-   Gradle plugin or third-party action runs while the key is on disk.
-3. The "Inspect APKs" step checks that the debug APK has exactly one signer, the CI debug key. An APK is uploaded
-   only when it was signed with the CI debug key.
+2. **No repository code runs where the key is.** Gradle signs the debug APK with the runner's own per-machine key,
+   and `assemble` hands that APK to a separate job, `sign-debug`, as a one-day artifact. `sign-debug` runs on a fresh
+   runner with no checkout and no Gradle: it downloads the APK, decodes the CI debug key into the runner's temporary
+   directory, re-signs the APK with the SDK's `apksigner`, and deletes the key file when the step ends. The password
+   reaches `keytool` and `apksigner` through the step's environment only. Only this job reads the secrets. A separate
+   job is needed because a build step can shape every later step in its own job (through `$GITHUB_ENV`,
+   `$GITHUB_PATH` or a background process), so no step in `assemble` could hold the key safely.
+3. `sign-debug` checks that the debug APK has exactly one signer, the CI debug key, before it uploads it.
 4. A push to `main` without the secrets fails. A pull request from a fork gets no secrets (`pull_request`, never
-   `pull_request_target`), builds with Android's per-machine debug key, and uploads no APK, as before (item 5).
+   `pull_request_target`), never reaches `sign-debug`, and uploads no APK, as before (item 5).
 5. Local builds and the `emulator` job use Android's per-machine debug key. They can't update a CI install.
 
 **The retired key** stays in the history and stays allowlisted in `.gitleaks.toml` by its exact path. Once a TV runs
@@ -90,6 +91,6 @@ uninstall and a fresh set-up on each TV. Only CI APKs signed with the CI debug k
 **Before the repository goes public, both TVs are reinstalled from a CI build signed with the CI debug key**, and the
 installed signature is checked (`apksigner verify --print-certs` on the pulled APK shows `0047…6522`).
 
-**What stays.** Items 2, 3, 5, 6 and 7 stand, and item 4 except that the key is no longer public. Item 7 (a low-privilege Jellyfin user for debug builds) is still the right
-practice; this amendment removes the dependency on it, not the advice. The CI debug key is single-purpose (item 4) and
-is never used for a release. If it leaks, it is replaced the same way: a new key, new secrets, and one uninstall per TV.
+**What stays.** Items 2, 3, 5, 6 and 7 stand, and item 4 except that the key is no longer public. Item 7 (a
+low-privilege Jellyfin user for debug builds) is still the right practice; this amendment removes the dependency on
+it, not the advice. The CI debug key is single-purpose (item 4) and is never used for a release. If it leaks, it is replaced the same way: a new key, new secrets, and one uninstall per TV.
