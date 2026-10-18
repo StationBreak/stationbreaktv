@@ -9,6 +9,7 @@ import tv.stationbreak.core.model.LibraryKind
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.time.Instant
 
@@ -98,5 +99,51 @@ class ItemsRequestShapeTest {
         val url = sent(changedSince = Instant.parse("2026-03-04T05:06:07.123456789Z"))
 
         assertEquals("2026-03-04T05:06:07.123Z", url.queryParameter("minDateLastSaved"))
+    }
+
+    // Vimes H5 (spec 10): with the user's "group movies into collections" setting on, the server collapses a BoxSet's
+    // movies into the BoxSet unless the call says not to. Every item call says so, so the cache lists the movies.
+
+    @Test
+    fun theWalkAndTheChangedSinceWalkDoNotCollapseBoxSets() {
+        assertEquals("false", sent().queryParameter("collapseBoxSetItems"))
+        assertEquals(
+            "false",
+            sent(changedSince = Instant.parse("2026-03-04T05:06:07Z")).queryParameter("collapseBoxSetItems"),
+        )
+    }
+
+    @Test
+    fun theIdListingDoesNotCollapseBoxSetsAndAsksForTheSameKindsAsTheWalk() {
+        runBlocking {
+            jellyfin.on("GET", "/Items") { jellyfin.json("{\"Items\":[],\"TotalRecordCount\":0}") }
+            testAdapter().libraryItemIds(testSession(jellyfin.address), library, 0, 50)
+        }
+        val ids = jellyfin.requests("/Items").last().url
+
+        assertEquals("false", ids.queryParameter("collapseBoxSetItems"))
+        assertEquals(sent().queryParameter("includeItemTypes"), ids.queryParameter("includeItemTypes"))
+    }
+
+    @Test
+    fun theDirectChildrenListingDoesNotCollapseBoxSetsEither() {
+        runBlocking {
+            jellyfin.on("GET", "/Items") { jellyfin.json("{\"Items\":[],\"TotalRecordCount\":0}") }
+            testAdapter().items(testSession(jellyfin.address), library, 0, 50)
+        }
+
+        assertEquals(
+            "false",
+            jellyfin
+                .requests("/Items")
+                .last()
+                .url
+                .queryParameter("collapseBoxSetItems"),
+        )
+    }
+
+    @Test
+    fun theItemWalkNeverAsksForSeries() {
+        assertFalse("Series" in sent().listOf("includeItemTypes"))
     }
 }
