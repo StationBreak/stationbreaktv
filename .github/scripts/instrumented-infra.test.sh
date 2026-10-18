@@ -162,6 +162,51 @@ xml '<failure message="expected:&lt;a&gt;">trace</failure>'
 rm -rf "$case_dir/root/app"
 expect "a module's results" 1 "genuine"
 
+# Cut off by the step timeout (issue #263): `run` started (marker) but was killed before it saved emulator-state.txt.
+# Only the modules in CONNECTED_TASKS that wrote no results count as missing.
+cut_off_case() {
+  new_case
+  mkdir -p "$case_dir/root/feature/onboarding"
+  : >"$case_dir/diag/started"
+  export CONNECTED_TASKS="connectedGithubDebugAndroidTest :feature:onboarding:connectedDebugAndroidTest"
+}
+
+cut_off_case
+xml '<testcase name="x"/>'
+expect "timeout, no failures, a module has no results" 0 "cut off"
+
+cut_off_case
+xml '<failure message="expected true">trace</failure>'
+expect "timeout with a real failure" 1 "genuine"
+
+cut_off_case
+xml '<failure message=""/>'
+expect "timeout with an empty failure" 0 "empty <failure>"
+
+cut_off_case
+xml '<testcase name="x"/>'
+mkdir -p "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug"
+cp "$results" "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug/TEST-device.xml"
+expect "timeout but every module has results" 1 "genuine"
+
+# Complete results and a failure: the run finished, saved its state, and a test failed.
+cut_off_case
+rm -f "$case_dir/diag/started"
+echo alive >"$case_dir/diag/emulator-state.txt"
+echo device >"$case_dir/diag/adb-state.txt"
+xml '<failure message="expected true">trace</failure>'
+mkdir -p "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug"
+cp "$results" "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug/TEST-device.xml"
+expect "complete results plus a failure" 1 "genuine"
+
+# A run that finished (state saved) with a module missing is not a timeout.
+cut_off_case
+echo alive >"$case_dir/diag/emulator-state.txt"
+echo device >"$case_dir/diag/adb-state.txt"
+xml '<testcase name="x"/>'
+expect "finished run, a module missing, no timeout marker" 1 "genuine"
+unset CONNECTED_TASKS
+
 # Usage errors.
 if bash "$script" >/dev/null 2>&1; then fail "usage" "no arguments exited 0"; else echo "ok   usage (no arguments fail)"; fi
 if bash "$script" nonsense "$work" >/dev/null 2>&1; then fail "usage" "unknown mode exited 0"; else echo "ok   usage (unknown mode fails)"; fi
