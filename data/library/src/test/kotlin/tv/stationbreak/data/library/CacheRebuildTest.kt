@@ -35,6 +35,10 @@ class CacheRebuildTest {
                 "item_version",
                 "series",
                 "series_version",
+                "collection",
+                "collection_version",
+                "collection_member",
+                "collection_sync",
                 "item_genre",
                 "item_tag",
                 "checkpoint",
@@ -47,8 +51,8 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion5WithThePremiereDateExactMillisecondsAndTheSeasonId() {
-        assertEquals(5, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion6WithThePremiereDateExactMillisecondsAndTheSeasonId() {
+        assertEquals(6, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)
@@ -68,6 +72,39 @@ class CacheRebuildTest {
         // series_version: the purge of versions superseded long ago.
         assertTrue(text.contains("(`serverId`, `userId`, `supersededAtMs`)"))
         assertTrue(text.contains("\"table\": \"series\""))
+    }
+
+    @Test
+    fun theCollectionTablesHoldTheirFieldsAndCascadeFromCollection() {
+        val text = SchemaFile.text()
+        for (table in listOf("collection", "collection_version", "collection_member", "collection_sync")) {
+            assertTrue("$table missing", text.contains("\"tableName\": \"$table\""))
+        }
+        // The primary keys of the three history tables, and the one row per account of collection_sync.
+        assertTrue(text.contains("`serverId`, `userId`, `collectionId`, `seenFromMs`"))
+        assertTrue(text.contains("`serverId`, `userId`, `collectionId`, `memberId`, `seenFromMs`"))
+        assertTrue(text.contains("PRIMARY KEY(`serverId`, `userId`)"))
+        // collection_version and collection_member cascade from collection; collection has no library foreign key.
+        for (table in listOf("collection_version", "collection_member")) {
+            val block = tableBlock(text, table)
+            assertTrue("$table needs a foreign key to collection", block.contains("\"table\": \"collection\""))
+            assertTrue("$table needs ON DELETE CASCADE", block.contains("\"onDelete\": \"CASCADE\""))
+        }
+        assertTrue("collection must not reference library", !tableBlock(text, "collection").contains("\"table\": \"library\""))
+        val columns = SchemaFile.columnNames()
+        listOf("memberKind", "memberId", "collectionsSinceMs", "lastRelistMs").forEach {
+            assertTrue("$it missing", it in columns)
+        }
+    }
+
+    // The JSON of one table's entry in the exported schema, up to the next table.
+    private fun tableBlock(
+        text: String,
+        table: String,
+    ): String {
+        val start = text.indexOf("\"tableName\": \"$table\"")
+        val next = text.indexOf("\"tableName\"", start + 1)
+        return text.substring(start, if (next < 0) text.length else next)
     }
 
     @Test
@@ -152,9 +189,9 @@ class CacheRebuildTest {
         }
 
     @Test
-    fun aVersion5FileOpenedByVersion4CodeIsDroppedAndRebuiltEmpty() =
+    fun aVersion6FileOpenedByVersion5CodeIsDroppedAndRebuiltEmpty() =
         runBlocking {
-            // The rollback path (the app goes back from v5 to v4): the file is NEWER than the code. A v4 builder with
+            // The rollback path (the app goes back from v6 to v5): the file is NEWER than the code. A v5 builder with
             // the same destructive-on-downgrade setting the cache uses must drop every table, not throw.
             val context = TestContext(folder.root)
             val current = TestLibraries.onDisk(folder.root, name = "downgrade.db")
@@ -170,10 +207,10 @@ class CacheRebuildTest {
                     .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
                     .withDestructiveFallbacks() // The cache's own settings, so a change there changes this test.
                     .build()
-            older.otherDao().put(OtherRow("v4 works"))
+            older.otherDao().put(OtherRow("v5 works"))
             older.close()
 
-            // Back on v5 the cache is empty and usable: the v5 data did not survive the round trip.
+            // Back on v6 the cache is empty and usable: the v6 data did not survive the round trip.
             val again = TestLibraries.onDisk(folder.root, name = "downgrade.db")
             assertEquals(RowCounts.NONE, again.rowCounts())
             again.useAccount(ALICE)
@@ -206,11 +243,29 @@ class CacheRebuildTest {
     fun aRealVersion4FileFromSpec09IsDroppedAndRebuiltEmptyWithoutThrowing() =
         runBlocking {
             // Version 4 shipped (in a debug build) with the schema in the committed 4.json. A file made from exactly
-            // that schema, opened by v5 code, must be rebuilt empty, as the v3 file was.
+            // that schema, opened by v6 code, must be rebuilt empty, as the v3 file was.
             val v4 = File(folder.root, "spec09.db")
             writeSchemaFile(v4, 4, "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL, 1, 1")
 
             val repository = TestLibraries.onDisk(folder.root, name = "spec09.db")
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            assertEquals(1, repository.stored(ALICE).size)
+            repository.close()
+        }
+
+    @Test
+    fun aRealVersion5FileFromSpec10Unit1IsDroppedAndRebuiltEmptyWithoutThrowing() =
+        runBlocking {
+            // Version 5 shipped (in a debug build) with the schema in the committed 5.json. A file made from exactly
+            // that schema, opened by v6 code, must be rebuilt empty, as the v3 and v4 files were (Vimes L8).
+            val v5 = File(folder.root, "spec10-unit1.db")
+            writeSchemaFile(v5, 5, "NULL, NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL, 1, 1")
+
+            val repository = TestLibraries.onDisk(folder.root, name = "spec10-unit1.db")
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
