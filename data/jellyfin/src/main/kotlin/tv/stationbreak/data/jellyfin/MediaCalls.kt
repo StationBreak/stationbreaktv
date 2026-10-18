@@ -64,6 +64,7 @@ internal class MediaCalls(
                 "limit" to limit.toString(),
                 "sortBy" to "SortName",
                 "sortOrder" to "Ascending",
+                COLLAPSE_BOX_SETS_OFF,
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
             Wire.parse(text, ItemsDto.serializer()).flatMap { page ->
@@ -125,6 +126,7 @@ internal class MediaCalls(
             "parentId" to library.id.value,
             "recursive" to "true",
             "includeItemTypes" to CACHED_TYPES,
+            COLLAPSE_BOX_SETS_OFF,
             // Jellyfin 12 has no sort by ID (an unknown key is ignored), but it breaks every tie on the ID, in
             // ascending order whatever the direction (contract test: tiedNamesPageStably), so this order is total.
             "sortBy" to "SortName",
@@ -222,6 +224,13 @@ internal class MediaCalls(
         )
 
     private companion object {
+        /**
+         * With the user's "group movies into collections" setting on, the server hides a BoxSet's movies behind the
+         * BoxSet unless an item call says otherwise. Every item call says so (spec 10, Vimes H5), so the cache lists
+         * the movies whatever the setting.
+         */
+        val COLLAPSE_BOX_SETS_OFF = "collapseBoxSetItems" to "false"
+
         /** The video kinds the cache holds (spec 06): never series, seasons, folders or collections. */
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"
 
