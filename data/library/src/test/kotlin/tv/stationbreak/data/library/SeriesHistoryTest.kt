@@ -102,7 +102,8 @@ class SeriesHistoryTest {
             clock.stepMs(1_000)
             put(series("s1", rating = " "))
 
-            assertEquals(listOf(null, ""), repository.seriesVersions(ALICE).sortedBy { it.seenFromMs }.map { it.officialRating })
+            val earlier = repository.seriesVersions(ALICE).sortedBy { it.seenFromMs }
+            assertEquals(listOf(null, ""), earlier.map { it.officialRating })
             assertEquals(" ", current().officialRating)
             repository.assertSeriesIntervalsContiguous(ALICE)
         }

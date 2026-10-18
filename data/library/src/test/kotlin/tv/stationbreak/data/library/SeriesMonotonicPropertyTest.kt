@@ -11,9 +11,9 @@ import tv.stationbreak.core.model.ordering.splitmix64
 
 /**
  * Spec 10 task 1.5.1 (Vimes H1 for `series_version`): over 1,000 random histories of edits, tombstones, revivals,
- * identical rewrites, name-only edits and a clock that stands still, steps forward and steps back, every series' versions
- * form contiguous, strictly increasing intervals, and the number of versions equals the number of changes an independent
- * model counts. A failure prints the case number and the seed: rerun it with `SeriesGen(<seed>)`.
+ * identical rewrites, name-only edits and a clock that stands still, steps forward and steps back, every series'
+ * versions form contiguous, strictly increasing intervals, and the number of versions equals the number of changes an
+ * independent model counts. A failure prints the case number and the seed: rerun it with `SeriesGen(<seed>)`.
  */
 class SeriesMonotonicPropertyTest {
     private val clock = FakeClock()
@@ -78,35 +78,7 @@ class SeriesMonotonicPropertyTest {
         val ids = (0 until SERIES_PER_CASE).map { hexId(case * SERIES_PER_CASE + it + 1) }
         val models = HashMap<String, Model>()
         val expected = HashMap<String, Int>()
-        repeat(gen.nextInt(MAX_STEPS) + 1) {
-            when (gen.nextInt(3)) {
-                0 -> clock.stepMs(gen.nextInt(SPAN).toLong())
-                1 -> clock.rewindMs(gen.nextInt(SPAN).toLong())
-            }
-            val id = gen.pick(ids)
-            val held = models[id]
-            when {
-                held != null && gen.chance(TOMBSTONE_PERCENT) -> {
-                    repository.tombstoneSeries(ALICE, listOf(ItemId(id)))
-                    models[id] = held.copy(deleted = true)
-                }
-
-                held != null && held.deleted && gen.chance(REVIVE_PERCENT) -> {
-                    repository.reviveSeries(ALICE, listOf(ItemId(id)))
-                    models[id] = held.copy(deleted = false)
-                    expected.merge(id, 1, Int::plus)
-                }
-
-                else -> {
-                    val next = edit(gen, held)
-                    val library = gen.pick(listOf(MOVIES, SHOWS))
-                    val info = series(id, next.rating, next.genres, next.tags, name = "Name ${gen.nextInt(NAMES)}")
-                    repository.putSeries(ALICE, library, info)
-                    if (held != null && (held.copy(deleted = false) != next || held.deleted)) expected.merge(id, 1, Int::plus)
-                    models[id] = next
-                }
-            }
-        }
+        repeat(gen.nextInt(MAX_STEPS) + 1) { step(gen, ids, models, expected) }
         repository.assertSeriesIntervalsContiguous(ALICE)
         val versions = repository.seriesVersions(ALICE).groupBy { it.seriesId }
         ids.forEach { id ->
@@ -114,6 +86,43 @@ class SeriesMonotonicPropertyTest {
         }
         val stamps = versions.values.flatten().map { it.seenFromMs }
         assertTrue(stamps.isEmpty() || stamps.all { it > 0 })
+    }
+
+    // One random step: the clock moves (or not), then one series is tombstoned, revived or written.
+    private suspend fun step(
+        gen: SeriesGen,
+        ids: List<String>,
+        models: MutableMap<String, Model>,
+        expected: MutableMap<String, Int>,
+    ) {
+        when (gen.nextInt(3)) {
+            0 -> clock.stepMs(gen.nextInt(SPAN).toLong())
+            1 -> clock.rewindMs(gen.nextInt(SPAN).toLong())
+        }
+        val id = gen.pick(ids)
+        val held = models[id]
+        when {
+            held != null && gen.chance(TOMBSTONE_PERCENT) -> {
+                repository.tombstoneSeries(ALICE, listOf(ItemId(id)))
+                models[id] = held.copy(deleted = true)
+            }
+
+            held != null && held.deleted && gen.chance(REVIVE_PERCENT) -> {
+                repository.reviveSeries(ALICE, listOf(ItemId(id)))
+                models[id] = held.copy(deleted = false)
+                expected.merge(id, 1, Int::plus)
+            }
+
+            else -> {
+                val next = edit(gen, held)
+                val library = gen.pick(listOf(MOVIES, SHOWS))
+                val info = series(id, next.rating, next.genres, next.tags, name = "Name ${gen.nextInt(NAMES)}")
+                repository.putSeries(ALICE, library, info)
+                val changed = held != null && (held.copy(deleted = false) != next || held.deleted)
+                if (changed) expected.merge(id, 1, Int::plus)
+                models[id] = next
+            }
+        }
     }
 
     private fun edit(

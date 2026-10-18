@@ -220,7 +220,10 @@ class CacheRebuildTest {
             repository.close()
         }
 
-    private fun writeVersion3File(file: File) = writeSchemaFile(file, 3, "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL")
+    private fun writeVersion3File(file: File) {
+        val tail = "NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL"
+        writeSchemaFile(file, 3, tail)
+    }
 
     // Creates the database of schema [version] from its committed file (its CREATE statements, its identity hash,
     // user_version), with one library and one item in it, so there is something to lose. [itemTail] is the item
