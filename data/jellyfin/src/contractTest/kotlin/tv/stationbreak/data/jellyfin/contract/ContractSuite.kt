@@ -944,17 +944,19 @@ abstract class ContractSuite {
     }
 
     /**
-     * ADR-0015, pinned on 12.1 and 12.2. Adding, removing and renaming a member, and renaming the BoxSet, each make the
-     * BoxSet appear in a `MinDateLastSaved` query; a deleted BoxSet is missing from the BoxSet ID listing; a member
-     * deleted through a scan does NOT bump the BoxSet, yet is gone from the item ID listing and from the member list.
+     * ADR-0015, pinned on 12.1 and 12.2. Adding and removing a member, and renaming the BoxSet, each make the BoxSet
+     * appear in a `MinDateLastSaved` query; renaming a member does not (the spec expected it to); a deleted BoxSet is
+     * missing from the BoxSet ID listing; a member deleted through a scan does NOT bump the BoxSet, yet is gone from
+     * the item ID listing and from the member list.
      */
     @Test
     fun collectionChangesDetected() {
         runBlocking {
             val adapter = adapter()
             val session = session(adapter)
-            val admin = adminToken()
             ChurnLibrary(server).use { churn ->
+                // The churn library's own admin token: a second sign-in from the harness's device would revoke it.
+                val admin = churn.admin
                 churn.create(listOf("Churn A", "Churn B", "Churn C"))
                 val library = Library(ItemId(churn.id), "Churn", LibraryKind.Movies)
                 awaitProbed(adapter, session, library, count = CHURN_FILES)
@@ -1012,7 +1014,9 @@ abstract class ContractSuite {
         delay(SETTLE_MS * EDIT_SETTLE)
         val memberBumped = box in boxSetsChangedSince(adapter, session, memberMark)
         finding("renaming a member bumps its BoxSet: $memberBumped")
-        assertTrue(memberBumped, "renaming a member bumps the BoxSet")
+        // Spec 10 says a rename of a member bumps its BoxSet; 12.1 and 12.2 do not (this pins what they do, so a
+        // change is noticed). The cache stores no member name, so nothing depends on it either way.
+        assertTrue(!memberBumped, "renaming a member does not bump the BoxSet (recorded; the spec expected it to)")
 
         val boxMark = settledMark()
         renameItem(admin, box, "Contract Changes Renamed")
