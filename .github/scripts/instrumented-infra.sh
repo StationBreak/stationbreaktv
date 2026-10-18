@@ -18,9 +18,12 @@
 #         2. A <failure> or <error> that is empty (no message, no body): the process died under the test. Retry.
 #         3. The logcat shows a surfaceflinger or system_server crash. Retry.
 #         4. The emulator process is gone, or adb no longer sees a device (the files `run` saved). Retry.
-#         5. No result file at all: the emulator never booted, or the step was cut off (a step timeout kills `run`
+#         5. The step was cut off (its timeout) with a module still to report: `run` left its `started`
+#            marker but was killed before it saved emulator-state.txt, no result file has a failure, and a module in
+#            $CONNECTED_TASKS wrote no results (module :a:b writes under a/b/, the app under app/). Retry.
+#         6. No result file at all: the emulator never booted, or the step was cut off (a step timeout kills `run`
 #            before it can save anything, so <dir> may be empty). Retry.
-#         6. Anything else: not infrastructure.
+#         7. Anything else: not infrastructure.
 #
 #   instrumented-infra.sh cleanup <dir>
 #       Between attempts: moves the attempt's JUnit XML and reports into <dir>/results (so the reports upload still has
@@ -44,9 +47,15 @@ result_files() {
 case "$mode" in
   run)
     mkdir -p "$dir"
+    # Removed by nothing: if the step is killed, this is all that is left, and the missing emulator-state.txt below
+    # tells classify the run never reached its failure handling.
+    : >"$dir/started"
+    # Split on spaces, never globbed.
+    set -f
     if ./gradlew ${CONNECTED_TASKS:?CONNECTED_TASKS is not set}; then
       exit 0
     fi
+    set +f
     adb logcat -d >"$dir/logcat.txt" 2>&1 || true
     mkdir -p app/build
     cp "$dir/logcat.txt" app/build/logcat.txt 2>/dev/null || true
@@ -106,6 +115,26 @@ case "$mode" in
     if [ -f "$dir/adb-state.txt" ] && ! grep -qx device "$dir/adb-state.txt"; then
       echo "infra: adb no longer sees a device ($(tr '\n' ' ' <"$dir/adb-state.txt"))"
       exit 0
+    fi
+    # Cut off: started, never got to save its state. Needs CONNECTED_TASKS to know which modules should have reported.
+    if [ -f "$dir/started" ] && [ ! -f "$dir/emulator-state.txt" ] && [ -n "${CONNECTED_TASKS:-}" ]; then
+      missing=()
+      read -ra tasks <<<"$CONNECTED_TASKS"
+      for task in "${tasks[@]}"; do
+        if ! [[ "$task" =~ ^:?[A-Za-z0-9_-]+(:[A-Za-z0-9_-]+)*$ ]]; then
+          echo "skipping CONNECTED_TASKS entry that is not a task path: $task" >&2
+          continue
+        fi
+        case "$task" in
+          :*:connected*) module="${task%:*}"; module="${module#:}"; module="${module//://}" ;;
+          *) module="app" ;;
+        esac
+        if ! result_files "$root/$module" | grep -q .; then missing+=("$module"); fi
+      done
+      if [ "${#missing[@]}" -gt 0 ]; then
+        echo "infra: the step was cut off (timeout) with no results from: ${missing[*]}"
+        exit 0
+      fi
     fi
     if [ "${#files[@]}" -eq 0 ]; then
       echo "infra: no test results at all (the emulator did not boot, or the step timed out)"
