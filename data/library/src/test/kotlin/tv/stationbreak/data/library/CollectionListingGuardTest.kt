@@ -291,4 +291,62 @@ class CollectionListingGuardTest {
             val versions = repository.collectionVersions(ALICE).filter { it.collectionId == row.collectionId }
             assertNotNull(versions.singleOrNull { it.deletedAtMs != null })
         }
+
+    // Vimes M3: one bad BoxSet must not starve the rest.
+
+    @Test
+    fun aBoxSetWhoseMemberReadFailsIsSkippedAndTheOthersAreWritten() =
+        runBlocking {
+            seed()
+            val sync = repository.collectionSync(ALICE)
+            (1..3).forEach {
+                rig.source.members.getValue(rig.box(it)) += rig.movies(it * 10 + 5)
+                rig.saved(it)
+            }
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Members && it.collection == rig.box(1)) MediaServerError.ServerError() else null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertEquals(1, result.summary.failed)
+            assertEquals(2, result.summary.changed)
+            assertEquals(listOf(rig.film(10).value, rig.film(11).value), rig.current(1))
+            assertEquals(listOf(rig.film(20).value, rig.film(21).value, rig.film(25).value), rig.current(2))
+            assertEquals(listOf(rig.film(30).value, rig.film(31).value, rig.film(35).value), rig.current(3))
+            // Neither the cursor nor the re-list moved, so the next pass asks for the same changes.
+            assertEquals(sync, repository.collectionSync(ALICE))
+        }
+
+    @Test
+    fun anAuthOrTransportFailureStopsAtOnce() =
+        runBlocking {
+            seed()
+            (1..3).forEach {
+                rig.source.members.getValue(rig.box(it)) += rig.movies(it * 10 + 5)
+                rig.saved(it)
+            }
+            rig.server.respondToCollections = {
+                if (it.kind == CollectionCallKind.Members && it.collection == rig.box(1)) MediaServerError.SessionExpired() else null
+            }
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.SessionExpired), result.outcome)
+            assertEquals(listOf(rig.film(20).value, rig.film(21).value), rig.current(2))
+            assertEquals(1, rig.server.collectionCalls.count { it.kind == CollectionCallKind.Members })
+        }
+
+    @Test
+    fun aMemberListedTwiceInOneReadIsStoredOnceAndThePassSucceeds() =
+        runBlocking {
+            rig.serve(1, *rig.movies(10, 11, 10))
+
+            val result = rig.run()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(listOf(rig.film(10).value, rig.film(11).value), rig.current(1))
+            assertEquals(1, repository.collectionMembers(ALICE).count { it.memberId == rig.film(10).value })
+        }
 }

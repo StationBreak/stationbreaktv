@@ -189,4 +189,26 @@ class CollectionAsOfTest {
             assertEquals(ids.map { it.value }, held.map { it.collectionId })
             assertTrue(held.all { it.members.size == 1 })
         }
+
+    // A clock set back between an item's tombstone at T and the member's re-add at s' < T leaves two rows that overlap
+    // in [s', T); the as-of read in that window returns the member once (a set).
+    @Test
+    fun aMemberWhoseRowsOverlapAfterAClockStepBackIsReturnedOnce() =
+        runBlocking {
+            write(box, "a", "b")
+            clock.stepMs(100_000)
+            repository.select(ALICE, setOf(MOVIES))
+            repository.put(ALICE, MOVIES, sitem(1))
+            repository.writeCollection(ALICE, box, "x", movies(hexId(1), "b"))
+            clock.stepMs(100_000)
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1)))) // ends the member at T
+            val tombstoneAt = clock.nowMs
+            clock.rewindMs(60_000)
+            repository.writeCollection(ALICE, box, "x", movies(hexId(1), "b")) // re-added at s' < T
+
+            val held = heldBefore(tombstoneAt - 1_000)["box01"].orEmpty()
+
+            assertEquals(held.distinct(), held)
+            assertEquals(1, held.count { it.startsWith(hexId(1)) })
+        }
 }

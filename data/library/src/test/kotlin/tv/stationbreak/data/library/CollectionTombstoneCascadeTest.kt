@@ -255,4 +255,52 @@ class CollectionTombstoneCascadeTest {
             assertEquals(clock.nowMs, repository.currentRows(ALICE).first { it.itemId == film.value }.deletedAtMs)
             assertEquals(listOf(other.value, "s1"), current(boxA))
         }
+
+    // Items and series are stored as the server sent their IDs; members are stored in canonical form (32 lower-case
+    // hex). A tombstone must still end the member row (Vimes M1).
+    private val rawFilm = "ABCDEF01-2345-6789-ABCD-EF0123456789"
+    private val canonicalFilm = "abcdef0123456789abcdef0123456789"
+
+    private suspend fun rawWorld() {
+        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.put(ALICE, MOVIES, sitem(1).copy(id = ItemId(rawFilm)))
+        repository.putSeries(ALICE, SHOWS, series(rawFilm.replace('A', 'B')))
+        repository.writeCollection(
+            ALICE,
+            boxA,
+            "A",
+            listOf(cm(canonicalFilm), cm(canonicalFilm.replace('a', 'b'), CollectionMemberKind.Series)),
+        )
+        clock.stepMs(10_000)
+    }
+
+    @Test
+    fun anItemTombstonedUnderItsRawIdEndsTheCanonicalMemberRow() =
+        runBlocking {
+            rawWorld()
+
+            repository.tombstone(ALICE, listOf(ItemId(rawFilm)))
+
+            assertEquals(listOf(canonicalFilm.replace('a', 'b')), current(boxA))
+        }
+
+    @Test
+    fun aSeriesTombstonedUnderItsRawIdEndsTheCanonicalMemberRow() =
+        runBlocking {
+            rawWorld()
+
+            repository.tombstoneSeries(ALICE, listOf(ItemId(rawFilm.replace('A', 'B'))))
+
+            assertEquals(listOf(canonicalFilm), current(boxA))
+        }
+
+    @Test
+    fun theReconcileEndsCanonicalMemberRowsOfRawIds() =
+        runBlocking {
+            rawWorld()
+
+            repository.applyReconcile(ALICE, listOf(ItemId(rawFilm)), emptyList(), listOf(ItemId(rawFilm.replace('A', 'B'))), emptyList())
+
+            assertEquals(emptyList<String>(), current(boxA))
+        }
 }

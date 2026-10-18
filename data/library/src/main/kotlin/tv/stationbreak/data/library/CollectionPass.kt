@@ -29,6 +29,7 @@ internal data class CollectionSummary(
     val skippedNested: Int = 0,
     val skippedOther: Int = 0,
     val skippedIds: Int = 0,
+    val failed: Int = 0,
     val relisted: Boolean = false,
 )
 
