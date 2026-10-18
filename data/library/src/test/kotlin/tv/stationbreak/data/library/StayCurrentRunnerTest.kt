@@ -223,13 +223,15 @@ class StayCurrentRunnerTest {
 
     // Spec 09 task 3.7: the history purge runs after a reconcile that completed, and never fails the run.
 
-    // An item the server does not have, deleted 31 days before the run: the reconcile leaves it a tombstone, and a
-    // purge takes it. The clock is moved to the day of the run, so the incremental pass records a fresh success.
+    // An item the server does not have, deleted at t0. A sync succeeded at t0 + 10 d and the run is at t0 + 31 d: the
+    // tombstone is more than 30 days old and the last success is under 27 days old, so the guard lets the purge run.
     private suspend fun anOldTombstoneAndTheRunDay() {
         rig.firstSyncDone()
         rig.repository.upsertItems(ALICE, MOVIES, listOf(item("extra")))
         rig.repository.tombstone(ALICE, listOf(ItemId("extra")))
-        rig.clock.instant += 31.days
+        rig.clock.instant += 10.days
+        rig.repository.finishSync(ALICE)
+        rig.clock.instant += 21.days
     }
 
     private suspend fun extraIsStored() = rig.repository.stored(ALICE).any { it.item.id.value == "extra" }
@@ -287,7 +289,7 @@ class StayCurrentRunnerTest {
         runBlocking {
             anOldTombstoneAndTheRunDay()
             val boom = IllegalStateException("the disk is full")
-            rig.runner.purge = { throw boom }
+            rig.runner.purge = { _, _ -> throw boom }
             val recorded =
                 rig.repository
                     .activeStatus()
@@ -323,12 +325,51 @@ class StayCurrentRunnerTest {
     fun aSignOutDuringThePurgeEndsTheRunQuietlyWithNothingRecordedAsAFailure() =
         runBlocking {
             anOldTombstoneAndTheRunDay()
-            rig.runner.purge = { throw AccountNotActiveException() }
+            rig.runner.purge = { _, _ -> throw AccountNotActiveException() }
 
             val outcome = rig.runner.outcome(both)
 
             assertEquals(SyncOutcome.Cancelled, outcome)
             val status = rig.repository.activeStatus().first()!!
             assertEquals(SyncState.Idle, status.state)
+        }
+
+    // Vimes M-1 on #268: the incremental pass overwrites the last success, so the guard is given the one read before it.
+    @Test
+    fun aRunAMonthAfterTheLastSuccessSkipsThePurgeAndTheNextRunPurges() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.repository.upsertItems(ALICE, MOVIES, listOf(item("extra")))
+            rig.repository.tombstone(ALICE, listOf(ItemId("extra")))
+            rig.clock.instant += 31.days
+
+            rig.runner.run(both)
+
+            assertTrue(extraIsStored())
+            assertEquals(PurgeOutcome.Skipped(PurgeSkip.ClockFarAhead), rig.runner.lastPurge)
+
+            // The run recorded a fresh success, so the next one has a fresh reference.
+            rig.clock.instant += 1.hours
+            rig.runner.run(both)
+
+            assertFalse(extraIsStored())
+            assertEquals(PurgeOutcome.Purged(tombstones = 1, versions = 0), rig.runner.lastPurge)
+        }
+
+    @Test
+    fun thePurgeIsGivenTheSuccessRecordedBeforeTheRun() =
+        runBlocking {
+            anOldTombstoneAndTheRunDay()
+            val before = rig.repository.lastSuccess(ALICE)
+            var given: kotlin.time.Instant? = null
+            rig.runner.purge = { _, reference ->
+                given = reference
+                PurgeOutcome.Purged(0, 0)
+            }
+
+            rig.runner.run(both)
+
+            assertEquals(before, given)
+            assertTrue(rig.repository.lastSuccess(ALICE)!! > before!!)
         }
 }
