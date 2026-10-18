@@ -275,8 +275,12 @@ internal class StayCurrentEngine(
                     seriesTombstoned = seriesGone.size,
                     seriesRevived = seriesReturning.size,
                 )
+            // The item fetch runs whatever became of the series read (Granny M1), then the series' own recovery.
+            val itemsFailed = fetchMissing(library, items.list, items.list.ids - known)
+            if (itemsFailed != null) return itemsFailed
             if (series is Decision.Stop) return series.outcome
-            return fetchMissing(library, items.list, items.list.ids - known)
+            val seriesKnown = repository.allSeriesIds(account).toSet()
+            return fetchMissingSeries(library, (series as Decision.Ready).list.ids - seriesKnown)
         }
 
         // Inline, so the item listing's and the series listing's lambdas are not two classes behind one call in a loop
@@ -399,6 +403,41 @@ internal class StayCurrentEngine(
                     }
                 }
             }
+        }
+
+        // Walks the series of [library] from the start and saves only the [missing] ones, stopping at the last.
+        // The series the cache lacks were skipped in a walk, or came in a page that would not decode (Vimes M-1).
+        private suspend fun fetchMissingSeries(
+            library: Library,
+            missing: Set<ItemId>,
+        ): SyncOutcome? {
+            if (missing.isEmpty()) return null
+            val wanted = missing.toMutableSet()
+            val limit = PageLimit(pageSize)
+            var next = 0
+            while (wanted.isNotEmpty()) {
+                when (val fetched = server.fetchSeriesPage(session, library, next, null, limit)) {
+                    is Fetched.Failed -> {
+                        return fail(fetched.error)
+                    }
+
+                    Fetched.Malformed -> {
+                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        next += 1
+                    }
+
+                    is Fetched.Page -> {
+                        if (fetched.items.isEmpty()) return null
+                        next += fetched.items.size
+                        val found = fetched.items.filter { it.id in wanted }
+                        if (found.isNotEmpty()) {
+                            repository.upsertSeries(account, library.id, found)
+                            wanted -= found.map { it.id }.toSet()
+                        }
+                    }
+                }
+            }
+            return null
         }
 
         // Reads the series of [library] saved since [since], saving each page. Null when it reached the end.

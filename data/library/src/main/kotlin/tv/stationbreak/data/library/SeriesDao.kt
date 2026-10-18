@@ -128,8 +128,9 @@ internal abstract class SeriesDao {
     /**
      * Works out what writing [incoming] over the rows the database holds ([existing]) does. The change test compares
      * the rating, the ordered genres, the ordered tags and the tombstone, and nothing else: not the name and not the
-     * library (Vimes L2). A row that clears a tombstone is a change by the last of those. The stamp of a changed row is
-     * `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.
+     * library (Vimes L2). A series listed in two ticked libraries keeps one row whose library flips with each write, by
+     * an unversioned update (Vimes L-1; items behave so too). A row that clears a tombstone is a change by the last of
+     * those. The stamp of a changed row is `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.
      */
     fun planPage(
         incoming: Map<String, SeriesEntity>,

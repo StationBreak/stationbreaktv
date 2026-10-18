@@ -116,6 +116,9 @@ internal data class ItemVersionEntity(
  * and [tags] are one [VersionCodec] column each, because nothing queries them in SQL and the evaluator reads whole
  * series. [officialRating] is kept as the server sent it: null, `""` and `" "` are three values. The row is the current
  * version; [seenFromMs] and [firstSeenMs] work as on [ItemEntity]. Deleting a `library` row deletes its series.
+ *
+ * A series listed in two ticked libraries has one row: each write flips [libraryId] to the library that wrote it (an
+ * unversioned update), and unticking either library removes the series. Items behave the same way (spec 09).
  */
 @Entity(
     tableName = "series",
