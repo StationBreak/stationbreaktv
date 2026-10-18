@@ -17,7 +17,8 @@ import androidx.sqlite.execSQL
  * (`item_version`, `seenFromMs`, `firstSeenMs`; spec 09 Unit 2): a v3 file cannot be amended in place, because Room
  * refuses a changed schema under an unchanged version, so it moves to 4 and the destructive fallback rebuilds it.
  * Version 5 added `series` and `series_version` and the episode `seasonId` (spec 10 Unit 1); debug builds carry version
- * 4, so a schema is never amended after its PR merges.
+ * 4, so a schema is never amended after its PR merges. Version 6 added `collection`, `collection_version`,
+ * `collection_member` and `collection_sync` (spec 10 Unit 2); version 5 counts as shipped once Unit 1 merged.
  */
 @Database(
     entities = [
@@ -26,6 +27,10 @@ import androidx.sqlite.execSQL
         ItemVersionEntity::class,
         SeriesEntity::class,
         SeriesVersionEntity::class,
+        CollectionEntity::class,
+        CollectionVersionEntity::class,
+        CollectionMemberEntity::class,
+        CollectionSyncEntity::class,
         GenreEntity::class,
         TagEntity::class,
         CheckpointEntity::class,
@@ -45,7 +50,7 @@ internal abstract class LibraryDatabase : RoomDatabase() {
     abstract fun cacheTransactionDao(): CacheTransactionDao
 
     companion object {
-        const val VERSION = 5
+        const val VERSION = 6
     }
 }
 
