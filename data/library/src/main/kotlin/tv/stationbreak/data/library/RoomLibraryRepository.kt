@@ -529,6 +529,7 @@ private fun MediaItem.toRows(
             name = name,
             parentId = parentId?.value,
             seriesId = seriesId?.value,
+            seasonId = seasonId?.value,
             seasonNumber = seasonNumber,
             episodeNumber = episodeNumber,
             runtimeMs = runtime?.inWholeMilliseconds,
@@ -559,6 +560,7 @@ private fun ItemRows.toItem() =
         genres = genres.map { it.name },
         tags = tags.map { it.name },
         seriesId = item.seriesId?.let(::ItemId),
+        seasonId = item.seasonId?.let(::ItemId),
         seasonNumber = item.seasonNumber,
         episodeNumber = item.episodeNumber,
     )
