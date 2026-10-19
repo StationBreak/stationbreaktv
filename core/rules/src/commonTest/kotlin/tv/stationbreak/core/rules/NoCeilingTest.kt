@@ -13,17 +13,17 @@ class NoCeilingTest {
     @Test
     fun withoutACeilingEveryItemIsEligibleRatedOrNot() {
         for (rating in listOf(null, "", " ", "NR", "Unrated", "FSK 16", "G", "TV-MA", "TV-AO", "tv-14-v", "nonsense")) {
-            assertTrue(RatingEligibility.isEligible(rating, null), "'$rating'")
+            assertTrue(RatingEligibility.isMovieEligible(rating, null), "'$rating'")
         }
     }
 
     @Test
     fun withoutACeilingAnEpisodeIsEligibleWhateverItsSeriesIs() {
-        assertTrue(RatingEligibility.isEligible(null, SeriesRating.Known(null), null))
-        assertTrue(RatingEligibility.isEligible("PG-13", SeriesRating.Known(null), null))
-        assertTrue(RatingEligibility.isEligible(null, SeriesRating.Known("NR"), null))
-        assertTrue(RatingEligibility.isEligible(null, SeriesRating.Unknown, null))
-        assertTrue(RatingEligibility.isEligible(null, SeriesRating.NoSeries, null))
+        assertTrue(RatingEligibility.isEpisodeEligible(null, SeriesState.Known(null), null))
+        assertTrue(RatingEligibility.isEpisodeEligible("PG-13", SeriesState.Known(null), null))
+        assertTrue(RatingEligibility.isEpisodeEligible(null, SeriesState.Known("NR"), null))
+        assertTrue(RatingEligibility.isEpisodeEligible(null, SeriesState.Unknown, null))
+        assertTrue(RatingEligibility.isEpisodeEligible(null, SeriesState.NoSeries, null))
     }
 
     @Test
