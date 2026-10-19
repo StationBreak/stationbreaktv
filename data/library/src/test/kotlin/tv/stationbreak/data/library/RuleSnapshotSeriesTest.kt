@@ -148,6 +148,34 @@ class RuleSnapshotSeriesTest {
             assertEquals(emptyMap<Any, Any>(), snapshot.series)
         }
 
+    // The 8-4-4-4-12 form of an ID, as the server may spell it.
+    private fun dashed(hex: String) =
+        listOf(hex.substring(0, 8), hex.substring(8, 12), hex.substring(12, 16), hex.substring(16, 20), hex.substring(20))
+            .joinToString("-")
+
+    @Test
+    fun anEpisodeWhoseSeriesIsSpelledDifferentlyFromTheStoredSeriesStillGetsIt() =
+        runBlocking {
+            open()
+            val spellings = listOf(dashed(hexId(show)).uppercase(), dashed(hexId(show)), hexId(show).uppercase())
+            spellings.forEachIndexed { n, spelling ->
+                repository.put(ALICE, RULE_LIBRARY, episodeOf(n + 1, show).copy(seriesId = ItemId(spelling)))
+            }
+            putShow(rating = "PG")
+
+            assertEquals(mapOf(canon(show) to held(show, "PG")), seriesAt(start + 1))
+        }
+
+    @Test
+    fun aSeriesStoredUnderADashedSpellingIsFoundByACanonicalEpisode() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            repository.putSeries(ALICE, RULE_LIBRARY, series(dashed(hexId(show)), "PG"))
+
+            assertEquals(mapOf(canon(show) to held(show, "PG")), seriesAt(start + 1))
+        }
+
     @Test
     fun theSeriesAreInCanonicalIdOrderWithOneEntryEach() =
         runBlocking {
