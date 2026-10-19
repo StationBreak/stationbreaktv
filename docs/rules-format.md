@@ -131,9 +131,9 @@ rules field that changes a lineup, and changing the default of one.
 **Rules 3 and 4 of Items and the pool, and the Fail closed paragraph, were amended together, once, after version 1 was
 final.**
 
-*Rule 4.* The earlier text let an episode with a rating of its own use only that rating. An episode's own `OfficialRating` is often a copy of its
-series' rating, and whether that copy is updated when the series is re-rated is not verified, so a stale copy (own
-`TV-Y7`, series now `TV-MA`) could pass a ceiling the series fails. Now, under a ceiling, an episode needs both its
+*Rule 4.* The earlier text let an episode with a rating of its own use only that rating. An episode's own
+`OfficialRating` is often a copy of its series' rating, and whether that copy is updated when the series is re-rated is
+not verified, so a stale copy (own `TV-Y7`, series now `TV-MA`) could pass a ceiling the series fails. Now, under a ceiling, an episode needs both its
 effective rating and its series' rating to pass. A series rated `NR`, `Unrated` or a blank rating blocks its episodes,
 and so does an episode whose series ID is present but whose series is not in the library snapshot; an episode with no
 series ID is checked on its own rating alone. `docs/rules-format/vectors/rating.json` carries the new `inheritance` rows.
@@ -142,6 +142,10 @@ series ID is checked on its own rating alone. `docs/rules-format/vectors/rating.
 meant to remove aired. Now a `collection` exclusion whose collection is not in the library snapshot empties the pool, and a
 `genre` or `tag` exclusion removes an episode whose series ID is present but whose series is not in the snapshot (see
 Items and the pool, rule 3). The reason is the same as for the ceiling: an exclusion is a promise of what will not air.
+
+*Scheduler inputs.* The same amendment also adds a MUST to Scheduler inputs: a rating must be the item's own
+`OfficialRating`, never `CustomRating` and never a value the client inherits from another item. This can change a
+lineup, as the rest of this amendment can.
 
 This changes lineups. Version 1 was already final, so this is a **one-time exception**, allowed because no shipped client
 has a pool evaluator. There will be no further in-place changes: any later change that alters a lineup needs
@@ -204,9 +208,9 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
      included. A client must not guess a year from the series.
 3. **Union, then exclusions.** The pool starts as every item that matches **any** source. An item that matches several
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
-   matches **any** exclusion (with the same matching rules) is removed. Exclusions **fail closed**, because an exclusion is
-   a promise of what will not air, so when the client cannot check an exclusion, nothing it might remove airs (as the
-   ceiling does, rule 4):
+   matches **any** exclusion (with the same matching rules) is removed. Exclusions **fail closed**, in the two cases below.
+   In these two cases the client cannot tell whether the item is excluded, so it is removed; this keeps a promise of what
+   will not air, as the ceiling fails closed (rule 4):
    - an exclusion of type `collection` whose collection is not in the library snapshot empties the pool;
    - a `genre` or `tag` exclusion also removes an episode whose series ID is present, and no series with that ID is in the
      library snapshot, whatever the episode's own genres and tags are. An episode with no series ID, and a movie, are
@@ -309,6 +313,7 @@ rules file that names a library, collection or series by ID only makes sense on 
 
 How they combine: first take the union of all `sources`. Then remove every item that matches **any** exclusion. An item
 that is excluded cannot be brought back by any source. The rating ceiling is applied on top: an item has to pass both.
+Exclusions that cannot be resolved fail closed (see rule 3 in Items and the pool).
 
 `docs/rules-format/examples/exclusion.json` shows one exclusion of every kind (library, genre, collection, tag, year
 range and series). Its `sources` and `exclusions` are:

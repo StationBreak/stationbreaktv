@@ -23,8 +23,9 @@ platform, so `java.*` would still resolve. C alone doesn't enforce portability.
    `kotlinx.serialization` in common.
 4. **Tests:** `kotlin.test` in `commonTest`, plus `kotest-property` (`checkAll`) only, no Kotest spec
    styles. Golden-vector assertions live in `commonTest`, with vector data as Kotlin source (or behind a
-   tiny expect/actual loader). *Note (2026-10-19): property tests use the in-tree `SeededGen` (splitmix64), and kotest
-   is not used (#295).*
+   tiny expect/actual loader). *Note (2026-10-19): property tests use the in-tree `SeededGen` (splitmix64), copied in
+   `core:scheduler` and `core:engine`, and kotest is not used (spec 11 decision). Promoting `SeededGen` to
+   `core:testing` is tracked in #295.*
 5. **`core:testing` splits:** fixtures and golden vectors go in KMP `core:testing`. Port fakes go in
    `core:domain` `testFixtures`.
 6. **`core:domain` stays plain JVM** (it holds `javax.inject`). Revisit in Phase 5.
