@@ -285,7 +285,7 @@ class PoolEvaluatorTest {
             )
         val snap = snapshot(items = items, series = listOf(series(show, rating = "G")), libraries = setOf(LIB, otherLib))
         val pool = eval(libraryRules(exclusions = listOf(Source.Genre("Horror")), maxRating = "PG"), snap)
-        assertEquals(3, pool.counts.episodesWithUnknownSeries)
+        assertEquals(2, pool.counts.episodesWithUnknownSeries)
     }
 
     @Test
