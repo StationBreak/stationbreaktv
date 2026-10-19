@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine
 
+import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -17,8 +19,9 @@ import tv.stationbreak.core.rules.Source
  *    tags are never used; a name matches as in "String matching").
  * 3. The pool is every item that matches any source, once, minus every item that matches any exclusion.
  * 4. Under `maxRating`, a movie needs its own rating to pass, and an episode needs its effective rating and its series'
- *    rating to pass: [RatingEligibility.isEpisodeEligible], with [SeriesState.NoSeries] for an episode with no series ID,
- *    [SeriesState.Unknown] when the ID is set but the snapshot has no such series, and [SeriesState.Known] otherwise.
+ *    rating to pass: [RatingEligibility.isEpisodeEligible], with [SeriesState.NoSeries] for an episode with no series
+ *    ID, [SeriesState.Unknown] when the ID is set but the snapshot has no such series, and [SeriesState.Known]
+ *    otherwise.
  *
  * **No time filter.** This does not look at creation, deletion or runtime. An item with a deletion time is kept, and
  * which items count for which epoch is `EpochPool`'s decision.
@@ -36,63 +39,80 @@ object PoolEvaluator {
         rules: ChannelRules,
         snapshot: RuleSnapshot,
     ): Pool {
+        val pass = Pass(rules, snapshot)
         val items = snapshot.items
-        val sourceMatcher = SourceMatcher(rules.sources, snapshot)
-        val exclusionMatcher = SourceMatcher(rules.effectiveExclusions, snapshot)
-        val maxRating = rules.maxRating
-        val matched = IntArray(rules.sources.size)
-        var excluded = 0
-        var blocked = 0
-        var unknownSeries = 0
-        val seen = HashSet<String>(items.size * 2)
-        val kept = ArrayList<ScheduleItem>()
-
-        for (index in items.indices) {
-            val entry = items[index]
-            val item = entry.item
-            require(seen.add(item.id.value)) { "Duplicate item ID ${item.id.value}: an item may be given only once" }
-            val seriesId = item.seriesId
-            val series = if (seriesId == null) null else snapshot.series[seriesId]
-
-            if (!sourceMatcher.tally(entry, series, matched)) continue
-            if (exclusionMatcher.matches(entry, series)) {
-                excluded++
-                continue
-            }
-            val isEpisode = item.kind == ScheduleItemKind.Episode
-            if (isEpisode && seriesId != null && series == null) unknownSeries++
-
-            val allowed =
-                if (maxRating == null) {
-                    true
-                } else if (isEpisode) {
-                    val state =
-                        if (seriesId == null) {
-                            SeriesState.NoSeries
-                        } else if (series == null) {
-                            SeriesState.Unknown
-                        } else {
-                            SeriesState.Known(series.officialRating)
-                        }
-                    RatingEligibility.isEpisodeEligible(entry.officialRating, state, maxRating)
-                } else {
-                    RatingEligibility.isMovieEligible(entry.officialRating, maxRating)
-                }
-            if (allowed) kept.add(item) else blocked++
-        }
-
+        for (index in items.indices) pass.visit(items[index])
         return Pool(
-            items = kept,
+            items = pass.kept,
             counts =
                 PoolCounts(
-                    matchedBySource = matched.toList(),
-                    excluded = excluded,
-                    blockedByCeiling = blocked,
-                    episodesWithUnknownSeries = unknownSeries,
+                    matchedBySource = pass.matched.toList(),
+                    excluded = pass.excluded,
+                    blockedByCeiling = pass.blocked,
+                    episodesWithUnknownSeries = pass.unknownSeries,
                     unresolvedSources = unresolvedSources(rules.sources, snapshot),
                     collectionsSynced = snapshot.collectionsSynced,
                 ),
         )
+    }
+
+    // The state of one evaluation: the matchers are built once, and every count is a plain counter updated in the one
+    // pass. No lambdas in [visit], which runs once per item (ART 7.1 crash, #264).
+    private class Pass(
+        rules: ChannelRules,
+        private val snapshot: RuleSnapshot,
+    ) {
+        private val sourceMatcher = SourceMatcher(rules.sources, snapshot)
+        private val exclusionMatcher = SourceMatcher(rules.effectiveExclusions, snapshot)
+        private val maxRating = rules.maxRating
+        private val seen = HashSet<String>(snapshot.items.size * 2)
+        val matched = IntArray(rules.sources.size)
+        val kept = ArrayList<ScheduleItem>()
+        var excluded = 0
+        var blocked = 0
+        var unknownSeries = 0
+
+        fun visit(entry: RuleItem) {
+            val item = entry.item
+            require(seen.add(item.id.value)) { "Duplicate item ID ${item.id.value}: an item may be given only once" }
+            val seriesId = item.seriesId
+            val series = if (seriesId == null) null else snapshot.series[seriesId]
+            if (!sourceMatcher.tally(entry, series, matched)) return
+            if (exclusionMatcher.matches(entry, series)) {
+                excluded++
+                return
+            }
+            if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
+            if (allowed(entry, series)) kept.add(item) else blocked++
+        }
+
+        private fun allowed(
+            entry: RuleItem,
+            series: RuleSeries?,
+        ): Boolean =
+            when {
+                maxRating == null -> {
+                    true
+                }
+
+                entry.item.kind == ScheduleItemKind.Movie -> {
+                    RatingEligibility.isMovieEligible(entry.officialRating, maxRating)
+                }
+
+                else -> {
+                    RatingEligibility.isEpisodeEligible(entry.officialRating, seriesState(entry, series), maxRating)
+                }
+            }
+
+        private fun seriesState(
+            entry: RuleItem,
+            series: RuleSeries?,
+        ): SeriesState =
+            when {
+                entry.item.seriesId == null -> SeriesState.NoSeries
+                series == null -> SeriesState.Unknown
+                else -> SeriesState.Known(series.officialRating)
+            }
     }
 
     private fun unresolvedSources(

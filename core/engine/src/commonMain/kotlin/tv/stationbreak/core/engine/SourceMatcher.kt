@@ -186,19 +186,22 @@ internal class SourceMatcher(
         hits: IntArray?,
     ): Boolean {
         if (set.isEmpty) return false
+        val fromOwn = markList(set, own, hits)
+        // Without counts the first match is enough; with them the series' names are still tallied.
+        val fromSeries = (hits != null || !fromOwn) && inherited != null && markList(set, inherited, hits)
+        return fromOwn || fromSeries
+    }
+
+    private fun markList(
+        set: NameSet,
+        names: List<String>,
+        hits: IntArray?,
+    ): Boolean {
         var any = false
-        for (i in own.indices) {
-            if (mark(set.indicesOf(own[i]), hits)) {
+        for (i in names.indices) {
+            if (mark(set.indicesOf(names[i]), hits)) {
                 if (hits == null) return true
                 any = true
-            }
-        }
-        if (inherited != null) {
-            for (i in inherited.indices) {
-                if (mark(set.indicesOf(inherited[i]), hits)) {
-                    if (hits == null) return true
-                    any = true
-                }
             }
         }
         return any
