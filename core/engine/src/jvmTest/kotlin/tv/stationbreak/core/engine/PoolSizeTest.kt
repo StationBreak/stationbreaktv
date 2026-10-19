@@ -118,8 +118,8 @@ class PoolSizeTest {
         const val RULES = 256
         const val NANOS_PER_MS = 1_000_000L
         const val LIMIT_MS = 2_000L
-        const val EXPECTED_POOL = 5_578
-        const val EXPECTED_EXCLUDED = 3_020
-        const val EXPECTED_BLOCKED = 6_402
+        const val EXPECTED_POOL = 6_613
+        const val EXPECTED_EXCLUDED = 1_200
+        const val EXPECTED_BLOCKED = 7_187
     }
 }

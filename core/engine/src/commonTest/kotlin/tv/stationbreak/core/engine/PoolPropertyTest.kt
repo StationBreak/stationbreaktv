@@ -52,7 +52,7 @@ class PoolPropertyTest {
         }
         // The generators must reach the fail-closed paths, or the comparison above proves nothing about them.
         assertTrue(unresolvedExclusionCases > 50, "cases with an unresolved exclusion: $unresolvedExclusionCases")
-        assertTrue(failClosedNameCases > 50, "cases with an unknown-series episode under a name exclusion: $failClosedNameCases")
+        assertTrue(failClosedNameCases > 50, "cases with a missing series under a name exclusion: $failClosedNameCases")
     }
 
     private fun failClosedNames(

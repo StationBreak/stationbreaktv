@@ -337,7 +337,7 @@ class PoolEvaluatorTest {
         assertEquals(emptyList(), pool.counts.unresolvedSources)
     }
 
-    // Fail-closed exclusions (rule 3 as amended): an exclusion that cannot be checked removes everything it might remove.
+    // Fail-closed exclusions (rule 3 as amended): an exclusion that cannot be checked removes all it might remove.
 
     @Test
     fun aCollectionExclusionMissingFromTheSnapshotEmptiesThePool() {

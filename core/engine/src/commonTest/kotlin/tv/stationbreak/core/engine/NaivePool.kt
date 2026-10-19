@@ -70,7 +70,8 @@ internal object NaivePool {
             }
             kept.add(item)
         }
-        return NaiveResult(kept, matchedBySource, excluded, blocked, unknown, unresolved(rules, snapshot), unresolvedExclusions)
+        val unresolvedSources = unresolved(rules, snapshot)
+        return NaiveResult(kept, matchedBySource, excluded, blocked, unknown, unresolvedSources, unresolvedExclusions)
     }
 
     private fun unresolved(
@@ -177,11 +178,15 @@ internal object NaivePool {
             }
 
             is Source.Genre -> {
-                seriesMissing || hasName(entry.genres, source.name) || (series != null && hasName(series.genres, source.name))
+                seriesMissing ||
+                    hasName(entry.genres, source.name) ||
+                    (series != null && hasName(series.genres, source.name))
             }
 
             is Source.Tag -> {
-                seriesMissing || hasName(entry.tags, source.name) || (series != null && hasName(series.tags, source.name))
+                seriesMissing ||
+                    hasName(entry.tags, source.name) ||
+                    (series != null && hasName(series.tags, source.name))
             }
 
             is Source.YearRange -> {

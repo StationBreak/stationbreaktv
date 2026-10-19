@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RatingEligibility
+import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.SeriesState
 import tv.stationbreak.core.rules.Source
 
@@ -17,7 +18,9 @@ import tv.stationbreak.core.rules.Source
  * 1. Only movies and episodes are items; `RuleSnapshot.items` holds nothing else.
  * 2. An item matches a source as `SourceMatcher` reads rule 2 (no recursion into collections; a season's own genres and
  *    tags are never used; a name matches as in "String matching").
- * 3. The pool is every item that matches any source, once, minus every item that matches any exclusion.
+ * 3. The pool is every item that matches any source, once, minus every item that matches any exclusion. Exclusions fail
+ *    closed: if a `collection` exclusion is not in the snapshot the pool is empty, and a `genre` or `tag` exclusion
+ *    also removes an episode whose series is missing from the snapshot.
  * 4. Under `maxRating`, a movie needs its own rating to pass, and an episode needs its effective rating and its series'
  *    rating to pass: [RatingEligibility.isEpisodeEligible], with [SeriesState.NoSeries] for an episode with no series
  *    ID, [SeriesState.Unknown] when the ID is set but the snapshot has no such series, and [SeriesState.Known]
@@ -31,14 +34,19 @@ import tv.stationbreak.core.rules.Source
  * calls, so it is safe to call from any thread.
  */
 object PoolEvaluator {
+    private const val NOT_ON_LADDER = "The rating ceiling is not on the ladder"
+
     /**
-     * The pool of [rules] over [snapshot], with its counts. Throws [IllegalArgumentException] naming the ID when two
-     * items of the snapshot share one, whether or not either would be kept.
+     * The pool of [rules] over [snapshot], with its counts. Throws [IllegalArgumentException]:
+     *  - naming the ID, when two items of the snapshot share one, whether or not either would be kept;
+     *  - when `rules.maxRating` is not on the rating ladder, whatever the items (so even an empty snapshot throws).
      */
     fun evaluate(
         rules: ChannelRules,
         snapshot: RuleSnapshot,
     ): Pool {
+        val ceiling = rules.maxRating
+        require(ceiling == null || ceiling in RatingLadder.names) { NOT_ON_LADDER }
         val pass = Pass(rules, snapshot)
         val items = snapshot.items
         for (index in items.indices) pass.visit(items[index])
@@ -50,7 +58,8 @@ object PoolEvaluator {
                     excluded = pass.excluded,
                     blockedByCeiling = pass.blocked,
                     episodesWithUnknownSeries = pass.unknownSeries,
-                    unresolvedSources = unresolvedSources(rules.sources, snapshot),
+                    unresolvedSources = unresolvedCollections(rules.sources, snapshot),
+                    unresolvedExclusions = pass.unresolvedExclusions,
                     collectionsSynced = snapshot.collectionsSynced,
                 ),
         )
@@ -63,7 +72,12 @@ object PoolEvaluator {
         private val snapshot: RuleSnapshot,
     ) {
         private val sourceMatcher = SourceMatcher(rules.sources, snapshot)
-        private val exclusionMatcher = SourceMatcher(rules.effectiveExclusions, snapshot)
+        private val exclusionMatcher =
+            SourceMatcher(rules.effectiveExclusions, snapshot, missingSeriesMatchesNames = true)
+
+        // Exclusions fail closed: one that cannot be checked removes everything (rule 3 as amended).
+        val unresolvedExclusions = unresolvedCollections(rules.effectiveExclusions, snapshot)
+        private val excludeAll = unresolvedExclusions.isNotEmpty()
         private val maxRating = rules.maxRating
         private val seen = HashSet<String>(snapshot.items.size * 2)
         val matched = IntArray(rules.sources.size)
@@ -78,7 +92,7 @@ object PoolEvaluator {
             val seriesId = item.seriesId
             val series = if (seriesId == null) null else snapshot.series[seriesId]
             if (!sourceMatcher.tally(entry, series, matched)) return
-            if (exclusionMatcher.matches(entry, series)) {
+            if (excludeAll || exclusionMatcher.matches(entry, series)) {
                 excluded++
                 return
             }
@@ -115,19 +129,15 @@ object PoolEvaluator {
             }
     }
 
-    private fun unresolvedSources(
-        sources: List<Source>,
+    // The indices of the collection entries of [entries] whose collection is not in the snapshot.
+    private fun unresolvedCollections(
+        entries: List<Source>,
         snapshot: RuleSnapshot,
     ): List<Int> {
         val unresolved = ArrayList<Int>()
-        for (index in sources.indices) {
-            val missing =
-                when (val source = sources[index]) {
-                    is Source.Library -> source.id !in snapshot.libraries
-                    is Source.Collection -> source.id !in snapshot.collections
-                    is Source.Genre, is Source.Tag, is Source.YearRange, is Source.Series -> false
-                }
-            if (missing) unresolved.add(index)
+        for (index in entries.indices) {
+            val entry = entries[index]
+            if (entry is Source.Collection && entry.id !in snapshot.collections) unresolved.add(index)
         }
         return unresolved
     }

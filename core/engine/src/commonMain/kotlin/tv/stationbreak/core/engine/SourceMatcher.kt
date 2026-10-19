@@ -15,12 +15,17 @@ import tv.stationbreak.core.rules.Source
  * Every lookup table maps a key to the indices (into the list given) of the sources that key selects, so one
  * structure answers both "does anything match" and "which sources matched".
  *
+ * With [missingSeriesMatchesNames] (used for exclusions, which fail closed: docs/rules-format.md, rule 3), a `genre` or
+ * `tag` entry also matches an episode whose series ID is set but whose series is not in the snapshot, whatever its own
+ * names are. Sources leave it off and use the episode's own names alone.
+ *
  * It is not thread-safe: [tally] keeps a scratch stamp so that one source is counted once per item. The per-item
  * methods use plain loops and allocate nothing (no lambdas in the per-item path: ART 7.1 crash, #264).
  */
 internal class SourceMatcher(
     sources: List<Source>,
     snapshot: RuleSnapshot,
+    private val missingSeriesMatchesNames: Boolean = false,
 ) {
     private val byLibrary: Map<String, IntArray>
     private val bySeries: Map<String, IntArray>
@@ -33,8 +38,13 @@ internal class SourceMatcher(
     private val yearFrom: IntArray
     private val yearTo: IntArray
     private val yearSource: IntArray
+    private val allGenreSources: IntArray?
+    private val allTagSources: IntArray?
 
     private val stamped = IntArray(sources.size)
+
+    // Bumped once per [tally] call, which is once per item, so it reaches at most the number of items of one snapshot,
+    // far below Int.MAX_VALUE. A matcher is built per evaluation, so it never outlives one pass.
     private var stamp = 0
 
     init {
@@ -97,6 +107,8 @@ internal class SourceMatcher(
         seasonMembers = seasons.freeze()
         genres = NameSet(genreNames, genreSources.toIntArray())
         tags = NameSet(tagNames, tagSources.toIntArray())
+        allGenreSources = if (genreSources.isEmpty()) null else genreSources.toIntArray()
+        allTagSources = if (tagSources.isEmpty()) null else tagSources.toIntArray()
         yearFrom = from.toIntArray()
         yearTo = to.toIntArray()
         yearSource = years.toIntArray()
@@ -121,6 +133,7 @@ internal class SourceMatcher(
         return scan(item, series, hits)
     }
 
+    // Every Source kind that init indexes must be looked up here, or sources of that kind silently match nothing.
     // With hits == null the first match is enough and the scan stops. Otherwise it goes on, so every source is counted.
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // One flat sequence of lookups, one per rule 2 line.
     private fun scan(
@@ -166,14 +179,31 @@ internal class SourceMatcher(
             if (hits == null) return true
             any = true
         }
-        val year = schedule.productionYear
-        if (year != null) {
-            for (i in yearSource.indices) {
-                if (year >= yearFrom[i] && year <= yearTo[i]) {
-                    if (hits == null) return true
-                    count(yearSource[i], hits)
-                    any = true
-                }
+        val seriesIsMissing = isEpisode && seriesId != null && series == null
+        if (missingSeriesMatchesNames && seriesIsMissing) {
+            if (mark(allGenreSources, hits)) {
+                if (hits == null) return true
+                any = true
+            }
+            if (mark(allTagSources, hits)) {
+                if (hits == null) return true
+                any = true
+            }
+        }
+        return markYear(schedule.productionYear, hits) || any
+    }
+
+    private fun markYear(
+        year: Int?,
+        hits: IntArray?,
+    ): Boolean {
+        if (year == null) return false
+        var any = false
+        for (i in yearSource.indices) {
+            if (year >= yearFrom[i] && year <= yearTo[i]) {
+                if (hits != null) count(yearSource[i], hits)
+                any = true
+                if (hits == null) break
             }
         }
         return any

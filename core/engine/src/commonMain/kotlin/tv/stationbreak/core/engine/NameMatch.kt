@@ -29,13 +29,13 @@ internal fun foldAscii(text: String): String {
 }
 
 /**
- * The names of a list of rules, folded once, each remembering the rules it came from: its position in [names], or the
- * matching entry of [labels] when the caller numbers the rules differently. [contains] folds the probe the same way, so
- * the match is ASCII case-insensitive and exact otherwise.
+ * The names of a list of rules, folded once, each remembering the rule it came from: `labels[i]` is the label (a rule's
+ * index in its list) of `names[i]`. [contains] folds the probe the same way, so the match is ASCII case-insensitive and
+ * exact otherwise.
  */
 internal class NameSet(
     names: List<String>,
-    labels: IntArray = IntArray(names.size) { it },
+    labels: IntArray,
 ) {
     private val byName: Map<String, IntArray>
 
