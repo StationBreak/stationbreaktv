@@ -114,9 +114,12 @@ class RuleSnapshotHeapTest {
             val retained = usedHeap() - baseline
 
             val median = times.sorted()[times.size / 2]
+            val first = times.first()
+            val slowest = times.max()
             val members = snapshot.collections.values.sumOf { it.memberCount() }
             println(
-                "RULE SNAPSHOT on the JVM: reads $times ms, median $median ms; ${snapshot.items.size} items, " +
+                "RULE SNAPSHOT on the JVM: first (cold) read $first ms, " +
+                    "reads $times ms, median $median ms; ${snapshot.items.size} items, " +
                     "${snapshot.series.size} series, ${snapshot.collections.size} collections with $members members; " +
                     "kept result grew the heap by ${retained / KB} KB",
             )
@@ -131,7 +134,8 @@ class RuleSnapshotHeapTest {
             assertEquals(COLLECTIONS, snapshot.collections.size)
             assertTrue("the big collection holds $members members in all", members > BIG_COLLECTION)
             assertStringsAreShared(snapshot)
-            assertTrue("the read took $median ms (all: $times), the limit is $LIMIT_MS", median < LIMIT_MS)
+            assertTrue("a read took $slowest ms (all: $times), the limit is $LIMIT_MS", slowest < LIMIT_MS)
+            assertTrue("the snapshot holds no series", snapshot.series.isNotEmpty())
             assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
         }
 

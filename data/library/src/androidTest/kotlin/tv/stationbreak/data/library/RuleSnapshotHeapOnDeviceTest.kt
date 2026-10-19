@@ -33,8 +33,8 @@ import kotlin.time.Clock
  * 3 s, and the result must grow the heap by less than 64 MB, the budget `FirstSyncHeapOnDeviceTest` uses (spec 06). The
  * same shape runs on the JVM (`RuleSnapshotHeapTest`). Generated placeholder data only.
  *
- * It reads three times and samples the raw heap from a plain thread while it reads, as `ScheduleItemsHeapOnDeviceTest`
- * does. It must not call the DAO with a second, different callback: that made API 25's JIT deoptimise the read loop,
+ * It reads four times, the first of them cold, and every read must be under the limit. It samples the raw heap from
+ * a plain thread while it reads, as `ScheduleItemsHeapOnDeviceTest` does. It must not call the DAO with a second, different callback: that made API 25's JIT deoptimise the read loop,
  * and the next GC aborted the runtime (see `ItemHistoryDao.heldAsOf`). `ruleSnapshot` passes the test seam only
  * through one call site, and the test sets none. The distinct `String` instances of the genres and tags are counted
  * and must equal the distinct values.
@@ -144,7 +144,10 @@ class RuleSnapshotHeapOnDeviceTest {
 
             val sampler = HeapSampler(baseline, ::rawUsedHeap).also { it.start() }
             val times = mutableListOf<Long>()
+            // The first read is the cold one, which is what the daily read on a Fire TV is: it is timed and limited too.
+            val firstStarted = System.nanoTime()
             var snapshot: RuleSnapshot = repository.ruleSnapshot(account, setOf(movies), cutoff)
+            val firstMs = (System.nanoTime() - firstStarted) / NANOS_PER_MS
             repeat(READS) {
                 val started = System.nanoTime()
                 snapshot = repository.ruleSnapshot(account, setOf(movies), cutoff)
@@ -156,10 +159,12 @@ class RuleSnapshotHeapOnDeviceTest {
 
             val streamed = peak - baseline
             val tookMs = times.sorted()[times.size / 2]
+            val slowestMs = maxOf(firstMs, times.max())
             val members = snapshot.collections.values.sumOf { it.memberCount() }
             val grew = "kept result grew the heap by ${retained / KB} KB"
             println(
-                "RULE SNAPSHOT on the device: reads $times ms, median $tookMs ms; ${snapshot.items.size} items, " +
+                "RULE SNAPSHOT on the device: first (cold) read $firstMs ms, " +
+                    "warm reads $times ms, median $tookMs ms; ${snapshot.items.size} items, " +
                     "${snapshot.series.size} series, ${snapshot.collections.size} collections with $members members; " +
                     "$grew; raw peak while reading grew it by ${streamed / KB} KB",
             )
@@ -172,7 +177,8 @@ class RuleSnapshotHeapOnDeviceTest {
             val tags = snapshot.items.flatMap { it.tags } + snapshot.series.values.flatMap { it.tags }
             assertTrue("genres are not shared", sharedStrings(genres))
             assertTrue("tags are not shared", sharedStrings(tags))
-            assertTrue("the read took $tookMs ms (all: $times), the limit is $LIMIT_MS", tookMs < LIMIT_MS)
+            assertTrue("a read took $slowestMs ms (first $firstMs, then $times), the limit is $LIMIT_MS", slowestMs < LIMIT_MS)
+            assertTrue("the snapshot holds no series", snapshot.series.isNotEmpty())
             assertTrue("the result grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
             assertTrue("reading grew the heap by ${streamed / MB} MB, limit $LIMIT_MB", streamed / MB < LIMIT_MB)
         }
