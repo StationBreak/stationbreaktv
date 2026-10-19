@@ -169,8 +169,11 @@ interface LibraryRepository : AccountCache {
      *
      * [cutoff] must equal the `S - G` of the day being built, as for [scheduleItems]. **The safe range is
      * `cutoff >= now - 72 h`**, the same documented contract (Vimes L-1) and not a `require`: an older cut-off degrades
-     * to the newest copy and does not throw. A library ID that is not a canonical ID has no place in the snapshot, so
-     * it is not in `RuleSnapshot.libraries` and its items are left out.
+     * to the newest copy and does not throw. **One difference from [scheduleItems]:** an item in a
+     * library whose ID is not a canonical ID is left out of the snapshot, because `RuleItem.libraryId` is a canonical
+     * ID, and that library is not in `RuleSnapshot.libraries`. A series or collection whose own ID is not canonical is
+     * left out for the same reason, and a member ID that is not canonical is skipped. Jellyfin's library IDs are GUIDs,
+     * so this does not arise with a real server.
      */
     suspend fun ruleSnapshot(
         account: LibraryAccount,

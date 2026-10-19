@@ -56,6 +56,7 @@ class SyntheticRuleInputsTest {
     fun membersComeInSeveralKinds() {
         val kinds = inputs.members(0, 0).map { it.kind }.toSet()
 
-        assertTrue(kinds.containsAll(setOf(CollectionMemberKind.Movie, CollectionMemberKind.Episode, CollectionMemberKind.Series)))
+        val expected = setOf(CollectionMemberKind.Movie, CollectionMemberKind.Episode, CollectionMemberKind.Series)
+        assertTrue(kinds.containsAll(expected))
     }
 }

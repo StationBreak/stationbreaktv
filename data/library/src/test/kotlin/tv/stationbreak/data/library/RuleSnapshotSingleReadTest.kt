@@ -17,7 +17,8 @@ import tv.stationbreak.core.model.ItemId
  * file tries to write in the middle of the read, after the items are read and before the series and the collections are
  * (the test seam inside the transaction). The snapshot does not see that write, and a snapshot taken after does, so
  * the test can tell. The write may be refused by the transaction's lock or kept out of the snapshot; either way, the
- * snapshot is of one state. The channel
+ * snapshot is of one state. The test can fail: with `@Transaction` removed from `CacheTransactionDao.ruleSnapshot` for
+ * one run, the write went through and the snapshot held the new rating (expected PG, was R). The channel
  * path's "no second `scheduleItems` call" check is not here: it moved to spec 12 (#275).
  */
 class RuleSnapshotSingleReadTest {
