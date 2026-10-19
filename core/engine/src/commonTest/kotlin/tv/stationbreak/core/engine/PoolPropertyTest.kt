@@ -6,11 +6,13 @@ import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** The evaluator against [NaivePool], the reference written from the doc, on 1,000 seeded random inputs. */
 class PoolPropertyTest {
@@ -30,6 +32,8 @@ class PoolPropertyTest {
 
     @Test
     fun theEvaluatorEqualsTheNaiveReference() {
+        var unresolvedExclusionCases = 0
+        var failClosedNameCases = 0
         forAllCases("pool", 0x504F4F4CL.toULong(), 1000) { gen ->
             val snap = snapshotOf(gen)
             val rules = rulesOf(gen)
@@ -41,8 +45,27 @@ class PoolPropertyTest {
             assertEquals(naive.blockedByCeiling, pool.counts.blockedByCeiling, "blockedByCeiling")
             assertEquals(naive.episodesWithUnknownSeries, pool.counts.episodesWithUnknownSeries, "unknown series")
             assertEquals(naive.unresolvedSources, pool.counts.unresolvedSources, "unresolvedSources")
+            assertEquals(naive.unresolvedExclusions, pool.counts.unresolvedExclusions, "unresolvedExclusions")
+            if (naive.unresolvedExclusions.isNotEmpty()) unresolvedExclusionCases++
+            if (failClosedNames(rules, snap)) failClosedNameCases++
             assertEquals(snap.collectionsSynced, pool.counts.collectionsSynced, "collectionsSynced")
         }
+        // The generators must reach the fail-closed paths, or the comparison above proves nothing about them.
+        assertTrue(unresolvedExclusionCases > 50, "cases with an unresolved exclusion: $unresolvedExclusionCases")
+        assertTrue(failClosedNameCases > 50, "cases with an unknown-series episode under a name exclusion: $failClosedNameCases")
+    }
+
+    private fun failClosedNames(
+        rules: ChannelRules,
+        snap: RuleSnapshot,
+    ): Boolean {
+        val byName = rules.effectiveExclusions.any { it is Source.Genre || it is Source.Tag }
+        val ghost =
+            snap.items.any {
+                val id = it.item.seriesId
+                it.item.kind == ScheduleItemKind.Episode && id != null && id !in snap.series
+            }
+        return byName && ghost
     }
 
     private fun snapshotOf(gen: SeededGen): RuleSnapshot {

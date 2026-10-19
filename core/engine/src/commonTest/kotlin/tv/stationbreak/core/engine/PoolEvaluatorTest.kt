@@ -284,7 +284,7 @@ class PoolEvaluatorTest {
             listOf<RuleItem>(
                 episode(idOf(1), ghost, rating = "G"),
                 // Matched and then excluded: not counted.
-                episode(idOf(2), ghost, genres = listOf("Horror")),
+                episode(idOf(2), ghost, year = 1970),
                 // Not matched by any source: not counted.
                 episode(idOf(3), ghost, library = otherLib),
                 // Series present: not counted.
@@ -297,12 +297,12 @@ class PoolEvaluatorTest {
             )
         val known = listOf(series(show, rating = "G"))
         val snap = snapshot(items = items, series = known, libraries = setOf(LIB, otherLib))
-        val pool = eval(libraryRules(exclusions = listOf(Source.Genre("Horror")), maxRating = "PG"), snap)
+        val pool = eval(libraryRules(exclusions = listOf(Source.YearRange(1970, 1970)), maxRating = "PG"), snap)
         assertEquals(2, pool.counts.episodesWithUnknownSeries)
     }
 
     @Test
-    fun unresolvedSourcesListsMissingLibrariesAndCollectionsByIndex() {
+    fun unresolvedSourcesListsMissingCollectionsByIndexAndNeverLibraries() {
         val sources =
             listOf(
                 Source.Library(LIB),
@@ -315,14 +315,113 @@ class PoolEvaluatorTest {
             )
         val snap = snapshot(collections = listOf(collection(box)))
         val pool = eval(rules(sources), snap)
-        assertEquals(listOf(1, 3), pool.counts.unresolvedSources)
+        // A library missing from RuleSnapshot.libraries may only not have been asked for, so it is not listed.
+        assertEquals(listOf(3), pool.counts.unresolvedSources)
         assertEquals(listOf(0, 0, 0, 0, 0, 0, 0), pool.counts.matchedBySource)
+        assertEquals(emptyList(), pool.counts.unresolvedExclusions)
     }
 
     @Test
-    fun exclusionsAreNeverListedAsUnresolved() {
-        val pool = eval(libraryRules(exclusions = listOf(Source.Library(otherLib), Source.Collection(box))), snapshot())
+    fun unresolvedExclusionsListsMissingCollectionExclusionsByIndexIntoTheExclusions() {
+        val exclusions =
+            listOf(
+                Source.Library(otherLib),
+                Source.Collection(box),
+                Source.Collection(idOf(0x31)),
+                Source.Genre("x"),
+                Source.Collection(idOf(0x32)),
+            )
+        val snap = snapshot(collections = listOf(collection(box)))
+        val pool = eval(libraryRules(exclusions = exclusions), snap)
+        assertEquals(listOf(2, 4), pool.counts.unresolvedExclusions)
         assertEquals(emptyList(), pool.counts.unresolvedSources)
+    }
+
+    // Fail-closed exclusions (rule 3 as amended): an exclusion that cannot be checked removes everything it might remove.
+
+    @Test
+    fun aCollectionExclusionMissingFromTheSnapshotEmptiesThePool() {
+        val items =
+            listOf(
+                movie(idOf(1), rating = "G"),
+                movie(idOf(2), rating = "R"),
+                episode(idOf(3), idOf(0x99), rating = "G"),
+                movie(idOf(4), library = otherLib),
+            )
+        val snap = snapshot(items = items, libraries = setOf(LIB, otherLib))
+        val pool = eval(libraryRules(exclusions = listOf(Source.Collection(box)), maxRating = "PG"), snap)
+        assertEquals(emptyList(), pool.items)
+        // Every source-matched item is excluded; the unmatched one is not counted.
+        assertEquals(3, pool.counts.excluded)
+        assertEquals(0, pool.counts.blockedByCeiling)
+        assertEquals(0, pool.counts.episodesWithUnknownSeries)
+        assertEquals(listOf(3), pool.counts.matchedBySource)
+        assertEquals(listOf(0), pool.counts.unresolvedExclusions)
+    }
+
+    @Test
+    fun aMissingCollectionExclusionEmptiesThePoolEvenBesideAPresentOne() {
+        val snap = snapshot(items = listOf(movie(idOf(1))), collections = listOf(collection(box)))
+        val pool = eval(libraryRules(exclusions = listOf(Source.Collection(box), Source.Collection(idOf(0x31)))), snap)
+        assertEquals(emptyList(), pool.items)
+        assertEquals(1, pool.counts.excluded)
+        assertEquals(listOf(1), pool.counts.unresolvedExclusions)
+    }
+
+    @Test
+    fun aPresentCollectionExclusionStillOnlyRemovesItsMembers() {
+        val snap =
+            snapshot(
+                items = listOf(movie(idOf(1)), movie(idOf(2))),
+                collections = listOf(collection(box, movies = setOf(idOf(1)))),
+            )
+        val pool = eval(libraryRules(exclusions = listOf(Source.Collection(box))), snap)
+        assertEquals(listOf(idOf(2)), pool.items.map { it.id })
+        assertEquals(emptyList(), pool.counts.unresolvedExclusions)
+    }
+
+    @Test
+    fun aGenreOrTagExclusionRemovesAnEpisodeWhoseSeriesIsMissingWhateverItsOwnNames() {
+        val ghost = idOf(0x99)
+        val items =
+            listOf(
+                episode(idOf(1), ghost),
+                episode(idOf(2), ghost, genres = listOf("Drama"), tags = listOf("Other")),
+                // A loose episode and a movie are checked on their own names only.
+                episode(idOf(3), null),
+                movie(idOf(4)),
+                episode(idOf(5), show),
+            )
+        val snap = snapshot(items = items, series = listOf(series(show)))
+        for (exclusion in listOf(Source.Genre("Comedy"), Source.Tag("Cut"))) {
+            val pool = eval(libraryRules(exclusions = listOf(exclusion)), snap)
+            assertEquals(listOf(idOf(3), idOf(4), idOf(5)), pool.items.map { it.id }, "$exclusion")
+            assertEquals(2, pool.counts.excluded, "$exclusion")
+            assertEquals(emptyList(), pool.counts.unresolvedExclusions)
+        }
+    }
+
+    @Test
+    fun aGenreSourceStillUsesOwnNamesWhenTheSeriesIsMissing() {
+        val ghost = idOf(0x99)
+        val snap = snapshot(items = listOf(episode(idOf(1), ghost), episode(idOf(2), ghost, genres = listOf("Comedy"))))
+        val pool = PoolEvaluator.evaluate(rules(listOf(Source.Genre("comedy"))), snap)
+        assertEquals(listOf(idOf(2)), pool.items.map { it.id })
+    }
+
+    @Test
+    fun anEpisodeRatedTvY7WhoseSeriesIsTvMaIsOutUnderTvY7() {
+        val snap = one(episode(idOf(1), show, rating = "TV-Y7"), series(show, rating = "TV-MA"))
+        val pool = eval(libraryRules(maxRating = "TV-Y7"), snap)
+        assertEquals(emptyList(), pool.items)
+        assertEquals(1, pool.counts.blockedByCeiling)
+    }
+
+    @Test
+    fun anEmptySnapshotWithAnyCeilingStillWorks() {
+        // ChannelRules rejects a ceiling that is not on the ladder, so evaluate's own eager check cannot be reached
+        // with a constructed value; the check is there for a rules value built some other way.
+        assertEquals(emptyList(), eval(libraryRules(maxRating = "TV-MA"), snapshot()).items)
     }
 
     @Test

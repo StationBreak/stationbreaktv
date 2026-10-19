@@ -120,14 +120,49 @@ class SourceMatchingTest {
     }
 
     @Test
-    fun aSeasonsOwnGenresAndTagsAreNeverUsed() {
-        // The snapshot holds no season record, so an episode's genres are only its own and its series'.
-        val snap = snapshot(series = listOf(series(show, genres = listOf("Drama"))))
+    fun anEpisodeInASeasonTakesGenresOnlyFromItselfAndItsSeries() {
+        // The snapshot holds no season record, and a season member of a collection brings no names with it.
+        val box = idOf(0x30)
+        val snap =
+            snapshot(
+                series = listOf(series(show, genres = listOf("Drama"))),
+                collections = listOf(collection(box, seasons = setOf(season))),
+            )
         check(
             Source.Genre("Comedy"),
             snap,
             episode(idOf(1), show, seasonId = season) to false,
+            episode(idOf(2), show, seasonId = season, genres = listOf("Comedy")) to true,
         )
+        check(Source.Genre("Drama"), snap, episode(idOf(3), show, seasonId = season) to true)
+    }
+
+    @Test
+    fun whenToldToFailClosedAGenreOrTagMatchesAnEpisodeWhoseSeriesIsMissing() {
+        val snap = snapshot(series = listOf(series(show)))
+        val ghost = idOf(0x99)
+        for (source in listOf(Source.Genre("Comedy"), Source.Tag("Cut"))) {
+            val matcher = SourceMatcher(listOf(source), snap, missingSeriesMatchesNames = true)
+            // Series ID set, series missing: matches whatever its own names are.
+            assertEquals(true, matcher.matches(episode(idOf(1), ghost), null), "$source")
+            // Series present, no loose episode, no movie: own and series names only.
+            assertEquals(false, matcher.matches(episode(idOf(2), show), snap.series[show]), "$source")
+            assertEquals(false, matcher.matches(episode(idOf(3), null), null), "$source")
+            assertEquals(false, matcher.matches(movie(idOf(4)), null), "$source")
+            // The tally counts it for the source once.
+            val hits = IntArray(1)
+            assertEquals(true, matcher.tally(episode(idOf(5), ghost), null, hits))
+            assertEquals(listOf(1), hits.toList())
+        }
+        // Other kinds are unchanged by the flag.
+        val library = SourceMatcher(listOf(Source.Library(otherLib)), snap, missingSeriesMatchesNames = true)
+        assertEquals(false, library.matches(episode(idOf(6), ghost), null))
+    }
+
+    @Test
+    fun byDefaultAGenreSourceUsesOwnNamesWhenTheSeriesIsMissing() {
+        val matcher = SourceMatcher(listOf(Source.Genre("Comedy")), snapshot())
+        assertEquals(false, matcher.matches(episode(idOf(1), idOf(0x99)), null))
     }
 
     @Test

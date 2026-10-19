@@ -8,10 +8,12 @@ import kotlin.test.assertTrue
 
 /** docs/rules-format.md, "String matching": ASCII A to Z fold, exact code units for everything else, no trimming. */
 class NameMatchingTest {
+    private fun nameSet(vararg names: String) = NameSet(names.toList(), IntArray(names.size) { it })
+
     private fun matches(
         rule: String,
         server: String,
-    ) = NameSet(listOf(rule)).contains(server)
+    ) = nameSet(rule).contains(server)
 
     @Test
     fun caseOfTheAsciiLettersDoesNotMatter() {
@@ -68,7 +70,7 @@ class NameMatchingTest {
     @Test
     fun anEmptyItemNameNeverMatches() {
         assertFalse(matches("Comedy", ""))
-        assertFalse(NameSet(listOf("Comedy", "Drama")).contains(""))
+        assertFalse(nameSet("Comedy", "Drama").contains(""))
     }
 
     @Test
@@ -81,15 +83,21 @@ class NameMatchingTest {
 
     @Test
     fun aSetMatchesAnyOfItsNames() {
-        val set = NameSet(listOf("Comedy", "Drama"))
+        val set = nameSet("Comedy", "Drama")
         assertTrue(set.contains("DRAMA"))
         assertTrue(set.contains("comedy"))
         assertFalse(set.contains("Action"))
     }
 
     @Test
+    fun theSetReturnsTheLabelsItWasGiven() {
+        val labeled = NameSet(listOf("Comedy", "Drama", "COMEDY"), intArrayOf(4, 7, 9))
+        assertEquals(listOf(4, 9), labeled.indicesOf("comedy")?.toList())
+    }
+
+    @Test
     fun theSetRemembersWhichRuleEachNameCameFrom() {
-        val set = NameSet(listOf("Comedy", "Drama", "COMEDY"))
+        val set = nameSet("Comedy", "Drama", "COMEDY")
         assertEquals(listOf(0, 2), set.indicesOf("comedy")?.toList())
         assertEquals(listOf(1), set.indicesOf("DRAMA")?.toList())
         assertEquals(null, set.indicesOf("Action"))

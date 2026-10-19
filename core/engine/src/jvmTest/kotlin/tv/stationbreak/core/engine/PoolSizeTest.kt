@@ -81,11 +81,17 @@ class PoolSizeTest {
         excluding: Boolean,
     ): Source =
         when (n % 6) {
-            0 -> if (excluding) Source.Genre("Absent-$n") else Source.Genre(genreNames[n % 40].uppercase())
+            0 -> if (excluding) Source.Genre("Absent-$n") else Source.Genre("GENRE-${n % 40}")
+
             1 -> if (excluding) Source.Tag("Absent-$n") else Source.Tag("Tag-${n % 25}")
+
             2 -> if (excluding) Source.YearRange(1900 + n % 40, 1900 + n % 40) else decade(n)
+
             3 -> Source.Series(seriesIds[if (excluding) (n * 13) % SERIES else n % SERIES])
-            4 -> Source.Collection(idOf(0x5000 + n % COLLECTIONS))
+
+            // The 2,000-member collection (0) is a source only, so its members reach the ceiling.
+            4 -> Source.Collection(idOf(0x5000 + if (excluding) 1 + n % (COLLECTIONS - 1) else n % COLLECTIONS))
+
             else -> Source.Library(if (excluding) idOf(0xF0 + n) else libs[n % 3])
         }
 
