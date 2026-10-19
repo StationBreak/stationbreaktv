@@ -15,15 +15,17 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
-import java.util.EnumMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -110,6 +112,13 @@ class RoomLibraryRepository internal constructor(
      */
     internal var faultBetweenCollectionAndMembers: (() -> Unit)? = null
 
+    /**
+     * Test seam: runs inside [ruleSnapshot]'s transaction after the items are read and before the series and the
+     * collections are, so a test can write there and prove the snapshot does not see it (one transaction, one state).
+     * Null in the app.
+     */
+    internal var faultDuringRuleSnapshot: (() -> Unit)? = null
+
     // The port.
 
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
@@ -152,6 +161,49 @@ class RoomLibraryRepository internal constructor(
     ): List<ScheduleItem> = scheduleInputs(account, libraries, cutoff).items
 
     /**
+     * The rule engine's input as held before [cutoff] (spec 10, Unit 3), read in one transaction
+     * ([CacheTransactionDao.ruleSnapshot]) so the items, the series and the collections are one state. The items are
+     * made from the same rows as [scheduleItems], by [ScheduleInputs.read], so `items.map { it.item }` is what
+     * [scheduleItems] returns. An item whose library is not a canonical ID has no place in the snapshot, and nor has a
+     * series or collection whose own ID is not one. Everything is in canonical-ID order, with no duplicates.
+     */
+    override suspend fun ruleSnapshot(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): RuleSnapshot {
+        val (server, user) = account.keys()
+        val cutoffMs = cutoff.ceilingMillis()
+        val wanted = libraries.mapTo(HashSet()) { it.value }
+        val rows = transactions.ruleSnapshot(server, user, cutoffMs, AS_OF_CHUNK, wanted, faultDuringRuleSnapshot)
+        val read = ScheduleInputs.read(rows.items)
+        val mapper = RuleItemMapper()
+        val items = ArrayList<RuleItem>(read.accepted.size)
+        for (accepted in read.accepted) items += mapper.of(accepted)
+        return RuleSnapshot(
+            cutoffMs = cutoffMs,
+            libraries = libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
+            items = items,
+            series = RuleInputs.series(items, rows.series),
+            collections = RuleInputs.collections(rows.collections),
+            collectionsSynced = rows.collectionsSynced,
+        )
+    }
+
+    // The one as-of item read: the version of every item held before the cut-off, in ID chunks, as rows. Selection runs
+    // over every item first, the libraries filter and the deletion test after (Vimes H4). [scheduleInputs] calls it,
+    // and [CacheTransactionDao.ruleSnapshot] calls the same [ItemHistoryDao.heldAsOf] inside its transaction.
+    private suspend fun heldRows(
+        server: String,
+        user: String,
+        cutoffMs: Long,
+        libraries: Set<ItemId>,
+    ): List<HeldRow> {
+        if (libraries.isEmpty()) return emptyList()
+        return history.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, libraries.mapTo(HashSet()) { it.value })
+    }
+
+    /**
      * [scheduleItems] with the count of what it left out, by reason (spec 09: "count what it dropped, by reason, for
      * diagnostics"). Internal on purpose (Granny L3): the port returns the items alone, because the scheduler needs
      * nothing else and the port has to stay plain Kotlin. It widens when diagnostics or F1.2 need the counts; until
@@ -165,30 +217,9 @@ class RoomLibraryRepository internal constructor(
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): ScheduleRead {
-        if (libraries.isEmpty()) return ScheduleRead(emptyList(), emptyMap())
         val (server, user) = account.keys()
-        val cutoffMs = cutoff.ceilingMillis()
-        val wanted = libraries.mapTo(HashSet()) { it.value }
-        val items = ArrayList<ScheduleItem>()
-        val dropped = EnumMap<DropReason, Int>(DropReason::class.java)
-        val seen = HashSet<String>()
-        for (row in history.heldAsOf(server, user, cutoffMs, AS_OF_CHUNK, wanted)) {
-            when (val converted = ScheduleInputs.convert(row)) {
-                is Converted.Dropped -> {
-                    dropped.merge(converted.reason, 1, Int::plus)
-                }
-
-                is Converted.Accepted -> {
-                    if (seen.add(converted.item.id.value)) {
-                        items += converted.item
-                    } else {
-                        dropped.merge(DropReason.DuplicateId, 1, Int::plus)
-                    }
-                }
-            }
-        }
-        items.sortBy { it.id.value }
-        return ScheduleRead(items, dropped)
+        val read = ScheduleInputs.read(heldRows(server, user, cutoff.ceilingMillis(), libraries))
+        return ScheduleRead(read.accepted.map { it.item }, read.dropped)
     }
 
     @Suppress("OVERRIDE_DEPRECATION")

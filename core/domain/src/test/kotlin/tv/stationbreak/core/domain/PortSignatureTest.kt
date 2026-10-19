@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import tv.stationbreak.core.model.RuleCollection
+import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerAddress
 import java.io.File
 import java.lang.reflect.GenericArrayType
@@ -143,6 +147,19 @@ class PortSignatureTest {
         assertEquals(names, calls.map { it.name.substringBefore('-') }.toSet())
         val types = calls.flatMap { it.genericParameterTypes.toList() + it.genericReturnType }
         assertEquals(emptyList(), disallowedIn(types))
+    }
+
+    @Test
+    fun theRuleSnapshotCallAndItsTypesAreOnThePortAndUseOnlyDomainTypes() {
+        // Spec 10, Unit 3: the snapshot is plain core:model Kotlin, so the port stays free of Room and Jellyfin types.
+        val calls = LibraryRepository::class.java.methods.filter { it.name == "ruleSnapshot" }
+        assertEquals(1, calls.size)
+        val types = calls.flatMap { it.genericParameterTypes.toList() + it.genericReturnType }
+        assertEquals(emptyList(), disallowedIn(types))
+        val snapshotTypes = listOf(RuleSnapshot::class, RuleItem::class, RuleSeries::class, RuleCollection::class)
+        for (type in snapshotTypes.map { it.java }) {
+            assertEquals(emptyList(), disallowedIn(apiTypesOf(type)), type.name)
+        }
     }
 
     @Test

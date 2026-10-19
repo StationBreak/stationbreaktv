@@ -64,7 +64,7 @@ import kotlin.time.Instant
 class StayCurrentWorkTest {
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val account = LibraryAccount(ServerId("work-test-server"), UserId("work-test-user"))
-    private val movies = Library(ItemId("work-test-movies"), "Movies", LibraryKind.Movies)
+    private val movies = Library(ItemId("3333333333333333333333333333333a"), "Movies", LibraryKind.Movies)
     private val address = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val session =
         Session(

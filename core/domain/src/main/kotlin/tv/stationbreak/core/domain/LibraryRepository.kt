@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -127,8 +128,9 @@ interface LibraryRepository : AccountCache {
      * applied to **that** version's fields, not to the item's current ones, so an item that moved library or came back
      * after the cut-off is judged as it was.
      *
-     * It leaves out, and never rejects, what the scheduler would refuse (an unsupported kind, an ID that is not
-     * canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed premiere date, a year outside
+     * It leaves out, and never rejects, what the scheduler would refuse (an unsupported kind, an item, series or
+     * library ID that is not canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed
+     * premiere date, a year outside
      * 1..9999, a negative season or episode, a movie with series data). The result is in canonical-ID order.
      *
      * [cutoff] must equal the `S - G` that `buildDay` uses for the day being built (the day's start minus its grace
@@ -148,6 +150,34 @@ interface LibraryRepository : AccountCache {
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): List<ScheduleItem>
+
+    /**
+     * The rule engine's input as this TV held it before [cutoff] (spec 10, Unit 3): the items, the series they belong
+     * to and the collections, in one [RuleSnapshot]. This is the format's *library snapshot* (rules-format rule 5) as
+     * held before `cutoff`. It is unrelated to the deprecated `snapshot`, which goes in #265.
+     *
+     * Everything is taken as held before the cut-off, with the rules of [scheduleItems]: the newest version this TV
+     * first saw before it, or, when it has none that old, the oldest it holds. **The items are exactly what
+     * [scheduleItems] returns for the same arguments**, in the same order, with the rating, genres, tags and season the
+     * rules read beside them; an item the scheduler would refuse is not in it. The series are those the returned
+     * episodes point to, as held before the cut-off (a tombstoned one is kept until `deletedAt < cutoff`; an episode
+     * whose series is unknown has no entry). The collections are those not deleted before the cut-off, with the
+     * members held before it, **whatever the [libraries] are**, because their members are IDs. `collectionsSynced`
+     * says whether a full pass over the account's collections has succeeded yet. A series or collection whose own ID
+     * is not canonical, and a collection member whose ID is not, are skipped.
+     *
+     * It is one read of one state: a write that lands while it runs is not seen. A channel that needs the scheduler's
+     * items takes them from `RuleSnapshot.items` and does not call [scheduleItems] again for the same day.
+     *
+     * [cutoff] must equal the `S - G` of the day being built, as for [scheduleItems]. **The safe range is
+     * `cutoff >= now - 72 h`**, the same documented contract (Vimes L-1) and not a `require`: an older cut-off degrades
+     * to the newest copy and does not throw.
+     */
+    suspend fun ruleSnapshot(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): RuleSnapshot
 
     /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the

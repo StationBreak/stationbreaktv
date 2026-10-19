@@ -69,12 +69,14 @@ class LibraryRepositoryPortSignatureTest {
                 .map { it.name }
                 .toSet()
         // The snapshot, the as-of-cut-off read for the scheduler, the status flow (sync state and last success), the
-        // exclusion count and the selection.
+        // exclusion count and the selection, and the
+        // rule-input snapshot (spec 10, Unit 3).
         assertTrue(
             methods.containsAll(
                 setOf(
                     "snapshot",
                     "scheduleItems",
+                    "ruleSnapshot",
                     "status",
                     "activeStatus",
                     "excludedCount",

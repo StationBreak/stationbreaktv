@@ -4,11 +4,24 @@ package tv.stationbreak.data.library
 import androidx.room.Dao
 import androidx.room.Transaction
 import tv.stationbreak.core.model.CanonicalId
+import java.util.TreeSet
 
 /** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
 internal data class PageResult(
     val items: PageWrite,
     val series: PageWrite,
+)
+
+/**
+ * What [CacheTransactionDao.ruleSnapshot] read in its one transaction: the [items] (the rows of the as-of read), the
+ * [series] the episodes among them point to, the [collections] held with their members, and whether a full collection
+ * pass has succeeded ([collectionsSynced]). Plain lists, built before the transaction ends.
+ */
+internal class RuleRows(
+    val items: List<HeldRow>,
+    val series: List<HeldSeries>,
+    val collections: List<HeldCollection>,
+    val collectionsSynced: Boolean,
 )
 
 /**
@@ -397,6 +410,45 @@ internal abstract class CacheTransactionDao(
         library.deleteActive(serverId, userId)
     }
 
+    /**
+     * The rule snapshot's reads, in one transaction so they are one state (spec 10, Unit 3, Granny M1): the items held
+     * before [cutoffMs] ([ItemHistoryDao.heldAsOf], in chunks of [itemChunk], selected from [libraries]), the series
+     * that an episode among them points to ([SeriesDao.heldAsOf]), the collections with their members
+     * ([CollectionDao.heldAsOf], whatever the libraries are) and the collection pass's last full re-list. A write that
+     * lands while this runs is not seen by a later part. Each part is read into a list; no lambda goes into a DAO loop
+     * (#264). It holds the writer lock for the whole read, so the sync's writes queue behind it for up to about 3 s on
+     * the slowest device, once a day; that is accepted (Vimes). [betweenItemsAndSeries] runs after the items are read
+     * and before the rest (a test seam; null in the app).
+     */
+    @Transaction
+    @Suppress("LongParameterList") // One cohesive call: the account, the cut-off, the libraries and the test seam.
+    open suspend fun ruleSnapshot(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+        itemChunk: Int,
+        libraries: Set<String>,
+        betweenItemsAndSeries: (() -> Unit)?,
+    ): RuleRows {
+        val strings = Interner()
+        val items =
+            if (libraries.isEmpty()) {
+                emptyList()
+            } else {
+                history.heldAsOf(serverId, userId, cutoffMs, itemChunk, libraries, strings)
+            }
+        betweenItemsAndSeries?.invoke()
+        val seriesIds = TreeSet<String>()
+        for (row in items) {
+            val seriesId = row.seriesId
+            if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.addAll(spellings(seriesId))
+        }
+        val heldSeries = series.heldAsOf(serverId, userId, cutoffMs, seriesIds.toList(), strings)
+        val heldCollections = collections.heldAsOf(serverId, userId, cutoffMs, COLLECTION_CHUNK)
+        val synced = collections.syncRow(serverId, userId)?.lastRelistMs != null
+        return RuleRows(items, heldSeries, heldCollections, synced)
+    }
+
     /** The collections the account held before [cutoffMs], with their members: [CollectionDao.heldAsOf]. */
     @Transaction
     open suspend fun heldCollections(
@@ -417,8 +469,27 @@ internal abstract class CacheTransactionDao(
             else -> null
         }
 
+    // The spellings a series may be stored under for an episode's [raw] series ID: the one it names, the canonical one
+    // and the dashed one, each in lower and upper case. SQL cannot compare canonical forms, and a series is stored
+    // as the server spelled it; the caller matches the rows it gets back by canonical ID (spec 10, Vimes L).
+    private fun spellings(raw: String): List<String> {
+        val canonical = CanonicalId.parseOrNull(raw)?.value ?: return listOf(raw)
+        val dashed =
+            listOf(
+                canonical.substring(0, 8),
+                canonical.substring(8, 12),
+                canonical.substring(12, 16),
+                canonical.substring(16, 20),
+                canonical.substring(20),
+            ).joinToString("-")
+        return listOf(raw, canonical, canonical.uppercase(), dashed, dashed.uppercase())
+    }
+
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */
         const val COLLECTION_CHUNK = 100
+
+        /** The kind column of an episode, as `ScheduleItemKind` names it. */
+        const val EPISODE_KIND = "Episode"
     }
 }

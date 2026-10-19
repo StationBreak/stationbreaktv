@@ -7,12 +7,17 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.RuleCollection
+import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
@@ -20,8 +25,8 @@ import kotlin.time.Instant
 class InMemoryLibraryRepositoryTest {
     private val alice = LibraryAccount(ServerId("srv"), UserId("alice"))
     private val bob = LibraryAccount(ServerId("srv"), UserId("bob"))
-    private val movies = ItemId("lib-movies")
-    private val shows = ItemId("lib-shows")
+    private val movies = ItemId("a".repeat(31) + "1")
+    private val shows = ItemId("a".repeat(31) + "2")
     private val epoch = Instant.fromEpochMilliseconds(1_700_000_000_000)
 
     private fun item(
@@ -189,5 +194,203 @@ class InMemoryLibraryRepositoryTest {
 
             repository.forget(alice)
             assertEquals(emptyList(), repository.scheduleItems(alice, setOf(movies), epoch))
+        }
+
+    // The rule-input snapshot (spec 10, Unit 3).
+
+    private fun id(hex: Char) = CanonicalId.parse(hex.toString().repeat(32))
+
+    private val moviesId = CanonicalId.parse("a".repeat(32))
+    private val showsId = CanonicalId.parse("b".repeat(32))
+    private val moviesLib = ItemId(moviesId.value)
+    private val showsLib = ItemId(showsId.value)
+
+    private fun episode(
+        hex: Char,
+        series: Char?,
+    ) = held(hex).copy(
+        kind = ScheduleItemKind.Episode,
+        seriesId = series?.let { id(it) },
+        seasonNumber = 1,
+        episodeNumber = 1,
+    )
+
+    @Suppress("LongParameterList") // A plain carrier for the fields a test sets, the rest left at their defaults.
+    private fun ruleItem(
+        item: ScheduleItem,
+        library: CanonicalId = moviesId,
+        rating: String? = null,
+        genres: List<String> = emptyList(),
+        tags: List<String> = emptyList(),
+        seasonId: CanonicalId? = null,
+    ) = RuleItem(item, library, seasonId, rating, genres, tags)
+
+    private fun collection(
+        hex: Char,
+        movie: Char? = null,
+    ) = RuleCollection(id(hex), setOfNotNull(movie?.let { id(it) }), emptySet(), emptySet(), emptySet())
+
+    @Test
+    fun anItemInALibraryWhoseIdIsNotCanonicalIsLeftOutOfBothReads() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val odd = ItemId("lib-odd")
+            repository.seedSchedule(alice, odd, held('a'))
+            repository.seedRule(alice, ruleItem(held('b')))
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(odd, moviesLib), epoch)
+
+            assertEquals(listOf(id('b')), repository.scheduleItems(alice, setOf(odd, moviesLib), epoch).map { it.id })
+            assertEquals(listOf(id('b')), snapshot.items.map { it.item.id })
+        }
+
+    @Test
+    fun aRuleSnapshotEchoesTheCutoffAndTheLibrariesItWasAskedFor() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib, showsLib), epoch)
+
+            assertEquals(epoch.toEpochMilliseconds(), snapshot.cutoffMs)
+            assertEquals(setOf(moviesId, showsId), snapshot.libraries)
+            assertEquals(emptyList(), snapshot.items)
+            assertEquals(emptyMap(), snapshot.series)
+            assertEquals(emptyMap(), snapshot.collections)
+        }
+
+    @Test
+    fun aRuleSnapshotsItemsAreTheScheduleItemsWithWhatTheRulesRead() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val cutoffMs = epoch.toEpochMilliseconds()
+            val rated = ruleItem(held('b'), rating = " ", genres = listOf("Drama", "Comedy"), tags = listOf("noir"))
+            repository.seedRule(alice, rated, ruleItem(held('a'), rating = null))
+            repository.seedRule(alice, ruleItem(held('c', deletedAtMs = cutoffMs - 1)))
+            repository.seedRule(alice, ruleItem(held('d', deletedAtMs = cutoffMs)))
+            repository.seedRule(alice, ruleItem(held('e'), library = showsId))
+            repository.seedRule(bob, ruleItem(held('f')))
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
+
+            assertEquals(listOf('a', 'b', 'd').map { id(it) }, snapshot.items.map { it.item.id })
+            assertEquals(snapshot.items.map { it.item }, repository.scheduleItems(alice, setOf(moviesLib), epoch))
+            assertEquals(rated, snapshot.items[1])
+            assertEquals(null, snapshot.items[0].officialRating)
+        }
+
+    @Test
+    fun aRuleSnapshotReadsTheRowsSavedThroughTheSyncPathToo() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.seed(
+                alice,
+                moviesLib,
+                MediaItem(
+                    ItemId("b".repeat(32)),
+                    "n",
+                    ItemKind.Movie,
+                    90.minutes,
+                    null,
+                    dateCreated = epoch - 1.minutes,
+                    officialRating = "",
+                    genres = listOf("g"),
+                    tags = listOf("t"),
+                ),
+            )
+
+            val items = repository.ruleSnapshot(alice, setOf(moviesLib), epoch).items
+
+            assertEquals(listOf(id('b')), items.map { it.item.id })
+            val only = items.single()
+            assertEquals(
+                listOf(moviesId, null, "", listOf("g"), listOf("t")),
+                listOf(only.libraryId, only.seasonId, only.officialRating, only.genres, only.tags),
+            )
+        }
+
+    @Test
+    fun aRuleSnapshotHoldsTheSeriesOfTheReturnedEpisodesOnly() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.seedRule(alice, ruleItem(episode('1', series = '5')), ruleItem(episode('2', series = '6')))
+            repository.seedRule(alice, ruleItem(episode('3', series = '7'), library = showsId))
+            repository.seedRule(alice, ruleItem(held('4')))
+            repository.seedSeries(alice, RuleSeries(id('5'), "TV-14", listOf("Drama"), listOf("t")))
+            repository.seedSeries(alice, RuleSeries(id('7'), null, emptyList(), emptyList()))
+            repository.seedSeries(alice, RuleSeries(id('8'), null, emptyList(), emptyList()))
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
+
+            // '6' is unknown and has no entry; '7' is in a library not asked for; '8' has no returned episode.
+            assertEquals(listOf(id('5')), snapshot.series.keys.toList())
+            assertEquals(RuleSeries(id('5'), "TV-14", listOf("Drama"), listOf("t")), snapshot.series.getValue(id('5')))
+        }
+
+    @Test
+    fun aTombstonedSeriesIsKeptUntilItsDeletionIsBeforeTheCutoff() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val cutoffMs = epoch.toEpochMilliseconds()
+            repository.seedRule(alice, ruleItem(episode('1', series = '5')), ruleItem(episode('2', series = '4')))
+            repository.seedSeries(alice, RuleSeries(id('5'), null, emptyList(), emptyList()), deletedAtMs = cutoffMs)
+            val plain = RuleSeries(id('4'), null, emptyList(), emptyList())
+            repository.seedSeries(alice, plain, deletedAtMs = cutoffMs - 1)
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
+
+            assertEquals(listOf(id('5')), snapshot.series.keys.toList())
+        }
+
+    @Test
+    fun aRuleSnapshotHoldsTheCollectionsWhateverTheLibrariesAreAndDropsTheDeletedOnes() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val cutoffMs = epoch.toEpochMilliseconds()
+            repository.seedCollection(alice, collection('c', movie = '9'))
+            repository.seedCollection(alice, collection('b'), deletedAtMs = cutoffMs)
+            repository.seedCollection(alice, collection('a'), deletedAtMs = cutoffMs - 1)
+            repository.seedCollection(bob, collection('d'))
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
+
+            assertEquals(listOf(id('b'), id('c')), snapshot.collections.keys.toList())
+            assertEquals(setOf(id('9')), snapshot.collections.getValue(id('c')).movies)
+            assertEquals(emptyList(), repository.ruleSnapshot(alice, emptySet(), epoch).items)
+        }
+
+    @Test
+    fun collectionsAreNotSyncedUntilTheFakeIsToldTheyAre() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            assertFalse(repository.ruleSnapshot(alice, setOf(moviesLib), epoch).collectionsSynced)
+
+            repository.setCollectionsSynced(alice, true)
+
+            assertTrue(repository.ruleSnapshot(alice, setOf(moviesLib), epoch).collectionsSynced)
+            assertFalse(repository.ruleSnapshot(bob, setOf(moviesLib), epoch).collectionsSynced)
+        }
+
+    @Test
+    fun aRuleSnapshotFollowsSelectionAndSignOutLikeTheOtherReads() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.seedRule(alice, ruleItem(held('a')))
+            repository.seedRule(alice, ruleItem(held('b'), library = showsId))
+            repository.seedCollection(alice, collection('c'))
+            repository.seedCollection(bob, collection('d'))
+            repository.setCollectionsSynced(alice, true)
+
+            repository.select(alice, setOf(moviesLib))
+            assertEquals(emptyList(), repository.ruleSnapshot(alice, setOf(showsLib), epoch).items)
+
+            repository.useAccount(alice)
+            assertEquals(emptyList(), repository.ruleSnapshot(bob, setOf(moviesLib), epoch).items)
+            assertEquals(emptyMap(), repository.ruleSnapshot(bob, setOf(moviesLib), epoch).collections)
+
+            repository.forget(alice)
+            val after = repository.ruleSnapshot(alice, setOf(moviesLib), epoch)
+            assertEquals(emptyList(), after.items)
+            assertEquals(emptyMap(), after.collections)
+            assertFalse(after.collectionsSynced)
         }
 }

@@ -54,7 +54,7 @@ class LibrarySelectionPruneTest {
 
             repository.select(ALICE, setOf(SHOWS))
 
-            assertEquals(listOf("lib-shows-1"), repository.stored(ALICE).map { it.item.id.value })
+            assertEquals(listOf("${SHOWS.value}-1"), repository.stored(ALICE).map { it.item.id.value })
             assertNull(repository.checkpoint(ALICE, MOVIES))
             assertEquals(Checkpoint(SHOWS, 1, 1, 1), repository.checkpoint(ALICE, SHOWS))
             // Genres go with their items.
@@ -114,7 +114,7 @@ class LibrarySelectionPruneTest {
             val chosen = repository.followSelection(ALICE, settings)
 
             assertEquals(setOf(SHOWS, extra), chosen)
-            assertEquals(listOf("lib-shows-1"), repository.stored(ALICE).map { it.item.id.value })
+            assertEquals(listOf("${SHOWS.value}-1"), repository.stored(ALICE).map { it.item.id.value })
             assertEquals(setOf(SHOWS, extra), repository.pendingLibraries(ALICE))
         }
 
