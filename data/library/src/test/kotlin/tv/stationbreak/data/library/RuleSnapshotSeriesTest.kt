@@ -68,6 +68,20 @@ class RuleSnapshotSeriesTest {
         }
 
     @Test
+    fun aSeriesEditSeenExactlyAtTheCutoffIsNotInThatDaysSnapshot() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            putShow(rating = "PG")
+            clock.stepMs(10_000)
+            val cutoff = clock.nowMs
+            putShow(rating = "R")
+
+            assertEquals(mapOf(canon(show) to held(show, "PG")), seriesAt(cutoff))
+            assertEquals(mapOf(canon(show) to held(show, "R")), seriesAt(cutoff + 1))
+        }
+
+    @Test
     fun aSeriesFirstSeenAfterTheCutoffIsReturnedAsItFirstWasNotAsItIsNow() =
         runBlocking {
             open()

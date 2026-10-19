@@ -100,6 +100,20 @@ class RuleSnapshotCollectionsTest {
         }
 
     @Test
+    fun aMemberAddedExactlyAtTheCutoffIsNotInThatDaysSnapshotAndOneRemovedThereIs() =
+        runBlocking {
+            write(1000, 1 to CollectionMemberKind.Movie, 2 to CollectionMemberKind.Movie)
+            clock.stepMs(10_000)
+            val cutoff = clock.nowMs
+            write(1000, 1 to CollectionMemberKind.Movie, 3 to CollectionMemberKind.Movie)
+
+            val day = snapshotAt(cutoff).collections.getValue(canon(1000))
+            assertEquals(setOf(canon(1), canon(2)), day.movies)
+            val next = snapshotAt(cutoff + 1).collections.getValue(canon(1000))
+            assertEquals(setOf(canon(1), canon(3)), next.movies)
+        }
+
+    @Test
     fun aCollectionDeletedBeforeTheCutoffIsAbsentAndOneDeletedAtOrAfterItIsPresent() =
         runBlocking {
             write(1000, 1 to CollectionMemberKind.Movie)
