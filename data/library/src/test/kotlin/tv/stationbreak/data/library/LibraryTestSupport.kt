@@ -21,8 +21,10 @@ import kotlin.time.Instant
 internal val ALICE = LibraryAccount(ServerId("server-1"), UserId("alice"))
 internal val BOB = LibraryAccount(ServerId("server-1"), UserId("bob"))
 internal val ALICE_ON_ANOTHER_SERVER = LibraryAccount(ServerId("server-2"), UserId("alice"))
-internal val MOVIES = ItemId("lib-movies")
-internal val SHOWS = ItemId("lib-shows")
+
+// Library IDs are canonical, as Jellyfin's are: an item in any other library is not schedulable (spec 10, Unit 3).
+internal val MOVIES = ItemId(hexId(0xB001))
+internal val SHOWS = ItemId(hexId(0xB002))
 
 /** Where Room runs its queries in tests: a real thread pool, as in the app. */
 @Suppress("InjectDispatcher") // A test helper: nothing to inject into.

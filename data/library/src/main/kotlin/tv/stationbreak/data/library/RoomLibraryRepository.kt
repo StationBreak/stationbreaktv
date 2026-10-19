@@ -179,10 +179,7 @@ class RoomLibraryRepository internal constructor(
         val read = ScheduleInputs.read(rows.items)
         val mapper = RuleItemMapper()
         val items = ArrayList<RuleItem>(read.accepted.size)
-        for (accepted in read.accepted) {
-            val item = mapper.of(accepted)
-            if (item != null) items += item
-        }
+        for (accepted in read.accepted) items += mapper.of(accepted)
         return RuleSnapshot(
             cutoffMs = cutoffMs,
             libraries = libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },

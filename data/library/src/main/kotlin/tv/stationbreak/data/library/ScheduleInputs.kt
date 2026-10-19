@@ -45,6 +45,7 @@ internal enum class DropReason(
 ) {
     KindNotMovieOrEpisode("ScheduleItemKind has only Movie and Episode"),
     IdNotCanonical("CanonicalId.parse(id)"),
+    LibraryIdNotCanonical("RuleItem.libraryId is a CanonicalId: the rule snapshot and the scheduler take the same items"),
     SeriesIdNotCanonical("CanonicalId.parse(seriesId)"),
     RuntimeMissing("ScheduleItem.runtimeMs is a runtime: absent or not positive means no runtime (rules format)"),
     CreatedAtMissing("ScheduleItem.createdAtMs is a time: absent means none"),
@@ -125,6 +126,7 @@ internal object ScheduleInputs {
     ) {
         val kind: ScheduleItemKind? = ScheduleItemKind.entries.firstOrNull { it.name == row.kind }
         val id: CanonicalId? = CanonicalId.parseOrNull(row.itemId)
+        val library: CanonicalId? = CanonicalId.parseOrNull(row.libraryId)
         val series: CanonicalId? = row.seriesId?.let { CanonicalId.parseOrNull(it) }
     }
 
@@ -135,6 +137,7 @@ internal object ScheduleInputs {
         listOf(
             DropReason.KindNotMovieOrEpisode to { it.kind == null },
             DropReason.IdNotCanonical to { it.id == null },
+            DropReason.LibraryIdNotCanonical to { it.library == null },
             DropReason.SeriesIdNotCanonical to { it.row.seriesId != null && it.series == null },
             DropReason.RuntimeMissing to { (it.row.runtimeMs ?: 0L) <= 0L },
             DropReason.CreatedAtMissing to { it.row.createdAtMs == null },
@@ -222,9 +225,10 @@ internal object ScheduleInputs {
 internal class RuleItemMapper {
     private val ids = HashMap<String, CanonicalId?>()
 
-    fun of(accepted: AcceptedItem): RuleItem? {
+    /** The item as the rule engine reads it. The read dropped every item whose library ID is not canonical. */
+    fun of(accepted: AcceptedItem): RuleItem {
         val row = accepted.row
-        val library = id(row.libraryId) ?: return null
+        val library = requireNotNull(id(row.libraryId)) { "The read keeps only items in a library with a canonical ID" }
         val season = row.seasonId
         return RuleItem(
             item = accepted.item,

@@ -128,8 +128,8 @@ interface LibraryRepository : AccountCache {
      * applied to **that** version's fields, not to the item's current ones, so an item that moved library or came back
      * after the cut-off is judged as it was.
      *
-     * It leaves out, and never rejects, what the scheduler would refuse (an unsupported kind, an ID that is not
-     * canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed premiere date, a year outside
+     * It leaves out, and never rejects, what the scheduler would refuse (an unsupported kind, an item, series or
+     * library ID that is not canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed premiere date, a year outside
      * 1..9999, a negative season or episode, a movie with series data). The result is in canonical-ID order.
      *
      * [cutoff] must equal the `S - G` that `buildDay` uses for the day being built (the day's start minus its grace
@@ -162,18 +162,15 @@ interface LibraryRepository : AccountCache {
      * episodes point to, as held before the cut-off (a tombstoned one is kept until `deletedAt < cutoff`; an episode
      * whose series is unknown has no entry). The collections are those not deleted before the cut-off, with the
      * members held before it, **whatever the [libraries] are**, because their members are IDs. `collectionsSynced`
-     * says whether a full pass over the account's collections has succeeded yet.
+     * says whether a full pass over the account's collections has succeeded yet. A series or collection whose own ID
+     * is not canonical, and a collection member whose ID is not, are skipped.
      *
      * It is one read of one state: a write that lands while it runs is not seen. A channel that needs the scheduler's
      * items takes them from `RuleSnapshot.items` and does not call [scheduleItems] again for the same day.
      *
      * [cutoff] must equal the `S - G` of the day being built, as for [scheduleItems]. **The safe range is
      * `cutoff >= now - 72 h`**, the same documented contract (Vimes L-1) and not a `require`: an older cut-off degrades
-     * to the newest copy and does not throw. **One difference from [scheduleItems]:** an item in a
-     * library whose ID is not a canonical ID is left out of the snapshot, because `RuleItem.libraryId` is a canonical
-     * ID, and that library is not in `RuleSnapshot.libraries`. A series or collection whose own ID is not canonical is
-     * left out for the same reason, and a member ID that is not canonical is skipped. Jellyfin's library IDs are GUIDs,
-     * so this does not arise with a real server.
+     * to the newest copy and does not throw.
      */
     suspend fun ruleSnapshot(
         account: LibraryAccount,

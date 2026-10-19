@@ -39,6 +39,8 @@ class ScheduleInputFilterTest {
 
     /** The item the scheduler would be given for [row], built directly with no filter. Throws if it can't be. */
     private fun direct(row: HeldRow): ScheduleItem {
+        // A rule item takes its library as a canonical ID, so the snapshot and the scheduler must take the same rows.
+        CanonicalId.parse(row.libraryId)
         val item =
             ScheduleItem(
                 id = CanonicalId.parse(row.itemId),
@@ -67,6 +69,7 @@ class ScheduleInputFilterTest {
             Case(DropReason.KindNotMovieOrEpisode, ok.copy(kind = "Other")),
             Case(DropReason.IdNotCanonical, ok.copy(itemId = "not-an-id")),
             Case(DropReason.IdNotCanonical, ok.copy(itemId = hexId(1).dropLast(1))),
+            Case(DropReason.LibraryIdNotCanonical, ok.copy(libraryId = "lib-odd")),
             Case(DropReason.SeriesIdNotCanonical, episode.copy(seriesId = "series-1")),
             Case(DropReason.RuntimeMissing, ok.copy(runtimeMs = null)),
             Case(DropReason.RuntimeMissing, ok.copy(runtimeMs = 0)),

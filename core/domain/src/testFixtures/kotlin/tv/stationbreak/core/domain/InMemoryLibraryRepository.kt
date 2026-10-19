@@ -205,7 +205,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         val cutoffMs = cutoffMillis(cutoff)
         val items = ArrayList<RuleItem>()
         for (entry in heldItems(account, libraries, cutoff)) {
-            val library = CanonicalId.parseOrNull(entry.library.value) ?: continue
+            val library = requireNotNull(CanonicalId.parseOrNull(entry.library.value))
             val extras = entry.extras
             items += RuleItem(entry.item, library, extras.seasonId, extras.officialRating, extras.genres, extras.tags)
         }
@@ -250,6 +250,7 @@ class InMemoryLibraryRepository : LibraryRepository {
             }
         val seeded = held.filter { it.account == account && it.library in libraries }.map { Held(it.library, it.item, it.extras) }
         return (seeded + fromSync)
+            .filter { CanonicalId.parseOrNull(it.library.value) != null }
             .filter { (it.item.deletedAtMs ?: Long.MAX_VALUE) >= cutoffMs }
             .sortedBy { it.item.id.value }
     }

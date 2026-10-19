@@ -25,8 +25,8 @@ import kotlin.time.Instant
 class InMemoryLibraryRepositoryTest {
     private val alice = LibraryAccount(ServerId("srv"), UserId("alice"))
     private val bob = LibraryAccount(ServerId("srv"), UserId("bob"))
-    private val movies = ItemId("lib-movies")
-    private val shows = ItemId("lib-shows")
+    private val movies = ItemId("a".repeat(31) + "1")
+    private val shows = ItemId("a".repeat(31) + "2")
     private val epoch = Instant.fromEpochMilliseconds(1_700_000_000_000)
 
     private fun item(
