@@ -439,7 +439,7 @@ internal abstract class CacheTransactionDao(
         val seriesIds = TreeSet<String>()
         for (row in items) {
             val seriesId = row.seriesId
-            if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.add(seriesId)
+            if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.addAll(spellings(seriesId))
         }
         val heldSeries = series.heldAsOf(serverId, userId, cutoffMs, seriesIds.toList(), strings)
         val heldCollections = collections.heldAsOf(serverId, userId, cutoffMs, COLLECTION_CHUNK)
@@ -466,6 +466,22 @@ internal abstract class CacheTransactionDao(
             nowMs - referenceMs > retentionMs - HistoryRetention.SAFE_LOOKBACK_MS -> PurgeSkip.ClockFarAhead
             else -> null
         }
+
+    // The spellings a series may be stored under for an episode's [raw] series ID: the one it names, the canonical one
+    // and the dashed one, each in lower and upper case. SQL cannot compare canonical forms, and a series is stored as the
+    // server spelled it; the caller matches the rows it gets back by canonical ID (spec 10, Vimes L).
+    private fun spellings(raw: String): List<String> {
+        val canonical = CanonicalId.parseOrNull(raw)?.value ?: return listOf(raw)
+        val dashed =
+            listOf(
+                canonical.substring(0, 8),
+                canonical.substring(8, 12),
+                canonical.substring(12, 16),
+                canonical.substring(16, 20),
+                canonical.substring(20),
+            ).joinToString("-")
+        return listOf(raw, canonical, canonical.uppercase(), dashed, dashed.uppercase())
+    }
 
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */
