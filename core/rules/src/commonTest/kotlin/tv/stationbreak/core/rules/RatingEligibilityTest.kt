@@ -141,7 +141,7 @@ class RatingEligibilityTest {
     private fun known(rating: String?) = SeriesState.Known(rating)
 
     @Test
-    fun anEpisodeWithNoRatingOfItsOwnUsesItsSeriesState() {
+    fun anEpisodeWithNoRatingOfItsOwnUsesItsSeriesRating() {
         assertTrue(episode(null, known("G"), "PG"))
         assertTrue(episode("", known("G"), "PG"))
         assertFalse(episode(null, known("R"), "PG"))
@@ -150,7 +150,7 @@ class RatingEligibilityTest {
     }
 
     @Test
-    fun anEpisodeThatHasARatingOfItsOwnStillNeedsItsSeriesStateToPass() {
+    fun anEpisodeThatHasARatingOfItsOwnStillNeedsItsSeriesRatingToPass() {
         assertFalse(episode("TV-14", known("G"), "PG"))
         // Amended rule 4 (b): the own rating G passes, but the series' R does not, so the episode is blocked.
         assertFalse(episode("G", known("R"), "PG"))
