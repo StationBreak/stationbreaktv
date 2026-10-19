@@ -24,6 +24,7 @@ internal fun idOf(n: Int): CanonicalId = CanonicalId.parse(n.toString(HEX_RADIX)
 /** The library every builder uses unless told otherwise. */
 internal val LIB: CanonicalId = idOf(0xA0)
 
+@Suppress("LongParameterList") // Test builders: one defaulted parameter per field a test varies.
 internal fun movie(
     id: CanonicalId,
     library: CanonicalId = LIB,
@@ -54,6 +55,7 @@ internal fun movie(
         tags = tags,
     )
 
+@Suppress("LongParameterList") // Test builders: one defaulted parameter per field a test varies.
 internal fun episode(
     id: CanonicalId,
     seriesId: CanonicalId?,
@@ -101,7 +103,7 @@ internal fun collection(
     seasons: Set<CanonicalId> = emptySet(),
 ): RuleCollection = RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons)
 
-/** Items are given in any order here; the builder does not sort, because the evaluator must keep the order it is given. */
+/** Items are kept in the order given: the builder does not sort, because the evaluator must keep that order. */
 internal fun snapshot(
     items: List<RuleItem> = emptyList(),
     series: List<RuleSeries> = emptyList(),

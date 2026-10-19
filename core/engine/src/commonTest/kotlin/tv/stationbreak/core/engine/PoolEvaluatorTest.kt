@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.rules.ChannelRules
@@ -15,7 +16,6 @@ import kotlin.test.assertTrue
 /** docs/rules-format.md, "Items and the pool", rules 3 and 4, and the counts. */
 class PoolEvaluatorTest {
     private val show = idOf(0x10)
-    private val season = idOf(0x20)
     private val box = idOf(0x30)
     private val otherLib = idOf(0xB0)
 
@@ -23,6 +23,11 @@ class PoolEvaluatorTest {
         rules: ChannelRules,
         snap: RuleSnapshot,
     ) = PoolEvaluator.evaluate(rules, snap)
+
+    private fun one(
+        entry: RuleItem,
+        vararg known: RuleSeries,
+    ) = snapshot(items = listOf(entry), series = known.toList())
 
     private fun poolIds(
         rules: ChannelRules,
@@ -99,7 +104,8 @@ class PoolEvaluatorTest {
 
     @Test
     fun aLibraryThatIsBothSourceAndExclusionLeavesAnEmptyPool() {
-        val snap = snapshot(items = listOf(movie(idOf(1)), movie(idOf(2)), episode(idOf(3), show)), series = listOf(series(show)))
+        val items = listOf(movie(idOf(1)), movie(idOf(2)), episode(idOf(3), show))
+        val snap = snapshot(items = items, series = listOf(series(show)))
         val pool = eval(libraryRules(exclusions = listOf(Source.Library(LIB))), snap)
         assertEquals(emptyList(), pool.items)
         assertEquals(listOf(3), pool.counts.matchedBySource)
@@ -109,7 +115,8 @@ class PoolEvaluatorTest {
 
     @Test
     fun anItemThatMatchesNoSourceIsNotCountedAsExcluded() {
-        val snap = snapshot(items = listOf(movie(idOf(1), library = otherLib, genres = listOf("Horror"))), libraries = setOf(LIB, otherLib))
+        val horror = movie(idOf(1), library = otherLib, genres = listOf("Horror"))
+        val snap = snapshot(items = listOf(horror), libraries = setOf(LIB, otherLib))
         val pool = eval(libraryRules(exclusions = listOf(Source.Genre("Horror"))), snap)
         assertEquals(emptyList(), pool.items)
         assertEquals(0, pool.counts.excluded)
@@ -147,7 +154,12 @@ class PoolEvaluatorTest {
     fun withNoCeilingEveryRatingPasses() {
         val snap =
             snapshot(
-                items = listOf(movie(idOf(1), rating = null), movie(idOf(2), rating = "NC-17"), movie(idOf(3), rating = "junk")),
+                items =
+                    listOf(
+                        movie(idOf(1), rating = null),
+                        movie(idOf(2), rating = "NC-17"),
+                        movie(idOf(3), rating = "junk"),
+                    ),
             )
         val pool = eval(libraryRules(), snap)
         assertEquals(3, pool.items.size)
@@ -156,16 +168,16 @@ class PoolEvaluatorTest {
 
     @Test
     fun anEpisodeWithNoOwnRatingTakesItsSeriesRating() {
-        val snap = snapshot(items = listOf(episode(idOf(1), show, rating = null)), series = listOf(series(show, rating = "PG")))
+        val snap = one(episode(idOf(1), show, rating = null), series(show, rating = "PG"))
         assertEquals(listOf(idOf(1)), poolIds(libraryRules(maxRating = "PG"), snap))
-        val snapEmpty = snapshot(items = listOf(episode(idOf(1), show, rating = "")), series = listOf(series(show, rating = "PG")))
+        val snapEmpty = one(episode(idOf(1), show, rating = ""), series(show, rating = "PG"))
         assertEquals(listOf(idOf(1)), poolIds(libraryRules(maxRating = "PG"), snapEmpty))
     }
 
     @Test
     fun theStaleCaseIsBlockedWhenTheSeriesWasReRatedAboveTheCeiling() {
         // Own TV-Y7, series now TV-MA, ceiling TV-PG: the series fails (b).
-        val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "TV-Y7")), series = listOf(series(show, rating = "TV-MA")))
+        val snap = one(episode(idOf(1), show, rating = "TV-Y7"), series(show, rating = "TV-MA"))
         val pool = eval(libraryRules(maxRating = "TV-PG"), snap)
         assertEquals(emptyList(), pool.items)
         assertEquals(1, pool.counts.blockedByCeiling)
@@ -174,7 +186,7 @@ class PoolEvaluatorTest {
     @Test
     fun anEpisodeRatedGWhoseSeriesIsRatedRIsOutUnderPG() {
         // The architecture guardian's case: the movie check on the episode's own rating would let this through.
-        val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "G")), series = listOf(series(show, rating = "R")))
+        val snap = one(episode(idOf(1), show, rating = "G"), series(show, rating = "R"))
         val pool = eval(libraryRules(maxRating = "PG"), snap)
         assertEquals(emptyList(), pool.items)
         assertEquals(1, pool.counts.blockedByCeiling)
@@ -183,7 +195,7 @@ class PoolEvaluatorTest {
     @Test
     fun theReverseStaleCaseIsAlsoBlocked() {
         // Series re-rated down to G, the episode keeps a higher copy: (a) uses the own rating and blocks it.
-        val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "R")), series = listOf(series(show, rating = "G")))
+        val snap = one(episode(idOf(1), show, rating = "R"), series(show, rating = "G"))
         assertEquals(emptyList(), poolIds(libraryRules(maxRating = "PG"), snap))
     }
 
@@ -283,7 +295,8 @@ class PoolEvaluatorTest {
                 episode(idOf(6), ghost, rating = "R"),
                 movie(idOf(7)),
             )
-        val snap = snapshot(items = items, series = listOf(series(show, rating = "G")), libraries = setOf(LIB, otherLib))
+        val known = listOf(series(show, rating = "G"))
+        val snap = snapshot(items = items, series = known, libraries = setOf(LIB, otherLib))
         val pool = eval(libraryRules(exclusions = listOf(Source.Genre("Horror")), maxRating = "PG"), snap)
         assertEquals(2, pool.counts.episodesWithUnknownSeries)
     }

@@ -3,8 +3,8 @@ package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.ordering.splitmix64
 
-// Copied from core/scheduler/src/commonTest/kotlin/tv/stationbreak/core/scheduler/SeededGen.kt (spec 11, task 2.0), with
-// only the package changed. Both copies are due to be promoted to core:testing; keep them identical until then.
+// Copied from core/scheduler/src/commonTest/kotlin/tv/stationbreak/core/scheduler/SeededGen.kt (spec 11, task 2.0),
+// with only the package changed. Both copies are due to be promoted to core:testing; keep them identical until then.
 
 private const val GAMMA = 0x9E3779B97F4A7C15uL
 private const val HEX_RADIX = 16

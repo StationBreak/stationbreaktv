@@ -121,7 +121,7 @@ class SourceMatchingTest {
 
     @Test
     fun aSeasonsOwnGenresAndTagsAreNeverUsed() {
-        // The snapshot has no season record at all, so the only genres and tags an episode can have are its own and its series'.
+        // The snapshot holds no season record, so an episode's genres are only its own and its series'.
         val snap = snapshot(series = listOf(series(show, genres = listOf("Drama"))))
         check(
             Source.Genre("Comedy"),

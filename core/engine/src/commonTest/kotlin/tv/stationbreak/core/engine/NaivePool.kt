@@ -13,9 +13,9 @@ import tv.stationbreak.core.rules.Source
 // The reference the property test compares the evaluator with. It is written straight from docs/rules-format.md ("Items
 // and the pool", rules 1 to 4 as amended on 2026-10-19, and "String matching") and from nothing in the evaluator.
 //
-// It must NEVER be "optimised": no precomputed sets, no maps, no early exits shared with the evaluator. For each item it
-// loops over every source and every exclusion, and it reads the amended rule 4 itself. It uses RatingLadder.rankOf for
-// the tier lookup and for nothing else. Its speed does not matter. Its being obviously like the doc does.
+// It must NEVER be "optimised": no precomputed sets, no maps, no early exits shared with the evaluator. For each item
+// it loops over every source and every exclusion, and it reads the amended rule 4 itself. It uses RatingLadder.rankOf
+// for the tier lookup and for nothing else. Its speed does not matter. Its being obviously like the doc does.
 
 /** What the reference works out. The fields are the ones the evaluator's counts also carry. */
 internal data class NaiveResult(
@@ -27,6 +27,7 @@ internal data class NaiveResult(
     val unresolvedSources: List<Int>,
 )
 
+@Suppress("CyclomaticComplexMethod", "ReturnCount", "LoopWithTooManyJumpStatements") // Deliberately long and flat.
 internal object NaivePool {
     fun evaluate(
         rules: ChannelRules,
@@ -102,10 +103,10 @@ internal object NaivePool {
         val series = snapshot.series[seriesId] ?: return false
         val seriesRating = series.officialRating
         // (a) the effective rating is the own rating, or the series' when the own is none or the empty string.
-        val effective = if (own == null || own == "") seriesRating else own
+        val effective = if (own.isNullOrEmpty()) seriesRating else own
         val a = tierPasses(effective, ceiling)
         // (b) the series' rating passes, when the series has one (anything but none or the empty string).
-        val seriesHasOne = !(seriesRating == null || seriesRating == "")
+        val seriesHasOne = !(seriesRating.isNullOrEmpty())
         val b = if (seriesHasOne) tierPasses(seriesRating, ceiling) else true
         return a && b
     }
