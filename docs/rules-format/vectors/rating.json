@@ -1,6 +1,6 @@
 {
   "description": "Rating ladder and fail-closed filter (docs/rules-format.md, 'Maximum rating and the rating ladder'). normalise: trim U+0020 from both ends, upper-case ASCII a-z only, look the result up on the ladder (Approved is the ladder name Approved, rank 0, the same tier as G); otherwise a TV-PG-, TV-14- or TV-MA- rating followed by one descriptor group counts as its base rating, where the group is a non-empty run of D, L, S, V in that order, each at most once (TV-MA: L, S, V only). 'normalised' is the ladder spelling or null; 'rank' is 0 to 7 or null (no rank: blocked under any ceiling). Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen; this file is all ASCII.",
-  "source": "Expected values come from an independent Python reference that reads Jellyfin v12.1 Emby.Server.Implementations/Localization/Ratings/us.json: every Jellyfin US string appears in 'normalise' with the tier Jellyfin gives it, and Jellyfin's score maps to our rank (0->0, 7->1, 10->2, 13->3, 14->4, 17 sub-score 0->5, 17 sub-score 1->6, 18->7). Strings Jellyfin resolves by other means (country prefixes, 'Rated ', plain numbers, '/' lists) have no rank here on purpose: the filter fails closed.",
+  "source": "Expected values come from an independent Python reference that reads Jellyfin v12.1 Emby.Server.Implementations/Localization/Ratings/us.json: every Jellyfin US string appears in 'normalise' with the tier Jellyfin gives it, and Jellyfin's score maps to our rank (0->0, 7->1, 10->2, 13->3, 14->4, 17 sub-score 0->5, 17 sub-score 1->6, 18->7). Strings Jellyfin resolves by other means (country prefixes, 'Rated ', plain numbers, '/' lists) have no rank here on purpose: the filter fails closed. 'inheritance' comes from a second independent Python reference written from the amended rule 4 in docs/rules-format.md alone: an episode is eligible under a ceiling only if (a) its effective rating passes (its own, or the series' when its own is none or the empty string) and (b) the series' rating passes whenever the series has one (anything but none or the empty string); a series not in the snapshot blocks; a loose episode uses (a) with its own rating; no ceiling admits everything.",
   "ladder": [
     {
       "rank": 0,
@@ -958,101 +958,326 @@
       ]
     }
   ],
-  "inheritanceNote": "An episode whose own rating is absent (null or the empty string) uses its series' rating; any other own rating, including NR or a blank ' ', is used as it is. With maxRating null, every item is eligible.",
+  "inheritanceNote": "Each row is an episode: 'own' is its own rating, 'seriesState' says what is known of its series, and 'maxRating' is the ceiling (null for none). 'series' is read only when seriesState is 'known'; there it is the series' rating, null or the empty string meaning the series has none. Under a ceiling an episode is eligible only if (a) its effective rating passes, which is its own rating, or the series' when its own is absent (null or the empty string) and seriesState is 'known', and (b) when seriesState is 'known' and the series has a rating (anything but null or the empty string), that rating passes too; NR, Unrated and a blank ' ' have no rank, so a series rated so blocks its episodes. seriesState 'unknown' (the series is not in the snapshot) is blocked under any ceiling. seriesState 'none' (a loose episode with no series) is checked under (a) alone, with its own rating. Any other own rating, including NR or a blank ' ', is used as it is. With maxRating null, every item is eligible. Why (b): an episode's own rating is often a copy of its series' rating, and whether that copy follows a re-rating of the series is not verified; (b) keeps the ceiling safe whatever the copy says.",
   "inheritance": [
     {
       "own": null,
+      "seriesState": "known",
       "series": "G",
       "maxRating": "PG",
       "eligible": true
     },
     {
       "own": "",
+      "seriesState": "known",
       "series": "G",
       "maxRating": "PG",
       "eligible": true
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": "R",
       "maxRating": "PG",
       "eligible": false
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": "R",
       "maxRating": "R",
       "eligible": true
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": null,
       "maxRating": "PG",
       "eligible": false
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": null,
       "maxRating": null,
       "eligible": true
     },
     {
       "own": "TV-14",
+      "seriesState": "known",
       "series": "G",
       "maxRating": "PG",
       "eligible": false
     },
     {
       "own": "G",
+      "seriesState": "known",
       "series": "R",
       "maxRating": "PG",
-      "eligible": true
+      "eligible": false
     },
     {
       "own": "NR",
+      "seriesState": "known",
       "series": "G",
       "maxRating": "PG",
       "eligible": false
     },
     {
       "own": " ",
+      "seriesState": "known",
       "series": "G",
       "maxRating": "PG",
       "eligible": false
     },
     {
       "own": "FSK 16",
+      "seriesState": "known",
       "series": "G",
       "maxRating": "TV-MA",
       "eligible": false
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": "NR",
       "maxRating": "TV-MA",
       "eligible": false
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": "TV-PG-V",
       "maxRating": "TV-PG",
       "eligible": true
     },
     {
       "own": null,
+      "seriesState": "known",
       "series": "TV-14-V",
       "maxRating": "TV-PG",
       "eligible": false
     },
     {
       "own": "",
+      "seriesState": "known",
       "series": "",
       "maxRating": "G",
       "eligible": false
     },
     {
       "own": "PG-13",
+      "seriesState": "known",
       "series": null,
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": "TV-Y7",
+      "seriesState": "known",
+      "series": "TV-MA",
+      "maxRating": "TV-Y7",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": "PG-13",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": "PG",
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": "NR",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": " ",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": "Unrated",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "seriesState": "known",
+      "series": " ",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "seriesState": "known",
+      "series": "Unrated",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "TV-Y",
+      "seriesState": "known",
+      "series": "NR",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": null,
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": "G",
+      "seriesState": "known",
+      "series": "",
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": "R",
+      "seriesState": "known",
+      "series": null,
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "R",
+      "seriesState": "known",
+      "series": "",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": "NR",
+      "seriesState": "known",
+      "series": null,
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "NR",
+      "seriesState": "known",
+      "series": "",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "TV-Y",
+      "seriesState": "unknown",
+      "maxRating": "TV-Y7",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "unknown",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "seriesState": "unknown",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "",
+      "seriesState": "unknown",
+      "maxRating": "R",
+      "eligible": false
+    },
+    {
+      "own": "G",
+      "seriesState": "none",
+      "maxRating": "PG",
+      "eligible": true
+    },
+    {
+      "own": "R",
+      "seriesState": "none",
+      "maxRating": "PG",
+      "eligible": false
+    },
+    {
+      "own": null,
+      "seriesState": "none",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "",
+      "seriesState": "none",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "NR",
+      "seriesState": "none",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": " ",
+      "seriesState": "none",
+      "maxRating": "TV-MA",
+      "eligible": false
+    },
+    {
+      "own": "TV-14-V",
+      "seriesState": "none",
+      "maxRating": "TV-14",
+      "eligible": true
+    },
+    {
+      "own": "TV-MA",
+      "seriesState": "known",
+      "series": "NR",
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": null,
+      "seriesState": "known",
+      "series": "Unrated",
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": null,
+      "seriesState": "unknown",
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": "G",
+      "seriesState": "unknown",
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": null,
+      "seriesState": "none",
+      "maxRating": null,
+      "eligible": true
+    },
+    {
+      "own": "NR",
+      "seriesState": "none",
       "maxRating": null,
       "eligible": true
     }

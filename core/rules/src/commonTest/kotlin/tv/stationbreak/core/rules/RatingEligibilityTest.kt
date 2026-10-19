@@ -35,7 +35,7 @@ class RatingEligibilityTest {
         assertEquals(15, rankOf.size)
         for ((rating, rank) in rankOf) {
             for ((ceiling, ceilingRank) in rankOf) {
-                val actual = RatingEligibility.isEligible(rating, ceiling)
+                val actual = RatingEligibility.isMovieEligible(rating, ceiling)
                 assertEquals(rank <= ceilingRank, actual, "$rating under $ceiling")
             }
         }
@@ -64,10 +64,10 @@ class RatingEligibilityTest {
         assertEquals(4, RatingLadder.rankOf("TV-14-V"))
         assertEquals(2, RatingLadder.rankOf("TV-PG-DLSV"))
         assertEquals(6, RatingLadder.rankOf("TV-MA-LSV"))
-        assertTrue(RatingEligibility.isEligible("TV-14-V", "TV-14"))
-        assertFalse(RatingEligibility.isEligible("TV-14-V", "PG-13"))
-        assertTrue(RatingEligibility.isEligible("TV-PG-DLSV", "PG"))
-        assertFalse(RatingEligibility.isEligible("TV-PG-DLSV", "TV-Y7"))
+        assertTrue(RatingEligibility.isMovieEligible("TV-14-V", "TV-14"))
+        assertFalse(RatingEligibility.isMovieEligible("TV-14-V", "PG-13"))
+        assertTrue(RatingEligibility.isMovieEligible("TV-PG-DLSV", "PG"))
+        assertFalse(RatingEligibility.isMovieEligible("TV-PG-DLSV", "TV-Y7"))
     }
 
     @Test
@@ -91,8 +91,8 @@ class RatingEligibilityTest {
         assertEquals(3, RatingLadder.rankOf("pg-13"))
         assertEquals("PG-13", RatingLadder.normalise("pg-13"))
         assertEquals("TV-14", RatingLadder.normalise("tv-14-v"))
-        assertTrue(RatingEligibility.isEligible("pg-13", "PG-13"))
-        assertTrue(RatingEligibility.isEligible("Approved", "G"))
+        assertTrue(RatingEligibility.isMovieEligible("pg-13", "PG-13"))
+        assertTrue(RatingEligibility.isMovieEligible("Approved", "G"))
     }
 
     @Test
@@ -116,44 +116,109 @@ class RatingEligibilityTest {
         for (rating in unknown) {
             assertNull(RatingLadder.rankOf(rating), rating)
             for (ceiling in rankOf.keys) {
-                assertFalse(RatingEligibility.isEligible(rating, ceiling), "'$rating' under $ceiling")
+                assertFalse(RatingEligibility.isMovieEligible(rating, ceiling), "'$rating' under $ceiling")
             }
         }
         for (ceiling in rankOf.keys) {
-            assertFalse(RatingEligibility.isEligible(null, ceiling), "no rating under $ceiling")
+            assertFalse(RatingEligibility.isMovieEligible(null, ceiling), "no rating under $ceiling")
         }
     }
 
     @Test
     fun theCeilingPG13AllowsPGAndBlocksTV14() {
-        assertTrue(RatingEligibility.isEligible("PG", "PG-13"))
-        assertTrue(RatingEligibility.isEligible("PG-13", "PG-13"))
-        assertFalse(RatingEligibility.isEligible("TV-14", "PG-13"))
-        assertFalse(RatingEligibility.isEligible("R", "PG-13"))
+        assertTrue(RatingEligibility.isMovieEligible("PG", "PG-13"))
+        assertTrue(RatingEligibility.isMovieEligible("PG-13", "PG-13"))
+        assertFalse(RatingEligibility.isMovieEligible("TV-14", "PG-13"))
+        assertFalse(RatingEligibility.isMovieEligible("R", "PG-13"))
     }
+
+    private fun episode(
+        own: String?,
+        series: SeriesState,
+        ceiling: String?,
+    ) = RatingEligibility.isEpisodeEligible(own, series, ceiling)
+
+    private fun known(rating: String?) = SeriesState.Known(rating)
 
     @Test
     fun anEpisodeWithNoRatingOfItsOwnUsesItsSeriesRating() {
-        assertTrue(RatingEligibility.isEligible(null, "G", "PG"))
-        assertTrue(RatingEligibility.isEligible("", "G", "PG"))
-        assertFalse(RatingEligibility.isEligible(null, "R", "PG"))
-        assertFalse(RatingEligibility.isEligible(null, null, "PG"))
+        assertTrue(episode(null, known("G"), "PG"))
+        assertTrue(episode("", known("G"), "PG"))
+        assertFalse(episode(null, known("R"), "PG"))
+        assertFalse(episode(null, known(null), "PG"))
+        assertFalse(episode("", known(""), "G"))
     }
 
     @Test
-    fun anEpisodeThatHasARatingOfItsOwnKeepsItWhateverTheSeriesSays() {
-        assertFalse(RatingEligibility.isEligible("TV-14", "G", "PG"))
-        assertTrue(RatingEligibility.isEligible("G", "R", "PG"))
+    fun anEpisodeThatHasARatingOfItsOwnStillNeedsItsSeriesRatingToPass() {
+        assertFalse(episode("TV-14", known("G"), "PG"))
+        // Amended rule 4 (b): the own rating G passes, but the series' R does not, so the episode is blocked.
+        assertFalse(episode("G", known("R"), "PG"))
         // NR and a blank are ratings of their own that mean "unknown": they are not replaced by the series rating.
-        assertFalse(RatingEligibility.isEligible("NR", "G", "PG"))
-        assertFalse(RatingEligibility.isEligible(" ", "G", "PG"))
+        assertFalse(episode("NR", known("G"), "PG"))
+        assertFalse(episode(" ", known("G"), "PG"))
+    }
+
+    @Test
+    fun aStaleCopiedRatingIsBlockedWhenTheSeriesWasRatedUp() {
+        assertFalse(episode("TV-Y7", known("TV-MA"), "TV-Y7"))
+        assertFalse(episode("G", known("PG-13"), "PG"))
+        assertTrue(episode("G", known("PG"), "PG"))
+    }
+
+    @Test
+    fun aSeriesWithNoRankBlocksItsEpisodes() {
+        for (series in listOf("NR", "Unrated", " ", "FSK 16")) {
+            assertFalse(episode("G", known(series), "PG"), "own G, series '$series'")
+            assertFalse(episode(null, known(series), "PG"), "own none, series '$series'")
+        }
+    }
+
+    @Test
+    fun aSeriesWithNoRatingLeavesOnlyTheEffectiveRatingToCheck() {
+        for (none in listOf(null, "")) {
+            assertTrue(episode("G", known(none), "PG"), "own G, series '$none'")
+            assertFalse(episode("R", known(none), "PG"), "own R, series '$none'")
+            assertFalse(episode("NR", known(none), "TV-MA"), "own NR, series '$none'")
+        }
+    }
+
+    @Test
+    fun anEpisodeWhoseSeriesIsNotInTheSnapshotIsBlockedUnderAnyCeiling() {
+        for (own in listOf("TV-Y", "G", "", null)) {
+            for (ceiling in rankOf.keys) {
+                assertFalse(episode(own, SeriesState.Unknown, ceiling), "own '$own' under $ceiling")
+            }
+        }
+    }
+
+    @Test
+    fun aLooseEpisodeIsCheckedOnItsOwnRatingAlone() {
+        assertTrue(episode("G", SeriesState.NoSeries, "PG"))
+        assertFalse(episode("R", SeriesState.NoSeries, "PG"))
+        assertFalse(episode(null, SeriesState.NoSeries, "TV-MA"))
+        assertFalse(episode("", SeriesState.NoSeries, "TV-MA"))
+        assertFalse(episode("NR", SeriesState.NoSeries, "TV-MA"))
+    }
+
+    @Test
+    fun withNoCeilingEveryEpisodeIsEligible() {
+        val series = listOf(SeriesState.Unknown, SeriesState.NoSeries, known(null), known("NR"), known("TV-MA"))
+        for (own in listOf(null, "", "NR", "G", "TV-MA")) {
+            for (s in series) {
+                assertTrue(episode(own, s, null), "own '$own', $s")
+            }
+        }
     }
 
     @Test
     fun aCeilingThatIsNotOnTheLadderIsAProgrammingError() {
         for (bad in listOf("PG-14", "pg-13", "tv-14", "NR", "", " PG", "TV-14-V")) {
-            assertFailsWith<IllegalArgumentException>(bad) { RatingEligibility.isEligible("G", bad) }
-            assertFailsWith<IllegalArgumentException>(bad) { RatingEligibility.isEligible("G", "G", bad) }
+            assertFailsWith<IllegalArgumentException>(bad) { RatingEligibility.isMovieEligible("G", bad) }
+            val states = listOf(SeriesState.Known("G"), SeriesState.Unknown, SeriesState.NoSeries)
+            for (series in states) {
+                assertFailsWith<IllegalArgumentException>("$bad $series") { episode("G", series, bad) }
+            }
         }
     }
 }

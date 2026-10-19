@@ -7,16 +7,22 @@ package tv.stationbreak.core.rules
  * ceiling's. An item with no rating, a blank rating, `NR`, `Unrated`, or any string that is not on the ladder
  * (another country's system, say) is blocked. With no ceiling every item passes. Account limits set on the server can
  * only narrow this, never widen it.
+ *
+ * There is one function per kind of item, and they are not interchangeable. A movie uses [isMovieEligible]: its own
+ * rating decides. An episode uses [isEpisodeEligible], which also checks its series' rating (amended rule 4 of "Items
+ * and the pool"). Calling the movie form for an episode skips the series check and can let a stale copy of the series'
+ * rating through a ceiling the series now fails.
  */
 object RatingEligibility {
     private const val NOT_ON_LADDER = "The rating ceiling is not on the ladder"
 
     /**
-     * True if an item rated [rating] (null for none) may air under [maxRating] (null for no ceiling). [maxRating]
-     * must be a ladder name in its exact spelling: a reader has already rejected a file with anything else, so a
-     * different value here is a bug and throws [IllegalArgumentException] instead of being read as "no ceiling".
+     * For a **movie**, and for the raw ladder check: true if an item rated [rating] (null for none) may air under
+     * [maxRating] (null for no ceiling). Do not use it for an episode: use [isEpisodeEligible]. [maxRating] must be a
+     * ladder name in its exact spelling: a reader has already rejected a file with anything else, so a different value
+     * here is a bug and throws [IllegalArgumentException] instead of being read as "no ceiling".
      */
-    fun isEligible(
+    fun isMovieEligible(
         rating: String?,
         maxRating: String?,
     ): Boolean {
@@ -26,12 +32,39 @@ object RatingEligibility {
     }
 
     /**
-     * Like [isEligible] for an episode: when it has no rating of its own ([ownRating] is null or the empty string) it
-     * uses its series' rating. Any other own rating is used as it is, even `NR` or a blank, which then have no tier.
+     * For an **episode** (docs/rules-format.md, amended rule 4). Under a ceiling the episode passes only if both hold:
+     *  - (a) its effective rating passes. That is [ownRating], or the series' rating when [ownRating] is null or the
+     *    empty string and [series] is [SeriesState.Known]. Any other own rating is used as it is, even `NR` or a
+     *    blank rating, which then has no tier.
+     *  - (b) the series' rating passes, when [series] is [SeriesState.Known] and has a rating (anything but null or
+     *    the empty string). A series rated `NR`, `Unrated` or blank has no tier and so blocks its episodes. An
+     *    episode's own rating is often a copy of its series' rating and whether the copy follows a re-rating is not
+     *    verified; (b) keeps the ceiling safe whatever the copy says.
+     *
+     * A [SeriesState.Unknown] series (its ID is present but no such series is in the snapshot) is blocked under any
+     * ceiling. A [SeriesState.NoSeries] episode (no series ID) is checked under (a) alone, with its own rating. With no
+     * ceiling ([maxRating] null) every episode passes. [maxRating] is validated as in [isMovieEligible], whatever
+     * [series] is. Do not use this for a movie: use [isMovieEligible].
      */
-    fun isEligible(
+    fun isEpisodeEligible(
         ownRating: String?,
-        seriesRating: String?,
+        series: SeriesState,
         maxRating: String?,
-    ): Boolean = isEligible(if (ownRating.isNullOrEmpty()) seriesRating else ownRating, maxRating)
+    ): Boolean =
+        when (series) {
+            // No rating at all: blocked under any ceiling, eligible with none (and a bad ceiling still throws).
+            SeriesState.Unknown -> {
+                isMovieEligible(null, maxRating)
+            }
+
+            SeriesState.NoSeries -> {
+                isMovieEligible(ownRating, maxRating)
+            }
+
+            is SeriesState.Known -> {
+                val effective = if (ownRating.isNullOrEmpty()) series.rating else ownRating
+                val seriesPasses = series.rating.isNullOrEmpty() || isMovieEligible(series.rating, maxRating)
+                isMovieEligible(effective, maxRating) && seriesPasses
+            }
+        }
 }

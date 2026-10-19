@@ -97,9 +97,10 @@ class RulesFormatDocTest {
     @Test
     fun hasTheScopeSectionsAndBanner() {
         val banner =
-            "> Version 1 — final (2026-10-16). " +
-                "Any change that could alter a lineup needs `formatVersion` 2 (see Format version)."
+            "> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). " +
+                "Any later lineup change needs `formatVersion` 2."
         assertTrue(banner in doc.lines(), "the final banner is missing")
+        assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")

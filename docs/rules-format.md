@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Version 1 — final (2026-10-16). Any change that could alter a lineup needs `formatVersion` 2 (see Format version).
+> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Any later lineup change needs `formatVersion` 2.
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -76,7 +76,8 @@ holds a secret and never causes a client to fetch a URL.
 - **Item**: one movie or one episode that can air.
 - **Pool**: the set of items a channel may air, worked out from the sources, the exclusions and the rating ceiling.
 - **Library snapshot**: the cached set of items, with their fields, that the signed-in account can see when a schedule is
-  worked out (see Items and the pool).
+  worked out (see Items and the pool). It also holds each series that an episode's `SeriesId` points to, with that
+  series' rating, genres and tags.
 - **Program**: one item as it airs.
 - **Run**: `blockLength` items that play back to back (see `blockLength` in Timing and Runs). A run is a unit of the
   order. It is not a unit of the lineup.
@@ -122,8 +123,22 @@ things in version 1 changed from what the earlier text said or implied:
 
 Items 1 to 4 **change lineups**: the same rules and library give a different lineup than the earlier draft text did. They
 were allowed into version 1 only because version 1 was a Draft that no client had shipped, so no lineup built from the earlier
-text exists anywhere. **After version 1 is final, a change like any of these needs version 2.** That includes adding a
+text exists anywhere. **Now that version 1 is final, a change like any of these needs version 2.** That includes adding a
 rules field that changes a lineup, and changing the default of one.
+
+### Changes to version 1 (2026-10-19)
+
+**Rule 4 of Items and the pool, and the Fail closed paragraph, were amended after version 1 was final.** The earlier text
+let an episode with a rating of its own use only that rating. An episode's own `OfficialRating` is often a copy of its
+series' rating, and whether that copy is updated when the series is re-rated is not verified, so a stale copy (own
+`TV-Y7`, series now `TV-MA`) could pass a ceiling the series fails. Now, under a ceiling, an episode needs both its
+effective rating and its series' rating to pass. A series rated `NR`, `Unrated` or a blank rating blocks its episodes,
+and so does an episode whose series ID is present but whose series is not in the library snapshot; an episode with no
+series ID is checked on its own rating alone. `docs/rules-format/vectors/rating.json` carries the new `inheritance` rows.
+
+This changes lineups. Version 1 was already final, so this is a **one-time exception**, allowed because no shipped client
+has a pool evaluator. There will be no further in-place changes: any later change that alters a lineup needs
+`formatVersion` 2.
 
 ## JSON profile
 
@@ -184,12 +199,25 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
    matches **any** exclusion (with the same matching rules) is removed.
 4. **Rating ceiling.** If `maxRating` is present, an item stays only if it passes the rating rule (see Maximum rating
-   and the rating ladder). An episode with no rating of its own (none, or the empty string) uses its series' rating; any
-   other own rating, even `NR` or a blank, is used as it is.
+   and the rating ladder). A **movie** passes only if its own rating passes. An **episode** passes only if **both** of
+   these hold:
+   - (a) its **effective** rating passes. The effective rating is its own rating, or its series' rating when its own is
+     none or the empty string. Any other own rating, even `NR` or a blank rating, is used as it is;
+   - (b) its series' rating passes, when the series has one. "Has one" means anything other than none or the empty
+     string, so a series rated `NR`, `Unrated` or a blank rating (one or more spaces) blocks its episodes.
+
+   An episode whose series ID is present, and no series with that ID is in the library snapshot, is not allowed under a
+   ceiling: its series' rating is unknown, so it fails closed. An episode with no series ID (a loose episode) is checked
+   under (a) alone, with its own rating. The reason for (b): an episode's own `OfficialRating` is often a copy of its
+   series' rating, and whether that copy is updated when the series is re-rated is not verified. (b) keeps the ceiling
+   safe whatever the copy says, also when a sync fails partway or a series is edited near the cut-off. In the reverse
+   case, a series re-rated down while an episode keeps a stale, higher copy, (a) still blocks the episode. That fails
+   closed, and the cure is to fix the episode's rating on the server.
 5. **The library snapshot.** The pool is worked out from the *library snapshot*: the cached set of items, and their
-   genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. Rules 1 to 4 pick
-   the items from it. Which of those items count for which epoch (the creation time, the deletion time and the runtime) is
-   decided by The pool of an epoch, in Building the schedule. The format only says what is looked up in the snapshot.
+   genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. It also holds each
+   series that an episode's `SeriesId` points to, with that series' rating, genres and tags. Rules 1 to 4 pick the items
+   from it. Which of those items count for which epoch (the creation time, the deletion time and the runtime) is decided by
+   The pool of an epoch, in Building the schedule. The format only says what is looked up in the snapshot.
 
 ### Scheduler inputs from the server
 
@@ -206,6 +234,8 @@ The scheduler's item fields (see Building the schedule, Inputs and outputs) come
   no premiere date.
 - `ProductionYear` **must** be used as it is, and `SeriesId` **must** be used as the series ID (in canonical form). The
   season number **must** be `ParentIndexNumber` and the episode number **must** be `IndexNumber`.
+- The rating of a movie, an episode and a series **must** be that item's own `OfficialRating`, as the server sends it. It
+  must never be `CustomRating`, and never a value the client has inherited from another item itself.
 - A collection's members **must** be read as rule 2 says (member movies, member episodes, episodes of member series and
   episodes of member seasons, with no recursion into nested collections).
 
@@ -975,8 +1005,8 @@ only primitives are `splitmix64` and `fnv1a64` (see Primitives).
 The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.json` and `epoch-seed.json` (the epoch number,
 `epochStart` and `seed_n`), `key-order.json` (the three orders, the group keys, the in-group order and runs) and
 `lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). They were computed
-with a reference that was written from this text alone, not with the code that is tested. Once version 1 is final, a wrong
-vector means version 2.
+with a reference that was written from this text alone, not with the code that is tested. Version 1 is final (amended once,
+on 2026-10-19), so a wrong vector now means version 2.
 
 ## Filler
 
@@ -1132,9 +1162,13 @@ number such as `13` or `16+`, and a list such as `TV-14/TV-MA`. They have no ran
 That is on purpose: this format fails closed, and a client that wants them must map them to a ladder name first.
 
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
-with no rating, a blank rating, `NR`, `Unrated`, or any rating that is not on the ladder (for example a British or German
-rating such as `FSK 16`) is **not** allowed. With no ceiling, every item is eligible, rated or not. Account limits set on
-the server can only narrow what the rules allow; they can never widen a ceiling.
+with no rating, a blank rating (one or more spaces; the empty string counts as no rating), `NR`, `Unrated`, or any rating
+that is not on the ladder (for example a British or German rating such as `FSK 16`) is **not** allowed. An episode is held
+to the same test on its series too: it is **not** allowed when its series has a rating that has no rank or is above the
+ceiling (`NR`, `Unrated`, a blank rating, `FSK 16`, or one too high), or when its series ID is present but that series
+is not in the library snapshot. Rule 4 of Items and the pool gives the exact rule. With no ceiling, every item is
+eligible, rated or not. Account limits set on the server can only narrow what the rules allow; they can never widen a
+ceiling.
 
 ## Item IDs
 
@@ -1269,8 +1303,9 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
    `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`. A rules file with `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA` as an ID is rejected.
 6. **Epochs.** With `utcOffsetMinutes` `-300`, `start` `"06:00"` and `epochHours` 24: `t = 0` is in epoch `-1`, which
    starts at `-46800000`; `t = 46800000` is in epoch `0`, which starts at `39600000`.
-7. **Ratings.** `tv-14-v` has rank 4. `Approved` has rank 0. `NR`, a blank string and `FSK 16` have no rank. Under the
-   ceiling `PG-13`, `PG` is allowed and `TV-14` is not. With no ceiling, an unrated item is allowed.
+7. **Ratings.** `tv-14-v` has rank 4. `Approved` has rank 0. `NR`, a blank rating (one or more spaces) and
+   `FSK 16` have no rank. Under the ceiling `PG-13`, `PG` is allowed and `TV-14` is not. An episode with its own rating `TV-Y7` whose series is rated
+   `TV-MA` is not allowed under the ceiling `TV-Y7`. With no ceiling, an unrated item is allowed.
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
 9. **Version gate.** A file with `formatVersion` 2 is not scheduled, even when the rest of it is unreadable.
