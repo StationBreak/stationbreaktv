@@ -128,13 +128,20 @@ rules field that changes a lineup, and changing the default of one.
 
 ### Changes to version 1 (2026-10-19)
 
-**Rule 4 of Items and the pool, and the Fail closed paragraph, were amended after version 1 was final.** The earlier text
-let an episode with a rating of its own use only that rating. An episode's own `OfficialRating` is often a copy of its
+**Rules 3 and 4 of Items and the pool, and the Fail closed paragraph, were amended together, once, after version 1 was
+final.**
+
+*Rule 4.* The earlier text let an episode with a rating of its own use only that rating. An episode's own `OfficialRating` is often a copy of its
 series' rating, and whether that copy is updated when the series is re-rated is not verified, so a stale copy (own
 `TV-Y7`, series now `TV-MA`) could pass a ceiling the series fails. Now, under a ceiling, an episode needs both its
 effective rating and its series' rating to pass. A series rated `NR`, `Unrated` or a blank rating blocks its episodes,
 and so does an episode whose series ID is present but whose series is not in the library snapshot; an episode with no
 series ID is checked on its own rating alone. `docs/rules-format/vectors/rating.json` carries the new `inheritance` rows.
+
+*Rule 3.* Exclusions now fail closed too. Before, an exclusion the client could not check was skipped, so the item it was
+meant to remove aired. Now a `collection` exclusion whose collection is not in the library snapshot empties the pool, and a
+`genre` or `tag` exclusion removes an episode whose series ID is present but whose series is not in the snapshot (see
+Items and the pool, rule 3). The reason is the same as for the ceiling: an exclusion is a promise of what will not air.
 
 This changes lineups. Version 1 was already final, so this is a **one-time exception**, allowed because no shipped client
 has a pool evaluator. There will be no further in-place changes: any later change that alters a lineup needs
@@ -197,7 +204,14 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
      included. A client must not guess a year from the series.
 3. **Union, then exclusions.** The pool starts as every item that matches **any** source. An item that matches several
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
-   matches **any** exclusion (with the same matching rules) is removed.
+   matches **any** exclusion (with the same matching rules) is removed. Exclusions **fail closed**, because an exclusion is
+   a promise of what will not air, so when the client cannot check it, nothing airs (as the ceiling does, rule 4):
+   - an exclusion of type `collection` whose collection is not in the library snapshot empties the pool;
+   - a `genre` or `tag` exclusion also removes an episode whose series ID is present, and no series with that ID is in the
+     library snapshot, whatever the episode's own genres and tags are. An episode with no series ID, and a movie, are
+     checked on their own genres and tags alone;
+   - `library` and `series` exclusions are decided by the IDs alone and are not changed. A `genre` or `tag` **source**
+     is not changed either: for an episode whose series is missing it uses the episode's own names only.
 4. **Rating ceiling.** If `maxRating` is present, an item stays only if it passes the rating rule (see Maximum rating
    and the rating ladder). A **movie** passes only if its own rating passes. An **episode** passes only if **both** of
    these hold:
