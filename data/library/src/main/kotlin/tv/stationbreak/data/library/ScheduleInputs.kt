@@ -225,6 +225,10 @@ internal object ScheduleInputs {
 internal class RuleItemMapper {
     private val ids = HashMap<String, CanonicalId?>()
 
+    /** How many items had a season ID that is not canonical. They are kept, with no season (Granny L4). */
+    var seasonIdsNotCanonical = 0
+        private set
+
     /** The item as the rule engine reads it. The read dropped every item whose library ID is not canonical. */
     fun of(accepted: AcceptedItem): RuleItem {
         val row = accepted.row
@@ -233,11 +237,17 @@ internal class RuleItemMapper {
         return RuleItem(
             item = accepted.item,
             libraryId = library,
-            seasonId = if (season != null) id(season) else null,
+            seasonId = season?.let(::seasonOf),
             officialRating = row.officialRating,
             genres = row.genres,
             tags = row.tags,
         )
+    }
+
+    private fun seasonOf(raw: String): CanonicalId? {
+        val season = id(raw)
+        if (season == null) seasonIdsNotCanonical++
+        return season
     }
 
     private fun id(raw: String): CanonicalId? = ids.getOrPut(raw) { CanonicalId.parseOrNull(raw) }
