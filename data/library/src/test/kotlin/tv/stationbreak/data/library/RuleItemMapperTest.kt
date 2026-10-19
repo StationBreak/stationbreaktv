@@ -10,7 +10,8 @@ import org.junit.Test
  * diagnostic can say how many items had one. The item itself is kept.
  */
 class RuleItemMapperTest {
-    private val row = HeldRow(hexId(1), MOVIES.value, "Episode", hexId(2), 1, 1, 1_800_000L, 1_000L, null, null, null, 0L)
+    private val row =
+        HeldRow(hexId(1), MOVIES.value, "Episode", hexId(2), 1, 1, 1_800_000L, 1_000L, null, null, null, 0L)
 
     private fun mapped(
         mapper: RuleItemMapper,

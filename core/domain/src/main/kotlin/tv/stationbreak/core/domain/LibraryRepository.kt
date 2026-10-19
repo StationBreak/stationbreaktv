@@ -129,7 +129,8 @@ interface LibraryRepository : AccountCache {
      * after the cut-off is judged as it was.
      *
      * It leaves out, and never rejects, what the scheduler would refuse (an unsupported kind, an item, series or
-     * library ID that is not canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed premiere date, a year outside
+     * library ID that is not canonical, a missing runtime or creation time, a time beyond +-2^52 ms, a malformed
+     * premiere date, a year outside
      * 1..9999, a negative season or episode, a movie with series data). The result is in canonical-ID order.
      *
      * [cutoff] must equal the `S - G` that `buildDay` uses for the day being built (the day's start minus its grace

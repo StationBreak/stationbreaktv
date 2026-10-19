@@ -417,7 +417,8 @@ internal abstract class CacheTransactionDao(
      * ([CollectionDao.heldAsOf], whatever the libraries are) and the collection pass's last full re-list. A write that
      * lands while this runs is not seen by a later part. Each part is read into a list; no lambda goes into a DAO loop
      * (#264). It holds the writer lock for the whole read, so the sync's writes queue behind it for up to about 3 s on
-     * the slowest device, once a day; that is accepted (Vimes). [betweenItemsAndSeries] runs after the items are read and before the rest (a test seam; null in the app).
+     * the slowest device, once a day; that is accepted (Vimes). [betweenItemsAndSeries] runs after the items are read
+     * and before the rest (a test seam; null in the app).
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the account, the cut-off, the libraries and the test seam.
@@ -469,8 +470,8 @@ internal abstract class CacheTransactionDao(
         }
 
     // The spellings a series may be stored under for an episode's [raw] series ID: the one it names, the canonical one
-    // and the dashed one, each in lower and upper case. SQL cannot compare canonical forms, and a series is stored as the
-    // server spelled it; the caller matches the rows it gets back by canonical ID (spec 10, Vimes L).
+    // and the dashed one, each in lower and upper case. SQL cannot compare canonical forms, and a series is stored
+    // as the server spelled it; the caller matches the rows it gets back by canonical ID (spec 10, Vimes L).
     private fun spellings(raw: String): List<String> {
         val canonical = CanonicalId.parseOrNull(raw)?.value ?: return listOf(raw)
         val dashed =

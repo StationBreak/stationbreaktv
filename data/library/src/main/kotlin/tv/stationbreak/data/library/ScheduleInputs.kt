@@ -45,7 +45,7 @@ internal enum class DropReason(
 ) {
     KindNotMovieOrEpisode("ScheduleItemKind has only Movie and Episode"),
     IdNotCanonical("CanonicalId.parse(id)"),
-    LibraryIdNotCanonical("RuleItem.libraryId is a CanonicalId: the rule snapshot and the scheduler take the same items"),
+    LibraryIdNotCanonical("RuleItem.libraryId is a CanonicalId, and both reads take the same items"),
     SeriesIdNotCanonical("CanonicalId.parse(seriesId)"),
     RuntimeMissing("ScheduleItem.runtimeMs is a runtime: absent or not positive means no runtime (rules format)"),
     CreatedAtMissing("ScheduleItem.createdAtMs is a time: absent means none"),

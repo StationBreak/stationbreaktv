@@ -73,7 +73,8 @@ class RuleSnapshotSingleReadTest {
             assertTrue("the write was tried inside the read", attempt != null)
             val failure = attempt?.exceptionOrNull()
             // Nothing but a refusal by the database's lock is acceptable: any other failure is a bug in the test.
-            assertTrue("unexpected failure: $failure", failure == null || generateSequence(failure) { it.cause }.any { it is SQLException })
+            val refused = failure == null || generateSequence(failure) { it.cause }.any { it is SQLException }
+            assertTrue("unexpected failure: $failure", refused)
             val outcome = failure ?: "went through"
             println("RuleSnapshotSingleReadTest: the write inside the read $outcome")
             assertEquals("PG", snapshot.series.getValue(canon(900)).officialRating)

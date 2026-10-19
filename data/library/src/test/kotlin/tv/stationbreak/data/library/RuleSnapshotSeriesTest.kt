@@ -164,8 +164,7 @@ class RuleSnapshotSeriesTest {
 
     // The 8-4-4-4-12 form of an ID, as the server may spell it.
     private fun dashed(hex: String) =
-        listOf(hex.substring(0, 8), hex.substring(8, 12), hex.substring(12, 16), hex.substring(16, 20), hex.substring(20))
-            .joinToString("-")
+        listOf(0 to 8, 8 to 12, 12 to 16, 16 to 20, 20 to 32).joinToString("-") { hex.substring(it.first, it.second) }
 
     @Test
     fun anEpisodeWhoseSeriesIsSpelledDifferentlyFromTheStoredSeriesStillGetsIt() =
