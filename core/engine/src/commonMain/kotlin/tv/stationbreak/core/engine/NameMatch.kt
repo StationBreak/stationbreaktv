@@ -29,27 +29,31 @@ internal fun foldAscii(text: String): String {
 }
 
 /**
- * The names of a list of rules, folded once, each remembering the indices of the rules it came from. [contains] folds
- * the probe the same way, so the match is ASCII case-insensitive and exact otherwise.
+ * The names of a list of rules, folded once, each remembering the rules it came from: its position in [names], or the
+ * matching entry of [labels] when the caller numbers the rules differently. [contains] folds the probe the same way, so
+ * the match is ASCII case-insensitive and exact otherwise.
  */
 internal class NameSet(
     names: List<String>,
+    labels: IntArray = IntArray(names.size) { it },
 ) {
     private val byName: Map<String, IntArray>
 
     init {
         val building = HashMap<String, MutableList<Int>>()
         for (index in names.indices) {
-            building.getOrPut(foldAscii(names[index])) { ArrayList(1) }.add(index)
+            building.getOrPut(foldAscii(names[index])) { ArrayList(1) }.add(labels[index])
         }
         val frozen = HashMap<String, IntArray>(building.size * 2)
         for ((name, indices) in building) frozen[name] = indices.toIntArray()
         byName = frozen
     }
 
+    val isEmpty: Boolean get() = byName.isEmpty()
+
     /** True if some name equals [name] after folding both. */
     fun contains(name: String): Boolean = byName.containsKey(foldAscii(name))
 
-    /** The indices (into the list given to the constructor, ascending) of the names equal to [name], or null. */
+    /** The labels (ascending) of the names equal to [name], or null. */
     fun indicesOf(name: String): IntArray? = byName[foldAscii(name)]
 }
