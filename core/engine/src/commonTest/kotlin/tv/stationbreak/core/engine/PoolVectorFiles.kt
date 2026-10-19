@@ -1,0 +1,5997 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.engine
+
+/**
+ * The Kotlin copy of `docs/rules-format/vectors/pool.json`. `PoolVectorsInSyncTest` (jvmTest) fails if it differs from
+ * the published file. A test in commonTest cannot read files, because linuxX64Test cannot.
+ */
+@Suppress("LargeClass") // Data only: one vector file.
+internal object PoolVectorFiles {
+    val pool: String =
+        """
+        {
+          "description": "The pool: which items a channel's rules select from a library snapshot (docs/rules-format.md, Items and the pool, rules 1 to 5, with Sources, Exclusions, the rating ladder and String matching). A case has: name; libraries, the IDs of the libraries in the snapshot; items, the movies and episodes (id, kind 'movie' or 'episode', libraryId, seriesId, seasonId, productionYear, officialRating, genres, tags; seriesId, seasonId, productionYear and officialRating are null when the item has none); series, each series that an episode's seriesId points to and that is in the snapshot (id, officialRating, genres, tags); collections, each collection in the snapshot with the IDs of its member movies, episodes, series and seasons (a member that is itself a collection is not listed: collections are not followed); sources, exclusions and maxRating, as in a rules file (maxRating absent means no ceiling); and expected, the canonical IDs of the pool, sorted. The pool is a set: the order of items and of expected is not part of the rules. Fields that the pool does not read (runtime, dates, season and episode numbers) are left out; a test fills them with valid values. Counts are not part of the vectors. Names that are not ASCII are written as JSON escapes, so this file is all ASCII.",
+          "source": "Expected values come from an independent Python reference written from docs/rules-format.md alone (Items and the pool rules 1 to 5, Sources, Exclusions, Maximum rating and the rating ladder, String matching), before the Kotlin evaluator in core:engine was read. It applies the rules as amended on 2026-10-19: exclusions fail closed (an exclusion naming a collection that is not in the snapshot empties the pool, and a genre or tag exclusion removes an episode whose series ID is set but whose series is not in the snapshot), and the rating ceiling checks an episode's series' rating too.",
+          "cases": [
+            {
+              "name": "rule 1: only movies and episodes count; a series, season or collection is never an item",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 2 library: an item anywhere inside the library; other libraries do not match",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 2 collection: a member movie",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101"
+              ]
+            },
+            {
+              "name": "rule 2 collection: a member episode",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [],
+                  "episodes": [
+                    "00000000000000000000000000000203"
+                  ],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 2 collection: an episode of a member series",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [],
+                  "episodes": [],
+                  "series": [
+                    "00000000000000000000000000000301"
+                  ],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "rule 2 collection: a member season selects only its own episodes",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000504"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000204"
+              ]
+            },
+            {
+              "name": "rule 2 collection: every member kind together",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000102"
+                  ],
+                  "episodes": [
+                    "00000000000000000000000000000203"
+                  ],
+                  "series": [
+                    "00000000000000000000000000000301"
+                  ],
+                  "seasons": [
+                    "00000000000000000000000000000505"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203",
+                "00000000000000000000000000000205"
+              ]
+            },
+            {
+              "name": "rule 2 collection: a member that is itself a collection selects nothing (no recursion)",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000402",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [
+                    "00000000000000000000000000000301"
+                  ],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": []
+            },
+            {
+              "name": "rule 2 collection: a collection absent from the snapshot as a source matches nothing",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": "00000000000000000000000000000502",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000503",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000504",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": "00000000000000000000000000000505",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000499"
+                }
+              ],
+              "exclusions": [],
+              "expected": []
+            },
+            {
+              "name": "rule 2 series: every episode of that series, no movie, no other series' episodes",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "series",
+                  "id": "00000000000000000000000000000301"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 2 series: the series is not in the snapshot, its episodes still match by ID",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "series",
+                  "id": "00000000000000000000000000000399"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 2 genre: the item's own genre, or for an episode its series' genre",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Drama"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [
+                    "Drama"
+                  ],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 2 genre: an episode of a series without the genre, a loose episode and an episode of a missing series use own names only",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Drama"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000205",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [
+                    "Drama"
+                  ],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Drama"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 2 tag: the item's own tag, or for an episode its series' tag",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Holiday"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Holiday"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Holiday"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "tag",
+                  "name": "Holiday"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 2 genre: a movie takes a genre from itself only",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "rule 2 yearRange: the item's own year, both ends included; no year is not included; no guessing from the series",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1989,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1990,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1999,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 2000,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": 1995,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": 2005,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "yearRange",
+                  "from": 1990,
+                  "to": 1999
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 2 yearRange: a single-year range",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1999,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 2000,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 2001,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "yearRange",
+                  "from": 2000,
+                  "to": 2000
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "rule 3 union: an item matching several sources is in the pool once",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1995,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1996,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101",
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                },
+                {
+                  "type": "yearRange",
+                  "from": 1990,
+                  "to": 1999
+                },
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104"
+              ]
+            },
+            {
+              "name": "rule 3 union: sources are a union, not an intersection",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1995,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1995,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                },
+                {
+                  "type": "yearRange",
+                  "from": 1990,
+                  "to": 1999
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103"
+              ]
+            },
+            {
+              "name": "rule 3 exclusion genre: removes an item with the genre, and an episode whose series has it",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 exclusion tag",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "tag",
+                  "name": "Seen It"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 exclusion yearRange",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "yearRange",
+                  "from": 1900,
+                  "to": 1969
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 exclusion library: removes every item of that library",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 exclusion series: removes the episodes of that series",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "series",
+                  "id": "00000000000000000000000000000302"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 3 exclusion collection: removes a member movie and the episodes of a member season",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "rule 3 exclusions: several at once, any match removes",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                },
+                {
+                  "type": "tag",
+                  "name": "Seen It"
+                },
+                {
+                  "type": "yearRange",
+                  "from": 1900,
+                  "to": 1969
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3: a source equal to an exclusion contributes nothing; the exclusion wins",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Seen It"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": "00000000000000000000000000000501",
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": [
+                    "00000000000000000000000000000501"
+                  ]
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "expected": []
+            },
+            {
+              "name": "rule 3: an excluded item cannot be brought back by a second source",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1995,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": 1995,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                },
+                {
+                  "type": "yearRange",
+                  "from": 1990,
+                  "to": 1999
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a collection exclusion whose collection is not in the snapshot empties the pool",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000499"
+                }
+              ],
+              "expected": []
+            },
+            {
+              "name": "rule 3 fail closed: an unresolved collection exclusion empties the pool even next to a resolved one",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                },
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000499"
+                }
+              ],
+              "expected": []
+            },
+            {
+              "name": "rule 3 fail closed: a collection exclusion that resolves removes only its members (control)",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a genre exclusion removes an episode whose series is missing, whatever its own genres; a loose episode and a movie are checked on their own",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a tag exclusion removes an episode whose series is missing",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "tag",
+                  "name": "Seen It"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a library exclusion is decided by IDs and does not touch an episode of a missing series in another library",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001002",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001002"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a series exclusion is decided by IDs and does not touch an episode of another missing series",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000398",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "series",
+                  "id": "00000000000000000000000000000398"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a yearRange exclusion does not remove an episode of a missing series by that alone",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": 2000,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": 1950,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "yearRange",
+                  "from": 1900,
+                  "to": 1969
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 3 fail closed: a genre source uses an episode's own names only when its series is missing",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 4 movie: passes only on its own rating, at or below the ceiling",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-PG",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "tv-y7-fv",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000106",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000107",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000108",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "FSK 16",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000109",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "0000000000000000000000000000010a",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "Approved",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "0000000000000000000000000000010b",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-MA-LSV",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000104",
+                "0000000000000000000000000000010a"
+              ]
+            },
+            {
+              "name": "rule 4 episode: own TV-Y7, series TV-MA, ceiling TV-Y7 is excluded (the stale rating triple)",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": []
+            },
+            {
+              "name": "rule 4 episode: series passes and own rating passes",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-G",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "rule 4 (a): an episode with no own rating takes its series' rating",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 4 (a): an own rating of NR, blank or Unrated is used as it is, never replaced by the series' rating",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": []
+            },
+            {
+              "name": "rule 4 (b): a series rated NR, Unrated or blank blocks its episodes even with a passing own rating",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000305",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000307",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000306",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": []
+            },
+            {
+              "name": "rule 4 (b): a series with no rating, or the empty string, does not block; (a) decides",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000304",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000303",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000304",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "rule 4: a series above the ceiling blocks an episode whose own rating passes; a series at the ceiling does not",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000308",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000308",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000301",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-14",
+              "expected": [
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "rule 4: an episode whose series is missing from the snapshot is not allowed under a ceiling",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "rule 4: a loose episode (no series ID) is checked on its own rating alone",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000204",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000201"
+              ]
+            },
+            {
+              "name": "rule 4: no ceiling admits everything, rated or not, even an episode of a missing series",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000305",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "FSK 16",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000203",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000201",
+                "00000000000000000000000000000202",
+                "00000000000000000000000000000203"
+              ]
+            },
+            {
+              "name": "rule 4: the ceiling is applied on top of sources and exclusions",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "PG",
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "R",
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "PG",
+                  "genres": [
+                    "Comedy",
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "PG",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                }
+              ],
+              "maxRating": "PG-13",
+              "expected": [
+                "00000000000000000000000000000101"
+              ]
+            },
+            {
+              "name": "rule 4: the ceiling Approved is rank 0",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "G",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "maxRating": "Approved",
+              "expected": [
+                "00000000000000000000000000000101"
+              ]
+            },
+            {
+              "name": "rules 3 and 4 together: a genre exclusion and a ceiling over an episode of a missing series",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000201",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000399",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000202",
+                  "kind": "episode",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": "00000000000000000000000000000302",
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": "TV-Y",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [
+                {
+                  "id": "00000000000000000000000000000301",
+                  "officialRating": "TV-MA",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000302",
+                  "officialRating": "TV-Y7",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000303",
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000304",
+                  "officialRating": "",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000305",
+                  "officialRating": "NR",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000306",
+                  "officialRating": "  ",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000307",
+                  "officialRating": "Unrated",
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000308",
+                  "officialRating": "TV-14",
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "Horror"
+                }
+              ],
+              "maxRating": "TV-Y7",
+              "expected": [
+                "00000000000000000000000000000202"
+              ]
+            },
+            {
+              "name": "an empty result: sources that match nothing",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Nothing"
+                }
+              ],
+              "exclusions": [],
+              "expected": []
+            },
+            {
+              "name": "an empty result: a snapshot with no items",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": []
+            },
+            {
+              "name": "an empty result: every item is excluded",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "expected": []
+            },
+            {
+              "name": "string matching: ASCII letters fold in both directions",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "COMEDY"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comed"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "cOmEdY"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103"
+              ]
+            },
+            {
+              "name": "string matching: a trailing space is not trimmed from the server's name",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy "
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: a space in the rule's name is not trimmed either",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Comedy "
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Comedy "
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: NFC and NFD are different strings (the rule names NFC)",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Anim\u00e9"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Anime\u0301"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Anim\u00e9"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101"
+              ]
+            },
+            {
+              "name": "string matching: NFC and NFD are different strings (the rule names NFD)",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Anim\u00e9"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Anime\u0301"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "Anime\u0301"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: non-ASCII letters match exactly, with no case folding",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Anim\u00e9"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "ANIM\u00c9"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "ANIM\u00e9"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Anim\u00c9"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "ANIM\u00e9"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000103"
+              ]
+            },
+            {
+              "name": "string matching: the Turkish dotted capital I (U+0130) and dotless i (U+0131) do not fold to i",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Istanbul"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "istanbul"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "\u0130stanbul"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "\u0131stanbul"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "ISTANBUL"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: a rule naming the Turkish dotted capital I matches only that",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Istanbul"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "\u0130stanbul"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "\u0131stanbul"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "\u0130STANBUL"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: the Kelvin sign (U+212A) does not fold to k",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Kids"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "kids"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "\u212aids"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "KIDS"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: a rule naming the Kelvin sign matches only it",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Kids"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "\u212aids"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "genre",
+                  "name": "\u212aids"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: a tag with an emoji (a surrogate pair in the file) matches by its code points",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Fun \ud83d\ude00"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "fun \ud83d\ude00"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [
+                    "Fun"
+                  ]
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "tag",
+                  "name": "FUN \ud83d\ude00"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102"
+              ]
+            },
+            {
+              "name": "string matching: the same rules apply to exclusions",
+              "libraries": [
+                "00000000000000000000000000001001",
+                "00000000000000000000000000001002"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "horror"
+                  ],
+                  "tags": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [
+                    "Horr\u00f6r"
+                  ],
+                  "tags": []
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "genre",
+                  "name": "HORROR"
+                }
+              ],
+              "expected": [
+                "00000000000000000000000000000103"
+              ]
+            }
+          ]
+        }
+        """.trimIndent() + "\n"
+}

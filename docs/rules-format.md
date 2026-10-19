@@ -205,7 +205,8 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
 3. **Union, then exclusions.** The pool starts as every item that matches **any** source. An item that matches several
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
    matches **any** exclusion (with the same matching rules) is removed. Exclusions **fail closed**, because an exclusion is
-   a promise of what will not air, so when the client cannot check it, nothing airs (as the ceiling does, rule 4):
+   a promise of what will not air, so when the client cannot check an exclusion, nothing it might remove airs (as the
+   ceiling does, rule 4):
    - an exclusion of type `collection` whose collection is not in the library snapshot empties the pool;
    - a `genre` or `tag` exclusion also removes an episode whose series ID is present, and no series with that ID is in the
      library snapshot, whatever the episode's own genres and tags are. An episode with no series ID, and a movie, are
@@ -1318,8 +1319,9 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
 6. **Epochs.** With `utcOffsetMinutes` `-300`, `start` `"06:00"` and `epochHours` 24: `t = 0` is in epoch `-1`, which
    starts at `-46800000`; `t = 46800000` is in epoch `0`, which starts at `39600000`.
 7. **Ratings.** `tv-14-v` has rank 4. `Approved` has rank 0. `NR`, a blank rating (one or more spaces) and
-   `FSK 16` have no rank. Under the ceiling `PG-13`, `PG` is allowed and `TV-14` is not. An episode with its own rating `TV-Y7` whose series is rated
-   `TV-MA` is not allowed under the ceiling `TV-Y7`. With no ceiling, an unrated item is allowed.
+   `FSK 16` have no rank. Under the ceiling `PG-13`, `PG` is allowed and `TV-14` is not. An episode with its own rating
+   `TV-Y7` whose series is rated `TV-MA` is not allowed under the ceiling `TV-Y7`. With no ceiling, an unrated item is
+   allowed.
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
 9. **Version gate.** A file with `formatVersion` 2 is not scheduled, even when the rest of it is unreadable.
@@ -1338,6 +1340,14 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
     A client should reproduce both.
 15. **`whatsOn`.** In day 0 of worked example 1, `t` at minute 120 is M2 at offset 0, `t` one millisecond earlier is M1 at offset
     5399999 ms, `t` at minute 240 is a slate with no offset, and `t` at minute 270 is an error for that day.
+16. **The pool.** The case "rule 3 fail closed: a genre exclusion removes an episode whose series is missing" in
+    `pool.json`: one library `...1001` holds the episode `...201` (series `...399`, which is **not** in the snapshot,
+    genre `Comedy`), the episode `...202` (series `...301`, which is in the snapshot, with no genres), the loose episode
+    `...203` (no series ID) and the movie `...101`. The source is that library and the exclusion is the genre `Horror`,
+    with no ceiling. The pool is `...101`, `...202` and `...203` (each ID is 32 digits; the leading zeros are left out
+    here).
+    The episode `...201` is removed even though its own genres do not match, because its series cannot be checked.
+    The other cases of the file cover the other rules.
 
 ## Files
 
@@ -1361,7 +1371,9 @@ Everything below is in this repository, under `docs/`:
   `epoch-math.json` (the epoch number and `epochStart` for many offsets, starts and epoch lengths), `key-order.json` (the three
   orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (whole
   days: the rules the scheduler reads, the items, the day number `n`, every block of the day, and queries giving the block
-  that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors).
+  that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors),
+  and `pool.json` (the pool: a library snapshot, the sources, the exclusions and the ceiling, and the IDs of the pool,
+  for every row of rule 2, the exclusions with their fail-closed cases, rule 4 and the String matching cases).
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

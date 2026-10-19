@@ -194,7 +194,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 📺 More than 50 auto channels is capped/grouped (see Q-UX-1).
 
 **S1.2.2** As the engine, I need rule evaluation against the cache so that channel membership is correct.
-- 🧪 Union/intersection of sources and exclusion rules are covered by table tests over the fixture library.
+- 🧪 Union of sources and exclusions are covered by table tests, a seeded property test and the published `pool.json` vectors; AND of sources is [#293](https://github.com/StationBreak/stationbreaktv/issues/293).
 
 ## F1.3 Offset playback (M)
 
