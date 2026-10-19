@@ -26,12 +26,38 @@ object RatingEligibility {
     }
 
     /**
-     * Like [isEligible] for an episode: when it has no rating of its own ([ownRating] is null or the empty string) it
-     * uses its series' rating. Any other own rating is used as it is, even `NR` or a blank, which then have no tier.
+     * The check for an episode (docs/rules-format.md, amended rule 4). Under a ceiling the episode passes only if both
+     * hold:
+     *  - (a) its effective rating passes. That is [ownRating], or the series' rating when [ownRating] is null or the
+     *    empty string and [series] is [SeriesRating.Known]. Any other own rating is used as it is, even `NR` or a
+     *    blank, which then have no tier.
+     *  - (b) the series' rating passes, when [series] is [SeriesRating.Known] and has a rating (anything but null or
+     *    the empty string). A series rated `NR`, `Unrated` or blank has no tier and so blocks its episodes. This is
+     *    what stops a stale copy of the series' rating on the episode from passing a ceiling the series now fails.
+     *
+     * A [SeriesRating.Unknown] series (not in the snapshot) is blocked under any ceiling. A [SeriesRating.NoSeries]
+     * episode is checked under (a) alone, with its own rating. With no ceiling ([maxRating] null) every episode passes.
+     * [maxRating] is validated as for the movie form, whatever [series] is.
      */
     fun isEligible(
         ownRating: String?,
-        seriesRating: String?,
+        series: SeriesRating,
         maxRating: String?,
-    ): Boolean = isEligible(if (ownRating.isNullOrEmpty()) seriesRating else ownRating, maxRating)
+    ): Boolean =
+        when (series) {
+            // No rating at all: blocked under any ceiling, eligible with none (and a bad ceiling still throws).
+            SeriesRating.Unknown -> {
+                isEligible(null, maxRating)
+            }
+
+            SeriesRating.NoSeries -> {
+                isEligible(ownRating, maxRating)
+            }
+
+            is SeriesRating.Known -> {
+                val effective = if (ownRating.isNullOrEmpty()) series.rating else ownRating
+                val seriesPasses = series.rating.isNullOrEmpty() || isEligible(series.rating, maxRating)
+                isEligible(effective, maxRating) && seriesPasses
+            }
+        }
 }
