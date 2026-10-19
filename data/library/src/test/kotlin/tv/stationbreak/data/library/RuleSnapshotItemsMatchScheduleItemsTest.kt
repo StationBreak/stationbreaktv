@@ -81,6 +81,24 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
     }
 
     @Test
+    fun anItemInALibraryWhoseIdIsNotCanonicalIsLeftOutOfBothAndCounted() =
+        runBlocking {
+            val odd = ItemId("lib-odd")
+            repository.select(ALICE, setOf(odd, RULE_LIBRARY))
+            repository.put(ALICE, odd, episodeOf(1, null, library = odd))
+            repository.put(ALICE, RULE_LIBRARY, episodeOf(2, null))
+            val cutoff = at(clock.nowMs + 1)
+
+            val snapshot = repository.ruleSnapshot(ALICE, setOf(odd, RULE_LIBRARY), cutoff)
+            val read = repository.scheduleInputs(ALICE, setOf(odd, RULE_LIBRARY), cutoff)
+
+            assertEquals(listOf(canon(2)), snapshot.items.map { it.item.id })
+            assertEquals(read.items, snapshot.items.map { it.item })
+            assertEquals(1, read.dropped[DropReason.LibraryIdNotCanonical])
+            assertEquals(setOf(RULE_LIBRARY).map { CanonicalId.parse(it.value) }.toSet(), snapshot.libraries)
+        }
+
+    @Test
     fun theSnapshotsItemsAreTheSchedulersItemsOverAThousandGeneratedLibraries() {
         var itemsCompared = 0
         for (index in 0 until CASES) {

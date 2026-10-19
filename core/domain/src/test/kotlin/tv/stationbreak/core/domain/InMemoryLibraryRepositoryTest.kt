@@ -231,6 +231,20 @@ class InMemoryLibraryRepositoryTest {
     ) = RuleCollection(id(hex), setOfNotNull(movie?.let { id(it) }), emptySet(), emptySet(), emptySet())
 
     @Test
+    fun anItemInALibraryWhoseIdIsNotCanonicalIsLeftOutOfBothReads() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val odd = ItemId("lib-odd")
+            repository.seedSchedule(alice, odd, held('a'))
+            repository.seedRule(alice, ruleItem(held('b')))
+
+            val snapshot = repository.ruleSnapshot(alice, setOf(odd, moviesLib), epoch)
+
+            assertEquals(listOf(id('b')), repository.scheduleItems(alice, setOf(odd, moviesLib), epoch).map { it.id })
+            assertEquals(listOf(id('b')), snapshot.items.map { it.item.id })
+        }
+
+    @Test
     fun aRuleSnapshotEchoesTheCutoffAndTheLibrariesItWasAskedFor() =
         runBlocking {
             val repository = InMemoryLibraryRepository()
