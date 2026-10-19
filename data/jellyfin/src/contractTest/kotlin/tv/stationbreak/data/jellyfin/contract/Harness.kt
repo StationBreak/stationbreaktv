@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -74,6 +75,43 @@ internal class Harness(
         return reply
     }
 
+    /**
+     * As [expectOk] for a step that changes server state, retried while the server answers that it is busy: a
+     * conflict, a rate limit, or a server error (Jellyfin's SQLite can refuse a write while a scan or a metadata
+     * refresh holds the database). Any other status fails at once, and so does the last busy answer after [attempts]
+     * tries. The failure names the step, the status and the tries, never a body.
+     */
+    fun expectOkEventually(
+        step: String,
+        attempts: Int = BUSY_ATTEMPTS,
+        call: () -> Reply,
+    ): Reply {
+        var last = call()
+        var tries = 1
+        while (!last.ok && last.code in BUSY && tries < attempts) {
+            Thread.sleep(BUSY_PAUSE_MS)
+            last = call()
+            tries++
+        }
+        check(last.ok) { "harness step '$step' got $last after $tries ${if (tries == 1) "try" else "tries"}" }
+        return last
+    }
+
+    /**
+     * Waits, bounded, until no scheduled task (a library scan, say) is running, so the next write does not race it.
+     * The tasks listing needs an admin [token].
+     */
+    fun awaitIdle(token: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(IDLE_SECONDS)
+        while (true) {
+            val tasks = expectOk("list tasks", get("ScheduledTasks", token)).json().jsonArray
+            val running = tasks.count { it.jsonObject["State"]?.jsonPrimitive?.content != "Idle" }
+            if (running == 0) return
+            check(System.nanoTime() < deadline) { "harness: $running scheduled tasks still busy after $IDLE_SECONDS s" }
+            Thread.sleep(BUSY_PAUSE_MS)
+        }
+    }
+
     /** A password sign-in made by the harness itself (a separate device from the adapter's). */
     fun signIn(
         name: String,
@@ -121,6 +159,10 @@ internal class Harness(
     }
 
     private companion object {
+        const val BUSY_ATTEMPTS = 15
+        const val BUSY_PAUSE_MS = 2_000L
+        const val IDLE_SECONDS = 90L
+        val BUSY = setOf(409, 423, 429, 500, 502, 503, 504)
         val JSON = "application/json; charset=utf-8".toMediaType()
     }
 }

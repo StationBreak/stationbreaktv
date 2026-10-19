@@ -960,6 +960,7 @@ abstract class ContractSuite {
                 churn.create(listOf("Churn A", "Churn B", "Churn C"))
                 val library = Library(ItemId(churn.id), "Churn", LibraryKind.Movies)
                 awaitProbed(adapter, session, library, count = CHURN_FILES)
+                server.http.awaitIdle(admin)
                 val ids = churnIds(adapter, session, library)
                 val box = createBoxSet(admin, "Contract Changes", listOf(ids.getValue("Churn A")))
                 try {
@@ -967,10 +968,8 @@ abstract class ContractSuite {
                     assertMemberRenameAndBoxSetRename(adapter, session, admin, box, ids.getValue("Churn A"))
                     val doomed = Doomed(churn, library, ids.getValue("Churn C"))
                     assertDeletedMemberIsSilent(adapter, session, admin, box, doomed)
-                    server.http.expectOk("delete BoxSet", server.http.delete("Items/$box", admin))
-                    delay(SETTLE_MS * EDIT_SETTLE)
-                    val remaining = listedBoxSets(adapter, session)
-                    assertTrue(box !in remaining, "a deleted BoxSet is missing from the ID listing")
+                    server.http.expectOkEventually("delete BoxSet") { server.http.delete("Items/$box", admin) }
+                    awaitTrue("a deleted BoxSet leaves the ID listing") { box !in listedBoxSets(adapter, session) }
                 } finally {
                     runCatching { server.http.delete("Items/$box", admin) }
                 }
@@ -990,15 +989,16 @@ abstract class ContractSuite {
         val quiet = boxSetsChangedSince(adapter, session, first)
         assertEquals(emptySet<String>(), quiet, "nothing was saved since the mark")
         addToBoxSet(admin, box, added)
-        delay(SETTLE_MS * EDIT_SETTLE)
-        assertTrue(box in boxSetsChangedSince(adapter, session, first), "adding a member bumps the BoxSet")
+        awaitTrue("adding a member bumps the BoxSet") { box in boxSetsChangedSince(adapter, session, first) }
+        awaitTrue("the added member is listed") { added in pagedMembers(adapter, session, box) }
         assertEquals(setOf(ids.getValue("Churn A"), added), pagedMembers(adapter, session, box).toSet())
 
         val second = settledMark()
-        val removal = server.http.delete("Collections/$box/Items", admin, listOf("ids" to added))
-        server.http.expectOk("remove member", removal)
-        delay(SETTLE_MS * EDIT_SETTLE)
-        assertTrue(box in boxSetsChangedSince(adapter, session, second), "removing a member bumps the BoxSet")
+        server.http.expectOkEventually("remove member") {
+            server.http.delete("Collections/$box/Items", admin, listOf("ids" to added))
+        }
+        awaitTrue("removing a member bumps the BoxSet") { box in boxSetsChangedSince(adapter, session, second) }
+        awaitTrue("the removed member is gone") { added !in pagedMembers(adapter, session, box) }
         assertEquals(listOf(ids.getValue("Churn A")), pagedMembers(adapter, session, box))
     }
 
@@ -1020,8 +1020,7 @@ abstract class ContractSuite {
 
         val boxMark = settledMark()
         renameItem(admin, box, "Contract Changes Renamed")
-        delay(SETTLE_MS * EDIT_SETTLE)
-        assertTrue(box in boxSetsChangedSince(adapter, session, boxMark), "renaming the BoxSet bumps it")
+        awaitTrue("renaming the BoxSet bumps it") { box in boxSetsChangedSince(adapter, session, boxMark) }
     }
 
     // A member the case deletes: the throwaway library it lives in, and its ID.
@@ -1040,8 +1039,7 @@ abstract class ContractSuite {
     ) {
         val (churn, library, id) = doomed
         addToBoxSet(admin, box, id)
-        delay(SETTLE_MS * EDIT_SETTLE)
-        assertTrue(id in pagedMembers(adapter, session, box), "the member to delete is in the BoxSet")
+        awaitTrue("the member to delete is in the BoxSet") { id in pagedMembers(adapter, session, box) }
         val mark = settledMark()
 
         churn.removeFile("Churn C")
@@ -1060,8 +1058,21 @@ abstract class ContractSuite {
         box: String,
         member: String,
     ) {
-        val reply = server.http.post("Collections/$box/Items", token = admin, query = listOf("ids" to member))
-        server.http.expectOk("add member", reply)
+        server.http.expectOkEventually("add member") {
+            server.http.post("Collections/$box/Items", token = admin, query = listOf("ids" to member))
+        }
+    }
+
+    /** Waits, bounded, until [check] holds, for a server that applies a write a moment after it answers. */
+    private suspend fun awaitTrue(
+        what: String,
+        check: suspend () -> Boolean,
+    ) {
+        val deadline = System.nanoTime() + CHURN_WAIT_SECONDS.seconds.inWholeNanoseconds
+        while (!check()) {
+            check(System.nanoTime() < deadline) { "$what did not happen within $CHURN_WAIT_SECONDS s" }
+            delay(SETTLE_MS)
+        }
     }
 
     private fun adminToken(): String = server.http.signIn(server.admin.name, server.admin.rawPassword())
@@ -1070,22 +1081,15 @@ abstract class ContractSuite {
         admin: String,
         name: String,
         members: List<String>,
-    ): String =
-        server.http
-            .expectOk(
-                "create BoxSet",
-                server.http.post(
-                    "Collections",
-                    token = admin,
-                    query =
-                        listOf(
-                            "name" to name,
-                            "ids" to members.joinToString(","),
-                        ),
-                ),
-            ).obj()
+    ): String {
+        val query = listOf("name" to name, "ids" to members.joinToString(","))
+        val create = { server.http.post("Collections", token = admin, query = query) }
+        val reply = server.http.expectOkEventually("create BoxSet", call = create)
+        return reply
+            .obj()
             .getValue("Id")
             .jsonPrimitive.content
+    }
 
     // Renames an item as the admin, the way the series edit does: read it, change one field, post it back.
     private fun renameItem(
@@ -1101,7 +1105,7 @@ abstract class ContractSuite {
                 .jsonPrimitive.content
         val dto = server.http.expectOk("read item", server.http.get("Users/$adminId/Items/$id", admin)).obj()
         val edited = JsonObject(dto + ("Name" to JsonPrimitive(name)))
-        server.http.expectOk("rename item", server.http.post("Items/$id", edited.toString(), admin))
+        server.http.expectOkEventually("rename item") { server.http.post("Items/$id", edited.toString(), admin) }
     }
 
     /** The moment now, with a pause either side so no earlier save falls on it. */
