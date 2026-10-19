@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+
 plugins {
     id("stationbreak.jvm-lib")
     id("stationbreak.jvm-inject")
@@ -32,4 +35,13 @@ dependencies {
 // Test only: the contract suite starts the server (and a subpath proxy) with Testcontainers.
 dependencies {
     "contractTestImplementation"(libs.testcontainers)
+}
+
+// A failed contract case prints its message in the job log. The harness's messages carry a step name and a status code
+// only (`harness step 'x' got HTTP 409`): no request, body or token (ADR-0009).
+tasks.named<Test>("contractTest") {
+    testLogging {
+        events(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
