@@ -125,6 +125,17 @@ were allowed into version 1 only because version 1 was a Draft that no client ha
 text exists anywhere. **After version 1 is final, a change like any of these needs version 2.** That includes adding a
 rules field that changes a lineup, and changing the default of one.
 
+### Changes to version 1 (2026-10-19)
+
+**Rule 4 of Items and the pool, and the Fail closed paragraph, were amended before any client shipped.** The earlier text
+let an episode with a rating of its own use only that rating. The server copies the series' rating into its episodes and
+does not re-send them when the series is re-rated, so a stale copy (own `TV-Y7`, series now `TV-MA`) could pass a ceiling
+the series fails. Now, under a ceiling, an episode needs both its effective rating and its series' rating to pass. A
+series rated `NR`, `Unrated` or blank blocks its episodes, and so does an episode whose series is not in the library
+snapshot; a loose episode is checked on its own rating alone. This changes lineups, and it was allowed into version 1 for
+the same reason as the items above: no client has shipped version 1. `docs/rules-format/vectors/rating.json` carries the
+new `inheritance` rows. After version 1 is final, a change like this needs version 2.
+
 ## JSON profile
 
 A rules file is JSON as defined by RFC 8259, narrowed by the I-JSON profile of RFC 7493. A reader **must** treat a file
@@ -184,8 +195,17 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
    matches **any** exclusion (with the same matching rules) is removed.
 4. **Rating ceiling.** If `maxRating` is present, an item stays only if it passes the rating rule (see Maximum rating
-   and the rating ladder). An episode with no rating of its own (none, or the empty string) uses its series' rating; any
-   other own rating, even `NR` or a blank, is used as it is.
+   and the rating ladder). A **movie** passes only if its own rating passes. An **episode** passes only if **both** of
+   these hold:
+   - (a) its **effective** rating passes. The effective rating is its own rating, or its series' rating when its own is
+     none or the empty string. Any other own rating, even `NR` or a blank, is used as it is;
+   - (b) its series' rating passes, when the series has one. "Has one" means anything other than none or the empty
+     string, so a series rated `NR`, `Unrated` or blank blocks its episodes.
+
+   An episode that names a series that is **not in the library snapshot** is not allowed under a ceiling: its series'
+   rating is unknown, so it fails closed. An episode with no series at all (a loose episode) is checked under (a) alone,
+   with its own rating. The reason for (b): the server copies the series' rating into its episodes and does not re-send
+   them when the series is re-rated, so without (b) a stale copy could pass a ceiling the series now fails.
 5. **The library snapshot.** The pool is worked out from the *library snapshot*: the cached set of items, and their
    genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. Rules 1 to 4 pick
    the items from it. Which of those items count for which epoch (the creation time, the deletion time and the runtime) is
@@ -1133,7 +1153,9 @@ That is on purpose: this format fails closed, and a client that wants them must 
 
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
 with no rating, a blank rating, `NR`, `Unrated`, or any rating that is not on the ladder (for example a British or German
-rating such as `FSK 16`) is **not** allowed. With no ceiling, every item is eligible, rated or not. Account limits set on
+rating such as `FSK 16`) is **not** allowed. An episode is held to the same test on its series too: it is **not** allowed when its series has a rating that has no rank
+or is above the ceiling (`NR`, `Unrated`, a blank, `FSK 16`, or one too high), or when its series is not in the library
+snapshot. Rule 4 of Items and the pool gives the exact rule. With no ceiling, every item is eligible, rated or not. Account limits set on
 the server can only narrow what the rules allow; they can never widen a ceiling.
 
 ## Item IDs
@@ -1270,7 +1292,8 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
 6. **Epochs.** With `utcOffsetMinutes` `-300`, `start` `"06:00"` and `epochHours` 24: `t = 0` is in epoch `-1`, which
    starts at `-46800000`; `t = 46800000` is in epoch `0`, which starts at `39600000`.
 7. **Ratings.** `tv-14-v` has rank 4. `Approved` has rank 0. `NR`, a blank string and `FSK 16` have no rank. Under the
-   ceiling `PG-13`, `PG` is allowed and `TV-14` is not. With no ceiling, an unrated item is allowed.
+   ceiling `PG-13`, `PG` is allowed and `TV-14` is not. An episode with its own rating `TV-Y7` whose series is rated
+   `TV-MA` is not allowed under the ceiling `TV-Y7`. With no ceiling, an unrated item is allowed.
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
 9. **Version gate.** A file with `formatVersion` 2 is not scheduled, even when the rest of it is unreadable.
