@@ -191,6 +191,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 Defaults: one channel per selected library, one per genre with ≥ N items (default 10), and one per collection (BoxSet) with ≥ N items.
 - 🧪 Generation is deterministic: the same library gives the same channels with the same numbers and seeds. The default seed of an automatic channel is `splitmix64(fnv1a64(bytes))`, where the bytes are the 32 ASCII characters of the server ID, `0x00`, the kind (`library`, `genre` or `collection`), `0x00`, and the key (the canonical 32-hex ID for a library or collection, the exact UTF-8 genre name otherwise, with no case folding or normalisation). The channel's own ID and its other rules are never inputs. It is written into the rules the app generates ([rules format](rules-format.md#seed), `core:rules` `AutoSeed`).
 - 🧪 Channels with zero schedulable items are not created.
+- 🧪 A channel whose pool for the current day is empty (the evaluator's pool after the scheduler's per-day filter) is hidden from the guide and from flipping, kept in channel management with the reason from `PoolCounts`, and comes back by itself when it has items again. This is separate from a user's hide (S2.4.1). Decision, 2026-10-19: [#299](https://github.com/StationBreak/stationbreaktv/issues/299).
 - 📺 More than 50 auto channels is capped/grouped (see Q-UX-1).
 
 **S1.2.2** As the engine, I need rule evaluation against the cache so that channel membership is correct.
@@ -286,6 +287,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S2.4.1** As a user, I want to renumber, hide, and favourite channels so that the lineup is mine.
 - 🧪 Channel numbers are unique. Hidden channels are skipped by flipping and by the guide.
+- 🧪 A channel hidden automatically because it is empty ([#299](https://github.com/StationBreak/stationbreaktv/issues/299)) shows its reason here and needs no action to come back. A user's hide stays even when the channel has items.
 - 📺 Auto-generated channels can be hidden but are regenerated (not resurrected) on library change (see Q-UX-1).
 
 ## F2.5 Large-library performance (M)
