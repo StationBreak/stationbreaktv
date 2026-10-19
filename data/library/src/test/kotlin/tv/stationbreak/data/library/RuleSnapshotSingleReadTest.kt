@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import android.database.SQLException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -70,7 +71,10 @@ class RuleSnapshotSingleReadTest {
             // The read holds the database's writer lock, so the write is refused (database locked) and nothing of it
             // lands; a read in several transactions would let it in, and the assertions below would then fail.
             assertTrue("the write was tried inside the read", attempt != null)
-            val outcome = attempt?.exceptionOrNull() ?: "went through"
+            val failure = attempt?.exceptionOrNull()
+            // Nothing but a refusal by the database's lock is acceptable: any other failure is a bug in the test.
+            assertTrue("unexpected failure: $failure", failure == null || generateSequence(failure) { it.cause }.any { it is SQLException })
+            val outcome = failure ?: "went through"
             println("RuleSnapshotSingleReadTest: the write inside the read $outcome")
             assertEquals("PG", snapshot.series.getValue(canon(900)).officialRating)
             assertEquals(setOf(canon(1)), snapshot.collections.getValue(canon(1000)).movies)

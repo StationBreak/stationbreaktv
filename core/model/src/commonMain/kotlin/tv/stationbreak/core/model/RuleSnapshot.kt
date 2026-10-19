@@ -17,8 +17,10 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
  * current-state read. Values are kept exactly as stored. It normalises nothing and compares nothing; that is the
  * evaluator's job.
  *
- * @property cutoffMs the cut-off the snapshot was taken at, in milliseconds since 1970-01-01T00:00:00Z.
- * @property libraries the libraries the items were selected from.
+ * @property cutoffMs the cut-off the snapshot was taken at, in milliseconds since 1970-01-01T00:00:00Z: the cut-off
+ *   rounded up to a whole millisecond. It is exclusive: a version first seen at `seenFromMs < cutoffMs` is held, and
+ *   one seen at exactly `cutoffMs` is not.
+ * @property libraries the libraries the items were selected from: only the requested IDs that are canonical.
  * @property items the usable items, in canonical-ID order, which is the scheduler's order. The evaluator iterates this
  *   and nothing else.
  * @property series the series that a returned episode points to, by ID. A lookup only: it carries no order meaning.

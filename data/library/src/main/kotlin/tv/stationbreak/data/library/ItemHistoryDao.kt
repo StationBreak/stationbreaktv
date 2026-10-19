@@ -56,25 +56,6 @@ private class SideLists {
     val tags = HashMap<String, MutableList<String>>()
 }
 
-// One String per distinct value within a read: a catalogue repeats a few hundred genres and tags over 15,000 items.
-internal class Interner {
-    private val strings = HashMap<String, String>()
-
-    fun of(value: String): String {
-        val known = strings[value]
-        if (known != null) return known
-        strings[value] = value
-        return value
-    }
-
-    fun all(values: List<String>): List<String> {
-        if (values.isEmpty()) return emptyList()
-        val shared = ArrayList<String>(values.size)
-        for (value in values) shared.add(of(value))
-        return shared
-    }
-}
-
 /**
  * What a page does to its items, worked out by [ItemHistoryDao.planPage] and written by the caller: [toInsert] are new,
  * [toUpdate] differ from the row held, [versions] are the old rows kept for the updates that changed a field the
