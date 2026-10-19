@@ -31,7 +31,7 @@ import kotlin.time.Instant
 class CrossDaoTransactionOnDeviceTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val account = LibraryAccount(ServerId("device-test-server"), UserId("device-test-user"))
-    private val library = ItemId("device-test-library")
+    private val library = ItemId("2222222222222222222222222222222a")
     private val created = Instant.fromEpochMilliseconds(1_600_000_000_000)
     private lateinit var repository: RoomLibraryRepository
 
