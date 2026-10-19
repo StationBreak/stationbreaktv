@@ -55,13 +55,25 @@ class RatingVectorsTest {
     @Test
     fun inheritanceFollowsTheFile() {
         val rows = file.array("inheritance").objects()
-        assertTrue(rows.size >= 10)
+        assertTrue(rows.size >= 40)
+        val states = mutableSetOf<String>()
         for (row in rows) {
             val own = row.stringOrNull("own")
-            val series = row.stringOrNull("series")
+            val state = row.string("seriesState")
+            states += state
+            // 'series' is read only when the state is "known"; the other states carry no series.
+            val series =
+                when (state) {
+                    "known" -> SeriesRating.Known(row.stringOrNull("series"))
+                    "unknown" -> SeriesRating.Unknown
+                    "none" -> SeriesRating.NoSeries
+                    else -> error("unknown seriesState '$state'")
+                }
+            if (state != "known") assertTrue("series" !in row, "a $state row has no series: $row")
             val ceiling = row.stringOrNull("maxRating")
             val actual = RatingEligibility.isEligible(own, series, ceiling)
             assertEquals(row.boolean("eligible"), actual, "own=$own series=$series ceiling=$ceiling")
         }
+        assertEquals(setOf("known", "unknown", "none"), states)
     }
 }

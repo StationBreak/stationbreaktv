@@ -19,9 +19,11 @@ class NoCeilingTest {
 
     @Test
     fun withoutACeilingAnEpisodeIsEligibleWhateverItsSeriesIs() {
-        assertTrue(RatingEligibility.isEligible(null, null, null))
-        assertTrue(RatingEligibility.isEligible("PG-13", null, null))
-        assertTrue(RatingEligibility.isEligible(null, "NR", null))
+        assertTrue(RatingEligibility.isEligible(null, SeriesRating.Known(null), null))
+        assertTrue(RatingEligibility.isEligible("PG-13", SeriesRating.Known(null), null))
+        assertTrue(RatingEligibility.isEligible(null, SeriesRating.Known("NR"), null))
+        assertTrue(RatingEligibility.isEligible(null, SeriesRating.Unknown, null))
+        assertTrue(RatingEligibility.isEligible(null, SeriesRating.NoSeries, null))
     }
 
     @Test

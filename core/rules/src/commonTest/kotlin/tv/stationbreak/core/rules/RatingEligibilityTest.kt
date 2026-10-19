@@ -132,28 +132,93 @@ class RatingEligibilityTest {
         assertFalse(RatingEligibility.isEligible("R", "PG-13"))
     }
 
+    private fun episode(
+        own: String?,
+        series: SeriesRating,
+        ceiling: String?,
+    ) = RatingEligibility.isEligible(own, series, ceiling)
+
+    private fun known(rating: String?) = SeriesRating.Known(rating)
+
     @Test
     fun anEpisodeWithNoRatingOfItsOwnUsesItsSeriesRating() {
-        assertTrue(RatingEligibility.isEligible(null, "G", "PG"))
-        assertTrue(RatingEligibility.isEligible("", "G", "PG"))
-        assertFalse(RatingEligibility.isEligible(null, "R", "PG"))
-        assertFalse(RatingEligibility.isEligible(null, null, "PG"))
+        assertTrue(episode(null, known("G"), "PG"))
+        assertTrue(episode("", known("G"), "PG"))
+        assertFalse(episode(null, known("R"), "PG"))
+        assertFalse(episode(null, known(null), "PG"))
+        assertFalse(episode("", known(""), "G"))
     }
 
     @Test
-    fun anEpisodeThatHasARatingOfItsOwnKeepsItWhateverTheSeriesSays() {
-        assertFalse(RatingEligibility.isEligible("TV-14", "G", "PG"))
-        assertTrue(RatingEligibility.isEligible("G", "R", "PG"))
+    fun anEpisodeThatHasARatingOfItsOwnStillNeedsItsSeriesRatingToPass() {
+        assertFalse(episode("TV-14", known("G"), "PG"))
+        // Amended rule 4 (b): the own rating G passes, but the series' R does not, so the episode is blocked.
+        assertFalse(episode("G", known("R"), "PG"))
         // NR and a blank are ratings of their own that mean "unknown": they are not replaced by the series rating.
-        assertFalse(RatingEligibility.isEligible("NR", "G", "PG"))
-        assertFalse(RatingEligibility.isEligible(" ", "G", "PG"))
+        assertFalse(episode("NR", known("G"), "PG"))
+        assertFalse(episode(" ", known("G"), "PG"))
+    }
+
+    @Test
+    fun aStaleCopiedRatingIsBlockedWhenTheSeriesWasRatedUp() {
+        assertFalse(episode("TV-Y7", known("TV-MA"), "TV-Y7"))
+        assertFalse(episode("G", known("PG-13"), "PG"))
+        assertTrue(episode("G", known("PG"), "PG"))
+    }
+
+    @Test
+    fun aSeriesWithNoRankBlocksItsEpisodes() {
+        for (series in listOf("NR", "Unrated", " ", "FSK 16")) {
+            assertFalse(episode("G", known(series), "PG"), "own G, series '$series'")
+            assertFalse(episode(null, known(series), "PG"), "own none, series '$series'")
+        }
+    }
+
+    @Test
+    fun aSeriesWithNoRatingLeavesOnlyTheEffectiveRatingToCheck() {
+        for (none in listOf(null, "")) {
+            assertTrue(episode("G", known(none), "PG"), "own G, series '$none'")
+            assertFalse(episode("R", known(none), "PG"), "own R, series '$none'")
+            assertFalse(episode("NR", known(none), "TV-MA"), "own NR, series '$none'")
+        }
+    }
+
+    @Test
+    fun anEpisodeWhoseSeriesIsNotInTheSnapshotIsBlockedUnderAnyCeiling() {
+        for (own in listOf("TV-Y", "G", "", null)) {
+            for (ceiling in rankOf.keys) {
+                assertFalse(episode(own, SeriesRating.Unknown, ceiling), "own '$own' under $ceiling")
+            }
+        }
+    }
+
+    @Test
+    fun aLooseEpisodeIsCheckedOnItsOwnRatingAlone() {
+        assertTrue(episode("G", SeriesRating.NoSeries, "PG"))
+        assertFalse(episode("R", SeriesRating.NoSeries, "PG"))
+        assertFalse(episode(null, SeriesRating.NoSeries, "TV-MA"))
+        assertFalse(episode("", SeriesRating.NoSeries, "TV-MA"))
+        assertFalse(episode("NR", SeriesRating.NoSeries, "TV-MA"))
+    }
+
+    @Test
+    fun withNoCeilingEveryEpisodeIsEligible() {
+        val series = listOf(SeriesRating.Unknown, SeriesRating.NoSeries, known(null), known("NR"), known("TV-MA"))
+        for (own in listOf(null, "", "NR", "G", "TV-MA")) {
+            for (s in series) {
+                assertTrue(episode(own, s, null), "own '$own', $s")
+            }
+        }
     }
 
     @Test
     fun aCeilingThatIsNotOnTheLadderIsAProgrammingError() {
         for (bad in listOf("PG-14", "pg-13", "tv-14", "NR", "", " PG", "TV-14-V")) {
             assertFailsWith<IllegalArgumentException>(bad) { RatingEligibility.isEligible("G", bad) }
-            assertFailsWith<IllegalArgumentException>(bad) { RatingEligibility.isEligible("G", "G", bad) }
+            val states = listOf(SeriesRating.Known("G"), SeriesRating.Unknown, SeriesRating.NoSeries)
+            for (series in states) {
+                assertFailsWith<IllegalArgumentException>("$bad $series") { episode("G", series, bad) }
+            }
         }
     }
 }
