@@ -53,6 +53,7 @@ internal data class Revisioned(
  * Planning reads the library at now (a planning read, `LibraryRepository.ruleSnapshot`) and the current collection
  * names, and takes the device zone's standard offset from [standardOffsetMinutes] only for a lineup not yet finalised.
  */
+@Suppress("TooManyFunctions") // The one owner of the lineup in memory; its load, plan and save steps stay together.
 class LineupService internal constructor(
     private val store: LineupStore,
     private val library: LibraryRepository,
@@ -60,6 +61,7 @@ class LineupService internal constructor(
     private val standardOffsetMinutes: () -> Int,
     private val report: (LineupEvent) -> Unit,
     internal val catalog: StarterCatalogView,
+    private val encode: (Lineup) -> ByteArray = LineupCodec::encode,
 ) : ChannelRepository {
     constructor(
         store: LineupStore,
@@ -75,6 +77,14 @@ class LineupService internal constructor(
 
         /** True once the store was read (successfully) for this account. Written under [mutex]. */
         @Volatile var loaded = false
+
+        /**
+         * Whether this session may write the account's file. False when the session started from a file that was
+         * unreadable just now, from a newer app, or unreadable and could not be set aside. Set under [mutex] at the
+         * start of each refresh, **every save path must check it**, and it is never true while a stored file stands
+         * that this app must not write over.
+         */
+        @Volatile var writable = false
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -85,6 +95,9 @@ class LineupService internal constructor(
 
     private val lock = Any()
     private val entries = HashMap<LibraryAccount, Entry>()
+
+    // Process-global, across accounts: BuiltInScheduleSource's cache key is this revision, and relies on that for
+    // account separation (two accounts never share a revision number).
     private var revisions = 0L
     private val noLineup: StateFlow<Revisioned?> = MutableStateFlow<Revisioned?>(null).asStateFlow()
 
@@ -92,7 +105,7 @@ class LineupService internal constructor(
      * Brings [account]'s lineup up to date with the library's [libraries]: after a sync, or at start when it is
      * absent, unfinalised or behind the catalog. Never throws for stored data.
      */
-    suspend fun refresh(
+    internal suspend fun refresh(
         account: LibraryAccount,
         libraries: Set<ItemId>,
     ) {
@@ -100,6 +113,7 @@ class LineupService internal constructor(
         val entry = entryOf(owner)
         entry.mutex.withLock {
             val start = startOf(owner, entry)
+            entry.writable = start.save
             val now = clock.now()
             val snapshot = library.ruleSnapshot(account, libraries, now)
             val names = library.collectionNames(account)
@@ -114,7 +128,7 @@ class LineupService internal constructor(
                     now.toEpochMilliseconds(),
                     catalog,
                 )
-            if (start.save && !store.save(owner.key, LineupCodec.encode(planned))) report(LineupEvent.SaveFailed)
+            if (entry.writable) saveVerified(owner, planned)
             publish(entry, planned)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
@@ -127,7 +141,7 @@ class LineupService internal constructor(
      * does its job: zero while the leftovers channels are on. Zero while there is no lineup. Reads the library as the
      * days are built (one `ruleSnapshot` per distinct cut-off).
      */
-    suspend fun airingNowhereCount(
+    internal suspend fun airingNowhereCount(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         at: Instant,
@@ -137,6 +151,22 @@ class LineupService internal constructor(
         val scheduled = days.scheduled(lineup, at.toEpochMilliseconds())
         val snapshots = snapshotsOf(library, account, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
         return days.airingNowhere(lineup, scheduled, snapshots)
+    }
+
+    /**
+     * Forgets [account]'s lineup, for an explicit user action only: the in-memory lineup goes first, then the stored
+     * file, so a refresh afterwards plans from scratch and never saves the old lineup back. This is the only way to
+     * delete a lineup; nothing else may call `LineupStore.forget`. True when no stored lineup remains.
+     */
+    internal suspend fun forget(account: LibraryAccount): Boolean {
+        val owner = ownerOf(account) ?: return false
+        val entry = entryOf(owner)
+        return entry.mutex.withLock {
+            entry.state.value = null
+            entry.loaded = false
+            entry.writable = false
+            store.forget(owner.key)
+        }
     }
 
     /** [account]'s lineup as this service holds it now; null while it has none. */
@@ -234,6 +264,21 @@ class LineupService internal constructor(
             report(LineupEvent.UnreadableLeftAlone)
             Start(session, save = false)
         }
+
+    // A lineup is saved only when its own bytes decode back to a lineup of this account; otherwise the stored file is
+    // left as it is, and the in-memory lineup is still published.
+    private suspend fun saveVerified(
+        owner: Owner,
+        planned: Lineup,
+    ) {
+        val bytes = encode(planned)
+        val back = LineupCodec.decode(bytes)
+        if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup)) {
+            report(LineupEvent.SaveRejected)
+        } else if (!store.save(owner.key, bytes)) {
+            report(LineupEvent.SaveFailed)
+        }
+    }
 
     private fun publish(
         entry: Entry,

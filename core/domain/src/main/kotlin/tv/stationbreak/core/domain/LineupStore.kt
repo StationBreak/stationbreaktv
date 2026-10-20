@@ -45,11 +45,16 @@ interface LineupStore {
     ): Boolean
 
     /**
-     * Moves an unreadable lineup out of the way so a rebuild doesn't destroy it. One set-aside copy is kept per
-     * account; a later one replaces it. True when nothing was left to set aside or the move happened.
+     * Moves an unreadable lineup out of the way so a rebuild doesn't destroy it. A set-aside copy is never replaced by
+     * a later one: the store keeps the last few per account (the first-ever copy survives at least two later ones) and
+     * drops the oldest beyond that. True when nothing was left to set aside or the move happened.
      */
     suspend fun setAside(account: LibraryAccount): Boolean
 
-    /** Deletes the account's lineup (and nothing of any other account). True when none remains. */
+    /**
+     * Deletes the account's lineup (and nothing of any other account). True when none remains. Only
+     * `LineupService.forget` may call this: the service clears its in-memory lineup first, so a later refresh cannot
+     * save the old one back.
+     */
     suspend fun forget(account: LibraryAccount): Boolean
 }

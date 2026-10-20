@@ -59,11 +59,16 @@ class FileLineupStoreTest {
             if (failDeletes) throw IOException("cannot delete")
             held.remove(name)
         }
+
+        override fun list(directory: String): List<String> =
+            held.keys.filter { it.substringBeforeLast('/') == directory }.map { it.substringAfterLast('/') }
     }
+
+    private var clock = 1_000L
 
     private val inPlace = Executor(Runnable::run).asCoroutineDispatcher()
     private val files = MemoryFiles()
-    private val store = FileLineupStore(files, inPlace)
+    private val store = FileLineupStore(files, inPlace) { clock++ }
 
     private val serverA = "a".repeat(ID_LENGTH)
     private val serverB = "b".repeat(ID_LENGTH)
@@ -136,24 +141,64 @@ class FileLineupStoreTest {
             assertFalse(store.forget(one))
         }
 
+    private fun asideNames() =
+        files.held.keys
+            .filter { ".unreadable." in it }
+            .sorted()
+
     @Test
-    fun setAsideMovesTheFileToUnreadable() =
+    fun setAsideMovesTheFileToAStampedUnreadableCopy() =
         runBlocking {
+            clock = 5_000L
             store.save(one, bytes)
             assertTrue(store.setAside(one))
             assertEquals(StoredBytes.Absent, store.load(one))
-            assertArrayEquals(bytes, files.held["$serverA/$userOne.json.unreadable"])
+            assertArrayEquals(bytes, files.held["$serverA/$userOne.json.unreadable.5000"])
         }
 
     @Test
-    fun setAsideKeepsOneCopy() =
+    fun aLaterSetAsideNeverReplacesAnEarlierCopy() =
         runBlocking {
             store.save(one, bytes)
             store.setAside(one)
             store.save(one, byteArrayOf(5))
             assertTrue(store.setAside(one))
-            assertEquals(listOf("$serverA/$userOne.json.unreadable"), files.held.keys.toList())
-            assertArrayEquals(byteArrayOf(5), files.held["$serverA/$userOne.json.unreadable"])
+            store.save(one, byteArrayOf(6))
+            assertTrue(store.setAside(one))
+            // The first-ever copy survives two later set-asides.
+            assertEquals(3, asideNames().size)
+            assertTrue(files.held.values.any { it.contentEquals(bytes) })
+        }
+
+    @Test
+    fun atMostThreeCopiesAreKeptAndTheOldestGoes() =
+        runBlocking {
+            for (n in 1..5) {
+                store.save(one, byteArrayOf(n.toByte()))
+                store.setAside(one)
+            }
+            assertEquals(3, asideNames().size)
+            val kept =
+                asideNames().map {
+                    files.held
+                        .getValue(it)
+                        .single()
+                        .toInt()
+                }
+            assertEquals(listOf(3, 4, 5), kept)
+        }
+
+    @Test
+    fun copiesStayOrderedWhenTheClockGoesBackwards() =
+        runBlocking {
+            clock = 9_000L
+            store.save(one, byteArrayOf(1))
+            store.setAside(one)
+            clock = 10L
+            store.save(one, byteArrayOf(2))
+            store.setAside(one)
+            val newest = asideNames().maxBy { it.substringAfterLast('.').toLong() }
+            assertArrayEquals(byteArrayOf(2), files.held[newest])
         }
 
     @Test
@@ -217,64 +262,99 @@ class FileLineupStoreTest {
             assertArrayEquals(bytes, store.load(one).bytesOrNull())
         }
 
-    // The production read decision on real files, with a plain-JVM reader standing in for AtomicFile.
-    private fun storeOnDisk(dir: java.io.File): FileLineupStore {
-        val disk =
-            object : LineupFiles by files {
-                override fun read(name: String): ByteArray? = readOrNull(dir.resolve(name)) { it.readBytes() }
+    // The production disk files, on a real temporary directory.
+    private fun <T> onDisk(block: (java.io.File, FileLineupStore) -> T): T {
+        val dir = Files.createTempDirectory("lineup").toFile()
+        try {
+            return block(dir, FileLineupStore(DiskLineupFiles(dir), inPlace))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun noFileOnDiskLoadsAsAbsent() =
+        onDisk { _, disk ->
+            runBlocking { assertEquals(StoredBytes.Absent, disk.load(one)) }
+        }
+
+    @Test
+    fun aSavedLineupRoundTripsOnDisk() =
+        onDisk { dir, disk ->
+            runBlocking {
+                assertTrue(disk.save(one, bytes))
+                assertTrue(disk.save(one, byteArrayOf(4, 5)))
+                assertArrayEquals(byteArrayOf(4, 5), disk.load(one).bytesOrNull())
+                // The staged copy is gone after the rename.
+                assertEquals(listOf("$userOne.json"), dir.resolve(serverA).list()!!.toList())
             }
-        return FileLineupStore(disk, inPlace)
-    }
-
-    @Test
-    fun noFileOnDiskLoadsAsAbsent() {
-        val dir = Files.createTempDirectory("lineup").toFile()
-        try {
-            runBlocking { assertEquals(StoredBytes.Absent, storeOnDisk(dir).load(one)) }
-        } finally {
-            dir.deleteRecursively()
         }
-    }
 
     @Test
-    fun anExistingFileThatCannotBeOpenedLoadsAsFailed() {
-        val dir = Files.createTempDirectory("lineup").toFile()
-        try {
-            // A directory where the file should be: it exists, and opening it throws FileNotFoundException.
+    fun anExistingFileThatCannotBeOpenedLoadsAsFailed() =
+        onDisk { dir, disk ->
+            // A directory where the file should be: it exists, and it can't be read.
             dir.resolve("$serverA/$userOne.json").mkdirs()
-            runBlocking { assertEquals(StoredBytes.Failed, storeOnDisk(dir).load(one)) }
-        } finally {
-            dir.deleteRecursively()
+            runBlocking { assertEquals(StoredBytes.Failed, disk.load(one)) }
         }
-    }
 
     @Test
-    fun aSidecarAloneMeansTheLineupExists() {
-        val dir = Files.createTempDirectory("lineup").toFile()
-        try {
+    fun anOrphanNewFileAloneLoadsAsAbsent() =
+        onDisk { dir, disk ->
             val base = dir.resolve("$serverA/$userOne.json")
-            base.parentFile.mkdirs()
-            java.io.File(base.path + ".bak").writeBytes(bytes)
-            // The base is missing but a backup is there: the plain reader can't open the base, and that is a fault.
-            runBlocking { assertEquals(StoredBytes.Failed, storeOnDisk(dir).load(one)) }
-        } finally {
-            dir.deleteRecursively()
-        }
-    }
-
-    @Test
-    fun anOrphanNewFileAloneLoadsAsAbsent() {
-        val dir = Files.createTempDirectory("lineup").toFile()
-        try {
-            val base = dir.resolve("$serverA/$userOne.json")
-            base.parentFile.mkdirs()
-            // An interrupted first save leaves only the new-file sidecar; AtomicFile ignores it, so it is no lineup.
+            base.parentFile!!.mkdirs()
+            // An interrupted first save leaves only the staged copy; it is never read, so it is no lineup.
             java.io.File(base.path + ".new").writeBytes(bytes)
-            runBlocking { assertEquals(StoredBytes.Absent, storeOnDisk(dir).load(one)) }
-        } finally {
-            dir.deleteRecursively()
+            runBlocking { assertEquals(StoredBytes.Absent, disk.load(one)) }
         }
-    }
+
+    @Test
+    fun anOrphanNewFileNextToALineupIsIgnoredAndReplacedBySave() =
+        onDisk { dir, disk ->
+            runBlocking {
+                disk.save(one, bytes)
+                java.io.File(dir.resolve("$serverA/$userOne.json").path + ".new").writeBytes(byteArrayOf(9, 9, 9))
+                assertArrayEquals(bytes, disk.load(one).bytesOrNull())
+                assertTrue(disk.save(one, byteArrayOf(7)))
+                assertArrayEquals(byteArrayOf(7), disk.load(one).bytesOrNull())
+            }
+        }
+
+    @Test
+    fun aFileOverOneMebibyteLoadsAsFailedAndIsLeftAlone() =
+        onDisk { dir, disk ->
+            val file = dir.resolve("$serverA/$userOne.json")
+            file.parentFile!!.mkdirs()
+            val big = ByteArray(LineupFiles.MAX_BYTES + 1)
+            file.writeBytes(big)
+            runBlocking {
+                assertEquals(StoredBytes.Failed, disk.load(one))
+                assertEquals(big.size.toLong(), file.length())
+            }
+        }
+
+    @Test
+    fun aFileOfExactlyOneMebibyteStillLoads() =
+        onDisk { dir, disk ->
+            val file = dir.resolve("$serverA/$userOne.json")
+            file.parentFile!!.mkdirs()
+            file.writeBytes(ByteArray(LineupFiles.MAX_BYTES))
+            runBlocking { assertEquals(LineupFiles.MAX_BYTES, disk.load(one).bytesOrNull()?.size) }
+        }
+
+    @Test
+    fun setAsideOnDiskKeepsThreeStampedCopiesNextToNothingElse() =
+        onDisk { dir, disk ->
+            runBlocking {
+                for (n in 1..4) {
+                    disk.save(one, byteArrayOf(n.toByte()))
+                    assertTrue(disk.setAside(one))
+                }
+                val names = dir.resolve(serverA).list()!!.toList()
+                assertEquals(3, names.size)
+                assertTrue(names.all { it.startsWith("$userOne.json.unreadable.") })
+            }
+        }
 
     @Test
     fun missingFileLoadsAsAbsent() = runBlocking { assertEquals(StoredBytes.Absent, store.load(one)) }

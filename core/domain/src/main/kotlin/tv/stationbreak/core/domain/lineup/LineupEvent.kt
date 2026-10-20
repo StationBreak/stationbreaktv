@@ -21,6 +21,9 @@ enum class LineupEvent {
     /** The planned lineup could not be saved. It is kept in memory and saved by a later refresh. */
     SaveFailed,
 
+    /** The planned lineup did not decode back to a lineup of this account, so it was not saved. Kept in memory. */
+    SaveRejected,
+
     /** The account's server or user ID is not an ID at all, so it has no lineup. */
     NonCanonicalAccount,
 

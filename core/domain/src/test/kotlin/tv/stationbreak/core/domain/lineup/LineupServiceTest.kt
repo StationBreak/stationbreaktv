@@ -45,6 +45,9 @@ class LineupServiceTest {
 
     private val service = LineupService(store, library, clock, { offset }, { events += it }, TestCatalog)
 
+    private fun encodingWith(encode: (Lineup) -> ByteArray) =
+        LineupService(store, library, clock, { offset }, { events += it }, TestCatalog, encode)
+
     private fun stored(account: LibraryAccount = ACCOUNT): Lineup? =
         (store.inner.peek(account)?.let { LineupCodec.decode(it) } as? LineupCodec.Decoded.Loaded)?.lineup
 
@@ -283,6 +286,88 @@ class LineupServiceTest {
             assertEquals(listOf("Mine", "custom-9"), summaries.map { it.name })
             assertEquals(listOf(ChannelKind.Leftovers, ChannelKind.Unusable), summaries.map { it.kind })
             assertEquals(emptyList(), library.snapshotCutoffs, "nothing was planned")
+        }
+
+    @Test
+    fun aLineupThatDoesNotRoundTripIsRejectedNotSaved() =
+        runBlocking<Unit> {
+            val garbling = encodingWith { "{nope".encodeToByteArray() }
+
+            garbling.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf(LineupEvent.SaveRejected), events)
+            assertEquals(listOf("load"), store.calls, "never saved")
+            assertNull(store.inner.peek(ACCOUNT))
+            assertNotNull(garbling.lineup(ACCOUNT).value, "the in-memory lineup is still published")
+        }
+
+    @Test
+    fun aLineupEncodedForAnotherAccountIsRejectedNotSaved() =
+        runBlocking<Unit> {
+            val stolen = encodingWith { LineupCodec.encode(it.copy(userId = id(9))) }
+
+            stolen.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf(LineupEvent.SaveRejected), events)
+            assertNull(store.inner.peek(ACCOUNT))
+        }
+
+    @Test
+    fun aRejectedSaveLeavesTheStoredLineupAsItWas() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val saved = checkNotNull(store.inner.peek(ACCOUNT))
+            events.clear()
+            val garbling = encodingWith { "{nope".encodeToByteArray() }
+
+            garbling.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf(LineupEvent.SaveRejected), events)
+            assertContentEquals(saved, store.inner.peek(ACCOUNT))
+        }
+
+    @Test
+    fun aSessionStartedFromANewerVersionNeverSaves() =
+        runBlocking<Unit> {
+            store.inner.save(ACCOUNT, """{"version":2}""".encodeToByteArray())
+            store.calls.clear()
+
+            service.refresh(ACCOUNT, LIBRARIES)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertTrue("save" !in store.calls && "setAside" !in store.calls, "calls were ${store.calls}")
+        }
+
+    @Test
+    fun refreshAfterForgetDoesNotSaveTheOldLineupBack() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val hidden =
+                checkNotNull(current()).let { lineup ->
+                    lineup.copy(channels = lineup.channels.map { it.copy(state = EngineState.UserHidden) })
+                }
+            store.inner.save(ACCOUNT, LineupCodec.encode(hidden))
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertTrue(checkNotNull(current()).channels.all { it.state == EngineState.UserHidden })
+
+            assertTrue(service.forget(ACCOUNT))
+            assertNull(store.inner.peek(ACCOUNT))
+            assertNull(current(), "the in-memory lineup is gone")
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertTrue(checkNotNull(current()).channels.any { it.state == EngineState.On }, "planned from scratch")
+            assertEquals(current(), stored())
+        }
+
+    @Test
+    fun forgetIsTheOnlyCallerOfTheStoresForget() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertTrue("forget" !in store.calls)
+            service.forget(ACCOUNT)
+            assertEquals(1, store.calls.count { it == "forget" })
         }
 }
 
