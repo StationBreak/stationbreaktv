@@ -263,6 +263,20 @@ class FileLineupStoreTest {
     }
 
     @Test
+    fun anOrphanNewFileAloneLoadsAsAbsent() {
+        val dir = Files.createTempDirectory("lineup").toFile()
+        try {
+            val base = dir.resolve("$serverA/$userOne.json")
+            base.parentFile.mkdirs()
+            // An interrupted first save leaves only the new-file sidecar; AtomicFile ignores it, so it is no lineup.
+            java.io.File(base.path + ".new").writeBytes(bytes)
+            runBlocking { assertEquals(StoredBytes.Absent, storeOnDisk(dir).load(one)) }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun missingFileLoadsAsAbsent() = runBlocking { assertEquals(StoredBytes.Absent, store.load(one)) }
 
     @Test
