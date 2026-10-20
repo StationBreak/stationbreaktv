@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import java.io.IOException
+import java.nio.file.Files
 import java.util.concurrent.Executor
 
 /** The stored lineup behind the [tv.stationbreak.core.domain.LineupStore] port, with the files faked. */
@@ -215,6 +216,51 @@ class FileLineupStoreTest {
             files.failReads = false
             assertArrayEquals(bytes, store.load(one).bytesOrNull())
         }
+
+    // The production read decision on real files, with a plain-JVM reader standing in for AtomicFile.
+    private fun storeOnDisk(dir: java.io.File): FileLineupStore {
+        val disk =
+            object : LineupFiles by files {
+                override fun read(name: String): ByteArray? = readOrNull(dir.resolve(name)) { it.readBytes() }
+            }
+        return FileLineupStore(disk, inPlace)
+    }
+
+    @Test
+    fun noFileOnDiskLoadsAsAbsent() {
+        val dir = Files.createTempDirectory("lineup").toFile()
+        try {
+            runBlocking { assertEquals(StoredBytes.Absent, storeOnDisk(dir).load(one)) }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun anExistingFileThatCannotBeOpenedLoadsAsFailed() {
+        val dir = Files.createTempDirectory("lineup").toFile()
+        try {
+            // A directory where the file should be: it exists, and opening it throws FileNotFoundException.
+            dir.resolve("$serverA/$userOne.json").mkdirs()
+            runBlocking { assertEquals(StoredBytes.Failed, storeOnDisk(dir).load(one)) }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aSidecarAloneMeansTheLineupExists() {
+        val dir = Files.createTempDirectory("lineup").toFile()
+        try {
+            val base = dir.resolve("$serverA/$userOne.json")
+            base.parentFile.mkdirs()
+            java.io.File(base.path + ".bak").writeBytes(bytes)
+            // The base is missing but a backup is there: the plain reader can't open the base, and that is a fault.
+            runBlocking { assertEquals(StoredBytes.Failed, storeOnDisk(dir).load(one)) }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 
     @Test
     fun missingFileLoadsAsAbsent() = runBlocking { assertEquals(StoredBytes.Absent, store.load(one)) }

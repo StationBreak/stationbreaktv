@@ -18,8 +18,9 @@ import java.io.IOException
  * The [LineupStore] on one file per account, `lineup/<server>/<user>.json` under `filesDir`, each replaced
  * atomically (spec 12). It keeps opaque bytes and knows nothing of their format. A path is built only from IDs that
  * are already canonical (32 lower-case hexadecimal characters), so no account can name a path outside its own file;
- * any other ID gets no file and no access. Faults come back as [StoredBytes.Absent] or `false`, never an exception,
- * and the store logs nothing.
+ * any other ID gets no file and no access. Faults never throw: a read fault on an existing file is
+ * [StoredBytes.Failed] (only a missing file is [StoredBytes.Absent]), a write fault is `false`, and the store logs
+ * nothing.
  *
  * Cancellation behaves as for `FileServerSettings`: a caller cancelled after its file work has begun still completes
  * it, then sees `CancellationException` instead of the result.

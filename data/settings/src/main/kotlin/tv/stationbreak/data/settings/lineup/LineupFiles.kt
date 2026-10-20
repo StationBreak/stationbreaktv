@@ -33,12 +33,7 @@ internal interface LineupFiles {
 internal class DiskLineupFiles(
     private val root: File,
 ) : LineupFiles {
-    override fun read(name: String): ByteArray? =
-        try {
-            AtomicFile(root.resolve(name)).readFully()
-        } catch (_: FileNotFoundException) {
-            null
-        }
+    override fun read(name: String): ByteArray? = readOrNull(root.resolve(name)) { AtomicFile(it).readFully() }
 
     override fun write(
         name: String,
@@ -84,3 +79,20 @@ internal class DiskLineupFiles(
         }
     }
 }
+
+/**
+ * Reads [file] with [open], and answers null only when there is truly no lineup: neither the file nor either sidecar
+ * `AtomicFile` keeps (`.bak`, `.new`) exists. `AtomicFile.readFully` also throws [FileNotFoundException] for a file
+ * that exists but can't be opened (no permission, a directory), and that must not look like "no file": it propagates,
+ * so the store reports a read fault instead of letting a rebuild overwrite the lineup. Plain JVM, so it is unit-tested.
+ */
+internal fun readOrNull(
+    file: File,
+    open: (File) -> ByteArray,
+): ByteArray? =
+    try {
+        open(file)
+    } catch (e: FileNotFoundException) {
+        val somethingThere = listOf("", ".bak", ".new").any { File(file.path + it).exists() }
+        if (somethingThere) throw e else null
+    }
