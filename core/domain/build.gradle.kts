@@ -24,4 +24,7 @@ dependencies {
 
     // Test only: a 15,000-item library for the schedule source's size test (MODULES.md: tests may use it).
     testImplementation(project(":core:testing"))
+
+    // Test only: virtual time for the refresher's backoff.
+    testImplementation(libs.kotlinx.coroutines.test)
 }

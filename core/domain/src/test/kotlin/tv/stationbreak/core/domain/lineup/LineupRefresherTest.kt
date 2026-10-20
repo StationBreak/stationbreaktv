@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeMediaServer
@@ -243,6 +244,27 @@ class LineupRefresherTest {
         }
 
     @Test
+    fun aPersistentlyFailingSourceWithAStaleLineupBacksOffInsteadOfSpinning() =
+        runTest {
+            libraries = null
+            val failedAt = mutableListOf<Long>()
+            val report: (LineupEvent) -> Unit = {
+                if (it == LineupEvent.RefreshFailed) failedAt += testScheduler.currentTime
+            }
+            // No libraries are chosen, so nothing is ever planned and the lineup stays stale: every resubscription
+            // emits Start again; the collection-pass source always throws.
+            val refresher = LineupRefresher(service, AlwaysThrowingPasses(library), { libraries }, 1_000L, report)
+
+            refresher.start(backgroundScope)
+            testScheduler.advanceTimeBy(15_010L)
+            testScheduler.runCurrent()
+
+            val gaps = failedAt.zipWithNext { a, b -> b - a }
+            // Each gap is the wait (1 s, 2 s, 4 s, 8 s) plus the 1 ms the source takes to fail.
+            assertEquals(listOf(1_001L, 2_001L, 4_001L, 8_001L), gaps)
+        }
+
+    @Test
     fun theBackoffStartsOverAfterATriggerGotThrough() {
         val backoff = LineupRefresher.Backoff(LineupRefresher.INITIAL_BACKOFF_MS)
         assertEquals(listOf(1_000L, 2_000L, 4_000L), List(3) { backoff.next() })
@@ -413,6 +435,18 @@ private class SlowLibrary(
 }
 
 private const val SLOW_MS = 80L
+
+/** A library whose collection-pass flow always throws when collected. */
+private class AlwaysThrowingPasses(
+    inner: CountingLibrary,
+) : LibraryRepository by inner {
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
+        flow {
+            // Long enough for the start check to emit its Start trigger first, as it does on every resubscription.
+            delay(1)
+            error("the trigger flow failed")
+        }
+}
 
 /** A library whose first collection-pass flow throws when collected; later collections are the real one. */
 private class ThrowingOncePasses(

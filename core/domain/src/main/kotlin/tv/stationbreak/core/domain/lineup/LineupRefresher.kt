@@ -96,8 +96,9 @@ class LineupRefresher(
                 .map { Trigger.Success }
         val backoff = Backoff(initialBackoffMs)
         merge(start, passes, successes)
-            // A trigger got through: the source is healthy again, so the next failure waits the initial time.
-            .onEach { backoff.reset() }
+            // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
+            // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
+            .onEach { if (it !is Trigger.Start) backoff.reset() }
             .retryWhen { cause, _ ->
                 // A trigger source that fails is reported and listened to again after a wait that doubles to a cap.
                 if (cause is CancellationException) {
