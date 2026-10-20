@@ -39,7 +39,8 @@ class FileLineupStore internal constructor(
             try {
                 files.read(name)?.let { StoredBytes.Present(it) } ?: StoredBytes.Absent
             } catch (_: IOException) {
-                StoredBytes.Absent
+                // The file is there but won't read: not absent, so nobody rebuilds over it.
+                StoredBytes.Failed
             }
         }
     }

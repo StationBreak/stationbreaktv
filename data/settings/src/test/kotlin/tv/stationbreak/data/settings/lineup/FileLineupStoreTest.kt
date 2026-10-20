@@ -22,11 +22,13 @@ class FileLineupStoreTest {
         val held = linkedMapOf<String, ByteArray>()
         val touched = mutableListOf<String>()
         var failWrites = false
+        var failReads = false
         var failMoves = false
         var failDeletes = false
 
         override fun read(name: String): ByteArray? {
             touched += name
+            if (failReads) throw IOException("unreadable")
             return held[name]
         }
 
@@ -205,14 +207,17 @@ class FileLineupStoreTest {
         }
 
     @Test
-    fun aReadFaultLoadsAsAbsent() =
+    fun readFaultLoadsAsFailedNotAbsent() =
         runBlocking {
-            val failing =
-                object : LineupFiles by files {
-                    override fun read(name: String): ByteArray? = throw IOException("unreadable")
-                }
-            assertEquals(StoredBytes.Absent, FileLineupStore(failing, inPlace).load(one))
+            store.save(one, bytes)
+            files.failReads = true
+            assertEquals(StoredBytes.Failed, store.load(one))
+            files.failReads = false
+            assertArrayEquals(bytes, store.load(one).bytesOrNull())
         }
+
+    @Test
+    fun missingFileLoadsAsAbsent() = runBlocking { assertEquals(StoredBytes.Absent, store.load(one)) }
 
     @Test
     fun toStringNamesNoContents() {

@@ -8,11 +8,16 @@ class InMemoryLineupStore : LineupStore {
 
     var failWrites = false
 
+    /** Makes a load of an existing lineup come back [StoredBytes.Failed]. */
+    var failReads = false
+
     /** The set-aside copy for [account], if any. */
     fun setAsideCopy(account: LibraryAccount): ByteArray? = aside[account]
 
-    override suspend fun load(account: LibraryAccount): StoredBytes =
-        held[account]?.let { StoredBytes.Present(it.copyOf()) } ?: StoredBytes.Absent
+    override suspend fun load(account: LibraryAccount): StoredBytes {
+        val bytes = held[account] ?: return StoredBytes.Absent
+        return if (failReads) StoredBytes.Failed else StoredBytes.Present(bytes.copyOf())
+    }
 
     override suspend fun save(
         account: LibraryAccount,
