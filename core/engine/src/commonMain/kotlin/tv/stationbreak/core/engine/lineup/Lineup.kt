@@ -88,12 +88,41 @@ data class Lineup(
     val channels: List<LineupChannel>,
 ) {
     init {
-        require(channels.map { it.id }.toSet().size == channels.size) { "Channel IDs are unique" }
-        val numbers = channels.mapNotNull { it.number }
-        require(numbers.toSet().size == numbers.size) { "Channel numbers are unique" }
-        val unnumbered = channels.any { it.state == ChannelState.On && it.number == null }
-        require(!unnumbered) { "A switched-on channel has a number" }
+        require(uniqueIds(channels)) { "Channel IDs are unique" }
+        require(uniqueNumbers(channels)) { "Channel numbers are unique" }
+        require(onAreNumbered(channels)) { "A switched-on channel has a number" }
     }
+
+    companion object {
+        /**
+         * The lineup, or null when [channels] break an invariant (duplicate IDs, duplicate numbers, or a switched-on
+         * channel without a number), for callers such as decoding that must not throw.
+         */
+        @Suppress("LongParameterList")
+        fun ofOrNull(
+            serverId: CanonicalId,
+            userId: CanonicalId,
+            catalogVersion: Int,
+            utcOffsetMinutes: Int,
+            finalised: Boolean,
+            channels: List<LineupChannel>,
+        ): Lineup? {
+            val valid = uniqueIds(channels) && uniqueNumbers(channels) && onAreNumbered(channels)
+            return if (valid) Lineup(serverId, userId, catalogVersion, utcOffsetMinutes, finalised, channels) else null
+        }
+    }
+}
+
+private fun uniqueIds(channels: List<LineupChannel>): Boolean = channels.map { it.id }.toSet().size == channels.size
+
+private fun uniqueNumbers(channels: List<LineupChannel>): Boolean {
+    val numbers = channels.mapNotNull { it.number }
+    return numbers.toSet().size == numbers.size
+}
+
+private fun onAreNumbered(channels: List<LineupChannel>): Boolean {
+    val unnumbered = channels.any { it.state == ChannelState.On && it.number == null }
+    return !unnumbered
 }
 
 /** The permanent IDs of catalog channels. A starter keeps its ID when it becomes a custom channel. */
