@@ -23,6 +23,7 @@ import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -251,6 +252,23 @@ class LineupServiceTest {
             assertEquals("Odds", odds.name)
             val afterHours = summaries.first { it.id == LineupIds.starter("after-hours") }
             assertEquals(ChannelState.Shelf, afterHours.state)
+        }
+
+    @Test
+    fun aPlanFailureDoesNotHideTheStoredLineup() =
+        runBlocking<Unit> {
+            // Unfinalised, so planning takes the device's offset, and 7 minutes is not one the rules allow.
+            val unfinalised = Lineup(SERVER, USER, 1, 0, finalised = false, channels = emptyList())
+            store.inner.save(ACCOUNT, LineupCodec.encode(unfinalised))
+            offset = 7
+
+            assertFailsWith<IllegalArgumentException> { service.refresh(ACCOUNT, LIBRARIES) }
+            assertNull(current(), "nothing was published")
+
+            offset = 0
+            assertEquals(unfinalised, service.loaded(ACCOUNT)?.lineup, "the stored lineup is still read")
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertTrue(checkNotNull(current()).finalised)
         }
 
     @Test

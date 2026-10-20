@@ -100,7 +100,6 @@ class LineupService internal constructor(
         val entry = entryOf(owner)
         entry.mutex.withLock {
             val start = startOf(owner, entry)
-            entry.loaded = true
             val now = clock.now()
             val snapshot = library.ruleSnapshot(account, libraries, now)
             val names = library.collectionNames(account)
@@ -117,6 +116,8 @@ class LineupService internal constructor(
                 )
             if (start.save && !store.save(owner.key, LineupCodec.encode(planned))) report(LineupEvent.SaveFailed)
             publish(entry, planned)
+            // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
+            entry.loaded = true
         }
     }
 
