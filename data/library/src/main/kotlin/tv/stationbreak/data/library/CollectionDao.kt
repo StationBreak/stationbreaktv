@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
 /** What one [CacheTransactionDao.writeCollection] did. [stamp] is null when the read changed nothing and took none. */
 internal data class CollectionWrite(
@@ -21,6 +22,12 @@ internal data class CollectionWrite(
 internal class HeldMember(
     val memberId: String,
     val kind: String,
+)
+
+/** One collection's ID and current name, as Room maps the names read. */
+internal class CollectionNameRow(
+    val collectionId: String,
+    val name: String,
 )
 
 /** One collection as this TV held it before a cut-off, with its members in member-ID order. */
@@ -434,6 +441,16 @@ internal abstract class CollectionDao {
         userId: String,
     ): List<String>
 
+    // The current name of every collection not deleted (spec 12). Names are read here and never logged.
+    @Query(
+        "SELECT collectionId, name FROM collection WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NULL ORDER BY collectionId",
+    )
+    abstract suspend fun liveNames(
+        serverId: String,
+        userId: String,
+    ): List<CollectionNameRow>
+
     @Query(
         "SELECT COUNT(*) FROM collection_member WHERE serverId = :serverId AND userId = :userId " +
             "AND collectionId = :collectionId AND supersededAtMs IS NULL",
@@ -451,6 +468,13 @@ internal abstract class CollectionDao {
         serverId: String,
         userId: String,
     ): CollectionSyncEntity?
+
+    // The start of the last whole pass: null with no row. Written only by recordCollectionPass, after a pass succeeded.
+    @Query("SELECT collectionsSinceMs FROM collection_sync WHERE serverId = :serverId AND userId = :userId")
+    abstract fun observeSyncSince(
+        serverId: String,
+        userId: String,
+    ): Flow<Long?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun saveSyncRow(row: CollectionSyncEntity)

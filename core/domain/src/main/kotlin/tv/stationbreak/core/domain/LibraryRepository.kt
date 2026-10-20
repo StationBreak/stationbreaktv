@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.RuleSnapshot
@@ -172,12 +173,30 @@ interface LibraryRepository : AccountCache {
      * [cutoff] must equal the `S - G` of the day being built, as for [scheduleItems]. **The safe range is
      * `cutoff >= now - 72 h`**, the same documented contract (Vimes L-1) and not a `require`: an older cut-off degrades
      * to the newest copy and does not throw.
+     *
+     * A **planning read** (spec 12: choosing which channels a lineup holds) may pass `cutoff = now`, which is inside
+     * the safe range. Such a snapshot is never used to build a day: a day is built only from the `S - G` cut-off.
      */
     suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): RuleSnapshot
+
+    /**
+     * The current names of [account]'s collections that are not deleted (spec 12), by ID. A [RuleSnapshot] holds no
+     * names, so this is where a collection hint is matched. A collection whose ID is not canonical is left out. This is
+     * the current state, not an as-of read, so it is for planning a lineup and never for building a day.
+     */
+    suspend fun collectionNames(account: LibraryAccount): CollectionNames
+
+    /**
+     * When the last whole collection pass of [account] began, or null until one has completed; it emits the current
+     * value first and again each time a pass completes. The sync engine finishes the items (and so [status]'s
+     * `lastSuccess` moves) *before* it runs the collection pass, so a reader that needs the collections waits for this
+     * and not for `lastSuccess`. A pass that stops part-way does not move it.
+     */
+    fun collectionsSyncedAt(account: LibraryAccount): Flow<Instant?>
 
     /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the
