@@ -58,9 +58,12 @@ class StationBreakApp :
         ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent.onOpen() })
         // The channel lineup follows the saved library: at start, and after each sync (spec 12). It reports its own
         // failures, so nothing it does reaches this scope. Built off the main thread, like the rest of the graph.
+        // A refresh is background work that takes seconds on a slow TV, so it runs on one thread of the default pool
+        // at most (never competing with playback and the sync on more than one core), not on the whole pool.
+        val lineupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1) + failed)
         scope.launch {
             val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
-            graph.lineupRefresher().start(scope)
+            graph.lineupRefresher().start(lineupScope)
         }
     }
 
