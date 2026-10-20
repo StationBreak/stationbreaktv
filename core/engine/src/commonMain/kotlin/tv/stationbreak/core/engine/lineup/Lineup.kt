@@ -49,6 +49,7 @@ sealed interface ChannelSource {
 /**
  * One channel of a [Lineup]. Its [id] is permanent and separate from its [number], so renumbering never breaks
  * favourites. [numberOverride] and [nameOverride] are the user's and do not detach a starter from the catalog.
+ * [onSinceMs] is when the channel was last switched on (for a channel that was never on, when it joined the lineup).
  */
 data class LineupChannel(
     val id: ChannelId,
@@ -57,7 +58,7 @@ data class LineupChannel(
     val nameOverride: String?,
     val state: ChannelState,
     val source: ChannelSource,
-    val addedAtMs: Long,
+    val onSinceMs: Long,
 ) {
     /** The number the channel is shown at, or null while it has none (it waits on the shelf for the user). */
     val number: Int? get() = numberOverride ?: defaultNumber

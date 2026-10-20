@@ -176,7 +176,7 @@ object LineupPlanner {
         return channels.map { channel ->
             val recipe = byId[channel.id] ?: return@map channel
             val source = ChannelSource.Starter(recipe.key, edited = false, rules = rules.getValue(recipe.key))
-            channel.copy(state = ChannelState.On, source = source, addedAtMs = p.nowMs)
+            channel.copy(state = ChannelState.On, source = source, onSinceMs = p.nowMs)
         }
     }
 
@@ -222,7 +222,7 @@ private class Planning(
         nameOverride = null,
         state = state,
         source = ChannelSource.Starter(recipe.key, edited = false, rules = rules),
-        addedAtMs = nowMs,
+        onSinceMs = nowMs,
     )
 
     fun leftoversChannel(
@@ -236,6 +236,6 @@ private class Planning(
         nameOverride = null,
         state = state,
         source = ChannelSource.Leftovers(recipe.key, recipe.maxRating),
-        addedAtMs = nowMs,
+        onSinceMs = nowMs,
     )
 }

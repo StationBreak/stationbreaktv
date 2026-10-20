@@ -52,7 +52,7 @@ class LineupPlannerTest {
         assertEquals(62, lineup.channels.size)
         catalog.recipes.forEach { assertEquals(it.number, lineup.channel(it.key).defaultNumber) }
         assertEquals(lineup.channels.map { it.number }, lineup.channels.map { it.number }.sortedBy { it })
-        assertTrue(lineup.channels.all { it.addedAtMs == 77L && it.numberOverride == null && it.nameOverride == null })
+        assertTrue(lineup.channels.all { it.onSinceMs == 77L && it.numberOverride == null && it.nameOverride == null })
         assertEquals(1, lineup.catalogVersion)
         assertEquals(0, lineup.utcOffsetMinutes)
         assertEquals(SERVER, lineup.serverId)
@@ -112,7 +112,7 @@ class LineupPlannerTest {
                 .starter.rules.timing,
             rules.timing,
         )
-        assertEquals(first.channel("kaiju").addedAtMs, second.channel("kaiju").addedAtMs)
+        assertEquals(first.channel("kaiju").onSinceMs, second.channel("kaiju").onSinceMs)
     }
 
     @Test
@@ -191,7 +191,7 @@ class LineupPlannerTest {
         val scifi = next.channel("scifi")
         assertEquals(ChannelState.On, scifi.state)
         assertEquals(330, scifi.number)
-        assertEquals(5_000L, scifi.addedAtMs)
+        assertEquals(5_000L, scifi.onSinceMs)
         assertEquals(RecipeResolver.resolve(catalog.recipes.last(), SERVER, 0, NO_NAMES), scifi.starter.rules)
         // Nothing else moved.
         assertEquals(lineup.channels.filter { it.id != scifi.id }, next.channels.filter { it.id != scifi.id })
@@ -283,7 +283,7 @@ class LineupPlannerTest {
         )
         assertEquals(lineup.channel("bravo").source, next.channel("bravo").source)
         assertEquals(custom, next.channel("charlie").source)
-        assertEquals(lineup.channel("alpha").addedAtMs, next.channel("alpha").addedAtMs)
+        assertEquals(lineup.channel("alpha").onSinceMs, next.channel("alpha").onSinceMs)
     }
 
     @Test
@@ -327,7 +327,7 @@ class LineupPlannerTest {
         val mars = next.channel("mars")
         assertEquals(ChannelState.On, mars.state, "a new recipe at a free number that fills turns on")
         assertEquals(160, mars.number)
-        assertEquals(9_000L, mars.addedAtMs)
+        assertEquals(9_000L, mars.onSinceMs)
         assertIs<ChannelSource.Starter>(nova.source)
     }
 
@@ -354,7 +354,7 @@ class LineupPlannerTest {
                 .starter.rules.sources,
         )
         assertEquals(ChannelState.On, synced.channel("mars").state)
-        assertEquals(10_000L, synced.channel("mars").addedAtMs)
+        assertEquals(10_000L, synced.channel("mars").onSinceMs)
     }
 
     @Test
@@ -371,7 +371,7 @@ class LineupPlannerTest {
         assertEquals(ChannelState.On, more.state)
         assertEquals(198, more.number)
         assertEquals(ChannelSource.Leftovers("more-odds", null), more.source)
-        assertEquals(9_000L, more.addedAtMs)
+        assertEquals(9_000L, more.onSinceMs)
         val taken = next.channel("taken-odds")
         assertEquals(ChannelState.Shelf, taken.state, "its number is taken, so it waits for the user")
         assertNull(taken.number)

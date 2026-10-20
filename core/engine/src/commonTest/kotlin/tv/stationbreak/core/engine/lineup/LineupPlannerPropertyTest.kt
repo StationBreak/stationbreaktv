@@ -95,7 +95,7 @@ class LineupPlannerPropertyTest {
             assertEquals(old.defaultNumber, new.defaultNumber, "${old.id} default number")
             assertEquals(old.number, new.number, "${old.id} number")
             if (old.state != ChannelState.Shelf) assertEquals(old.state, new.state, "${old.id} state")
-            if (old.state == ChannelState.On) assertEquals(old.addedAtMs, new.addedAtMs, "${old.id} added")
+            if (old.state == ChannelState.On) assertEquals(old.onSinceMs, new.onSinceMs, "${old.id} added")
             checkUntouched(old, new)
         }
     }
