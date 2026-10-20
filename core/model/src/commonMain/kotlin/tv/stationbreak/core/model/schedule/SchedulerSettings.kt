@@ -61,6 +61,12 @@ data class SchedulerSettings(
     /** The grace window G in milliseconds. */
     val graceMs: Long get() = graceHours * MS_PER_HOUR
 
+    /**
+     * True when a program of [runtimeMs] can air: `minRuntimeMs <= runtimeMs <= epochMs`. A shorter item is not a
+     * program, and a longer one can never play without running over its epoch. The one place this rule is written.
+     */
+    fun isAirable(runtimeMs: Long): Boolean = runtimeMs in minRuntimeMs..epochMs
+
     companion object {
         private const val MS_PER_MINUTE = 60_000L
         private const val MS_PER_HOUR = 3_600_000L
