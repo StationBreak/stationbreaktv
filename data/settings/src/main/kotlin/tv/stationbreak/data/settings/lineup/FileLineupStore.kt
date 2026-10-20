@@ -2,6 +2,7 @@
 package tv.stationbreak.data.settings.lineup
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -53,7 +54,9 @@ class FileLineupStore internal constructor(
         account: LibraryAccount,
         bytes: ByteArray,
     ): Boolean {
-        val name = nameOf(account) ?: return false
+        val name = nameOf(account)
+        // Never write what a read would refuse (over the size cap): it would look like a failed file next time.
+        if (name == null || bytes.size > LineupFiles.MAX_BYTES) return false
         return locked { attempt { files.write(name, bytes) } }
     }
 
@@ -72,7 +75,13 @@ class FileLineupStore internal constructor(
 
     override suspend fun forget(account: LibraryAccount): Boolean {
         val name = nameOf(account) ?: return false
-        return locked { attempt { files.delete(name) } }
+        // The account's set-aside copies go with it: forgetting is the one explicit way to remove them.
+        return locked {
+            attempt {
+                files.delete(name)
+                asideCopies(name).forEach { files.delete(it.first) }
+            }
+        }
     }
 
     // A constant: nothing about the contents may reach a log through this.
@@ -101,11 +110,15 @@ class FileLineupStore internal constructor(
         }
     }
 
+    // Faults never throw: anything but cancellation (a SecurityException, say) is a failed write too.
+    @Suppress("TooGenericExceptionCaught")
     private fun attempt(block: () -> Unit): Boolean =
         try {
             block()
             true
-        } catch (_: IOException) {
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
             false
         }
 

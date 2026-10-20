@@ -60,16 +60,27 @@ class LineupService internal constructor(
     private val clock: Clock,
     private val standardOffsetMinutes: () -> Int,
     private val report: (LineupEvent) -> Unit,
-    internal val catalog: StarterCatalogView,
-    private val encode: (Lineup) -> ByteArray = LineupCodec::encode,
+    private val seams: LineupSeams,
 ) : ChannelRepository {
+    /** For tests: a small catalog in place of the real one. */
+    internal constructor(
+        store: LineupStore,
+        library: LibraryRepository,
+        clock: Clock,
+        standardOffsetMinutes: () -> Int,
+        report: (LineupEvent) -> Unit,
+        catalog: StarterCatalogView,
+    ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(catalog))
+
     constructor(
         store: LineupStore,
         library: LibraryRepository,
         clock: Clock,
         standardOffsetMinutes: () -> Int,
         report: (LineupEvent) -> Unit,
-    ) : this(store, library, clock, standardOffsetMinutes, report, StarterCatalog)
+    ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams())
+
+    internal val catalog: StarterCatalogView get() = seams.catalog
 
     private class Entry {
         val mutex = Mutex()
@@ -271,7 +282,7 @@ class LineupService internal constructor(
         owner: Owner,
         planned: Lineup,
     ) {
-        val bytes = encode(planned)
+        val bytes = seams.encode(planned)
         val back = LineupCodec.decode(bytes)
         if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup)) {
             report(LineupEvent.SaveRejected)
@@ -290,6 +301,12 @@ class LineupService internal constructor(
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
 }
+
+/** What a test can swap in the service: the catalog it plans from, and how it encodes a lineup for the store. */
+internal class LineupSeams(
+    val catalog: StarterCatalogView = StarterCatalog,
+    val encode: (Lineup) -> ByteArray = LineupCodec::encode,
+)
 
 /** An account in canonical form, as the store keys it, with its IDs for the planner. */
 private class Owner(

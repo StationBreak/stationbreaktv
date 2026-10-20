@@ -11,7 +11,8 @@ import tv.stationbreak.core.rules.Source
  * between; a shipped key or number never changes and is never reused.
  *
  * A recipe key is a persistence identifier: stored lineups, channel IDs and the planner's matching all hang on it. It
- * is frozen once released, and after release only a recipe's `name` and `personality` (its one-line tagline) may change.
+ * is frozen once released, and after release only a recipe's `name` and `personality` (its one-line tagline) may
+ * change.
  */
 object StarterCatalog : StarterCatalogView {
     /**
@@ -44,6 +45,15 @@ object StarterCatalog : StarterCatalogView {
                 maxRating = null,
             ),
         )
+
+    /**
+     * Every recipe and leftovers key that has ever been kid-safe (a rating ceiling of PG or lower) in any released
+     * catalog, retired or not. A stored channel with one of these keys is held to PG whatever its number or `edited`
+     * flag, so renumbering it out of the Kids band, or retiring its recipe, never lifts its ceiling. Keys are only ever
+     * added here, never removed; the catalog tests hold it to every frozen manifest.
+     */
+    val EVER_KID_SAFE_KEYS: Set<String> =
+        (kidsBand.map { it.key } + leftovers.filter { it.maxRating != null }.map { it.key }).toSet()
 
     override val retiredNumbers: Set<Int> = emptySet()
 

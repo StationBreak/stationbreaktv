@@ -7,6 +7,7 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -126,5 +127,27 @@ class LineupCeilingTest {
         seedRatings()
         val grownUp = starter("laughs", 110, ChannelState.On, toons)
         assertEquals(setOf(id(1), id(2), id(3), id(4)), scheduledPool(lineupOf(grownUp), grownUp))
+    }
+
+    @Test
+    fun aRetiredKidsKeyRenumberedOutOfTheKidsBandIsHeldToPg() {
+        seedRatings()
+        val key = StarterCatalog.recipes.first { it.maxRating != null }.key
+        val retired = starter(key, 150, ChannelState.On, toons)
+        assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(retired), retired))
+    }
+
+    @Test
+    fun aCurrentKidSafeStarterRenumberedOutOfTheKidsBandKeepsItsRecipeCeiling() {
+        seedRatings()
+        val moved = starter("toons", 150, ChannelState.On, toons)
+        assertEquals(setOf(id(1)), scheduledPool(lineupOf(moved), moved), "the recipe's ceiling is G")
+    }
+
+    @Test
+    fun kidsLeftoversRenumberedOutOfTheKidsBandKeepsItsCatalogCeiling() {
+        seedRatings()
+        val moved = leftovers("kids-odds-and-ends", 150, maxRating = null)
+        assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(moved), moved))
     }
 }

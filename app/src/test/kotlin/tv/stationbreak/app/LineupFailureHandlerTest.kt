@@ -16,7 +16,7 @@ class LineupFailureHandlerTest {
 
         runBlocking { scope.launch { error("a secret library name") }.join() }
 
-        assertEquals(listOf("RefresherFailed"), logged)
+        assertEquals(listOf("BackgroundJobFailed"), logged)
     }
 
     @Test

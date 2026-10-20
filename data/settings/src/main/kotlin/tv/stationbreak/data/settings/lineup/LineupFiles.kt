@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.lineup
 
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.RandomAccessFile
 
 /**
  * The lineup files under one root, behind a seam so tests can inject I/O faults. A name is a relative path built only
@@ -49,15 +53,32 @@ internal interface LineupFiles {
  */
 internal class DiskLineupFiles(
     private val root: File,
+    private val syncDirectory: (File) -> Unit = ::syncDirectoryWithOs,
 ) : LineupFiles {
     override fun read(name: String): ByteArray? {
         val file = root.resolve(name)
         if (!file.exists()) return null
         // Anything else that can't be read (a directory, no permission, too big) is a fault, never "no file".
-        if (!file.isFile || file.length() > LineupFiles.MAX_BYTES) throw IOException("cannot read the lineup")
-        val bytes = file.readBytes()
-        if (bytes.size > LineupFiles.MAX_BYTES) throw IOException("the lineup is too large")
-        return bytes
+        if (!file.isFile) throw IOException("cannot read the lineup")
+        return readAtMost(file)
+    }
+
+    // Reads through a stream that stops at MAX_BYTES + 1, so a file that grows or lies about its length can't be
+    // pulled whole into memory.
+    private fun readAtMost(file: File): ByteArray {
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(BUFFER)
+        var total = 0
+        FileInputStream(file).use { input ->
+            while (true) {
+                val read = input.read(buffer, 0, minOf(buffer.size, LineupFiles.MAX_BYTES + 1 - total))
+                if (read < 0) break
+                out.write(buffer, 0, read)
+                total += read
+                if (total > LineupFiles.MAX_BYTES) throw IOException("the lineup is too large")
+            }
+        }
+        return out.toByteArray()
     }
 
     override fun write(
@@ -81,7 +102,7 @@ internal class DiskLineupFiles(
             staged.delete()
             throw e
         }
-        file.parentFile?.let(::syncDirectory)
+        file.parentFile?.let { syncDirectory(it) }
     }
 
     override fun move(
@@ -91,7 +112,7 @@ internal class DiskLineupFiles(
         val source = root.resolve(from)
         if (!source.exists()) return false
         if (!source.renameTo(root.resolve(to))) throw IOException("cannot set the lineup aside")
-        source.parentFile?.let(::syncDirectory)
+        source.parentFile?.let { syncDirectory(it) }
         return true
     }
 
@@ -110,22 +131,34 @@ internal class DiskLineupFiles(
             ?.toList()
             .orEmpty()
 
+    // Creates the directory; each directory that was made is recorded in its parent by syncing that parent.
     private fun ensureDirectory(directory: File) {
-        if (!directory.isDirectory && !directory.mkdirs() && !directory.isDirectory) {
-            throw IOException("cannot create the lineup directory")
-        }
-    }
-
-    // Makes the rename durable. Not every file system lets a directory be opened; that is not a failed save.
-    private fun syncDirectory(directory: File) {
-        try {
-            RandomAccessFile(directory, "r").use { it.channel.force(true) }
-        } catch (_: IOException) {
-            // Best effort.
-        }
+        val missing = generateSequence(directory) { it.parentFile }.takeWhile { !it.isDirectory }.toList()
+        if (missing.isEmpty()) return
+        if (!directory.mkdirs() && !directory.isDirectory) throw IOException("cannot create the lineup directory")
+        missing.mapNotNull { it.parentFile }.forEach(syncDirectory)
     }
 
     private companion object {
         const val NEW = ".new"
+        const val BUFFER = 8192
+    }
+}
+
+/**
+ * Flushes [directory]'s entries to storage so a rename or a new file in it survives a power cut. `RandomAccessFile`
+ * can't open a directory, so this opens it read-only with `Os.open` and syncs the descriptor (API 21+). Best effort:
+ * a file system that refuses it is not a failed save.
+ */
+internal fun syncDirectoryWithOs(directory: File) {
+    try {
+        val fd = Os.open(directory.path, OsConstants.O_RDONLY, 0)
+        try {
+            Os.fsync(fd)
+        } finally {
+            Os.close(fd)
+        }
+    } catch (_: ErrnoException) {
+        // Best effort.
     }
 }

@@ -12,6 +12,7 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.RecipeResolver
+import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
@@ -235,24 +236,36 @@ internal class LineupDays(
     /**
      * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is
      * in the catalog (the stored one only counts for a retired key). An unedited starter of a kid-safe recipe takes the
-     * recipe's; an edited one keeps its stored ceiling. A channel of a kid-safe recipe, and any channel numbered in the
-     * Kids band, is never above PG: a ceiling that is null or higher becomes PG.
+     * recipe's; an edited one keeps its stored ceiling. A channel whose key was ever kid-safe
+     * (`StarterCatalog.EVER_KID_SAFE_KEYS`, whatever its number or edit), and any channel numbered in the Kids band, is
+     * never above PG: a ceiling that is null or higher becomes PG.
      */
     private fun ceilingOf(channel: LineupChannel): String? {
-        val source = channel.source
-        val key = (source as? ChannelSource.Starter)?.recipeKey
-        val recipe = key?.let { k -> catalog.recipes.firstOrNull { it.key == k } }
-        val recipeCeiling = recipe?.maxRating
-        val kidSafe = recipeCeiling != null
-        val stored =
-            when (source) {
-                is ChannelSource.Leftovers -> leftoversCeiling(source)
-                is ChannelSource.Starter -> if (kidSafe && !source.edited) recipeCeiling else source.rules.maxRating
-                is ChannelSource.Custom -> source.rules.maxRating
-                is ChannelSource.Unusable -> null
-            }
+        val stored = storedCeiling(channel.source)
         val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
-        return if ((kidSafe || inKidsBand) && !atMostPg(stored)) KIDS_MAX_RATING else stored
+        val kidSafe = inKidsBand || keyOf(channel.source)?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
+        return if (kidSafe && !atMostPg(stored)) KIDS_MAX_RATING else stored
+    }
+
+    private fun keyOf(source: ChannelSource): String? =
+        when (source) {
+            is ChannelSource.Starter -> source.recipeKey
+            is ChannelSource.Leftovers -> source.recipeKey
+            else -> null
+        }
+
+    // The ceiling before the kids' cap: the catalog's wherever it governs, else the stored one.
+    private fun storedCeiling(source: ChannelSource): String? =
+        when (source) {
+            is ChannelSource.Leftovers -> leftoversCeiling(source)
+            is ChannelSource.Starter -> starterCeiling(source)
+            is ChannelSource.Custom -> source.rules.maxRating
+            is ChannelSource.Unusable -> null
+        }
+
+    private fun starterCeiling(source: ChannelSource.Starter): String? {
+        val recipeCeiling = catalog.recipes.firstOrNull { it.key == source.recipeKey }?.maxRating
+        return if (recipeCeiling != null && !source.edited) recipeCeiling else source.rules.maxRating
     }
 
     // The catalog's ceiling, null included, while the key is in it; the stored one only for a retired key.

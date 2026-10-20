@@ -26,6 +26,7 @@ class FileLineupStoreTest {
         var failReads = false
         var failMoves = false
         var failDeletes = false
+        var failWith: RuntimeException? = null
 
         override fun read(name: String): ByteArray? {
             touched += name
@@ -38,6 +39,7 @@ class FileLineupStoreTest {
             bytes: ByteArray,
         ) {
             touched += name
+            failWith?.let { throw it }
             // A failed write must leave the old bytes, as an atomic write does.
             if (failWrites) throw IOException("disk full")
             held[name] = bytes
@@ -48,6 +50,7 @@ class FileLineupStoreTest {
             to: String,
         ): Boolean {
             touched += from
+            failWith?.let { throw it }
             if (failMoves) throw IOException("cannot rename")
             val bytes = held.remove(from) ?: return false
             held[to] = bytes
@@ -56,6 +59,7 @@ class FileLineupStoreTest {
 
         override fun delete(name: String) {
             touched += name
+            failWith?.let { throw it }
             if (failDeletes) throw IOException("cannot delete")
             held.remove(name)
         }
@@ -262,11 +266,14 @@ class FileLineupStoreTest {
             assertArrayEquals(bytes, store.load(one).bytesOrNull())
         }
 
+    // Directories the disk files asked to be synced, in order (android.system.Os is not there on the JVM).
+    private val synced = mutableListOf<java.io.File>()
+
     // The production disk files, on a real temporary directory.
     private fun <T> onDisk(block: (java.io.File, FileLineupStore) -> T): T {
         val dir = Files.createTempDirectory("lineup").toFile()
         try {
-            return block(dir, FileLineupStore(DiskLineupFiles(dir), inPlace))
+            return block(dir, FileLineupStore(DiskLineupFiles(dir) { synced += it }, inPlace))
         } finally {
             dir.deleteRecursively()
         }
@@ -354,6 +361,82 @@ class FileLineupStoreTest {
                 assertEquals(3, names.size)
                 assertTrue(names.all { it.startsWith("$userOne.json.unreadable.") })
             }
+        }
+
+    @Test
+    fun theDirectoryIsSyncedAfterTheRename() =
+        onDisk { dir, _ ->
+            val atSync = mutableListOf<List<String>>()
+            val disk =
+                DiskLineupFiles(dir) { sync ->
+                    synced += sync
+                    atSync += sync.list()!!.toList()
+                }
+            disk.write("$serverA/$userOne.json", bytes)
+            val account = dir.resolve(serverA)
+            assertTrue("the account directory was synced", account in synced)
+            // At the last sync the rename had happened: the final name is there and the staged copy is not.
+            assertEquals(listOf("$userOne.json"), atSync.last())
+            assertEquals(account, synced.last())
+        }
+
+    @Test
+    fun creatingTheAccountDirectorySyncsItsParents() =
+        onDisk { dir, _ ->
+            val disk = DiskLineupFiles(dir, synced::add)
+            disk.write("$serverA/$userOne.json", bytes)
+            assertTrue("synced: $synced", dir.resolve(serverA) in synced.take(2) && dir in synced)
+        }
+
+    @Test
+    fun setAsideSyncsTheDirectoryToo() =
+        onDisk { dir, disk ->
+            runBlocking {
+                disk.save(one, bytes)
+                synced.clear()
+                disk.setAside(one)
+                assertTrue(dir.resolve(serverA) in synced)
+            }
+        }
+
+    @Test
+    fun aLineupOverTheSizeCapIsNeverWritten() =
+        runBlocking {
+            assertFalse(store.save(one, ByteArray(LineupFiles.MAX_BYTES + 1)))
+            assertTrue(files.touched.isEmpty())
+            assertTrue(store.save(one, ByteArray(LineupFiles.MAX_BYTES)))
+        }
+
+    @Test
+    fun aLineupOverTheSizeCapIsNeverWrittenByTheDiskFilesEither() =
+        onDisk { dir, disk ->
+            runBlocking {
+                assertFalse(disk.save(one, ByteArray(LineupFiles.MAX_BYTES + 1)))
+                assertFalse(dir.resolve(serverA).exists())
+            }
+        }
+
+    @Test
+    fun aSecurityExceptionOnSaveIsAFailedSaveNotAThrow() =
+        runBlocking {
+            store.save(one, bytes)
+            files.failWith = SecurityException("denied")
+            assertFalse(store.save(one, byteArrayOf(8)))
+            assertFalse(store.setAside(one))
+            assertFalse(store.forget(one))
+        }
+
+    @Test
+    fun forgetAlsoDeletesTheSetAsideCopies() =
+        runBlocking<Unit> {
+            store.save(one, bytes)
+            store.setAside(one)
+            store.save(one, byteArrayOf(5))
+            store.setAside(one)
+            store.save(two, byteArrayOf(9))
+            store.save(one, byteArrayOf(6))
+            assertTrue(store.forget(one))
+            assertEquals("only the other account remains", listOf("$serverA/$userTwo.json"), files.held.keys.toList())
         }
 
     @Test

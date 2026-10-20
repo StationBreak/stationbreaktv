@@ -46,7 +46,7 @@ class LineupServiceTest {
     private val service = LineupService(store, library, clock, { offset }, { events += it }, TestCatalog)
 
     private fun encodingWith(encode: (Lineup) -> ByteArray) =
-        LineupService(store, library, clock, { offset }, { events += it }, TestCatalog, encode)
+        LineupService(store, library, clock, { offset }, { events += it }, LineupSeams(TestCatalog, encode))
 
     private fun stored(account: LibraryAccount = ACCOUNT): Lineup? =
         (store.inner.peek(account)?.let { LineupCodec.decode(it) } as? LineupCodec.Decoded.Loaded)?.lineup
@@ -327,6 +327,24 @@ class LineupServiceTest {
         }
 
     @Test
+    fun aLineupOverTheStoresSizeCapIsAFailedSaveAndStaysInMemory() =
+        runBlocking<Unit> {
+            val fat: (Lineup) -> ByteArray = { lineup ->
+                val first = lineup.channels.first().copy(nameOverride = "x".repeat(SIZE_CAP + 1))
+                LineupCodec.encode(lineup.copy(channels = listOf(first) + lineup.channels.drop(1)))
+            }
+            val capped = CappedStore(store.inner)
+            val seams = LineupSeams(TestCatalog, fat)
+            val cappedService = LineupService(capped, library, clock, { offset }, { events += it }, seams)
+
+            cappedService.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf(LineupEvent.SaveFailed), events)
+            assertNull(store.inner.peek(ACCOUNT))
+            assertNotNull(cappedService.lineup(ACCOUNT).value)
+        }
+
+    @Test
     fun aSessionStartedFromANewerVersionNeverSaves() =
         runBlocking<Unit> {
             store.inner.save(ACCOUNT, """{"version":2}""".encodeToByteArray())
@@ -372,6 +390,17 @@ class LineupServiceTest {
 }
 
 private const val WAIT_MS = 10_000L
+private const val SIZE_CAP = 1024 * 1024
+
+/** A store that, like the file store, refuses to write more than the size cap. */
+private class CappedStore(
+    private val inner: PeekableStore,
+) : LineupStore by inner {
+    override suspend fun save(
+        account: LibraryAccount,
+        bytes: ByteArray,
+    ): Boolean = bytes.size <= SIZE_CAP && inner.save(account, bytes)
+}
 
 /** A [LineupStore] that records each call and the account it was for. */
 internal class RecordingStore(

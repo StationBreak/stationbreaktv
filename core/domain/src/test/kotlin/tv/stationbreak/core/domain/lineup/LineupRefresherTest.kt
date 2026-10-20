@@ -243,6 +243,15 @@ class LineupRefresherTest {
         }
 
     @Test
+    fun theBackoffStartsOverAfterATriggerGotThrough() {
+        val backoff = LineupRefresher.Backoff(LineupRefresher.INITIAL_BACKOFF_MS)
+        assertEquals(listOf(1_000L, 2_000L, 4_000L), List(3) { backoff.next() })
+        backoff.reset()
+        assertEquals(1_000L, backoff.next(), "fail, succeed, fail again: the second failure waits the initial time")
+        assertEquals(2_000L, backoff.next())
+    }
+
+    @Test
     fun theBackoffDoublesFromOneSecondToFiveMinutes() {
         val waits = (0L..12L).map { LineupRefresher.backoffMs(it, LineupRefresher.INITIAL_BACKOFF_MS) }
         val doubling = listOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L, 32_000L, 64_000L, 128_000L, 256_000L)

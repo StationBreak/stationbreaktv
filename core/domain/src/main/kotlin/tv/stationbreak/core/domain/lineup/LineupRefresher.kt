@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
@@ -93,14 +94,17 @@ class LineupRefresher(
                 .drop(1)
                 .filterNotNull()
                 .map { Trigger.Success }
+        val backoff = Backoff(initialBackoffMs)
         merge(start, passes, successes)
-            .retryWhen { cause, attempt ->
+            // A trigger got through: the source is healthy again, so the next failure waits the initial time.
+            .onEach { backoff.reset() }
+            .retryWhen { cause, _ ->
                 // A trigger source that fails is reported and listened to again after a wait that doubles to a cap.
                 if (cause is CancellationException) {
                     false
                 } else {
                     report(LineupEvent.RefreshFailed)
-                    delay(backoffMs(attempt, initialBackoffMs))
+                    delay(backoff.next())
                     true
                 }
             }.collect { trigger -> act(account, trigger) }
@@ -159,6 +163,21 @@ class LineupRefresher(
         }
 
         private const val MAX_DOUBLINGS = 20L
+    }
+
+    /** The waits between failures of one trigger source: the initial wait, doubling to the cap; [reset] starts over. */
+    internal class Backoff(
+        private val initialMs: Long,
+    ) {
+        private var failures = 0L
+
+        /** The wait after the next failure. */
+        fun next(): Long = backoffMs(failures++, initialMs)
+
+        /** A trigger got through: the next failure waits the initial time again. */
+        fun reset() {
+            failures = 0L
+        }
     }
 
     private sealed interface Trigger {
