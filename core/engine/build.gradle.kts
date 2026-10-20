@@ -14,6 +14,8 @@ kotlin {
     // Test only: the pool vectors are JSON. The library is already in the build for core:model and core:rules.
     sourceSets.commonTest.dependencies {
         implementation(libs.kotlinx.serialization.json)
+        // Test only: a 15,000-item library for the lineup planner's size test (MODULES.md: tests may use it).
+        implementation(project(":core:testing"))
     }
 }
 
