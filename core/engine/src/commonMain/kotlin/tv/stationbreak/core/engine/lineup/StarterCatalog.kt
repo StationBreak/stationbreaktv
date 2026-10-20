@@ -93,7 +93,7 @@ private val kidsBand: List<Recipe> =
             key = "little-farm",
             name = "Little Farm",
             says = "Gentle, slow and sunny, for the very youngest viewers.",
-            sources = tags("preschool", "toddler", "Preschool") + genres("Preschool"),
+            sources = tags("preschool", "toddler") + genres("Preschool"),
             rating = TV_Y,
         ),
         recipe(
@@ -127,8 +127,8 @@ private val kidsBand: List<Recipe> =
         recipe(
             Band.Kids,
             n = 20,
-            key = "the-treehouse",
-            name = "The Treehouse",
+            key = "backyard-fort",
+            name = "Backyard Fort",
             says = "Big-kid adventure: maps, mysteries and no grown-ups allowed.",
             sources = genres("Adventure", "Kids", "Children", "Action & Adventure") + tags("adventure"),
             rating = TV_Y7,
@@ -202,7 +202,7 @@ private val kidsBand: List<Recipe> =
             n = 52,
             key = "flipbook",
             name = "Flipbook",
-            says = "Old-school animation, hand-drawn and a little wobbly.",
+            says = "Golden-oldie family films and cartoons from before 1970.",
             sources = years(from = 1930, to = 1969) + tags("classic cartoons"),
             rating = "G",
         ),
@@ -290,7 +290,7 @@ private val generalBand: List<Recipe> =
             key = "punchline",
             name = "Punchline",
             says = "Stand-up, sketches and one-liners without the filler.",
-            sources = genres("Stand-Up", "Stand-up", "Sketch Comedy") + tags("stand-up", "sketch", "comedy special"),
+            sources = genres("Stand-Up", "Sketch Comedy") + tags("stand-up", "sketch", "comedy special"),
         ),
         recipe(
             Band.General,
@@ -563,7 +563,9 @@ private val dramaBand: List<Recipe> =
             key = "corsets-and-candlelight",
             name = "Corsets & Candlelight",
             says = "Period dramas, grand houses and well-timed glances.",
-            sources = genres("Period Drama", "Costume Drama", "Historical") + tags("period drama", "costume drama", "regency"),
+            sources =
+                genres("Period Drama", "Costume Drama", "Historical") +
+                    tags("period drama", "costume drama", "regency"),
         ),
         recipe(
             Band.Drama,

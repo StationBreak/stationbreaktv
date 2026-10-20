@@ -3,9 +3,11 @@ package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.AutoSeed
+import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.Source
 
 /** The cable-style number bands. Shipped default numbers stay inside their band and are never reused. */
+@Suppress("MagicNumber")
 enum class Band(
     val numbers: IntRange,
 ) {
@@ -47,7 +49,11 @@ data class Recipe(
     val kidSafe: Boolean get() = band == Band.Kids
 }
 
-private fun isPortable(source: Source): Boolean = source is Source.Genre || source is Source.Tag || source is Source.YearRange
+private fun isPortable(source: Source): Boolean =
+    when (source) {
+        is Source.Genre, is Source.Tag, is Source.YearRange -> true
+        else -> false
+    }
 
 /** A channel that airs what no other switched-on channel does. Its pool is computed by the engine, not by rules. */
 data class LeftoversRecipe(
@@ -59,6 +65,16 @@ data class LeftoversRecipe(
 ) {
     init {
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
+        require(number in Band.Kids.numbers || number in Band.General.numbers) {
+            "The number is outside the Kids and General bands"
+        }
+        if (number in Band.Kids.numbers) {
+            val rank = RatingLadder.rankOf(maxRating)
+            val limit = checkNotNull(RatingLadder.rankOf("PG"))
+            require(rank != null && rank <= limit) { "Kids' leftovers need a ceiling of PG or lower" }
+        } else {
+            require(maxRating == null) { "Grown-up leftovers have no rating ceiling" }
+        }
     }
 }
 

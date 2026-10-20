@@ -150,7 +150,8 @@ class StarterCatalogTest {
         for (r in recipes) {
             assertTrue(AutoSeed.isValidRecipeKey(r.key), r.key)
             assertTrue(r.sources.isNotEmpty())
-            assertTrue((r.sources + r.exclusions).all { it is Source.Genre || it is Source.Tag || it is Source.YearRange })
+            val all = r.sources + r.exclusions
+            assertTrue(all.all { it is Source.Genre || it is Source.Tag || it is Source.YearRange })
         }
         for (l in leftovers) assertTrue(AutoSeed.isValidRecipeKey(l.key), l.key)
     }
@@ -195,4 +196,49 @@ class StarterCatalogTest {
         assertEquals(600..899, LineupDefaults.CUSTOM_NUMBERS)
         assertEquals(900..999, LineupDefaults.RESERVED_NUMBERS)
     }
+
+    @Test
+    fun aNonPortableExclusionIsRejected() {
+        val library = Source.Library(CanonicalId.parse("0".repeat(32)))
+        assertFailsWith<IllegalArgumentException> {
+            val sources = listOf(Source.Genre("Comedy"))
+            Recipe("x", "X", "x", Band.General, 150, false, sources, listOf(library), null, null, emptyList())
+        }
+    }
+
+    @Test
+    fun leftoversAreStrictAboutNumberAndCeiling() {
+        fun left(
+            number: Int,
+            rating: String?,
+        ) = LeftoversRecipe("l", "L", "l", number, rating)
+        left(99, "PG")
+        left(199, null)
+        assertFailsWith<IllegalArgumentException> { left(250, null) }
+        assertFailsWith<IllegalArgumentException> { left(99, null) }
+        assertFailsWith<IllegalArgumentException> { left(99, "PG-13") }
+        assertFailsWith<IllegalArgumentException> { left(99, "bogus") }
+        assertFailsWith<IllegalArgumentException> { left(199, "PG") }
+        assertFailsWith<IllegalArgumentException> { LeftoversRecipe("Bad Key", "L", "l", 99, "PG") }
+    }
+
+    @Test
+    fun noRecipeListsTwoSourcesThatDifferOnlyByCase() {
+        for (r in recipes) {
+            for (kind in listOf("genre", "tag")) {
+                val names =
+                    (r.sources + r.exclusions).mapNotNull {
+                        when {
+                            kind == "genre" && it is Source.Genre -> it.name
+                            kind == "tag" && it is Source.Tag -> it.name
+                            else -> null
+                        }
+                    }
+                val folded = names.map { n -> foldCase(n) }
+                assertEquals(folded.size, folded.toSet().size, "${r.key} has case-only duplicates among $names")
+            }
+        }
+    }
+
+    private fun foldCase(text: String): String = text.lowercase()
 }
