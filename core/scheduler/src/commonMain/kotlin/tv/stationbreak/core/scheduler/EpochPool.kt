@@ -28,7 +28,7 @@ object EpochPool {
         n: Long,
     ): List<ScheduleItem> {
         requireUniqueIds(items)
-        val cutoff = Epochs.epochStart(settings, n) - settings.graceMs
+        val cutoff = Epochs.cutoff(settings, n)
         return items
             .filter { isInPool(it, cutoff, settings) }
             .sortedBy { it.id.value }
@@ -42,8 +42,7 @@ object EpochPool {
         val deleted = item.deletedAtMs
         return item.createdAtMs < cutoff &&
             (deleted == null || deleted >= cutoff) &&
-            item.runtimeMs >= settings.minRuntimeMs &&
-            item.runtimeMs <= settings.epochMs
+            settings.isAirable(item.runtimeMs)
     }
 
     private fun requireUniqueIds(items: List<ScheduleItem>) {

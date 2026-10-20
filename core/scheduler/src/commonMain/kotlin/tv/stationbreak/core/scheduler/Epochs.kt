@@ -28,6 +28,15 @@ object Epochs {
     ): Long = n * settings.epochMs + settings.startMs - settings.offsetMs
 
     /**
+     * The pool cut-off of epoch [n]: `epochStart(n) - graceMs`. An item added before it is old enough to air in epoch
+     * `n`; one deleted before it is gone. The one place this subtraction is written.
+     */
+    fun cutoff(
+        settings: SchedulerSettings,
+        n: Long,
+    ): Long = epochStart(settings, n) - settings.graceMs
+
+    /**
      * The seed of epoch [n]: `splitmix64(seed + n * 0x9E3779B97F4A7C15)`, wrapping modulo 2^64. [n] is a signed 64-bit
      * number reinterpreted as unsigned (two's complement) before the multiplication, so a negative `n` is well defined.
      */

@@ -15,6 +15,11 @@ kotlin {
     sourceSets.commonTest.dependencies {
         implementation(libs.kotlinx.serialization.json)
     }
+    // Test only: a 15,000-item library for the lineup planner's size test, which runs on the JVM only (MODULES.md:
+    // tests may use it).
+    sourceSets.jvmTest.dependencies {
+        implementation(project(":core:testing"))
+    }
 }
 
 // The rules-format vectors are the source of truth. The jvmTest check reads them from the repository and compares them

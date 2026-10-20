@@ -30,6 +30,25 @@ class EpochMathTest {
     private val nepal = testSettings(utcOffsetMinutes = 345, startMinuteOfDay = 1110)
 
     @Test
+    fun cutoffIsStartMinusGrace() {
+        val s = testSettings(utcOffsetMinutes = -300, startMinuteOfDay = 360, graceHours = 6)
+        for (n in listOf(-3L, 0L, 19_000L)) {
+            assertEquals(Epochs.epochStart(s, n) - 6 * MS_HOUR, Epochs.cutoff(s, n))
+        }
+        val noGrace = testSettings(graceHours = 0)
+        assertEquals(Epochs.epochStart(noGrace, 5), Epochs.cutoff(noGrace, 5))
+    }
+
+    @Test
+    fun isAirableIsInclusiveAtBothEnds() {
+        val s = testSettings(minRuntimeMs = 60_000L, epochHours = 24)
+        assertTrue(s.isAirable(60_000L))
+        assertTrue(s.isAirable(s.epochMs))
+        assertFalse(s.isAirable(59_999L))
+        assertFalse(s.isAirable(s.epochMs + 1))
+    }
+
+    @Test
     fun utcMinusFiveAtSixInTheMorning() {
         assertEquals(-1L, Epochs.epochNumber(eastern, 0L))
         assertEquals(-46_800_000L, Epochs.epochStart(eastern, -1L)) // 1969-12-31T11:00Z
