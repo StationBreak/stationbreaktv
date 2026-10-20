@@ -22,6 +22,11 @@ android {
         testInstrumentationRunner = "tv.stationbreak.app.HiltTestRunner"
     }
 
+    // BuildConfig.DEBUG guards the debug-only lineup timing probe (LineupTimingProbe).
+    buildFeatures {
+        buildConfig = true
+    }
+
     // Debug builds use Android's per-machine debug key. CI re-signs its debug APK with the CI debug key in a separate
     // step, outside Gradle, so no build code ever sees that key (ADR-0011, amended 2026-10-18).
     buildTypes {

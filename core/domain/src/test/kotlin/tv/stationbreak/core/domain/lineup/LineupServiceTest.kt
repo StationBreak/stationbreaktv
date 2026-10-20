@@ -54,6 +54,21 @@ class LineupServiceTest {
     private fun current(account: LibraryAccount = ACCOUNT): Lineup? = service.lineup(account).value?.lineup
 
     @Test
+    fun eachCompletedRefreshReportsOneNonNegativeDuration() =
+        runBlocking<Unit> {
+            val durations = mutableListOf<Long>()
+            val seams = LineupSeams(TestCatalog, timed = { durations += it })
+            val timedService = LineupService(store, library, clock, { offset }, { events += it }, seams)
+
+            timedService.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(1, durations.size)
+            timedService.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(2, durations.size)
+            assertTrue(durations.all { it >= 0 })
+        }
+
+    @Test
     fun firstRefreshPlansAtNowAndSaves() =
         runBlocking<Unit> {
             offset = -300

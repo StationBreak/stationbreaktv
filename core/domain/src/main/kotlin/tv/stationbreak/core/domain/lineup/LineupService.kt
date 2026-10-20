@@ -26,6 +26,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlin.time.TimeSource
 
 /** A lineup with the revision it was published at. A new refresh gives a new revision, so it is a cache key. */
 internal data class Revisioned(
@@ -80,6 +81,16 @@ class LineupService internal constructor(
         report: (LineupEvent) -> Unit,
     ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams())
 
+    /** As above, and [timed] is told each completed refresh's wall time in milliseconds (a number, nothing else). */
+    constructor(
+        store: LineupStore,
+        library: LibraryRepository,
+        clock: Clock,
+        standardOffsetMinutes: () -> Int,
+        report: (LineupEvent) -> Unit,
+        timed: (Long) -> Unit,
+    ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed))
+
     internal val catalog: StarterCatalogView get() = seams.catalog
 
     private class Entry {
@@ -122,6 +133,7 @@ class LineupService internal constructor(
     ) {
         val owner = ownerOf(account) ?: return report(LineupEvent.NonCanonicalAccount)
         val entry = entryOf(owner)
+        val began = TimeSource.Monotonic.markNow()
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
@@ -144,6 +156,8 @@ class LineupService internal constructor(
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
         }
+        // Only a refresh that ran to its publish is timed: load to publish, including any wait on the account's lock.
+        seams.timed(began.elapsedNow().inWholeMilliseconds)
     }
 
     /**
@@ -302,10 +316,11 @@ class LineupService internal constructor(
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
 }
 
-/** What a test can swap in the service: the catalog it plans from, and how it encodes a lineup for the store. */
+/** What a test can swap in the service: its catalog, how it encodes a lineup for the store, and where timings go. */
 internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
     val encode: (Lineup) -> ByteArray = LineupCodec::encode,
+    val timed: (Long) -> Unit = {},
 )
 
 /** An account in canonical form, as the store keys it, with its IDs for the planner. */

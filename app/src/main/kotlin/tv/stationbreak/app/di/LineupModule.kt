@@ -8,6 +8,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import tv.stationbreak.app.BuildConfig
+import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
@@ -18,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.data.settings.lineup.FileLineupStore
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.time.Clock
 
@@ -37,13 +44,31 @@ internal object LineupModule {
         @ApplicationContext context: Context,
     ): LineupStore = FileLineupStore(context)
 
-    // Events carry no ID, name or content, so their names are safe to log.
+    // Events carry no ID, name or content, so their names are safe to log. The timings are numbers only. The probe is
+    // debug builds only (null in release); it needs the schedule source, which needs this service, hence the Provider.
     @Provides
     @Singleton
+    @Suppress("InjectDispatcher") // The probe's own scope: a root, with nothing to inject a dispatcher into.
     fun lineupService(
         store: LineupStore,
         library: LibraryRepository,
-    ): LineupService = LineupService(store, library, Clock.System, { standardOffsetMinutes() }) { Log.i(TAG, it.name) }
+        schedule: Provider<ScheduleSource>,
+    ): LineupService {
+        val failed = CoroutineExceptionHandler { _, _ -> Log.w(TAG, "ProbeFailed") }
+        val probeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
+        val probe = lineupTimingProbeFor(BuildConfig.DEBUG, probeScope, { schedule.get() }) { Log.i(TAG, it) }
+        return LineupService(
+            store,
+            library,
+            Clock.System,
+            { standardOffsetMinutes() },
+            { Log.i(TAG, it.name) },
+            { ms ->
+                Log.i(TAG, "RefreshTookMs=$ms")
+                probe?.onRefreshed()
+            },
+        )
+    }
 
     @Provides
     fun channelRepository(service: LineupService): ChannelRepository = service
