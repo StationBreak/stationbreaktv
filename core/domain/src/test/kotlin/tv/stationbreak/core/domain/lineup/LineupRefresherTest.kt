@@ -5,7 +5,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -306,6 +310,21 @@ class LineupRefresherTest {
             assertEquals(1, slow.completed.get())
         }
 
+    @Test
+    fun aSelectionAlreadyForTheNewAccountIsNeverUsedForTheOldOne() =
+        runBlocking<Unit> {
+            val other = LibraryAccount(ServerId(SERVER.value), UserId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
+            val otherLibraries = setOf(ItemId("e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0"))
+            val seen = RecordingLibrary(library)
+            // The account flow the refresher listens to has not delivered the new account yet, but the port already
+            // answers it when asked again, and the selection is already the new account's.
+            val lagging = LaggingActiveAccount(seen, stale = ACCOUNT, now = other)
+            LineupRefresher(serviceOver(seen), lagging, { otherLibraries }) { events += it }.start(scope)
+            settle()
+
+            assertEquals(emptyList(), seen.reads, "no refresh with the other account's libraries")
+        }
+
     // Ruling 2: the lineup is not part of the session's saved library. Signing out, or a rejected session, forgets the
     // saved library (`AccountCache.forget`) and leaves the lineup file alone.
     @Test
@@ -374,4 +393,23 @@ private class RecordingLibrary(
         reads += account to libraries
         return inner.ruleSnapshot(account, libraries, cutoff)
     }
+}
+
+/** A library whose first [activeAccount] flow is stale (it never moves on), while any later ask gives the true one. */
+private class LaggingActiveAccount(
+    private val inner: LibraryRepository,
+    private val stale: LibraryAccount,
+    private val now: LibraryAccount,
+) : LibraryRepository by inner {
+    private val asked = AtomicInteger()
+
+    override fun activeAccount(): Flow<LibraryAccount?> =
+        if (asked.getAndIncrement() == 0) {
+            flow {
+                emit(stale)
+                awaitCancellation()
+            }
+        } else {
+            flowOf(now)
+        }
 }

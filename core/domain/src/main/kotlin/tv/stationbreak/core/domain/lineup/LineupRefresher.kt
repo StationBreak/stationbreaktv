@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -43,13 +44,12 @@ class LineupRefresher(
     // The pass last acted on, per account, kept for the process: Room re-emits a value it already gave.
     private val actedOn = ConcurrentHashMap<LibraryAccount, Instant>()
 
-    // The account active now, written the moment it changes (before the old account's work is cancelled), so work that
-    // woke up late can tell it is no longer for the active account.
-    @Volatile private var current: LibraryAccount? = null
-
     private var started: Job? = null
 
-    /** Starts listening in [scope]. A second call does nothing. */
+    /**
+     * Starts listening in [scope]. A second call does nothing: [started] is never cleared, so this is one-shot, meant
+     * for an app-scoped singleton.
+     */
     @Suppress("TooGenericExceptionCaught") // Whatever a refresh throws is reported, never allowed to reach the scope.
     @Synchronized
     fun start(scope: CoroutineScope) {
@@ -60,10 +60,7 @@ class LineupRefresher(
                     library
                         .activeAccount()
                         .distinctUntilChanged()
-                        .collectLatest { account ->
-                            current = account
-                            if (account != null) follow(account)
-                        }
+                        .collectLatest { account -> if (account != null) follow(account) }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -116,9 +113,11 @@ class LineupRefresher(
         if (trigger is Trigger.Pass && actedOn[account] == trigger.startedAt) return
         try {
             val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
-            // The choice is the active account's. If the account changed while it was read, it is not this one's.
+            // The choice is the active account's. The account flow may not have delivered a change yet (nothing is
+            // cancelled then), so ask the port again, directly, just before refreshing: if the account is no longer
+            // this one, the libraries read may be the new account's, and nothing is refreshed or recorded.
             currentCoroutineContext().ensureActive()
-            if (current != account) return
+            if (library.activeAccount().first() != account) return
             service.refresh(account, chosen)
             // Recorded once attempted: a pass that was cancelled, or had no libraries to refresh, is acted on later.
             if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
