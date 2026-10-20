@@ -6,9 +6,10 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/** The shipped catalog keeps the promises frozen in [CATALOG_MANIFEST_V1]. */
+/** The shipped catalog keeps the promises frozen in every manifest of [CATALOG_MANIFESTS]. */
 class CatalogManifestTest {
     private val shipped = StarterCatalog.recipes
     private val first = shipped.first()
@@ -26,10 +27,30 @@ class CatalogManifestTest {
     private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V1)
 
     @Test
-    fun theShippedCatalogKeepsTheV1Manifest() {
-        assertEquals(emptyList(), problems(StarterCatalog))
+    fun theShippedCatalogKeepsEveryManifest() {
+        for (manifest in CATALOG_MANIFESTS) {
+            assertEquals(emptyList(), manifestProblems(StarterCatalog, manifest), "manifest v${manifest.version}")
+        }
+        val versions = CATALOG_MANIFESTS.map { it.version }
+        assertEquals(versions.sorted().distinct(), versions, "manifests are oldest first, one per version")
+        assertEquals(StarterCatalog.VERSION, CATALOG_MANIFESTS.last().version, "the current version is frozen too")
         assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V1.recipes.size)
         assertEquals(1, CATALOG_MANIFEST_V1.version)
+    }
+
+    @Test
+    fun catalogSourcesCarryNoExtras() {
+        for (recipe in StarterCatalog.recipes) {
+            assertTrue((recipe.sources + recipe.exclusions).all { it.extras.isEmpty() }, recipe.key)
+        }
+    }
+
+    @Test
+    fun theKidsLeftoversKeyIsAlwaysShippedWithACeiling() {
+        val kids = StarterCatalog.leftovers.single { it.key == "kids-odds-and-ends" }
+        assertNotNull(kids.maxRating)
+        assertTrue("kids-odds-and-ends" !in StarterCatalog.retiredKeys)
+        CATALOG_MANIFESTS.forEach { assertNotNull(it.leftovers.getValue("kids-odds-and-ends").maxRating) }
     }
 
     @Test

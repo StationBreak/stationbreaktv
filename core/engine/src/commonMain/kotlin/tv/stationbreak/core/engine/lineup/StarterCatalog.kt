@@ -23,6 +23,7 @@ object StarterCatalog : StarterCatalogView {
     override val recipes: List<Recipe> =
         kidsBand + generalBand + dramaBand + genreBand + worldBand + premiumBand
 
+    /** The leftovers recipes. The kids' one, `kids-odds-and-ends`, always ships with a ceiling and is never retired. */
     override val leftovers: List<LeftoversRecipe> =
         listOf(
             LeftoversRecipe(

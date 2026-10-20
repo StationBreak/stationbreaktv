@@ -110,8 +110,9 @@ private fun retirementProblems(
         else -> emptyList()
     }
 
+// Catalog sources carry no unknown fields (a test checks it), so extras stay out of the text; one would fail here.
 private fun canonicalOf(source: Source): String {
-    val extras = if (source.extras.isEmpty()) "" else "+" + text(source.extras.toString())
+    require(source.extras.isEmpty()) { "A catalog source has no extras" }
     val body =
         when (source) {
             is Source.Genre -> "genre" + text(source.name)
@@ -121,7 +122,7 @@ private fun canonicalOf(source: Source): String {
             is Source.Library -> "library(${source.id.value})"
             is Source.Series -> "series(${source.id.value})"
         }
-    return "$body$extras;"
+    return "$body;"
 }
 
 // A text with its UTF-8 byte length in front, so the canonical string cannot be read two ways.
