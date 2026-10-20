@@ -4,7 +4,9 @@ package tv.stationbreak.core.rules
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 /** The key of a `recipe` seed (docs/rules-format.md, "How seeds are made"): 1 to 64 characters of a-z, 0-9 and `-`. */
 class AutoSeedRecipeKeyTest {
@@ -36,5 +38,11 @@ class AutoSeedRecipeKeyTest {
         for (key in listOf("", "Rubber", "a b", "é", "a_b", "a/b", "a\n", "a".repeat(65))) {
             assertFailsWith<IllegalArgumentException>("key <$key>") { derive(key) }
         }
+    }
+
+    @Test
+    fun theKeyCheckAgreesWithDerive() {
+        for (key in listOf("a", "0-9", "a".repeat(64))) assertTrue(AutoSeed.isValidRecipeKey(key))
+        for (key in listOf("", "Rubber", "a b", "é", "a_b", "a".repeat(65))) assertFalse(AutoSeed.isValidRecipeKey(key))
     }
 }

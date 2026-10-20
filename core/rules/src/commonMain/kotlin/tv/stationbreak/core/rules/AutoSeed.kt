@@ -32,6 +32,9 @@ object AutoSeed {
 
     private fun isRecipeKeyChar(c: Char): Boolean = c in 'a'..'z' || c in '0'..'9' || c == '-'
 
+    /** True for a recipe key: 1 to 64 characters of `a-z`, `0-9` and `-`. The one rule for the seed and the catalog. */
+    fun isValidRecipeKey(key: String): Boolean = key.length in 1..MAX_RECIPE_KEY && key.all(::isRecipeKeyChar)
+
     /**
      * The seed for [kind] and [key] on the server [serverId]. Throws [IllegalArgumentException] for a server ID that is
      * not in canonical form (32 lower-case hex characters), a library or collection key that is not, a recipe key
@@ -58,7 +61,7 @@ object AutoSeed {
             }
 
             AutoSeedKind.Recipe -> {
-                require(key.length in 1..MAX_RECIPE_KEY && key.all(::isRecipeKeyChar)) { "The recipe key is not valid" }
+                require(isValidRecipeKey(key)) { "The recipe key is not valid" }
             }
 
             AutoSeedKind.Library, AutoSeedKind.Collection -> {
