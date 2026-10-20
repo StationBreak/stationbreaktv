@@ -5,8 +5,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -30,7 +31,9 @@ import kotlin.time.Instant
  *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws is reported
  * ([LineupEvent.RefreshFailed]) and the refresher keeps listening, so one bad plan never stops later ones or reaches
- * the app scope. Nothing runs while nobody is signed in or no libraries are chosen ([libraries] gives null or none).
+ * the app scope. A trigger source that itself fails is reported the same way and listened to again after a wait that
+ * starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no libraries are
+ * chosen ([libraries] gives null or none).
  *
  * The account is [LibraryRepository.activeAccount], the one the sync uses; [libraries] reads the user's chosen
  * libraries each time it is asked, so a changed choice is seen by the next refresh.
@@ -39,6 +42,7 @@ class LineupRefresher(
     private val service: LineupService,
     private val library: LibraryRepository,
     private val libraries: suspend () -> Set<ItemId>?,
+    private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
     private val report: (LineupEvent) -> Unit,
 ) {
     // The pass last acted on, per account, kept for the process: Room re-emits a value it already gave.
@@ -90,8 +94,16 @@ class LineupRefresher(
                 .filterNotNull()
                 .map { Trigger.Success }
         merge(start, passes, successes)
-            .catch { if (it is CancellationException) throw it else report(LineupEvent.RefreshFailed) }
-            .collect { trigger -> act(account, trigger) }
+            .retryWhen { cause, attempt ->
+                // A trigger source that fails is reported and listened to again after a wait that doubles to a cap.
+                if (cause is CancellationException) {
+                    false
+                } else {
+                    report(LineupEvent.RefreshFailed)
+                    delay(backoffMs(attempt, initialBackoffMs))
+                    true
+                }
+            }.collect { trigger -> act(account, trigger) }
     }
 
     @Suppress("TooGenericExceptionCaught") // An unreadable start state just means: refresh.
@@ -127,6 +139,26 @@ class LineupRefresher(
             report(LineupEvent.RefreshFailed)
             if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
         }
+    }
+
+    internal companion object {
+        /** The wait after the first trigger failure; each further one doubles it, up to [MAX_BACKOFF_MS]. */
+        const val INITIAL_BACKOFF_MS = 1_000L
+
+        /** The longest wait between listening again: five minutes. */
+        const val MAX_BACKOFF_MS = 300_000L
+
+        /** The wait before listening again after failure number [attempt] (0 is the first), doubling to the cap. */
+        fun backoffMs(
+            attempt: Long,
+            initialMs: Long,
+        ): Long {
+            // Past this many doublings the cap is reached; stopping there keeps the shift from overflowing.
+            val doublings = attempt.coerceIn(0L, MAX_DOUBLINGS).toInt()
+            return minOf(MAX_BACKOFF_MS, initialMs shl doublings)
+        }
+
+        private const val MAX_DOUBLINGS = 20L
     }
 
     private sealed interface Trigger {

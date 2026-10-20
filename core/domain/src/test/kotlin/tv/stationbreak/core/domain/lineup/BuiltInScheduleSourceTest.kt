@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
@@ -18,7 +19,6 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
-import tv.stationbreak.core.engine.lineup.ChannelState as EngineState
 
 class BuiltInScheduleSourceTest {
     private val library = CountingLibrary()
@@ -55,12 +55,12 @@ class BuiltInScheduleSourceTest {
     private val oddsAndEnds = LineupIds.leftovers("odds-and-ends")
     private val kidsOddsAndEnds = LineupIds.leftovers("kids-odds-and-ends")
 
-    private fun laughs(state: EngineState = EngineState.On): LineupChannel {
+    private fun laughs(state: ChannelState = ChannelState.On): LineupChannel {
         val comedy = rules("Laughs", Source.Genre("Comedy"))
         return starter("laughs", 110, state, comedy)
     }
 
-    private fun afterHours(state: EngineState = EngineState.Shelf) =
+    private fun afterHours(state: ChannelState = ChannelState.Shelf) =
         starter("after-hours", 590, state, rules("After Hours", Source.Tag("late")))
 
     @Test
@@ -74,7 +74,7 @@ class BuiltInScheduleSourceTest {
 
             assertEquals(listOf(cutoff), library.snapshotCutoffs, "one ruleSnapshot for the whole lineup")
             assertEquals(0, library.scheduleItemsCalls, "never scheduleItems (#275)")
-            val on = checkNotNull(service.lineup(ACCOUNT).value).lineup.channels.filter { it.state == EngineState.On }
+            val on = checkNotNull(service.lineup(ACCOUNT).value).lineup.channels.filter { it.state == ChannelState.On }
             assertEquals(on.mapNotNull { it.number }.sorted(), airings.map { it.number })
             assertTrue(airings.size > 3)
             assertTrue(airings.all { it.epochStart == dayStart })
@@ -109,8 +109,8 @@ class BuiltInScheduleSourceTest {
         holding(
             lineupOf(
                 laughs(),
-                starter("frights", 310, EngineState.On, rules("Frights", Source.Genre("Horror"))),
-                channel("custom-1", 600, EngineState.On, ChannelSource.Custom(evening)),
+                starter("frights", 310, ChannelState.On, rules("Frights", Source.Genre("Horror"))),
+                channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(evening)),
             ),
         )
 
@@ -144,11 +144,11 @@ class BuiltInScheduleSourceTest {
         holding(
             lineupOf(
                 laughs(),
-                starter("whodunit", 210, EngineState.On, rules("Whodunit", Source.Genre("Crime"), maxRating = "G")),
-                starter("westerns", 220, EngineState.On, rules("W", western, exclusions = listOf(western))),
-                starter("frights", 310, EngineState.On, rules("Frights", Source.Genre("Nothing like it"))),
-                starter("rockets", 320, EngineState.On, rules("Rockets", Source.Collection(id(77)))),
-                channel("custom-1", 600, EngineState.On, ChannelSource.Custom(rules("Fresh", Source.Genre("Fresh")))),
+                starter("whodunit", 210, ChannelState.On, rules("Whodunit", Source.Genre("Crime"), maxRating = "G")),
+                starter("westerns", 220, ChannelState.On, rules("W", western, exclusions = listOf(western))),
+                starter("frights", 310, ChannelState.On, rules("Frights", Source.Genre("Nothing like it"))),
+                starter("rockets", 320, ChannelState.On, rules("Rockets", Source.Collection(id(77)))),
+                channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(rules("Fresh", Source.Genre("Fresh")))),
             ),
         )
 
@@ -166,7 +166,7 @@ class BuiltInScheduleSourceTest {
     fun aMissingCollectionAfterAFullPassMatchesNothing() {
         library.seed(fillingLibrary())
         library.delegate.setCollectionsSynced(ACCOUNT, true)
-        holding(lineupOf(starter("rockets", 320, EngineState.On, rules("Rockets", Source.Collection(id(77))))))
+        holding(lineupOf(starter("rockets", 320, ChannelState.On, rules("Rockets", Source.Collection(id(77))))))
 
         assertEquals(HiddenReason.NoMatches, airings().single().hidden)
     }
@@ -177,7 +177,7 @@ class BuiltInScheduleSourceTest {
         library.delegate.setCollectionsSynced(ACCOUNT, true)
         val collection = RuleCollection(id(77), setOf(id(100)), emptySet(), emptySet(), emptySet())
         library.delegate.seedCollection(ACCOUNT, collection)
-        val rockets = starter("rockets", 320, EngineState.On, rules("Rockets", Source.Collection(id(77))))
+        val rockets = starter("rockets", 320, ChannelState.On, rules("Rockets", Source.Collection(id(77))))
         holding(lineupOf(rockets))
 
         assertNull(airings().single().hidden)
@@ -193,7 +193,7 @@ class BuiltInScheduleSourceTest {
             lineupOf(leftovers("odds-and-ends", 199, null)),
             // Unreadable on the lineup: the catalog's recipe still claims it.
             lineupOf(
-                channel(LineupIds.starter("after-hours").value, 590, EngineState.Shelf, ChannelSource.Unusable("{}")),
+                channel(LineupIds.starter("after-hours").value, 590, ChannelState.Shelf, ChannelSource.Unusable("{}")),
                 leftovers("odds-and-ends", 199, null),
             ),
         )) {
@@ -207,7 +207,7 @@ class BuiltInScheduleSourceTest {
     @Test
     fun hiddenChannelContentNeverReachesLeftovers() {
         library.seed(fillingLibrary())
-        holding(lineupOf(laughs(EngineState.UserHidden), leftovers("odds-and-ends", 199, null)))
+        holding(lineupOf(laughs(ChannelState.UserHidden), leftovers("odds-and-ends", 199, null)))
 
         val odds = pool(oddsAndEnds)
 
@@ -219,7 +219,7 @@ class BuiltInScheduleSourceTest {
     @Test
     fun shelvedChannelContentGoesToLeftovers() {
         library.seed(fillingLibrary())
-        holding(lineupOf(laughs(EngineState.Shelf), leftovers("odds-and-ends", 199, null)))
+        holding(lineupOf(laughs(ChannelState.Shelf), leftovers("odds-and-ends", 199, null)))
 
         val comedy = fillingLibrary().filter { "Comedy" in it.genres }.map { it.item.id }
         assertTrue(pool(oddsAndEnds).containsAll(comedy))
@@ -238,7 +238,7 @@ class BuiltInScheduleSourceTest {
     fun kidsLeftoversItemNotOnGrownUpLeftovers() {
         library.seed(movie(600, "Puppets", rating = "G"), movie(601, "Thriller", rating = "R"))
         library.seed(movie(602, "Odd", rating = null))
-        for (kidsState in listOf(EngineState.On, EngineState.UserHidden)) {
+        for (kidsState in listOf(ChannelState.On, ChannelState.UserHidden)) {
             val kids = leftovers("kids-odds-and-ends", 99, "PG", kidsState)
             holding(lineupOf(kids, leftovers("odds-and-ends", 199, null)))
             val fresh = BuiltInScheduleSource(LineupService(store, library, clock, { 0 }, {}, TestCatalog), library)
@@ -253,7 +253,7 @@ class BuiltInScheduleSourceTest {
                     .toSet(),
                 "$kidsState",
             )
-            if (kidsState == EngineState.On) {
+            if (kidsState == ChannelState.On) {
                 assertEquals(listOf(id(600)), days.getValue(kidsOddsAndEnds).pool.map { it.id }, "unrated stays off")
             }
         }
@@ -282,10 +282,10 @@ class BuiltInScheduleSourceTest {
         holding(
             lineupOf(
                 laughs(),
-                starter("whodunit", 210, EngineState.Shelf, rules("Whodunit", Source.Genre("Crime"))),
-                starter("frights", 310, EngineState.UserHidden, rules("Frights", Source.Genre("Horror"))),
-                starter("rockets", null, EngineState.Shelf, rules("Rockets", Source.Genre("Science Fiction"))),
-                channel("custom-9", 601, EngineState.On, ChannelSource.Unusable("{}")),
+                starter("whodunit", 210, ChannelState.Shelf, rules("Whodunit", Source.Genre("Crime"))),
+                starter("frights", 310, ChannelState.UserHidden, rules("Frights", Source.Genre("Horror"))),
+                starter("rockets", null, ChannelState.Shelf, rules("Rockets", Source.Genre("Science Fiction"))),
+                channel("custom-9", 601, ChannelState.On, ChannelSource.Unusable("{}")),
             ),
         )
 

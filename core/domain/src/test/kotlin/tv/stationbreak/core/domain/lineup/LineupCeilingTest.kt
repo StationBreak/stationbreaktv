@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
@@ -12,7 +13,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Clock
 import kotlin.time.Instant
-import tv.stationbreak.core.engine.lineup.ChannelState as EngineState
 
 /**
  * The kids' rating ceiling at schedule time never comes from the stored lineup alone (spec 12, security): the catalog
@@ -55,7 +55,7 @@ class LineupCeilingTest {
     private fun editedToons(maxRating: String?): LineupChannel {
         val rules = rules("Toons", Source.Genre("Animation"), maxRating = maxRating)
         val edited = ChannelSource.Starter("toons", edited = true, rules = rules)
-        return channel(LineupIds.starter("toons").value, 10, EngineState.On, edited)
+        return channel(LineupIds.starter("toons").value, 10, ChannelState.On, edited)
     }
 
     @Test
@@ -89,7 +89,7 @@ class LineupCeilingTest {
     @Test
     fun anUneditedKidsStarterStoredWithNoCeilingSchedulesAtTheRecipeCeiling() {
         seedRatings()
-        val unedited = starter("toons", 10, EngineState.On, toons)
+        val unedited = starter("toons", 10, ChannelState.On, toons)
         assertEquals(setOf(id(1)), scheduledPool(lineupOf(unedited), unedited), "the recipe's ceiling is G")
     }
 
@@ -117,14 +117,14 @@ class LineupCeilingTest {
     @Test
     fun anyChannelNumberedInTheKidsBandIsHeldToPg() {
         seedRatings()
-        val custom = channel("c1".padEnd(32, '0'), 50, EngineState.On, ChannelSource.Custom(toons))
+        val custom = channel("c1".padEnd(32, '0'), 50, ChannelState.On, ChannelSource.Custom(toons))
         assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(custom), custom))
     }
 
     @Test
     fun aGrownUpStarterOutsideTheKidsBandKeepsItsStoredRules() {
         seedRatings()
-        val grownUp = starter("laughs", 110, EngineState.On, toons)
+        val grownUp = starter("laughs", 110, ChannelState.On, toons)
         assertEquals(setOf(id(1), id(2), id(3), id(4)), scheduledPool(lineupOf(grownUp), grownUp))
     }
 }

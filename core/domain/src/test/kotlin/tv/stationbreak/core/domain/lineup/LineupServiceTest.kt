@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.ItemId
@@ -29,7 +30,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
-import tv.stationbreak.core.engine.lineup.ChannelState as EngineState
 
 class LineupServiceTest {
     private val library = CountingLibrary().apply { seed(fillingLibrary()) }
@@ -78,7 +78,7 @@ class LineupServiceTest {
                         channels =
                             lineup.channels.map {
                                 val laughs = it.id == LineupIds.starter("laughs")
-                                if (laughs) it.copy(state = EngineState.UserHidden) else it
+                                if (laughs) it.copy(state = ChannelState.UserHidden) else it
                             },
                     )
                 }
@@ -87,7 +87,7 @@ class LineupServiceTest {
             service.refresh(ACCOUNT, LIBRARIES)
 
             val laughs = checkNotNull(current()).channels.first { it.id == LineupIds.starter("laughs") }
-            assertEquals(EngineState.UserHidden, laughs.state)
+            assertEquals(ChannelState.UserHidden, laughs.state)
             assertEquals(current(), stored())
         }
 
@@ -249,12 +249,12 @@ class LineupServiceTest {
             val lineup = checkNotNull(current())
             assertEquals(lineup.channels.map { it.id }, summaries.map { it.id })
             val toons = summaries.first { it.id == LineupIds.starter("toons") }
-            assertEquals(ChannelSummary(toons.id, 10, "Toons", ChannelState.On, ChannelKind.Starter, now), toons)
+            assertEquals(ChannelSummary(toons.id, 10, "Toons", ChannelStatus.On, ChannelKind.Starter, now), toons)
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(ChannelKind.Leftovers, odds.kind)
             assertEquals("Odds", odds.name)
             val afterHours = summaries.first { it.id == LineupIds.starter("after-hours") }
-            assertEquals(ChannelState.Shelf, afterHours.state)
+            assertEquals(ChannelStatus.Shelf, afterHours.state)
         }
 
     @Test
@@ -277,7 +277,7 @@ class LineupServiceTest {
     @Test
     fun channelsReadsTheStoredLineupWithoutARefresh() =
         runBlocking<Unit> {
-            val unusable = channel("custom-9", 601, EngineState.On, ChannelSource.Unusable("{}"))
+            val unusable = channel("custom-9", 601, ChannelState.On, ChannelSource.Unusable("{}"))
             val lineup = lineupOf(leftovers("odds-and-ends", 199, null).copy(nameOverride = "Mine"), unusable)
             store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
 
@@ -344,11 +344,11 @@ class LineupServiceTest {
             service.refresh(ACCOUNT, LIBRARIES)
             val hidden =
                 checkNotNull(current()).let { lineup ->
-                    lineup.copy(channels = lineup.channels.map { it.copy(state = EngineState.UserHidden) })
+                    lineup.copy(channels = lineup.channels.map { it.copy(state = ChannelState.UserHidden) })
                 }
             store.inner.save(ACCOUNT, LineupCodec.encode(hidden))
             service.refresh(ACCOUNT, LIBRARIES)
-            assertTrue(checkNotNull(current()).channels.all { it.state == EngineState.UserHidden })
+            assertTrue(checkNotNull(current()).channels.all { it.state == ChannelState.UserHidden })
 
             assertTrue(service.forget(ACCOUNT))
             assertNull(store.inner.peek(ACCOUNT))
@@ -356,7 +356,7 @@ class LineupServiceTest {
 
             service.refresh(ACCOUNT, LIBRARIES)
 
-            assertTrue(checkNotNull(current()).channels.any { it.state == EngineState.On }, "planned from scratch")
+            assertTrue(checkNotNull(current()).channels.any { it.state == ChannelState.On }, "planned from scratch")
             assertEquals(current(), stored())
         }
 

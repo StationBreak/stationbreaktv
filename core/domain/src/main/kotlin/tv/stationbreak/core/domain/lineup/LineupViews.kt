@@ -2,11 +2,11 @@
 package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import kotlin.time.Instant
-import tv.stationbreak.core.engine.lineup.ChannelState as EngineState
 
 // How engine lineup types are shown to features, which never see them (spec 12).
 
@@ -36,12 +36,12 @@ internal fun LineupChannel.summary(catalog: StarterCatalogView) =
 internal val CHANNEL_ORDER: Comparator<LineupChannel> =
     compareBy<LineupChannel, Int?>(nullsLast()) { it.number }.thenBy { it.id.value }
 
-private val EngineState.domain: ChannelState
+private val ChannelState.domain: ChannelStatus
     get() =
         when (this) {
-            EngineState.On -> ChannelState.On
-            EngineState.Shelf -> ChannelState.Shelf
-            EngineState.UserHidden -> ChannelState.UserHidden
+            ChannelState.On -> ChannelStatus.On
+            ChannelState.Shelf -> ChannelStatus.Shelf
+            ChannelState.UserHidden -> ChannelStatus.UserHidden
         }
 
 private val ChannelSource.kind: ChannelKind

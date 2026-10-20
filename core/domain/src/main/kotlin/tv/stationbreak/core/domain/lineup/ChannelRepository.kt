@@ -7,7 +7,7 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
 /** Where a channel of the lineup stands (spec 12). */
-enum class ChannelState {
+enum class ChannelStatus {
     /** Switched on: on the guide and in flipping (unless empty for the day, #299). */
     On,
 
@@ -41,7 +41,7 @@ data class ChannelSummary(
     val id: ChannelId,
     val number: Int?,
     val name: String,
-    val state: ChannelState,
+    val state: ChannelStatus,
     val kind: ChannelKind,
     val onSince: Instant,
 )

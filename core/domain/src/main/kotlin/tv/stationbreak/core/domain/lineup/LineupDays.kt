@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -23,7 +24,6 @@ import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
-import tv.stationbreak.core.engine.lineup.ChannelState as EngineState
 
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
@@ -81,7 +81,7 @@ internal class LineupDays(
         atMs: Long,
     ): List<Scheduled> =
         lineup.channels
-            .filter { it.state == EngineState.On && it.number != null }
+            .filter { it.state == ChannelState.On && it.number != null }
             .sortedWith(CHANNEL_ORDER)
             .mapNotNull { channel ->
                 settingsOf(channel, lineup)?.let { Scheduled(channel, it, Epochs.epochNumber(it, atMs)) }
@@ -155,7 +155,7 @@ internal class LineupDays(
         // Leftovers channels that claim in turn: ceilinged first, then by number and ID. Shelved ones claim nothing.
         private val leftovers =
             lineup.channels
-                .filter { it.source is ChannelSource.Leftovers && it.state != EngineState.Shelf }
+                .filter { it.source is ChannelSource.Leftovers && it.state != ChannelState.Shelf }
                 .sortedWith(compareBy<LineupChannel> { ceilingOf(it) == null }.then(CHANNEL_ORDER))
 
         fun days(scheduled: List<Scheduled>): List<ChannelDay> {
@@ -207,7 +207,7 @@ internal class LineupDays(
         fun hiddenLeftovers(cutoff: Long): Set<CanonicalId> {
             val snapshot = snapshots.getValue(cutoff)
             val claimed = withheld(cutoff)
-            return leftovers.filter { it.state == EngineState.UserHidden }.flatMapTo(HashSet()) { channel ->
+            return leftovers.filter { it.state == ChannelState.UserHidden }.flatMapTo(HashSet()) { channel ->
                 leftoversPool(channel, snapshot, claimed).items.map { it.id }
             }
         }
@@ -227,7 +227,7 @@ internal class LineupDays(
             }
 
         private fun hiddenRules(): List<ChannelRules> {
-            val hidden = lineup.channels.filter { it.state == EngineState.UserHidden }
+            val hidden = lineup.channels.filter { it.state == ChannelState.UserHidden }
             return hidden.mapNotNull(::rulesOf)
         }
     }

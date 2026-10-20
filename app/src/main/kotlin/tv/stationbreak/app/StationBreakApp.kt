@@ -2,6 +2,7 @@
 package tv.stationbreak.app
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -17,6 +18,8 @@ import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
 import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.library.StayCurrentProvider
+
+private const val LINEUP_TAG = "Lineup"
 
 /**
  * The Hilt root. The bindings live in `di/`; the server screen's ViewModel consumes `MediaServer` (F0.5).
@@ -48,7 +51,10 @@ class StationBreakApp :
     @Suppress("InjectDispatcher") // The Application is the root: there is nothing to inject a dispatcher into.
     override fun onCreate() {
         super.onCreate()
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        // The handler is the last resort for the lineup refresher, which reports its own failures: anything that still
+        // escapes is logged by name and does not crash the process.
+        val failed = lineupFailureHandler { Log.w(LINEUP_TAG, it) }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
         ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent.onOpen() })
         // The channel lineup follows the saved library: at start, and after each sync (spec 12). It reports its own
         // failures, so nothing it does reaches this scope. Built off the main thread, like the rest of the graph.

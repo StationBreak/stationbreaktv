@@ -70,7 +70,10 @@ class LineupRefresherTest {
 
     private val service = serviceOver(library)
 
-    private fun refresher() = LineupRefresher(service, library, { libraries }) { events += it }
+    private fun refresher(
+        lib: LibraryRepository = library,
+        backoffMs: Long = LineupRefresher.INITIAL_BACKOFF_MS,
+    ) = LineupRefresher(service, lib, { libraries }, backoffMs) { events += it }
 
     private val refreshes get() = library.snapshotCutoffs.size
 
@@ -226,6 +229,29 @@ class LineupRefresherTest {
         }
 
     @Test
+    fun aTriggerFlowThatThrowsOnceIsRetriedAndStillRefreshes() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = refreshes
+            refresher(ThrowingOncePasses(library), backoffMs = 10).start(scope)
+            until("the failure was reported") { LineupEvent.RefreshFailed in events }
+
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:00:00Z"))
+
+            until("a trigger after the failure refreshed") { refreshes == before + 1 }
+            assertEquals(1, events.count { it == LineupEvent.RefreshFailed }, "reported once, for the one failure")
+        }
+
+    @Test
+    fun theBackoffDoublesFromOneSecondToFiveMinutes() {
+        val waits = (0L..12L).map { LineupRefresher.backoffMs(it, LineupRefresher.INITIAL_BACKOFF_MS) }
+        val doubling = listOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L, 32_000L, 64_000L, 128_000L, 256_000L)
+        assertEquals(doubling, waits.take(9))
+        assertEquals(List(4) { 300_000L }, waits.drop(9), "capped at five minutes")
+        assertEquals(300_000L, LineupRefresher.backoffMs(500, LineupRefresher.INITIAL_BACKOFF_MS), "no overflow")
+    }
+
+    @Test
     fun nothingRefreshesWithoutAnAccountOrLibraries() =
         runBlocking<Unit> {
             library.delegate.forget(ACCOUNT)
@@ -378,6 +404,19 @@ private class SlowLibrary(
 }
 
 private const val SLOW_MS = 80L
+
+/** A library whose first collection-pass flow throws when collected; later collections are the real one. */
+private class ThrowingOncePasses(
+    private val inner: CountingLibrary,
+) : LibraryRepository by inner {
+    private val collected = AtomicInteger()
+
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
+        flow {
+            check(collected.getAndIncrement() > 0) { "the trigger flow failed" }
+            inner.collectionPassCompleted(account).collect { emit(it) }
+        }
+}
 
 /** A library that notes which account and libraries each planning read was for. */
 private class RecordingLibrary(
