@@ -10,9 +10,9 @@ can be answered later, by the phase shown.
 | A-DEV-1 | ✅ **Confirmed:** the reference Insignia runs **Fire OS 6.7.0.8 (Android 7.1, API 25)**, exactly the minSdk. Owner's principle: *my needs are the floor*, so this device defines minimum support. Model AFTJMST12, about 1.5 GB RAM, hardware-backed Keystore (ADR-0009). Codec capabilities are captured by the F1.6 probe. | All gates; minSdk |
 | A-NET-1 | The Jellyfin server for the gates is on the same LAN (or a fast reverse proxy) as the Insignia. | Phase 1 < 2 s gate |
 | A-ARCH-1 | ✅ Confirmed by ADR-0005/0006: `jellyfin-sdk-kotlin` on its OkHttp client. The Jellyfin adapter stays pure JVM and is reusable by the companion server. | MODULES.md |
-| A-ARCH-2 | Channels and settings are stored in **DataStore** as rules JSON (the portable source of truth). **Room** holds only the library cache and the derived ScheduleBlocks. | F0.6, F1.1 |
+| A-ARCH-2 | Channels are stored as rules JSON (the portable source of truth) inside one lineup file per account in `data:settings` (spec 12); settings live in **DataStore**. **Room** holds only the library cache; ScheduleBlocks are built in memory and not yet persisted. | F0.6, F1.1 |
 | A-ARCH-3 | The scheduler uses **epochs** (default 24 h) anchored to a fixed UTC origin plus an optional fixed offset in the rules (never device TZ/DST). The snapshot = items created before `epochStart − grace`. This is my design to make "determinism" survive library changes and sync lag; the spec doesn't prescribe it. Cross-device agreement is *eventual*. | F1.1 |
-| A-ARCH-4 | The PRNG and shuffle are hand-specified (SplitMix64-derived per-epoch seeds, rejection sampling, Fisher–Yates over an ID-byte-sorted base) rather than platform RNGs, so Roku/Apple TV can match bit-for-bit. | F0.7, F1.1 |
+| A-ARCH-4 | Ordering is hand-specified rather than taken from platform RNGs, so Roku/Apple TV can match bit-for-bit: every order comes from a hash key (`splitmix64` and `fnv1a64`) and a total sort, with no random-number stream and no rejection sampling ([rules format](rules-format.md#no-random-stream-no-bounded-integers), spec 08). | F0.7, F1.1 |
 | A-ARCH-5 | `core:scheduler` depends only on `core:model`, not on the engine (Granny's veto, accepted). | MODULES.md |
 | A-SEC-1 | "Keystore-backed storage" = a Keystore AES-GCM key wrapping values in DataStore. `androidx.security:security-crypto` (EncryptedSharedPreferences) is avoided because it's deprecated. | F0.4 |
 | A-SEC-2 | Self-signed opt-in = per-server leaf-SPKI pinning via a custom `X509TrustManager` (TOFU), shared by API and Media3 clients. Not "trust all", and not `CertificatePinner`. | F0.5 |
@@ -52,7 +52,7 @@ can be answered later, by the phase shown.
 
 ### Before/during Phase 2–3
 
-- **Q-UX-1** With large libraries, genre/collection auto-channels could number in the hundreds. Should there be a cap, a minimum-items threshold, or "suggested channels" that the user accepts?
+- ~~**Q-UX-1**~~ ✅ **Resolved 2026-10-19 ([#112](https://github.com/StationBreak/stationbreaktv/issues/112), spec 12):** a themed starter catalog replaces per-library, per-genre and per-collection automatic channels. The best-filling recipes are switched on, up to a default cap of 50; the rest wait on a "More channels" shelf. A recipe fills when its pool holds at least 12 hours of runtime. A channel the user hid or removed is never switched back on by the app. Opt-in recipes (After Hours) are never switched on automatically.
 - ~~**Q-UX-2**~~ ✅ **Resolved 2026-10-06:** Back follows the platform convention: it goes **up a level or exits, depending on context** (closes an open overlay or guide first, then leaves live TV). It is **not** the previous-channel key. Previous channel is a "Last" action in the now/next banner, with Menu (☰) as a one-press shortcut (S1.4.3).
 - **Q-UX-3** Reminders ("notify me when X starts") are in or out of v1?
 - **Q-UX-4** Guide over live video: translucent overlay or PIP-in-corner?

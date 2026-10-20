@@ -63,7 +63,7 @@ The MVP is done when it replaces NostalgiaTV on the reference Insignia Fire TV.
 **Must have**
 
 - Server setup accepting URL or IP:port, with a connection test and clear errors.
-- Auto-generated default channels (per library, per genre, per collection).
+- A themed starter catalog of channels with original names, filled from the user's own library: the best-filling ones are switched on (up to 50), the rest wait on a shelf, and the lineup keeps itself current as the library grows. Kid channels are safe by default.
 - Custom channel builder: pick sources, order (shuffle, chronological, random-in-order), block length.
 - Live tune-in at the correct offset; up/down channel flipping; last-channel recall.
 - Grid guide (at least 6 hours ahead) plus now/next banner.

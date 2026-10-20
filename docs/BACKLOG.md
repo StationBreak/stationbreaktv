@@ -145,7 +145,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 ## F0.7 Channel rules format v1 (M, document + types only)
 
 **S0.7.1** As a future Roku/Apple TV developer, I want the channel rules JSON format specified so that every client produces the same lineup.
-- 👁 `docs/rules-format.md` defines the schema with a `formatVersion` field. It covers sources (library, genre, collection, tag, year range, series), a **`maxRating` ceiling** with a documented rating-order table (US TV + MPAA in v1; Q-RULES-1), ordering mode, block length, filler, seed, and the PRNG and hash-keyed ordering algorithms **by exact specification**.
+- 👁 `docs/rules-format.md` defines the schema with a `formatVersion` field. It covers sources (library, genre, collection, tag, year range, series), a **`maxRating` ceiling** with a documented rating-order table (US TV + MPAA in v1; Q-RULES-1), ordering mode, block length, filler, seed, and the hash functions and hash-keyed ordering algorithms **by exact specification** (there is no PRNG).
 - 🧪 Under a `maxRating` ceiling, unrated items and items rated in an unsupported system are excluded (fail closed). Without a ceiling, every item is eligible.
 - 🧪 `core:rules` round-trips the documented examples. Unknown fields are preserved (forward compatibility).
 - 🧪 A client given a `formatVersion` newer than it supports does **not** schedule that channel. It shows "update required" instead.
@@ -183,21 +183,31 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S1.1.4** As the player, I need `whatsOn(channel, T)` to be fast so that tune-in fits the 2 s budget.
 - 🧪 `whatsOn` returns (item, offset, nextItems[n]) in < 5 ms on a JVM benchmark with a 10k-item channel (it uses the cached ScheduleBlocks or prefix-sum binary search, not a linear scan).
 - 🧪 A `ScheduleBlock` has `wallStart`, `wallEnd`, and `mediaStartOffsetMs`. It references either an item or a non-item slot (slate or filler). One item may span several blocks, so a program can pause and resume. The offset that `whatsOn` returns is the position in the media, not the time since the block started.
-- 🧪 ScheduleBlocks for [now − 1h, now + 24h] are materialised to Room per channel and regenerated when an epoch rolls or the rules change.
+- 🧪 ScheduleBlocks for [now − 1h, now + 24h] are built per channel and regenerated when an epoch rolls or the rules change. Not built yet: persisting them to Room. Spec 12's built-in schedule source builds each switched-on channel's day (settings, epoch and day pool) and keeps the last few sets in memory, per lineup revision.
 
 ## F1.2 Channel engine & default channels (M)
 
-**S1.2.1** As a new user, I want channels generated automatically so that I can start watching without configuring anything.
-- 🧪 Defaults: one channel per selected library, one per genre with ≥ N items (default 10), and one per collection (BoxSet) with ≥ N items.
-- 🧪 Generation is deterministic: the same library gives the same channels with the same numbers and seeds. The default seed of an automatic channel is `splitmix64(fnv1a64(bytes))`, where the bytes are the 32 ASCII characters of the server ID, `0x00`, the kind (`library`, `genre` or `collection`), `0x00`, and the key (the canonical 32-hex ID for a library or collection, the exact UTF-8 genre name otherwise, with no case folding or normalisation). The channel's own ID and its other rules are never inputs. It is written into the rules the app generates ([rules format](rules-format.md#seed), `core:rules` `AutoSeed`).
-- 🧪 Channels with zero schedulable items are not created.
+**S1.2.1** As a new user, I want channels set up for me automatically so that I can start watching without configuring anything.
+- 🧪 The app ships a **themed starter catalog** (`StarterCatalog`, in `core:engine`): 95 recipes, each with a stable key, an original name, a one-line personality, a band, a default number, a rules template and an opt-in flag. Recipes use only portable sources (genre, tag, year range) and optional collection-name hints. It replaces one channel per library, per genre and per collection as the default. Decision, 2026-10-19: [#112](https://github.com/StationBreak/stationbreaktv/issues/112).
+- 🧪 Numbers are cable-style bands: Kids 1–99, Comedy and general 100–199, Drama, crime, movies and classics 200–299, Genre and cult 300–399, Anime and international 400–499, Premium-shaped and late night 500–599, your own channels 600–899, 900–999 reserved. A recipe keeps its number whether it is on or on the shelf, and numbers and recipe keys are never reused.
+- 🧪 Every kid-safe recipe carries a rating ceiling of PG or lower; unrated items stay off under a ceiling. Grown-up recipes carry none. A test proves no kid-safe recipe lacks a ceiling.
+- 🧪 The lineup is not finalised until the first full library sync has filled the cache. A recipe **fills** when its whole pool (exclusions and ceiling applied) holds at least 12 hours of runtime. The best-filling non-opt-in recipes are switched on, up to 50 channels in all, including the two leftovers channels. The rest wait on the shelf. With fewer than 5 qualifying recipes the choice is not final and is tried again after the next sync. Opt-in recipes (After Hours) are never switched on automatically.
+- 🧪 **Leftovers:** *Kids' Odds & Ends* (99, ceiling PG) and *Odds & Ends* (199) air what no other switched-on channel takes. Opt-in content and the content of a channel the user hid never reach leftovers, and a kids' item airs once. A lineup count of items airing nowhere is the check that the catalog does its job.
+- 🧪 **Self-refresh:** after each library sync and after each full collection pass, a shelved recipe that now fills is switched on at its own number while the lineup is under the cap. Nothing already on the lineup moves, and a channel the user hid or removed does not come back. A newer catalog updates channels the user has not edited; an edited channel is a custom channel and is never touched.
+- 🧪 **Per account and per TV:** the lineup is kept as one file per account (server and user) and is never deleted by sign-out, session expiry or an account switch. Only an explicit user action removes it. Lineups are chosen on each TV, so two TVs set up at different times may differ (sharing is "cross-device sync", Later).
+- 🧪 A lineup stores one fixed UTC offset, the device zone's standard (non-daylight-saving) offset at first setup, and every starter and leftovers channel uses it, with the broadcast day starting at 06:00.
+- 🧪 Generation is deterministic: the same server, catalog version and library give the same lineup, numbers and seeds. The default seed of a starter channel is `splitmix64(fnv1a64(bytes))`, where the bytes are the 32 ASCII characters of the server ID, `0x00`, the kind `recipe`, `0x00`, and the recipe key. The channel's own ID and its other rules are never inputs. It is written into the rules the app generates ([rules format](rules-format.md#seed), `core:rules` `AutoSeed`). The `library`, `genre` and `collection` kinds stay in the format; nothing the app ships uses them yet.
 - 🧪 A channel whose pool for the current day is empty (the evaluator's pool after the scheduler's per-day filter) is hidden from the guide and from flipping, kept in channel management with the reason from `PoolCounts`, and comes back by itself when it has items again. This is separate from a user's hide (S2.4.1). Decision, 2026-10-19: [#299](https://github.com/StationBreak/stationbreaktv/issues/299).
-- 📺 More than 50 auto channels is capped/grouped (see Q-UX-1).
+- 🧪 Building a day's channels makes one `ruleSnapshot` call per distinct cut-off and no `scheduleItems` call ([#275](https://github.com/StationBreak/stationbreaktv/issues/275)).
+- 🧪 No screen is built yet: the guide (F2.1), banner (F2.2), builder (F2.3) and channel management and shelf (F2.4) read the lineup from `ChannelRepository` and the built-in `ScheduleSource` when they arrive.
+- 📺 Performance, tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309) and **to land before F1.3**: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50 channels. Both are over the 5 s target, and every launch refreshes twice.
 
 **S1.2.2** As the engine, I need rule evaluation against the cache so that channel membership is correct.
 - 🧪 Union of sources and exclusions are covered by table tests, a seeded property test and the published `pool.json` vectors; AND of sources is [#293](https://github.com/StationBreak/stationbreaktv/issues/293).
 
 ## F1.3 Offset playback (M)
+
+Before this feature starts, the lineup refresh and `airings` speed on the Insignia must be fixed ([#309](https://github.com/StationBreak/stationbreaktv/issues/309); see S1.2.1).
 
 **S1.3.1** As a viewer, I want tuning to a channel to start the current program at the right point so that it feels live.
 - 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path, `StartTimeTicks` is passed so the server starts encoding at the offset (no client-side seek).
@@ -288,7 +298,8 @@ These IDs become GitHub issue titles once creating issues is approved.
 **S2.4.1** As a user, I want to renumber, hide, and favourite channels so that the lineup is mine.
 - 🧪 Channel numbers are unique. Hidden channels are skipped by flipping and by the guide.
 - 🧪 A channel hidden automatically because it is empty ([#299](https://github.com/StationBreak/stationbreaktv/issues/299)) shows its reason here and needs no action to come back. A user's hide stays even when the channel has items.
-- 📺 Auto-generated channels can be hidden but are regenerated (not resurrected) on library change (see Q-UX-1).
+- 📺 Starter channels can be hidden. A channel the user hid or removed is never switched back on by a library change (S1.2.1; Q-UX-1). The shelf of channels not switched on is managed here.
+- 📺 A "forget this account's channels" action removes the account's lineup (`LineupService.forget` exists; there is no screen yet). Sign-out, session expiry and an account switch never do.
 
 ## F2.5 Large-library performance (M)
 
@@ -305,7 +316,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 **S3.1.1** As a nostalgia fan, I want bumpers, commercials, or shorts between programs from a chosen library so that it feels like a real station.
 - 🧪 A per-channel filler source (library/collection/tag) and mode (`mode` in the rules: `none`, `padToGrid` (fill to the next :00/:30), and `betweenEveryN`; reserved in rules format 1, so a v1 reader treats any mode but `none` as unsupported).
-- 🧪 Filler packing is deterministic (it uses the scheduler PRNG) and covered by golden vectors.
+- 🧪 Filler packing is deterministic (it uses hash-keyed ordering, as the scheduler does; there is no PRNG) and covered by golden vectors.
 - 🧪 When filler can't exactly fill a gap, the remainder is shown as a station ID slate (bundled asset) instead of drifting off the grid.
 
 ## F3.2 Retro mode (S)
@@ -374,6 +385,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 
 ## F4.6 Docs site (M)
 - 👁 StationBreak.tv is a static site (e.g. Astro/MkDocs, deployed from this repo or `stationbreak/site`) covering install, server setup, reverse-proxy notes, self-signed certs, channel building, FAQ, and privacy policy.
+- 👁 The privacy policy states what the channel lineup holds and how it is removed ([#308](https://github.com/StationBreak/stationbreaktv/issues/308)). By design, sign-out, session expiry and an account switch never delete a household's lineup; only an explicit user action does. The lineup is the per-account file plus up to three set-aside `.unreadable.<timestamp>` copies. It holds channel names and rules, with no credentials and no media titles, and it is app-private and excluded from backup. Today a user removes it by clearing app data; a "forget this account's channels" action is planned (S2.4.1).
 
 ---
 
