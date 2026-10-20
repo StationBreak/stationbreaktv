@@ -166,6 +166,35 @@ class LineupCodecTest {
         }
     }
 
+    // A source that is [levels] arrays deep.
+    private fun nested(levels: Int): JsonElement =
+        (1 until levels).fold<Int, JsonElement>(JsonArray(emptyList())) { inner, _ -> JsonArray(listOf(inner)) }
+
+    @Test
+    fun aSourceNestedPastThirtyTwoLevelsIsUnusableAndNotKept() {
+        val file = tree().withChannel(0) { it.with("source", nested(33)) }
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        val source = assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
+        assertEquals("null", source.rawJson, "too deep to keep or re-encode")
+        assertEquals(full.channels.size, loaded.channels.size)
+    }
+
+    @Test
+    fun aSourceNestedThirtyTwoLevelsIsStillKeptVerbatim() {
+        val file = tree().withChannel(0) { it.with("source", nested(32)) }
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        val source = assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
+        assertEquals(nested(32).toString(), source.rawJson)
+    }
+
+    @Test
+    fun absurdNestingIsUnreadableNotAThrow() {
+        val deep = "[".repeat(200_000)
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(deep))
+        val inChannel = """{"version":1,"channels":""" + deep
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(inChannel))
+    }
+
     @Test
     fun rulesThatNeedANewerAppAreUnusableNotUnreadable() {
         val newer = """{"formatVersion":2,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""

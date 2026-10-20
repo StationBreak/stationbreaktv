@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolEvaluator
+import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
@@ -19,6 +20,7 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.engine.lineup.ChannelState as EngineState
@@ -63,6 +65,10 @@ internal class Scheduled(
  * - every item of the pool of every channel the user hid;
  * - the pools of the leftovers channels before it, ceilinged ones first (so the grown-up leftovers leaves out what the
  *   kids' leftovers airs, or would air if the user hid it).
+ *
+ * The rating ceiling a channel is scheduled under never comes from the stored lineup alone ([ceilingOf]): a leftovers
+ * channel whose key is in the catalog takes the catalog's, an unedited starter of a kid-safe recipe takes the recipe's,
+ * an edited one keeps its own but never above PG, and any channel numbered in the Kids band is held to PG at most.
  *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
@@ -150,7 +156,7 @@ internal class LineupDays(
         private val leftovers =
             lineup.channels
                 .filter { it.source is ChannelSource.Leftovers && it.state != EngineState.Shelf }
-                .sortedWith(compareBy<LineupChannel> { it.ceiling == null }.then(CHANNEL_ORDER))
+                .sortedWith(compareBy<LineupChannel> { ceilingOf(it) == null }.then(CHANNEL_ORDER))
 
         fun days(scheduled: List<Scheduled>): List<ChannelDay> {
             val ruled = scheduled.filter { it.channel.source !is ChannelSource.Leftovers }.associateWith(::ruledDay)
@@ -160,7 +166,8 @@ internal class LineupDays(
         }
 
         private fun ruledDay(s: Scheduled): ChannelDay {
-            val pool = PoolEvaluator.evaluate(checkNotNull(rulesOf(s.channel)), snapshots.getValue(s.cutoffMs))
+            val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
+            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs))
             return dayOf(s, pool)
         }
 
@@ -209,7 +216,7 @@ internal class LineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, channel.ceiling)
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
         private fun optInRules(): List<ChannelRules> =
@@ -225,7 +232,39 @@ internal class LineupDays(
         }
     }
 
+    /**
+     * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is
+     * in the catalog (the stored one only counts for a retired key). An unedited starter of a kid-safe recipe takes the
+     * recipe's; an edited one keeps its stored ceiling. A channel of a kid-safe recipe, and any channel numbered in the
+     * Kids band, is never above PG: a ceiling that is null or higher becomes PG.
+     */
+    private fun ceilingOf(channel: LineupChannel): String? {
+        val source = channel.source
+        val key = (source as? ChannelSource.Starter)?.recipeKey
+        val recipe = key?.let { k -> catalog.recipes.firstOrNull { it.key == k } }
+        val recipeCeiling = recipe?.maxRating
+        val kidSafe = recipeCeiling != null
+        val stored =
+            when (source) {
+                is ChannelSource.Leftovers -> leftoversCeiling(source)
+                is ChannelSource.Starter -> if (kidSafe && !source.edited) recipeCeiling else source.rules.maxRating
+                is ChannelSource.Custom -> source.rules.maxRating
+                is ChannelSource.Unusable -> null
+            }
+        val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
+        return if ((kidSafe || inKidsBand) && !atMostPg(stored)) KIDS_MAX_RATING else stored
+    }
+
+    // The catalog's ceiling, null included, while the key is in it; the stored one only for a retired key.
+    private fun leftoversCeiling(source: ChannelSource.Leftovers): String? {
+        val recipe = catalog.leftovers.firstOrNull { it.key == source.recipeKey }
+        return if (recipe != null) recipe.maxRating else source.maxRating
+    }
+
     private companion object {
+        /** The most a kids' channel may air: the Kids band's maximum. */
+        const val KIDS_MAX_RATING = "PG"
+
         val NO_NAMES = CollectionNames(emptyMap())
 
         /** A grown-up leftovers number, for the stand-in recipe of a retired leftovers key. */
@@ -233,8 +272,11 @@ internal class LineupDays(
     }
 }
 
-// A leftovers channel's rating ceiling.
-private val LineupChannel.ceiling: String? get() = (source as? ChannelSource.Leftovers)?.maxRating
+// True for a ceiling on the ladder at PG or lower; null (no ceiling) and unknown names are not.
+private fun atMostPg(rating: String?): Boolean {
+    val rank = RatingLadder.rankOf(rating)
+    return rank != null && rank <= checkNotNull(RatingLadder.rankOf("PG"))
+}
 
 private fun rulesOf(channel: LineupChannel): ChannelRules? =
     when (val source = channel.source) {

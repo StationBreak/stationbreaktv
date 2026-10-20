@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -35,6 +36,9 @@ import tv.stationbreak.core.rules.RulesWriter
  * time. Encoding writes that JSON back unchanged, so `encode(decode(x))` keeps it byte for byte. What the channel's
  * own fields or the lineup's fields get wrong (a missing field, a wrong type, an ID that is not canonical, two channels
  * at one number) makes the whole file unreadable, because nothing safe could be kept of it.
+ *
+ * A channel `source` nested deeper than 32 levels is [ChannelSource.Unusable] without being re-encoded (its JSON is not
+ * kept: a source that deep is not one this app or an older one wrote).
  *
  * Decoding never throws.
  */
@@ -75,7 +79,8 @@ internal object LineupCodec {
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
 
-    /** What [bytes] hold. Never throws. */
+    /** What [bytes] hold. Never throws: whatever else goes wrong, even a stack overflow, is [Decoded.Unreadable]. */
+    @Suppress("TooGenericExceptionCaught")
     fun decode(bytes: ByteArray): Decoded =
         try {
             val root = json.parseToJsonElement(bytes.decodeToString(throwOnInvalidSequence = true))
@@ -88,6 +93,10 @@ internal object LineupCodec {
             // SerializationException is one: bad JSON, an unknown key or enum value, a missing field, a wrong type.
             Decoded.Unreadable
         } catch (_: CharacterCodingException) {
+            Decoded.Unreadable
+        } catch (_: StackOverflowError) {
+            Decoded.Unreadable
+        } catch (_: Exception) {
             Decoded.Unreadable
         }
 
@@ -152,6 +161,7 @@ private object SourceCodec {
     private const val EDITED = "edited"
     private const val RULES = "rules"
     private const val MAX_RATING = "maxRating"
+    private const val MAX_DEPTH = 32
 
     private val keys =
         mapOf(
@@ -205,9 +215,21 @@ private object SourceCodec {
             val allowed = requireNotNull(keys[kind]) { "An unknown channel kind" }
             require(allowed.containsAll(fields.keys)) { "An unknown key in a channel source" }
         }
+        if (nestsDeeperThan(element, MAX_DEPTH)) return ChannelSource.Unusable("null")
         val source = if (fields != null && kind != null) known(kind, fields) else null
         return source ?: ChannelSource.Unusable(Json.encodeToString(JsonElement.serializer(), element))
     }
+
+    // True when [element] has more than [levels] levels of objects and arrays. Stops as soon as it is known.
+    private fun nestsDeeperThan(
+        element: JsonElement,
+        levels: Int,
+    ): Boolean =
+        when (element) {
+            is JsonObject -> levels <= 0 || element.values.any { nestsDeeperThan(it, levels - 1) }
+            is JsonArray -> levels <= 0 || element.any { nestsDeeperThan(it, levels - 1) }
+            else -> false
+        }
 
     private fun known(
         kind: String,
