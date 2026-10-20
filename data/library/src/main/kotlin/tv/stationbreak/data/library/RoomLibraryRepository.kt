@@ -141,6 +141,16 @@ class RoomLibraryRepository internal constructor(
                 }
             }
 
+    /**
+     * The account signed in now (the one [useAccount] last named), or null while nobody is. It follows a change of
+     * account. For the lineup refresher, which needs the account itself; not part of the port.
+     */
+    fun activeAccount(): Flow<LibraryAccount?> =
+        dao
+            .observeActive()
+            .map { active -> active?.let { LibraryAccount(ServerId(it.serverId), UserId(it.userId)) } }
+            .distinctUntilChanged()
+
     override suspend fun collectionNames(account: LibraryAccount): CollectionNames {
         val (server, user) = account.keys()
         val names = HashMap<CanonicalId, String>()

@@ -23,4 +23,7 @@ enum class LineupEvent {
 
     /** The account's server or user ID is not an ID at all, so it has no lineup. */
     NonCanonicalAccount,
+
+    /** A refresh stopped part-way (for example the planner refused its input). Nothing is lost; the next retries. */
+    RefreshFailed,
 }

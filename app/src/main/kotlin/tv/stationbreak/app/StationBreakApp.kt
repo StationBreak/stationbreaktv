@@ -11,6 +11,8 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
 import tv.stationbreak.data.library.StayCurrent
@@ -33,6 +35,8 @@ class StationBreakApp :
     @InstallIn(SingletonComponent::class)
     internal interface FirstSyncEntryPoint {
         fun firstSyncRunner(): FirstSyncRunner
+
+        fun lineupRefresher(): LineupRefresher
     }
 
     // One object for the whole process, so the open trigger, the on-open work and the periodic job share one gate. It
@@ -46,6 +50,12 @@ class StationBreakApp :
         super.onCreate()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent.onOpen() })
+        // The channel lineup follows the saved library: at start, and after each sync (spec 12). It reports its own
+        // failures, so nothing it does reaches this scope. Built off the main thread, like the rest of the graph.
+        scope.launch {
+            val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
+            graph.lineupRefresher().start(scope)
+        }
     }
 
     override fun firstSyncRunner(): FirstSyncRunner =
