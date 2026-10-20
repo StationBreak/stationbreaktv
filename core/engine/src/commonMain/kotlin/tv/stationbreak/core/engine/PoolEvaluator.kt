@@ -2,7 +2,6 @@
 package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.RuleItem
-import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -97,36 +96,8 @@ object PoolEvaluator {
                 return
             }
             if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
-            if (allowed(entry, series)) kept.add(item) else blocked++
+            if (passesCeiling(entry, series, maxRating)) kept.add(item) else blocked++
         }
-
-        private fun allowed(
-            entry: RuleItem,
-            series: RuleSeries?,
-        ): Boolean =
-            when {
-                maxRating == null -> {
-                    true
-                }
-
-                entry.item.kind == ScheduleItemKind.Movie -> {
-                    RatingEligibility.isMovieEligible(entry.officialRating, maxRating)
-                }
-
-                else -> {
-                    RatingEligibility.isEpisodeEligible(entry.officialRating, seriesState(entry, series), maxRating)
-                }
-            }
-
-        private fun seriesState(
-            entry: RuleItem,
-            series: RuleSeries?,
-        ): SeriesState =
-            when {
-                entry.item.seriesId == null -> SeriesState.NoSeries
-                series == null -> SeriesState.Unknown
-                else -> SeriesState.Known(series.officialRating)
-            }
     }
 
     // The indices of the collection entries of [entries] whose collection is not in the snapshot.
