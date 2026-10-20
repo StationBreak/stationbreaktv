@@ -9,6 +9,10 @@ import tv.stationbreak.core.rules.Source
  * later from whatever the library has, through genre, tag and year-range sources only, with spelling variants listed as
  * separate sources because scrapers disagree. Spread the numbers out inside a band so later recipes can slot in
  * between; a shipped key or number never changes and is never reused.
+ *
+ * A recipe key is a persistence identifier: stored lineups, channel IDs and the planner's matching all hang on it. It
+ * is frozen once released, and after release only a recipe's `name` and `personality` (its one-line tagline) may
+ * change.
  */
 object StarterCatalog : StarterCatalogView {
     /**
@@ -41,6 +45,15 @@ object StarterCatalog : StarterCatalogView {
                 maxRating = null,
             ),
         )
+
+    /**
+     * Every recipe and leftovers key that has ever been kid-safe (a rating ceiling of PG or lower) in any released
+     * catalog, retired or not. A stored channel with one of these keys is held to PG whatever its number or `edited`
+     * flag, so renumbering it out of the Kids band, or retiring its recipe, never lifts its ceiling. Keys are only ever
+     * added here, never removed; the catalog tests hold it to every frozen manifest.
+     */
+    val EVER_KID_SAFE_KEYS: Set<String> =
+        (kidsBand.map { it.key } + leftovers.filter { it.maxRating != null }.map { it.key }).toSet()
 
     override val retiredNumbers: Set<Int> = emptySet()
 
@@ -242,9 +255,9 @@ private val kidsBand: List<Recipe> =
         recipe(
             Band.Kids,
             n = 68,
-            key = "clue-club",
-            name = "Clue Club",
-            says = "Small sleuths, gentle mysteries, a case in every episode.",
+            key = "small-sleuths",
+            name = "Small Sleuths",
+            says = "Gentle mysteries, a case in every episode.",
             sources = genres("Mystery", "Family") + tags("detective", "mystery"),
             rating = "PG",
         ),
@@ -815,7 +828,7 @@ private val worldBand: List<Recipe> =
             n = 428,
             key = "seoul-sundays",
             name = "Seoul Sundays",
-            says = "Korean dramas: slow looks, sudden twists, many umbrellas.",
+            says = "Korean dramas: slow burns, big hearts, sudden twists.",
             sources = tags("k-drama", "kdrama", "korean drama", "korean"),
         ),
         recipe(
@@ -823,7 +836,7 @@ private val worldBand: List<Recipe> =
             n = 432,
             key = "masala-hour",
             name = "Masala Hour",
-            says = "Song, dance, drama and a very long intermission.",
+            says = "Song, dance and drama, Bollywood style.",
             sources = tags("bollywood", "hindi", "indian cinema"),
         ),
         recipe(
@@ -831,7 +844,7 @@ private val worldBand: List<Recipe> =
             n = 436,
             key = "telenovela-tonight",
             name = "Telenovela Tonight",
-            says = "Passion, betrayal and a surprising twin.",
+            says = "Passion, betrayal and cliffhangers every night.",
             sources = tags("telenovela", "latin drama", "spanish drama"),
         ),
         recipe(

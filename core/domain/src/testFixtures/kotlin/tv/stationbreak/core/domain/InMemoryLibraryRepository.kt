@@ -199,6 +199,8 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
         statuses.map { it[account] ?: LibraryStatus(SyncState.NeverSynced, null) }
 
+    override fun activeAccount(): Flow<LibraryAccount?> = active
+
     override fun activeStatus(): Flow<LibraryStatus?> =
         combine(active, statuses) { account, all ->
             account?.let { all[it] ?: LibraryStatus(SyncState.NeverSynced, null) }

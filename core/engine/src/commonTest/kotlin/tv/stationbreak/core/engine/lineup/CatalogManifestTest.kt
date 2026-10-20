@@ -82,6 +82,22 @@ class CatalogManifestTest {
     }
 
     @Test
+    fun everKidSafeKeysHoldEveryKidSafeKeyOfTheCatalogAndEveryManifest() {
+        val current =
+            StarterCatalog.recipes.filter { it.maxRating != null }.map { it.key } +
+                StarterCatalog.leftovers.filter { it.maxRating != null }.map { it.key }
+        assertTrue(current.isNotEmpty())
+        assertTrue(StarterCatalog.EVER_KID_SAFE_KEYS.containsAll(current), "the current catalog")
+        for (manifest in CATALOG_MANIFESTS) {
+            val kept =
+                manifest.recipes.filterValues { it.maxRating != null }.keys +
+                    manifest.leftovers.filterValues { it.maxRating != null }.keys
+            assertTrue(StarterCatalog.EVER_KID_SAFE_KEYS.containsAll(kept), "manifest ${manifest.version}")
+        }
+        assertTrue("kids-odds-and-ends" in StarterCatalog.EVER_KID_SAFE_KEYS)
+    }
+
+    @Test
     fun aChangeToWhatARecipeAirsNeedsANewerVersion() {
         val changed =
             listOf(

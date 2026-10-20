@@ -141,6 +141,12 @@ class RoomLibraryRepository internal constructor(
                 }
             }
 
+    override fun activeAccount(): Flow<LibraryAccount?> =
+        dao
+            .observeActive()
+            .map { active -> active?.let { LibraryAccount(ServerId(it.serverId), UserId(it.userId)) } }
+            .distinctUntilChanged()
+
     override suspend fun collectionNames(account: LibraryAccount): CollectionNames {
         val (server, user) = account.keys()
         val names = HashMap<CanonicalId, String>()

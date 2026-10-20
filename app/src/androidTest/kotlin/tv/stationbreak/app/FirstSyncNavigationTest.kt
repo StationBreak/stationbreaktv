@@ -34,6 +34,7 @@ import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryFirstSync
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -119,18 +120,26 @@ class FirstSyncNavigationTest {
         @Singleton
         fun firstSync(): FirstSync = Syncing.firstSync
 
+        // The saved library itself is real; only its first-sync status is scripted.
+        @Provides
+        @Singleton
+        fun roomLibraryRepository(
+            @ApplicationContext context: Context,
+        ): RoomLibraryRepository = RoomLibraryRepository.create(context)
+
+        // The lineup refresher, started by the Application, reads the saved library (spec 12).
+        @Provides
+        fun libraryRepository(repository: RoomLibraryRepository): LibraryRepository = repository
+
         // The Application's entry point asks for it; the worker is not run in this test.
         @Provides
         @Singleton
         fun firstSyncRunner(
-            @ApplicationContext context: Context,
             settings: ServerSettings,
             sessions: SessionRepository,
             server: MediaServer,
-        ): FirstSyncRunner {
-            val repository = RoomLibraryRepository.create(context)
-            return FirstSyncRunner(settings, sessions, server, repository, Clock.System)
-        }
+            repository: RoomLibraryRepository,
+        ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
