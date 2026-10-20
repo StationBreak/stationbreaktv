@@ -17,7 +17,6 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ScheduleSource
-import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.data.settings.lineup.FileLineupStore
 import javax.inject.Singleton
 import kotlin.time.Clock
@@ -61,10 +60,10 @@ internal object LineupModule {
     @Singleton
     fun lineupRefresher(
         service: LineupService,
-        library: RoomLibraryRepository,
+        library: LibraryRepository,
         settings: ServerSettings,
     ): LineupRefresher =
-        LineupRefresher(service, library, library.activeAccount(), { settings.loadLibraries() }) {
+        LineupRefresher(service, library, { settings.loadLibraries() }) {
             Log.i(TAG, it.name)
         }
 }

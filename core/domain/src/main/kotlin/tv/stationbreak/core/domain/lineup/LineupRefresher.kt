@@ -3,7 +3,9 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -16,6 +18,7 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.model.ItemId
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Instant
 
 /**
@@ -28,34 +31,46 @@ import kotlin.time.Instant
  * ([LineupEvent.RefreshFailed]) and the refresher keeps listening, so one bad plan never stops later ones or reaches
  * the app scope. Nothing runs while nobody is signed in or no libraries are chosen ([libraries] gives null or none).
  *
- * [activeAccount] is the account the saved library holds (the one the sync uses); [libraries] reads the user's chosen
+ * The account is [LibraryRepository.activeAccount], the one the sync uses; [libraries] reads the user's chosen
  * libraries each time it is asked, so a changed choice is seen by the next refresh.
  */
 class LineupRefresher(
     private val service: LineupService,
     private val library: LibraryRepository,
-    private val activeAccount: Flow<LibraryAccount?>,
     private val libraries: suspend () -> Set<ItemId>?,
     private val report: (LineupEvent) -> Unit,
 ) {
     // The pass last acted on, per account, kept for the process: Room re-emits a value it already gave.
-    private val actedOn = HashMap<LibraryAccount, Instant>()
+    private val actedOn = ConcurrentHashMap<LibraryAccount, Instant>()
 
-    /** Starts listening in [scope]. Call it once. */
+    // The account active now, written the moment it changes (before the old account's work is cancelled), so work that
+    // woke up late can tell it is no longer for the active account.
+    @Volatile private var current: LibraryAccount? = null
+
+    private var started: Job? = null
+
+    /** Starts listening in [scope]. A second call does nothing. */
     @Suppress("TooGenericExceptionCaught") // Whatever a refresh throws is reported, never allowed to reach the scope.
+    @Synchronized
     fun start(scope: CoroutineScope) {
-        scope.launch {
-            try {
-                activeAccount
-                    .distinctUntilChanged()
-                    .collectLatest { account -> if (account != null) follow(account) }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // The saved library itself failed to answer: nothing to listen to now. The next app start retries.
-                report(LineupEvent.RefreshFailed)
+        if (started != null) return
+        started =
+            scope.launch {
+                try {
+                    library
+                        .activeAccount()
+                        .distinctUntilChanged()
+                        .collectLatest { account ->
+                            current = account
+                            if (account != null) follow(account)
+                        }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // The saved library itself failed to answer: nothing to listen to now. The next app start retries.
+                    report(LineupEvent.RefreshFailed)
+                }
             }
-        }
     }
 
     private suspend fun follow(account: LibraryAccount) {
@@ -93,22 +108,25 @@ class LineupRefresher(
             true
         }
 
-    @Suppress("TooGenericExceptionCaught") // Whatever a refresh throws is reported; the next trigger retries.
+    @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun act(
         account: LibraryAccount,
         trigger: Trigger,
     ) {
-        if (trigger is Trigger.Pass) {
-            if (actedOn[account] == trigger.startedAt) return
-            actedOn[account] = trigger.startedAt
-        }
-        val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
+        if (trigger is Trigger.Pass && actedOn[account] == trigger.startedAt) return
         try {
+            val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
+            // The choice is the active account's. If the account changed while it was read, it is not this one's.
+            currentCoroutineContext().ensureActive()
+            if (current != account) return
             service.refresh(account, chosen)
+            // Recorded once attempted: a pass that was cancelled, or had no libraries to refresh, is acted on later.
+            if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             report(LineupEvent.RefreshFailed)
+            if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
         }
     }
 

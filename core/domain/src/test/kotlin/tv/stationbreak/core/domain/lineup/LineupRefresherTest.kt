@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -29,6 +31,7 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -39,10 +42,14 @@ import kotlin.time.Instant
 
 class LineupRefresherTest {
     private val library = CountingLibrary().apply { seed(fillingLibrary()) }
+
+    init {
+        runBlocking { library.delegate.useAccount(ACCOUNT) }
+    }
+
     private val store = RecordingStore()
     private val events = mutableListOf<LineupEvent>()
     private var offset = 0
-    private val active = MutableStateFlow<LibraryAccount?>(ACCOUNT)
     private var libraries: Set<ItemId>? = LIBRARIES
     private val job = Job()
     private val scope = CoroutineScope(job)
@@ -59,7 +66,7 @@ class LineupRefresherTest {
 
     private val service = serviceOver(library)
 
-    private fun refresher() = LineupRefresher(service, library, active, { libraries }) { events += it }
+    private fun refresher() = LineupRefresher(service, library, { libraries }) { events += it }
 
     private val refreshes get() = library.snapshotCutoffs.size
 
@@ -185,7 +192,7 @@ class LineupRefresherTest {
         runBlocking<Unit> {
             val slow = SlowLibrary(library)
             service.refresh(ACCOUNT, LIBRARIES)
-            LineupRefresher(serviceOver(slow), slow, active, { libraries }) { events += it }.start(scope)
+            LineupRefresher(serviceOver(slow), slow, { libraries }) { events += it }.start(scope)
             settle()
 
             // Both signals at once: the two refreshes they ask for must not overlap.
@@ -217,13 +224,13 @@ class LineupRefresherTest {
     @Test
     fun nothingRefreshesWithoutAnAccountOrLibraries() =
         runBlocking<Unit> {
-            active.value = null
+            library.delegate.forget(ACCOUNT)
             refresher().start(scope)
             settle()
             assertEquals(0, refreshes)
 
             libraries = null
-            active.value = ACCOUNT
+            library.delegate.useAccount(ACCOUNT)
             settle()
             assertEquals(0, refreshes, "no libraries chosen yet")
 
@@ -231,6 +238,72 @@ class LineupRefresherTest {
             library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:00:00Z"))
             settle()
             assertEquals(0, refreshes, "an empty choice is no libraries")
+        }
+
+    @Test
+    fun librariesThrowingOnceDoesNotStopTheRefresher() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = refreshes
+            var throwOnce = true
+            LineupRefresher(
+                service,
+                library,
+                {
+                    if (throwOnce) {
+                        throwOnce = false
+                        error("the settings could not be read")
+                    }
+                    libraries
+                },
+            ) { events += it }.start(scope)
+            settle()
+
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:00:00Z"))
+            until("failure reported") { LineupEvent.RefreshFailed in events }
+            assertEquals(before, refreshes)
+
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T11:00:00Z"))
+            until("a later trigger refreshed") { refreshes == before + 1 }
+        }
+
+    @Test
+    fun anAccountSwitchNeverRefreshesTheOldAccountWithTheNewOnesLibraries() =
+        runBlocking<Unit> {
+            val other = LibraryAccount(ServerId(SERVER.value), UserId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
+            val otherLibraries = setOf(ItemId("e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0"))
+            val seen = RecordingLibrary(library)
+            val gate = CompletableDeferred<Unit>()
+            val entered = CompletableDeferred<Unit>()
+            LineupRefresher(serviceOver(seen), seen, {
+                // The read is pending for the first account; the app switches account meanwhile, and the
+                // read then answers with the new account's choice.
+                entered.complete(Unit)
+                withContext(NonCancellable) { gate.await() }
+                otherLibraries
+            }) { events += it }.start(scope)
+            withTimeout(WAIT_MS) { entered.await() }
+
+            library.delegate.useAccount(other)
+            delay(SETTLE_MS)
+            gate.complete(Unit)
+            until("the new account was refreshed") { seen.reads.any { it.first == other } }
+            settle()
+
+            assertEquals(emptyList(), seen.reads.filter { it.first == ACCOUNT }, "the old account is never read")
+        }
+
+    @Test
+    fun startingTwiceStartsOnce() =
+        runBlocking<Unit> {
+            val slow = SlowLibrary(library)
+            val refresher = LineupRefresher(serviceOver(slow), slow, { libraries }) { events += it }
+            refresher.start(scope)
+            refresher.start(scope)
+            until("refreshed") { slow.completed.get() >= 1 }
+            settle()
+
+            assertEquals(1, slow.completed.get())
         }
 
     // Ruling 2: the lineup is not part of the session's saved library. Signing out, or a rejected session, forgets the
@@ -286,3 +359,19 @@ private class SlowLibrary(
 }
 
 private const val SLOW_MS = 80L
+
+/** A library that notes which account and libraries each planning read was for. */
+private class RecordingLibrary(
+    private val inner: CountingLibrary,
+) : LibraryRepository by inner {
+    val reads: MutableList<Pair<LibraryAccount, Set<ItemId>>> = CopyOnWriteArrayList()
+
+    override suspend fun ruleSnapshot(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): RuleSnapshot {
+        reads += account to libraries
+        return inner.ruleSnapshot(account, libraries, cutoff)
+    }
+}

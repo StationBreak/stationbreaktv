@@ -79,6 +79,7 @@ class LibraryRepositoryPortSignatureTest {
                     "ruleSnapshot",
                     "status",
                     "activeStatus",
+                    "activeAccount",
                     "excludedCount",
                     "select",
                     "pendingLibraries",
