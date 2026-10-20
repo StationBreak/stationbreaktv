@@ -191,12 +191,14 @@ interface LibraryRepository : AccountCache {
     suspend fun collectionNames(account: LibraryAccount): CollectionNames
 
     /**
-     * When the last whole collection pass of [account] began, or null until one has completed; it emits the current
-     * value first and again each time a pass completes. The sync engine finishes the items (and so [status]'s
-     * `lastSuccess` moves) *before* it runs the collection pass, so a reader that needs the collections waits for this
-     * and not for `lastSuccess`. A pass that stops part-way does not move it.
+     * Signals that a whole collection pass of [account] completed. The value is the **start** time of the most recent
+     * completed pass (null until one has), and it emits the current value first. Each emission means a pass completed:
+     * Room may re-emit for the same pass, so a consumer treats an emission as a trigger and dedupes itself. Never
+     * compare the value with `lastSuccess` or with now as an end time. The sync engine finishes the items (and so
+     * [status]'s `lastSuccess` moves) *before* it runs the collection pass, so a reader that needs the collections
+     * waits for this and not for `lastSuccess`. A pass that stops part-way does not signal.
      */
-    fun collectionsSyncedAt(account: LibraryAccount): Flow<Instant?>
+    fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
 
     /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the

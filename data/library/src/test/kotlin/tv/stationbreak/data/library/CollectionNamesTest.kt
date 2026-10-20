@@ -83,7 +83,7 @@ class CollectionNamesTest {
     @Test
     fun collectionPassSignalAdvancesAfterPass() =
         runBlocking {
-            val signal = repository.collectionsSyncedAt(ALICE)
+            val signal = repository.collectionPassCompleted(ALICE)
             assertNull(signal.first())
 
             // The sync engine finishes the items first, and the pass has not completed: no signal yet.
@@ -103,7 +103,7 @@ class CollectionNamesTest {
             assertEquals(secondStart, signal.until(secondStart))
 
             // Another account's pass is not this account's signal.
-            assertNull(repository.collectionsSyncedAt(BOB).first())
+            assertNull(repository.collectionPassCompleted(BOB).first())
         }
 
     @Test
@@ -116,6 +116,6 @@ class CollectionNamesTest {
             // A pass that stopped never reaches recordCollectionPass; writing collections alone does not move it.
             write(ALICE, 1000, "Synthetic Name")
 
-            assertEquals(started, repository.collectionsSyncedAt(ALICE).first())
+            assertEquals(started, repository.collectionPassCompleted(ALICE).first())
         }
 }

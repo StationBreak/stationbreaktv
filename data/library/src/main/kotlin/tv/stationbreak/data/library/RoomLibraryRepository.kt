@@ -152,7 +152,7 @@ class RoomLibraryRepository internal constructor(
 
     // The collection_sync row is written only after a whole pass succeeded (recordCollectionPass), so a change is a
     // finished pass; the items' finishSync, which runs before the pass, never touches it.
-    override fun collectionsSyncedAt(account: LibraryAccount): Flow<Instant?> =
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
         collectionDao
             .observeSyncSince(account.server.value, account.user.value)
             .map { ms -> ms?.let(Instant::fromEpochMilliseconds) }

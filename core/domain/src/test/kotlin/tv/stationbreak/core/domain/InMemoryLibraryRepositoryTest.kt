@@ -415,11 +415,11 @@ class InMemoryLibraryRepositoryTest {
     fun theCollectionPassSignalIsNullUntilAPassCompletesThenCarriesItsTime() =
         runBlocking {
             val repository = InMemoryLibraryRepository()
-            assertEquals(null, repository.collectionsSyncedAt(alice).first())
+            assertEquals(null, repository.collectionPassCompleted(alice).first())
 
             repository.completeCollectionPass(alice, epoch)
 
-            assertEquals(epoch, repository.collectionsSyncedAt(alice).first())
-            assertEquals(null, repository.collectionsSyncedAt(bob).first())
+            assertEquals(epoch, repository.collectionPassCompleted(alice).first())
+            assertEquals(null, repository.collectionPassCompleted(bob).first())
         }
 }

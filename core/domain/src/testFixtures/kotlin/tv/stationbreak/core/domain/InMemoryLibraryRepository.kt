@@ -169,7 +169,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         }
     }
 
-    /** Says that a whole collection pass of [account] that began at [startedAt] has completed, as [collectionsSyncedAt] shows. */
+    /** Says that a whole collection pass of [account] that began at [startedAt] completed, as [collectionPassCompleted] shows. */
     fun completeCollectionPass(
         account: LibraryAccount,
         startedAt: Instant,
@@ -329,7 +329,7 @@ class InMemoryLibraryRepository : LibraryRepository {
                 .associate { it.key.second to it.value.name },
         )
 
-    override fun collectionsSyncedAt(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
     @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(
