@@ -118,4 +118,42 @@ class CollectionNamesTest {
 
             assertEquals(started, repository.collectionPassCompleted(ALICE).first())
         }
+
+    @Test
+    fun forgettingTheAccountMovesTheSignalToNull() =
+        runBlocking {
+            val started = clock.now()
+            repository.recordCollectionPass(ALICE, started, relisted = true)
+            val signal = repository.collectionPassCompleted(ALICE)
+            assertEquals(started, signal.until(started))
+
+            repository.forget(ALICE)
+
+            assertNull(signal.until(null))
+        }
+
+    @Test
+    fun anotherAccountBecomingActiveMovesTheSignalToNull() =
+        runBlocking {
+            val started = clock.now()
+            repository.recordCollectionPass(ALICE, started, relisted = true)
+            val signal = repository.collectionPassCompleted(ALICE)
+            assertEquals(started, signal.until(started))
+
+            repository.useAccount(BOB)
+
+            assertNull(signal.until(null))
+        }
+
+    @Test
+    fun aPassOfAnotherAccountDoesNotChangeThisAccountsValue() =
+        runBlocking {
+            val started = clock.now()
+            repository.recordCollectionPass(ALICE, started, relisted = true)
+            clock.stepMs(60_000)
+
+            repository.recordCollectionPass(BOB, clock.now(), relisted = true)
+
+            assertEquals(started, repository.collectionPassCompleted(ALICE).first())
+        }
 }

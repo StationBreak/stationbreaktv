@@ -185,18 +185,21 @@ interface LibraryRepository : AccountCache {
 
     /**
      * The current names of [account]'s collections that are not deleted (spec 12), by ID. A [RuleSnapshot] holds no
-     * names, so this is where a collection hint is matched. A collection whose ID is not canonical is left out. This is
+     * names, so this is where a collection hint is matched. Each ID is normalised with `CanonicalId.parseOrNull`, and
+     * only text that is not an ID at all is left out (the first name wins if two spellings give one ID). This is
      * the current state, not an as-of read, so it is for planning a lineup and never for building a day.
      */
     suspend fun collectionNames(account: LibraryAccount): CollectionNames
 
     /**
      * Signals that a whole collection pass of [account] completed. The value is the **start** time of the most recent
-     * completed pass (null until one has), and it emits the current value first. Each emission means a pass completed:
-     * Room may re-emit for the same pass, so a consumer treats an emission as a trigger and dedupes itself. Never
-     * compare the value with `lastSuccess` or with now as an end time. The sync engine finishes the items (and so
-     * [status]'s `lastSuccess` moves) *before* it runs the collection pass, so a reader that needs the collections
-     * waits for this and not for `lastSuccess`. A pass that stops part-way does not signal.
+     * completed pass, and null until one has. It emits the current value first. It also emits null when the account's
+     * saved data is cleared (it signed out, or another account became active), and Room may re-emit the same value,
+     * for instance on a write to another account's rows. So a non-null value not seen before means a completed pass;
+     * null, or a value seen before, is never a trigger. A consumer acts only on a non-null value that differs from the
+     * last one it acted on, and never compares the value with `lastSuccess` or with now as an end time. The sync engine
+     * finishes the items (and so [status]'s `lastSuccess` moves) *before* it runs the collection pass, so a reader that
+     * needs the collections waits for this and not for `lastSuccess`. A pass that stops part-way does not signal.
      */
     fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
 

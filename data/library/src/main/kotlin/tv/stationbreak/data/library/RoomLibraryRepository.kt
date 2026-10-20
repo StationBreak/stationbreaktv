@@ -145,13 +145,15 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val names = HashMap<CanonicalId, String>()
         for (row in collectionDao.liveNames(server, user)) {
-            CanonicalId.parseOrNull(row.collectionId)?.let { names[it] = row.name }
+            // First wins when two stored spellings normalise to one ID, as for the collections of a RuleSnapshot.
+            CanonicalId.parseOrNull(row.collectionId)?.let { names.putIfAbsent(it, row.name) }
         }
         return CollectionNames(names)
     }
 
-    // The collection_sync row is written only after a whole pass succeeded (recordCollectionPass), so a change is a
-    // finished pass; the items' finishSync, which runs before the pass, never touches it.
+    // The collection_sync row is written only after a whole pass succeeded (recordCollectionPass), and the items'
+    // finishSync, which runs before the pass, never touches it. The flow also gives null when the account's row is
+    // deleted (forget, or another account becoming active) and re-emits on writes to other accounts' rows.
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
         collectionDao
             .observeSyncSince(account.server.value, account.user.value)

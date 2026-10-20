@@ -36,4 +36,11 @@ class CollectionNamesTest {
 
         assertEquals(setOf(id(1)), names.ids)
     }
+
+    @Test
+    fun idsAreInCanonicalIdOrderWhateverTheOrderGiven() {
+        val names = CollectionNames(linkedMapOf(id(3) to "C", id(1) to "A", id(2) to "B"))
+
+        assertEquals(listOf(id(1), id(2), id(3)), names.ids.toList())
+    }
 }

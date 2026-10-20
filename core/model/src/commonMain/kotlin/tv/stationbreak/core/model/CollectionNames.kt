@@ -9,12 +9,16 @@ package tv.stationbreak.core.model
 class CollectionNames(
     names: Map<CanonicalId, String>,
 ) {
-    private val byId: Map<CanonicalId, String> = names.toMap()
+    // Copied once and kept in canonical-ID order, so [ids] has one order wherever the names came from.
+    private val byId: Map<CanonicalId, String> =
+        names.entries
+            .sortedBy { it.key.value }
+            .associateTo(LinkedHashMap(names.size * 2)) { it.key to it.value }
 
     /** The name of the collection [id], or null when it is not one of these (unknown, or deleted). */
     operator fun get(id: CanonicalId): String? = byId[id]
 
-    /** The IDs of the collections that have a name here. */
+    /** The IDs of the collections that have a name here, in canonical-ID order. */
     val ids: Set<CanonicalId> get() = byId.keys
 
     override fun toString(): String = "CollectionNames(${byId.size})"

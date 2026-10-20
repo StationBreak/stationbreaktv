@@ -1614,6 +1614,18 @@ internal object RatingVectorFiles {
               "serverId": "11111111111111111111111111111111",
               "kind": "recipe",
               "key": ""
+            },
+            {
+              "why": "recipe key is 65 characters long",
+              "serverId": "11111111111111111111111111111111",
+              "kind": "recipe",
+              "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "why": "recipe key has an underscore",
+              "serverId": "11111111111111111111111111111111",
+              "kind": "recipe",
+              "key": "a_b"
             }
           ]
         }

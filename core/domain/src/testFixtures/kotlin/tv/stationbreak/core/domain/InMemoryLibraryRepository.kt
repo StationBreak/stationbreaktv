@@ -169,7 +169,10 @@ class InMemoryLibraryRepository : LibraryRepository {
         }
     }
 
-    /** Says that a whole collection pass of [account] that began at [startedAt] completed, as [collectionPassCompleted] shows. */
+    /**
+     * Says that a whole collection pass of [account] that began at [startedAt] completed, as [collectionPassCompleted]
+     * shows.
+     */
     fun completeCollectionPass(
         account: LibraryAccount,
         startedAt: Instant,
