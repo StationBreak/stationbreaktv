@@ -1119,9 +1119,16 @@ this section to *create* a channel.
   | `collection` | `33333333333333333333333333333333` | `1559bdec1b2bb6cd` | `1052978938816395171` | `0e9ceec4141e77a3` |
   | `genre` | `Animé` | `edd5cb810fd750ff` | `182484535837226886` | `028850b7ef947786` |
   | `genre` | `科幻` | `28f84939c584258a` | `12794934325292202904` | `b190bcfa777e7b98` |
+  | `recipe` | `little-farm` | `e006c64fd4ef627a` | `15418518407132515164` | `d5f994ccebf48b5c` |
+  | `recipe` | `odds-and-ends` | `23856fa7efc0fbbe` | `3985964905457314131` | `3750fdf684f4e953` |
 
   The library and the `科幻` seeds have the high bit set. `animé` (lower case) and `Animé` written as `Anime` plus a
   combining acute accent are different genre names and give different seeds: nothing is folded or normalised.
+
+- **A starter channel** (a themed channel the app offers from its built-in recipes) gets a derived seed in the same way,
+  with the kind `recipe` and the recipe key as the key: 1 to 64 characters of `a-z`, `0-9` and `-` (for example
+  `little-farm`), written as ASCII bytes. The server ID is the one in step 1. (Added 2026-10-19; creation guidance only,
+  no reader or lineup changes.)
 
 - **Reseeding** a channel, and **duplicating** one, give the new channel a fresh random seed (a custom channel's rule).
 - **Importing** a rules file keeps the seed byte for byte.

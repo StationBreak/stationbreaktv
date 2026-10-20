@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.RuleCollection
@@ -65,11 +66,19 @@ class InMemoryLibraryRepository : LibraryRepository {
         val deletedAtMs: Long?,
     )
 
+    private class NameRow(
+        val account: LibraryAccount,
+        var name: String,
+        var deleted: Boolean,
+    )
+
     private val rows = mutableListOf<Row>()
     private val held = mutableListOf<HeldRow>()
     private val seriesRows = mutableListOf<SeriesRow>()
     private val collectionRows = mutableListOf<CollectionRow>()
     private val collectionsSynced = mutableSetOf<LibraryAccount>()
+    private val collectionNameRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, NameRow>()
+    private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
     private val active = MutableStateFlow<LibraryAccount?>(null)
@@ -142,6 +151,33 @@ class InMemoryLibraryRepository : LibraryRepository {
         deletedAtMs: Long? = null,
     ) {
         collections.forEach { collectionRows += CollectionRow(account, it, deletedAtMs) }
+    }
+
+    /**
+     * Saves the current [name] of the collection [id] for [account], or renames it if it is saved; with [deleted] it
+     * reads as deleted. [collectionNames] returns the names not deleted.
+     */
+    fun seedCollectionName(
+        account: LibraryAccount,
+        id: CanonicalId,
+        name: String,
+        deleted: Boolean = false,
+    ) {
+        collectionNameRows.getOrPut(account to id) { NameRow(account, name, deleted) }.also {
+            it.name = name
+            it.deleted = deleted
+        }
+    }
+
+    /**
+     * Says that a whole collection pass of [account] that began at [startedAt] completed, as [collectionPassCompleted]
+     * shows.
+     */
+    fun completeCollectionPass(
+        account: LibraryAccount,
+        startedAt: Instant,
+    ) {
+        passes.value = passes.value + (account to startedAt)
     }
 
     /** Says whether a full collection pass has succeeded for [account], which `RuleSnapshot.collectionsSynced` shows. */
@@ -288,6 +324,16 @@ class InMemoryLibraryRepository : LibraryRepository {
         }
     }
 
+    override suspend fun collectionNames(account: LibraryAccount): CollectionNames =
+        CollectionNames(
+            collectionNameRows
+                .filter { (key, row) -> key.first == account && !row.deleted }
+                .entries
+                .associate { it.key.second to it.value.name },
+        )
+
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
+
     @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(
         account: LibraryAccount,
@@ -333,6 +379,8 @@ class InMemoryLibraryRepository : LibraryRepository {
         seriesRows.removeAll { forAccount(it.account) }
         collectionRows.removeAll { forAccount(it.account) }
         collectionsSynced.removeAll(forAccount)
+        collectionNameRows.keys.removeAll { forAccount(it.first) }
+        passes.value = passes.value.filterKeys { !forAccount(it) }
     }
 
     private fun live(

@@ -17,6 +17,7 @@ import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
@@ -139,6 +140,24 @@ class RoomLibraryRepository internal constructor(
                     status(LibraryAccount(ServerId(active.serverId), UserId(active.userId)))
                 }
             }
+
+    override suspend fun collectionNames(account: LibraryAccount): CollectionNames {
+        val (server, user) = account.keys()
+        val names = HashMap<CanonicalId, String>()
+        for (row in collectionDao.liveNames(server, user)) {
+            // First wins when two stored spellings normalise to one ID, as for the collections of a RuleSnapshot.
+            CanonicalId.parseOrNull(row.collectionId)?.let { names.putIfAbsent(it, row.name) }
+        }
+        return CollectionNames(names)
+    }
+
+    // The collection_sync row is written only after a whole pass succeeded (recordCollectionPass), and the items'
+    // finishSync, which runs before the pass, never touches it. The flow also gives null when the account's row is
+    // deleted (forget, or another account becoming active) and re-emits on writes to other accounts' rows.
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
+        collectionDao
+            .observeSyncSince(account.server.value, account.user.value)
+            .map { ms -> ms?.let(Instant::fromEpochMilliseconds) }
 
     /** Not for the scheduler: it reads the current rows and hides tombstones. The scheduler reads [scheduleItems]. */
     @Suppress("OVERRIDE_DEPRECATION")

@@ -46,8 +46,8 @@ class AutoSeedVectorsTest {
     }
 
     @Test
-    fun theFileHasALibraryACollectionANonAsciiGenreAndAHighBitSeed() {
-        assertEquals(setOf("library", "collection", "genre"), rows.map { it.string("kind") }.toSet())
+    fun theFileHasALibraryACollectionARecipeANonAsciiGenreAndAHighBitSeed() {
+        assertEquals(setOf("library", "collection", "genre", "recipe"), rows.map { it.string("kind") }.toSet())
         assertTrue(rows.any { it.nonAsciiGenre() })
         val nonAscii = rows.filter { it.nonAsciiGenre() }
         assertTrue(nonAscii.any { u64(it.getValue("seed")) >= highBit }, "non-ASCII, high bit")

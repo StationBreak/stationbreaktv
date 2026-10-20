@@ -1,5 +1,5 @@
 {
-  "description": "Automatic-channel seed: seed = splitmix64(fnv1a64(bytes)), bytes = ASCII server ID (32 lower-case hex) || 0x00 || ASCII kind (library, genre or collection) || 0x00 || key. The key is the 32 ASCII hex characters of the canonical ID for a library or a collection, and the exact UTF-8 bytes of the name for a genre, with no case folding and no Unicode normalisation (the last two genre rows are the same word in another case and in another normalisation form: different seeds). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Placeholder IDs only. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
+  "description": "Automatic-channel seed: seed = splitmix64(fnv1a64(bytes)), bytes = ASCII server ID (32 lower-case hex) || 0x00 || ASCII kind (library, genre, collection or recipe) || 0x00 || key. The key is the 32 ASCII hex characters of the canonical ID for a library or a collection, the exact UTF-8 bytes of the name for a genre, and the recipe key (1 to 64 characters of a-z, 0-9 and hyphen) for a recipe, with no case folding and no Unicode normalisation (the last two genre rows are the same word in another case and in another normalisation form: different seeds). Every 64-bit value is an object: dec (unsigned decimal string), hex (16 lower-case digits, no prefix), hi and lo (its high and low 32 bits as 8 lower-case hex digits), so a port without a native 64-bit integer can check each step. Placeholder IDs only. Whitespace, control and format characters are written as JSON escapes (such as \\u00a0 for a no-break space) so that they can be seen.",
   "vectors": [
     {
       "serverId": "11111111111111111111111111111111",
@@ -216,6 +216,42 @@
         "hi": "6a7540cd",
         "lo": "71ee856d"
       }
+    },
+    {
+      "serverId": "11111111111111111111111111111111",
+      "kind": "recipe",
+      "key": "little-farm",
+      "bytesHex": "313131313131313131313131313131313131313131313131313131313131313100726563697065006c6974746c652d6661726d",
+      "fnv1a64": {
+        "dec": "16142807960533295738",
+        "hex": "e006c64fd4ef627a",
+        "hi": "e006c64f",
+        "lo": "d4ef627a"
+      },
+      "seed": {
+        "dec": "15418518407132515164",
+        "hex": "d5f994ccebf48b5c",
+        "hi": "d5f994cc",
+        "lo": "ebf48b5c"
+      }
+    },
+    {
+      "serverId": "11111111111111111111111111111111",
+      "kind": "recipe",
+      "key": "odds-and-ends",
+      "bytesHex": "313131313131313131313131313131313131313131313131313131313131313100726563697065006f6464732d616e642d656e6473",
+      "fnv1a64": {
+        "dec": "2559574730302618558",
+        "hex": "23856fa7efc0fbbe",
+        "hi": "23856fa7",
+        "lo": "efc0fbbe"
+      },
+      "seed": {
+        "dec": "3985964905457314131",
+        "hex": "3750fdf684f4e953",
+        "hi": "3750fdf6",
+        "lo": "84f4e953"
+      }
     }
   ],
   "invalid": [
@@ -266,6 +302,30 @@
       "serverId": "11111111111111111111111111111111",
       "kind": "genre",
       "key": ""
+    },
+    {
+      "why": "recipe key has an upper-case letter",
+      "serverId": "11111111111111111111111111111111",
+      "kind": "recipe",
+      "key": "Little-Farm"
+    },
+    {
+      "why": "recipe key is empty",
+      "serverId": "11111111111111111111111111111111",
+      "kind": "recipe",
+      "key": ""
+    },
+    {
+      "why": "recipe key is 65 characters long",
+      "serverId": "11111111111111111111111111111111",
+      "kind": "recipe",
+      "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "why": "recipe key has an underscore",
+      "serverId": "11111111111111111111111111111111",
+      "kind": "recipe",
+      "key": "a_b"
     }
   ]
 }

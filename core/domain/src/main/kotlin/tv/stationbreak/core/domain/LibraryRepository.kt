@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.RuleSnapshot
@@ -172,12 +173,35 @@ interface LibraryRepository : AccountCache {
      * [cutoff] must equal the `S - G` of the day being built, as for [scheduleItems]. **The safe range is
      * `cutoff >= now - 72 h`**, the same documented contract (Vimes L-1) and not a `require`: an older cut-off degrades
      * to the newest copy and does not throw.
+     *
+     * A **planning read** (spec 12: choosing which channels a lineup holds) may pass `cutoff = now`, which is inside
+     * the safe range. Such a snapshot is never used to build a day: a day is built only from the `S - G` cut-off.
      */
     suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): RuleSnapshot
+
+    /**
+     * The current names of [account]'s collections that are not deleted (spec 12), by ID. A [RuleSnapshot] holds no
+     * names, so this is where a collection hint is matched. Each ID is normalised with `CanonicalId.parseOrNull`, and
+     * only text that is not an ID at all is left out (the first name wins if two spellings give one ID). This is
+     * the current state, not an as-of read, so it is for planning a lineup and never for building a day.
+     */
+    suspend fun collectionNames(account: LibraryAccount): CollectionNames
+
+    /**
+     * Signals that a whole collection pass of [account] completed. The value is the **start** time of the most recent
+     * completed pass, and null until one has. It emits the current value first. It also emits null when the account's
+     * saved data is cleared (it signed out, or another account became active), and Room may re-emit the same value,
+     * for instance on a write to another account's rows. So a non-null value not seen before means a completed pass;
+     * null, or a value seen before, is never a trigger. A consumer acts only on a non-null value that differs from the
+     * last one it acted on, and never compares the value with `lastSuccess` or with now as an end time. The sync engine
+     * finishes the items (and so [status]'s `lastSuccess` moves) *before* it runs the collection pass, so a reader that
+     * needs the collections waits for this and not for `lastSuccess`. A pass that stops part-way does not signal.
+     */
+    fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
 
     /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the

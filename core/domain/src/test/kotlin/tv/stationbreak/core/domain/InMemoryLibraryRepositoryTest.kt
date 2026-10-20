@@ -393,4 +393,59 @@ class InMemoryLibraryRepositoryTest {
             assertEquals(emptyMap(), after.collections)
             assertFalse(after.collectionsSynced)
         }
+
+    @Test
+    fun collectionNamesAreTheCurrentOnesOfCollectionsNotDeleted() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val one = CanonicalId.parse("1".padStart(32, '0'))
+            val two = CanonicalId.parse("2".padStart(32, '0'))
+            repository.seedCollectionName(alice, one, "Synthetic One")
+            repository.seedCollectionName(alice, two, "Synthetic Two", deleted = true)
+            repository.seedCollectionName(bob, two, "Synthetic Two")
+
+            repository.seedCollectionName(alice, one, "Synthetic Renamed")
+            val names = repository.collectionNames(alice)
+
+            assertEquals(setOf(one), names.ids)
+            assertEquals("Synthetic Renamed", names[one])
+        }
+
+    @Test
+    fun theCollectionPassSignalIsNullUntilAPassCompletesThenCarriesItsTime() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            assertEquals(null, repository.collectionPassCompleted(alice).first())
+
+            repository.completeCollectionPass(alice, epoch)
+
+            assertEquals(epoch, repository.collectionPassCompleted(alice).first())
+            assertEquals(null, repository.collectionPassCompleted(bob).first())
+        }
+
+    @Test
+    fun theCollectionPassSignalGoesToNullWhenTheAccountIsForgottenOrAnotherBecomesActive() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.completeCollectionPass(alice, epoch)
+            repository.completeCollectionPass(bob, epoch)
+
+            repository.useAccount(bob)
+            assertEquals(null, repository.collectionPassCompleted(alice).first())
+            assertEquals(epoch, repository.collectionPassCompleted(bob).first())
+
+            repository.forget(bob)
+            assertEquals(null, repository.collectionPassCompleted(bob).first())
+        }
+
+    @Test
+    fun aPassOfAnotherAccountDoesNotChangeThisAccountsSignal() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.completeCollectionPass(alice, epoch)
+
+            repository.completeCollectionPass(bob, epoch + 1.minutes)
+
+            assertEquals(epoch, repository.collectionPassCompleted(alice).first())
+        }
 }
