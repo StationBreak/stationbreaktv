@@ -41,12 +41,14 @@ stationbreaktv/
 │   │                            and the hash primitives `splitmix64` and `fnv1a64` (`ordering` package)
 │   ├── rules/          [KMP]    Portable channel-rules JSON format: schema, versioning, migrations, (de)serialization
 │   ├── engine/         [KMP]    Channel engine: evaluate source rules against a library snapshot (`ChannelRules` +
-│   │                            `RuleSnapshot` → the channel's pool); the scheduler orders it
+│   │                            `RuleSnapshot` → the channel's pool); the scheduler orders it. Its `lineup` package holds
+│   │                            the themed starter catalog and the planner that chooses a household's channels (spec 12)
 │   ├── scheduler/      [KMP]    Deterministic scheduler: ordering modes, epochs, filler packing,
 │   │                            "what's on at time T, at what offset". Input is the scheduler settings and an item list (any order), not rules.
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
 │   │                            SecretStore, ProEntitlement), use cases, and the built-in
-│   │                            ScheduleSource (engine + scheduler)
+│   │                            ScheduleSource (engine + scheduler). Its `lineup` package owns the lineup in memory
+│   │                            (spec 12): the stored-form codec, `LineupService`, `LineupRefresher`
 │   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors for the
 │   │                            scheduler's lineups. (The vectors for the rules format, the primitives and the lineups are
 │   │                            canonical in `docs/rules-format/vectors/`; see "Golden vectors" below. `core:testing` keeps
@@ -60,9 +62,9 @@ stationbreaktv/
 │   ├── jellyfin/       [JVM]    Jellyfin adapter (jellyfin-sdk-kotlin sealed inside, per ADR-0005):
 │   │                            auth, URL normalisation, library paging, stream URLs, playback reporting.
 │   │                            Implements MediaServer.
-│   ├── library/        [Android] Room DB: library cache (with tombstones) + cached ScheduleBlocks. Sync worker.
+│   ├── library/        [Android] Room DB: library cache (with tombstones and item history). Sync worker.
 │   │                            Implements LibraryRepository.
-│   └── settings/       [Android] DataStore: servers, channels (as rules JSON), prefs, last channel; Keystore-backed
+│   └── settings/       [Android] DataStore: servers, prefs, last channel; the channel lineup files; Keystore-backed
 │                                SecretStore implementation
 │
 └── feature/
@@ -90,6 +92,18 @@ task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configu
 atomically replaced file in `noBackupFilesDir`). `app` binds both in `MediaServerModule`. The DataStore settings arrive with
 the stories that need them.
 
+Since spec 12, `data:settings` also holds `FileLineupStore` (the `LineupStore` implementation in `core:domain`): one file per
+account, `lineup/<server>/<user>.json` under `filesDir`, replaced atomically. It keeps opaque bytes and knows nothing of
+their format; the codec is in `core:domain`. A path is built only from canonical IDs, a file over 1 MiB reads as a fault, and
+an unreadable file is moved to `<name>.unreadable.<timestamp>`, of which the newest three are kept.
+
+**Privacy and removal of the lineup** ([#308](https://github.com/StationBreak/stationbreaktv/issues/308)). By design,
+sign-out, session expiry and an account switch never delete a household's lineup; only an explicit user action does. The
+lineup is the per-account file plus up to three set-aside copies. It holds channel names and rules, with no credentials and no
+media titles, and it is app-private. A user removes it today by clearing app data. A "forget this account's channels" action
+is planned: `LineupService.forget` exists (it deletes the file and its set-aside copies), with no UI yet. The privacy policy
+must cover this (F4.6).
+
 `data:library` exists since F0.6 task 2.0. It holds the saved copy of the user's chosen libraries in Room (`RoomLibraryRepository`,
 the `LibraryRepository` implementation) and, from tasks 3.0 and 4.0, the sync engine, the worker and the trigger policy. It
 depends on `core:domain` and `core:model` only. Room and WorkManager belong to this module: `checkArchitecture` fails a `core:*`
@@ -112,6 +126,22 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   point). The `FirstSync` port in `core:domain` is how the progress screen and launch routing reach all of it without seeing
   WorkManager or Room. Every sync write checks inside its own transaction that the account is still the signed-in one
   (`active_account`, schema 2), and sign-in and sign-out cancel the unique work first.
+- **Item history and the as-of read (specs 09 and 10).** The cache keeps the superseded versions of an item in `item_version`
+  (series and collections have matching version tables), so a day can be built from the fields the client held before its
+  cut-off. `scheduleItems(account, libraries, cutoff)` and `ruleSnapshot(account, libraries, cutoff)` are that as-of read.
+  Their **safe range is `cutoff >= now - 72 h`** (the longest epoch plus the largest grace window); an older cut-off is a
+  documented contract, not a `require`, and degrades to the newest copy. The scheduler uses these, never `snapshot`, which
+  hides deleted items and uses current fields.
+- **History purge.** After a completed reconcile, the sync run calls `purgeHistory` for the account. It deletes tombstones
+  and superseded versions older than the retention (30 days by default, `HistoryRetention`), for items, series and
+  collections, and never touches the current version of a live row. The **clock guard** skips the purge, deleting nothing,
+  when now is before the last successful sync or more than the retention minus 72 h after it.
+- **Collection names and the pass signal (spec 12).** `collectionNames(account)` gives the current names of the account's
+  collections that are not deleted, by ID; it is a planning read, never used to build a day. `collectionPassCompleted(account)`
+  emits the start time of the latest whole collection pass (null until one completes, and a pass that stops part-way does
+  not signal), so the lineup refresher waits for the collections and not for `lastSuccess`.
+- **Cache schema version 6** (`LibraryDatabase.VERSION`). 4 added the item history, 5 added series, 6 added collections. A
+  schema change drops and rebuilds the cache, and the schema is exported to `data/library/schemas/`.
 - **Unit tests run Room on the JVM** over `androidx.sqlite:sqlite-bundled-jvm`, a test-only dependency that carries a native
   SQLite for the build machine. It is never in an APK. The instrumented test on the API 25 emulator runs the same schema on the
   platform SQLite.
@@ -120,6 +150,24 @@ Per-server certificate trust (F0.5 task 3.0, S0.5.2) is in `data:jellyfin`'s `tr
 one base client the adapter derives every client from, and rebuilds its `SSLContext`, client and connection pool whenever a
 pin changes. Its trust manager asks the platform first (`SystemTrust`, supplied by `app` as the Network Security Config's trust
 through `X509TrustManagerExtensions`) and accepts a refused chain only on an exact scheme, host and port SPKI pin.
+
+### The channel lineup (spec 12)
+
+- **`core:engine` `lineup` package** holds product policy as pure code: `StarterCatalog` (95 recipes and two leftovers
+  channels, versioned), `LineupDefaults` (the 12-hour fill minimum, the cap of 50, the finalise threshold of 5, the 06:00 day
+  start) and `LineupPlanner`, a pure function from the current lineup, the library snapshot and the collection names to the
+  next lineup. It never touches storage.
+- **`core:domain` `lineup` package** owns the lineup in memory. `LineupCodec` is the stored form (compact JSON, `"version": 1`;
+  a newer file is left alone and an unreadable one is set aside, never overwritten). `LineupService` is the one place that
+  loads, plans and saves an account's lineup, under one lock per account, and implements `ChannelRepository` (the lineup as
+  features see it). `LineupRefresher` calls `LineupService.refresh` at start when the lineup is absent, unfinalised or behind
+  the catalog, after each completed collection pass, and after each successful sync. `BuiltInScheduleSource` implements
+  `ScheduleSource.airings` by building each switched-on channel's day with one `ruleSnapshot` per distinct cut-off and no
+  `scheduleItems` call (#275), and keeps the built days in memory per lineup revision.
+- `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` and `ScheduleSource`.
+- Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
+  channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
+  land before F1.3.
 
 `[KMP]` means Kotlin Multiplatform (`commonMain`; `jvm()` + `linuxX64()` canary). `[JVM]` means a pure Kotlin/JVM module with no Android plugin. `[Android]` means an Android library module.
 
