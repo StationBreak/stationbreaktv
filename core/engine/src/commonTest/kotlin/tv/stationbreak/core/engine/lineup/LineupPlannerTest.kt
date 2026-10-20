@@ -330,4 +330,77 @@ class LineupPlannerTest {
         assertEquals(9_000L, mars.addedAtMs)
         assertIs<ChannelSource.Starter>(nova.source)
     }
+
+    @Test
+    fun newerCatalogWaitsForCollections() {
+        val lineup = firstLineup()
+        val wider = listOf(Source.Genre("alpha"), Source.Tag("extra"))
+        val v2 =
+            TestCatalog(
+                base.recipes.map { if (it.key == "alpha") recipeOf("alpha", 110, sources = wider) else it } +
+                    recipeOf("mars", 160),
+                version = 2,
+            )
+        val unsynced = planOf(lineup, libraryOf(fills(catalog = v2), collectionsSynced = false), v2, nowMs = 9_000L)
+        assertEquals(1, unsynced.catalogVersion, "the catalog waits")
+        assertEquals(lineup.channels, unsynced.channels, "no rules change and no recipe is added")
+
+        val synced = planOf(unsynced, libraryOf(fills(catalog = v2)), v2, nowMs = 10_000L)
+        assertEquals(2, synced.catalogVersion)
+        assertEquals(
+            wider,
+            synced
+                .channel("alpha")
+                .starter.rules.sources,
+        )
+        assertEquals(ChannelState.On, synced.channel("mars").state)
+        assertEquals(10_000L, synced.channel("mars").addedAtMs)
+    }
+
+    @Test
+    fun newLeftoversRecipeTurnsOnWhenItsNumberIsFreeAndThereIsRoom() {
+        val lineup = firstLineup().withChannel("alpha") { it.copy(numberOverride = 150) }
+        val extra =
+            listOf(
+                LeftoversRecipe("more-odds", "More Odds", "Synthetic.", 198, null),
+                LeftoversRecipe("taken-odds", "Taken Odds", "Synthetic.", 150, null),
+            )
+        val v2 = TestCatalog(base.recipes, version = 2, leftovers = TEST_LEFTOVERS + extra)
+        val next = planOf(lineup, libraryOf(fills()), v2, nowMs = 9_000L)
+        val more = next.channel("more-odds")
+        assertEquals(ChannelState.On, more.state)
+        assertEquals(198, more.number)
+        assertEquals(ChannelSource.Leftovers("more-odds", null), more.source)
+        assertEquals(9_000L, more.addedAtMs)
+        val taken = next.channel("taken-odds")
+        assertEquals(ChannelState.Shelf, taken.state, "its number is taken, so it waits for the user")
+        assertNull(taken.number)
+    }
+
+    @Test
+    fun newLeftoversRecipeAtCapWaitsOnShelf() {
+        val keys = List(48) { "r" + it.toString().padStart(2, '0') }
+        val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
+        val fill = keys.associateWith { QUALIFYING_ITEMS }
+        val lineup = planOf(null, libraryOf(fill), catalog)
+        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
+        val more = LeftoversRecipe("more-odds", "More Odds", "Synthetic.", 198, null)
+        val v2 = TestCatalog(catalog.recipes, version = 2, leftovers = TEST_LEFTOVERS + more)
+        val next = planOf(lineup, libraryOf(fill), v2)
+        assertEquals(ChannelState.Shelf, next.channel("more-odds").state)
+        assertEquals(198, next.channel("more-odds").number)
+        assertEquals(LineupDefaults.CAP, next.channels.count { it.state == ChannelState.On })
+    }
+
+    @Test
+    fun newerCatalogUpdatesALeftoversCeiling() {
+        val lineup = firstLineup()
+        val stricter = TEST_LEFTOVERS.map { if (it.key == "kids-odds") it.copy(maxRating = "G") else it }
+        val v2 = TestCatalog(base.recipes, version = 2, leftovers = stricter)
+        val next = planOf(lineup, libraryOf(fills()), v2)
+        val kids = next.channel("kids-odds")
+        assertEquals(ChannelSource.Leftovers("kids-odds", "G"), kids.source)
+        assertEquals(lineup.channel("kids-odds").copy(source = kids.source), kids, "only the ceiling changes")
+        assertEquals(lineup.channel("odds"), next.channel("odds"))
+    }
 }

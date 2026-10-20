@@ -26,7 +26,8 @@ object LineupPlanner {
      * unedited starter that has a number and fills is switched on while there is room, best first; collection hints
      * are resolved once when the first full collection pass is seen; a newer catalog refreshes unedited starters
      * (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new recipes (with no
-     * number when theirs is taken). A catalog older than the lineup's changes nothing.
+     * number when theirs is taken). A newer catalog is applied only with a full collection pass (`collectionsSynced`);
+     * until then the lineup keeps its catalog version. A catalog older than the lineup's changes nothing.
      *
      * Each recipe's pool is evaluated at most once per call.
      */
@@ -84,12 +85,13 @@ object LineupPlanner {
         current: Lineup,
         p: Planning,
     ): Lineup {
-        val newer = p.catalog.version > current.catalogVersion
+        // A newer catalog waits for a full collection pass, so its hints resolve against every collection.
+        val newer = p.catalog.version > current.catalogVersion && p.snapshot.collectionsSynced
         val resolveHints = !current.hintsResolvedWithCollections && p.snapshot.collectionsSynced
         val refreshed = current.channels.map { refreshed(it, p, newer, resolveHints) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         return current.copy(
-            catalogVersion = p.catalog.version,
+            catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
             hintsResolvedWithCollections = current.hintsResolvedWithCollections || p.snapshot.collectionsSynced,
             channels = ordered(switchedOn(withNew, p)),
         )
