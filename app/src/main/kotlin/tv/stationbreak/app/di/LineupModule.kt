@@ -53,7 +53,8 @@ internal object LineupModule {
     fun scheduleSource(
         service: LineupService,
         library: LibraryRepository,
-    ): ScheduleSource = BuiltInScheduleSource(service, library)
+        settings: ServerSettings,
+    ): ScheduleSource = BuiltInScheduleSource(service, library) { settings.loadLibraries() }
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides

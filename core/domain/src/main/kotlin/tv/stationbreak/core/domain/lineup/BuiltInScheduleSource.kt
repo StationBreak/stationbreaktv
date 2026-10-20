@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -10,17 +11,21 @@ import kotlin.time.Instant
 
 /**
  * The [ScheduleSource] built into the app (spec 12): it reads the lineup from [service] and the library from
- * [library], and works the days out with the engine and the scheduler.
+ * [library], and works the days out with the engine and the scheduler. Whose lineup and which libraries are not asked
+ * of the caller: the account is [LibraryRepository.activeAccount] and the libraries are what [libraries] gives, the
+ * same two the `LineupRefresher` uses.
  *
  * Every switched-on channel's day is built from the library as held before that day's cut-off, with **one
  * `ruleSnapshot` per distinct cut-off and never `scheduleItems`** (#275). The starter and leftovers channels all share
  * the lineup's one offset and day start, so a lineup of them is one read; a custom channel with another day start adds
  * one. The built days (settings, epoch and day pool) are kept per lineup revision and cut-offs, so asking again
- * within the same days reads nothing; F1.3 and F2.1 build their schedules from them.
+ * within the same days reads nothing. F1.3 will extend the [ScheduleSource] port with what it needs; the days
+ * themselves stay internal to this class.
  */
 class BuiltInScheduleSource(
     private val service: LineupService,
     private val library: LibraryRepository,
+    private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
     private data class Key(
         val revision: Long,
@@ -32,12 +37,11 @@ class BuiltInScheduleSource(
     private val lock = Any()
     private val built = LinkedHashMap<Key, List<ChannelDay>>()
 
-    override suspend fun airings(
-        account: LibraryAccount,
-        libraries: Set<ItemId>,
-        at: Instant,
-    ): List<ChannelAiring> =
-        channelDays(account, libraries, at).map {
+    override suspend fun airings(at: Instant): List<ChannelAiring> {
+        val account = library.activeAccount().first()
+        val chosen = libraries()?.takeIf { it.isNotEmpty() }
+        if (account == null || chosen == null) return emptyList()
+        return channelDays(account, chosen, at).map {
             ChannelAiring(
                 id = it.channel.id,
                 number = checkNotNull(it.channel.number),
@@ -46,6 +50,7 @@ class BuiltInScheduleSource(
                 hidden = it.hidden,
             )
         }
+    }
 
     /** The switched-on channels' days at [at], in number order. */
     internal suspend fun channelDays(

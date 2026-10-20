@@ -79,10 +79,11 @@ class BuiltInScheduleSourceSizeTest {
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
-            val source = BuiltInScheduleSource(service, library)
+            library.delegate.useAccount(ACCOUNT)
+            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
 
             val began = System.nanoTime()
-            val airings = source.airings(ACCOUNT, LIBRARIES, NOON)
+            val airings = source.airings(NOON)
             val elapsedMs = (System.nanoTime() - began) / NANOS_PER_MS
 
             println(

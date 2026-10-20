@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -9,7 +10,10 @@ import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleCollection
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,7 +35,12 @@ class BuiltInScheduleSourceTest {
         }
     private val events = mutableListOf<LineupEvent>()
     private val service = LineupService(store, library, clock, { offset }, { events += it }, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library)
+    private var chosen: Set<ItemId>? = LIBRARIES
+    private val source = BuiltInScheduleSource(service, library) { chosen }
+
+    init {
+        runBlocking { library.delegate.useAccount(ACCOUNT) }
+    }
 
     /** 2026-10-19T06:00Z: the broadcast day that holds [NOON] at offset 0 starts then. */
     private val dayStart = Instant.parse("2026-10-19T06:00:00Z")
@@ -39,9 +48,14 @@ class BuiltInScheduleSourceTest {
     /** Its cut-off: the day's start minus the default six-hour grace window. */
     private val cutoff = Instant.parse("2026-10-19T00:00:00Z")
 
+    private fun freshSource(): BuiltInScheduleSource {
+        val fresh = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
+        return BuiltInScheduleSource(fresh, library) { LIBRARIES }
+    }
+
     private fun holding(lineup: Lineup) = runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(lineup)) }
 
-    private fun airings(at: Instant = NOON) = runBlocking { source.airings(ACCOUNT, LIBRARIES, at) }
+    private fun airings(at: Instant = NOON) = runBlocking { source.airings(at) }
 
     private fun pool(
         channel: ChannelId,
@@ -70,7 +84,7 @@ class BuiltInScheduleSourceTest {
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
 
-            val airings = source.airings(ACCOUNT, LIBRARIES, NOON)
+            val airings = source.airings(NOON)
 
             assertEquals(listOf(cutoff), library.snapshotCutoffs, "one ruleSnapshot for the whole lineup")
             assertEquals(0, library.scheduleItemsCalls, "never scheduleItems (#275)")
@@ -95,7 +109,7 @@ class BuiltInScheduleSourceTest {
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
 
-            val airings = source.airings(ACCOUNT, LIBRARIES, now)
+            val airings = source.airings(now)
 
             assertTrue(airings.any { it.id == LineupIds.starter("rockets") }, "Rockets switched on")
             assertEquals(1, library.snapshotCutoffs.size, "every channel is still on the lineup's one offset")
@@ -198,7 +212,7 @@ class BuiltInScheduleSourceTest {
             ),
         )) {
             holding(lineup)
-            val fresh = BuiltInScheduleSource(LineupService(store, library, clock, { 0 }, {}, TestCatalog), library)
+            val fresh = freshSource()
             val odds = runBlocking { fresh.channelDays(ACCOUNT, LIBRARIES, NOON) }.single().pool.map { it.id }
             assertEquals(listOf(id(501)), odds, lineup.channels.map { it.id }.toString())
         }
@@ -241,7 +255,7 @@ class BuiltInScheduleSourceTest {
         for (kidsState in listOf(ChannelState.On, ChannelState.UserHidden)) {
             val kids = leftovers("kids-odds-and-ends", 99, "PG", kidsState)
             holding(lineupOf(kids, leftovers("odds-and-ends", 199, null)))
-            val fresh = BuiltInScheduleSource(LineupService(store, library, clock, { 0 }, {}, TestCatalog), library)
+            val fresh = freshSource()
             val days = runBlocking { fresh.channelDays(ACCOUNT, LIBRARIES, NOON) }.associateBy { it.channel.id }
 
             assertEquals(
@@ -311,8 +325,41 @@ class BuiltInScheduleSourceTest {
             store.inner.save(ACCOUNT, """{"version":2}""".encodeToByteArray())
             service.refresh(ACCOUNT, LIBRARIES)
 
-            assertTrue(source.airings(ACCOUNT, LIBRARIES, NOON).isNotEmpty())
+            assertTrue(source.airings(NOON).isNotEmpty())
             assertEquals(listOf(LineupEvent.NewerVersionLeftAlone), events)
+        }
+
+    @Test
+    fun airingsAreForTheActiveAccountAndTheChosenLibraries() =
+        runBlocking<Unit> {
+            library.seed(fillingLibrary())
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertTrue(source.airings(NOON).isNotEmpty(), "the active account's lineup")
+
+            val other = LibraryAccount(ServerId(id(7).value), UserId(id(8).value))
+            library.delegate.useAccount(other)
+            assertEquals(emptyList(), source.airings(NOON), "the new active account has no lineup")
+
+            library.delegate.useAccount(ACCOUNT)
+            assertTrue(source.airings(NOON).isNotEmpty(), "back to the first account")
+        }
+
+    @Test
+    fun noChosenLibrariesOrNoActiveAccountGivesNoAiringsAndNoRead() =
+        runBlocking<Unit> {
+            library.seed(fillingLibrary())
+            service.refresh(ACCOUNT, LIBRARIES)
+            library.snapshotCutoffs.clear()
+
+            chosen = null
+            assertEquals(emptyList(), source.airings(NOON))
+            chosen = emptySet()
+            assertEquals(emptyList(), source.airings(NOON))
+
+            chosen = LIBRARIES
+            library.delegate.forget(ACCOUNT)
+            assertEquals(emptyList(), source.airings(NOON))
+            assertEquals(emptyList(), library.snapshotCutoffs)
         }
 
     @Test
@@ -328,13 +375,13 @@ class BuiltInScheduleSourceTest {
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
 
-            source.airings(ACCOUNT, LIBRARIES, NOON)
-            source.airings(ACCOUNT, LIBRARIES, NOON + 1.hours)
+            source.airings(NOON)
+            source.airings(NOON + 1.hours)
             assertEquals(1, library.snapshotCutoffs.size, "the same day is not read twice")
 
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
-            source.airings(ACCOUNT, LIBRARIES, NOON)
+            source.airings(NOON)
             assertEquals(1, library.snapshotCutoffs.size, "a new revision builds the day again")
             assertFalse(events.isNotEmpty())
         }

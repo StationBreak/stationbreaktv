@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
-import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.model.ItemId
 import kotlin.time.Instant
 
 /**
@@ -11,7 +9,12 @@ import kotlin.time.Instant
  * shown with this reason in channel management (#299). It comes back by itself once the day has something.
  *
  * The entries are in **precedence order**: when more than one could explain an empty day, the first one that applies
- * is given. Each reads the channel's pool counts (`PoolCounts`).
+ * is given.
+ *
+ * It is optional for a source that is not built in (for example a later XMLTV one): such a source leaves
+ * [ChannelAiring.hidden] null, or uses only the reasons that make sense for it. The built-in source works the reason
+ * out from the engine's pool counts, but those are its own detail: nothing in this type needs them, so a source with no
+ * pool counts loses nothing here.
  */
 enum class HiddenReason {
     /**
@@ -45,15 +48,15 @@ data class ChannelAiring(
     val hidden: HiddenReason?,
 )
 
-/** Where the guide and flipping learn which channels air (spec 12). */
+/**
+ * Where the guide and flipping learn which channels air (spec 12). A source works out for itself whose lineup and which
+ * libraries it is asked about: callers give only the moment. F1.3 will extend this port with what it needs to build a
+ * schedule; the built-in source's days (`ChannelDay`) are internal to it and are not part of the port.
+ */
 interface ScheduleSource {
     /**
-     * Every switched-on channel of [account]'s lineup that can be scheduled, in number order, as it is at [at], built
-     * from the [libraries]. Empty while there is no lineup.
+     * Every switched-on channel of the active account's lineup that can be scheduled, in number order, as it is at
+     * [at]. Empty while nobody is signed in, no libraries are chosen, or there is no lineup.
      */
-    suspend fun airings(
-        account: LibraryAccount,
-        libraries: Set<ItemId>,
-        at: Instant,
-    ): List<ChannelAiring>
+    suspend fun airings(at: Instant): List<ChannelAiring>
 }

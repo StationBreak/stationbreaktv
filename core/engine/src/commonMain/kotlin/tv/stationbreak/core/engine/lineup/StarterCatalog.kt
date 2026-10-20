@@ -9,6 +9,9 @@ import tv.stationbreak.core.rules.Source
  * later from whatever the library has, through genre, tag and year-range sources only, with spelling variants listed as
  * separate sources because scrapers disagree. Spread the numbers out inside a band so later recipes can slot in
  * between; a shipped key or number never changes and is never reused.
+ *
+ * A recipe key is a persistence identifier: stored lineups, channel IDs and the planner's matching all hang on it. It
+ * is frozen once released, and after release only a recipe's `name` and `personality` (its one-line tagline) may change.
  */
 object StarterCatalog : StarterCatalogView {
     /**

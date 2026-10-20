@@ -26,7 +26,7 @@ class LineupCeilingTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library)
+    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
 
     private fun scheduledPool(
         lineup: Lineup,
