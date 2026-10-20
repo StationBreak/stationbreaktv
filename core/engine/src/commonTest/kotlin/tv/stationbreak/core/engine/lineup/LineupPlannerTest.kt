@@ -179,6 +179,25 @@ class LineupPlannerTest {
     }
 
     @Test
+    fun aLeftoversCeilingComesFromTheCatalogOnEveryCall() {
+        val catalog = TestCatalog(base.recipes, leftovers = StarterCatalog.leftovers)
+        val stored =
+            firstLineup(catalog).withChannel("kids-odds-and-ends") {
+                it.copy(source = ChannelSource.Leftovers("kids-odds-and-ends", null))
+            }
+        // The same catalog version, synced or not: the ceiling is the catalog's.
+        for (synced in listOf(true, false)) {
+            val next = planOf(stored, libraryOf(fills(), collectionsSynced = synced), catalog, nowMs = 2_000L)
+            assertEquals(ChannelSource.Leftovers("kids-odds-and-ends", "PG"), next.channel("kids-odds-and-ends").source)
+        }
+
+        // A leftovers channel whose key left the catalog keeps the ceiling it has.
+        val without = TestCatalog(base.recipes, leftovers = StarterCatalog.leftovers.filter { it.number != 99 })
+        val kept = planOf(stored, libraryOf(fills()), without, nowMs = 2_000L)
+        assertEquals(ChannelSource.Leftovers("kids-odds-and-ends", null), kept.channel("kids-odds-and-ends").source)
+    }
+
+    @Test
     fun optInNeverTurnsOnByItself() {
         val late = recipeOf("late", 510, optIn = true)
         val catalog = TestCatalog(base.recipes + late)

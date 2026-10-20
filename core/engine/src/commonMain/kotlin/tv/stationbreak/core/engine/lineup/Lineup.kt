@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine.lineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.RatingLadder
 
 /** Where a lineup channel stands. */
 enum class ChannelState {
@@ -29,11 +30,19 @@ sealed interface ChannelSource {
         val rules: ChannelRules,
     ) : ChannelSource
 
-    /** A leftovers channel: its pool is the engine's, worked out from the other channels, under [maxRating]. */
+    /**
+     * A leftovers channel: its pool is the engine's, worked out from the other channels, under [maxRating]. The
+     * ceiling is a rating-ladder name or null. While [recipeKey] is in the catalog the planner takes the ceiling from
+     * the catalog on every call; the stored one counts only once the key has left it.
+     */
     data class Leftovers(
         val recipeKey: String,
         val maxRating: String?,
-    ) : ChannelSource
+    ) : ChannelSource {
+        init {
+            require(maxRating == null || maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
+        }
+    }
 
     /** The user's own rules, or a starter whose recipe left the catalog. The planner never changes them. */
     data class Custom(

@@ -29,7 +29,8 @@ object LineupPlanner {
      * without one resolves no channel again, apart from a starter it switches on. A newer catalog refreshes unedited
      * starters (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new
      * recipes (with no number when theirs is taken). A newer catalog is applied only with a full collection pass;
-     * until then the lineup keeps its catalog version. A catalog older than the lineup's changes nothing.
+     * until then the lineup keeps its catalog version. A leftovers channel whose key is in the catalog takes its
+     * rating ceiling from it on every call, deferred catalog or not. A catalog older than the lineup's changes nothing.
      *
      * Each recipe's pool is evaluated at most once per call.
      */
@@ -119,9 +120,9 @@ object LineupPlanner {
             }
 
             is ChannelSource.Leftovers -> {
+                // The catalog's ceiling wins on every call; the stored one counts only once the key has left it.
                 val recipe = p.catalog.leftovers.firstOrNull { it.key == source.recipeKey }
-                val ceiling = recipe?.maxRating
-                if (newer && recipe != null) channel.copy(source = source.copy(maxRating = ceiling)) else channel
+                if (recipe != null) channel.copy(source = source.copy(maxRating = recipe.maxRating)) else channel
             }
 
             is ChannelSource.Custom, is ChannelSource.Unusable -> {
