@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
@@ -79,6 +80,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val collectionsSynced = mutableSetOf<LibraryAccount>()
     private val collectionNameRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, NameRow>()
     private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
+    private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
     private val active = MutableStateFlow<LibraryAccount?>(null)
@@ -178,6 +180,11 @@ class InMemoryLibraryRepository : LibraryRepository {
         startedAt: Instant,
     ) {
         passes.value = passes.value + (account to startedAt)
+    }
+
+    /** Says that a sync wrote a change to [account]'s items, series or collections, as [contentChanges] shows. */
+    fun noteContentChange(account: LibraryAccount) {
+        changes.value = changes.value + (account to (changes.value[account] ?: 0L) + 1L)
     }
 
     /** Says whether a full collection pass has succeeded for [account], which `RuleSnapshot.collectionsSynced` shows. */
@@ -335,6 +342,9 @@ class InMemoryLibraryRepository : LibraryRepository {
         )
 
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
+
+    override fun contentChanges(account: LibraryAccount): Flow<Long> =
+        changes.map { it[account] ?: 0L }.distinctUntilChanged()
 
     @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(

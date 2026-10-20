@@ -210,6 +210,16 @@ interface LibraryRepository : AccountCache {
     fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
 
     /**
+     * A count that rises each time a sync writes a change to [account]'s saved items, series or collections, or to
+     * which libraries are chosen: an item or series or collection that is new, edited, deleted or back. A sync that
+     * finds nothing to write, as most opens do, leaves it where it was. It emits the current value first. The count
+     * is kept for the process only, so it starts from zero again after a restart: a reader compares what it reads
+     * with what it read before, and never with a value from an earlier run. It says the library **could** differ from
+     * what a reader last saw; it never says how.
+     */
+    fun contentChanges(account: LibraryAccount): Flow<Long>
+
+    /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the
      * diagnostics number). The rows stay stored.
      */
