@@ -100,7 +100,7 @@ an unreadable file is moved to `<name>.unreadable.<timestamp>`, of which the new
 **Privacy and removal of the lineup** ([#308](https://github.com/StationBreak/stationbreaktv/issues/308)). By design,
 sign-out, session expiry and an account switch never delete a household's lineup; only an explicit user action does. The
 lineup is the per-account file plus up to three set-aside copies. It holds channel names and rules, with no credentials and no
-media titles, and it is app-private. A user removes it today by clearing app data. A "forget this account's channels" action
+media titles, and it is app-private and excluded from backup. A user removes it today by clearing app data. A "forget this account's channels" action
 is planned: `LineupService.forget` exists (it deletes the file and its set-aside copies), with no UI yet. The privacy policy
 must cover this (F4.6).
 
