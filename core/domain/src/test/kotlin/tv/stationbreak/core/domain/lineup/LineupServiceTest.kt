@@ -69,6 +69,91 @@ class LineupServiceTest {
         }
 
     @Test
+    fun aPassTheReadHoldsIsRecordedWithTheLineup() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            val pass = Instant.parse("2026-10-19T09:00:00Z")
+
+            service.refresh(ACCOUNT, LIBRARIES, pass)
+
+            assertEquals(pass.toEpochMilliseconds(), stored()?.collectionPassActedOn)
+            assertEquals(pass.toEpochMilliseconds(), current()?.collectionPassActedOn)
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(pass.toEpochMilliseconds(), stored()?.collectionPassActedOn, "a refresh without one keeps it")
+        }
+
+    @Test
+    fun aPassIsNotRecordedWhenTheReadLacksItsCollections() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+
+            service.refresh(ACCOUNT, LIBRARIES, Instant.parse("2026-10-19T09:00:00Z"))
+
+            assertNull(stored()?.collectionPassActedOn)
+        }
+
+    @Test
+    fun theSecondSyncThatFindsNoCollectionsPlansWithoutThem() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(false, current()?.finalised, "a refresh at start is no sync")
+            assertEquals(0, current()?.syncsAwaitingCollections)
+
+            service.refresh(ACCOUNT, LIBRARIES, afterSync = true)
+            assertEquals(false, current()?.finalised, "the first sync still waits for the collections")
+            assertEquals(1, stored()?.syncsAwaitingCollections, "and is counted with the lineup")
+
+            service.refresh(ACCOUNT, LIBRARIES, afterSync = true)
+            assertEquals(true, stored()?.finalised, "the second one does not wait again")
+            assertTrue(checkNotNull(stored()).channels.any { it.state == ChannelState.On })
+            assertEquals(1, stored()?.syncsAwaitingCollections)
+        }
+
+    @Test
+    fun aPassOnTheFirstSyncStillFinalisesWithTheCollections() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            service.refresh(ACCOUNT, LIBRARIES, afterSync = true)
+            assertEquals(false, current()?.finalised)
+
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            service.refresh(ACCOUNT, LIBRARIES, Instant.parse("2026-10-19T10:00:00Z"))
+
+            assertEquals(true, stored()?.finalised)
+        }
+
+    @Test
+    fun notingAPassChangesNoChannelAndKeepsTheRevision() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            val first = Instant.parse("2026-10-19T09:00:00Z")
+            service.refresh(ACCOUNT, LIBRARIES, first)
+            val before = checkNotNull(service.lineup(ACCOUNT).value)
+            val later = Instant.parse("2026-10-19T12:00:00Z")
+
+            service.notePass(ACCOUNT, later)
+
+            assertEquals(later.toEpochMilliseconds(), stored()?.collectionPassActedOn)
+            val after = checkNotNull(service.lineup(ACCOUNT).value)
+            assertEquals(before.revision, after.revision)
+            assertEquals(before.lineup.channels, after.lineup.channels)
+        }
+
+    @Test
+    fun notingAPassTouchesNothingBeforeALineupHasTakenOneIn() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val saved = store.inner.peek(ACCOUNT)
+
+            service.notePass(ACCOUNT, Instant.parse("2026-10-19T12:00:00Z"))
+
+            assertContentEquals(saved, store.inner.peek(ACCOUNT))
+        }
+
+    @Test
     fun firstRefreshPlansAtNowAndSaves() =
         runBlocking<Unit> {
             offset = -300

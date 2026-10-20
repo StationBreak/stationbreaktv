@@ -24,7 +24,10 @@ import tv.stationbreak.core.rules.RulesWriter
 /**
  * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 1`. Only `core:domain` reads or writes it.
  *
- * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
+ * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION], once the version has
+ * shipped; version 1 has not, so its optional `collectionPassActedOn` and `syncsAwaitingCollections` were added to it
+ * (a file without them decodes with their defaults, and writing them out is skipped when they hold the default). So an
+ * older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a version-1 file with an
  * unknown key or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside, never silently trimmed). The
  * rules of a starter or custom channel are a rules-format file held as a JSON string, so they keep their own format
@@ -75,6 +78,8 @@ internal object LineupCodec {
                 utcOffsetMinutes = lineup.utcOffsetMinutes,
                 finalised = lineup.finalised,
                 channels = lineup.channels.map(::channelOf),
+                collectionPassActedOn = lineup.collectionPassActedOn,
+                syncsAwaitingCollections = lineup.syncsAwaitingCollections,
             )
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
@@ -113,7 +118,17 @@ internal object LineupCodec {
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
         val channels = file.channels.map(::channelOf)
-        val lineup = Lineup.ofOrNull(server, user, file.catalogVersion, file.utcOffsetMinutes, file.finalised, channels)
+        val lineup =
+            Lineup.ofOrNull(
+                server,
+                user,
+                file.catalogVersion,
+                file.utcOffsetMinutes,
+                file.finalised,
+                channels,
+                file.collectionPassActedOn,
+                file.syncsAwaitingCollections,
+            )
         return if (lineup != null) Decoded.Loaded(lineup) else Decoded.Unreadable
     }
 
@@ -281,6 +296,8 @@ private class FileV1(
     val utcOffsetMinutes: Int,
     val finalised: Boolean,
     val channels: List<ChannelV1>,
+    val collectionPassActedOn: Long? = null,
+    val syncsAwaitingCollections: Int = 0,
 )
 
 @Suppress("LongParameterList")

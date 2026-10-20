@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -172,6 +173,160 @@ class LineupRefresherTest {
             assertEquals(before, refreshes)
         }
 
+    // Root cause (#309), as the gate device showed it: after a force-stop the collection-pass signal replays the
+    // pass the last run already acted on, and the launch sync then completes a new pass that changed nothing.
+    private suspend fun lastRunSettled(pass: Instant) {
+        library.delegate.setCollectionsSynced(ACCOUNT, true)
+        library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T08:00:00Z")))
+        library.delegate.completeCollectionPass(ACCOUNT, pass)
+        refresher().start(scope)
+        until("the last run planned and finalised") { service.loaded(ACCOUNT)?.lineup?.finalised == true }
+        settle()
+        job.cancelChildren()
+    }
+
+    private fun relaunch(): LineupRefresher {
+        // A new process: a new service over the same store and library, and a new refresher.
+        val fresh = serviceOver(library)
+        return LineupRefresher(fresh, library, { libraries }) { events += it }
+    }
+
+    @Test
+    fun aWarmRelaunchRefreshesNothingWhenNothingChanged() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val before = refreshes
+
+            relaunch().start(scope)
+            settle()
+
+            assertEquals(before, refreshes, "the replayed pass was acted on by the last run")
+        }
+
+    @Test
+    fun aWarmRelaunchRefreshesNothingWhenTheLaunchSyncChangedNothing() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val before = refreshes
+            relaunch().start(scope)
+            settle()
+
+            // The launch sync: a reconcile that finds nothing, then a collection pass that writes nothing but still
+            // records its start as the new pass.
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T12:00:00Z"))
+            settle()
+
+            assertEquals(before, refreshes, "a pass that changed nothing needs no refresh")
+            val recorded = Instant.parse("2026-10-19T12:00:00Z").toEpochMilliseconds()
+            assertEquals(recorded, saved().collectionPassActedOn, "but the lineup says it holds that pass")
+
+            // The next start replays that pass, not the one before it.
+            job.cancelChildren()
+            relaunch().start(scope)
+            settle()
+            assertEquals(before, refreshes, "and so the next start finds nothing new either")
+        }
+
+    @Test
+    fun aStartRefreshAndTheReplayedPassAreOneRefresh() =
+        runBlocking<Unit> {
+            // First setup after the pass landed: nothing stored, so the start check refreshes, and the pass signal
+            // then replays the pass that refresh already holds.
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
+
+            refresher().start(scope)
+            until("refreshed") { refreshes >= 1 }
+            settle()
+
+            assertEquals(1, refreshes)
+            assertEquals(Instant.parse("2026-10-19T09:00:00Z").toEpochMilliseconds(), saved().collectionPassActedOn)
+        }
+
+    @Test
+    fun theActedOnPassIsKeptWithTheLineup() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(null, saved().collectionPassActedOn, "no pass was in")
+            refresher().start(scope)
+            settle()
+
+            val pass = Instant.parse("2026-10-19T10:00:00Z")
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            until("recorded") { saved().collectionPassActedOn == pass.toEpochMilliseconds() }
+            assertEquals(pass.toEpochMilliseconds(), checkNotNull(service.loaded(ACCOUNT)).lineup.collectionPassActedOn)
+        }
+
+    @Test
+    fun aPassWhoseRefreshFailedIsNotRecordedAndTheNextStartTriesItAgain() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            val earlier = Instant.parse("2026-10-19T09:00:00Z")
+            lastRunSettled(earlier)
+            val pass = Instant.parse("2026-10-19T12:00:00Z")
+            val flaky = FailingPlanningRead(library)
+            LineupRefresher(serviceOver(flaky), flaky, { libraries }) { events += it }.start(scope)
+            settle()
+
+            library.delegate.noteContentChange(ACCOUNT)
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            until("the failure was reported") { LineupEvent.RefreshFailed in events }
+            settle()
+            job.cancelChildren()
+
+            assertEquals(earlier.toEpochMilliseconds(), saved().collectionPassActedOn, "the failed pass is not recorded")
+            val before = refreshes
+            relaunch().start(scope)
+            until("the next start refreshed") { refreshes == before + 1 }
+            until("and recorded the pass") { saved().collectionPassActedOn == pass.toEpochMilliseconds() }
+        }
+
+    @Test
+    fun aFailingCollectionPassAcrossTwoSuccessfulSyncsStillFinalisesTheLineup() =
+        runBlocking<Unit> {
+            // The collection pass never completes: the flag stays off and no pass is ever signalled.
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            refresher().start(scope)
+            until("start refresh") { refreshes >= 1 }
+
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            until("first success refreshed") { refreshes >= 2 }
+            settle()
+            val waiting = checkNotNull(service.loaded(ACCOUNT)).lineup
+            assertEquals(false, waiting.finalised, "one sync is not yet a reason to give up on the collections")
+            assertEquals(1, waiting.syncsAwaitingCollections)
+
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T16:00:00Z")))
+            until("finalised without the collections") { service.loaded(ACCOUNT)?.lineup?.finalised == true }
+
+            val done = checkNotNull(service.loaded(ACCOUNT)).lineup
+            assertTrue(done.channels.any { it.state == ChannelState.On })
+            assertTrue(saved().finalised, "saved as final")
+            assertEquals(null, done.collectionPassActedOn, "no pass was taken in")
+        }
+
+    @Test
+    fun theCollectionsReachALineupFinalisedWithoutThemWhenAPassLands() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            refresher().start(scope)
+            until("start refresh") { refreshes >= 1 }
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            until("first success refreshed") { refreshes >= 2 }
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T16:00:00Z")))
+            until("finalised without the collections") { service.loaded(ACCOUNT)?.lineup?.finalised == true }
+            val before = refreshes
+
+            // The pass that never completed now does, and the library has no change of its own to announce it.
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            val pass = Instant.parse("2026-10-20T09:00:00Z")
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            until("the pass was taken in") { refreshes == before + 1 }
+
+            assertEquals(pass.toEpochMilliseconds(), checkNotNull(service.loaded(ACCOUNT)).lineup.collectionPassActedOn)
+        }
+
     @Test
     fun refreshesAfterCollectionPass() =
         runBlocking<Unit> {
@@ -189,6 +344,12 @@ class LineupRefresherTest {
             settle()
             assertEquals(before + 1, refreshes, "the same value again is no trigger")
 
+            // A later pass that wrote nothing is no news: the lineup has these collections.
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:30:00Z"))
+            settle()
+            assertEquals(before + 1, refreshes, "a pass that changed nothing is no trigger")
+
+            library.delegate.noteContentChange(ACCOUNT)
             library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T11:00:00Z"))
             until("second pass") { refreshes == before + 2 }
         }
@@ -201,11 +362,36 @@ class LineupRefresherTest {
             refresher().start(scope)
             settle()
 
+            library.delegate.noteContentChange(ACCOUNT)
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
             until("first success") { refreshes == before + 1 }
 
+            library.delegate.noteContentChange(ACCOUNT)
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
             until("second success") { refreshes == before + 2 }
+        }
+
+    @Test
+    fun aSuccessfulSyncThatChangedNothingRefreshesNothing() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            service.refresh(ACCOUNT, LIBRARIES, Instant.parse("2026-10-19T09:00:00Z"))
+            val before = refreshes
+            refresher().start(scope)
+            settle()
+
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            settle()
+            assertEquals(before, refreshes, "the sync wrote nothing")
+
+            library.delegate.noteContentChange(ACCOUNT)
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
+            until("a sync that changed items refreshed") { refreshes == before + 1 }
+            settle()
+
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T12:00:00Z")))
+            settle()
+            assertEquals(before + 1, refreshes, "the change was taken in by that refresh")
         }
 
     @Test
@@ -236,6 +422,8 @@ class LineupRefresherTest {
 
             // Both signals at once: the two refreshes they ask for must not overlap.
             library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:00:00Z"))
+            delay(SLOW_MS / 4)
+            library.delegate.noteContentChange(ACCOUNT)
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:01Z")))
             until("both ran") { slow.completed.get() >= 2 }
             settle()
@@ -440,6 +628,22 @@ class LineupRefresherTest {
 
 private const val WAIT_MS = 10_000L
 private const val SETTLE_MS = 250L
+
+/** A library whose first planning read fails, and later ones do not. */
+private class FailingPlanningRead(
+    private val inner: CountingLibrary,
+) : LibraryRepository by inner {
+    private val failed = AtomicInteger()
+
+    override suspend fun ruleSnapshot(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+    ): RuleSnapshot {
+        check(failed.getAndIncrement() > 0) { "the planning read failed" }
+        return inner.ruleSnapshot(account, libraries, cutoff)
+    }
+}
 
 /** A library whose planning read takes a moment, and notes how many run at once. */
 private class SlowLibrary(

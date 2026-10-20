@@ -20,15 +20,26 @@ import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ItemId
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Instant
 
 /**
- * Keeps the active account's lineup up to date (spec 12): [LineupService.refresh] runs
+ * Keeps the active account's lineup up to date (spec 12) without wasted work: [LineupService.refresh] runs
  * - at start, when the lineup is absent, not yet finalised, or behind the starter catalog;
- * - when [LibraryRepository.collectionPassCompleted] shows a pass it has not acted on (the collections are in);
- * - when the last successful sync time advances (the items are in). A failed or running sync moves no time.
+ * - when [LibraryRepository.collectionPassCompleted] shows a pass the lineup has not taken in (the collections are
+ *   in), and the library could have changed since the last refresh ([LibraryRepository.contentChanges]), or the lineup
+ *   is unfinalised or behind the catalog, or it has taken in no pass yet;
+ * - when the last successful sync time advances (the items are in), and the library could have changed since the last
+ *   refresh or the lineup is unfinalised or behind the catalog. A failed or running sync moves no time.
+ *
+ * So a restart with nothing changed in the library refreshes nothing: the pass last acted on is stored with the lineup
+ * ([Lineup.collectionPassActedOn]), so the pass the signal replays is known, and a launch sync that wrote nothing
+ * (it still records a new pass and may move the success time) is not news. Every refresh records the latest pass read
+ * before it, so a start refresh and the pass signal that follows it are one refresh. A refresh that throws records
+ * nothing, so the next start tries that pass again. After a successful sync that finds the lineup unfinalised for the
+ * second time with no pass in, the lineup is planned once without waiting for the collections (see
+ * [LineupService.refresh]).
  *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws is reported
  * ([LineupEvent.RefreshFailed]) and the refresher keeps listening, so one bad plan never stops later ones or reaches
@@ -46,9 +57,6 @@ class LineupRefresher(
     private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
     private val report: (LineupEvent) -> Unit,
 ) {
-    // The pass last acted on, per account, kept for the process: Room re-emits a value it already gave.
-    private val actedOn = ConcurrentHashMap<LibraryAccount, Instant>()
-
     private var started: Job? = null
 
     /**
@@ -84,7 +92,8 @@ class LineupRefresher(
             library
                 .collectionPassCompleted(account)
                 .filterNotNull()
-                .map { Trigger.Pass(it) }
+                .distinctUntilChanged()
+                .map { Trigger.Pass }
         // The first value is where the sync stands, not news: the start check and the pass signal cover it.
         val successes =
             library
@@ -95,6 +104,9 @@ class LineupRefresher(
                 .filterNotNull()
                 .map { Trigger.Success }
         val backoff = Backoff(initialBackoffMs)
+        // What the library's change count stood at when the last refresh began, kept for the process: a count that is
+        // still this is a library the lineup already follows. It starts at the count now, the state the start check judges.
+        val seen = Seen(library.contentChanges(account).first())
         merge(start, passes, successes)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
             // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
@@ -108,26 +120,29 @@ class LineupRefresher(
                     delay(backoff.next())
                     true
                 }
-            }.collect { trigger -> act(account, trigger) }
+            }.collect { trigger -> act(account, trigger, seen) }
     }
 
     @Suppress("TooGenericExceptionCaught") // An unreadable start state just means: refresh.
     private suspend fun isStale(account: LibraryAccount): Boolean =
         try {
-            val held = service.loaded(account)?.lineup
-            held == null || !held.finalised || held.catalogVersion < service.catalog.version
+            behind(service.loaded(account)?.lineup)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             true
         }
 
+    // Absent, not yet finalised, or planned from an older catalog than this app's.
+    private fun behind(held: Lineup?): Boolean =
+        held == null || !held.finalised || held.catalogVersion < service.catalog.version
+
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun act(
         account: LibraryAccount,
         trigger: Trigger,
+        seen: Seen,
     ) {
-        if (trigger is Trigger.Pass && actedOn[account] == trigger.startedAt) return
         try {
             val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
             // The choice is the active account's. The account flow may not have delivered a change yet (nothing is
@@ -135,16 +150,61 @@ class LineupRefresher(
             // this one, the libraries read may be the new account's, and nothing is refreshed or recorded.
             currentCoroutineContext().ensureActive()
             if (library.activeAccount().first() != account) return
-            service.refresh(account, chosen)
-            // Recorded once attempted: a pass that was cancelled, or had no libraries to refresh, is acted on later.
-            if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
+            // Both read before the refresh, so what lands during it counts as news for the next trigger, and the
+            // collections of the pass recorded are sure to be in the planning read.
+            val changes = library.contentChanges(account).first()
+            val pass = library.collectionPassCompleted(account).first()
+            val held = service.loaded(account)?.lineup
+            if (!worthRefreshing(trigger, held, changes != seen.changes, pass, seen)) {
+                // Nothing to plan, but the lineup does hold this pass's collections: say so, or the next start would
+                // find the pass new.
+                if (trigger == Trigger.Pass && pass != null) service.notePass(account, pass)
+                return
+            }
+            service.refresh(account, chosen, pass, afterSync = trigger is Trigger.Success)
+            // Only a refresh that ran to its end: one that throws leaves the lineup as it was, so the next trigger or
+            // start tries again.
+            seen.changes = changes
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             report(LineupEvent.RefreshFailed)
-            if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
         }
     }
+
+    // A sync or a pass that wrote nothing is not news once the lineup is final and current; an unfinalised or older
+    // lineup always takes a chance to catch up. Start is asked again: another trigger may have caught the lineup up
+    // since the start check ran.
+    private fun worthRefreshing(
+        trigger: Trigger,
+        held: Lineup?,
+        changed: Boolean,
+        pass: Instant?,
+        seen: Seen,
+    ): Boolean =
+        when (trigger) {
+            Trigger.Start -> {
+                behind(held)
+            }
+
+            Trigger.Success -> {
+                changed || behind(held)
+            }
+
+            Trigger.Pass -> {
+                val acted = held?.collectionPassActedOn
+                val newPass = pass != null && pass.toEpochMilliseconds() != acted
+                // The first pass signal of a run replays the latest pass: one the last run did not take in is news.
+                val replayed = seen.passes++ == 0
+                changed || (newPass && (behind(held) || acted == null || replayed))
+            }
+        }
+
+    /** What the change count stood at when the last refresh began, and how many pass signals this run has handled. */
+    private class Seen(
+        var changes: Long,
+        var passes: Int = 0,
+    )
 
     internal companion object {
         /** The wait after the first trigger failure; each further one doubles it, up to [MAX_BACKOFF_MS]. */
@@ -186,8 +246,6 @@ class LineupRefresher(
 
         data object Success : Trigger
 
-        data class Pass(
-            val startedAt: Instant,
-        ) : Trigger
+        data object Pass : Trigger
     }
 }

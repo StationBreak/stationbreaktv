@@ -92,6 +92,31 @@ class LineupPlannerTest {
     }
 
     @Test
+    fun theFirstChoiceCanBeToldNotToWaitForTheCollectionPass() {
+        val unsynced = libraryOf(fills(), collectionsSynced = false)
+        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base)
+        assertFalse(plain.finalised, "the default still waits")
+
+        val told = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base, withoutCollections = true)
+        assertTrue(told.finalised)
+        assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", told.onKeys())
+    }
+
+    @Test
+    fun theRefreshersBookkeepingIsCarriedThroughEveryPlan() {
+        val kept = Lineup(SERVER, USER, 1, 0, false, emptyList(), collectionPassActedOn = 77L, syncsAwaitingCollections = 3)
+        val waiting = planOf(kept, libraryOf(fills(), collectionsSynced = false), base)
+        assertEquals(77L to 3, waiting.collectionPassActedOn to waiting.syncsAwaitingCollections)
+
+        val finalised = planOf(kept, libraryOf(fills(), collectionsSynced = true), base)
+        assertTrue(finalised.finalised)
+        assertEquals(77L to 3, finalised.collectionPassActedOn to finalised.syncsAwaitingCollections)
+
+        val later = planOf(finalised, libraryOf(fills(), collectionsSynced = true), base, nowMs = 9_000L)
+        assertEquals(77L to 3, later.collectionPassActedOn to later.syncsAwaitingCollections)
+    }
+
+    @Test
     fun aRecipeThatFillsOnlyThroughItsCollectionIsOnAtFirstChoice() {
         // 60 recipes fill on their own, so the lineup is at the cap; "kaiju" fills only through its collection.
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }

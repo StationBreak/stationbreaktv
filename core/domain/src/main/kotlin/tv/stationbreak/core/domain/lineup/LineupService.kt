@@ -126,10 +126,21 @@ class LineupService internal constructor(
     /**
      * Brings [account]'s lineup up to date with the library's [libraries]: after a sync, or at start when it is
      * absent, unfinalised or behind the catalog. Never throws for stored data.
+     *
+     * [passSeen] is the start of the latest completed collection pass that was read before this call (null for none).
+     * It is recorded with the lineup as acted on, so a restart does not act on it again, but only when the planning
+     * read does hold the collections (`RuleSnapshot.collectionsSynced`); a refresh that throws records nothing.
+     *
+     * [afterSync] says that a successful sync asked for this refresh. The first choice waits for the collection pass.
+     * A sync that finds the lineup unfinalised with no pass in is counted with the lineup, and one that finds it so
+     * after an earlier such sync plans once without waiting: a pass that never completes must not keep the lineup
+     * empty for good. The collections reach it later through the hint pass of the next call that holds them.
      */
     internal suspend fun refresh(
         account: LibraryAccount,
         libraries: Set<ItemId>,
+        passSeen: Instant? = null,
+        afterSync: Boolean = false,
     ) {
         val owner = ownerOf(account) ?: return report(LineupEvent.NonCanonicalAccount)
         val entry = entryOf(owner)
@@ -140,17 +151,23 @@ class LineupService internal constructor(
             val now = clock.now()
             val snapshot = library.ruleSnapshot(account, libraries, now)
             val names = library.collectionNames(account)
+            val current = start.current
+            val waited = current?.syncsAwaitingCollections ?: 0
+            val unfinalised = current == null || !current.finalised
+            val noCollections = afterSync && unfinalised && !snapshot.collectionsSynced
             val planned =
-                LineupPlanner.plan(
-                    start.current,
-                    owner.server,
-                    owner.user,
-                    standardOffsetMinutes(),
-                    snapshot,
-                    names,
-                    now.toEpochMilliseconds(),
-                    catalog,
-                )
+                LineupPlanner
+                    .plan(
+                        current,
+                        owner.server,
+                        owner.user,
+                        standardOffsetMinutes(),
+                        snapshot,
+                        names,
+                        now.toEpochMilliseconds(),
+                        catalog,
+                        withoutCollections = noCollections && waited >= 1,
+                    ).let { stamped(it, waited, snapshot.collectionsSynced, passSeen, counting = noCollections) }
             if (entry.writable) saveVerified(owner, planned)
             publish(entry, planned)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
@@ -159,6 +176,48 @@ class LineupService internal constructor(
         // Only a refresh that ran to its publish is timed: load to publish, including any wait on the account's lock.
         seams.timed(began.elapsedNow().inWholeMilliseconds)
     }
+
+    /**
+     * Records [pass] as taken in by [account]'s lineup without planning again: the library has not changed since the
+     * lineup last took in a pass (the refresher checked), so the lineup already reflects this pass too. Without this a
+     * pass that wrote nothing would look new after every restart. Only a lineup that already took in a pass is
+     * touched, and the revision does not move, since no channel changes. Never throws for stored data; saves under the
+     * same rules as [refresh].
+     */
+    internal suspend fun notePass(
+        account: LibraryAccount,
+        pass: Instant,
+    ) {
+        val owner = ownerOf(account) ?: return
+        val entry = entryOf(owner)
+        entry.mutex.withLock {
+            val start = startOf(owner, entry)
+            entry.writable = start.save
+            val current = start.current ?: return
+            val ms = pass.toEpochMilliseconds()
+            if (current.collectionPassActedOn == null || current.collectionPassActedOn == ms) return
+            val updated = current.copy(collectionPassActedOn = ms)
+            if (entry.writable) saveVerified(owner, updated)
+            val held = entry.state.value
+            if (held == null) publish(entry, updated) else entry.state.value = Revisioned(held.revision, updated)
+            entry.loaded = true
+        }
+    }
+
+    // The refresher's bookkeeping on the planned lineup: the pass taken in (only if the read holds its collections), and
+    // the syncs that found the lineup unfinalised with no pass in, counted while it is still unfinalised.
+    private fun stamped(
+        planned: Lineup,
+        waited: Int,
+        collectionsIn: Boolean,
+        passSeen: Instant?,
+        counting: Boolean,
+    ): Lineup =
+        planned.copy(
+            collectionPassActedOn =
+                passSeen?.takeIf { collectionsIn }?.toEpochMilliseconds() ?: planned.collectionPassActedOn,
+            syncsAwaitingCollections = if (counting && !planned.finalised) waited + 1 else waited,
+        )
 
     /**
      * How many items of the [libraries] could air in a switched-on channel's day at [at] and yet air nowhere: in no

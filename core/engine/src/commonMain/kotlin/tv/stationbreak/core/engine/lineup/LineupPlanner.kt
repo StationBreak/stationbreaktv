@@ -27,7 +27,10 @@ object LineupPlanner {
      *
      * Until a lineup is finalised it is chosen afresh at [standardOffsetMinutes]. The first choice waits for a full
      * collection pass (`collectionsSynced`), so every recipe's collection hints resolve before it ranks and the same
-     * library gives every TV the same lineup; until then the lineup has no channels. With fewer than
+     * library gives every TV the same lineup; until then the lineup has no channels. With [withoutCollections] it does
+     * not wait: a collection pass that never completes would otherwise keep the lineup empty for good. The choice is
+     * made with the collection names it was given (none, if no pass has run), and a pass that lands later reaches the
+     * starters through the hint pass below. With fewer than
      * [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes nothing is on yet either.
      * Otherwise the leftovers channels and the best-filling non-opt-in recipes (ties by key) are switched on up to
      * [LineupDefaults.CAP], and every other recipe goes on the shelf at its default number.
@@ -54,6 +57,7 @@ object LineupPlanner {
         collections: CollectionNames,
         nowMs: Long,
         catalog: StarterCatalogView = StarterCatalog,
+        withoutCollections: Boolean = false,
     ): Lineup {
         if (current != null) {
             require(current.serverId == serverId && current.userId == userId) { "The lineup is another account's" }
@@ -61,7 +65,11 @@ object LineupPlanner {
         }
         return if (current == null || !current.finalised) {
             val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs)
-            firstChoice(planning, userId)
+            // The refresher's bookkeeping is the lineup's, so an unfinalised one keeps it.
+            firstChoice(planning, userId, withoutCollections).copy(
+                collectionPassActedOn = current?.collectionPassActedOn,
+                syncsAwaitingCollections = current?.syncsAwaitingCollections ?: 0,
+            )
         } else {
             refresh(current, Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs))
         }
@@ -70,12 +78,14 @@ object LineupPlanner {
     private fun firstChoice(
         p: Planning,
         userId: CanonicalId,
+        withoutCollections: Boolean,
     ): Lineup {
         val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, emptyList())
-        return if (p.snapshot.collectionsSynced) chosen(p, unfinalised) else unfinalised
+        return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised) else unfinalised
     }
 
-    // The first choice proper, made once the collection pass is in: nothing is on yet below the threshold.
+    // The first choice proper, made once the collection pass is in (or not waited for): nothing is on yet below the
+    // threshold.
     private fun chosen(
         p: Planning,
         unfinalised: Lineup,

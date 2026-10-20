@@ -70,6 +70,36 @@ class LineupCodecTest {
     }
 
     @Test
+    fun theRefreshersBookkeepingRoundTrips() {
+        val kept = full.copy(collectionPassActedOn = 1_760_000_000_000L, syncsAwaitingCollections = 2)
+        assertEquals(LineupCodec.Decoded.Loaded(kept), LineupCodec.decode(LineupCodec.encode(kept)))
+        assertEquals(JsonPrimitive(1_760_000_000_000L), tree(kept)["collectionPassActedOn"])
+        assertEquals(JsonPrimitive(2), tree(kept)["syncsAwaitingCollections"])
+    }
+
+    @Test
+    fun aVersionOneFileWithoutTheBookkeepingStillLoads() {
+        // What a debug install already holds: the same version, written before the two fields were added.
+        val old = JsonObject(tree() - "collectionPassActedOn" - "syncsAwaitingCollections")
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(old.toString()))
+        assertEquals(null, loaded.lineup.collectionPassActedOn)
+        assertEquals(0, loaded.lineup.syncsAwaitingCollections)
+        assertEquals(full, loaded.lineup)
+    }
+
+    @Test
+    fun theBookkeepingFieldsAreKnownKeysAndAnythingElseStillMakesTheFileUnreadable() {
+        val known = tree().with("collectionPassActedOn", JsonPrimitive(5L)).with("syncsAwaitingCollections", JsonPrimitive(1))
+        assertIs<LineupCodec.Decoded.Loaded>(decode(known.toString()))
+        val unknown = known.with("anotherNewField", JsonPrimitive(true))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(unknown.toString()))
+        val wrongType = tree().with("collectionPassActedOn", JsonPrimitive("yesterday"))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(wrongType.toString()))
+        val negative = tree().with("syncsAwaitingCollections", JsonPrimitive(-1))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(negative.toString()))
+    }
+
+    @Test
     fun unfinalisedEmptyLineupRoundTrips() {
         val empty = Lineup(SERVER, USER, 1, 60, finalised = false, channels = emptyList())
         assertEquals(LineupCodec.Decoded.Loaded(empty), LineupCodec.decode(LineupCodec.encode(empty)))
