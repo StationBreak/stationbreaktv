@@ -37,6 +37,7 @@ class StarterCatalogTest {
             "Syfy",
             "MTV",
             "Discovery",
+            "Treehouse",
         )
 
     private fun sample(

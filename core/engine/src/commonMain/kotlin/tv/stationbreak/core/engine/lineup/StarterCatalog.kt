@@ -202,7 +202,7 @@ private val kidsBand: List<Recipe> =
             n = 52,
             key = "flipbook",
             name = "Flipbook",
-            says = "Golden-oldie family films and cartoons from before 1970.",
+            says = "Golden-oldie family films and classic cartoons.",
             sources = years(from = 1930, to = 1969) + tags("classic cartoons"),
             rating = "G",
         ),
