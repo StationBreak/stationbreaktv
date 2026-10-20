@@ -25,8 +25,10 @@ object LineupPlanner {
     /**
      * The lineup after a library sync.
      *
-     * Until a lineup is finalised it is chosen afresh at [standardOffsetMinutes]. With fewer than
-     * [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes nothing is on yet (the lineup has no channels).
+     * Until a lineup is finalised it is chosen afresh at [standardOffsetMinutes]. The first choice waits for a full
+     * collection pass (`collectionsSynced`), so every recipe's collection hints resolve before it ranks and the same
+     * library gives every TV the same lineup; until then the lineup has no channels. With fewer than
+     * [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes nothing is on yet either.
      * Otherwise the leftovers channels and the best-filling non-opt-in recipes (ties by key) are switched on up to
      * [LineupDefaults.CAP], and every other recipe goes on the shelf at its default number.
      *
@@ -69,6 +71,15 @@ object LineupPlanner {
         p: Planning,
         userId: CanonicalId,
     ): Lineup {
+        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, emptyList())
+        return if (p.snapshot.collectionsSynced) chosen(p, unfinalised) else unfinalised
+    }
+
+    // The first choice proper, made once the collection pass is in: nothing is on yet below the threshold.
+    private fun chosen(
+        p: Planning,
+        unfinalised: Lineup,
+    ): Lineup {
         val rules = p.catalog.recipes.associate { it.key to p.resolve(it) }
         val ranked =
             p.ranked(
@@ -76,7 +87,6 @@ object LineupPlanner {
                     .filter { !it.optIn }
                     .map { it to rules.getValue(it.key) },
             )
-        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, emptyList())
         if (ranked.size < LineupDefaults.FINALISE_THRESHOLD) return unfinalised
         val leftovers = p.catalog.leftovers.map { p.leftoversChannel(it, it.number, ChannelState.On) }
         val on = ranked.take((LineupDefaults.CAP - leftovers.size).coerceAtLeast(0)).mapTo(HashSet()) { it.key }

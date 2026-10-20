@@ -153,6 +153,7 @@ class BuiltInScheduleSourceTest {
     @Test
     fun emptyChannelIsHiddenWithReason() {
         val western = Source.Genre("Western")
+        library.delegate.setCollectionsSynced(ACCOUNT, false)
         library.seed(fillingLibrary())
         library.seed(movie(900, "Fresh", createdAtMs = NOON.toEpochMilliseconds()))
         holding(

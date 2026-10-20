@@ -172,10 +172,17 @@ internal fun fillingLibrary(): List<RuleItem> {
     return grownUp + kids
 }
 
-/** A library repository that counts the reads the lineup code makes. */
+/**
+ * A library repository that counts the reads the lineup code makes. [ACCOUNT]'s collection pass has succeeded, as the
+ * first lineup waits for it; a test of the wait turns it off with `delegate.setCollectionsSynced`.
+ */
 internal class CountingLibrary(
     val delegate: InMemoryLibraryRepository = InMemoryLibraryRepository(),
 ) : LibraryRepository by delegate {
+    init {
+        delegate.setCollectionsSynced(ACCOUNT, true)
+    }
+
     val snapshotCutoffs = mutableListOf<Instant>()
     var scheduleItemsCalls = 0
 

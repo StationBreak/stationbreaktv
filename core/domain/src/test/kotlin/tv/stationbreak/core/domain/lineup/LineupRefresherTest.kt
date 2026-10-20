@@ -25,6 +25,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
@@ -103,6 +104,36 @@ class LineupRefresherTest {
             assertEquals(1, refreshes)
             assertTrue(store.inner.peek(ACCOUNT) != null, "and saved")
         }
+
+    @Test
+    fun successThenPassFinalisesWithCollections() =
+        runBlocking<Unit> {
+            // The real order: the first sync's success lands before the collection pass does.
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            refresher().start(scope)
+            until("start refresh") { refreshes >= 1 }
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            until("success refresh") { refreshes >= 2 }
+            settle()
+
+            val waiting = checkNotNull(service.loaded(ACCOUNT)).lineup
+            assertEquals(false, waiting.finalised)
+            assertTrue(waiting.channels.none { it.state == ChannelState.On }, "nothing is on yet")
+            assertEquals(false, saved().finalised, "saved as not final")
+
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:01:00Z"))
+            until("finalised") { service.loaded(ACCOUNT)?.lineup?.finalised == true }
+
+            val done = checkNotNull(service.loaded(ACCOUNT)).lineup
+            assertTrue(done.channels.any { it.state == ChannelState.On })
+            assertTrue(saved().finalised, "saved as final")
+        }
+
+    private fun saved(): Lineup {
+        val decoded = LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT)))
+        return (decoded as LineupCodec.Decoded.Loaded).lineup
+    }
 
     @Test
     fun refreshesAtStartWhenCatalogBehind() =

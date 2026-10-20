@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.collection
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
@@ -77,6 +78,50 @@ class LineupPlannerTest {
         assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", next.onKeys())
     }
 
+    @Test
+    fun firstChoiceWaitsForTheCollectionPass() {
+        val waiting = planOf(null, libraryOf(fills(), collectionsSynced = false), base, offset = -300)
+        assertFalse(waiting.finalised, "no first choice before the collection pass")
+        assertTrue(waiting.channels.isEmpty())
+        assertEquals(-300, waiting.utcOffsetMinutes)
+
+        val synced = planOf(waiting, libraryOf(fills(), collectionsSynced = true), base, offset = -240)
+        assertTrue(synced.finalised)
+        assertEquals(-240, synced.utcOffsetMinutes)
+        assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", synced.onKeys())
+    }
+
+    @Test
+    fun aRecipeThatFillsOnlyThroughItsCollectionIsOnAtFirstChoice() {
+        // 60 recipes fill on their own, so the lineup is at the cap; "kaiju" fills only through its collection.
+        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
+        val kaiju = recipeOf("kaiju", 320, hints = listOf("Kaiju"))
+        val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) } + kaiju)
+        val fill = keys.associateWith { QUALIFYING_ITEMS } + mapOf("kaiju" to 0, "monsters" to 4 * QUALIFYING_ITEMS)
+        val library = libraryOf(fill, collectionsSynced = true)
+        val members =
+            library.items
+                .filter { it.genres == listOf("monsters") }
+                .map { it.item.id }
+                .toSet()
+        val kaijuId = idOf(0xC1)
+        val withCollection = library.copy(collections = mapOf(kaijuId to collection(kaijuId, movies = members)))
+
+        val without = planOf(null, library, catalog)
+        assertEquals(ChannelState.Shelf, without.channel("kaiju").state, "shelved without its collection")
+
+        val names = CollectionNames(mapOf(kaijuId to "Kaiju"))
+        val lineup = planOf(null, withCollection, catalog, names = names)
+        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
+        assertEquals(ChannelState.On, lineup.channel("kaiju").state, "ranked first by its fill")
+        assertEquals(
+            kaiju.sources + Source.Collection(kaijuId),
+            lineup
+                .channel("kaiju")
+                .starter.rules.sources,
+        )
+    }
+
     private val kaiju = recipeOf("kaiju", 320, hints = listOf("Kaiju"))
     private val mecha = recipeOf("mecha", 330, hints = listOf("Mecha"))
     private val hinted = TestCatalog(base.recipes + kaiju + mecha)
@@ -143,8 +188,8 @@ class LineupPlannerTest {
 
     @Test
     fun anUnsyncedCallChangesNoRules() {
-        val first = planOf(null, hintedLibrary(synced = false), hinted)
-        assertTrue(first.finalised, "a failing collection pass never leaves a household without channels")
+        val first = planOf(null, hintedLibrary(), hinted)
+        assertTrue(first.finalised)
         val names = CollectionNames(mapOf(kaijuId to "Kaiju", mechaId to "Mecha"))
         assertEquals(first, planOf(first, hintedLibrary(synced = false), hinted, nowMs = 2_000L, names = names))
 
