@@ -32,7 +32,7 @@ internal val CATALOG_MANIFEST_V1: CatalogManifest =
                 "snowglobe" to ManifestRecipe(56, Band.Kids, false, "G", "732fb2111b1efc7d"),
                 "giggle-garage" to ManifestRecipe(60, Band.Kids, false, "TV-Y7", "6ba1c482fafbe3cb"),
                 "wheels-and-whistles" to ManifestRecipe(64, Band.Kids, false, "TV-Y", "ba831b9c4164258f"),
-                "clue-club" to ManifestRecipe(68, Band.Kids, false, "PG", "bcdeb466c0f1d99f"),
+                "small-sleuths" to ManifestRecipe(68, Band.Kids, false, "PG", "bcdeb466c0f1d99f"),
                 "tall-tales-club" to ManifestRecipe(72, Band.Kids, false, "PG", "b751a90f3d322816"),
                 "spooky-sleepover" to ManifestRecipe(76, Band.Kids, false, "PG", "590661c28b36064c"),
                 "tiny-chefs" to ManifestRecipe(80, Band.Kids, false, "G", "d64422e0384d2a24"),

@@ -242,9 +242,9 @@ private val kidsBand: List<Recipe> =
         recipe(
             Band.Kids,
             n = 68,
-            key = "clue-club",
-            name = "Clue Club",
-            says = "Small sleuths, gentle mysteries, a case in every episode.",
+            key = "small-sleuths",
+            name = "Small Sleuths",
+            says = "Gentle mysteries, a case in every episode.",
             sources = genres("Mystery", "Family") + tags("detective", "mystery"),
             rating = "PG",
         ),
@@ -815,7 +815,7 @@ private val worldBand: List<Recipe> =
             n = 428,
             key = "seoul-sundays",
             name = "Seoul Sundays",
-            says = "Korean dramas: slow looks, sudden twists, many umbrellas.",
+            says = "Korean dramas: slow burns, big hearts, sudden twists.",
             sources = tags("k-drama", "kdrama", "korean drama", "korean"),
         ),
         recipe(
@@ -823,7 +823,7 @@ private val worldBand: List<Recipe> =
             n = 432,
             key = "masala-hour",
             name = "Masala Hour",
-            says = "Song, dance, drama and a very long intermission.",
+            says = "Song, dance and drama, Bollywood style.",
             sources = tags("bollywood", "hindi", "indian cinema"),
         ),
         recipe(
@@ -831,7 +831,7 @@ private val worldBand: List<Recipe> =
             n = 436,
             key = "telenovela-tonight",
             name = "Telenovela Tonight",
-            says = "Passion, betrayal and a surprising twin.",
+            says = "Passion, betrayal and cliffhangers every night.",
             sources = tags("telenovela", "latin drama", "spanish drama"),
         ),
         recipe(
