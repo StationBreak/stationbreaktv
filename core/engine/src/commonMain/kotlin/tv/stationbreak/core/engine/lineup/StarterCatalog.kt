@@ -11,7 +11,11 @@ import tv.stationbreak.core.rules.Source
  * between; a shipped key or number never changes and is never reused.
  */
 object StarterCatalog : StarterCatalogView {
-    /** The catalog's version. A change to any recipe's sources raises it. */
+    /**
+     * The catalog's version. It goes up with any change to what a recipe airs (sources, exclusions, collection hints,
+     * ordering), its ceiling or opt-in, or a recipe or leftovers recipe added or removed. The frozen manifests in the
+     * tests hold the catalog to that.
+     */
     const val VERSION = 1
 
     override val version: Int = VERSION
