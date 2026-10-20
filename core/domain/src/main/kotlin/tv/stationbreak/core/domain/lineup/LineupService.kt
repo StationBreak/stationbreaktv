@@ -25,6 +25,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** A lineup with the revision it was published at. A new refresh gives a new revision, so it is a cache key. */
 internal data class Revisioned(
@@ -76,13 +77,6 @@ class LineupService internal constructor(
         @Volatile var loaded = false
     }
 
-    /** An account in canonical form, as the store keys it, with its IDs for the planner. */
-    private class Owner(
-        val key: LibraryAccount,
-        val server: CanonicalId,
-        val user: CanonicalId,
-    )
-
     /** Where a refresh starts from, and whether its result may be saved. */
     private class Start(
         val current: Lineup?,
@@ -126,6 +120,24 @@ class LineupService internal constructor(
         }
     }
 
+    /**
+     * How many items of the [libraries] could air in a switched-on channel's day at [at] and yet air nowhere: in no
+     * channel's day, and not held back on purpose (an opt-in recipe's or a hidden channel's). A check that the catalog
+     * does its job: zero while the leftovers channels are on. Zero while there is no lineup. Reads the library as the
+     * days are built (one `ruleSnapshot` per distinct cut-off).
+     */
+    suspend fun airingNowhereCount(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Int {
+        val lineup = loaded(account)?.lineup ?: return 0
+        val days = LineupDays(catalog)
+        val scheduled = days.scheduled(lineup, at.toEpochMilliseconds())
+        val snapshots = snapshotsOf(library, account, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
+        return days.airingNowhere(lineup, scheduled, snapshots)
+    }
+
     /** [account]'s lineup as this service holds it now; null while it has none. */
     internal fun lineup(account: LibraryAccount): StateFlow<Revisioned?> =
         ownerOf(account)?.let { entryOf(it).state.asStateFlow() } ?: noLineup
@@ -142,7 +154,7 @@ class LineupService internal constructor(
                 if (!entry.loaded) {
                     val stored = store.load(owner.key)
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
-                    if (decoded is LineupCodec.Decoded.Loaded && owns(owner, decoded.lineup)) {
+                    if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
                         publish(entry, decoded.lineup)
                     }
                     entry.loaded = stored != StoredBytes.Failed
@@ -196,7 +208,7 @@ class LineupService internal constructor(
         when (decoded) {
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
-                if (owns(owner, lineup)) Start(lineup, save = true) else setAside(owner, session)
+                if (owner.owns(lineup)) Start(lineup, save = true) else setAside(owner, session)
             }
 
             is LineupCodec.Decoded.NewerVersion -> {
@@ -222,11 +234,6 @@ class LineupService internal constructor(
             Start(session, save = false)
         }
 
-    private fun owns(
-        owner: Owner,
-        lineup: Lineup,
-    ) = lineup.serverId == owner.server && lineup.userId == owner.user
-
     private fun publish(
         entry: Entry,
         lineup: Lineup,
@@ -236,14 +243,25 @@ class LineupService internal constructor(
     }
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
+}
 
-    private fun ownerOf(account: LibraryAccount): Owner? {
-        val server = CanonicalId.parseOrNull(account.server.value)
-        val user = CanonicalId.parseOrNull(account.user.value)
-        return if (server != null && user != null) {
-            Owner(LibraryAccount(ServerId(server.value), UserId(user.value)), server, user)
-        } else {
-            null
-        }
+/** An account in canonical form, as the store keys it, with its IDs for the planner. */
+private class Owner(
+    val key: LibraryAccount,
+    val server: CanonicalId,
+    val user: CanonicalId,
+) {
+    /** True when [lineup] is this account's. */
+    fun owns(lineup: Lineup) = lineup.serverId == server && lineup.userId == user
+}
+
+/** The canonical form of [account], or null when its server or user ID is not an ID at all. */
+private fun ownerOf(account: LibraryAccount): Owner? {
+    val server = CanonicalId.parseOrNull(account.server.value)
+    val user = CanonicalId.parseOrNull(account.user.value)
+    return if (server != null && user != null) {
+        Owner(LibraryAccount(ServerId(server.value), UserId(user.value)), server, user)
+    } else {
+        null
     }
 }
