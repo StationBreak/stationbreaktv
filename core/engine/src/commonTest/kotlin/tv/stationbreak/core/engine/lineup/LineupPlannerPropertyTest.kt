@@ -96,6 +96,9 @@ class LineupPlannerPropertyTest {
             assertEquals(old.number, new.number, "${old.id} number")
             if (old.state != ChannelState.Shelf) assertEquals(old.state, new.state, "${old.id} state")
             if (old.state == ChannelState.On) assertEquals(old.onSinceMs, new.onSinceMs, "${old.id} added")
+            // Without a full collection pass nothing is resolved again, except a starter that is switched on.
+            val switchedOn = old.state == ChannelState.Shelf && new.state == ChannelState.On
+            if (!collectionsSynced && !switchedOn) assertEquals(old.source, new.source, "${old.id} unsynced source")
             checkUntouched(old, new)
         }
     }

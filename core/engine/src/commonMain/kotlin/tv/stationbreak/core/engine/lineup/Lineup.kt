@@ -66,8 +66,7 @@ data class LineupChannel(
 
 /**
  * One account's channel lineup on one server (spec 12). Every starter and leftovers channel uses the one
- * [utcOffsetMinutes] chosen at first setup. [hintsResolvedWithCollections] records that the collection hints were
- * resolved after a full collection pass.
+ * [utcOffsetMinutes] chosen at first setup.
  *
  * Invariants: channel IDs are unique, numbers that are set are unique, and every switched-on channel has a number.
  */
@@ -77,7 +76,6 @@ data class Lineup(
     val catalogVersion: Int,
     val utcOffsetMinutes: Int,
     val finalised: Boolean,
-    val hintsResolvedWithCollections: Boolean,
     val channels: List<LineupChannel>,
 ) {
     init {

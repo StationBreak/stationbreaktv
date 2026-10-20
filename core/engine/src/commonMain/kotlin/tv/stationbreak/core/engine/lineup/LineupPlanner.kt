@@ -23,10 +23,12 @@ object LineupPlanner {
      * [LineupDefaults.CAP], and every other recipe goes on the shelf at its default number.
      *
      * A finalised lineup keeps its offset, its numbers and every switched-on or hidden channel's state. A shelved,
-     * unedited starter that has a number and fills is switched on while there is room, best first; collection hints
-     * are resolved once when the first full collection pass is seen; a newer catalog refreshes unedited starters
-     * (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new recipes (with no
-     * number when theirs is taken). A newer catalog is applied only with a full collection pass (`collectionsSynced`);
+     * unedited starter that has a number and fills is switched on while there is room, best first. On every call
+     * with a full collection pass (`collectionsSynced`) each unedited starter that is on or on the shelf is resolved
+     * again from its recipe, keeping its seed and timing, so a collection that appears later reaches it. A call
+     * without one resolves no channel again, apart from a starter it switches on. A newer catalog refreshes unedited
+     * starters (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new
+     * recipes (with no number when theirs is taken). A newer catalog is applied only with a full collection pass;
      * until then the lineup keeps its catalog version. A catalog older than the lineup's changes nothing.
      *
      * Each recipe's pool is evaluated at most once per call.
@@ -65,7 +67,7 @@ object LineupPlanner {
                     .filter { !it.optIn }
                     .map { it to rules.getValue(it.key) },
             )
-        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, false, emptyList())
+        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, emptyList())
         if (ranked.size < LineupDefaults.FINALISE_THRESHOLD) return unfinalised
         val leftovers = p.catalog.leftovers.map { p.leftoversChannel(it, it.number, ChannelState.On) }
         val on = ranked.take((LineupDefaults.CAP - leftovers.size).coerceAtLeast(0)).mapTo(HashSet()) { it.key }
@@ -74,11 +76,7 @@ object LineupPlanner {
                 val state = if (it.key in on) ChannelState.On else ChannelState.Shelf
                 p.starterChannel(it, it.number, state, rules.getValue(it.key))
             }
-        return unfinalised.copy(
-            finalised = true,
-            hintsResolvedWithCollections = p.snapshot.collectionsSynced,
-            channels = ordered(leftovers + starters),
-        )
+        return unfinalised.copy(finalised = true, channels = ordered(leftovers + starters))
     }
 
     private fun refresh(
@@ -87,22 +85,19 @@ object LineupPlanner {
     ): Lineup {
         // A newer catalog waits for a full collection pass, so its hints resolve against every collection.
         val newer = p.catalog.version > current.catalogVersion && p.snapshot.collectionsSynced
-        val resolveHints = !current.hintsResolvedWithCollections && p.snapshot.collectionsSynced
-        val refreshed = current.channels.map { refreshed(it, p, newer, resolveHints) }
+        val refreshed = current.channels.map { refreshed(it, p, newer) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         return current.copy(
             catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
-            hintsResolvedWithCollections = current.hintsResolvedWithCollections || p.snapshot.collectionsSynced,
             channels = ordered(switchedOn(withNew, p)),
         )
     }
 
-    // Catalog updates and the one-time hint pass. Edited, custom and unusable channels are never touched.
+    // Catalog updates and the hint pass of every synced call. Edited, custom and unusable channels are never touched.
     private fun refreshed(
         channel: LineupChannel,
         p: Planning,
         newer: Boolean,
-        resolveHints: Boolean,
     ): LineupChannel =
         when (val source = channel.source) {
             is ChannelSource.Starter -> {
@@ -112,7 +107,7 @@ object LineupPlanner {
                         if (newer) channel.copy(source = ChannelSource.Custom(source.rules)) else channel
                     }
 
-                    source.edited || !(newer || resolveHints) -> {
+                    source.edited || !(newer || rehinted(channel, p)) -> {
                         channel
                     }
 
@@ -133,6 +128,13 @@ object LineupPlanner {
                 channel
             }
         }
+
+    // On a synced call an unedited starter that is on or on the shelf is resolved again, so collections that appeared
+    // since reach it. Resolution is deterministic: unchanged collection names give equal rules.
+    private fun rehinted(
+        channel: LineupChannel,
+        p: Planning,
+    ): Boolean = p.snapshot.collectionsSynced && channel.state != ChannelState.UserHidden
 
     // Catalog channels the lineup does not have yet. A taken default number is left unset rather than shared.
     private fun added(

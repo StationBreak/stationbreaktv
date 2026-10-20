@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
-import tv.stationbreak.core.engine.collection
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -78,72 +78,85 @@ class LineupPlannerTest {
     }
 
     private val kaiju = recipeOf("kaiju", 320, hints = listOf("Kaiju"))
-    private val hinted = TestCatalog(base.recipes + kaiju)
-    private val kaijuCollection = collection(idOf(0xC1), movies = setOf(idOf(0x10000)))
+    private val mecha = recipeOf("mecha", 330, hints = listOf("Mecha"))
+    private val hinted = TestCatalog(base.recipes + kaiju + mecha)
+    private val kaijuId = idOf(0xC1)
+    private val mechaId = idOf(0xC2)
+
+    // Kaiju fills and is switched on; mecha does not fill and waits on the shelf.
+    private fun hintedLibrary(synced: Boolean = true): RuleSnapshot {
+        val fill = fills(mapOf("mecha" to 0), hinted)
+        return libraryOf(fill, collectionsSynced = synced)
+    }
 
     @Test
-    fun finalisesWithoutHintsThenResolvesThem() {
-        val unsynced = libraryOf(fills(catalog = hinted), collectionsSynced = false)
-        val first = planOf(null, unsynced, hinted)
-        assertTrue(first.finalised, "a failing collection pass never leaves a household without channels")
-        assertFalse(first.hintsResolvedWithCollections)
+    fun aCollectionAppearingLaterReachesUneditedStarters() {
+        val first = planOf(null, hintedLibrary(), hinted)
         assertEquals(
             kaiju.sources,
             first
                 .channel("kaiju")
                 .starter.rules.sources,
         )
+        assertEquals(ChannelState.Shelf, first.channel("mecha").state)
+        val seeded =
+            first.withChannel("kaiju") {
+                it.copy(source = it.starter.copy(rules = it.starter.rules.copy(seed = Seed(42uL))))
+            }
 
-        val synced = libraryOf(fills(catalog = hinted), collections = listOf(kaijuCollection))
-        val names = CollectionNames(mapOf(kaijuCollection.id to "kaiju"))
-        val second = planOf(first, synced, hinted, nowMs = 2_000L, names = names)
-        assertTrue(second.hintsResolvedWithCollections)
-        val rules = second.channel("kaiju").starter.rules
-        assertEquals(kaiju.sources + Source.Collection(kaijuCollection.id), rules.sources)
-        assertEquals(
-            first
-                .channel("kaiju")
-                .starter.rules.seed,
-            rules.seed,
-        )
+        // The collections appear on a later synced call, with no catalog change.
+        val names = CollectionNames(mapOf(kaijuId to "kaiju", mechaId to "MECHA"))
+        val next = planOf(seeded, hintedLibrary(), hinted, nowMs = 2_000L, names = names)
+        val rules = next.channel("kaiju").starter.rules
+        assertEquals(kaiju.sources + Source.Collection(kaijuId), rules.sources)
+        assertEquals(Seed(42uL), rules.seed, "the seed is kept")
         assertEquals(
             first
                 .channel("kaiju")
                 .starter.rules.timing,
             rules.timing,
+            "the timing is kept",
         )
-        assertEquals(first.channel("kaiju").onSinceMs, second.channel("kaiju").onSinceMs)
+        assertEquals(first.channel("kaiju").onSinceMs, next.channel("kaiju").onSinceMs)
+        val shelved = next.channel("mecha")
+        assertEquals(ChannelState.Shelf, shelved.state)
+        assertEquals(mecha.sources + Source.Collection(mechaId), shelved.starter.rules.sources, "a shelved starter too")
+        // The same names again give the same rules, so nothing changes.
+        assertEquals(next, planOf(next, hintedLibrary(), hinted, nowMs = 3_000L, names = names))
     }
 
     @Test
-    fun hintsResolveOnceCollectionsSync() {
-        val synced = libraryOf(fills(catalog = hinted), collections = listOf(kaijuCollection))
-        val names = CollectionNames(mapOf(kaijuCollection.id to "Kaiju"))
-        val unsynced = planOf(null, libraryOf(fills(catalog = hinted), collectionsSynced = false), hinted)
-        // An edited starter keeps its rules through the hint pass.
+    fun anEditedStarterKeepsItsRulesWhenCollectionsAppear() {
+        val first = planOf(null, hintedLibrary(), hinted)
         val editedRules =
-            unsynced
-                .channel("alpha")
+            first
+                .channel("kaiju")
                 .starter.rules
                 .copy(name = "Mine")
-        val withEdit =
-            unsynced.withChannel("alpha") {
-                it.copy(source = ChannelSource.Starter("alpha", edited = true, rules = editedRules))
+        val edited =
+            first.withChannel("kaiju") {
+                it.copy(source = ChannelSource.Starter("kaiju", edited = true, rules = editedRules))
             }
-        val resolved = planOf(withEdit, synced, hinted, names = names)
-        assertTrue(resolved.hintsResolvedWithCollections)
-        assertEquals(editedRules, resolved.channel("alpha").starter.rules)
-        assertEquals(
-            1,
-            resolved
-                .channel("kaiju")
-                .starter.rules.sources
-                .count { it is Source.Collection },
-        )
+        val names = CollectionNames(mapOf(kaijuId to "Kaiju"))
+        assertEquals(edited, planOf(edited, hintedLibrary(), hinted, nowMs = 2_000L, names = names))
+    }
 
-        // Once resolved, a new collection with the same name changes nothing until a catalog update.
-        val more = CollectionNames(mapOf(kaijuCollection.id to "Kaiju", idOf(0xC2) to "KAIJU"))
-        assertEquals(resolved, planOf(resolved, synced, hinted, names = more))
+    @Test
+    fun anUnsyncedCallChangesNoRules() {
+        val first = planOf(null, hintedLibrary(synced = false), hinted)
+        assertTrue(first.finalised, "a failing collection pass never leaves a household without channels")
+        val names = CollectionNames(mapOf(kaijuId to "Kaiju", mechaId to "Mecha"))
+        assertEquals(first, planOf(first, hintedLibrary(synced = false), hinted, nowMs = 2_000L, names = names))
+
+        // Once synced the hints resolve; a later unsynced call that is missing the collections keeps them.
+        val synced = planOf(first, hintedLibrary(), hinted, nowMs = 3_000L, names = names)
+        assertEquals(
+            kaiju.sources + Source.Collection(kaijuId),
+            synced
+                .channel("kaiju")
+                .starter.rules.sources,
+        )
+        assertEquals(synced, planOf(synced, hintedLibrary(synced = false), hinted, nowMs = 4_000L))
     }
 
     @Test
