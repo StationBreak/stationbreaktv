@@ -189,6 +189,17 @@ class StarterCatalogTest {
     }
 
     @Test
+    fun aKidRecipeCeilingIsOnTheLadderAndNoHigherThanPg() {
+        fun kids(rating: String) = sample(band = Band.Kids, number = 5, maxRating = rating)
+        for (rating in listOf("TV-Y", "G", "TV-Y7-FV", "TV-PG", "PG")) {
+            assertEquals(rating, kids(rating).maxRating)
+        }
+        for (rating in listOf("PG-13", "TV-14", "R", "TV-MA", "pg", "PG-14", "")) {
+            assertFailsWith<IllegalArgumentException>(rating) { kids(rating) }
+        }
+    }
+
+    @Test
     fun lineupDefaultsAreTheDecidedValues() {
         assertEquals(43_200_000L, LineupDefaults.MIN_AIRABLE_RUNTIME_MS)
         assertEquals(50, LineupDefaults.CAP)

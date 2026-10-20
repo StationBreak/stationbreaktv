@@ -22,7 +22,8 @@ enum class Band(
 /**
  * A themed channel the catalog can fill from a library. [sources] and [exclusions] are portable (genre, tag, year
  * range); [collectionHints] are collection names turned into collection sources by ID, from the collections the server
- * has now. A kid-safe recipe (the Kids band) carries a [maxRating]; a grown-up recipe carries none.
+ * has now. A kid-safe recipe (the Kids band) carries a [maxRating], a rating-ladder name no higher than PG; a grown-up
+ * recipe carries none.
  */
 data class Recipe(
     val key: String,
@@ -41,12 +42,19 @@ data class Recipe(
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
         require(number in band.numbers) { "The number is outside the band" }
         require(kidSafe == (maxRating != null)) { "A recipe is kid-safe exactly when it has a rating ceiling" }
+        require(maxRating == null || maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
+        if (kidSafe) require(atMostPg(maxRating)) { "A kid-safe recipe has a ceiling of PG or lower" }
         require(sources.isNotEmpty()) { "A recipe needs a source" }
         require((sources + exclusions).all(::isPortable)) { "A recipe uses genre, tag and year range sources only" }
     }
 
     /** True for the Kids band. */
     val kidSafe: Boolean get() = band == Band.Kids
+}
+
+private fun atMostPg(rating: String?): Boolean {
+    val rank = RatingLadder.rankOf(rating)
+    return rank != null && rank <= checkNotNull(RatingLadder.rankOf("PG"))
 }
 
 private fun isPortable(source: Source): Boolean =
@@ -68,10 +76,9 @@ data class LeftoversRecipe(
         require(number in Band.Kids.numbers || number in Band.General.numbers) {
             "The number is outside the Kids and General bands"
         }
+        require(maxRating == null || maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
         if (number in Band.Kids.numbers) {
-            val rank = RatingLadder.rankOf(maxRating)
-            val limit = checkNotNull(RatingLadder.rankOf("PG"))
-            require(rank != null && rank <= limit) { "Kids' leftovers need a ceiling of PG or lower" }
+            require(atMostPg(maxRating)) { "Kids' leftovers need a ceiling of PG or lower" }
         } else {
             require(maxRating == null) { "Grown-up leftovers have no rating ceiling" }
         }
