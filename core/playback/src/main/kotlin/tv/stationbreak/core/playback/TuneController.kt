@@ -136,7 +136,8 @@ class TuneController(
         var attempt = attempt(session, item, start, override, false, began)
         while (!fallback && attempt.canFallBack) {
             fallback = true
-            abandonEncode(session)
+            // Not cancellable: a stop or supersede here must not lose the first attempt's encode.
+            withContext(NonCancellable) { abandonEncode(session) }
             val next = attempt(session, item, start, override, true, began)
             // A fallback that could not even resolve leaves the first attempt's route on record.
             attempt = if (next is Broke && next.resolved == null) next.copy(resolved = attempt.resolved) else next
