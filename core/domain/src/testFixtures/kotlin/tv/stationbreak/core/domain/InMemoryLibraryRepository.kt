@@ -77,6 +77,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val seriesRows = mutableListOf<SeriesRow>()
     private val collectionRows = mutableListOf<CollectionRow>()
     private val collectionsSynced = mutableSetOf<LibraryAccount>()
+    private val failedPasses = mutableMapOf<LibraryAccount, Int>()
     private val collectionNameRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, NameRow>()
     private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
     private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
@@ -184,6 +185,14 @@ class InMemoryLibraryRepository : LibraryRepository {
     /** Says that a sync wrote a change to [account]'s items, series or collections, as [contentGeneration] shows. */
     fun noteContentChange(account: LibraryAccount) {
         changes.value = changes.value + (account to (changes.value[account] ?: 0L) + 1L)
+    }
+
+    /** Sets what [failedCollectionPasses] reports for [account]. */
+    fun setFailedCollectionPasses(
+        account: LibraryAccount,
+        count: Int,
+    ) {
+        failedPasses[account] = count
     }
 
     /** Says whether a full collection pass has succeeded for [account], which `RuleSnapshot.collectionsSynced` shows. */
@@ -343,6 +352,8 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
     override suspend fun contentGeneration(account: LibraryAccount): Long = changes.value[account] ?: 0L
+
+    override suspend fun failedCollectionPasses(account: LibraryAccount): Int = failedPasses[account] ?: 0
 
     @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(

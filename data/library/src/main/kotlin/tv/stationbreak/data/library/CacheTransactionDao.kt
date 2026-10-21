@@ -373,6 +373,33 @@ internal abstract class CacheTransactionDao(
     }
 
     /**
+     * A collection pass starts. A pass still marked running means the process died in it, so that one counts as having
+     * ended without completing. Then this one is marked running, until [recordCollectionPass] or [abandonCollectionPass].
+     */
+    @Transaction
+    open suspend fun beginCollectionPass(
+        serverId: String,
+        userId: String,
+    ) {
+        library.requireActive(serverId, userId)
+        library.ensureMeta(SyncMetaEntity(serverId, userId, 0L))
+        val row = library.metaRow(serverId, userId)
+        val failed = (row?.failedPasses ?: 0) + if (row?.passRunning == true) 1 else 0
+        library.setPassState(serverId, userId, failed, running = true)
+    }
+
+    /** A collection pass ended without completing (it failed or was cancelled): one more, and none is running. */
+    @Transaction
+    open suspend fun abandonCollectionPass(
+        serverId: String,
+        userId: String,
+    ) {
+        library.requireActive(serverId, userId)
+        val row = library.metaRow(serverId, userId) ?: return
+        if (row.passRunning) library.setPassState(serverId, userId, row.failedPasses + 1, running = false)
+    }
+
+    /**
      * Records that a collection pass that began at [startedMs] completed (Vimes H4, M2): the cursor moves to its start,
      * and when it was a full re-list so does `lastRelistMs`. Called only after the whole pass succeeded. It reads and
      * writes the `collection_sync` row only, never `account_state`.
@@ -385,6 +412,8 @@ internal abstract class CacheTransactionDao(
         relisted: Boolean,
     ) {
         library.requireActive(serverId, userId)
+        library.ensureMeta(SyncMetaEntity(serverId, userId, 0L))
+        library.setPassState(serverId, userId, failed = 0, running = false)
         val before = collections.syncRow(serverId, userId)
         val relistMs = if (relisted) startedMs else before?.lastRelistMs
         collections.saveSyncRow(CollectionSyncEntity(serverId, userId, startedMs, relistMs))

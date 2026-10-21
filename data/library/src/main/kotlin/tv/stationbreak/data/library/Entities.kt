@@ -292,12 +292,18 @@ internal data class CollectionSyncEntity(
  * [contentGeneration] only goes up: every committed write that changes an item, series or collection row bumps it in
  * the same transaction (a write that changes no row, and a rolled-back one, do not). A cache rebuild drops the table,
  * so the generation then starts again from zero.
+ *
+ * [failedPasses] counts the collection passes that ended without completing since the last completed one: a pass
+ * records that it started ([passRunning]) and that it completed; one that ended some other way adds one, and so does a
+ * start that finds the previous pass still marked running (the process died in it). A completed pass sets it to zero.
  */
 @Entity(tableName = "sync_meta", primaryKeys = ["serverId", "userId"])
 internal data class SyncMetaEntity(
     val serverId: String,
     val userId: String,
     val contentGeneration: Long,
+    val failedPasses: Int = 0,
+    val passRunning: Boolean = false,
 )
 
 /** One genre of an item, at [position] so the server's order is kept. */

@@ -223,6 +223,14 @@ interface LibraryRepository : AccountCache {
     suspend fun contentGeneration(account: LibraryAccount): Long
 
     /**
+     * How many collection passes of [account] ended without completing since the last one that completed: failed,
+     * cancelled, or killed with the process (a pass is recorded as started, and a start that finds the previous one
+     * never finished counts it). A completed pass sets it to zero, and so does a cache rebuild. A pass that is running
+     * now is not counted yet. The first lineup reads it to decide that collections are not coming.
+     */
+    suspend fun failedCollectionPasses(account: LibraryAccount): Int
+
+    /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the
      * diagnostics number). The rows stay stored.
      */

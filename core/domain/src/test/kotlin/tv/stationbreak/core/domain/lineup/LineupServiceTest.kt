@@ -133,6 +133,45 @@ class LineupServiceTest {
         }
 
     @Test
+    fun oneInterruptedPassThenANewSyncStillWaits() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 1)
+
+            service.refresh(ACCOUNT, LIBRARIES)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(false, stored()?.finalised, "one pass that did not finish is not a reason to give up")
+        }
+
+    @Test
+    fun twoFailedPassesFinaliseWithoutCollections() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(true, stored()?.finalised)
+            assertTrue(checkNotNull(stored()).channels.any { it.state == ChannelState.On })
+            assertNull(storedMeta()?.collectionPassActedOn, "and no pass was taken in")
+        }
+
+    @Test
+    fun theFailureCountDoesNotMatterOnceTheLineupIsFinalised() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = checkNotNull(stored())
+
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 5)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(before.channels, stored()?.channels)
+        }
+
+    @Test
     fun aMetaOnlySaveNeverPutsAnOlderFileBackOverNewerChannelsInMemory() =
         runBlocking<Unit> {
             library.delegate.setCollectionsSynced(ACCOUNT, true)

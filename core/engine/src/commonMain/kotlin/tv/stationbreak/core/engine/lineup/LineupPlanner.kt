@@ -28,8 +28,8 @@ object LineupPlanner {
      * Until a lineup is finalised it is chosen afresh at [standardOffsetMinutes]. The first choice waits for a full
      * collection pass (`collectionsSynced`), so every recipe's collection hints resolve before it ranks and the same
      * library gives every TV the same lineup; until then the lineup has no channels. With [withoutCollections] it does
-     * not wait: a collection pass that never completes would otherwise keep the lineup empty for good. The choice is
-     * made with the collection names it was given (none, if no pass has run), and a pass that lands later reaches the
+     * not wait: a collection pass that never completes would otherwise keep the lineup empty for good. The caller
+     * decides when that is (the planner stays pure and only obeys). The choice is made with the collection names it was given (none, if no pass has run), and a pass that lands later reaches the
      * starters through the hint pass below. With fewer than
      * [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes nothing is on yet either.
      * Otherwise the leftovers channels and the best-filling non-opt-in recipes (ties by key) are switched on up to

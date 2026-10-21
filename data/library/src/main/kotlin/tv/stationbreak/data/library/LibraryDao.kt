@@ -319,6 +319,23 @@ internal abstract class LibraryDao {
         userId: String,
     ): Long?
 
+    @Query("SELECT * FROM sync_meta WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun metaRow(
+        serverId: String,
+        userId: String,
+    ): SyncMetaEntity?
+
+    @Query(
+        "UPDATE sync_meta SET failedPasses = :failed, passRunning = :running " +
+            "WHERE serverId = :serverId AND userId = :userId",
+    )
+    abstract suspend fun setPassState(
+        serverId: String,
+        userId: String,
+        failed: Int,
+        running: Boolean,
+    )
+
     @Query("DELETE FROM sync_meta WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun deleteMeta(
         serverId: String,

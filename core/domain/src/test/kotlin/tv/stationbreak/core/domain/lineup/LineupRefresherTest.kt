@@ -286,6 +286,28 @@ class LineupRefresherTest {
         }
 
     @Test
+    fun twoFailedPassesFinaliseTheFirstLineupWhicheverTriggerComesFirst() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            refresher().start(scope)
+            until("start refresh") { refreshes >= 1 }
+            assertEquals(false, service.loaded(ACCOUNT)?.lineup?.finalised)
+
+            // The second pass fails after the start refresh: nothing announces it, and the next sync is the trigger.
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            until("finalised without the collections") { service.loaded(ACCOUNT)?.lineup?.finalised == true }
+
+            // The collections arrive later and reach the lineup, which has taken in no pass yet.
+            val before = refreshes
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            val pass = Instant.parse("2026-10-20T09:00:00Z")
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            until("the pass was taken in") { refreshes == before + 1 }
+            assertEquals(pass.toEpochMilliseconds(), checkNotNull(service.loaded(ACCOUNT)).meta.collectionPassActedOn)
+        }
+
+    @Test
     fun aSyncThatWroteRowsBeforeProcessDeathRefreshesOnTheNextStart() =
         runBlocking<Unit> {
             lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))

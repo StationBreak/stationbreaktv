@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "5f1d8e1e6ecff6be853e57376a5c3385",
+    "identityHash": "a3f634e9844904f14392bf409684f0ec",
     "entities": [
       {
         "tableName": "library",
@@ -844,7 +844,7 @@
       },
       {
         "tableName": "sync_meta",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `contentGeneration` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `contentGeneration` INTEGER NOT NULL, `failedPasses` INTEGER NOT NULL, `passRunning` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`))",
         "fields": [
           {
             "fieldPath": "serverId",
@@ -861,6 +861,18 @@
           {
             "fieldPath": "contentGeneration",
             "columnName": "contentGeneration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failedPasses",
+            "columnName": "failedPasses",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "passRunning",
+            "columnName": "passRunning",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -1137,7 +1149,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5f1d8e1e6ecff6be853e57376a5c3385')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a3f634e9844904f14392bf409684f0ec')"
     ]
   }
 }

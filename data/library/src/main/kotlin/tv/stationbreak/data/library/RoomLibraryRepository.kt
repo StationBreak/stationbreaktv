@@ -719,6 +719,31 @@ class RoomLibraryRepository internal constructor(
         return row?.lastRelistMs != null
     }
 
+    // The failed-pass count (see [SyncMetaEntity]). Neither call throws for an account that is no longer the signed-in
+    // one: the pass's own writes will say so, and a count is not worth failing a pass over.
+    internal suspend fun beginCollectionPass(account: LibraryAccount) {
+        val (server, user) = account.keys()
+        try {
+            transactions.beginCollectionPass(server, user)
+        } catch (_: AccountNotActiveException) {
+            // Not signed in any more; nothing to count for.
+        }
+    }
+
+    internal suspend fun abandonCollectionPass(account: LibraryAccount) {
+        val (server, user) = account.keys()
+        try {
+            transactions.abandonCollectionPass(server, user)
+        } catch (_: AccountNotActiveException) {
+            // Not signed in any more; nothing to count for.
+        }
+    }
+
+    override suspend fun failedCollectionPasses(account: LibraryAccount): Int {
+        val (server, user) = account.keys()
+        return dao.metaRow(server, user)?.failedPasses ?: 0
+    }
+
     /** Records a collection pass that began at [started] and completed (see [CacheTransactionDao]). */
     internal suspend fun recordCollectionPass(
         account: LibraryAccount,
