@@ -15,7 +15,8 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * Issue #309: what the lineup refresher learns about the library. A launch sync that finds nothing (the reconcile and
  * the collection pass of every app open) must not look like a change, even though it records a new collection pass and
- * may move the last-success time; a sync that writes anything must. `contentGeneration` is that signal: durable, per account, and bumped inside the transaction of the write.
+ * may move the last-success time; a sync that writes anything must. `contentGeneration` is that signal: durable, per
+ * account, and bumped inside the transaction of the write.
  */
 class ContentGenerationTest {
     private val rig = StayCurrentRig()

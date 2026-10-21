@@ -113,7 +113,9 @@ internal class CollectionPass(
             } finally {
                 // A pass that ends any way but complete (a failure, a cancellation, an exception) is counted against
                 // the first lineup; a completed one reset the count itself when it recorded its cursor.
-                if (outcome != SyncOutcome.Completed) withContext(NonCancellable) { repository.abandonCollectionPass(account) }
+                if (outcome != SyncOutcome.Completed) {
+                    withContext(NonCancellable) { repository.abandonCollectionPass(account) }
+                }
             }
             return CollectionResult(outcome, summary)
         }

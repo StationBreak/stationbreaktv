@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Instant
 
@@ -147,15 +148,18 @@ class LineupRefresher(
         held: Revisioned?,
         chosen: Set<ItemId>?,
     ): Boolean {
-        val lineup = held?.lineup
-        if (held == null || lineup == null || !lineup.finalised || lineup.catalogVersion < service.catalog.version) {
-            return true
-        }
+        if (held == null || needsPlan(held.lineup)) return true
         return chosen != null &&
             (
                 held.meta.plannedLibraries != chosen.map { it.value }.sorted() ||
                     held.meta.plannedGeneration != library.contentGeneration(account)
             )
+    }
+
+    // Not yet finalised, or planned from an older catalog than this app's.
+    private fun needsPlan(lineup: Lineup): Boolean {
+        val catalog = service.catalog.version
+        return !lineup.finalised || lineup.catalogVersion < catalog
     }
 
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.

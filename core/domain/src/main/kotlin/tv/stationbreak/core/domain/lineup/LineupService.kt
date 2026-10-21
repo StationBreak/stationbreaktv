@@ -331,7 +331,11 @@ class LineupService internal constructor(
         when (decoded) {
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
-                if (owner.owns(lineup)) Start(lineup, decoded.meta, save = true) else setAside(owner, session, sessionMeta)
+                if (owner.owns(lineup)) {
+                    Start(lineup, decoded.meta, save = true)
+                } else {
+                    setAside(owner, session, sessionMeta)
+                }
             }
 
             is LineupCodec.Decoded.NewerVersion -> {
@@ -389,7 +393,10 @@ class LineupService internal constructor(
 /** How many collection passes must have ended without completing before the first lineup stops waiting for them. */
 internal const val GIVE_UP_AFTER = 2
 
-/** What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, and where timings go. */
+/**
+ * What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, and where
+ * timings go.
+ */
 internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
     val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,

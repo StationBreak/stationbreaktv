@@ -69,7 +69,12 @@ class LineupCodecTest {
         assertEquals(LineupCodec.Decoded.Loaded(full), LineupCodec.decode(LineupCodec.encode(full)))
     }
 
-    private val meta = RefreshMeta(plannedGeneration = 7L, collectionPassActedOn = 1_760_000_000_000L, plannedLibraries = listOf("a", "b"))
+    private val meta =
+        RefreshMeta(
+            plannedGeneration = 7L,
+            collectionPassActedOn = 1_760_000_000_000L,
+            plannedLibraries = listOf("a", "b"),
+        )
 
     @Test
     fun theRefreshersMetaRoundTrips() {
@@ -103,7 +108,8 @@ class LineupCodecTest {
     fun metaIsAKnownKeyAndAnythingUnknownAroundOrInsideItIsUnreadable() {
         val known = tree().with("meta", JsonObject(mapOf("plannedGeneration" to JsonPrimitive(5L))))
         assertIs<LineupCodec.Decoded.Loaded>(decode(known.toString()))
-        val insideIt = tree().with("meta", JsonObject(mapOf("plannedGeneration" to JsonPrimitive(5L), "x" to JsonPrimitive(1))))
+        val unknownInside = mapOf("plannedGeneration" to JsonPrimitive(5L), "x" to JsonPrimitive(1))
+        val insideIt = tree().with("meta", JsonObject(unknownInside))
         assertEquals(LineupCodec.Decoded.Unreadable, decode(insideIt.toString()))
         val beside = known.with("anotherNewField", JsonPrimitive(true))
         assertEquals(LineupCodec.Decoded.Unreadable, decode(beside.toString()))
