@@ -9,6 +9,7 @@ import os
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 import run
 
@@ -102,6 +103,70 @@ class CommandTest(unittest.TestCase):
 
     def test_timeoutIsSixtySecondsAnItemPlusSixty(self):
         self.assertEqual(run.timeout_seconds(10), 660)
+
+
+class PlanValidationTest(unittest.TestCase):
+    """A plan file is read back from disk, so it is checked again with the rules make_plan applies."""
+
+    def entry(self, **change):
+        return {"item": "aaa", "startMs": 5, "audio": None, "subtitle": None, **change}
+
+    def test_aTamperedTrackIndexIsRefusedBeforeAdb(self):
+        for field, value in (("audio", "1;reboot"), ("subtitle", "$(id)"), ("audio", -2), ("subtitle", True)):
+            with self.assertRaises(ValueError, msg=(field, value)):
+                run.start_command("S", [self.entry(**{field: value})], "real", "r", override=True)
+
+    def test_aTamperedStartOrItemIsRefused(self):
+        for change in ({"startMs": -1}, {"startMs": "5;reboot"}, {"startMs": 1.5}, {"startMs": True}, {"item": "a b"}):
+            with self.assertRaises(ValueError, msg=change):
+                run.validate_entry(self.entry(**change))
+
+    def test_validEntriesPass(self):
+        run.validate_entry(self.entry())
+        run.validate_entry(self.entry(audio=-1, subtitle=3, startMs=0))
+
+    def test_commandRunRefusesATamperedPlanWithoutCallingAdb(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "plan.json")
+            plan = {"real": [self.entry(), self.entry(audio="1;reboot")]}
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(plan, handle)
+            args = mock.Mock(plan=path, section="real", serial="S", results_dir=tmp)
+            with mock.patch.object(run.subprocess, "run") as adb, mock.patch.object(run.subprocess, "Popen") as popen:
+                with self.assertRaises(ValueError):
+                    run.command_run(args)
+            adb.assert_not_called()
+            popen.assert_not_called()
+
+
+class ForgeryTest(unittest.TestCase):
+    def test_everyRunIdCarriesAFreshNonce(self):
+        first = run.new_run_id("real", "2026-10-21", 1)
+        second = run.new_run_id("real", "2026-10-21", 1)
+        self.assertNotEqual(first, second)
+        self.assertTrue(first.startswith("real-2026-10-21-1-"))
+        self.assertRegex(first, run.SAFE)
+        self.assertLessEqual(len(first), run.MAX_LABEL)
+
+    def test_logcatIsFilteredToTheAppsProcess(self):
+        cmd = run.logcat_command("SER", 4242)
+        self.assertEqual(cmd[:4], ["adb", "-s", "SER", "logcat"])
+        self.assertIn("--pid=4242", cmd)
+        self.assertEqual(cmd[-2:], ["-s", "SBPLAY:I"])
+
+    def test_aPidThatIsNotAnIntegerIsRefused(self):
+        for bad in ("1;reboot", None, True, 0, -3):
+            with self.assertRaises(ValueError, msg=bad):
+                run.logcat_command("S", bad)
+
+    def test_pidofOutputIsParsed(self):
+        self.assertEqual(run.parse_pid("4242\r\n"), 4242)
+        self.assertEqual(run.parse_pid("4242 77\n"), 4242)
+        self.assertIsNone(run.parse_pid(""))
+        self.assertIsNone(run.parse_pid("not a pid"))
+
+    def test_theCommandThatAsksForThePidNamesTheBenchmarkApp(self):
+        self.assertEqual(run.pid_command("S"), ["adb", "-s", "S", "shell", "pidof", "tv.stationbreak.app.benchmark"])
 
 
 class LogTest(unittest.TestCase):

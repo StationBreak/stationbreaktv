@@ -122,7 +122,10 @@ def _cell(value):
     if value is None or value == "":
         return "—"
     if isinstance(value, str):
-        return value.replace("|", "\\|")
+        if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+            # A newline would break the table row and could start markup of its own.
+            raise Leak("a cell holds a control character")
+        return value.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")
     if value is True:
         return "yes"
     if value is False:

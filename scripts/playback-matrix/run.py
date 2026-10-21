@@ -23,13 +23,15 @@ import math
 import os
 import random
 import re
+import secrets
 import select
 import subprocess
 import sys
 import time
 from typing import NamedTuple, Optional
 
-COMPONENT = "tv.stationbreak.app.benchmark/tv.stationbreak.app.bench.PlaybackTestActivity"
+APP_ID = "tv.stationbreak.app.benchmark"
+COMPONENT = f"{APP_ID}/tv.stationbreak.app.bench.PlaybackTestActivity"
 MAX_ITEMS = 200  # RunArgs.MAX_ITEMS
 MAX_LABEL = 64  # RunArgs.MAX_LABEL
 SECTIONS = ("synthetic", "real")
@@ -52,6 +54,22 @@ def _int_or_none(value, what, minimum):
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise ValueError(f"{what} must be an integer of at least {minimum}")
     return value
+
+
+def validate_entry(entry):
+    """Refuses a planned play whose values could not have come from make_plan: nothing but a safe item ID and plain
+    integers may reach `adb shell`, which hands its arguments to a shell on the device. A plan file is read back from
+    disk, so it is checked again here."""
+    if not isinstance(entry, dict):
+        raise ValueError("a plan entry is not an object")
+    item = entry.get("item")
+    if not isinstance(item, str) or not SAFE.match(item):
+        raise ValueError("a plan entry has no usable item id")
+    _int_or_none(entry.get("startMs"), "startMs", 0)
+    if entry.get("startMs") is None:
+        raise ValueError("a plan entry has no startMs")
+    _int_or_none(entry.get("audio"), "audio", -1)
+    _int_or_none(entry.get("subtitle"), "subtitle", -1)
 
 
 def make_plan(items, seed):
@@ -111,17 +129,46 @@ def start_command(serial, batch, section, run_id, override):
     _label(run_id, "run_id")
     if not batch or len(batch) > MAX_ITEMS:
         raise ValueError(f"a run plays 1 to {MAX_ITEMS} items")
+    for entry in batch:
+        validate_entry(entry)
     ids = ",".join(_label(entry["item"], "item") for entry in batch)
     starts = ",".join(str(int(entry["startMs"])) for entry in batch)
     command = ["adb", "-s", serial, "shell", "am", "start", "-n", COMPONENT, "--esa", "items", ids]
     command += ["--ela", "starts_ms", starts]
     if override:
-        audio = ",".join(str(-1 if entry.get("audio") is None else entry["audio"]) for entry in batch)
-        subtitles = ",".join(str(-1 if entry.get("subtitle") is None else entry["subtitle"]) for entry in batch)
+        audio = ",".join(str(-1 if entry.get("audio") is None else int(entry["audio"])) for entry in batch)
+        subtitles = ",".join(str(-1 if entry.get("subtitle") is None else int(entry["subtitle"])) for entry in batch)
         command += ["--eia", "audio", audio, "--eia", "subtitles", subtitles]
     command += ["--ez", "override", "true" if override else "false"]
     command += ["--es", "section", section, "--es", "run_id", run_id]
     return command
+
+
+def new_run_id(section, date, number):
+    """A run's ID, with a random part no other app can guess: the app echoes it on its DONE line, so a stale or forged
+    DONE for another run is never taken as this run's."""
+    return _label(f"{section}-{date}-{number}-{secrets.token_hex(4)}", "run_id")
+
+
+def pid_command(serial):
+    """The adb command that prints the benchmark app's process ID."""
+    return ["adb", "-s", serial, "shell", "pidof", APP_ID]
+
+
+def parse_pid(output):
+    """The first process ID in the output of `pidof`, or None."""
+    for word in output.split():
+        if word.isascii() and word.isdigit() and int(word) > 0:
+            return int(word)
+    return None
+
+
+def logcat_command(serial, pid):
+    """The logcat command that reads SBPLAY lines from one process only (`--pid`, Android 7.0 and later), so another
+    app on the device cannot add RESULT lines to a run by logging under the same tag."""
+    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
+        raise ValueError("pid must be a positive integer")
+    return ["adb", "-s", serial, "logcat", "-v", "raw", f"--pid={pid}", "-s", "SBPLAY:I"]
 
 
 def timeout_seconds(items):
@@ -205,20 +252,37 @@ def read_lines(fd, deadline):
             yield line.decode("utf-8", "replace")
 
 
+PID_WAIT_SECONDS = 15
+
+
+def _wait_for_pid(serial):
+    """The benchmark app's process ID, once the activity has started it."""
+    deadline = time.monotonic() + PID_WAIT_SECONDS
+    while True:
+        answer = subprocess.run(pid_command(serial), capture_output=True, text=True)
+        pid = parse_pid(answer.stdout)
+        if pid is not None:
+            return pid
+        if time.monotonic() >= deadline:
+            raise RuntimeError("the benchmark app did not start a process (is the APK installed?)")
+        time.sleep(0.5)
+
+
 def _run_batch(serial, batch, section, run_id, override):
-    adb = ["adb", "-s", serial]
-    subprocess.run(adb + ["logcat", "-c"], check=True, capture_output=True)
+    # Cleared first, so the buffer holds only this run's lines when logcat is read after the start (below).
+    subprocess.run(["adb", "-s", serial, "logcat", "-c"], check=True, capture_output=True)
+    started = subprocess.run(
+        start_command(serial, batch, section, run_id, override), capture_output=True, text=True, check=True
+    )
+    if "Error" in started.stdout:
+        raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
+    # Only this process's lines count; the buffer is dumped from the clear, then followed.
     logcat = subprocess.Popen(
-        adb + ["logcat", "-v", "raw", "-s", "SBPLAY:I"],
+        logcat_command(serial, _wait_for_pid(serial)),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
     try:
-        started = subprocess.run(
-            start_command(serial, batch, section, run_id, override), capture_output=True, text=True, check=True
-        )
-        if "Error" in started.stdout:
-            raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
         deadline = time.monotonic() + timeout_seconds(len(batch))
         return collect(read_lines(logcat.stdout.fileno(), deadline), run_id)
     finally:
@@ -249,10 +313,13 @@ def command_run(args):
     if not entries:
         print(f"the plan has no {args.section} items", file=sys.stderr)
         return 2
+    # Before any adb call: a plan file edited on disk is held to the rules make_plan applies.
+    for entry in entries:
+        validate_entry(entry)
     date = datetime.date.today().isoformat()
     meta, results, problems = None, [], []
     for number, (override, batch) in enumerate(split_batches(entries), start=1):
-        run_id = f"{args.section}-{date}-{number}"
+        run_id = new_run_id(args.section, date, number)
         print(f"run {number}: {len(batch)} items, waiting up to {timeout_seconds(len(batch))} s")
         got = _run_batch(args.serial, batch, args.section, run_id, override)
         meta = meta or got.meta

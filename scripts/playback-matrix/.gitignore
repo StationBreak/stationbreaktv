@@ -1,5 +1,5 @@
 # Item IDs and raw results stay on the laptop that ran the matrix: never commit them (spec 13).
-items.local.json
+items.local.json*
 plan*.json
 results/
 __pycache__/

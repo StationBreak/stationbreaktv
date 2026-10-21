@@ -72,9 +72,86 @@ run_server --dry-run up 'not-an-address'
 [ "$status" -eq 2 ]
 check "up refuses a bind that is not an IPv4 address" $?
 
+for bad in 8.8.8.8 100.64.1.1 172.15.0.1 172.32.0.1 192.169.1.1 169.253.1.1 11.0.0.1 224.0.0.1; do
+  run_server --dry-run up "$bad"
+  [ "$status" -eq 2 ]
+  check "up refuses a bind outside private ranges ($bad)" $?
+done
+for good in 10.0.0.1 172.16.0.1 172.31.255.254 192.168.0.9 169.254.1.1; do
+  run_server --dry-run up "$good"
+  check "up accepts a private bind ($good)" "$status"
+done
+
+run_server --dry-run up 10.1.2.3
+grep -q -- '-p 127.0.0.1::8096' "$work/out"
+check "dry-run up starts the server on loopback only, before the wizard" $?
+grep -q 'recreate the container' "$work/out"
+check "dry-run up publishes on the LAN address only after the setup" $?
+
 STUB_PS='stationbreak-playback-matrix' run_server up 10.1.2.3
 [ "$status" -ne 0 ] && ! grep -q '^run' "$STUB_LOG"
 check "up refuses to start over an existing container" $?
+
+# A whole `up` against stubs: curl logs its arguments and answers from the URL; docker answers port, ls and ps.
+cat >"$work/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >>"$STUB_CURL_LOG"
+url=${!#}
+while [ "$#" -gt 1 ]; do
+  [ "$1" = --config ] && cat "$2" >>"$STUB_CFG_LOG"
+  shift
+done
+cat >/dev/null
+case "$url" in
+  *AuthenticateByName) echo '{"AccessToken":"tok123secret"}' ;;
+  *Users/Me) echo '{"Id":"u1"}' ;;
+  *Users/u1) echo '{"Configuration":{}}' ;;
+  *Items*) echo '{"Items":[{"Id":"i1","Path":"/media/formats/clip/a.mkv","RunTimeTicks":600000000,"MediaSources":[{}]}]}' ;;
+  *) echo '{}' ;;
+esac
+STUB
+chmod +x "$work/bin/curl"
+cat >"$work/bin/docker" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >>"$STUB_LOG"
+case "$1 $2" in
+  "ps -a") printf '%s' "${STUB_PS:-}" ;;
+  "container inspect" | "volume inspect") printf '%s' "${STUB_LABEL:-}" ;;
+esac
+case "$1" in
+  port) echo "127.0.0.1:41234" ;;
+  exec) [ "$3" = ls ] && echo clip ;;
+esac
+exit 0
+STUB
+export STUB_CURL_LOG="$work/curl.log" STUB_CFG_LOG="$work/cfg.log"
+mkdir -p "$work/copy"
+cp "$server" "$here/synthetic-media.sh" "$work/copy/"
+: >"$STUB_LOG"
+status=0
+PATH="$work/bin:$PATH" bash "$work/copy/temp-server.sh" up 10.1.2.3 >"$work/out" 2>&1 || status=$?
+check "a full up against stubs succeeds" "$status"
+! grep -q 'tok123secret' "$STUB_CURL_LOG" && grep -q -- '--config' "$STUB_CURL_LOG"
+check "the admin token never appears in curl's arguments" $?
+grep -q 'Token=.*tok123secret' "$STUB_CFG_LOG"
+check "the token still reaches curl, in its config file" $?
+! grep -q -i 'authorization' "$STUB_CURL_LOG"
+check "no Authorization header is passed on curl's command line" $?
+grep -q 'http://127.0.0.1:41234/Startup/User' "$STUB_CURL_LOG"
+check "the wizard is completed over loopback" $?
+[ "$(grep -c '^run ' "$STUB_LOG")" -eq 2 ] && grep '^run ' "$STUB_LOG" | head -n 1 | grep -q -- '-p 127.0.0.1::8096' &&
+  grep '^run ' "$STUB_LOG" | tail -n 1 | grep -q -- '-p 10.1.2.3:8096:8096'
+check "the container runs on loopback first and is recreated on the LAN address" $?
+last_run=$(grep -n '^run ' "$STUB_LOG" | tail -n 1 | cut -d: -f1)
+[ "$last_run" -gt "$(grep -n '^rm ' "$STUB_LOG" | head -n 1 | cut -d: -f1)" ]
+check "the LAN publish comes after the old container is removed" $?
+[ -s "$work/copy/items.local.json" ] && [ "$(stat -c %a "$work/copy/items.local.json")" = 600 ]
+check "items.local.json is written, mode 0600" $?
+[ "$(find "$work/copy" -name 'items.local.json*' | wc -l)" -eq 1 ]
+check "no temporary items file is left behind" $?
+secret=$(sed -n 's/^Password[^:]*: //p' "$work/out")
+[ -n "$secret" ] && ! grep -rqF -- "$secret" "$work/copy" "$STUB_CURL_LOG"
+check "the admin password is printed and written nowhere" $?
 
 run_server --dry-run down
 check "dry-run down succeeds" "$status"
@@ -93,7 +170,7 @@ check "temp-server.sh hard-codes no private address" $?
 
 # The ignore file keeps IDs and raw results off git.
 ignored=0
-for name in items.local.json plan.json results/x.jsonl; do
+for name in items.local.json items.local.json.AbC123 plan.json results/x.jsonl; do
   (cd "$here" && git check-ignore -q "$name") || ignored=1
 done
 check "items, plans and results are gitignored" "$ignored"

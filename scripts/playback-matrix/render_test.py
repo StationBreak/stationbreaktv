@@ -147,6 +147,18 @@ class RenderTest(unittest.TestCase):
         text = render.render([[meta(), result(error="a|b")]])
         self.assertIn("a\\|b", text)
 
+    def test_controlCharactersFailTheRender(self):
+        for bad in ("a\nb", "a\rb", "a\tb", "a\x00b", "a\x1bb", "a\x7fb"):
+            with self.assertRaises(render.Leak, msg=repr(bad)):
+                render.render([[meta(), result(error=bad)]])
+            with self.assertRaises(render.Leak, msg=repr(bad)):
+                render.render([[meta(device=bad), result()]])
+
+    def test_angleBracketsAreEscapedInCells(self):
+        text = render.render([[meta(), result(error="a<b>c")]])
+        self.assertIn("a&lt;b&gt;c", text)
+        self.assertNotIn("a<b>c", text)
+
     def test_legitimateValuesPass(self):
         legit = result(
             container="matroska,webm",
