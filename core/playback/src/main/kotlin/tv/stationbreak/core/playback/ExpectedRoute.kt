@@ -29,6 +29,11 @@ internal fun audioPlays(
 /**
  * A test oracle and a diagnostic only. Playback always follows the server's answer. It says what the device's
  * capabilities imply for [source] with [subtitle] selected, for the audio track the source starts on.
+ *
+ * It is an independent oracle, not a copy of the resolver, so its subtitle rule is deliberately by file: an image
+ * codec means a transcode, whatever delivery the server picked. It predicts for the default tracks only; a track
+ * override is the resolver's business. Video levels compare as sent, in the probe's unit (level_idc: h264 41 = 4.1,
+ * hevc 153 = 5.1).
  */
 object ExpectedRoute {
     fun of(

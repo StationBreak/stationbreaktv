@@ -143,6 +143,34 @@ class PlaybackInfoTest {
     }
 
     @Test
+    fun aVideoStreamCarriesItsProfileLevelAndBitDepth() {
+        runBlocking {
+            val body =
+                """{"MediaSources":[{"Id":"src1","MediaStreams":[
+                |{"Index":0,"Type":"Video","Codec":"h264","Profile":"Constrained Baseline","Level":41,"BitDepth":8},
+                |{"Index":1,"Type":"Video","Codec":"hevc","Profile":"Main 10","Level":153,"BitDepth":10},
+                |{"Index":2,"Type":"Video","Codec":"h264","Level":"odd"},
+                |{"Index":3,"Type":"Audio","Codec":"aac","Profile":"LC"}]}],"PlaySessionId":"play-1"}
+                """.trimMargin().replace("\n", "")
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
+
+            val streams =
+                testAdapter()
+                    .playbackInfo(testSession(jellyfin.address), ItemId("i1"))
+                    .getOrNull()!!
+                    .sources
+                    .single()
+                    .streams
+
+            fun facts(index: Int) = streams[index].let { Triple(it.videoProfile, it.videoLevel, it.bitDepth) }
+            assertEquals(Triple("constrained baseline", 41, 8), facts(0))
+            assertEquals(Triple("main 10", 153, 10), facts(1))
+            assertNull(streams[2].videoLevel)
+            assertNull(streams[3].videoProfile)
+        }
+    }
+
+    @Test
     fun eachEmbeddedStreamKnowsItsPositionWithinItsKind() {
         runBlocking {
             // Server indexes interleave the kinds and an external subtitle sits among them; positions count per kind.

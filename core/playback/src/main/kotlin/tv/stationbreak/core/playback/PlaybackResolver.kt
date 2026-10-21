@@ -48,18 +48,27 @@ class PlaybackResolver(
     ): ServerResult<ResolvedPlayback> {
         val media = info.sources.firstOrNull() ?: return ServerResult.Failure(MediaServerError.NotFound())
         // An override replaces the server's choice; its null subtitle means "off", its null audio "the server's".
-        val audioIndex = override?.audioIndex ?: media.defaultAudioIndex
-        val subtitleIndex = if (override != null) override.subtitleIndex else media.defaultSubtitleIndex
-        val audio = media.stream(StreamKind.AUDIO, audioIndex)
-        val subtitle = media.stream(StreamKind.SUBTITLE, subtitleIndex)
-        val burnedIn = subtitle?.delivery == SubtitleDelivery.BURNED_IN
-        val route = route(media, limits, audio, burnedIn, forceTranscode)
+        // Only a real audio track of this source is ever chosen: an index it lacks, or one that is not audio, falls
+        // back to the server's default, then the first audio track. What is chosen is what the URL and the check see.
+        val audio =
+            override?.audioIndex?.let { media.stream(StreamKind.AUDIO, it) }
+                ?: media.stream(StreamKind.AUDIO, media.defaultAudioIndex)
+                ?: media.streams.firstOrNull { it.kind == StreamKind.AUDIO }
+        val audioIndex = audio?.index
+        val subtitleChoice = if (override != null) override.subtitleIndex else media.defaultSubtitleIndex
+        val wantedSubtitle = media.stream(StreamKind.SUBTITLE, subtitleChoice)
         val separate =
-            subtitle
+            wantedSubtitle
                 ?.takeIf { it.delivery == SubtitleDelivery.SEPARATE }
                 ?.let { stream ->
                     info.streams.subtitle(media.id, stream)?.let { SeparateSubtitle(it, stream.language) }
                 }
+        // A separate subtitle the server gave no URL for cannot be shown, so it is not reported as chosen either.
+        val subtitle =
+            wantedSubtitle?.takeUnless { it.delivery == SubtitleDelivery.SEPARATE && separate == null }
+        val subtitleIndex = subtitle?.index
+        val burnedIn = subtitle?.delivery == SubtitleDelivery.BURNED_IN
+        val route = route(media, limits, audio, burnedIn, forceTranscode)
         val hls = route != Route.DIRECT_PLAY
         val url =
             if (hls) {

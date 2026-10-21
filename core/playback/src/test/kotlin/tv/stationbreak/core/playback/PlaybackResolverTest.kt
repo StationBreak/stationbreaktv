@@ -235,6 +235,59 @@ class PlaybackResolverTest {
         }
 
     @Test
+    fun anOverrideIndexThatIsNotInTheSourceFallsBackToTheDefault() =
+        runTest {
+            answer(source(directPlay = false, streams = listOf(video(), audio(1), audio(2)), defaultAudio = 2))
+            val played = resolve(override = TrackOverride(audioIndex = 9, subtitleIndex = null))
+            assertEquals(2, played.chosenAudio?.index)
+            assertEquals(2, played.source.audioIndex)
+            assertEquals(2, urls.hlsCalls.single().audioIndex)
+        }
+
+    @Test
+    fun anOverrideIndexThatIsNotAudioFallsBackToTheDefault() =
+        runTest {
+            answer(source(directPlay = false, streams = listOf(video(), audio(1), subtitle(3)), defaultAudio = 1))
+            val played = resolve(override = TrackOverride(audioIndex = 3, subtitleIndex = null))
+            assertEquals(1, played.chosenAudio?.index)
+            assertEquals(1, urls.hlsCalls.single().audioIndex)
+        }
+
+    @Test
+    fun withNoUsableDefaultTheFirstAudioStreamIsChosen() =
+        runTest {
+            answer(source(directPlay = false, streams = listOf(video(), audio(4), audio(5)), defaultAudio = null))
+            val played = resolve(override = TrackOverride(audioIndex = 9, subtitleIndex = null))
+            assertEquals(4, played.chosenAudio?.index)
+            assertEquals(4, urls.hlsCalls.single().audioIndex)
+        }
+
+    @Test
+    fun theAudioCheckStillAppliesAfterTheFallback() =
+        runTest {
+            answer(source(streams = listOf(video(), audio(1, Codecs.DTS, 6)), defaultAudio = 1))
+            val played = resolve(override = TrackOverride(audioIndex = 9, subtitleIndex = null))
+            assertTrue(played.source.isHls)
+            assertNotEquals(Route.DIRECT_PLAY, played.route)
+        }
+
+    @Test
+    fun aSeparateSubtitleWithNoUrlIsNotReportedAsChosen() =
+        runTest {
+            urls.hasSubtitleUrls = false
+            answer(
+                source(
+                    streams = listOf(video(), audio(1), subtitle(3, "srt", SubtitleDelivery.SEPARATE)),
+                    defaultSubtitle = 3,
+                ),
+            )
+            val played = resolve()
+            assertNull(played.chosenSubtitle)
+            assertNull(played.source.subtitleIndex)
+            assertTrue(played.source.subtitles.isEmpty())
+        }
+
+    @Test
     fun aServerFailureIsReturnedNotThrown() =
         runTest {
             server.playbackInfoResult = ServerResult.Failure(MediaServerError.Timeout())

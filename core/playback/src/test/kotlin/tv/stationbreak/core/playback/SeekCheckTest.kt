@@ -14,6 +14,11 @@ class SeekCheckTest {
     }
 
     @Test
+    fun exactlyTwoSecondsLands() {
+        assertEquals(SeekVerdict.Landed, SeekCheck.check(10.minutes, 10.minutes + 2000.milliseconds))
+    }
+
+    @Test
     fun overTwoSecondsMisses() {
         assertEquals(SeekVerdict.Missed(2001.milliseconds), SeekCheck.check(10.minutes, 10.minutes + 2001.milliseconds))
     }

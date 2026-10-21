@@ -31,6 +31,7 @@ data class HlsCall(
 
 class RecordingUrls : StreamUrls {
     val hlsCalls = mutableListOf<HlsCall>()
+    var hasSubtitleUrls = true
 
     override fun original(source: MediaSourceId): String = "https://media.example.com/original/${source.value}"
 
@@ -49,7 +50,7 @@ class RecordingUrls : StreamUrls {
     override fun subtitle(
         source: MediaSourceId,
         stream: MediaStreamInfo,
-    ): String? = "https://media.example.com/sub/${source.value}/${stream.index}"
+    ): String? = if (hasSubtitleUrls) "https://media.example.com/sub/${source.value}/${stream.index}" else null
 }
 
 /** `kotlin.test.assertIs` for a module that tests with plain JUnit. */
