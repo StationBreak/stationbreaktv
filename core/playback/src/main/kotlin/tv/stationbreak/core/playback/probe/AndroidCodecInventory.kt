@@ -81,11 +81,32 @@ class AndroidCodecInventory(
                 maxLevel = levels.maxOfOrNull { it.level },
                 maxWidth = video.supportedWidths.upper,
                 maxHeight = video.supportedHeights.upper,
+                softwareOnly = isSoftwareOnly(info),
             )
         }
     }
 
+    /**
+     * API 29+ asks the platform. Below that, the name check is Media3 1.11.1's `MediaCodecUtil.isSoftwareOnly`
+     * (`androidx.media3.exoplayer.mediacodec`): lowercase name, `arc.` is hardware; `omx.google.`, `omx.ffmpeg.`,
+     * `omx.sec.` with `.sw.`, `omx.qcom.video.decoder.hevcswvdec`, `c2.android.` and `c2.google.` are software; and
+     * a name starting with neither `omx.` nor `c2.` is taken as software.
+     */
+    private fun isSoftwareOnly(info: MediaCodecInfo): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return info.isSoftwareOnly
+        val name = info.name.lowercase()
+        return when {
+            name.startsWith("arc.") -> false
+            SOFTWARE_PREFIXES.any { name.startsWith(it) } -> true
+            name.startsWith("omx.sec.") && ".sw." in name -> true
+            name == "omx.qcom.video.decoder.hevcswvdec" -> true
+            else -> !(name.startsWith("omx.") || name.startsWith("c2."))
+        }
+    }
+
     private companion object {
+        val SOFTWARE_PREFIXES = listOf("omx.google.", "omx.ffmpeg.", "c2.android.", "c2.google.")
+
         const val VIDEO_PREFIX = "video/"
         const val AUDIO_PREFIX = "audio/"
         const val FALLBACK_WIDTH = 1920

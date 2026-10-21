@@ -36,7 +36,11 @@ class CapabilityProbe(
     private fun passthroughNames(): Set<String> =
         inventory.passthroughEncodings().mapNotNullTo(mutableSetOf()) { PASSTHROUGH_ENCODINGS[it] }
 
-    /** Two decoders of one codec (a hardware and a software one) become one entry that is the best of both. */
+    /**
+     * One entry per codec, describing the single decoder Media3 will pick: the first in `MediaCodecList` order that is
+     * not software-only, else the first software one. Never a union or a maximum across decoders, which would claim
+     * what only a slower decoder can do.
+     */
     private fun mergeByCodec(
         decoders: List<DecoderInfo>,
         display: DisplayInfo,
@@ -47,13 +51,14 @@ class CapabilityProbe(
             byCodec.getOrPut(codec) { mutableListOf() }.add(decoder)
         }
         return byCodec.map { (codec, group) ->
+            val chosen = group.firstOrNull { !it.softwareOnly } ?: group.first()
             VideoCodecSupport(
                 codec = codec,
-                profiles = group.flatMapTo(mutableSetOf()) { profileNames(codec, it.profiles) },
-                maxLevel = group.mapNotNull { levelIdc(codec, it.maxLevel) }.maxOrNull(),
-                maxWidth = minOf(group.maxOf { it.maxWidth }, display.width),
-                maxHeight = minOf(group.maxOf { it.maxHeight }, display.height),
-                maxBitDepth = if (group.any { hasTenBit(codec, it.profiles) }) TEN_BIT else EIGHT_BIT,
+                profiles = profileNames(codec, chosen.profiles),
+                maxLevel = levelIdc(codec, chosen.maxLevel),
+                maxWidth = minOf(chosen.maxWidth, display.width),
+                maxHeight = minOf(chosen.maxHeight, display.height),
+                maxBitDepth = if (hasTenBit(codec, chosen.profiles)) TEN_BIT else EIGHT_BIT,
                 // Not filled yet: the vocabulary has no HDR names and the server isn't sent them (issue #323).
                 hdr = emptySet(),
             )
@@ -80,7 +85,7 @@ class CapabilityProbe(
         when (codec) {
             Codecs.H264 -> CodecProfileLevel.AVCProfileHigh10 in profiles
             Codecs.HEVC -> CodecProfileLevel.HEVCProfileMain10 in profiles
-            Codecs.VP9 -> CodecProfileLevel.VP9Profile2 in profiles
+            Codecs.VP9 -> profiles.any { it in VP9_TEN_BIT }
             Codecs.AV1 -> CodecProfileLevel.AV1ProfileMain10 in profiles
             else -> false
         }
@@ -109,6 +114,13 @@ class CapabilityProbe(
         const val TEN_BIT = 10
 
         val BASE_CONTAINERS = setOf(Codecs.MP4, Codecs.M4V, Codecs.MKV, Codecs.WEBM, Codecs.TS, Codecs.MPEGTS)
+
+        val VP9_TEN_BIT =
+            setOf(
+                CodecProfileLevel.VP9Profile2,
+                CodecProfileLevel.VP9Profile2HDR,
+                CodecProfileLevel.VP9Profile2HDR10Plus,
+            )
 
         val VIDEO_MIMES =
             mapOf(
@@ -182,7 +194,10 @@ class CapabilityProbe(
                 CodecProfileLevel.AVCLevel62 to 62,
             )
 
-        /** MediaCodec's HEVC level flags (either tier) to general_level_idc (level times 30: 4.1 = 123). */
+        /**
+         * MediaCodec's HEVC level flags to general_level_idc (level times 30: 4.1 = 123). High-tier constants
+         * resolve to the same level_idc via the nearest lower main-tier key.
+         */
         val HEVC_LEVELS =
             mapOf(
                 CodecProfileLevel.HEVCMainTierLevel1 to 30,

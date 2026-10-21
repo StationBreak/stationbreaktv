@@ -22,7 +22,8 @@ interface CodecInventory {
 
 /**
  * One video decoder. [profiles] are `MediaCodecInfo.CodecProfileLevel` profile constants and [maxLevel] the highest
- * level constant it reports for the codec (null when it reports none); the probe translates both.
+ * level constant it reports for the codec (null when it reports none); the probe translates both. [softwareOnly] is
+ * true for a decoder that runs on the CPU, which the probe uses only when there is no other.
  */
 data class DecoderInfo(
     val mime: String,
@@ -30,6 +31,7 @@ data class DecoderInfo(
     val maxLevel: Int?,
     val maxWidth: Int,
     val maxHeight: Int,
+    val softwareOnly: Boolean = false,
 )
 
 /** The display's current mode, in pixels, and the `Display.HdrCapabilities.HDR_TYPE_*` values it supports. */

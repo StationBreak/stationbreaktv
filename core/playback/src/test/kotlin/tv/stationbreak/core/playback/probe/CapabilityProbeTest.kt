@@ -35,7 +35,8 @@ class CapabilityProbeTest {
         level: Int? = CodecProfileLevel.AVCLevel41,
         width: Int = 1920,
         height: Int = 1080,
-    ) = DecoderInfo("video/avc", profiles, level, width, height)
+        softwareOnly: Boolean = false,
+    ) = DecoderInfo("video/avc", profiles, level, width, height, softwareOnly)
 
     private fun probeOf(inventory: FakeInventory) = CapabilityProbe(inventory).probe()
 
@@ -150,15 +151,54 @@ class CapabilityProbeTest {
     }
 
     @Test
-    fun twoDecodersOfOneCodecAreMerged() {
-        val software = avc(setOf(CodecProfileLevel.AVCProfileMain), CodecProfileLevel.AVCLevel31, 1280, 720)
-        val hardware = avc(setOf(CodecProfileLevel.AVCProfileHigh), CodecProfileLevel.AVCLevel41, 1920, 1080)
+    fun aHardwareDecoderIsPreferredOverAMoreCapableSoftwareOne() {
+        val software =
+            avc(
+                setOf(CodecProfileLevel.AVCProfileHigh10),
+                CodecProfileLevel.AVCLevel52,
+                3840,
+                2160,
+                softwareOnly = true,
+            )
+        val hardware = avc(setOf(CodecProfileLevel.AVCProfileHigh), CodecProfileLevel.AVCLevel41)
+        val display = DisplayInfo(3840, 2160, emptySet())
 
-        val h264 = probeOf(FakeInventory(video = listOf(software, hardware))).videoCodecs.single()
+        // Hardware listed second: software-only is skipped whatever the order.
+        val h264 = probeOf(FakeInventory(video = listOf(software, hardware), display = display)).videoCodecs.single()
 
-        assertEquals(setOf(Codecs.MAIN, Codecs.HIGH), h264.profiles)
+        assertEquals(setOf(Codecs.HIGH), h264.profiles)
         assertEquals(41, h264.maxLevel)
         assertEquals(1920, h264.maxWidth)
+        assertEquals(8, h264.maxBitDepth)
+    }
+
+    @Test
+    fun aSoftwareDecoderIsUsedWhenItIsTheOnlyOne() {
+        val software = avc(setOf(CodecProfileLevel.AVCProfileMain), CodecProfileLevel.AVCLevel31, softwareOnly = true)
+
+        val h264 = probeOf(FakeInventory(video = listOf(software))).videoCodecs.single()
+
+        assertEquals(setOf(Codecs.MAIN), h264.profiles)
+        assertEquals(31, h264.maxLevel)
+    }
+
+    @Test
+    fun profilesAreNotUnionedAcrossDecoders() {
+        val first = avc(setOf(CodecProfileLevel.AVCProfileMain), CodecProfileLevel.AVCLevel31, 1280, 720)
+        val second = avc(setOf(CodecProfileLevel.AVCProfileHigh), CodecProfileLevel.AVCLevel41, 1920, 1080)
+
+        val h264 = probeOf(FakeInventory(video = listOf(first, second))).videoCodecs.single()
+
+        assertEquals(setOf(Codecs.MAIN), h264.profiles)
+        assertEquals(31, h264.maxLevel)
+        assertEquals(1280, h264.maxWidth)
+    }
+
+    @Test
+    fun vp9HdrProfilesCountAsTenBit() {
+        val vp9 = DecoderInfo("video/x-vnd.on2.vp9", setOf(CodecProfileLevel.VP9Profile2HDR), null, 1920, 1080)
+
+        assertEquals(10, probeOf(FakeInventory(video = listOf(vp9))).videoCodecs.single().maxBitDepth)
     }
 
     @Test
