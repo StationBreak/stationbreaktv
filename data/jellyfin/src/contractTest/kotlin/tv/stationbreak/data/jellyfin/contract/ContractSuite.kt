@@ -883,8 +883,28 @@ abstract class ContractSuite {
                 val added = (after - before).single()
                 val page = adapter.libraryItems(session, library, 0, BIG_PAGE, mark).getOrNull()
                 assertNotNull(page)
-                assertEquals(setOf(added), page.items.map { it.id.value }.toSet(), "only the new item comes back")
-                val item = page.items.single()
+                val returned = page.items.map { it.id.value }.toSet()
+                assertTrue(added in returned, "the new item comes back")
+                // The server may save an older item too inside the window (a background metadata or image task; seen
+                // once on 12.2, #318), and it does not return DateLastSaved to compare. So an extra item is accepted
+                // only if the cursor is still being honoured: a cursor taken after everything has settled must
+                // return nothing. A query that ignored the cursor would return the items again, and fail here.
+                val extras = returned - added
+                assertTrue(extras.all { it in before }, "anything else returned is an earlier fixture item")
+                if (extras.isNotEmpty()) {
+                    finding("incremental also returned $extras: the server saved them inside the window")
+                    delay(SETTLE_MS)
+                    val later = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+                    delay(SETTLE_MS)
+                    val again = adapter.libraryItems(session, library, 0, BIG_PAGE, later).getOrNull()
+                    assertNotNull(again)
+                    assertEquals(
+                        emptySet(),
+                        again.items.map { it.id.value }.toSet(),
+                        "a cursor taken after the changes returns nothing, so the cursor is honoured",
+                    )
+                }
+                val item = page.items.single { it.id.value == added }
                 assertNotNull(item.dateCreated)
                 assertTrue((item.runtime ?: 0.seconds) > 0.seconds)
             }
