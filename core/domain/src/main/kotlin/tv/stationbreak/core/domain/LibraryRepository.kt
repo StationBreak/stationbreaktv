@@ -87,6 +87,7 @@ interface AccountCache {
  *
  * All times are UTC instants (stored as milliseconds). The library stays readable with no network.
  */
+@Suppress("TooManyFunctions") // One port by decision: the reads, the signals and the choice of libraries stay together.
 interface LibraryRepository : AccountCache {
     /**
      * The state and the last-success time of [account]'s library, as a flow that emits the current value first and

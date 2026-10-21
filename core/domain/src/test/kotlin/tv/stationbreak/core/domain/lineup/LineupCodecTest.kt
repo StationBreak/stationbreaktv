@@ -89,7 +89,10 @@ class LineupCodecTest {
 
     @Test
     fun theBookkeepingFieldsAreKnownKeysAndAnythingElseStillMakesTheFileUnreadable() {
-        val known = tree().with("collectionPassActedOn", JsonPrimitive(5L)).with("syncsAwaitingCollections", JsonPrimitive(1))
+        val known =
+            tree()
+                .with("collectionPassActedOn", JsonPrimitive(5L))
+                .with("syncsAwaitingCollections", JsonPrimitive(1))
         assertIs<LineupCodec.Decoded.Loaded>(decode(known.toString()))
         val unknown = known.with("anotherNewField", JsonPrimitive(true))
         assertEquals(LineupCodec.Decoded.Unreadable, decode(unknown.toString()))

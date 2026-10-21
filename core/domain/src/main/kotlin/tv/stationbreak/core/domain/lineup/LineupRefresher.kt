@@ -105,7 +105,8 @@ class LineupRefresher(
                 .map { Trigger.Success }
         val backoff = Backoff(initialBackoffMs)
         // What the library's change count stood at when the last refresh began, kept for the process: a count that is
-        // still this is a library the lineup already follows. It starts at the count now, the state the start check judges.
+        // still this is a library the lineup already follows. It starts at the count now, which is the state the start
+        // check judges.
         val seen = Seen(library.contentChanges(account).first())
         merge(start, passes, successes)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
@@ -134,8 +135,10 @@ class LineupRefresher(
         }
 
     // Absent, not yet finalised, or planned from an older catalog than this app's.
-    private fun behind(held: Lineup?): Boolean =
-        held == null || !held.finalised || held.catalogVersion < service.catalog.version
+    private fun behind(held: Lineup?): Boolean {
+        val current = service.catalog.version
+        return held == null || !held.finalised || held.catalogVersion < current
+    }
 
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun act(

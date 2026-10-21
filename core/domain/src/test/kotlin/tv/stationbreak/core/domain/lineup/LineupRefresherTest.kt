@@ -275,7 +275,8 @@ class LineupRefresherTest {
             settle()
             job.cancelChildren()
 
-            assertEquals(earlier.toEpochMilliseconds(), saved().collectionPassActedOn, "the failed pass is not recorded")
+            val kept = saved().collectionPassActedOn
+            assertEquals(earlier.toEpochMilliseconds(), kept, "the failed pass is not recorded")
             val before = refreshes
             relaunch().start(scope)
             until("the next start refreshed") { refreshes == before + 1 }

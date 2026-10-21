@@ -97,14 +97,16 @@ class LineupPlannerTest {
         val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base)
         assertFalse(plain.finalised, "the default still waits")
 
-        val told = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base, withoutCollections = true)
+        val told =
+            LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base, withoutCollections = true)
         assertTrue(told.finalised)
         assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", told.onKeys())
     }
 
     @Test
     fun theRefreshersBookkeepingIsCarriedThroughEveryPlan() {
-        val kept = Lineup(SERVER, USER, 1, 0, false, emptyList(), collectionPassActedOn = 77L, syncsAwaitingCollections = 3)
+        val kept =
+            Lineup(SERVER, USER, 1, 0, false, emptyList(), collectionPassActedOn = 77L, syncsAwaitingCollections = 3)
         val waiting = planOf(kept, libraryOf(fills(), collectionsSynced = false), base)
         assertEquals(77L to 3, waiting.collectionPassActedOn to waiting.syncsAwaitingCollections)
 

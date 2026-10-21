@@ -193,19 +193,21 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val current = start.current ?: return
             val ms = pass.toEpochMilliseconds()
-            if (current.collectionPassActedOn == null || current.collectionPassActedOn == ms) return
-            val updated = current.copy(collectionPassActedOn = ms)
-            if (entry.writable) saveVerified(owner, updated)
-            val held = entry.state.value
-            if (held == null) publish(entry, updated) else entry.state.value = Revisioned(held.revision, updated)
-            entry.loaded = true
+            val current = start.current
+            val acted = current?.collectionPassActedOn
+            if (current != null && acted != null && acted != ms) {
+                val updated = current.copy(collectionPassActedOn = ms)
+                if (entry.writable) saveVerified(owner, updated)
+                val held = entry.state.value
+                if (held == null) publish(entry, updated) else entry.state.value = Revisioned(held.revision, updated)
+                entry.loaded = true
+            }
         }
     }
 
-    // The refresher's bookkeeping on the planned lineup: the pass taken in (only if the read holds its collections), and
-    // the syncs that found the lineup unfinalised with no pass in, counted while it is still unfinalised.
+    // The refresher's bookkeeping on the planned lineup: the pass taken in (only if the read holds its collections),
+    // and the syncs that found the lineup unfinalised with no pass in, counted while it is still unfinalised.
     private fun stamped(
         planned: Lineup,
         waited: Int,

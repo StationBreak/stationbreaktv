@@ -120,7 +120,10 @@ data class Lineup(
             syncsAwaitingCollections: Int = 0,
         ): Lineup? {
             val valid =
-                syncsAwaitingCollections >= 0 && uniqueIds(channels) && uniqueNumbers(channels) && onAreNumbered(channels)
+                syncsAwaitingCollections >= 0 &&
+                    uniqueIds(channels) &&
+                    uniqueNumbers(channels) &&
+                    onAreNumbered(channels)
             return if (valid) {
                 Lineup(
                     serverId,
