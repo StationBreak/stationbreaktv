@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -46,6 +47,11 @@ class Media3VideoPlayer(
     dataSource: DataSource.Factory,
     private val clock: () -> Long,
 ) : VideoPlayer {
+    init {
+        // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
+        silenceMedia3Logging()
+    }
+
     private val exo: ExoPlayer =
         ExoPlayer
             .Builder(context)
@@ -75,8 +81,13 @@ class Media3VideoPlayer(
         exo.addAnalyticsListener(Analytics())
     }
 
-    /** The player, for the host to attach to a video surface. Main thread only. */
-    val player: Player get() = exo
+    /** The Media3 player, for this module's instrumented tests. The app attaches a surface through [attach]. */
+    internal val player: Player get() = exo
+
+    override fun attach(surface: SurfaceView?) =
+        onPlayerThread {
+            if (surface == null) exo.clearVideoSurface() else exo.setVideoSurfaceView(surface)
+        }
 
     override fun play(source: PlayerSource): Long {
         val generation = nextGeneration.incrementAndGet()

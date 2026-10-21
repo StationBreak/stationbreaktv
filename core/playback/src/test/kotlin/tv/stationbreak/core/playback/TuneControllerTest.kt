@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import android.view.SurfaceView
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -82,6 +83,8 @@ private class FakeVideoPlayer : VideoPlayer {
         calls += "stop"
         stops++
     }
+
+    override fun attach(surface: SurfaceView?) = Unit
 
     override fun release() = Unit
 }

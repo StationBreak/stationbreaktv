@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import android.view.SurfaceView
 import kotlinx.coroutines.flow.SharedFlow
 import kotlin.time.Duration
 
@@ -60,6 +61,13 @@ interface VideoPlayer {
     fun play(source: PlayerSource): Long
 
     fun stop()
+
+    /**
+     * Shows the video on [surface], replacing any earlier one; null detaches it. Runs on the player's looper, so it
+     * may be called from any thread, and it works before the first [play]. The app attaches through this, so Media3
+     * types stay inside this module.
+     */
+    fun attach(surface: SurfaceView?)
 
     fun release()
 }

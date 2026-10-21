@@ -136,6 +136,15 @@ class Media3VideoPlayerTest {
         assertTrue("landed ${second.position}, asked for 5 s", error <= SeekCheck.TOLERANCE)
     }
 
+    @Test
+    fun aSurfaceCanBeDetachedThroughTheInterfaceBeforeAnyPlay() {
+        // The app attaches through VideoPlayer, never through the Media3 player.
+        val video: VideoPlayer = player
+        video.attach(null)
+        video.play(sourceAt(Duration.ZERO))
+        awaitPlaying()
+    }
+
     private companion object {
         val WAIT = 30.seconds
     }

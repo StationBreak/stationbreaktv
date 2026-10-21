@@ -25,11 +25,16 @@ data class TrackPick(
     val codec: String?,
 )
 
-/** A WebVTT file the player loads beside the video. The [url] carries no credential (ADR-0016). */
+/**
+ * A WebVTT file the player loads beside the video. The [url] carries no credential (ADR-0016), but it is still a
+ * server address, so [toString] does not show it.
+ */
 data class SeparateSubtitle(
     val url: String,
     val language: String?,
-)
+) {
+    override fun toString(): String = "SeparateSubtitle(language=$language, url=<not shown>)"
+}
 
 /**
  * What the player is handed. [url] is a secret as far as logs go (ADR-0016): [toString] does not show it.
