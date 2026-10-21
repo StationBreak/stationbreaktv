@@ -291,6 +291,8 @@ class LineupRefresherTest {
             library.delegate.setCollectionsSynced(ACCOUNT, false)
             refresher().start(scope)
             until("start refresh") { refreshes >= 1 }
+            // The refresh counts when it reads the snapshot; wait for its save before looking at the lineup.
+            until("start refresh saved") { service.loaded(ACCOUNT) != null }
             assertEquals(false, service.loaded(ACCOUNT)?.lineup?.finalised)
 
             // The second pass fails after the start refresh: nothing announces it, and the next sync is the trigger.
@@ -303,8 +305,11 @@ class LineupRefresherTest {
             library.delegate.setCollectionsSynced(ACCOUNT, true)
             val pass = Instant.parse("2026-10-20T09:00:00Z")
             library.delegate.completeCollectionPass(ACCOUNT, pass)
-            until("the pass was taken in") { refreshes == before + 1 }
-            assertEquals(pass.toEpochMilliseconds(), checkNotNull(service.loaded(ACCOUNT)).meta.collectionPassActedOn)
+            until("the pass was taken in") {
+                service.loaded(ACCOUNT)?.meta?.collectionPassActedOn == pass.toEpochMilliseconds()
+            }
+            settle()
+            assertEquals(before + 1, refreshes, "one refresh took the pass in")
         }
 
     @Test
