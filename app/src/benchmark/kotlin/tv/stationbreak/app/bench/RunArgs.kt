@@ -22,6 +22,9 @@ data class RunArgs(
     val runId: String,
 ) {
     companion object {
+        const val MAX_ITEMS = 200
+        const val MAX_LABEL = 64
+
         /** Throws [IllegalArgumentException] for a missing item list or an array whose length is not the item count. */
         @Suppress("LongParameterList") // The extras, one for one.
         fun parse(
@@ -34,6 +37,8 @@ data class RunArgs(
             runId: String?,
         ): RunArgs {
             require(!items.isNullOrEmpty()) { "no items to play" }
+            require(items.size <= MAX_ITEMS) { "more than $MAX_ITEMS items" }
+            require(startsMs == null || startsMs.all { it >= 0 }) { "a negative start" }
             require(startsMs == null || startsMs.size == items.size) { "starts_ms has ${startsMs?.size} entries" }
             require(audio == null || audio.size == items.size) { "audio has ${audio?.size} entries" }
             require(subtitles == null || subtitles.size == items.size) { "subtitles has ${subtitles?.size} entries" }
@@ -47,7 +52,8 @@ data class RunArgs(
                         }
                     Play(item, startsMs?.get(i) ?: 0L, track)
                 }
-            return RunArgs(plays, section.orEmpty().ifBlank { "unnamed" }, runId.orEmpty().ifBlank { "none" })
+            val name = section.orEmpty().take(MAX_LABEL).ifBlank { "unnamed" }
+            return RunArgs(plays, name, runId.orEmpty().take(MAX_LABEL).ifBlank { "none" })
         }
     }
 }

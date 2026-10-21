@@ -65,6 +65,11 @@ internal object BenchTestData {
     val video = stream(0, StreamKind.VIDEO, Codecs.HEVC, width = 1920, height = 1080, bitDepth = 10)
     val audio = stream(1, StreamKind.AUDIO, "dts", channels = 6)
 
+    fun subtitleOf(
+        codec: String,
+        delivery: SubtitleDelivery,
+    ) = stream(4, StreamKind.SUBTITLE, codec, delivery = delivery)
+
     fun textSubtitle() = stream(2, StreamKind.SUBTITLE, "subrip", delivery = SubtitleDelivery.IN_STREAM)
 
     fun imageSubtitle() = stream(3, StreamKind.SUBTITLE, "pgssub", delivery = SubtitleDelivery.BURNED_IN)

@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.MediaStreamInfo
+import tv.stationbreak.core.model.SubtitleDelivery
 import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneFailure
 import tv.stationbreak.core.playback.TuneResult
@@ -65,6 +66,27 @@ class PlaybackResultTest {
         assertEquals("image", image.subtitle)
         assertEquals(true, image.subtitleOk)
         assertTrue(image.burnIn)
+    }
+
+    // The rule: a subtitle is an image by its codec, whatever the server does with it. An image must be burned in; a
+    // text one needs cues, or the server burning it in is the evidence instead.
+    @Test
+    fun anImageSubtitleIsDecidedByCodecAndMustBeBurnedIn() {
+        val notBurned = BenchTestData.subtitleOf("pgssub", SubtitleDelivery.IN_STREAM)
+        val r = result(subtitle = notBurned, watch = Watch(0, 5, 12_000))
+        assertEquals("image", r.subtitle)
+        assertEquals(false, r.subtitleOk)
+        assertFalse(r.burnIn)
+    }
+
+    @Test
+    fun aTextSubtitleTheServerBurnedInIsOkWithoutCues() {
+        val burned = BenchTestData.subtitleOf("subrip", SubtitleDelivery.BURNED_IN)
+        val r = result(Route.TRANSCODE, Route.TRANSCODE, subtitle = burned, watch = Watch(0, 0, 12_000))
+        assertEquals("text-in-stream", r.subtitle)
+        assertTrue(r.burnIn)
+        assertEquals(true, r.subtitleOk)
+        assertEquals(false, result(subtitle = BenchTestData.textSubtitle(), watch = Watch(0, 0, 12_000)).subtitleOk)
     }
 
     @Test

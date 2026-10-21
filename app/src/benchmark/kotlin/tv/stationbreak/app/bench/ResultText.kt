@@ -8,10 +8,8 @@ import tv.stationbreak.core.playback.Route
 
 // The words a result line uses for a file's tracks and for the route. Plain facts: no ID, title or URL.
 
-internal fun isImage(stream: MediaStreamInfo): Boolean {
-    val burnedIn = stream.delivery == SubtitleDelivery.BURNED_IN
-    return burnedIn || Codecs.isImageSubtitle(stream.codec)
-}
+/** An image subtitle is one by its codec, whatever the server does with it. */
+internal fun isImage(stream: MediaStreamInfo): Boolean = Codecs.isImageSubtitle(stream.codec)
 
 internal fun subtitleClass(chosen: MediaStreamInfo?): String =
     when {

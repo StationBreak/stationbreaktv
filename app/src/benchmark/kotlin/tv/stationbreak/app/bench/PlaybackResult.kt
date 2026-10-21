@@ -171,8 +171,11 @@ data class PlaybackResult(
         ): Boolean? =
             when {
                 chosen == null -> null
+
                 isImage(chosen) -> burnIn
-                else -> watch.cues > 0
+
+                // Text: cues seen, or the server burned it into the picture, which leaves no cues to count.
+                else -> watch.cues > 0 || burnIn
             }
     }
 }

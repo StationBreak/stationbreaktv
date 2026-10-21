@@ -43,6 +43,29 @@ class RunArgsTest {
     }
 
     @Test
+    fun aNegativeStartIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) {
+            RunArgs.parse(arrayOf("a"), longArrayOf(-1), null, null, false, "s", "r")
+        }
+    }
+
+    @Test
+    fun moreThanTwoHundredItemsAreRejected() {
+        val many = Array(201) { "i$it" }
+        assertThrows(IllegalArgumentException::class.java) {
+            RunArgs.parse(many, null, null, null, false, "s", "r")
+        }
+        assertEquals(200, RunArgs.parse(Array(200) { "i$it" }, null, null, null, false, "s", "r").plays.size)
+    }
+
+    @Test
+    fun sectionAndRunIdAreCutToSixtyFourCharacters() {
+        val args = RunArgs.parse(arrayOf("a"), null, null, null, false, "s".repeat(100), "r".repeat(65))
+        assertEquals(64, args.section.length)
+        assertEquals(64, args.runId.length)
+    }
+
+    @Test
     fun minusOneMeansNoOverride() {
         val withOverride = RunArgs.parse(arrayOf("a"), null, intArrayOf(-1), intArrayOf(-1), true, "s", "r")
         // Audio -1: the server's default. Subtitles -1 with the override on: subtitles off.

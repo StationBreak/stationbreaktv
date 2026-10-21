@@ -16,6 +16,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tv.stationbreak.app.playback.CurrentSession
 import tv.stationbreak.app.playback.DeviceCapabilitiesCache
 import tv.stationbreak.core.domain.MediaServer
@@ -68,6 +69,7 @@ class PlaybackTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        ResultsFile.trimIfLarge(File(filesDir, RESULTS_FILE))
         val args = parseArgs() ?: return finish()
         val surface = SurfaceView(this)
         setContentView(surface)
@@ -85,7 +87,8 @@ class PlaybackTestActivity : ComponentActivity() {
                 emit("ERROR run-failed")
             }
             emit("DONE ${args.runId}")
-            finish()
+            // Activity calls belong on the main thread.
+            withContext(Dispatchers.Main) { finish() }
         }
     }
 
