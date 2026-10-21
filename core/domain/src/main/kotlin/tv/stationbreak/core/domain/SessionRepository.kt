@@ -3,6 +3,9 @@ package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -57,6 +60,15 @@ class SessionRepository(
     cache: AccountCache = AccountCache.None,
 ) {
     private val library = TolerantCache(cache)
+    private val held = MutableStateFlow<Session?>(null)
+
+    /**
+     * The signed-in session, held in memory for whoever needs it after sign-in (the player's media requests read it
+     * on every call). The one holder: [save], a confirmed [restore] and a confirmed [verify] set it; [clear],
+     * [signOut] (whether or not the server revoked the token) and a fatal [onServerError] null it. It holds the token,
+     * so it is never printed.
+     */
+    val current: StateFlow<Session?> = held.asStateFlow()
 
     /**
      * Stores [session]. Its account becomes the active one in the saved library, whether or not the token reached
@@ -64,6 +76,7 @@ class SessionRepository(
      */
     suspend fun save(session: Session): PersistOutcome {
         val outcome = write(session.toStored())
+        held.value = session
         library.activate(session.libraryAccount())
         return outcome
     }
@@ -116,6 +129,7 @@ class SessionRepository(
         }
         return when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
+                held.value = result.value
                 RestoreOutcome.Restored(result.value)
             }
 
@@ -131,6 +145,7 @@ class SessionRepository(
         when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
                 if (result.value.address != stored.address) write(result.value.toStored())
+                held.value = result.value
                 library.activate(result.value.libraryAccount())
                 RestoreOutcome.Restored(result.value)
             }
@@ -166,6 +181,7 @@ class SessionRepository(
     }
 
     suspend fun clear() {
+        held.value = null
         store.clear(SESSION_KEY)
     }
 
