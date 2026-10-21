@@ -289,6 +289,48 @@ internal abstract class LibraryDao {
         total: Int,
     )
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun ensureMeta(row: SyncMetaEntity)
+
+    @Query(
+        "UPDATE sync_meta SET contentGeneration = contentGeneration + 1 " +
+            "WHERE serverId = :serverId AND userId = :userId",
+    )
+    abstract suspend fun raiseGeneration(
+        serverId: String,
+        userId: String,
+    )
+
+    /**
+     * Raises the account's content generation by one. Call it inside the transaction of the write that changed rows,
+     * so a rollback takes the bump with it.
+     */
+    suspend fun bumpGeneration(
+        serverId: String,
+        userId: String,
+    ) {
+        ensureMeta(SyncMetaEntity(serverId, userId, 0L))
+        raiseGeneration(serverId, userId)
+    }
+
+    @Query("SELECT contentGeneration FROM sync_meta WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun generation(
+        serverId: String,
+        userId: String,
+    ): Long?
+
+    @Query("DELETE FROM sync_meta WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun deleteMeta(
+        serverId: String,
+        userId: String,
+    )
+
+    @Query("DELETE FROM sync_meta WHERE NOT (serverId = :serverId AND userId = :userId)")
+    abstract suspend fun deleteOtherMeta(
+        serverId: String,
+        userId: String,
+    )
+
     @Query("DELETE FROM account_state WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun deleteState(
         serverId: String,
@@ -386,7 +428,9 @@ internal abstract class LibraryDao {
         if (activeCount(serverId, userId) == 0) return
         // A "NOT IN" list can't be chunked, so find the libraries to drop here and delete them in chunks.
         val keep = chosen.toSet()
-        libraryIds(serverId, userId).filter { it !in keep }.chunked(MAX_VARIABLES).forEach {
+        val held = libraryIds(serverId, userId)
+        if (held.toSet() != keep) bumpGeneration(serverId, userId)
+        held.filter { it !in keep }.chunked(MAX_VARIABLES).forEach {
             deleteLibrariesIn(serverId, userId, it)
         }
         val rows = chosen.map { LibraryEntity(serverId, userId, it, fetched = false) }

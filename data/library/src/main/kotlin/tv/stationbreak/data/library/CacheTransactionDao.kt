@@ -93,6 +93,9 @@ internal abstract class CacheTransactionDao(
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
         val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
+        // Inside this transaction, so a write that rolls back leaves the generation as it was.
+        val changed = changedIds.isNotEmpty() || seriesWrite.inserted + seriesWrite.updated > 0
+        if (changed) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
         return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite)
@@ -148,6 +151,7 @@ internal abstract class CacheTransactionDao(
         library.requireActive(serverId, userId)
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, atMs)
         supersedeMembersIn(serverId, userId, ids, atMs)
+        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
     }
 
     private suspend fun supersedeMembersIn(
@@ -216,6 +220,7 @@ internal abstract class CacheTransactionDao(
     ) {
         library.requireActive(serverId, userId)
         reviveItemsIn(serverId, userId, ids, nowMs)
+        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
     }
 
     private suspend fun reviveItemsIn(
@@ -263,6 +268,8 @@ internal abstract class CacheTransactionDao(
         betweenTombstonesAndRevives?.invoke()
         reviveItemsIn(serverId, userId, itemsReturning, nowMs)
         reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
+        val items = itemsGone.isNotEmpty() || itemsReturning.isNotEmpty()
+        if (items || seriesGone.isNotEmpty() || seriesReturning.isNotEmpty()) library.bumpGeneration(serverId, userId)
     }
 
     /**
@@ -347,6 +354,8 @@ internal abstract class CacheTransactionDao(
             betweenCollectionAndMembers?.invoke()
             collections.insertMembers(plan.add)
         }
+        // A write that found the collection as stored (no stamp) changed no row.
+        if (stamp != null || plan.insert != null || plan.revived) library.bumpGeneration(serverId, userId)
         return CollectionWrite(stamp, plan.insert != null, plan.revived, plan.add.size, plan.removed.size)
     }
 
@@ -360,6 +369,7 @@ internal abstract class CacheTransactionDao(
     ) {
         library.requireActive(serverId, userId)
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) collections.tombstone(serverId, userId, chunk, atMs)
+        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
     }
 
     /**
@@ -393,6 +403,7 @@ internal abstract class CacheTransactionDao(
         collections.deleteOtherCollections(serverId, userId)
         collections.deleteOtherSyncRows(serverId, userId)
         library.deleteOtherStates(serverId, userId)
+        library.deleteOtherMeta(serverId, userId)
         library.deleteOtherActive(serverId, userId)
         library.insertActive(ActiveAccountEntity(serverId, userId))
     }
@@ -407,6 +418,7 @@ internal abstract class CacheTransactionDao(
         collections.deleteCollections(serverId, userId)
         collections.deleteSyncRow(serverId, userId)
         library.deleteState(serverId, userId)
+        library.deleteMeta(serverId, userId)
         library.deleteActive(serverId, userId)
     }
 

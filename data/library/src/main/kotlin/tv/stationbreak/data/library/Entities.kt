@@ -287,6 +287,19 @@ internal data class CollectionSyncEntity(
     val lastRelistMs: Long?,
 )
 
+/**
+ * What the lineup needs to know about the saved library of one account, kept beside it and deleted with it.
+ * [contentGeneration] only goes up: every committed write that changes an item, series or collection row bumps it in
+ * the same transaction (a write that changes no row, and a rolled-back one, do not). A cache rebuild drops the table,
+ * so the generation then starts again from zero.
+ */
+@Entity(tableName = "sync_meta", primaryKeys = ["serverId", "userId"])
+internal data class SyncMetaEntity(
+    val serverId: String,
+    val userId: String,
+    val contentGeneration: Long,
+)
+
 /** One genre of an item, at [position] so the server's order is kept. */
 @Entity(
     tableName = "item_genre",

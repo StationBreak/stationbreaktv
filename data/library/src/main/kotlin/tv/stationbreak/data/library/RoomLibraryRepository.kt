@@ -174,6 +174,12 @@ class RoomLibraryRepository internal constructor(
     // sync that finds nothing leaves it alone. Kept in memory: a restart begins again from zero.
     override fun contentChanges(account: LibraryAccount): Flow<Long> = changes
 
+    // A suspend read, not a Flow: the one reader decides at a trigger or at start, and nothing needs pushing to it.
+    override suspend fun contentGeneration(account: LibraryAccount): Long {
+        val (server, user) = account.keys()
+        return dao.generation(server, user) ?: 0L
+    }
+
     private fun noteChange(changed: Boolean = true) {
         if (changed) changes.value += 1L
     }

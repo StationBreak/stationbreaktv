@@ -7,6 +7,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -14,9 +15,9 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * Issue #309: what the lineup refresher learns about the library. A launch sync that finds nothing (the reconcile and
  * the collection pass of every app open) must not look like a change, even though it records a new collection pass and
- * may move the last-success time; a sync that writes anything must. `contentChanges` is that signal.
+ * may move the last-success time; a sync that writes anything must. `contentGeneration` is that signal: durable, per account, and bumped inside the transaction of the write.
  */
-class ContentChangesTest {
+class ContentGenerationTest {
     private val rig = StayCurrentRig()
     private val repository get() = rig.repository
     private val both = SyncPlan(incremental = true, reconcile = true)
@@ -25,7 +26,7 @@ class ContentChangesTest {
     @After
     fun close() = rig.close()
 
-    private suspend fun changes() = repository.contentChanges(ALICE).first()
+    private suspend fun changes() = repository.contentGeneration(ALICE)
 
     private suspend fun pass() = repository.collectionPassCompleted(ALICE).first()
 
@@ -128,32 +129,80 @@ class ContentChangesTest {
             val repo = collections.repository
             (1..2).forEach { collections.serve(it, *collections.movies(it * 10)) }
             collections.run()
-            val first = repo.contentChanges(ALICE).first()
+            val first = repo.contentGeneration(ALICE)
             assertNotEquals(0L, first)
 
             collections.clock.stepMs(30 * 60_000)
             collections.run()
-            assertEquals("a pass over what is stored", first, repo.contentChanges(ALICE).first())
+            assertEquals("a pass over what is stored", first, repo.contentGeneration(ALICE))
 
             collections.clock.stepMs(30 * 60_000)
             collections.saved(2)
             collections.source.members.getValue(collections.box(2)) += collections.movies(99)
             collections.run()
-            val edited = repo.contentChanges(ALICE).first()
+            val edited = repo.contentGeneration(ALICE)
             assertNotEquals(first, edited)
 
             collections.source.collections.removeAll { it.id == collections.box(1) }
             collections.clock.stepMs(30 * 60_000)
             collections.run()
-            assertNotEquals(edited, repo.contentChanges(ALICE).first())
+            assertNotEquals(edited, repo.contentGeneration(ALICE))
             repo.close()
         }
 
     @Test
-    fun theCountStartsAgainAtZeroInANewProcess() =
+    fun aWriteThatRollsBackLeavesTheGenerationAndTheRowsAsTheyWere() =
         runBlocking {
-            val fresh = TestLibraries.inMemory(FakeClock(), signedIn = listOf(ALICE))
-            assertEquals(0L, fresh.contentChanges(ALICE).first())
-            fresh.close()
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            val before = changes()
+            repository.faultBetweenItemsAndCheckpoint = { error("the write died") }
+
+            val failed = runCatching { repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 1))) }
+
+            assertTrue(failed.isFailure)
+            assertEquals("the bump went back with the write", before, changes())
+            assertEquals(1, repository.stored(ALICE).size)
+        }
+
+    @Test
+    fun aCommittedWriteThatChangedRowsRaisesItAndOnlyThatAccountsMovesIt() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            assertEquals(0L, repository.contentGeneration(BOB))
+
+            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+
+            assertNotEquals(0L, changes())
+            assertEquals("another account's generation is its own", 0L, repository.contentGeneration(BOB))
+        }
+
+    @Test
+    fun theGenerationOnlyGoesUpAndSurvivesReopeningTheSameDatabase() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            val seen = mutableListOf(changes())
+            for (n in 0 until 3) {
+                repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", n)))
+                seen += changes()
+            }
+            assertEquals(seen.sorted(), seen)
+            assertEquals(seen.distinct(), seen)
+        }
+
+    @Test
+    fun anotherAccountSigningInDropsTheOldOnesGeneration() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            assertNotEquals(0L, changes())
+
+            repository.useAccount(BOB)
+
+            assertEquals("the rows went, so the number starts again", 0L, changes())
         }
 }

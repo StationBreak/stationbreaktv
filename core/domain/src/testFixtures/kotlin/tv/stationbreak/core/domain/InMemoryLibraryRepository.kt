@@ -343,6 +343,8 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
+    override suspend fun contentGeneration(account: LibraryAccount): Long = changes.value[account] ?: 0L
+
     override fun contentChanges(account: LibraryAccount): Flow<Long> = changes.map { it[account] ?: 0L }.distinctUntilChanged()
 
     @Suppress("OVERRIDE_DEPRECATION")
