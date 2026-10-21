@@ -127,6 +127,10 @@ class TuneController(
         start: Duration,
         override: TrackOverride?,
     ): TuneResult {
+        // An earlier tune's play that is still current (a flip after it returned Played): end its encode now. A
+        // cancelled tune already released its own attempt, so nothing is stopped twice. The player is left running:
+        // the new play replaces the item.
+        withContext(NonCancellable) { abandonEncode(session) }
         val began = clock()
         var fallback = false
         var attempt = attempt(session, item, start, override, false, began)

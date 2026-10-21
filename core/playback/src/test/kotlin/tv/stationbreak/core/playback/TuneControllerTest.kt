@@ -518,6 +518,29 @@ class TuneControllerTest {
         }
 
     @Test
+    fun aNewTuneStopsThePreviousPlaysEncode() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(1_300, Duration.ZERO))
+            played()
+            assertTrue(server.stoppedEncodes.isEmpty())
+            played()
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+            // The player is not stopped in between: the new play replaces the item.
+            assertEquals(listOf("play", "play"), player.calls)
+        }
+
+    @Test
+    fun aNewTuneAfterDirectPlayStopsNoEncode() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(1_300, Duration.ZERO))
+            played()
+            played()
+            assertTrue(server.stoppedEncodes.isEmpty())
+        }
+
+    @Test
     fun aSupersedingPlayIsNotDisturbedByTheCancelledOnesCleanUp() =
         runTest {
             answer(transcode)
