@@ -32,6 +32,8 @@ class MediaServerInjectionTest {
 
     @Inject lateinit var mediaServer: MediaServer
 
+    @Inject lateinit var adapter: JellyfinMediaServer
+
     @Inject @BaseHttpClient
     lateinit var baseClient: HttpClientSource
 
@@ -49,6 +51,12 @@ class MediaServerInjectionTest {
     @Test
     fun theGraphResolvesThePortToTheAdapter() {
         assertTrue("MediaServer is ${mediaServer::class.java.name}", mediaServer is JellyfinMediaServer)
+    }
+
+    /** Spec 13: one adapter, so the media client is cleared by the same sign-in as the API calls (ADR-0016). */
+    @Test
+    fun thePortAndTheMediaClientShareOneAdapter() {
+        assertTrue(mediaServer === adapter)
     }
 
     @Test
