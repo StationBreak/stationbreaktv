@@ -23,8 +23,10 @@ import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
+import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
@@ -239,7 +241,14 @@ class JellyfinMediaServer internal constructor(
     override suspend fun playbackInfo(
         session: Session,
         item: ItemId,
-    ): ServerResult<PlaybackInfo> = media.playbackInfo(session, item)
+        request: PlaybackRequest,
+    ): ServerResult<PlaybackInfo> = media.playbackInfo(session, item, request)
+
+    // Task 2 (spec 13) makes the real call; until then no encode is started, so there is nothing to stop.
+    override suspend fun stopEncoding(
+        session: Session,
+        playSession: PlaySessionId,
+    ): ServerResult<Unit> = ServerResult.Failure(MediaServerError.Unknown())
 
     override suspend fun reportStart(
         session: Session,

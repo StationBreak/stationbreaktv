@@ -22,9 +22,11 @@ import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
@@ -266,7 +268,9 @@ internal class MediaCalls(
     suspend fun playbackInfo(
         session: Session,
         item: ItemId,
+        @Suppress("UNUSED_PARAMETER") request: PlaybackRequest,
     ): ServerResult<PlaybackInfo> =
+        // Task 2 (spec 13) builds the device profile and start/track choices from the request.
         calls.send(session, Endpoint.post("Items/${item.value}/PlaybackInfo", PlaybackProfile.BODY)).flatMap { text ->
             Wire.parse(text, PlaybackInfoDto.serializer()).flatMap { info ->
                 if (info.errorCode != null) {
@@ -410,7 +414,19 @@ private class DirectStreamUrls(
     private val item: ItemId,
     private val playSession: PlaySessionId?,
 ) : StreamUrls {
-    override fun directStream(source: MediaSourceId): String {
+    // Task 2 (spec 13) builds the HLS and subtitle URLs.
+    override fun hls(
+        source: MediaSourceId,
+        request: PlaybackRequest,
+        burnIn: Int?,
+    ): String = throw NotImplementedError("Task 2")
+
+    override fun subtitle(
+        source: MediaSourceId,
+        stream: MediaStreamInfo,
+    ): String? = throw NotImplementedError("Task 2")
+
+    override fun original(source: MediaSourceId): String {
         val base = checkNotNull(address.baseUrl.toHttpUrlOrNull()) { "A stored address is always a URL" }
         return base
             .newBuilder()

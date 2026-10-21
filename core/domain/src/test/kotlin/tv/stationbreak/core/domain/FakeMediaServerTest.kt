@@ -9,6 +9,7 @@ import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionMemberKind
 import tv.stationbreak.core.model.CollectionMemberPage
 import tv.stationbreak.core.model.CollectionPage
+import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
@@ -18,7 +19,9 @@ import tv.stationbreak.core.model.LibraryItemsPage
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
@@ -196,6 +199,32 @@ class FakeMediaServerTest {
             assertFailsWith<IllegalArgumentException> { fake.collections(session(), -1, 10) }
             assertFailsWith<IllegalArgumentException> { fake.collectionIds(session(), 0, tooMany) }
             assertFailsWith<IllegalArgumentException> { fake.collectionMembers(session(), ItemId("box"), 0, 0) }
+        }
+    }
+
+    @Test
+    fun playbackInfoRecordsTheRequest() {
+        runBlocking {
+            val fake = FakeMediaServer()
+            val capabilities = DeviceCapabilities(setOf("mp4"), emptyList(), setOf("aac"), emptySet(), 2)
+            val request =
+                PlaybackRequest(capabilities, 90.seconds, audioIndex = 1, subtitleIndex = null, forceTranscode = true)
+
+            val result = fake.playbackInfo(session(), ItemId("i1"), request)
+
+            assertEquals(fake.playbackInfoResult, result)
+            assertEquals(listOf(ItemId("i1") to request), fake.playbackInfoCalls)
+        }
+    }
+
+    @Test
+    fun stopEncodingIsRecorded() {
+        runBlocking {
+            val fake = FakeMediaServer()
+
+            assertEquals(ServerResult.Success(Unit), fake.stopEncoding(session(), PlaySessionId("p1")))
+
+            assertEquals(listOf(PlaySessionId("p1")), fake.stoppedEncodes)
         }
     }
 }
