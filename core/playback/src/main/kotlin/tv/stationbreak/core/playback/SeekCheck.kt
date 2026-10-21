@@ -13,15 +13,20 @@ sealed interface SeekVerdict {
     ) : SeekVerdict
 }
 
-/** Did a start or a seek land where it was asked to? A diagnostic: playback is never changed by it. */
+/**
+ * Did a start or a seek land where it was asked to? It only judges: [TuneController] acts on a miss by falling back
+ * once to a transcode that starts at the requested time (ADR-0016, 4), and judges that retry with the same tolerance.
+ */
 object SeekCheck {
+    /** The default tolerance: 2 s either way. [TuneController] takes its own, so the app can configure it. */
     val TOLERANCE: Duration = 2.seconds
 
     fun check(
         requested: Duration,
         actual: Duration,
+        tolerance: Duration = TOLERANCE,
     ): SeekVerdict {
         val error = (actual - requested).absoluteValue
-        return if (error <= TOLERANCE) SeekVerdict.Landed else SeekVerdict.Missed(error)
+        return if (error <= tolerance) SeekVerdict.Landed else SeekVerdict.Missed(error)
     }
 }

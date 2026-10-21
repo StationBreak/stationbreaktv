@@ -71,21 +71,28 @@ sealed interface TuneResult {
 }
 
 /**
- * Tunes an item: resolve, play, check where playback landed, and fall back once to a forced transcode when it missed
- * or failed (ADR-0016, 4). An expired session (HTTP 401 or 403 on a media load) never falls back. Every encode it
- * starts and abandons is stopped (ADR-0016, 5). Nothing here is logged. A [ResolvedPlayback] it returns holds the
+ * Tunes an item: resolve, play, check where playback landed (within [seekTolerance], 2 s by default), and fall back
+ * once to a forced transcode when it missed by more or failed (ADR-0016, 4). The transcode starts at the requested
+ * time and is judged with the same tolerance; if it misses too, [TuneResult.Played.positionError] says so. An expired session (HTTP 401 or 403 on a media load) never falls back. Every encode it
+ * starts and abandons is stopped (ADR-0016, 5). Nothing here is logged. A timeout on direct play does not fall back.
+ * When a tune ends with anything but [TuneResult.Played] the controller has already stopped the player and the
+ * encode, so the caller need not call [stop]. A [ResolvedPlayback] it returns holds the
  * stream URL, which is a secret: its `toString` hides it, so do not read it out for a log or a report.
  */
 class TuneController(
     private val resolver: PlaybackResolver,
     private val server: MediaServer,
     private val player: VideoPlayer,
+    private val seekTolerance: Duration = SeekCheck.TOLERANCE,
     private val clock: () -> Long,
 ) {
     /** The attempt now on the player, so [stop] can end its encode. */
     @Volatile private var current: ResolvedPlayback? = null
     private val lock = Mutex()
     private val inFlight = AtomicReference<Deferred<TuneResult>?>(null)
+
+    /** The tune [stop] cancelled, so it reports [TuneResult.Stopped] and not [TuneResult.Superseded]. */
+    private val stopped = AtomicReference<Deferred<TuneResult>?>(null)
 
     /**
      * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns [TuneResult.Superseded])
@@ -107,9 +114,10 @@ class TuneController(
             ) {
                 // Cancelled by a newer tune: report it. Cancelled from outside: ensureActive rethrows.
                 currentCoroutineContext().ensureActive()
-                TuneResult.Superseded
+                if (stopped.get() === mine) TuneResult.Stopped else TuneResult.Superseded
             } finally {
                 inFlight.compareAndSet(mine, null)
+                stopped.compareAndSet(mine, null)
             }
         }
 
@@ -124,11 +132,13 @@ class TuneController(
         var attempt = attempt(session, item, start, override, false, began)
         while (!fallback && attempt.canFallBack) {
             fallback = true
-            attempt.resolved?.let { stopEncode(session, it) }
+            abandonEncode(session)
             val next = attempt(session, item, start, override, true, began)
             // A fallback that could not even resolve leaves the first attempt's route on record.
             attempt = if (next is Broke && next.resolved == null) next.copy(resolved = attempt.resolved) else next
         }
+        // The caller is told nothing is playing, so nothing is left running (stop() is not needed after this).
+        if (attempt is Broke) withContext(NonCancellable) { release(session) }
         return when (attempt) {
             is Landed -> {
                 TuneResult.Played(
@@ -150,11 +160,29 @@ class TuneController(
         }
     }
 
-    /** Stops the player, then the server's encode for the current play session, if there is one. */
+    /**
+     * Ends what is playing: cancels the tune in flight (which returns [TuneResult.Stopped] and never plays after
+     * this), then, once it has finished unwinding, stops the player and the server's encode for the current play
+     * session, if there is one. It takes the same lock as [tune], so it never overlaps a tune's own steps.
+     */
     suspend fun stop(session: Session) {
+        inFlight.get()?.let {
+            stopped.set(it)
+            it.cancel()
+        }
+        lock.withLock { withContext(NonCancellable) { release(session) } }
+    }
+
+    /** Stops the player and the encode of the current attempt, and forgets it. */
+    private suspend fun release(session: Session) {
+        player.stop()
+        abandonEncode(session)
+    }
+
+    /** Stops the server's encode for the current attempt, if there is one, and forgets the attempt. */
+    private suspend fun abandonEncode(session: Session) {
         val last = current
         current = null
-        player.stop()
         if (last != null) stopEncode(session, last)
     }
 
@@ -226,21 +254,21 @@ class TuneController(
     ): Attempt {
         val resolution = resolve(session, item, start, override, forceTranscode)
         val resolved = resolution.resolved ?: return checkNotNull(resolution.broke)
+        // A stop or a newer tune during the resolve must not be followed by a play.
+        currentCoroutineContext().ensureActive()
         current = resolved
         val result =
             try {
                 playAndWait(resolved.source)
             } catch (e: CancellationException) {
-                // Superseded or cancelled mid-wait: nothing may keep loading.
-                withContext(NonCancellable) { stopEncode(session, resolved) }
+                // Superseded, stopped or cancelled mid-wait: nothing may keep loading. A newer tune only starts
+                // after this one has unwound, so its play is never disturbed by this clean-up.
+                withContext(NonCancellable) { release(session) }
                 throw e
             }
         return when (result) {
             Wait.TimedOut -> {
-                // Nothing played: stop what is loading, on the player and on the server.
-                current = null
-                player.stop()
-                stopEncode(session, resolved)
+                // Nothing played; run() stops what is loading, on the player and on the server.
                 Broke(resolved, TuneFailure.TIMEOUT, TIMEOUT)
             }
 
@@ -273,7 +301,7 @@ class TuneController(
         forced: Boolean,
     ): Attempt {
         val actual = resolved.source.serverOffset + landing.playing.position
-        val verdict = SeekCheck.check(resolved.requested, actual)
+        val verdict = SeekCheck.check(resolved.requested, actual, seekTolerance)
         val missed = verdict as? SeekVerdict.Missed
         return Landed(
             resolved,

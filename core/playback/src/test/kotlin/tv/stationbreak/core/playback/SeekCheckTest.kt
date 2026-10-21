@@ -24,6 +24,15 @@ class SeekCheckTest {
     }
 
     @Test
+    fun theToleranceCanBeSet() {
+        assertEquals(SeekVerdict.Landed, SeekCheck.check(10.minutes, 10.minutes + 5.seconds, 5.seconds))
+        assertEquals(
+            SeekVerdict.Missed(5001.milliseconds),
+            SeekCheck.check(10.minutes, 10.minutes + 5001.milliseconds, 5.seconds),
+        )
+    }
+
+    @Test
     fun landingEarlyCountsToo() {
         assertEquals(SeekVerdict.Landed, SeekCheck.check(10.minutes, 10.minutes - 1.seconds))
     }

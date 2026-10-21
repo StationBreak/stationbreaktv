@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -18,12 +19,15 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
+import tv.stationbreak.core.model.PlaybackRequest
+import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackTestData.insigniaLike
 import tv.stationbreak.core.playback.PlaybackTestData.source
 import kotlin.time.Duration
@@ -54,6 +58,7 @@ private class FakeVideoPlayer : VideoPlayer {
 
     override fun play(source: PlayerSource): Long {
         val attempt = played.size
+        calls += "play"
         played += source
         val mine = ++generation
         onPlay(attempt)
@@ -70,7 +75,11 @@ private class FakeVideoPlayer : VideoPlayer {
         return mine
     }
 
+    /** Every `play` and `stop`, in order. */
+    val calls = mutableListOf<String>()
+
     override fun stop() {
+        calls += "stop"
         stops++
     }
 
@@ -432,5 +441,158 @@ class TuneControllerTest {
             assertEquals("NotFound", outcome.diagnostic)
             assertEquals(TuneFailure.SERVER, outcome.reason)
             assertEquals(Route.DIRECT_PLAY, outcome.resolved?.route)
+        }
+
+    // --- stop() and cancellation -------------------------------------------------------------------------
+
+    private val transcode get() = source(directPlay = false, directStream = false)
+
+    @Test
+    fun stopDuringResolveNeverPlays() =
+        runTest {
+            answer(source())
+            val gate = CompletableDeferred<Unit>()
+            val gated =
+                object : MediaServer by server {
+                    override suspend fun playbackInfo(
+                        session: Session,
+                        item: ItemId,
+                        request: PlaybackRequest,
+                    ): ServerResult<PlaybackInfo> {
+                        gate.await()
+                        return server.playbackInfo(session, item, request)
+                    }
+                }
+            val gatedController = TuneController(PlaybackResolver(gated) { insigniaLike() }, gated, player) { 1_000L }
+            val tuning = async { gatedController.tune(session, item, Duration.ZERO, null) }
+            runCurrent()
+            gatedController.stop(session)
+            gate.complete(Unit)
+            assertEquals(TuneResult.Stopped, tuning.await())
+            assertTrue("a stopped tune never plays", player.played.isEmpty())
+        }
+
+    @Test
+    fun stopDuringWaitEndsTheTuneAtOnce() =
+        runTest {
+            answer(source())
+            player.script = listOf(emptyList())
+            val tuning = async { tune() }
+            runCurrent()
+            controller.stop(session)
+            assertEquals(TuneResult.Stopped, tuning.await())
+            assertEquals("did not wait out the timeout", 0L, currentTime)
+            assertEquals(listOf("play", "stop", "stop"), player.calls)
+        }
+
+    @Test
+    fun stopStopsTheEncodeOfATuneInFlight() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(emptyList())
+            val tuning = async { tune() }
+            runCurrent()
+            controller.stop(session)
+            assertEquals(TuneResult.Stopped, tuning.await())
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun aTuneCancelledFromOutsideStopsThePlayerAndItsEncode() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(emptyList())
+            val tuning = launch { tune() }
+            runCurrent()
+            tuning.cancel()
+            runCurrent()
+            assertEquals(listOf("play", "stop"), player.calls)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+            // `current` was cleared: a later stop() has no encode left to stop.
+            controller.stop(session)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun aSupersedingPlayIsNotDisturbedByTheCancelledOnesCleanUp() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(emptyList(), playing(1_300, Duration.ZERO))
+            val first = async { tune() }
+            runCurrent()
+            val second = async { tune() }
+            assertEquals(TuneResult.Superseded, first.await())
+            assertTrue(second.await() is TuneResult.Played)
+            // The first one's clean-up (stop, its encode) ran before the second one played, never after.
+            assertEquals(listOf("play", "stop", "play"), player.calls)
+            // The second play's attempt is still current, so stop() ends its encode too.
+            controller.stop(session)
+            assertEquals(2, server.stoppedEncodes.size)
+        }
+
+    // --- no loose ends after a result that is not Played ---------------------------------------------------
+
+    @Test
+    fun aPlayerFailureLeavesNothingRunning() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(failed("ERROR_CODE_DECODING_FAILED"))
+            failure(tune())
+            assertEquals(1, player.stops)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun anExpiredSessionLeavesNothingRunning() =
+        runTest {
+            answer(source(directPlay = false, directStream = true))
+            player.script = listOf(failed("ERROR_CODE_IO_BAD_HTTP_STATUS", 401))
+            assertTrue(tune() is TuneResult.SessionExpired)
+            assertEquals(1, player.stops)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun aFallbackThatCouldNotResolveLeavesNothingRunning() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            player.onPlay = { server.playbackInfoResult = ServerResult.Failure(MediaServerError.NotFound()) }
+            failure(tune(60.seconds))
+            // The missed first attempt was still playing; a result that is not Played leaves it stopped.
+            assertEquals(1, player.stops)
+        }
+
+    @Test
+    fun aPlayedResultLeavesThePlayerRunning() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            played()
+            assertEquals(0, player.stops)
+        }
+
+    // --- the landing tolerance ----------------------------------------------------------------------------
+
+    @Test
+    fun theLandingToleranceIsConfigurable() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, 5.seconds))
+            val lenient = TuneController(resolver, server, player, seekTolerance = 10.seconds) { 1_000L }
+            val outcome = lenient.tune(session, item, Duration.ZERO, null) as TuneResult.Played
+            assertFalse(outcome.fallback)
+            assertNull(outcome.positionError)
+            assertEquals(1, player.played.size)
+        }
+
+    @Test
+    fun theDefaultToleranceIsTwoSecondsAndFallsBackBeyondIt() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, 3.seconds), playing(2_000, Duration.ZERO))
+            val outcome = played()
+            assertTrue(outcome.fallback)
+            assertEquals(2, player.played.size)
         }
 }
