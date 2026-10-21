@@ -33,6 +33,10 @@ COMPONENT = "tv.stationbreak.app.benchmark/tv.stationbreak.app.bench.PlaybackTes
 MAX_ITEMS = 200  # RunArgs.MAX_ITEMS
 MAX_LABEL = 64  # RunArgs.MAX_LABEL
 SECTIONS = ("synthetic", "real")
+# Every file this holds IDs in lives beside this script, where .gitignore covers it, whatever the working directory.
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_ITEMS = os.path.join(HERE, "items.local.json")
+DEFAULT_PLAN = os.path.join(HERE, "plan.json")
 SYNTHETIC_START_MS = 30_000  # ruling R9: the same for every synthetic clip, whatever its runtime
 MIN_RANDOM_RUNTIME_MS = 120_000
 TAIL_MS = 30_000
@@ -131,8 +135,12 @@ class Collected(NamedTuple):
     done: bool
 
 
-def collect(lines):
-    """Reads SBPLAY messages (META, RESULT, ERROR) up to and including DONE."""
+def collect(lines, run_id):
+    """Reads SBPLAY messages (META, RESULT, ERROR) up to and including this run's DONE.
+
+    A DONE for another run (a stale line) is ignored. The activity prints "DONE none" when it could not read its
+    arguments, after an ERROR line, so that one ends the run only if an ERROR came first.
+    """
     meta, results, errors, done = None, [], [], False
     for raw in lines:
         line = LOGCAT_PREFIX.sub("", raw.strip())
@@ -143,8 +151,10 @@ def collect(lines):
         elif line.startswith("ERROR"):
             errors.append(line)
         elif line.startswith("DONE"):
-            done = True
-            break
+            named = line[4:].strip()
+            if named == run_id or (named == "none" and errors):
+                done = True
+                break
     return Collected(meta, results, errors, done)
 
 
@@ -170,16 +180,27 @@ def results_name(date, meta, section):
     return f"{date}-{model}-{section}.jsonl"
 
 
-def _read_logcat(proc, deadline):
-    """Lines from a logcat process until the deadline; the iterator just ends if none arrive in time."""
-    while time.monotonic() < deadline:
-        ready, _, _ = select.select([proc.stdout], [], [], 1.0)
+def read_lines(fd, deadline):
+    """Lines from a file descriptor until the deadline or end of input.
+
+    It reads the descriptor itself and splits lines itself: select() on a buffered stream misses lines already
+    buffered, so a burst (RESULT, RESULT, DONE in one chunk) would wait out the whole timeout.
+    """
+    pending = b""
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        ready, _, _ = select.select([fd], [], [], min(1.0, remaining))
         if not ready:
             continue
-        line = proc.stdout.readline()
-        if not line:
+        chunk = os.read(fd, 65536)
+        if not chunk:
             return
-        yield line
+        pending += chunk
+        *lines, pending = pending.split(b"\n")
+        for line in lines:
+            yield line.decode("utf-8", "replace")
 
 
 def _run_batch(serial, batch, section, run_id, override):
@@ -189,7 +210,6 @@ def _run_batch(serial, batch, section, run_id, override):
         adb + ["logcat", "-v", "raw", "-s", "SBPLAY:I"],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
-        text=True,
     )
     try:
         started = subprocess.run(
@@ -198,19 +218,24 @@ def _run_batch(serial, batch, section, run_id, override):
         if "Error" in started.stdout:
             raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
         deadline = time.monotonic() + timeout_seconds(len(batch))
-        return collect(_read_logcat(logcat, deadline))
+        return collect(read_lines(logcat.stdout.fileno(), deadline), run_id)
     finally:
         logcat.kill()
         logcat.wait()
 
 
+def write_private(path, text):
+    """Writes [text] to [path], which holds item IDs, readable by this user only (also if it already existed)."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
+
+
 def command_plan(args):
     with open(args.items, encoding="utf-8") as handle:
         plan = make_plan(json.load(handle), args.seed)
-    fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(plan, handle, indent=2)
-        handle.write("\n")
+    write_private(args.out, json.dumps(plan, indent=2) + "\n")
     counts = ", ".join(f"{len(plan[s])} {s}" for s in SECTIONS)
     print(f"planned {counts} (seed {args.seed}) into {args.out}")
     return 0
@@ -235,9 +260,7 @@ def command_run(args):
             problems.append(f"run {number}: {message}")
     os.makedirs(args.results_dir, exist_ok=True)
     path = os.path.join(args.results_dir, results_name(date, meta or "", args.section))
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(([meta] if meta else []) + results) + "\n")
+    write_private(path, "\n".join(([meta] if meta else []) + results) + "\n")
     print(f"{len(results)} of {len(entries)} RESULT lines written to {path}")
     for problem in problems:
         print(problem, file=sys.stderr)
@@ -245,16 +268,16 @@ def command_run(args):
 
 
 def main(argv=None):
-    here = os.path.dirname(os.path.abspath(__file__))
+    here = HERE
     parser = argparse.ArgumentParser(description="Plan and run the playback matrix on a device.")
     sub = parser.add_subparsers(dest="command", required=True)
     plan = sub.add_parser("plan", help="choose start points for the items in items.local.json")
     plan.add_argument("--seed", type=int, required=True)
-    plan.add_argument("--items", default="items.local.json")
-    plan.add_argument("--out", default="plan.json")
+    plan.add_argument("--items", default=DEFAULT_ITEMS)
+    plan.add_argument("--out", default=DEFAULT_PLAN)
     run = sub.add_parser("run", help="play one section of a plan on a device")
     run.add_argument("-s", "--serial", required=True)
-    run.add_argument("--plan", default="plan.json")
+    run.add_argument("--plan", default=DEFAULT_PLAN)
     run.add_argument("--section", choices=SECTIONS, required=True)
     run.add_argument("--results-dir", default=os.path.join(here, "results"))
     args = parser.parse_args(argv)

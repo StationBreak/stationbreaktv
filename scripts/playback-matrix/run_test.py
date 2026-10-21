@@ -5,6 +5,9 @@ Run: python3 -I -m unittest discover -s scripts/playback-matrix -p '*_test.py'
 """
 
 import json
+import os
+import tempfile
+import time
 import unittest
 
 import run
@@ -111,22 +114,22 @@ class LogTest(unittest.TestCase):
             "DONE r1",
             "RESULT {}",
         ]
-        got = run.collect(iter(lines))
+        got = run.collect(iter(lines), "r1")
         self.assertEqual(got.meta, 'META {"device":"AFTMM"}')
         self.assertEqual(len(got.results), 2)
         self.assertTrue(got.done)
         self.assertEqual(got.errors, [])
 
     def test_errorsAreKept(self):
-        got = run.collect(iter(["ERROR bad-args", "DONE none"]))
+        got = run.collect(iter(["ERROR bad-args", "DONE none"]), "r1")
         self.assertEqual(got.errors, ["ERROR bad-args"])
         self.assertEqual(got.results, [])
 
     def test_aStreamThatEndsBeforeDoneIsNotDone(self):
-        self.assertFalse(run.collect(iter(["RESULT {}"])).done)
+        self.assertFalse(run.collect(iter(["RESULT {}"]), "r1").done)
 
     def test_theMessageAfterTheLogcatPrefixIsUsed(self):
-        got = run.collect(iter(['I/SBPLAY( 123): RESULT {"a":1}', "I/SBPLAY( 123): DONE r"]))
+        got = run.collect(iter(['I/SBPLAY( 123): RESULT {"a":1}', "I/SBPLAY( 123): DONE r1"]), "r1")
         self.assertEqual(got.results, ['RESULT {"a":1}'])
         self.assertTrue(got.done)
 
@@ -135,6 +138,61 @@ class LogTest(unittest.TestCase):
         name = run.results_name("2026-10-21", meta, "real")
         self.assertNotIn("/", name)
         self.assertTrue(name.startswith("2026-10-21-") and name.endswith("-real.jsonl"))
+
+
+class ReaderTest(unittest.TestCase):
+    def test_everyLineOfOneWriteArrivesWithoutWaitingForTheTimeout(self):
+        read_end, write_end = os.pipe()
+        os.write(write_end, b"META {}\nRESULT {}\nRESULT {}\nDONE r1\n")
+        started = time.monotonic()
+        got = run.collect(run.read_lines(read_end, time.monotonic() + 30), "r1")
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertTrue(got.done)
+        self.assertEqual(len(got.results), 2)
+        os.close(read_end)
+        os.close(write_end)
+
+    def test_aLineSplitAcrossWritesIsJoined(self):
+        read_end, write_end = os.pipe()
+        os.write(write_end, b'RESULT {"a"')
+        os.write(write_end, b":1}\nDONE r1\n")
+        got = run.collect(run.read_lines(read_end, time.monotonic() + 30), "r1")
+        self.assertEqual(got.results, ['RESULT {"a":1}'])
+        os.close(read_end)
+        os.close(write_end)
+
+    def test_noDataEndsAtTheDeadline(self):
+        read_end, write_end = os.pipe()
+        started = time.monotonic()
+        got = run.collect(run.read_lines(read_end, time.monotonic() + 1.2), "r1")
+        self.assertFalse(got.done)
+        self.assertLess(time.monotonic() - started, 5)
+        os.close(read_end)
+        os.close(write_end)
+
+    def test_aStaleDoneFromAnotherRunIsIgnored(self):
+        got = run.collect(iter(["DONE old", "RESULT {}", "DONE r1"]), "r1")
+        self.assertEqual(len(got.results), 1)
+        self.assertTrue(got.done)
+        self.assertFalse(run.collect(iter(["DONE old"]), "r1").done)
+
+
+class DefaultsTest(unittest.TestCase):
+    def test_defaultFilesLiveInTheIgnoredDirectory(self):
+        here = os.path.dirname(os.path.abspath(run.__file__))
+        for path in (run.DEFAULT_ITEMS, run.DEFAULT_PLAN):
+            self.assertEqual(os.path.dirname(path), here)
+
+    def test_anExistingFileIsMadePrivateWhenWritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "plan.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("old")
+            os.chmod(path, 0o644)
+            run.write_private(path, "new")
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+            with open(path, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "new")
 
 
 class ShortfallTest(unittest.TestCase):

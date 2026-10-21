@@ -103,6 +103,50 @@ class RenderTest(unittest.TestCase):
             with self.assertRaises(render.Leak, msg=bad):
                 render.render([[meta(), result(error=bad)]])
 
+    def test_failsClosedOnAddressesWhateverSurroundsThem(self):
+        for bad in ("host192.168.1.5", "1192.168.1.5", "192.168.1.5x", "ab-0.0.0.1-cd"):
+            with self.assertRaises(render.Leak, msg=bad):
+                render.render([[meta(), result(error=bad)]])
+
+    def test_aHostnameFailsTheRender(self):
+        for bad in ("media.lan", "my-box.local", "jellyfin.example.com", "x.io"):
+            with self.assertRaises(render.Leak, msg=bad):
+                render.render([[meta(), result(error=bad)]])
+
+    def test_aShortPortHostPortFailsTheRender(self):
+        for bad in ("box:8", "box:80", "a:12345"):
+            with self.assertRaises(render.Leak, msg=bad):
+                render.render([[meta(), result(error=bad)]])
+
+    def test_dashedIdsInAnyGroupingFail(self):
+        for bad in (
+            "01234567-89ab-cdef-0123-456789abcdef",
+            "0123456789-abcdef0123456789abcdef-01",
+            "0123-4567-89ab-cdef-0123-4567-89ab-cdef",
+        ):
+            with self.assertRaises(render.Leak, msg=bad):
+                render.render([[meta(), result(error=bad)]])
+
+    def test_keysAreCheckedToo(self):
+        with self.assertRaises(render.Leak):
+            render.render([[meta(), result(**{"192.168.1.5": 1})]])
+        with self.assertRaises(render.Leak):
+            render.render([[meta(**{"a/b": 1}), result()]])
+
+    def test_pipesAreEscapedInCells(self):
+        text = render.render([[meta(), result(error="a|b")]])
+        self.assertIn("a\\|b", text)
+
+    def test_legitimateValuesPass(self):
+        legit = result(
+            container="matroska,webm",
+            video="hevc 3840x2160 10bit",
+            audio="eac3 6ch",
+            transcodeReasons="ContainerNotSupported,VideoCodecNotSupported",
+            error="failed:player:ERROR_CODE_DECODER_INIT_FAILED",
+        )
+        render.render([[meta(app="0.3.0-benchmark", device="AFTMM", jellyfin="12.1.0"), legit]])
+
     def test_ordinaryDiagnosticsAreNotMistakenForLeaks(self):
         text = render.render([[meta(), result(error="failed:player:ERROR_CODE_IO_BAD_HTTP_STATUS (HTTP 404)")]])
         self.assertIn("ERROR_CODE_IO_BAD_HTTP_STATUS", text)

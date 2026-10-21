@@ -16,16 +16,24 @@ import sys
 
 SECTION_ORDER = ("synthetic", "real")
 
-# (rule name, pattern): a value matching any of them is refused.
+def _hex_run_of_32(text):
+    """A token of hex digits and dashes, in any grouping, that holds 32 or more hex digits (a GUID or Jellyfin ID)."""
+    return any(sum(c != "-" for c in token) >= 32 for token in re.findall(r"[0-9a-fA-F][0-9a-fA-F-]*", text))
+
+
+# (rule name, test): a value or key for which any test is true is refused. Fail closed: no lookarounds, so an address
+# glued to other characters is still caught. The hostname rule also rejects a dotted name such as "movies.lan"; the
+# legitimate values (codecs, containers, routes, reasons, error codes, a model such as AFTMM, versions like 0.3.0)
+# have no letters after a dot, so none of them trips it.
 LEAK_RULES = (
-    ("a slash", re.compile(r"/")),
-    ("a URL", re.compile(r"://")),
-    ("an api_key", re.compile(r"api_key", re.IGNORECASE)),
-    ("an ID-shaped run of 32 hex characters", re.compile(r"[0-9a-fA-F]{32}")),
-    ("a dashed ID", re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")),
-    ("an IPv4 address", re.compile(r"(?<![0-9A-Za-z.])\d{1,3}(?:\.\d{1,3}){3}(?![0-9A-Za-z])")),
-    ("an IPv6 address", re.compile(r"(?<![0-9A-Za-z])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{1,4}(?![0-9A-Za-z])")),
-    ("a host:port", re.compile(r"(?<![0-9A-Za-z])[A-Za-z0-9][A-Za-z0-9.-]*:\d{2,5}(?![0-9A-Za-z])")),
+    ("a slash", re.compile(r"/").search),
+    ("a URL", re.compile(r"://").search),
+    ("an api_key", re.compile(r"api_key", re.IGNORECASE).search),
+    ("an ID-shaped run of 32 hex characters", _hex_run_of_32),
+    ("an IPv4 address", re.compile(r"\d{1,3}(?:\.\d{1,3}){3}").search),
+    ("an IPv6 address", re.compile(r"(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{1,4}").search),
+    ("a host:port", re.compile(r"[A-Za-z0-9.\]-]:\d{1,5}").search),
+    ("a host name", re.compile(r"[A-Za-z0-9-]+\.[A-Za-z]{2,}").search),
 )
 
 COLUMNS = (
@@ -75,8 +83,8 @@ class Leak(Exception):
 
 def _check(field, value):
     text = str(value)
-    for rule, pattern in LEAK_RULES:
-        if pattern.search(text):
+    for rule, matches in LEAK_RULES:
+        if matches(text):
             raise Leak(f"{field} holds {rule}")
 
 
@@ -110,6 +118,8 @@ def parse_lines(lines):
 def _cell(value):
     if value is None or value == "":
         return "—"
+    if isinstance(value, str):
+        return value.replace("|", "\\|")
     if value is True:
         return "yes"
     if value is False:
@@ -139,9 +149,11 @@ def render(files):
         if meta is None:
             raise ValueError("a results file has no META line")
         for field, value in meta.items():
+            _check("a META key", field)
             _check(f"META {field}", value)
         for result in results:
             for field, value in result.items():
+                _check("a RESULT key", field)
                 _check(f"RESULT {field}", value)
             key = (str(result.get("section", "unnamed")), str(meta.get("device", "?")))
             entry = groups.setdefault(key, {"meta": meta, "rows": []})

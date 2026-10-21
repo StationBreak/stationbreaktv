@@ -19,9 +19,11 @@ Turn your Jellyfin library into always-on, flip-through broadcast channels on Fi
 | [Roadmap](docs/ROADMAP.md) | Phase sequencing, dependencies, spikes, risks |
 | [Modules](docs/MODULES.md) | Gradle module layout |
 | [Rules format](docs/rules-format.md) | The channel rules file: schema, examples and the exact ordering algorithms, for other clients |
-| [Playback matrix](docs/compatibility/playback-matrix.md) | What the player did with a spread of files on real devices (measured, not graded) |
 | [Assumptions & questions](docs/ASSUMPTIONS.md) | What's been assumed, decided, and still open |
 | [ADRs](docs/adr/) | Architecture decision records |
+
+A playback compatibility matrix (what the player did with a spread of files on real devices, measured and not graded)
+is being added under `docs/compatibility/`; the tooling that produces it is in `scripts/playback-matrix/`.
 
 ## Assets
 
