@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
@@ -31,7 +35,8 @@ import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
-import tv.stationbreak.core.model.StreamUrls
+import tv.stationbreak.core.model.StreamKind
+import tv.stationbreak.core.model.SubtitleDelivery
 import java.time.DateTimeException
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -50,6 +55,7 @@ import kotlin.time.Instant
 @Suppress("TooManyFunctions") // One class for the media surface (libraries, items, playback, reports).
 internal class MediaCalls(
     private val calls: AuthorizedCall,
+    private val deviceIds: DeviceIdProvider,
 ) {
     suspend fun libraries(session: Session): ServerResult<List<Library>> =
         calls.send(session, Endpoint.get("UserViews")).flatMap { text ->
@@ -268,10 +274,10 @@ internal class MediaCalls(
     suspend fun playbackInfo(
         session: Session,
         item: ItemId,
-        @Suppress("UNUSED_PARAMETER") request: PlaybackRequest,
-    ): ServerResult<PlaybackInfo> =
-        // Task 2 (spec 13) builds the device profile and start/track choices from the request.
-        calls.send(session, Endpoint.post("Items/${item.value}/PlaybackInfo", PlaybackProfile.BODY)).flatMap { text ->
+        request: PlaybackRequest,
+    ): ServerResult<PlaybackInfo> {
+        val body = DeviceProfiles.body(request, session.userId)
+        return calls.send(session, Endpoint.post("Items/${item.value}/PlaybackInfo", body)).flatMap { text ->
             Wire.parse(text, PlaybackInfoDto.serializer()).flatMap { info ->
                 if (info.errorCode != null) {
                     ServerResult.Failure(MediaServerError.ServerError())
@@ -280,6 +286,21 @@ internal class MediaCalls(
                 }
             }
         }
+    }
+
+    /**
+     * Stops the server's encode for [playSession] (`DELETE /Videos/ActiveEncodings`). An encode that is already gone
+     * (a 404) is what was wanted, so it is success.
+     */
+    suspend fun stopEncoding(
+        session: Session,
+        playSession: PlaySessionId,
+    ): ServerResult<Unit> {
+        val query = listOf("DeviceId" to deviceIds.deviceId(), "PlaySessionId" to playSession.value)
+        val answer = calls.send(session, Endpoint("DELETE", "Videos/ActiveEncodings", query))
+        val gone = answer is ServerResult.Failure && answer.error is MediaServerError.NotFound
+        return if (answer is ServerResult.Failure && !gone) answer else ServerResult.Success(Unit)
+    }
 
     suspend fun report(
         session: Session,
@@ -322,7 +343,7 @@ internal class MediaCalls(
             itemId = item,
             playSessionId = playSession,
             sources = info.mediaSources.map(::source),
-            streams = DirectStreamUrls(address, item, playSession),
+            streams = HlsUrls(address, item, playSession),
         )
     }
 
@@ -334,7 +355,54 @@ internal class MediaCalls(
             runtime = dto.runTimeTicks?.let(::duration),
             supportsDirectPlay = dto.supportsDirectPlay,
             supportsDirectStream = dto.supportsDirectStream,
+            supportsTranscoding = dto.supportsTranscoding,
+            streams = dto.mediaStreams.mapNotNull(::stream),
+            defaultAudioIndex = dto.defaultAudioStreamIndex,
+            defaultSubtitleIndex = dto.defaultSubtitleStreamIndex,
+            bitrate = dto.bitrate?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt(),
+            transcodeReasons = reasons(dto.transcodeReasons),
         )
+
+    /** Video, audio and subtitle tracks; any other kind (an embedded picture, a data track) is dropped. */
+    private fun stream(dto: MediaStreamDto): MediaStreamInfo? {
+        val index = dto.index
+        val kind = STREAM_KINDS[dto.type]
+        if (index == null || kind == null) return null
+        val delivery = DELIVERY_METHODS[dto.deliveryMethod] ?: SubtitleDelivery.NONE
+        return MediaStreamInfo(
+            index = index,
+            kind = kind,
+            codec = dto.codec,
+            language = dto.language,
+            channels = dto.channels,
+            width = dto.width,
+            height = dto.height,
+            isExternal = dto.isExternal,
+            isDefault = dto.isDefault,
+            isForced = dto.isForced,
+            delivery = delivery.takeIf { kind == StreamKind.SUBTITLE },
+        )
+    }
+
+    private fun reasons(value: JsonElement?): Set<String> =
+        when (value) {
+            is JsonArray -> {
+                value.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.toSet()
+            }
+
+            is JsonPrimitive -> {
+                value.contentOrNull
+                    .orEmpty()
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+            }
+
+            else -> {
+                emptySet()
+            }
+        }
 
     private companion object {
         /**
@@ -403,40 +471,6 @@ internal object PlaybackTicks {
 
     /** [position] in ticks; negative is zero, and a huge one can't overflow because nanoseconds are divided down. */
     fun of(position: Duration): Long = if (position.isNegative()) 0L else position.inWholeNanoseconds / NANOS_PER_TICK
-}
-
-/**
- * Stream URLs made from the base address and IDs and nothing else: no server-supplied URL, no credential in the query
- * or userinfo (R2). `playSessionId` is a hint for the server, not a secret.
- */
-private class DirectStreamUrls(
-    private val address: ServerAddress,
-    private val item: ItemId,
-    private val playSession: PlaySessionId?,
-) : StreamUrls {
-    // Task 2 (spec 13) builds the HLS and subtitle URLs.
-    override fun hls(
-        source: MediaSourceId,
-        request: PlaybackRequest,
-        burnIn: Int?,
-    ): String = throw NotImplementedError("Task 2")
-
-    override fun subtitle(
-        source: MediaSourceId,
-        stream: MediaStreamInfo,
-    ): String? = throw NotImplementedError("Task 2")
-
-    override fun original(source: MediaSourceId): String {
-        val base = checkNotNull(address.baseUrl.toHttpUrlOrNull()) { "A stored address is always a URL" }
-        return base
-            .newBuilder()
-            .addPathSegments("Videos/${item.value}/stream")
-            .addQueryParameter("static", "true")
-            .addQueryParameter("mediaSourceId", source.value)
-            .apply { playSession?.let { addQueryParameter("playSessionId", it.value) } }
-            .build()
-            .toString()
-    }
 }
 
 /** One server item as the domain model's item. Dates and runtimes follow rules format v1, "Scheduler inputs". */
@@ -535,6 +569,18 @@ private const val LAST_YEAR = 9999
 private const val MS_PER_SECOND = 1000L
 private const val NANOS_PER_MS = 1_000_000
 private const val TICKS_PER_MS = 10_000L
+
+private val STREAM_KINDS =
+    mapOf("Video" to StreamKind.VIDEO, "Audio" to StreamKind.AUDIO, "Subtitle" to StreamKind.SUBTITLE)
+
+// How the server delivers a subtitle. Anything else, including a missing method and "Drop", is not delivered.
+private val DELIVERY_METHODS =
+    mapOf(
+        "Embed" to SubtitleDelivery.IN_STREAM,
+        "External" to SubtitleDelivery.SEPARATE,
+        "Hls" to SubtitleDelivery.SEPARATE,
+        "Encode" to SubtitleDelivery.BURNED_IN,
+    )
 
 private val ITEM_KINDS =
     mapOf(

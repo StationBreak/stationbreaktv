@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.jellyfin
+
+import kotlinx.coroutines.runBlocking
+import okhttp3.Call
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Request
+import tv.stationbreak.core.domain.DeviceIdProvider
+import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.Session
+
+/**
+ * The call factory for the player's media requests (HLS playlists and segments, subtitles): the only handle a
+ * long-lived consumer (Media3's data source) should keep. [currentSession] is asked for every request, so a sign-out or
+ * a switch of server is seen by the next call and never by a stale copy.
+ *
+ * The `Authorization` header is added only when both hold. The request is for the session's own server: same scheme,
+ * host and port, and a path under the address's base path. And the session may carry its token: it passes the
+ * adapter's cleartext gate and its token is bound to that server ([AuthorizedCall.isCleared], the same checks every API
+ * call makes). Anything else is sent without credentials, and any `Authorization` header or tag the caller supplied is
+ * dropped, so neither a wrong origin nor a wrong path on the right origin ever sees the token. Redirects are not
+ * followed (the credentialed client's rule), so a redirect can't carry the header anywhere either.
+ */
+fun JellyfinMediaServer.mediaCallFactory(currentSession: () -> Session?): Call.Factory =
+    MediaCallFactory(clients, calls, deviceIds, currentSession)
+
+internal class MediaCallFactory(
+    private val clients: ClientFactory,
+    private val calls: AuthorizedCall,
+    private val deviceIds: DeviceIdProvider,
+    private val currentSession: () -> Session?,
+) : Call.Factory {
+    override fun newCall(request: Request): Call {
+        val builder = request.newBuilder().removeHeader("Authorization").tag(AuthTag::class.java, null)
+        val session = currentSession()
+        if (session != null && isForSessionServer(session.address, request.url) && calls.isCleared(session)) {
+            // Cached after its first read, so this blocks at most once per install, on Media3's loader thread.
+            val deviceId = runBlocking { deviceIds.deviceId() }
+            builder.tag(AuthTag::class.java, AuthTag(deviceId, session.token))
+        }
+        return clients.credentialed.newCall(builder.build())
+    }
+
+    private fun isForSessionServer(
+        address: ServerAddress,
+        url: HttpUrl,
+    ): Boolean {
+        val base = address.baseUrl.toHttpUrlOrNull() ?: return false
+        val prefix = base.encodedPath.trimEnd('/')
+        val path = url.encodedPath
+        return url.scheme == base.scheme &&
+            url.host == base.host &&
+            url.port == base.port &&
+            url.username.isEmpty() &&
+            url.password.isEmpty() &&
+            (path == prefix || path.startsWith("$prefix/"))
+    }
+}

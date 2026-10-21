@@ -33,6 +33,16 @@ internal class AuthorizedCall(
         bound += Binding(session.token, session.address, session.server.id)
     }
 
+    /**
+     * Whether [session] may carry its token right now, decided without sending anything: its cleartext gate passes and
+     * the token is already bound to the server at its address (issued or resumed by this adapter, or confirmed by an
+     * earlier call). The same two tests [send] applies, minus the probe a first use would make; a session not yet
+     * bound is simply not cleared. For the media client, whose calls can't wait on a probe.
+     */
+    fun isCleared(session: Session): Boolean =
+        CleartextGate.check(session.address, session.acknowledgement) == null &&
+            Binding(session.token, session.address, session.server.id) in bound
+
     suspend fun send(
         session: Session,
         endpoint: Endpoint,

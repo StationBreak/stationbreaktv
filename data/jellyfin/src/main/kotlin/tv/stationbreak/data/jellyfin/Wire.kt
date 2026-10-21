@@ -6,6 +6,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import java.nio.CharBuffer
@@ -183,7 +184,10 @@ internal class ItemIdDto(
     @SerialName("Id") val id: String,
 )
 
-/** The answer to `PlaybackInfo`. `Path`, `TranscodingUrl` and the like are not here, so they can't be passed on. */
+/**
+ * The answer to `PlaybackInfo`. `Path`, `TranscodingUrl`, `DirectStreamUrl`, `DeliveryUrl` and the like are not here,
+ * so they can't be passed on (R2).
+ */
 @Serializable
 internal class PlaybackInfoDto(
     @SerialName("MediaSources") val mediaSources: List<MediaSourceDto> = emptyList(),
@@ -192,6 +196,7 @@ internal class PlaybackInfoDto(
 )
 
 @Serializable
+@Suppress("LongParameterList") // One property per wire field.
 internal class MediaSourceDto(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String? = null,
@@ -199,6 +204,31 @@ internal class MediaSourceDto(
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("SupportsDirectPlay") val supportsDirectPlay: Boolean = false,
     @SerialName("SupportsDirectStream") val supportsDirectStream: Boolean = false,
+    @SerialName("SupportsTranscoding") val supportsTranscoding: Boolean = false,
+    @SerialName("Bitrate") val bitrate: Long? = null,
+    @SerialName("DefaultAudioStreamIndex") val defaultAudioStreamIndex: Int? = null,
+    @SerialName("DefaultSubtitleStreamIndex") val defaultSubtitleStreamIndex: Int? = null,
+    // A list on current servers; read as a JSON value so a comma-separated string can't fail the whole answer.
+    @SerialName("TranscodeReasons") val transcodeReasons: JsonElement? = null,
+    @SerialName("MediaStreams") val mediaStreams: List<MediaStreamDto> = emptyList(),
+)
+
+/** One track. Text is read as text so a type or delivery method a newer server invents is unknown, not an error. */
+@Serializable
+@Suppress("LongParameterList") // One property per wire field.
+internal class MediaStreamDto(
+    // A track with no index can't be chosen or addressed, so it is dropped rather than failing the answer.
+    @SerialName("Index") val index: Int? = null,
+    @SerialName("Type") val type: String = "",
+    @SerialName("Codec") val codec: String? = null,
+    @SerialName("Language") val language: String? = null,
+    @SerialName("Channels") val channels: Int? = null,
+    @SerialName("Width") val width: Int? = null,
+    @SerialName("Height") val height: Int? = null,
+    @SerialName("IsExternal") val isExternal: Boolean = false,
+    @SerialName("IsDefault") val isDefault: Boolean = false,
+    @SerialName("IsForced") val isForced: Boolean = false,
+    @SerialName("DeliveryMethod") val deliveryMethod: String? = null,
 )
 
 /** The body of `Sessions/Playing`, `/Progress` and `/Stopped`. `IsPaused` is left out of the last. */

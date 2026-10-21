@@ -4,8 +4,8 @@ package tv.stationbreak.data.jellyfin
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.errorOrNull
 import tv.stationbreak.core.domain.getOrNull
@@ -13,16 +13,18 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
+import tv.stationbreak.core.model.StreamKind
+import tv.stationbreak.core.model.SubtitleDelivery
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
-/** `playbackInfo(session, item)`: a static conservative device profile out, media sources and a URL builder back. */
+/** `playbackInfo(session, item)`: the request's device profile out, media sources and a URL builder back. */
 class PlaybackInfoTest {
     private val jellyfin = FakeJellyfin()
 
@@ -39,14 +41,16 @@ class PlaybackInfoTest {
         runBlocking {
             jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(response) }
 
-            testAdapter().playbackInfo(testSession(jellyfin.address), ItemId("i1"))
+            testAdapter().playbackInfo(testSession(jellyfin.address), ItemId("i1"), requestFor())
 
             val request = jellyfin.requests("/PlaybackInfo").single()
             assertEquals("POST", request.method)
             assertEquals("/Items/i1/PlaybackInfo", request.url.encodedPath)
             val body = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+            assertEquals("user1", body["UserId"]!!.jsonPrimitive.content)
             val profile = body["DeviceProfile"]!!.jsonObject
             assertTrue((profile["DirectPlayProfiles"] as JsonArray).isNotEmpty())
+            assertTrue((profile["TranscodingProfiles"] as JsonArray).isNotEmpty())
         }
     }
 
@@ -85,11 +89,84 @@ class PlaybackInfoTest {
     }
 
     @Test
-    fun theProfileIsPlainJsonThatNamesWhatItIs() {
-        val parsed = Json.parseToJsonElement(PlaybackProfile.JSON)
+    fun streamsDefaultsDeliveryAndReasonsAreParsed() {
+        runBlocking {
+            val body =
+                """{"MediaSources":[{"Id":"src1","SupportsTranscoding":true,"Bitrate":8000000,
+                |"DefaultAudioStreamIndex":1,"DefaultSubtitleStreamIndex":3,
+                |"TranscodeReasons":["AudioCodecNotSupported","ContainerNotSupported"],"MediaStreams":[
+                |{"Index":0,"Type":"Video","Codec":"h264","Width":1920,"Height":1080,"IsDefault":true},
+                |{"Index":1,"Type":"Audio","Codec":"ac3","Language":"eng","Channels":6,"IsDefault":true},
+                |{"Index":2,"Type":"Subtitle","Codec":"subrip","IsExternal":true,"DeliveryMethod":"External"},
+                |{"Index":3,"Type":"Subtitle","Codec":"subrip","DeliveryMethod":"Embed","IsForced":true},
+                |{"Index":4,"Type":"Subtitle","Codec":"pgssub","DeliveryMethod":"Encode"},
+                |{"Index":5,"Type":"Subtitle","Codec":"ass","DeliveryMethod":"Drop"},
+                |{"Index":6,"Type":"Subtitle","Codec":"ass"},
+                |{"Type":"Subtitle","Codec":"ass","DeliveryMethod":"Embed"},
+                |{"Index":7,"Type":"EmbeddedImage","Codec":"mjpeg"}]}],"PlaySessionId":"play-1"}
+                """.trimMargin().replace("\n", "")
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
 
-        assertIs<JsonObject>(parsed)
-        assertNotNull(parsed["Name"])
+            val source =
+                testAdapter()
+                    .playbackInfo(testSession(jellyfin.address), ItemId("i1"))
+                    .getOrNull()!!
+                    .sources
+                    .single()
+
+            assertTrue(source.supportsTranscoding)
+            assertEquals(8_000_000, source.bitrate)
+            assertEquals(1, source.defaultAudioIndex)
+            assertEquals(3, source.defaultSubtitleIndex)
+            assertEquals(setOf("AudioCodecNotSupported", "ContainerNotSupported"), source.transcodeReasons)
+            assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), source.streams.map { it.index })
+            val video = source.streams[0]
+            assertEquals(StreamKind.VIDEO, video.kind)
+            assertEquals(Triple("h264", 1920, 1080), Triple(video.codec, video.width, video.height))
+            assertNull(video.delivery)
+            assertEquals(6, source.streams[1].channels)
+            assertEquals("eng", source.streams[1].language)
+            assertEquals(
+                listOf(
+                    SubtitleDelivery.SEPARATE,
+                    SubtitleDelivery.IN_STREAM,
+                    SubtitleDelivery.BURNED_IN,
+                    SubtitleDelivery.NONE,
+                    SubtitleDelivery.NONE,
+                ),
+                source.streams.drop(2).map { it.delivery },
+            )
+            assertTrue(source.streams[2].isExternal)
+            assertTrue(source.streams[3].isForced)
+        }
+    }
+
+    @Test
+    fun theServerTranscodingUrlIsNeverRead() {
+        runBlocking {
+            val body =
+                "{\"MediaSources\":[{\"Id\":\"src1\",\"Path\":\"/srv/secret-share/a.mkv\"," +
+                    "\"TranscodingUrl\":\"/videos/i1/master.m3u8?api_key=secret\"," +
+                    "\"MediaStreams\":[{\"Index\":2,\"Type\":\"Subtitle\",\"Codec\":\"subrip\"," +
+                    "\"DeliveryMethod\":\"External\",\"DeliveryUrl\":\"/s/Stream.srt?api_key=secret\"," +
+                    "\"Path\":\"/srv/secret-share/a.srt\"}]}]," +
+                    "\"TranscodingUrl\":\"/videos/i1/master.m3u8?api_key=secret\",\"PlaySessionId\":\"play-1\"}"
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
+
+            val info = testAdapter().playbackInfo(testSession(jellyfin.address), ItemId("i1")).getOrNull()!!
+
+            val source = info.sources.single()
+            val everything =
+                listOf(
+                    info.toString(),
+                    source.toString(),
+                    info.streams.original(source.id),
+                    info.streams.hls(source.id, requestFor(), null),
+                    info.streams.subtitle(source.id, source.streams.single()).orEmpty(),
+                ).joinToString("\n")
+            assertFalse("secret" in everything, everything)
+            assertFalse("api_key" in everything, everything)
+        }
     }
 
     @Test

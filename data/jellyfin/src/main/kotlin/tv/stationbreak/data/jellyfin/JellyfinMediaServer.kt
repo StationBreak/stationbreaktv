@@ -53,7 +53,7 @@ import kotlin.time.Instant
 class JellyfinMediaServer internal constructor(
     source: HttpClientSource,
     identity: ClientIdentity,
-    deviceIds: DeviceIdProvider,
+    internal val deviceIds: DeviceIdProvider,
     log: AdapterLog,
     tuning: AdapterTuning,
     private val pins: PinRegistry,
@@ -85,12 +85,12 @@ class JellyfinMediaServer internal constructor(
 
     private val probe = ServerProbe(source, tuning.timeouts, tuning.testInterceptors)
     private val schemes = SchemeResolver(probe)
-    private val clients =
+    internal val clients =
         ClientFactory(source, AuthHeaderBuilder(identity), tuning.timeouts, tuning.testInterceptors)
     private val transport = Transport(clients, deviceIds)
-    private val calls = AuthorizedCall(transport, probe, log)
+    internal val calls = AuthorizedCall(transport, probe, log)
     private val authenticator = Authenticator(probe, transport, calls, log)
-    private val media = MediaCalls(calls)
+    private val media = MediaCalls(calls, deviceIds)
     private val quickConnectFlow = QuickConnectFlow(authenticator, transport, tuning.quickConnect, log)
     private val adapterLog = log
     private val revokeTimeout = tuning.revokeTimeout
@@ -244,11 +244,10 @@ class JellyfinMediaServer internal constructor(
         request: PlaybackRequest,
     ): ServerResult<PlaybackInfo> = media.playbackInfo(session, item, request)
 
-    // Task 2 (spec 13) makes the real call; until then no encode is started, so there is nothing to stop.
     override suspend fun stopEncoding(
         session: Session,
         playSession: PlaySessionId,
-    ): ServerResult<Unit> = ServerResult.Failure(MediaServerError.Unknown())
+    ): ServerResult<Unit> = media.stopEncoding(session, playSession)
 
     override suspend fun reportStart(
         session: Session,
