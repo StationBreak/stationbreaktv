@@ -125,13 +125,13 @@ class Media3VideoPlayerTest {
 
     @Test
     fun thePlayerIsReused() {
-        val exo = player.exoPlayer
+        val exo = player.player
         player.play(sourceAt(Duration.ZERO))
         awaitPlaying()
         player.stop()
         player.play(sourceAt(5.seconds))
         val second = awaitPlaying(from = 3.seconds)
-        assertSame("one ExoPlayer for the player's lifetime", exo, player.exoPlayer)
+        assertSame("one ExoPlayer for the player's lifetime", exo, player.player)
         val error = (second.position - 5.seconds).absoluteValue
         assertTrue("landed ${second.position}, asked for 5 s", error <= SeekCheck.TOLERANCE)
     }

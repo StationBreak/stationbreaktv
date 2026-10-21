@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,20 +29,45 @@ import tv.stationbreak.core.playback.PlaybackTestData.source
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-/** A player that answers each [play] with the events scripted for that attempt. */
+/** One scripted event: emitted [afterMs] after the play (0 means inside `play`), given the play's generation. */
+private class Step(
+    val afterMs: Long = 0,
+    val event: (Long) -> PlayerEvent,
+)
+
+/** A player that answers each [play] with the steps scripted for that attempt, some of them late. */
 private class FakeVideoPlayer : VideoPlayer {
     private val flow = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
     override val events: SharedFlow<PlayerEvent> = flow
     val played = mutableListOf<PlayerSource>()
     var stops = 0
+    var generation = 0L
 
-    /** One list of events per `play` call, in order. An empty list means the player says nothing. */
-    var script: List<List<PlayerEvent>> = emptyList()
+    /** Runs the late steps; set by a test that has any. */
+    var scope: CoroutineScope? = null
 
-    override fun play(source: PlayerSource) {
+    /** Called inside `play` with the 0-based attempt number. */
+    var onPlay: (Int) -> Unit = {}
+
+    /** One list of steps per `play` call, in order. An empty list means the player says nothing. */
+    var script: List<List<Step>> = emptyList()
+
+    override fun play(source: PlayerSource): Long {
         val attempt = played.size
         played += source
-        script.getOrNull(attempt).orEmpty().forEach { flow.tryEmit(it) }
+        val mine = ++generation
+        onPlay(attempt)
+        script.getOrNull(attempt).orEmpty().forEach { step ->
+            if (step.afterMs == 0L) {
+                flow.tryEmit(step.event(mine))
+            } else {
+                checkNotNull(scope).launch {
+                    delay(step.afterMs)
+                    flow.tryEmit(step.event(mine))
+                }
+            }
+        }
+        return mine
     }
 
     override fun stop() {
@@ -66,7 +96,12 @@ class TuneControllerTest {
     private fun playing(
         atMs: Long,
         position: Duration,
-    ) = listOf(PlayerEvent.FirstFrame(atMs - 50), PlayerEvent.Playing(atMs, position))
+    ) = listOf(Step { PlayerEvent.FirstFrame(atMs - 50, it) }, Step { PlayerEvent.Playing(atMs, position, it) })
+
+    private fun failed(
+        errorClass: String,
+        status: Int? = null,
+    ) = listOf(Step { PlayerEvent.Failed(errorClass, status, it) })
 
     private val session = PlaybackTestData.session
 
@@ -164,7 +199,7 @@ class TuneControllerTest {
     fun aPlayerErrorIsReportedNotThrown() =
         runTest {
             answer(source(directPlay = false, directStream = false))
-            player.script = listOf(listOf(PlayerEvent.Failed("ExoPlaybackException")))
+            player.script = listOf(failed("ExoPlaybackException"))
             val outcome = tune()
             assertEquals("ExoPlaybackException", outcome.error)
             assertNotNull(outcome.resolved)
@@ -176,7 +211,7 @@ class TuneControllerTest {
     fun aMediaLoad401IsSessionExpiredWithoutFallback() =
         runTest {
             answer(source())
-            player.script = listOf(listOf(PlayerEvent.Failed("InvalidResponseCodeException", httpStatus = 401)))
+            player.script = listOf(failed("InvalidResponseCodeException", 401))
             val outcome = tune()
             assertEquals("Unauthorized", outcome.error)
             assertFalse(outcome.fallback)
@@ -188,7 +223,7 @@ class TuneControllerTest {
     fun aMediaLoad403IsAlsoSessionExpired() =
         runTest {
             answer(source())
-            player.script = listOf(listOf(PlayerEvent.Failed("InvalidResponseCodeException", httpStatus = 403)))
+            player.script = listOf(failed("InvalidResponseCodeException", 403))
             assertEquals("Unauthorized", tune().error)
             assertEquals(1, player.played.size)
         }
@@ -199,7 +234,7 @@ class TuneControllerTest {
             answer(source())
             player.script =
                 listOf(
-                    listOf(PlayerEvent.Failed("InvalidResponseCodeException", httpStatus = 500)),
+                    failed("InvalidResponseCodeException", 500),
                     playing(2_000, Duration.ZERO),
                 )
             val outcome = tune()
@@ -244,5 +279,126 @@ class TuneControllerTest {
             assertFalse(outcome.fallback)
             assertNull(outcome.positionError)
             assertNull(outcome.error)
+        }
+
+    @Test
+    fun aStalePlayingFromThePreviousTuneIsIgnored() =
+        runTest {
+            player.scope = this
+            answer(source())
+            player.script =
+                listOf(
+                    playing(1_300, Duration.ZERO),
+                    // The previous play's Playing arrives after the new play, then the new one's own.
+                    listOf(
+                        Step(100) { PlayerEvent.Playing(1_150, 99.seconds, it - 1) },
+                        Step(500) { PlayerEvent.Playing(1_600, Duration.ZERO, it) },
+                    ),
+                )
+            tune()
+            val outcome = tune()
+            assertEquals(600L, outcome.playingMs)
+            assertFalse(outcome.fallback)
+            assertNull(outcome.positionError)
+        }
+
+    @Test
+    fun aStaleFailedIsIgnored() =
+        runTest {
+            player.scope = this
+            answer(source())
+            player.script =
+                listOf(
+                    playing(1_300, Duration.ZERO),
+                    listOf(
+                        Step(100) { PlayerEvent.Failed("StaleError", null, it - 1) },
+                        Step(500) { PlayerEvent.Playing(1_600, Duration.ZERO, it) },
+                    ),
+                )
+            tune()
+            val outcome = tune()
+            assertNull(outcome.error)
+            assertFalse(outcome.fallback)
+            assertEquals(600L, outcome.playingMs)
+        }
+
+    @Test
+    fun aNewTuneCancelsTheOneInFlight() =
+        runTest {
+            answer(source())
+            player.script = listOf(emptyList(), playing(1_300, Duration.ZERO))
+            val first = async { tune() }
+            runCurrent()
+            val second = async { tune() }
+            val firstOutcome = first.await()
+            assertEquals("Superseded", firstOutcome.error)
+            assertNull(second.await().error)
+            assertEquals(2, player.played.size)
+            assertTrue("the first did not wait out its timeout", currentTime < 20_000L)
+        }
+
+    @Test
+    fun aFirstFrameAfterPlayingIsStillMeasured() =
+        runTest {
+            player.scope = this
+            answer(source())
+            player.script =
+                listOf(
+                    listOf(
+                        Step { PlayerEvent.Playing(1_300, Duration.ZERO, it) },
+                        Step(500) { PlayerEvent.FirstFrame(1_350, it) },
+                    ),
+                )
+            val outcome = tune()
+            assertEquals(350L, outcome.firstFrameMs)
+            assertEquals(300L, outcome.playingMs)
+            assertNull(outcome.error)
+        }
+
+    @Test
+    fun noFirstFrameWithinTwoSecondsLeavesItNullAndTheTuneFine() =
+        runTest {
+            answer(source())
+            player.script = listOf(listOf(Step { PlayerEvent.Playing(1_300, Duration.ZERO, it) }))
+            val outcome = tune()
+            assertNull(outcome.firstFrameMs)
+            assertEquals(300L, outcome.playingMs)
+            assertNull(outcome.error)
+            assertFalse(outcome.fallback)
+            assertEquals(2_000L, currentTime)
+        }
+
+    @Test
+    fun aTimeoutStopsThePlayerAndTheEncode() =
+        runTest {
+            answer(source(directPlay = false, directStream = false))
+            player.script = listOf(emptyList())
+            val outcome = tune()
+            assertEquals("Timeout", outcome.error)
+            assertEquals(1, player.stops)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun aTimeoutOnDirectPlayStopsOnlyThePlayer() =
+        runTest {
+            answer(source())
+            player.script = listOf(emptyList())
+            tune()
+            assertEquals(1, player.stops)
+            assertTrue(server.stoppedEncodes.isEmpty())
+        }
+
+    @Test
+    fun aFailedFallbackResolveKeepsTheFirstAttempt() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            player.onPlay = { server.playbackInfoResult = ServerResult.Failure(MediaServerError.NotFound()) }
+            val outcome = tune(60.seconds)
+            // The first resolve succeeded (before the hook ran); the fallback's resolve then failed.
+            assertTrue(outcome.fallback)
+            assertEquals("NotFound", outcome.error)
+            assertEquals(Route.DIRECT_PLAY, outcome.resolved?.route)
         }
 }

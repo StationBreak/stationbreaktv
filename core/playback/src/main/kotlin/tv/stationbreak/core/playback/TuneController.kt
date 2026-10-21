@@ -2,10 +2,18 @@
 package tv.stationbreak.core.playback
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -13,6 +21,7 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -44,8 +53,36 @@ class TuneController(
 ) {
     /** The attempt now on the player, so [stop] can end its encode. */
     @Volatile private var current: ResolvedPlayback? = null
+    private val lock = Mutex()
+    private val inFlight = AtomicReference<Deferred<TuneOutcome>?>(null)
 
+    /**
+     * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns "Superseded") and
+     * starts only when that one has finished, so two never share the player.
+     */
     suspend fun tune(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        override: TrackOverride?,
+    ): TuneOutcome =
+        coroutineScope {
+            val mine = async(start = CoroutineStart.LAZY) { lock.withLock { run(session, item, start, override) } }
+            inFlight.getAndSet(mine)?.cancel()
+            try {
+                mine.await()
+            } catch (
+                @Suppress("SwallowedException") e: CancellationException,
+            ) {
+                // Cancelled by a newer tune: report it. Cancelled from outside: ensureActive rethrows.
+                currentCoroutineContext().ensureActive()
+                TuneOutcome(null, null, null, null, false, SUPERSEDED)
+            } finally {
+                inFlight.compareAndSet(mine, null)
+            }
+        }
+
+    private suspend fun run(
         session: Session,
         item: ItemId,
         start: Duration,
@@ -57,7 +94,9 @@ class TuneController(
         while (!fallback && attempt.wantsFallback()) {
             fallback = true
             attempt.resolved?.let { stopEncode(session, it) }
-            attempt = attempt(session, item, start, override, true, began)
+            val next = attempt(session, item, start, override, true, began)
+            // A fallback that could not even resolve leaves the first attempt's route and landing on record.
+            attempt = if (next.resolved == null) attempt.withError(next.error) else next
         }
         return TuneOutcome(
             resolved = attempt.resolved,
@@ -86,6 +125,8 @@ class TuneController(
         val canFallBack: Boolean = false,
     ) {
         fun wantsFallback() = canFallBack
+
+        fun withError(message: String?) = Attempt(resolved, firstFrameMs, playingMs, positionError, message, false)
     }
 
     private class Resolution(
@@ -124,11 +165,30 @@ class TuneController(
         val resolution = resolve(session, item, start, override, forceTranscode)
         val resolved = resolution.resolved ?: return Attempt(null, error = resolution.error)
         current = resolved
-        val result = playAndWait(resolved.source)
+        val result =
+            try {
+                playAndWait(resolved.source)
+            } catch (e: CancellationException) {
+                // Superseded or cancelled mid-wait: nothing may keep loading.
+                withContext(NonCancellable) { stopEncode(session, resolved) }
+                throw e
+            }
         return when (result) {
-            Wait.TimedOut -> Attempt(resolved, error = TIMEOUT)
-            is Wait.Failed -> failed(resolved, result.event, forceTranscode)
-            is Wait.Landed -> landed(resolved, result, began, forceTranscode)
+            Wait.TimedOut -> {
+                // Nothing played: stop what is loading, on the player and on the server.
+                current = null
+                player.stop()
+                stopEncode(session, resolved)
+                Attempt(resolved, error = TIMEOUT)
+            }
+
+            is Wait.Failed -> {
+                failed(resolved, result.event, forceTranscode)
+            }
+
+            is Wait.Landed -> {
+                landed(resolved, result, began, forceTranscode)
+            }
         }
     }
 
@@ -175,25 +235,45 @@ class TuneController(
         ) : Wait
     }
 
-    /** Starts [source] and waits for it to play or fail. [Wait.TimedOut] when neither happens in [PLAYING_TIMEOUT]. */
+    /**
+     * Starts [source] and waits for its play to start or fail. Only events of this play's own generation count, so
+     * a late event of an earlier play cannot answer for it. [Wait.TimedOut] when neither happens in
+     * [PLAYING_TIMEOUT]. Once playing, it waits up to [FIRST_FRAME_WAIT] more for the first frame.
+     */
     private suspend fun playAndWait(source: PlayerSource): Wait =
         coroutineScope {
-            var firstFrameAt: Long? = null
-            // Listening starts before play(), so no event of this attempt is missed.
-            val waiter =
-                async(start = CoroutineStart.UNDISPATCHED) {
-                    withTimeoutOrNull(PLAYING_TIMEOUT) {
-                        player.events.first { event ->
-                            if (event is PlayerEvent.FirstFrame) firstFrameAt = event.atMs
-                            event is PlayerEvent.Playing || event is PlayerEvent.Failed
+            val generation = CompletableDeferred<Long>()
+            val outcome = CompletableDeferred<PlayerEvent>()
+            val firstFrame = CompletableDeferred<Long>()
+            // Listening starts before play(), so no event of this play is missed; events wait for its generation.
+            val listener =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    player.events.collect { event ->
+                        if (event.generation != generation.await()) return@collect
+                        when (event) {
+                            is PlayerEvent.FirstFrame -> firstFrame.complete(event.atMs)
+                            is PlayerEvent.Playing, is PlayerEvent.Failed -> outcome.complete(event)
+                            else -> Unit
                         }
                     }
                 }
-            player.play(source)
-            when (val event = waiter.await()) {
-                is PlayerEvent.Playing -> Wait.Landed(firstFrameAt, event)
-                is PlayerEvent.Failed -> Wait.Failed(event)
-                else -> Wait.TimedOut
+            try {
+                generation.complete(player.play(source))
+                when (val event = withTimeoutOrNull(PLAYING_TIMEOUT) { outcome.await() }) {
+                    is PlayerEvent.Playing -> {
+                        Wait.Landed(withTimeoutOrNull(FIRST_FRAME_WAIT) { firstFrame.await() }, event)
+                    }
+
+                    is PlayerEvent.Failed -> {
+                        Wait.Failed(event)
+                    }
+
+                    else -> {
+                        Wait.TimedOut
+                    }
+                }
+            } finally {
+                listener.cancel()
             }
         }
 
@@ -219,6 +299,8 @@ class TuneController(
 
     private companion object {
         val PLAYING_TIMEOUT = 20.seconds
+        val FIRST_FRAME_WAIT = 2.seconds
+        const val SUPERSEDED = "Superseded"
         const val TIMEOUT = "Timeout"
         const val UNAUTHORIZED = "Unauthorized"
         const val HTTP_UNAUTHORIZED = 401

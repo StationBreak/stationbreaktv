@@ -23,6 +23,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -46,12 +47,12 @@ class Media3VideoPlayer(
     dataSource: DataSource.Factory,
     private val clock: () -> Long,
 ) : VideoPlayer {
-    private val player: ExoPlayer =
+    private val exo: ExoPlayer =
         ExoPlayer
             .Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
             .build()
-    private val handler = Handler(player.applicationLooper)
+    private val handler = Handler(exo.applicationLooper)
     private val flow =
         MutableSharedFlow<PlayerEvent>(
             extraBufferCapacity = EVENT_BUFFER,
@@ -59,6 +60,10 @@ class Media3VideoPlayer(
         )
     override val events: SharedFlow<PlayerEvent> = flow
 
+    private val nextGeneration = AtomicLong()
+
+    /** The generation of the play now on the player; set on its looper, so events and plays agree. */
+    @Volatile private var active = 0L
     private var current: PlayerSource? = null
     private var tracksApplied = false
     private var hasPlayed = false
@@ -68,40 +73,44 @@ class Media3VideoPlayer(
         private set
 
     init {
-        player.addAnalyticsListener(Analytics())
+        exo.addAnalyticsListener(Analytics())
     }
 
-    /** The ExoPlayer, for the host to attach to a video surface. Main thread only. */
-    val exoPlayer: ExoPlayer get() = player
+    /** The player, for the host to attach to a video surface. Main thread only. */
+    val player: Player get() = exo
 
-    override fun play(source: PlayerSource) =
+    override fun play(source: PlayerSource): Long {
+        val generation = nextGeneration.incrementAndGet()
         onPlayerThread {
+            active = generation
             current = source
             tracksApplied = false
             hasPlayed = false
             lastPickVerified = null
-            player.trackSelectionParameters =
-                player.trackSelectionParameters
+            exo.trackSelectionParameters =
+                exo.trackSelectionParameters
                     .buildUpon()
                     .clearOverrides()
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                     .build()
-            player.setMediaItem(mediaItem(source), source.playerStart.inWholeMilliseconds)
-            player.prepare()
-            player.playWhenReady = true
+            exo.setMediaItem(mediaItem(source), source.playerStart.inWholeMilliseconds)
+            exo.prepare()
+            exo.playWhenReady = true
         }
+        return generation
+    }
 
     override fun stop() =
         onPlayerThread {
             current = null
-            player.stop()
-            player.clearMediaItems()
+            exo.stop()
+            exo.clearMediaItems()
         }
 
     override fun release() =
         onPlayerThread {
             current = null
-            player.release()
+            exo.release()
         }
 
     private fun onPlayerThread(block: () -> Unit) {
@@ -128,7 +137,7 @@ class Media3VideoPlayer(
         source: PlayerSource,
         tracks: Tracks,
     ) {
-        val parameters = player.trackSelectionParameters.buildUpon()
+        val parameters = exo.trackSelectionParameters.buildUpon()
         source.audioPick?.let { pick ->
             val group = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.getOrNull(pick.position)
             if (group != null) {
@@ -145,7 +154,7 @@ class Media3VideoPlayer(
         } else if (source.subtitles.isEmpty()) {
             parameters.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
         }
-        player.trackSelectionParameters = parameters.build()
+        exo.trackSelectionParameters = parameters.build()
     }
 
     private fun matches(
@@ -187,7 +196,7 @@ class Media3VideoPlayer(
             output: Any,
             renderTimeMs: Long,
         ) {
-            flow.tryEmit(PlayerEvent.FirstFrame(clock()))
+            flow.tryEmit(PlayerEvent.FirstFrame(clock(), active))
         }
 
         override fun onIsPlayingChanged(
@@ -196,7 +205,7 @@ class Media3VideoPlayer(
         ) {
             if (!isPlaying) return
             hasPlayed = true
-            flow.tryEmit(PlayerEvent.Playing(clock(), player.currentPosition.milliseconds))
+            flow.tryEmit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active))
         }
 
         override fun onPlaybackStateChanged(
@@ -204,21 +213,21 @@ class Media3VideoPlayer(
             state: Int,
         ) {
             // A rebuffer: buffering again after playback had begun.
-            if (state == Player.STATE_BUFFERING && hasPlayed) flow.tryEmit(PlayerEvent.Stalled)
+            if (state == Player.STATE_BUFFERING && hasPlayed) flow.tryEmit(PlayerEvent.Stalled(active))
         }
 
         override fun onCues(
             eventTime: AnalyticsListener.EventTime,
             cueGroup: CueGroup,
         ) {
-            flow.tryEmit(PlayerEvent.Cues(cueGroup.cues.size))
+            flow.tryEmit(PlayerEvent.Cues(cueGroup.cues.size, active))
         }
 
         override fun onAudioPositionAdvancing(
             eventTime: AnalyticsListener.EventTime,
             playoutStartSystemTimeMs: Long,
         ) {
-            flow.tryEmit(PlayerEvent.AudioAdvanced(player.currentPosition.milliseconds))
+            flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
         }
 
         override fun onPlayerError(
@@ -233,7 +242,7 @@ class Media3VideoPlayer(
         val chain = generateSequence<Throwable>(error) { it.cause }.toList()
         val status = chain.filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.responseCode
         // The class name of the innermost cause only: never a message, which may hold a URL.
-        return PlayerEvent.Failed(chain.last().javaClass.simpleName, status)
+        return PlayerEvent.Failed(chain.last().javaClass.simpleName, status, active)
     }
 
     private companion object {
