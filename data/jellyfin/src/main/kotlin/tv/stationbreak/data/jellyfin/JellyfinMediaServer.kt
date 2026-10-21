@@ -36,6 +36,7 @@ import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
 import tv.stationbreak.data.jellyfin.trust.PinRegistry
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -48,8 +49,13 @@ import kotlin.time.Instant
  * The probe is credential-free and follows the redirects [RedirectPolicy] allows. Every other call is on a client that
  * follows none, carries exactly one `Authorization` header, and puts no credential in a URL (the one exception is
  * Quick Connect's single-use secret, see [QuickConnectRequests]).
+ *
+ * One instance per process (`@Singleton`): it remembers which tokens it issued or confirmed, and the media call factory
+ * sends `Authorization` only for those. The session repository, every `MediaServer` injection and the player's data
+ * source must share it, or a session signed in on one is unbound on another (R24).
  */
 @Suppress("TooManyFunctions") // The port's methods: one interface by decision (Granny's split is on hold).
+@Singleton
 class JellyfinMediaServer internal constructor(
     source: HttpClientSource,
     identity: ClientIdentity,
@@ -170,6 +176,8 @@ class JellyfinMediaServer internal constructor(
             withTimeoutOrNull(revokeTimeout) {
                 calls.send(session, Endpoint.post("Sessions/Logout")).flatMap { ServerResult.Success(Unit) }
             } ?: ServerResult.Failure(MediaServerError.Timeout())
+        // Whatever the server said, the user signed out: the token is not to be attached again.
+        calls.forget(session)
         adapterLog.log(
             when (result) {
                 is ServerResult.Success -> "revoke ok"

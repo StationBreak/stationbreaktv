@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        The playback matrix's test activity (spec 13). Exported so `adb shell am start -n
+        tv.stationbreak.app.benchmark/tv.stationbreak.app.bench.PlaybackTestActivity` can reach it; it plays items the
+        extras name and prints result lines, so it exists in the benchmark variant only. BackupRulesTest checks that
+        the debug and release manifests do not contain it.
+    -->
+    <application>
+        <activity
+            android:name="tv.stationbreak.app.bench.PlaybackTestActivity"
+            android:exported="true" />
+    </application>
+
+</manifest>

@@ -103,6 +103,7 @@ script_tests() {
   bash .github/scripts/instrumented-infra.test.sh
   bash .github/scripts/release-scope.test.sh
   bash scripts/guard-tree.test.sh
+  bash scripts/playback-matrix/playback-matrix.test.sh
 }
 
 # The guards walk the tree they are given. On the repo root that includes agent worktrees under .claude/, each a full
@@ -187,7 +188,8 @@ check_tasks() {
 
 assemble_tasks() {
   gradle_env || return 1
-  ./gradlew assembleAmazonRelease assembleGithubDebug assembleGithubRelease --continue
+  # CI does not assemble the benchmark build (never published); building it here keeps it compiling.
+  ./gradlew assembleAmazonRelease assembleGithubDebug assembleGithubRelease assembleGithubBenchmark --continue
 }
 
 # --- the `jellyfin-contract` workflow ---

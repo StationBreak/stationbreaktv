@@ -1,0 +1,181 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.app.bench
+
+import tv.stationbreak.core.model.Codecs
+import tv.stationbreak.core.model.MediaStreamInfo
+import tv.stationbreak.core.model.StreamKind
+import tv.stationbreak.core.model.SubtitleDelivery
+import tv.stationbreak.core.playback.ResolvedPlayback
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.TuneResult
+
+/** What the player did during the watch window: stalls and cues seen, and how far the audio clock moved. */
+data class Watch(
+    val stalls: Int,
+    val cues: Int,
+    val audioAdvancedMs: Long,
+)
+
+/**
+ * One item's line in the playback matrix. Every field is a fact about the file, the route or the timing: no item ID,
+ * title, URL or error message (those can hold a token or name the owner's library). [error] is a stable string built
+ * from the result type and the controller's stable names, never an exception message or class name, so a minified
+ * build reads the same.
+ */
+@Suppress("LongParameterList") // One column of the matrix each.
+data class PlaybackResult(
+    val section: String,
+    val container: String,
+    val video: String,
+    val audio: String,
+    val subtitle: String,
+    val route: String,
+    val expectedRoute: String,
+    val transcodeReasons: String,
+    val burnIn: Boolean,
+    val fallback: Boolean,
+    val requestedMs: Long,
+    val positionErrorMs: Long?,
+    val firstFrameMs: Long?,
+    val playingMs: Long?,
+    val stalls: Int,
+    val audioOk: Boolean,
+    val subtitleOk: Boolean?,
+    val pass: Boolean,
+    val error: String?,
+) {
+    fun toJsonLine(): String =
+        jsonObject(
+            "section" to section,
+            "container" to container,
+            "video" to video,
+            "audio" to audio,
+            "subtitle" to subtitle,
+            "route" to route,
+            "expectedRoute" to expectedRoute,
+            "transcodeReasons" to transcodeReasons,
+            "burnIn" to burnIn,
+            "fallback" to fallback,
+            "requestedMs" to requestedMs,
+            "positionErrorMs" to positionErrorMs,
+            "firstFrameMs" to firstFrameMs,
+            "playingMs" to playingMs,
+            "stalls" to stalls,
+            "audioOk" to audioOk,
+            "subtitleOk" to subtitleOk,
+            "pass" to pass,
+            "error" to error,
+        )
+
+    companion object {
+        /** Media that moved this far during the watch window counts as audible (the window is 15 s). */
+        const val AUDIO_ADVANCE_MS = 10_000L
+        private const val NONE = "—"
+
+        /** [expected] is the oracle's route, null when there is none for this item (a track override). */
+        fun from(
+            section: String,
+            outcome: TuneResult,
+            watch: Watch,
+            expected: Route?,
+            requestedMs: Long,
+        ): PlaybackResult {
+            val played = outcome as? TuneResult.Played
+            val resolved = resolvedOf(outcome)
+            val chosen = resolved?.chosenSubtitle
+            val burnIn = chosen?.delivery == SubtitleDelivery.BURNED_IN
+            // Not known when nothing played: a failure is reported by its error, not by a subtitle verdict.
+            val subtitleOk = played?.let { subtitleOk(chosen, burnIn, watch) }
+            val audioOk = played != null && audioHeard(resolved, watch)
+            val route = resolved?.route
+            val routeOk = expected == null || route == expected
+            val positionError = played?.positionError
+            return PlaybackResult(
+                section = section,
+                container = resolved?.media?.container ?: NONE,
+                video = videoOf(resolved),
+                audio = resolved?.chosenAudio?.let(::describeAudio) ?: NONE,
+                subtitle = subtitleClass(chosen),
+                route = route?.wire() ?: NONE,
+                expectedRoute = expected?.wire() ?: NONE,
+                transcodeReasons = reasonsOf(resolved),
+                burnIn = burnIn,
+                fallback = fallbackOf(outcome),
+                requestedMs = requestedMs,
+                positionErrorMs = positionError?.inWholeMilliseconds,
+                firstFrameMs = played?.firstFrameMs,
+                playingMs = played?.playingMs,
+                stalls = watch.stalls,
+                audioOk = audioOk,
+                subtitleOk = subtitleOk,
+                pass = played != null && positionError == null && routeOk && audioOk && subtitleOk != false,
+                error = errorOf(outcome),
+            )
+        }
+
+        /** An item with no audio track has nothing to hear. */
+        private fun audioHeard(
+            resolved: ResolvedPlayback?,
+            watch: Watch,
+        ): Boolean = resolved?.chosenAudio == null || watch.audioAdvancedMs >= AUDIO_ADVANCE_MS
+
+        private fun videoOf(resolved: ResolvedPlayback?): String =
+            resolved
+                ?.media
+                ?.streams
+                ?.firstOrNull { it.kind == StreamKind.VIDEO }
+                ?.let(::describeVideo) ?: NONE
+
+        // Jellyfin 12.x reports none here (ruling R8): the dash says "nothing reported", not "none happened".
+        private fun reasonsOf(resolved: ResolvedPlayback?): String =
+            resolved
+                ?.media
+                ?.transcodeReasons
+                ?.sorted()
+                ?.joinToString(",")
+                .orEmpty()
+                .ifEmpty { NONE }
+
+        private fun resolvedOf(outcome: TuneResult): ResolvedPlayback? =
+            when (outcome) {
+                is TuneResult.Played -> outcome.resolved
+                is TuneResult.Failed -> outcome.resolved
+                is TuneResult.SessionExpired -> outcome.resolved
+                TuneResult.Superseded, TuneResult.Stopped -> null
+            }
+
+        private fun fallbackOf(outcome: TuneResult): Boolean =
+            when (outcome) {
+                is TuneResult.Played -> outcome.fallback
+                is TuneResult.Failed -> outcome.fallback
+                else -> false
+            }
+
+        private fun errorOf(outcome: TuneResult): String? =
+            when (outcome) {
+                is TuneResult.Played -> if (outcome.positionError != null) "position-miss" else null
+                TuneResult.Superseded -> "superseded"
+                TuneResult.Stopped -> "stopped"
+                is TuneResult.SessionExpired -> "session-expired"
+                is TuneResult.Failed -> failedError(outcome)
+            }
+
+        private fun failedError(outcome: TuneResult.Failed): String =
+            listOfNotNull("failed", outcome.reason.name.lowercase(), outcome.diagnostic).joinToString(":")
+
+        /** Null when there is no subtitle. A text one is shown if its cues came; an image one if it was burned in. */
+        private fun subtitleOk(
+            chosen: MediaStreamInfo?,
+            burnIn: Boolean,
+            watch: Watch,
+        ): Boolean? =
+            when {
+                chosen == null -> null
+
+                isImage(chosen) -> burnIn
+
+                // Text: cues seen, or the server burned it into the picture, which leaves no cues to count.
+                else -> watch.cues > 0 || burnIn
+            }
+    }
+}

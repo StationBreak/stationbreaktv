@@ -22,6 +22,9 @@ Turn your Jellyfin library into always-on, flip-through broadcast channels on Fi
 | [Assumptions & questions](docs/ASSUMPTIONS.md) | What's been assumed, decided, and still open |
 | [ADRs](docs/adr/) | Architecture decision records |
 
+A playback compatibility matrix (what the player did with a spread of files on real devices, measured and not graded)
+is being added under `docs/compatibility/`; the tooling that produces it is in `scripts/playback-matrix/`.
+
 ## Assets
 
 The TV banner, the launcher icons and the banner at the top of this README are **placeholders**, not final brand art.

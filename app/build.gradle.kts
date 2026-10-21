@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
+import com.android.build.api.variant.HostTestBuilder
+
 plugins {
     // SDK levels, flavors, desugaring, toolchain, Lint, Spotless and detekt: build-logic's AndroidAppPlugin.
     id("stationbreak.android-app")
@@ -9,6 +11,18 @@ plugins {
     id("stationbreak.hilt")
     // Typed navigation routes (`@Serializable` route objects).
     alias(libs.plugins.kotlin.serialization)
+}
+
+// AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
+// benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
+// share every source set and dependency, so the github benchmark manifest stands for the amazon one: that one alone is
+// left out, which saves a manifest merge and a test run. Amazon's release is kept: it is the one that ships.
+androidComponents {
+    beforeVariants { variant ->
+        val amazonBenchmark =
+            variant.buildType == "benchmark" && variant.productFlavors.contains("distribution" to "amazon")
+        if (!amazonBenchmark) variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+    }
 }
 
 android {
@@ -38,6 +52,19 @@ android {
             // No signing config: release signing comes only from protected secrets (S4.1.1).
             isDebuggable = false
         }
+        // The playback matrix build (spec 13): release code, with the benchmark-only PlaybackTestActivity (src/benchmark)
+        // that plays items on a real device and reports JSON lines. Not debuggable, so it measures what ships. It is
+        // signed with the per-machine debug key (never a protected one) so it installs with a plain `adb install`; its
+        // own application ID keeps it beside the debug and release builds. Never published: CI and the stores build
+        // debug and release only.
+        // initWith copies release's minify and shrink settings: keep them that way, or it measures code that is not shipped.
+        create("benchmark") {
+            initWith(getByName("release"))
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            applicationIdSuffix = ".benchmark"
+        }
     }
 }
 
@@ -45,6 +72,8 @@ dependencies {
     // ADR-0004: app consumes the KMP shared core through Gradle's jvm variant.
     implementation(project(":core:model"))
     implementation(project(":core:domain"))
+    // The Media3 player, the capability probe and the tune controller (spec 13), wired in di/PlaybackModule.
+    implementation(project(":core:playback"))
     // The adapter behind the MediaServer port, bound in di/MediaServerModule. Nothing else imports it.
     implementation(project(":data:jellyfin"))
     // The Keystore-backed SecretStore, bound in di/MediaServerModule. Nothing else imports it.
@@ -53,6 +82,9 @@ dependencies {
     implementation(project(":data:library"))
     // The base OkHttpClient is built here (ADR-0005); data:jellyfin keeps OkHttp to itself otherwise.
     implementation(libs.okhttp)
+    // The player reads media through the credentialed OkHttp client; the app wraps it in this data source and hands it
+    // over (ADR-0016, 9), so core:playback needs no HTTP client of its own.
+    implementation(libs.androidx.media3.datasource.okhttp)
     implementation(project(":core:ui"))
     // The screens. Their ViewModels get the MediaServer port through Hilt, wired in di/.
     implementation(project(":feature:onboarding"))
@@ -85,6 +117,8 @@ dependencies {
 
     // The pin-sync tests (spec 05, Unit 3) use the in-memory settings fake and the pinned client's JVM seams.
     testImplementation(testFixtures(project(":core:domain")))
+    // The benchmark playback run (src/benchmark) is tested with virtual time.
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 // The manifest and XML-rule tests (BackupRulesTest, NetworkSecurityConfigTest) read these files straight off disk, so

@@ -43,6 +43,15 @@ internal class AuthorizedCall(
         CleartextGate.check(session.address, session.acknowledgement) == null &&
             Binding(session.token, session.address, session.server.id) in bound
 
+    /**
+     * Drops every binding of [session]'s token, so a revoked or refused token is no longer [isCleared] and the media
+     * client stops attaching it, whatever the caller still hands out. Called on sign-out and when a call comes back
+     * `SessionExpired` (PR #321/#332, issue 322).
+     */
+    fun forget(session: Session) {
+        bound.removeAll { it.token == session.token }
+    }
+
     suspend fun send(
         session: Session,
         endpoint: Endpoint,
@@ -51,7 +60,9 @@ internal class AuthorizedCall(
         return if (blocked != null) {
             ServerResult.Failure(blocked)
         } else {
-            transport.send(session.address, endpoint, session.token)
+            transport.send(session.address, endpoint, session.token).also {
+                if (it is ServerResult.Failure && it.error is MediaServerError.SessionExpired) forget(session)
+            }
         }
     }
 

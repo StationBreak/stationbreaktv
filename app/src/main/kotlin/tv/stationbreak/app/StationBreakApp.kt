@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.LineupRefresher
+import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
 import tv.stationbreak.data.library.StayCurrent
@@ -40,6 +41,8 @@ class StationBreakApp :
         fun firstSyncRunner(): FirstSyncRunner
 
         fun lineupRefresher(): LineupRefresher
+
+        fun deviceCapabilities(): DeviceCapabilitiesCache
     }
 
     // One object for the whole process, so the open trigger, the on-open work and the periodic job share one gate. It
@@ -65,6 +68,14 @@ class StationBreakApp :
         scope.launch {
             val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
             graph.lineupRefresher().start(lineupScope)
+        }
+        // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main
+        // thread, so the first screen that plays finds it done (spec 13). It reports no failure of its own.
+        scope.launch {
+            EntryPointAccessors
+                .fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
+                .deviceCapabilities()
+                .get()
         }
     }
 
