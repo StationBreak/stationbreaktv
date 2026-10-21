@@ -710,7 +710,7 @@ abstract class ContractSuite {
         return server.http.expectOk("read item", server.http.get("Users/$viewerId/Items/$id", token)).obj()
     }
 
-    private val request =
+    private val playbackRequest =
         PlaybackRequest(
             capabilities = DeviceCapabilities(setOf("mp4"), emptyList(), setOf("aac"), emptySet(), 2),
             start = Duration.ZERO,
@@ -726,7 +726,7 @@ abstract class ContractSuite {
             val session = session(adapter)
             val item = ItemId(server.seeded.movieIds.first())
 
-            val info = adapter.playbackInfo(session, item, request).getOrNull()
+            val info = adapter.playbackInfo(session, item, playbackRequest).getOrNull()
 
             assertNotNull(info)
             val source = info.sources.first()
@@ -752,7 +752,7 @@ abstract class ContractSuite {
             val adapter = adapter()
             val session = session(adapter)
             val item = ItemId(server.seeded.movieIds.first())
-            val info = adapter.playbackInfo(session, item, request).getOrNull()
+            val info = adapter.playbackInfo(session, item, playbackRequest).getOrNull()
             assertNotNull(info)
             val source = info.sources.first().id
 
