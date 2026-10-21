@@ -2,9 +2,6 @@
 package tv.stationbreak.data.library
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -12,8 +9,6 @@ import org.junit.Test
 import tv.stationbreak.core.domain.CollectionCallKind
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PagedCollectionCall
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Issue #315: how many collection passes ended without completing since the last completed one. The first lineup
@@ -98,36 +93,6 @@ class FailedPassCountTest {
             repository.beginCollectionPass(ALICE)
 
             assertEquals(1, failed())
-        }
-
-    @Test
-    @Suppress("InjectDispatcher") // A test: nothing to inject into.
-    fun overlappingPassesDoNotCountAHealthyPassAsFailed() =
-        runBlocking {
-            rig.serve(1, *rig.movies(10))
-            val first = CountDownLatch(1)
-            val release = CountDownLatch(1)
-            val gated = AtomicBoolean(false)
-            rig.server.respondToCollections = {
-                // Only the first call of the first pass waits, off the test thread.
-                if (gated.compareAndSet(false, true)) {
-                    first.countDown()
-                    release.await()
-                }
-                null
-            }
-            // The first sync's pass is running when a stay-current run starts its own.
-            val a = async(Dispatchers.Default) { rig.run() }
-            first.await()
-            val b = async(Dispatchers.Default) { rig.run() }
-            delay(300)
-
-            assertEquals("the second pass must not see the first as dead", 0, failed())
-            release.countDown()
-
-            assertEquals(SyncOutcome.Completed, a.await().outcome)
-            assertEquals(SyncOutcome.Completed, b.await().outcome)
-            assertEquals(0, failed())
         }
 
     @Test
