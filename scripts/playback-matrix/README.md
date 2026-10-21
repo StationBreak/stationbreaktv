@@ -44,7 +44,8 @@ adb -s SERIAL uninstall tv.stationbreak.app.benchmark
 scripts/playback-matrix/temp-server.sh down
 
 # 5. Real items: put 8 to 10 of the owner's items into items.local.json under "real" (id, runtimeMs, and optionally
-#    audio / subtitle track indexes), sign the app in to the owner's server, then
+#    audio / subtitle track indexes), reinstall the same benchmark APK, sign it in to the owner's server, then
+adb -s SERIAL install path/to/app-github-benchmark.apk
 python3 -I scripts/playback-matrix/run.py plan --seed 1 --items scripts/playback-matrix/items.local.json \
   --out scripts/playback-matrix/plan.json
 python3 -I scripts/playback-matrix/run.py run -s SERIAL --plan scripts/playback-matrix/plan.json --section real

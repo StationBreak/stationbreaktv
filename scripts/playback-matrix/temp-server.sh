@@ -193,6 +193,8 @@ start_container() { # on loopback only, on a port docker picks (the home server 
 
 # The setup is done and the admin has a password: only now is the server published on the LAN address.
 publish_on_lan() {
+  # A clean stop first, so Jellyfin closes its database before the container is recreated on the same volumes.
+  docker stop "$NAME" >/dev/null
   docker rm -f -v "$NAME" >/dev/null
   run_container "$bind:$port:8096"
   base=$lan_base
