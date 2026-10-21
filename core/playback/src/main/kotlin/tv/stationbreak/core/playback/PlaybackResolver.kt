@@ -88,6 +88,8 @@ class PlaybackResolver(
                 audioIndex = audioIndex,
                 subtitleIndex = subtitleIndex,
                 directPlayTracks = route == Route.DIRECT_PLAY,
+                audioPick = audio?.pick(),
+                subtitlePick = subtitle?.takeIf { it.delivery == SubtitleDelivery.IN_STREAM }?.pick(),
             )
         val resolved = ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start)
         return ServerResult.Success(resolved)
@@ -106,6 +108,8 @@ class PlaybackResolver(
             media.supportsDirectStream -> Route.DIRECT_STREAM
             else -> Route.TRANSCODE
         }
+
+    private fun MediaStreamInfo.pick(): TrackPick? = positionInKind?.let { TrackPick(it, language, codec) }
 
     private fun MediaSource.stream(
         kind: StreamKind,

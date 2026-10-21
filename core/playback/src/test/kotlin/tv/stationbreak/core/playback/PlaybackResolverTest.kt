@@ -116,6 +116,16 @@ class PlaybackResolverTest {
         }
 
     @Test
+    fun directPlayNamesTheTracksByPositionInKind() =
+        runTest {
+            val second = audio(index = 2, codec = Codecs.AC3).copy(language = "fra", positionInKind = 1)
+            answer(source(streams = listOf(video(), audio(), second)))
+            val played = resolve(override = TrackOverride(audioIndex = 2, subtitleIndex = null))
+            assertEquals(TrackPick(1, "fra", Codecs.AC3), played.source.audioPick)
+            assertNull(played.source.subtitlePick)
+        }
+
+    @Test
     fun directStreamUsesHls() =
         runTest {
             answer(source(directPlay = false))

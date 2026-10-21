@@ -15,6 +15,16 @@ data class TrackOverride(
     val subtitleIndex: Int?,
 )
 
+/**
+ * A track the player picks itself on direct play: its [position] among the file's tracks of its kind (the third audio
+ * track is 2), and the [language] and [codec] the server reports for it, which the player checks the pick against.
+ */
+data class TrackPick(
+    val position: Int,
+    val language: String?,
+    val codec: String?,
+)
+
 /** A WebVTT file the player loads beside the video. The [url] carries no credential (ADR-0016). */
 data class SeparateSubtitle(
     val url: String,
@@ -24,7 +34,8 @@ data class SeparateSubtitle(
 /**
  * What the player is handed. [url] is a secret as far as logs go (ADR-0016): [toString] does not show it.
  * [serverOffset] is where the server starts the stream (HLS StartTimeTicks); [playerStart] is where the player seeks
- * within it. [directPlayTracks] is true when the player's own track selection applies (direct play only).
+ * within it. [directPlayTracks] is true when the player's own track selection applies (direct play only); then
+ * [audioPick] and [subtitlePick] name the tracks to pick. A null [subtitlePick] with no [subtitles] means no subtitle.
  */
 @Suppress("LongParameterList") // One independent fact each; the player reads them all.
 data class PlayerSource(
@@ -36,6 +47,8 @@ data class PlayerSource(
     val audioIndex: Int?,
     val subtitleIndex: Int?,
     val directPlayTracks: Boolean,
+    val audioPick: TrackPick? = null,
+    val subtitlePick: TrackPick? = null,
 ) {
     override fun toString(): String = "PlayerSource(hls=$isHls, url=<not shown>, subtitles=${subtitles.size})"
 }
