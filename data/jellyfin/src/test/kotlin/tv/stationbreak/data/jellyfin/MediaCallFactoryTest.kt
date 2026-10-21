@@ -92,6 +92,15 @@ class MediaCallFactoryTest {
         assertNotNull(factory.get("$origin/media/jf"))
     }
 
+    // Why the app must share one adapter (R24): a session another adapter signed in is not bound here.
+    @Test
+    fun aSessionAnotherAdapterSignedInCarriesNoHeader() {
+        val signer = adapter()
+        val session = signedIn(signer)
+        assertNotNull(signer.mediaCallFactory { session }.get("$origin/Videos/i1/master.m3u8"), "same adapter")
+        assertNull(adapter().mediaCallFactory { session }.get("$origin/Videos/i1/master.m3u8"), "another adapter")
+    }
+
     @Test
     fun theHeaderNeverGoesToAnotherOrigin() {
         val adapter = adapter()
