@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.app.playback
+package tv.stationbreak.core.playback.probe
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import tv.stationbreak.core.model.DeviceCapabilities
 
 class DeviceCapabilitiesCacheTest {
@@ -44,5 +49,52 @@ class DeviceCapabilitiesCacheTest {
         cache.refreshSink()
         assertEquals(0, probes)
         assertEquals(base, cache.get())
+    }
+
+    @Test
+    fun refreshDoesNotWaitForTheProbe() {
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val slow =
+            DeviceCapabilitiesCache(
+                probe = {
+                    started.countDown()
+                    release.await(10, TimeUnit.SECONDS)
+                    base
+                },
+                withSink = { it.copy(maxAudioChannels = 6) },
+            )
+        val getter = thread { slow.get() }
+        assertTrue(started.await(10, TimeUnit.SECONDS))
+        val refresher = thread { slow.refreshSink() }
+        refresher.join(2_000)
+        val waited = refresher.isAlive
+        release.countDown()
+        getter.join(10_000)
+        refresher.join(10_000)
+        assertFalse("refreshSink waited for the probe", waited)
+    }
+
+    @Test
+    fun refreshDuringProbeIsNotLost() {
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val slow =
+            DeviceCapabilitiesCache(
+                probe = {
+                    started.countDown()
+                    release.await(10, TimeUnit.SECONDS)
+                    base
+                },
+                withSink = { it.copy(audioPassthrough = setOf("ac3"), maxAudioChannels = 6) },
+            )
+        val getter = thread { slow.get() }
+        assertTrue(started.await(10, TimeUnit.SECONDS))
+        slow.refreshSink()
+        release.countDown()
+        getter.join(10_000)
+        val after = slow.get()
+        assertEquals(setOf("ac3"), after.audioPassthrough)
+        assertEquals(6, after.maxAudioChannels)
     }
 }

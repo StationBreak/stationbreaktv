@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import android.view.SurfaceView
 import android.view.WindowManager
@@ -17,9 +18,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import tv.stationbreak.app.playback.CurrentSession
-import tv.stationbreak.app.playback.DeviceCapabilitiesCache
+import tv.stationbreak.app.di.MediaDataSource
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
@@ -29,6 +30,7 @@ import tv.stationbreak.core.playback.Media3VideoPlayer
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
+import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
 import java.io.File
 import javax.inject.Inject
 
@@ -49,7 +51,7 @@ private const val RESULTS_FILE = "playback-results.jsonl"
 @AndroidEntryPoint
 @UnstableApi
 class PlaybackTestActivity : ComponentActivity() {
-    @Inject lateinit var dataSource: DataSource.Factory
+    @Inject @field:MediaDataSource lateinit var dataSource: DataSource.Factory
 
     @Inject lateinit var resolver: PlaybackResolver
 
@@ -59,8 +61,6 @@ class PlaybackTestActivity : ComponentActivity() {
 
     @Inject lateinit var settings: ServerSettings
 
-    @Inject lateinit var current: CurrentSession
-
     @Inject lateinit var capabilities: DeviceCapabilitiesCache
 
     private var player: VideoPlayer? = null
@@ -68,6 +68,12 @@ class PlaybackTestActivity : ComponentActivity() {
     @Suppress("InjectDispatcher") // The activity is the root of this test run: there is nothing to inject into.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Exported, so any app can start it: with debugging off, nothing started it by adb, and it does nothing.
+        val adb = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0)
+        if (!AdbGate.allows(adb)) {
+            Log.i(TAG, "ERROR adb-disabled")
+            return finish()
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         ResultsFile.trimIfLarge(File(filesDir, RESULTS_FILE))
         val args = parseArgs() ?: return finish()
@@ -140,15 +146,19 @@ class PlaybackTestActivity : ComponentActivity() {
                     }
                 }
             emit("RESULT " + result.toJsonLine())
-            if (result.error == "session-expired") current.clear()
+            if (result.error == "session-expired") {
+                sessions.onServerError(MediaServerError.SessionExpired())
+            }
         }
     }
 
-    /** The stored session, confirmed with the server and held for the media requests; null when there is none. */
+    /**
+     * The stored session, confirmed with the server; null when there is none. Confirming it makes the repository hold
+     * it as `current`, which is what the media requests read.
+     */
     private suspend fun signIn(): Session? {
         val record = settings.load() ?: return null
-        val restored = sessions.verify(record.address) as? RestoreOutcome.Restored
-        return restored?.session?.also(current::set)
+        return (sessions.verify(record.address) as? RestoreOutcome.Restored)?.session
     }
 
     private fun meta(
