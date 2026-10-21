@@ -12,13 +12,15 @@ status is 1. The error names the field and the rule, never the value.
 
 import json
 import re
+import string
 import sys
 
 SECTION_ORDER = ("synthetic", "real")
 
 def _hex_run_of_32(text):
-    """A token of hex digits and dashes, in any grouping, that holds 32 or more hex digits (a GUID or Jellyfin ID)."""
-    return any(sum(c != "-" for c in token) >= 32 for token in re.findall(r"[0-9a-fA-F][0-9a-fA-F-]*", text))
+    """A run of hex digits split by dashes or spaces, in any grouping, holding 32 or more hex digits (a GUID or ID)."""
+    runs = re.findall(r"[0-9a-fA-F][0-9a-fA-F\s-]*", text)
+    return any(sum(c in string.hexdigits for c in run) >= 32 for run in runs)
 
 
 # (rule name, test): a value or key for which any test is true is refused. Fail closed: no lookarounds, so an address
@@ -29,6 +31,7 @@ LEAK_RULES = (
     ("a slash", re.compile(r"/").search),
     ("a URL", re.compile(r"://").search),
     ("an api_key", re.compile(r"api_key", re.IGNORECASE).search),
+    ("percent-encoding", re.compile(r"%[0-9A-Fa-f]{2}").search),
     ("an ID-shaped run of 32 hex characters", _hex_run_of_32),
     ("an IPv4 address", re.compile(r"\d{1,3}(?:\.\d{1,3}){3}").search),
     ("an IPv6 address", re.compile(r"(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{1,4}").search),

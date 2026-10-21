@@ -196,6 +196,8 @@ def read_lines(fd, deadline):
             continue
         chunk = os.read(fd, 65536)
         if not chunk:
+            if pending:
+                yield pending.decode("utf-8", "replace")
             return
         pending += chunk
         *lines, pending = pending.split(b"\n")

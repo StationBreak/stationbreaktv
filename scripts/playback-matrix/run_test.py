@@ -152,6 +152,13 @@ class ReaderTest(unittest.TestCase):
         os.close(read_end)
         os.close(write_end)
 
+    def test_aLastLineWithoutANewlineIsKeptAtEndOfInput(self):
+        read_end, write_end = os.pipe()
+        os.write(write_end, b"RESULT {}\nDONE r1")
+        os.close(write_end)
+        self.assertEqual(list(run.read_lines(read_end, time.monotonic() + 30)), ["RESULT {}", "DONE r1"])
+        os.close(read_end)
+
     def test_aLineSplitAcrossWritesIsJoined(self):
         read_end, write_end = os.pipe()
         os.write(write_end, b'RESULT {"a"')

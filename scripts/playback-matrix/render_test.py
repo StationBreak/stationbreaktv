@@ -127,6 +127,16 @@ class RenderTest(unittest.TestCase):
             with self.assertRaises(render.Leak, msg=bad):
                 render.render([[meta(), result(error=bad)]])
 
+    def test_idsSplitBySpacesFail(self):
+        for bad in ("01234567 89abcdef 01234567 89abcdef", "0123456789abcdef 0123456789abcdef"):
+            with self.assertRaises(render.Leak, msg=bad):
+                render.render([[meta(), result(error=bad)]])
+
+    def test_percentEncodingFails(self):
+        for bad in ("a%2Fb", "%2F%2Fexample%2Ecom"):
+            with self.assertRaises(render.Leak, msg=bad):
+                render.render([[meta(), result(error=bad)]])
+
     def test_keysAreCheckedToo(self):
         with self.assertRaises(render.Leak):
             render.render([[meta(), result(**{"192.168.1.5": 1})]])
