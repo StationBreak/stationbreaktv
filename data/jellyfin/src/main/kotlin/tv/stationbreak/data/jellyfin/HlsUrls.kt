@@ -67,6 +67,7 @@ internal class HlsUrls(
                 }
                 param("MaxStreamingBitrate", maxBitrate)
                 param("VideoBitrate", (maxBitrate - AUDIO_RESERVE).coerceAtLeast(1))
+                param("AudioBitrate", AUDIO_RESERVE)
                 param("SegmentContainer", "ts")
                 param("BreakOnNonKeyFrames", "True")
                 param("StartTimeTicks", PlaybackTicks.of(request.start))
@@ -110,7 +111,8 @@ internal class HlsUrls(
     private companion object {
         /**
          * What the audio takes of the budget, so the video is asked for the rest: the 192 kb/s the server itself
-         * reserves for stereo AAC (`AudioBitrate=192000` in its own transcoding URL, 12.1).
+         * reserves for stereo AAC (`AudioBitrate=192000` in its own transcoding URL, 12.1 and 12.2). It is also sent as
+         * `AudioBitrate`. It assumes stereo AAC: with more channels the server's own audio bitrate would be higher.
          */
         const val AUDIO_RESERVE = 192_000
 

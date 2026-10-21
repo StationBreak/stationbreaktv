@@ -58,6 +58,8 @@ class HlsUrlTest {
                 "MaxStreamingBitrate" to "20000000",
                 // The maximum less the 192 kb/s the server reserves for stereo AAC, as its own URL computes it (12.1).
                 "VideoBitrate" to "19808000",
+                // The same 192 kb/s the video budget leaves for the audio; it assumes stereo AAC.
+                "AudioBitrate" to "192000",
                 "SegmentContainer" to "ts",
                 "BreakOnNonKeyFrames" to "True",
                 "StartTimeTicks" to "900000000",

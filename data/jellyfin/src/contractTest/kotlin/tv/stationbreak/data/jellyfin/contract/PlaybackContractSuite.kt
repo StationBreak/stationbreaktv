@@ -17,6 +17,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -45,6 +46,7 @@ import tv.stationbreak.data.jellyfin.JellyfinMediaServer
 import tv.stationbreak.data.jellyfin.ProbeTimeouts
 import tv.stationbreak.data.jellyfin.mediaCallFactory
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -122,7 +124,7 @@ abstract class PlaybackContractSuite {
         val item = ItemId(id)
         val info = adapter.playbackInfo(signedIn.value, item, request)
         assertIs<ServerResult.Success<PlaybackInfo>>(info, "playback info for '$clip': ${info.errorOrNull()}")
-        return Played(adapter, signedIn.value, deviceId, item, info.value, request)
+        return Played(adapter, signedIn.value, deviceId, item, info.value, request).also { started += it }
     }
 
     /** What the server answered to one fetch. [body] may hold a token: never print it. */
@@ -190,9 +192,24 @@ abstract class PlaybackContractSuite {
 
     private fun finding(text: String) = println("FINDING: $text")
 
+    // The reasons are n/a: the servers send them only inside the TranscodingUrl, so MediaSource.transcodeReasons is
+    // empty by design (ruling R8). The recorder prints the server's own list from the raw answer.
     private fun route(source: MediaSource) =
         "directPlay=${source.supportsDirectPlay} directStream=${source.supportsDirectStream} " +
-            "transcoding=${source.supportsTranscoding} reasons=${source.transcodeReasons.sorted()}"
+            "transcoding=${source.supportsTranscoding} reasons=n/a"
+
+    /** Every play session a case started, so each encode is stopped when the case ends. */
+    private val started = CopyOnWriteArrayList<Played>()
+
+    @AfterEach
+    fun stopEveryEncodeTheCaseStarted() {
+        runBlocking {
+            started.forEach { played ->
+                played.info.playSessionId?.let { runCatching { played.adapter.stopEncoding(played.session, it) } }
+            }
+        }
+        started.clear()
+    }
 
     @Test
     fun h264AacMp4DirectPlays() {
@@ -243,18 +260,38 @@ abstract class PlaybackContractSuite {
         }
     }
 
+    /**
+     * Shows only what the server does for an account whose "play default audio track" is OFF (the seeded viewer): it
+     * checks the audio codec against the profile and routes the DTS clip to a transcode. It does not show that DTS is
+     * never direct played; see [dtsIsDirectPlayedForAnAccountThatPlaysTheDefaultTrack].
+     */
     @Test
-    fun dtsIsNotDirectPlayed() {
+    fun dtsIsTranscodedWhenTheAccountDoesNotPlayTheDefaultTrack() {
         runBlocking {
             val played = play("h264-dts")
 
             assertTrue(!played.source.supportsDirectPlay, "the device has no DTS decoder")
             assertPlaylistsServe(played)
             finding("h264-dts viewer(PlayDefaultAudioTrack=false) ${route(played.source)}")
-            // Not asserted, because it's the server's answer and not ours to change here: an account with the server's
-            // defaults ("play the default audio track" on) is told the same file direct plays (12.1 and 12.2).
-            val defaults = play("h264-dts", account = server.admin)
-            finding("h264-dts admin(PlayDefaultAudioTrack=true) ${route(defaults.source)}")
+        }
+    }
+
+    /**
+     * Pins the server's real answer for an account with the server's defaults ("play default audio track" ON, the
+     * admin): the DTS clip is reported as direct playable (12.1 and 12.2 agree), although the profile lists no DTS. The
+     * client guards this: the spec 13 resolver refuses DIRECT_PLAY when the chosen audio codec is in neither the
+     * decoders nor the passthrough (ruling R6). If a server version starts agreeing with the profile, this fails and
+     * the guard can be revisited.
+     */
+    @Test
+    fun dtsIsDirectPlayedForAnAccountThatPlaysTheDefaultTrack() {
+        runBlocking {
+            val played = play("h264-dts", account = server.admin)
+
+            assertTrue(played.source.supportsDirectPlay, "the server's answer for a default-config account changed")
+            val audio = played.source.streams.single { it.kind == StreamKind.AUDIO }
+            assertEquals("dts", audio.codec?.lowercase())
+            finding("h264-dts admin(PlayDefaultAudioTrack=true) ${route(played.source)}")
         }
     }
 
@@ -341,8 +378,14 @@ abstract class PlaybackContractSuite {
         assertTrue(vtt.body.startsWith("WEBVTT"), "the subtitle doesn't start with the WEBVTT header")
     }
 
+    /**
+     * The server applies the user's track preferences (null indices): the English audio and English subtitle are the
+     * defaults, although the French audio is the one the file flags. Precondition, set when seeding: the user has
+     * "play default audio track" OFF. With it on (the server's default) the file's flagged track wins over the
+     * language preference; see [anAccountThatPlaysTheDefaultTrackGetsTheFilesFlaggedAudio].
+     */
     @Test
-    fun theServerAppliesTheUsersTrackPreferences() {
+    fun theServerAppliesTheUsersLanguagePreferencesWhenTheyDontPlayTheDefaultTrack() {
         runBlocking {
             val played = play("h264-aac-2audio-2subs")
 
@@ -365,8 +408,9 @@ abstract class PlaybackContractSuite {
         }
     }
 
+    /** The other side of the precondition above: with the server's defaults the file's flagged audio is the default. */
     @Test
-    fun anAccountWithoutPreferencesGetsTheFilesOwnDefaults() {
+    fun anAccountThatPlaysTheDefaultTrackGetsTheFilesFlaggedAudio() {
         runBlocking {
             // The admin keeps the server's defaults: "play the default audio track" on, subtitles only when forced.
             val played = play("h264-aac-2audio-2subs", account = server.admin)
@@ -445,8 +489,10 @@ abstract class PlaybackContractSuite {
             val serverUrl = serverTranscodingUrl(played)
             val built = played.hls().toHttpUrl()
 
+            // Every parameter the server sets must be in the built URL with the same value, except the ones in the
+            // explicit list below. Only names are in a failure message (a value of api_key would be a token).
             val compared = serverUrl.queryParameterNames.filter { it.lowercase() !in IGNORED_PARAMETERS }
-            val missing = compared.filter { built.queryParameter(it) == null }
+            val absent = compared.filter { built.queryParameter(it) == null }
             val different =
                 compared.filter { built.queryParameter(it) != null }.filter {
                     built.queryParameter(it) != serverUrl.queryParameter(it)
@@ -455,10 +501,9 @@ abstract class PlaybackContractSuite {
                 different.joinToString {
                     "$it server=${serverUrl.queryParameter(it)} built=${built.queryParameter(it)}"
                 }
-            val serverOnly = missing.sorted().joinToString { "$it=${serverUrl.queryParameter(it)}" }
-            finding("drift: server-only parameters=[$serverOnly] different values=${values.ifEmpty { "none" }}")
+            finding("drift: different values=${values.ifEmpty { "none" }}")
+            assertEquals(emptyList(), absent.sorted(), "parameters the server sets that the built URL lacks")
             assertEquals(emptyList(), different.sorted(), "parameters the server sets differently from the built URL")
-            assertEquals(emptyList(), missing.filter { it.lowercase() in CODEC_AND_LIMIT }.sorted(), "limits not built")
         }
     }
 
@@ -482,6 +527,10 @@ abstract class PlaybackContractSuite {
         return relativeUrl(relative)
     }
 
+    /**
+     * A recorder, not a check: it asserts nothing by design. It prints one `MATRIX` line per clip (route, container,
+     * subtitle delivery, the wire shape of the reasons, the streams' facts) for the playback matrix and the reports.
+     */
     @Test
     fun recordWhatTheServerAnswersForEveryClip() {
         runBlocking {
@@ -578,24 +627,30 @@ abstract class PlaybackContractSuite {
         const val JOB_POLLS = 20
         const val JOB_POLL_MS = 1_000L
 
-        /** Parameters that identify the request or the client, not a codec or a limit (lowercase). */
-        val IGNORED_PARAMETERS = setOf("api_key", "apikey", "deviceid", "playsessionid", "transcodereasons")
-
-        /** The parameters that carry a codec or a limit the built URL must also set, when the server sets them. */
-        val CODEC_AND_LIMIT =
+        /**
+         * The only server parameters the built URL need not carry (lowercase). Identity of the request or client:
+         * api_key/apikey (a credential, never built), deviceid, playsessionid, transcodereasons. Facts the server
+         * derives from the source file or its own defaults, not device limits: tag (the item's etag), audiosamplerate,
+         * maxframerate and h264-audiochannels (the clip's own rate, fps and channel count), audiostreamindex (its
+         * default track choice), aac-audiochannels and aac-profile (per-stream echoes of the audio it writes; the
+         * limit we send is TranscodingMaxAudioChannels), enableaudiovbrencoding and requireavc (encoder defaults).
+         */
+        val IGNORED_PARAMETERS =
             setOf(
-                "videocodec",
-                "audiocodec",
-                "maxaudiochannels",
-                "transcodingmaxaudiochannels",
-                "maxwidth",
-                "maxheight",
-                "h264-level",
-                "h264-profile",
-                "h264-videobitdepth",
-                "videobitrate",
-                "maxstreamingbitrate",
-                "segmentcontainer",
+                "api_key",
+                "apikey",
+                "deviceid",
+                "playsessionid",
+                "transcodereasons",
+                "tag",
+                "audiosamplerate",
+                "maxframerate",
+                "h264-audiochannels",
+                "audiostreamindex",
+                "aac-audiochannels",
+                "aac-profile",
+                "enableaudiovbrencoding",
+                "requireavc",
             )
 
         /** An Insignia-like set-top box: H.264 to level 4.1 at 1080p, MPEG-2, AAC/MP3/AC-3, stereo, no passthrough. */

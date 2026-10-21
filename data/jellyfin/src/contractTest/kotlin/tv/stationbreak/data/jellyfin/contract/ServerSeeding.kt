@@ -34,8 +34,9 @@ internal object ServerSeeding {
 
     private const val FFMPEG = "/usr/lib/jellyfin-ffmpeg/ffmpeg"
 
-    // Gradle runs a module's tests from the module directory; the script lives at the repository root.
-    private const val SCRIPT = "../../scripts/playback-matrix/synthetic-media.sh"
+    // The contractTest task sets the repository directory as a system property (data/jellyfin/build.gradle.kts).
+    private const val REPO_PROPERTY = "stationbreak.repoDir"
+    private const val SCRIPT = "scripts/playback-matrix/synthetic-media.sh"
     private const val SCRIPT_MODE = 0b111_101_101
 
     // Longer than 5 minutes, so a stopped report stores a resume position (ADR-0006).
@@ -104,7 +105,8 @@ internal object ServerSeeding {
         token: String,
         viewerId: String,
     ): Map<String, String> {
-        val script = Path.of(SCRIPT).toAbsolutePath().normalize()
+        val repo = checkNotNull(System.getProperty(REPO_PROPERTY)) { "$REPO_PROPERTY isn't set by contractTest" }
+        val script = Path.of(repo, SCRIPT)
         check(Files.isRegularFile(script)) { "the synthetic media script is missing" }
         jellyfin.copyFileToContainer(MountableFile.forHostPath(script, SCRIPT_MODE), "/tmp/synthetic-media.sh")
         val made = jellyfin.execInContainer("bash", "/tmp/synthetic-media.sh", FFMPEG, "/media/formats")
@@ -145,7 +147,10 @@ internal object ServerSeeding {
                         "AudioLanguagePreference" to JsonPrimitive("eng"),
                         "SubtitleLanguagePreference" to JsonPrimitive("eng"),
                         "SubtitleMode" to JsonPrimitive("Always"),
-                        // The server's default is to play the file's flagged track whatever the language preference.
+                        // Deliberate product behaviour (ruling R5), not a test convenience: "play default audio
+                        // track" is the user's own Jellyfin setting, and while it is on (the server's default) the
+                        // file's flagged track wins over the language preference. The viewer turns it off, so the
+                        // language preference is what the suite observes; the admin keeps the default for contrast.
                         "PlayDefaultAudioTrack" to JsonPrimitive(false),
                     ),
             )
