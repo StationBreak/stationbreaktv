@@ -4,15 +4,17 @@ package tv.stationbreak.data.jellyfin
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tv.stationbreak.core.model.Codecs
+import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.PlaySessionId
-import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.StreamUrls
 import tv.stationbreak.core.model.SubtitleDelivery
+import kotlin.time.Duration
 
 /**
  * Stream URLs made from the base address, IDs and the device's own limits, and nothing else: never the server's
@@ -31,31 +33,39 @@ internal class HlsUrls(
 
     override fun original(source: MediaSourceId): String =
         base()
-            .addPathSegments("Videos/${item.value}/stream")
+            .addPathSegment("Videos")
+            .addPathSegment(segment(item.value))
+            .addPathSegment("stream")
             .addQueryParameter("static", "true")
-            .addQueryParameter("mediaSourceId", source.value)
+            .addQueryParameter("mediaSourceId", segment(source.value))
             .apply { playSession?.let { addQueryParameter("playSessionId", it.value) } }
             .build()
             .toString()
 
     override fun hls(
-        source: MediaSourceId,
-        request: PlaybackRequest,
+        source: MediaSource,
+        audioIndex: Int?,
         burnIn: Int?,
+        limits: DeviceCapabilities,
+        start: Duration,
+        forceTranscode: Boolean,
     ): String {
-        val caps = request.capabilities
-        val h264 = caps.videoCodecs.firstOrNull { it.codec == Codecs.H264 }
-        val maxBitrate = caps.maxStreamingBitrate
-        val copy = !request.forceTranscode
+        val h264 = limits.videoCodecs.firstOrNull { it.codec == Codecs.H264 }
+        val maxBitrate = limits.maxStreamingBitrate
+        // The server resolved the user's own track preference into the source's default; without this the server would
+        // fall back to the file's first track.
+        val audio = audioIndex ?: source.defaultAudioIndex
         return base()
-            .addPathSegments("Videos/${item.value}/master.m3u8")
+            .addPathSegment("Videos")
+            .addPathSegment(segment(item.value))
+            .addPathSegment("master.m3u8")
             .apply {
-                param("MediaSourceId", source.value)
+                param("MediaSourceId", segment(source.id.value))
                 playSession?.let { param("PlaySessionId", it.value) }
                 param("VideoCodec", Codecs.H264)
-                param("AudioCodec", DeviceProfiles.transcodeAudio(caps))
-                param("MaxAudioChannels", caps.maxAudioChannels)
-                param("TranscodingMaxAudioChannels", caps.maxAudioChannels)
+                param("AudioCodec", DeviceProfiles.transcodeAudio(limits))
+                param("MaxAudioChannels", limits.maxAudioChannels)
+                param("TranscodingMaxAudioChannels", limits.maxAudioChannels)
                 h264?.let {
                     param("MaxWidth", it.maxWidth)
                     param("MaxHeight", it.maxHeight)
@@ -71,10 +81,10 @@ internal class HlsUrls(
                 param("AudioBitrate", AUDIO_RESERVE)
                 param("SegmentContainer", Codecs.TS)
                 param("BreakOnNonKeyFrames", "True")
-                param("StartTimeTicks", PlaybackTicks.of(request.start))
-                param("AllowVideoStreamCopy", copy)
+                param("StartTimeTicks", PlaybackTicks.of(start))
+                param("AllowVideoStreamCopy", !forceTranscode)
                 param("AllowAudioStreamCopy", true)
-                request.audioIndex?.let { param("AudioStreamIndex", it) }
+                audio?.let { param("AudioStreamIndex", it) }
                 burnIn?.let {
                     param("SubtitleStreamIndex", it)
                     param("SubtitleMethod", "Encode")
@@ -92,7 +102,7 @@ internal class HlsUrls(
         if (!text || stream.delivery != SubtitleDelivery.SEPARATE || source.value in DOT_SEGMENTS) return null
         return base()
             .addPathSegment("Videos")
-            .addPathSegment(item.value)
+            .addPathSegment(segment(item.value))
             .addPathSegment(source.value)
             .addPathSegment("Subtitles")
             .addPathSegment(stream.index.toString())
@@ -100,6 +110,12 @@ internal class HlsUrls(
             .addPathSegment("Stream.vtt")
             .build()
             .toString()
+    }
+
+    /** An ID that is a dot segment would climb out of the path, however it is encoded; no real ID is one. */
+    private fun segment(id: String): String {
+        require(id !in DOT_SEGMENTS) { "An ID can't be a dot segment" }
+        return id
     }
 
     private fun HttpUrl.Builder.param(

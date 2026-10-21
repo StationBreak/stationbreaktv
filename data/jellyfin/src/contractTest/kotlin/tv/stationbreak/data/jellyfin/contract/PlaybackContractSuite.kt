@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.testcontainers.images.builder.Transferable
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.errorOrNull
@@ -43,7 +44,6 @@ import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.AdapterTuning
 import tv.stationbreak.data.jellyfin.DeviceProfiles
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
-import tv.stationbreak.data.jellyfin.ProbeTimeouts
 import tv.stationbreak.data.jellyfin.mediaCallFactory
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
@@ -90,13 +90,22 @@ abstract class PlaybackContractSuite {
         val item: ItemId,
         val info: PlaybackInfo,
         val request: PlaybackRequest,
+        val account: Account,
     ) {
         val source: MediaSource get() = info.sources.first()
         val factory: Call.Factory get() = adapter.mediaCallFactory { session }
 
         fun subtitles(): List<MediaStreamInfo> = source.streams.filter { it.kind == StreamKind.SUBTITLE }
 
-        fun hls(burnIn: Int? = null): String = info.streams.hls(source.id, request, burnIn)
+        fun hls(burnIn: Int? = null): String =
+            info.streams.hls(
+                source,
+                request.audioIndex,
+                burnIn,
+                request.capabilities,
+                request.start,
+                request.forceTranscode,
+            )
     }
 
     private fun adapterFor(deviceId: String): JellyfinMediaServer =
@@ -105,7 +114,7 @@ abstract class PlaybackContractSuite {
             identity,
             DeviceIdProvider { deviceId },
             AdapterLog.NONE,
-            AdapterTuning(timeouts = ProbeTimeouts(connect = 10.seconds, read = 90.seconds, call = 120.seconds)),
+            AdapterTuning(),
         )
 
     private suspend fun play(
@@ -124,7 +133,7 @@ abstract class PlaybackContractSuite {
         val item = ItemId(id)
         val info = adapter.playbackInfo(signedIn.value, item, request)
         assertIs<ServerResult.Success<PlaybackInfo>>(info, "playback info for '$clip': ${info.errorOrNull()}")
-        return Played(adapter, signedIn.value, deviceId, item, info.value, request).also { started += it }
+        return Played(adapter, signedIn.value, deviceId, item, info.value, request, account).also { started += it }
     }
 
     /** What the server answered to one fetch. [body] may hold a token: never print it. */
@@ -484,32 +493,177 @@ abstract class PlaybackContractSuite {
 
     @Test
     fun theBuiltUrlMatchesTheServersLimits() {
-        runBlocking {
-            val played = play("h264-high10-l51-3840")
-            val serverUrl = serverTranscodingUrl(played)
-            val built = played.hls().toHttpUrl()
+        runBlocking { assertNoDrift("limits", play("h264-high10-l51-3840")) }
+    }
 
-            // Every parameter the server sets must be in the built URL with the same value, except the ones in the
-            // explicit list below. Only names are in a failure message (a value of api_key would be a token).
-            val compared = serverUrl.queryParameterNames.filter { it.lowercase() !in IGNORED_PARAMETERS }
-            val absent = compared.filter { built.queryParameter(it) == null }
-            val different =
-                compared.filter { built.queryParameter(it) != null }.filter {
-                    built.queryParameter(it) != serverUrl.queryParameter(it)
-                }
-            val values =
-                different.joinToString {
-                    "$it server=${serverUrl.queryParameter(it)} built=${built.queryParameter(it)}"
-                }
-            finding("drift: different values=${values.ifEmpty { "none" }}")
-            assertEquals(emptyList(), absent.sorted(), "parameters the server sets that the built URL lacks")
-            assertEquals(emptyList(), different.sorted(), "parameters the server sets differently from the built URL")
+    /** A burn-in request: the server's `SubtitleMethod` and `SubtitleStreamIndex` are the built ones. */
+    @Test
+    fun theBuiltUrlMatchesTheServersBurnIn() {
+        runBlocking {
+            val admin = server.admin
+            val image = play("h264-aac-dvdsub", account = admin).subtitles().single()
+            val played = play("h264-aac-dvdsub", requestFor(subtitleIndex = image.index), admin)
+            val burned = played.subtitles().single()
+            assertEquals(SubtitleDelivery.BURNED_IN, burned.delivery)
+
+            val serverUrl = serverTranscodingUrl(played)
+            assertEquals("Encode", serverUrl.queryParameter("SubtitleMethod"), "the server's own burn-in method")
+            assertEquals(burned.index.toString(), serverUrl.queryParameter("SubtitleStreamIndex"))
+            assertNoDrift("burn-in", played, burnIn = burned.index, sourceFacts = COPIED_VIDEO_FACTS)
         }
+    }
+
+    /** An AC-3 passthrough request: the server's `AudioCodec` is the built one. */
+    @Test
+    fun theBuiltUrlMatchesTheServersPassthrough() {
+        runBlocking {
+            val capabilities = INSIGNIA_LIKE.copy(audioPassthrough = setOf("ac3"))
+            val played = play("h264-ac3", requestFor(capabilities = capabilities, forceTranscode = true))
+
+            assertTrue(
+                played
+                    .hls()
+                    .toHttpUrl()
+                    .queryParameter("AudioCodec")!!
+                    .contains("ac3"),
+            )
+            // The server names the audio codec it chose (the clip's own AC-3) where the built URL lists those allowed. Its
+            // audio bitrate is the clip's own 96 kb/s, where HlsUrls assumes stereo AAC's 192 kb/s (a known limit of
+            // AUDIO_RESERVE, tracked separately), and the video budget follows from it.
+            assertNoDrift(
+                "ac3 passthrough",
+                played,
+                sourceFacts = COPIED_VIDEO_FACTS + setOf("audiobitrate", "videobitrate"),
+                permitted = setOf("audiocodec"),
+            )
+        }
+    }
+
+    /**
+     * The HLS URL carries the audio track the server resolved from the user's own preference, which is not the file's
+     * first. The built URL, the server's own URL and the transcoded audio itself all name the preferred track.
+     */
+    @Test
+    fun theTranscodePlaysTheTrackTheServerResolved() {
+        runBlocking {
+            val played = play("h264-aac-pref-audio-second", requestFor(forceTranscode = true))
+
+            val audio = played.source.streams.filter { it.kind == StreamKind.AUDIO }
+            val preferred = audio.single { it.language == "eng" }
+            val first = audio.minOf { it.index }
+            assertTrue(preferred.index > first, "the preferred track should not be the first")
+            assertEquals(preferred.index, played.source.defaultAudioIndex, "the server's resolved track")
+            assertEquals(preferred.index.toString(), played.hls().toHttpUrl().queryParameter("AudioStreamIndex"))
+            assertEquals(
+                preferred.index.toString(),
+                serverTranscodingUrl(played).queryParameter("AudioStreamIndex"),
+                "the server's own URL",
+            )
+            assertNoDrift("preferred audio", played, sourceFacts = COPIED_VIDEO_FACTS)
+            // The preferred track is the loud one; the file's first is quiet.
+            val loudness = segmentLoudness(played, played.hls())
+            assertTrue(loudness > LOUD_ABOVE_DB, "the transcode should carry the loud preferred track: $loudness dB")
+            // The control, on a session of its own (a session reuses its running job whatever the URL says): the
+            // request naming the file's first track carries the quiet one, so loudness tells the tracks apart.
+            val explicit = play("h264-aac-pref-audio-second", requestFor(audioIndex = first, forceTranscode = true))
+            val quiet = segmentLoudness(explicit, explicit.hls())
+            assertTrue(quiet < LOUD_ABOVE_DB, "naming the file's first track should carry the quiet one: $quiet dB")
+            // Recorded, not relied on: a URL that names no track, on a session of its own.
+            val bare = play("h264-aac-pref-audio-second", requestFor(forceTranscode = true))
+            val without =
+                bare
+                    .hls()
+                    .toHttpUrl()
+                    .newBuilder()
+                    .removeAllQueryParameters("AudioStreamIndex")
+                    .build()
+            val unnamed = segmentLoudness(bare, without.toString())
+            finding("h264-aac-pref-audio-second preferredIndex=${preferred.index} firstIndex=$first")
+            finding("h264-aac-pref-audio-second loudness named=$loudness first=$quiet unnamed=$unnamed")
+        }
+    }
+
+    /**
+     * Fetches the first segment of the transcode behind [masterUrl] and measures the mean volume (dB) of its audio with
+     * the server's own ffmpeg.
+     */
+    private fun segmentLoudness(
+        played: Played,
+        masterUrl: String,
+    ): Double {
+        val master = fetch(played.factory, masterUrl)
+        val variant = fetch(played.factory, entries(master.url, master.body).first())
+        val segmentUrl = entries(variant.url, variant.body).first()
+        val request = Request.Builder().url(segmentUrl).build()
+        val bytes =
+            played.factory.newCall(request).execute().use {
+                assertEquals(HTTP_OK, it.code, "the first segment")
+                it.body.bytes()
+            }
+        val path = "/tmp/segment-${UUID.randomUUID()}.ts"
+        server.jellyfin.copyFileToContainer(Transferable.of(bytes), path)
+        val measured =
+            server.jellyfin.execInContainer(
+                "/usr/lib/jellyfin-ffmpeg/ffmpeg",
+                "-nostdin",
+                "-hide_banner",
+                "-nostats",
+                "-i",
+                path,
+                "-vn",
+                "-af",
+                "volumedetect",
+                "-f",
+                "null",
+                "-",
+            )
+        server.jellyfin.execInContainer("rm", "-f", path)
+        assertEquals(0, measured.exitCode, "ffmpeg on the segment")
+        val mean = assertNotNull(MEAN_VOLUME.find(measured.stderr), "ffmpeg measured no volume").groupValues[1]
+        return mean.toDouble()
+    }
+
+    /**
+     * Every parameter the server sets must be in the built URL with the same value, except [IGNORED_PARAMETERS] and
+     * [sourceFacts] (parameters this case's server URL fills from the clip itself, which the clip's case explains).
+     * Names compare case-insensitively (the server writes `allowVideoStreamCopy`, the built URL `AllowVideoStreamCopy`;
+     * it reads either). A name in [permitted] is a list the server narrowed to what it will do: its values must be
+     * among the built URL's. Only names are in a failure message (a value of api_key would be a token).
+     */
+    private fun assertNoDrift(
+        label: String,
+        played: Played,
+        burnIn: Int? = null,
+        sourceFacts: Set<String> = emptySet(),
+        permitted: Set<String> = emptySet(),
+    ) {
+        val serverUrl = serverTranscodingUrl(played)
+        val built = played.hls(burnIn).toHttpUrl()
+
+        fun HttpUrl.value(name: String): String? =
+            queryParameterNames.firstOrNull { it.equals(name, ignoreCase = true) }?.let(::queryParameter)
+        val skipped = IGNORED_PARAMETERS + sourceFacts
+        val compared = serverUrl.queryParameterNames.filter { it.lowercase() !in skipped }
+        val absent = compared.filter { built.value(it) == null }
+        val different =
+            compared.filter { built.value(it) != null }.filter { name ->
+                val ours = built.value(name)
+                val theirs = serverUrl.value(name)
+                if (name.lowercase() in permitted) {
+                    !ours!!.split(',').toSet().containsAll(theirs.orEmpty().split(','))
+                } else {
+                    ours != theirs
+                }
+            }
+        val values = different.joinToString { "$it server=${serverUrl.value(it)} built=${built.value(it)}" }
+        finding("drift $label: different values=${values.ifEmpty { "none" }} absent=${absent.sorted()}")
+        assertEquals(emptyList(), absent.sorted(), "$label: parameters the server sets that the built URL lacks")
+        assertEquals(emptyList(), different.sorted(), "$label: parameters set differently from the built URL")
     }
 
     /** The server's own `TranscodingUrl` for the clip in [played], read in test code only and never printed. */
     private fun serverTranscodingUrl(played: Played): HttpUrl {
-        val token = server.http.signIn(server.viewer.name, server.viewer.rawPassword())
+        val token = server.http.signIn(played.account.name, played.account.rawPassword())
         val body = String(DeviceProfiles.body(played.request, played.session.userId), Charsets.UTF_8)
         val reply =
             server.http.expectOk(
@@ -550,7 +704,7 @@ abstract class PlaybackContractSuite {
 
     /** The server's raw answer for [played]'s first source (test code only: it holds the server's URLs). */
     private fun rawSource(played: Played): JsonObject {
-        val token = server.http.signIn(server.viewer.name, server.viewer.rawPassword())
+        val token = server.http.signIn(played.account.name, played.account.rawPassword())
         val body = String(DeviceProfiles.body(played.request, played.session.userId), Charsets.UTF_8)
         val reply =
             server.http.expectOk(
@@ -631,8 +785,7 @@ abstract class PlaybackContractSuite {
          * The only server parameters the built URL need not carry (lowercase). Identity of the request or client:
          * api_key/apikey (a credential, never built), deviceid, playsessionid, transcodereasons. Facts the server
          * derives from the source file or its own defaults, not device limits: tag (the item's etag), audiosamplerate,
-         * maxframerate and h264-audiochannels (the clip's own rate, fps and channel count), audiostreamindex (its
-         * default track choice), aac-audiochannels and aac-profile (per-stream echoes of the audio it writes; the
+         * maxframerate and h264-audiochannels (the clip's own rate, fps and channel count), aac-audiochannels and aac-profile (per-stream echoes of the audio it writes; the
          * limit we send is TranscodingMaxAudioChannels), enableaudiovbrencoding and requireavc (encoder defaults).
          */
         val IGNORED_PARAMETERS =
@@ -646,7 +799,6 @@ abstract class PlaybackContractSuite {
                 "audiosamplerate",
                 "maxframerate",
                 "h264-audiochannels",
-                "audiostreamindex",
                 "aac-audiochannels",
                 "aac-profile",
                 "enableaudiovbrencoding",
@@ -667,12 +819,23 @@ abstract class PlaybackContractSuite {
                 maxAudioChannels = 2,
             )
 
+        const val LOUD_ABOVE_DB = -30.0
+        val MEAN_VOLUME = Regex("""mean_volume: (-?[0-9.]+) dB""")
+
+        /**
+         * What the server states about a video it copies: the clip's own level and profile (these clips are within the
+         * limits, so the server names what the file has), where for a re-encoded video it states the limit (that case
+         * is the limits case, which compares both).
+         */
+        val COPIED_VIDEO_FACTS = setOf("h264-level", "h264-profile")
+
         fun requestFor(
+            capabilities: DeviceCapabilities = INSIGNIA_LIKE,
             start: Duration = Duration.ZERO,
             audioIndex: Int? = null,
             subtitleIndex: Int? = null,
             forceTranscode: Boolean = false,
-        ) = PlaybackRequest(INSIGNIA_LIKE, start, audioIndex, subtitleIndex, forceTranscode)
+        ) = PlaybackRequest(capabilities, start, audioIndex, subtitleIndex, forceTranscode)
     }
 }
 

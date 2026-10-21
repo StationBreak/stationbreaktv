@@ -67,20 +67,27 @@ data class PlaybackRequest(
 /**
  * Builds URLs a player can fetch. Every URL is made from IDs and the server's base address and carries no credential:
  * not in the query, not as userinfo (R2). Authentication travels in the `Authorization` header of the shared HTTP
- * client, and which component adds it is settled by F0.5/F1.x.
+ * client, which the app hands to the player as `mediaCallFactory` (ADR-0016). The URLs the server's playlists in turn
+ * contain may carry an `api_key`; that factory strips it.
  */
 interface StreamUrls {
     /** The server's original file for [source], as stored (Jellyfin "direct play"). */
     fun original(source: MediaSourceId): String
 
     /**
-     * The `master.m3u8` for [source] under [request]; the server may copy streams where it agrees. [burnIn] is the
-     * index of a subtitle stream to burn into the picture, or null.
+     * The `master.m3u8` for [source]; the server may copy streams where it agrees. The tracks are the choice the
+     * server resolved, not the player's wish: [audioIndex] is the audio stream to carry, and when null it is the
+     * source's own [MediaSource.defaultAudioIndex], which is where the user's Jellyfin preference ended up. [burnIn] is
+     * the index of a subtitle stream to burn into the picture, or null (text subtitles never travel in this URL).
+     * [limits] are the device's, [start] is where to begin and [forceTranscode] stops the video being copied.
      */
     fun hls(
-        source: MediaSourceId,
-        request: PlaybackRequest,
+        source: MediaSource,
+        audioIndex: Int?,
         burnIn: Int?,
+        limits: DeviceCapabilities,
+        start: Duration,
+        forceTranscode: Boolean,
     ): String
 
     /** WebVTT for a text [stream] delivered [SubtitleDelivery.SEPARATE], else null. */

@@ -4,15 +4,21 @@ package tv.stationbreak.data.jellyfin
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import tv.stationbreak.core.domain.getOrNull
+import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
-import tv.stationbreak.core.model.PlaybackRequest
+import tv.stationbreak.core.model.MediaStreamInfo
+import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.StreamUrls
+import tv.stationbreak.core.model.SubtitleDelivery
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 class HlsUrlTest {
@@ -30,15 +36,22 @@ class HlsUrlTest {
             testAdapter().playbackInfo(session, ItemId("i1")).getOrNull()!!.streams
         }
 
+    private fun source(defaultAudioIndex: Int? = null) =
+        MediaSource(MediaSourceId("src1"), null, "mkv", null, true, true, defaultAudioIndex = defaultAudioIndex)
+
     private fun hls(
-        request: PlaybackRequest = requestFor(),
+        limits: DeviceCapabilities = insigniaCapabilities(),
+        audioIndex: Int? = null,
         burnIn: Int? = null,
+        start: Duration = Duration.ZERO,
+        forceTranscode: Boolean = false,
+        source: MediaSource = source(),
         subpath: String = "",
-    ) = streams(subpath).hls(MediaSourceId("src1"), request, burnIn).toHttpUrl()
+    ) = streams(subpath).hls(source, audioIndex, burnIn, limits, start, forceTranscode).toHttpUrl()
 
     @Test
     fun theUrlCarriesTheDeviceLimits() {
-        val url = hls(requestFor(insigniaCapabilities(setOf("ac3"), 6), start = 90.seconds, audioIndex = 3))
+        val url = hls(insigniaCapabilities(setOf("ac3"), 6), start = 90.seconds, audioIndex = 3)
 
         assertEquals("/Videos/i1/master.m3u8", url.encodedPath)
         val expected =
@@ -72,7 +85,7 @@ class HlsUrlTest {
 
     @Test
     fun theUrlHasNoCredential() {
-        val url = hls(requestFor(subtitleIndex = 4), burnIn = 4)
+        val url = hls(burnIn = 4)
 
         val text = url.toString()
         for (forbidden in listOf("api_key", "ApiKey", "Token", "token")) assertFalse(forbidden in text, text)
@@ -82,7 +95,7 @@ class HlsUrlTest {
 
     @Test
     fun forceTranscodeStopsVideoCopy() {
-        assertEquals("false", hls(requestFor(forceTranscode = true)).queryParameter("AllowVideoStreamCopy"))
+        assertEquals("false", hls(forceTranscode = true).queryParameter("AllowVideoStreamCopy"))
     }
 
     @Test
@@ -94,6 +107,50 @@ class HlsUrlTest {
         assertEquals("Encode", burned.queryParameter("SubtitleMethod"))
         assertNull(plain.queryParameter("SubtitleStreamIndex"))
         assertNull(plain.queryParameter("SubtitleMethod"))
+    }
+
+    @Test
+    fun theServersResolvedAudioChoiceReachesTheUrl() {
+        // No explicit choice: the track PlaybackInfo resolved (the user's preference) is sent, not the file's first.
+        val resolved = source(defaultAudioIndex = 2)
+        assertEquals("2", hls(source = resolved).queryParameter("AudioStreamIndex"))
+        assertEquals("3", hls(audioIndex = 3, source = resolved).queryParameter("AudioStreamIndex"))
+        assertNull(hls().queryParameter("AudioStreamIndex"))
+    }
+
+    @Test
+    fun anIdThatIsADotSegmentIsRefused() {
+        val urls = streams("")
+        for (id in listOf(".", "..")) {
+            val dotted = MediaSource(MediaSourceId(id), null, null, null, true, true)
+            assertFailsWith<IllegalArgumentException> { urls.original(dotted.id) }
+            assertFailsWith<IllegalArgumentException> {
+                urls.hls(dotted, null, null, insigniaCapabilities(), Duration.ZERO, false)
+            }
+        }
+    }
+
+    @Test
+    fun aSourceIdWithSeparatorsStaysOneSegment() {
+        val stream =
+            MediaStreamInfo(
+                index = 3,
+                kind = StreamKind.SUBTITLE,
+                codec = "subrip",
+                language = null,
+                channels = null,
+                width = null,
+                height = null,
+                isExternal = false,
+                isDefault = false,
+                isForced = false,
+                delivery = SubtitleDelivery.SEPARATE,
+            )
+
+        val url = streams("").subtitle(MediaSourceId("a/b"), stream)!!
+
+        assertEquals("/Videos/i1/a%2Fb/Subtitles/3/0/Stream.vtt", url.toHttpUrl().encodedPath)
+        assertEquals("/Videos/i1/stream", streams("").original(MediaSourceId("a/b")).toHttpUrl().encodedPath)
     }
 
     @Test

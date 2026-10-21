@@ -141,3 +141,12 @@ ff $picture $sound -f lavfi -i "sine=frequency=880:sample_rate=48000:duration=$s
   -metadata:s:a:0 language=eng -metadata:s:a:1 language=fre -metadata:s:s:0 language=eng \
   -metadata:s:s:1 language=fre -disposition:a:0 0 -disposition:a:1 default -disposition:s:0 0 -disposition:s:1 0 \
   "$(slot h264-aac-2audio-2subs h264-aac-2audio-2subs.mkv)"
+
+# 16. Two audio tracks, French first and English second, neither flagged. The viewer prefers English, so the track the
+# server resolves is not the file's first. The French tone is quiet and the English one loud, so the loudness of a
+# transcode's audio shows which track it carries.
+# shellcheck disable=SC2086
+ff $picture -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=$seconds,volume=0.05" \
+  -f lavfi -i "sine=frequency=880:sample_rate=48000:duration=$seconds" -map 0:v -map 1:a -map 2:a \
+  $h264 -c:a aac -metadata:s:a:0 language=fre -metadata:s:a:1 language=eng -disposition:a:0 0 -disposition:a:1 0 \
+  "$(slot h264-aac-pref-audio-second h264-aac-pref-audio-second.mkv)"

@@ -22,6 +22,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /** `playbackInfo(session, item)`: the request's device profile out, media sources and a URL builder back. */
@@ -188,7 +189,7 @@ class PlaybackInfoTest {
                     info.toString(),
                     source.toString(),
                     info.streams.original(source.id),
-                    info.streams.hls(source.id, requestFor(), null),
+                    info.streams.hls(source, null, null, insigniaCapabilities(), Duration.ZERO, false),
                     info.streams.subtitle(source.id, source.streams.single()).orEmpty(),
                 ).joinToString("\n")
             assertFalse("secret" in everything, everything)
