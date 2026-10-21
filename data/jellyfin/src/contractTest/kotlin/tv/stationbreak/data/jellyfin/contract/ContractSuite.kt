@@ -40,6 +40,7 @@ import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.VideoCodecSupport
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.AdapterTuning
 import tv.stationbreak.data.jellyfin.AuthHeaderBuilder
@@ -712,7 +713,15 @@ abstract class ContractSuite {
 
     private val playbackRequest =
         PlaybackRequest(
-            capabilities = DeviceCapabilities(setOf("mp4"), emptyList(), setOf("aac"), emptySet(), 2),
+            // The seeded movies are H.264/AAC in MP4: a profile that lists H.264 direct plays them (spec 13).
+            capabilities =
+                DeviceCapabilities(
+                    containers = setOf("mp4"),
+                    videoCodecs = listOf(VideoCodecSupport("h264", emptySet(), null, 1920, 1080, 8, emptySet())),
+                    audioDecoders = setOf("aac"),
+                    audioPassthrough = emptySet(),
+                    maxAudioChannels = 2,
+                ),
             start = Duration.ZERO,
             audioIndex = null,
             subtitleIndex = null,

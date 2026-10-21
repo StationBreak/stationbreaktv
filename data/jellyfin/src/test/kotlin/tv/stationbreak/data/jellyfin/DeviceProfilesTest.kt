@@ -46,12 +46,36 @@ class DeviceProfilesTest {
 
         fun condition(property: String) = conditions.single { it.text("Property") == property }
         assertEquals("EqualsAny", condition("VideoProfile").text("Condition"))
-        assertEquals(setOf("baseline", "main", "high"), condition("VideoProfile").text("Value").split('|').toSet())
+        // ffprobe calls x264's ultrafast output "Constrained Baseline", a subset of Baseline that the server compares
+        // as its own name (contract test, 12.1): without it every such file is transcoded for nothing.
+        assertEquals(
+            setOf("baseline", "constrained baseline", "main", "high"),
+            condition("VideoProfile").text("Value").split('|').toSet(),
+        )
         assertEquals("LessThanEqual", condition("VideoLevel").text("Condition"))
         assertEquals("41", condition("VideoLevel").text("Value"))
         assertEquals("1920", condition("Width").text("Value"))
         assertEquals("1080", condition("Height").text("Value"))
         assertEquals("8", condition("VideoBitDepth").text("Value"))
+    }
+
+    @Test
+    fun constrainedBaselineIsAddedOnlyWhereBaselineIsDeclared() {
+        fun profiles(vararg names: String): String {
+            val caps = insigniaCapabilities()
+            val h264 = caps.videoCodecs.single().copy(profiles = names.toSet())
+            val body = body(requestFor(caps.copy(videoCodecs = listOf(h264))))
+            val conditions =
+                body
+                    .profile()
+                    .codecProfile("Video")
+                    .list("Conditions")
+                    .map { it.jsonObject }
+            return conditions.single { it.text("Property") == "VideoProfile" }.text("Value")
+        }
+
+        assertEquals("baseline|constrained baseline|main", profiles("baseline", "main"))
+        assertEquals("main|high", profiles("main", "high"))
     }
 
     @Test

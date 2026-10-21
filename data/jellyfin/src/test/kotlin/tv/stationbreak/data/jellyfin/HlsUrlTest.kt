@@ -52,10 +52,12 @@ class HlsUrlTest {
                 "MaxWidth" to "1920",
                 "MaxHeight" to "1080",
                 "h264-level" to "41",
-                "h264-profile" to "baseline,main,high",
+                // The server's own spelling in its transcoding URL has no space in "constrainedbaseline" (12.1).
+                "h264-profile" to "baseline,constrainedbaseline,main,high",
                 "h264-videobitdepth" to "8",
                 "MaxStreamingBitrate" to "20000000",
-                "VideoBitrate" to "19360000",
+                // The maximum less the 192 kb/s the server reserves for stereo AAC, as its own URL computes it (12.1).
+                "VideoBitrate" to "19808000",
                 "SegmentContainer" to "ts",
                 "BreakOnNonKeyFrames" to "True",
                 "StartTimeTicks" to "900000000",

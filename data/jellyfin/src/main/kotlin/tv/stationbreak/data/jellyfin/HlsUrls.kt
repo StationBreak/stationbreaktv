@@ -16,7 +16,9 @@ import tv.stationbreak.core.model.SubtitleDelivery
 /**
  * Stream URLs made from the base address, IDs and the device's own limits, and nothing else: never the server's
  * `TranscodingUrl`, `DeliveryUrl` or file path (R2), and no credential in the query or userinfo. `playSessionId` is a
- * hint for the server, not a secret. The `Authorization` header is added by the media client (`mediaCallFactory`).
+ * hint for the server, not a secret. The `Authorization` header is added by the media client (`mediaCallFactory`),
+ * which also tells the server the device: a `DELETE` of the encode by play session ends it without a `DeviceId` in the
+ * URL (contract test, 12.1 and 12.2).
  */
 internal class HlsUrls(
     private val address: ServerAddress,
@@ -57,7 +59,10 @@ internal class HlsUrls(
                     param("MaxWidth", it.maxWidth)
                     param("MaxHeight", it.maxHeight)
                     it.maxLevel?.let { level -> param("h264-level", level) }
-                    if (it.profiles.isNotEmpty()) param("h264-profile", it.profiles.joinToString(","))
+                    if (it.profiles.isNotEmpty()) {
+                        // The server's own spelling has no space ("constrainedbaseline").
+                        param("h264-profile", profileNames(it).joinToString(",") { name -> name.replace(" ", "") })
+                    }
                     param("h264-videobitdepth", it.maxBitDepth)
                 }
                 param("MaxStreamingBitrate", maxBitrate)
@@ -103,8 +108,11 @@ internal class HlsUrls(
     }
 
     private companion object {
-        /** What the audio takes of the budget, so the video is asked for the rest. */
-        const val AUDIO_RESERVE = 640_000
+        /**
+         * What the audio takes of the budget, so the video is asked for the rest: the 192 kb/s the server itself
+         * reserves for stereo AAC (`AudioBitrate=192000` in its own transcoding URL, 12.1).
+         */
+        const val AUDIO_RESERVE = 192_000
 
         val DOT_SEGMENTS = setOf(".", "..")
     }

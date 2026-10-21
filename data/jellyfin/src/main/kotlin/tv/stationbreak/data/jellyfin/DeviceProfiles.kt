@@ -118,7 +118,7 @@ internal object DeviceProfiles {
             put("Codec", support.codec)
             putJsonArray("Conditions") {
                 if (support.profiles.isNotEmpty()) {
-                    add(condition("EqualsAny", "VideoProfile", support.profiles.joinToString("|")))
+                    add(condition("EqualsAny", "VideoProfile", profileNames(support).joinToString("|")))
                 }
                 support.maxLevel?.let { add(condition("LessThanEqual", "VideoLevel", it.toString())) }
                 add(condition("LessThanEqual", "Width", support.maxWidth.toString()))
@@ -155,3 +155,15 @@ internal object DeviceProfiles {
             put("Method", method)
         }
 }
+
+private const val CONSTRAINED_BASELINE = "constrained baseline"
+
+/**
+ * The profile names to send for [support]. ffprobe names an encoder's baseline-without-extras output "Constrained
+ * Baseline" (x264's ultrafast does, and so do most phones), which the server compares as a name of its own, so it has
+ * to be listed beside "baseline". Every baseline decoder plays it: it is the subset of baseline.
+ */
+internal fun profileNames(support: VideoCodecSupport): List<String> =
+    support.profiles.flatMap { name ->
+        if (support.codec == "h264" && name == "baseline") listOf(name, CONSTRAINED_BASELINE) else listOf(name)
+    }
