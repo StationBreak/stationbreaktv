@@ -6,6 +6,7 @@ import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import tv.stationbreak.core.domain.getOrNull
@@ -18,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -180,5 +182,86 @@ class MediaCallFactoryTest {
 
         response.use { assertEquals(302, it.code) }
         assertEquals(1, jellyfin.requests("/Videos/i1/master.m3u8").size)
+    }
+
+    private fun Call.Factory.send(request: Request): String? {
+        newCall(request).execute().close()
+        return recorder.seen.last().second
+    }
+
+    @Test
+    fun anApiKeyInTheQueryIsStrippedOnTheSessionOrigin() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        val header = factory.get("$origin/Videos/i1/main.m3u8?api_key=SECRET&a=1&ApiKey=SECRET&APIKEY=SECRET&API_KEY=S")
+
+        assertNotNull(header)
+        assertEquals("$origin/Videos/i1/main.m3u8?a=1", recorder.seen.last().first)
+    }
+
+    @Test
+    fun anApiKeyInTheQueryIsStrippedOnAnotherOriginToo() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        val header = factory.get("http://localhost:${jellyfin.server.port}/x.ts?ApiKey=SECRET&api_key=SECRET&b=2")
+
+        assertNull(header)
+        assertEquals("http://localhost:${jellyfin.server.port}/x.ts?b=2", recorder.seen.last().first)
+    }
+
+    @Test
+    fun anEncodedSeparatorInThePathGetsNoHeader() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        assertNull(factory.get("$origin/Videos/i1%2fx/master.m3u8"), "%2f")
+        assertNull(factory.get("$origin/Videos/i1%2Fx/master.m3u8"), "%2F")
+        assertNull(factory.get("$origin/Videos/i1%5cx/master.m3u8"), "%5c")
+        assertNull(factory.get("$origin/Videos/i1%5Cx/master.m3u8"), "%5C")
+        assertNotNull(factory.get("$origin/Videos/i1%20x/master.m3u8"), "other escapes are fine")
+    }
+
+    private fun Call.Factory.sendAs(method: String): String? {
+        val body = if (method == "GET" || method == "HEAD" || method == "DELETE") null else "x".toRequestBody()
+        return send(
+            Request
+                .Builder()
+                .url("$origin/Videos/i1/master.m3u8")
+                .method(method, body)
+                .build(),
+        )
+    }
+
+    @Test
+    fun onlyGetAndHeadCarryTheHeader() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        for (method in listOf("GET", "HEAD")) assertNotNull(factory.sendAs(method), method)
+        for (method in listOf("POST", "PUT", "DELETE", "PATCH")) assertNull(factory.sendAs(method), method)
+    }
+
+    @Test
+    fun theMediaClientHasNoCallTimeoutAndAThirtySecondRead() {
+        val clients = adapter().clients
+        val media = clients.media
+        val credentialed = clients.credentialed
+
+        assertEquals(0, media.callTimeoutMillis)
+        assertEquals(30_000, media.readTimeoutMillis)
+        assertFalse(media.followRedirects)
+        assertFalse(media.followSslRedirects)
+        assertEquals(credentialed.interceptors.map { it::class }, media.interceptors.map { it::class })
+        assertEquals(credentialed.connectionSpecs, media.connectionSpecs)
+        assertEquals(credentialed.connectTimeoutMillis, media.connectTimeoutMillis)
+        assertEquals(credentialed.hostnameVerifier, media.hostnameVerifier)
+        assertEquals(credentialed.certificatePinner, media.certificatePinner)
+        assertTrue(credentialed.callTimeoutMillis > 0, "the API client keeps its call timeout")
     }
 }
