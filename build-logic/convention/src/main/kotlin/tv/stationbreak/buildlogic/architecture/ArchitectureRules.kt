@@ -134,7 +134,7 @@ object ArchitectureRules {
             ":core:testing" to ModuleSpec(Platform.PURE, setOf(":core:model", ":core:rules")),
             ":core:domain" to ModuleSpec(Platform.PURE, setOf(":core:engine", ":core:scheduler", ":core:model")),
             ":core:ui" to ModuleSpec(Platform.ANDROID, emptySet()),
-            ":core:playback" to ModuleSpec(Platform.ANDROID, emptySet()),
+            ":core:playback" to ModuleSpec(Platform.ANDROID, setOf(":core:model", ":core:domain")),
             ":data:jellyfin" to ModuleSpec(Platform.PURE, setOf(":core:domain", ":core:model")),
             ":data:library" to ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:model")),
             ":data:settings" to ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:model", ":core:rules")),
