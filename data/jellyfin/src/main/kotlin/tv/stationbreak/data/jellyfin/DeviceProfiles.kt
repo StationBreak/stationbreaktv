@@ -9,6 +9,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.UserId
@@ -20,12 +21,6 @@ import tv.stationbreak.core.model.VideoCodecSupport
  * own preferences, which it can only do for the `UserId` sent here.
  */
 internal object DeviceProfiles {
-    /** Subtitle formats the player reads as text: in the stream, or as WebVTT the server converts to. */
-    val TEXT_SUBTITLES = listOf("srt", "subrip", "ass", "ssa", "vtt", "webvtt", "mov_text")
-
-    /** Subtitle formats that are pictures: the server burns them into the video when one is selected. */
-    val IMAGE_SUBTITLES = listOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub")
-
     private val json = Json
 
     fun body(
@@ -82,10 +77,10 @@ internal object DeviceProfiles {
 
     private fun transcoding(caps: DeviceCapabilities): JsonObject =
         buildJsonObject {
-            put("Container", "ts")
+            put("Container", Codecs.TS)
             put("Type", "Video")
             put("Protocol", "hls")
-            put("VideoCodec", "h264")
+            put("VideoCodec", Codecs.H264)
             put("AudioCodec", transcodeAudio(caps))
             put("Context", "Streaming")
             put("MaxAudioChannels", caps.maxAudioChannels.toString())
@@ -93,7 +88,10 @@ internal object DeviceProfiles {
         }
 
     /** What the server may put in the transcoded audio: AAC, or a codec the sink takes as it is. */
-    fun transcodeAudio(caps: DeviceCapabilities) = (listOf("aac") + caps.audioPassthrough.sorted()).joinToString(",")
+    fun transcodeAudio(caps: DeviceCapabilities): String {
+        val codecs = listOf(Codecs.AAC) + caps.audioPassthrough.sorted()
+        return codecs.joinToString(",")
+    }
 
     private fun codecProfiles(caps: DeviceCapabilities): JsonArray =
         buildJsonArray {
@@ -141,9 +139,9 @@ internal object DeviceProfiles {
 
     private fun subtitleProfiles(): JsonArray =
         buildJsonArray {
-            TEXT_SUBTITLES.forEach { add(subtitle(it, "Embed")) }
+            Codecs.TEXT_SUBTITLES.forEach { add(subtitle(it, "Embed")) }
             add(subtitle("vtt", "External"))
-            IMAGE_SUBTITLES.forEach { add(subtitle(it, "Encode")) }
+            Codecs.IMAGE_SUBTITLES.forEach { add(subtitle(it, "Encode")) }
         }
 
     private fun subtitle(
@@ -156,8 +154,6 @@ internal object DeviceProfiles {
         }
 }
 
-private const val CONSTRAINED_BASELINE = "constrained baseline"
-
 /**
  * The profile names to send for [support]. ffprobe names an encoder's baseline-without-extras output "Constrained
  * Baseline" (x264's ultrafast does, and so do most phones), which the server compares as a name of its own, so it has
@@ -165,5 +161,9 @@ private const val CONSTRAINED_BASELINE = "constrained baseline"
  */
 internal fun profileNames(support: VideoCodecSupport): List<String> =
     support.profiles.flatMap { name ->
-        if (support.codec == "h264" && name == "baseline") listOf(name, CONSTRAINED_BASELINE) else listOf(name)
+        if (support.codec == Codecs.H264 && name == Codecs.BASELINE) {
+            listOf(name, Codecs.CONSTRAINED_BASELINE)
+        } else {
+            listOf(name)
+        }
     }

@@ -3,6 +3,7 @@ package tv.stationbreak.data.jellyfin
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.MediaStreamInfo
@@ -43,7 +44,7 @@ internal class HlsUrls(
         burnIn: Int?,
     ): String {
         val caps = request.capabilities
-        val h264 = caps.videoCodecs.firstOrNull { it.codec == "h264" }
+        val h264 = caps.videoCodecs.firstOrNull { it.codec == Codecs.H264 }
         val maxBitrate = caps.maxStreamingBitrate
         val copy = !request.forceTranscode
         return base()
@@ -51,7 +52,7 @@ internal class HlsUrls(
             .apply {
                 param("MediaSourceId", source.value)
                 playSession?.let { param("PlaySessionId", it.value) }
-                param("VideoCodec", "h264")
+                param("VideoCodec", Codecs.H264)
                 param("AudioCodec", DeviceProfiles.transcodeAudio(caps))
                 param("MaxAudioChannels", caps.maxAudioChannels)
                 param("TranscodingMaxAudioChannels", caps.maxAudioChannels)
@@ -68,7 +69,7 @@ internal class HlsUrls(
                 param("MaxStreamingBitrate", maxBitrate)
                 param("VideoBitrate", (maxBitrate - AUDIO_RESERVE).coerceAtLeast(1))
                 param("AudioBitrate", AUDIO_RESERVE)
-                param("SegmentContainer", "ts")
+                param("SegmentContainer", Codecs.TS)
                 param("BreakOnNonKeyFrames", "True")
                 param("StartTimeTicks", PlaybackTicks.of(request.start))
                 param("AllowVideoStreamCopy", copy)
@@ -86,7 +87,7 @@ internal class HlsUrls(
         source: MediaSourceId,
         stream: MediaStreamInfo,
     ): String? {
-        val text = stream.kind == StreamKind.SUBTITLE && stream.codec?.lowercase() in DeviceProfiles.TEXT_SUBTITLES
+        val text = stream.kind == StreamKind.SUBTITLE && Codecs.isTextSubtitle(stream.codec)
         // A dot segment would climb out of the path; no real source ID is one.
         if (!text || stream.delivery != SubtitleDelivery.SEPARATE || source.value in DOT_SEGMENTS) return null
         return base()

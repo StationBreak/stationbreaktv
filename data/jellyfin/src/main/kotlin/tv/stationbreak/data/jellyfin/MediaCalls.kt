@@ -11,6 +11,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.domain.map
+import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.CollectionInfo
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionMemberKind
@@ -372,7 +373,7 @@ internal class MediaCalls(
         return MediaStreamInfo(
             index = index,
             kind = kind,
-            codec = dto.codec,
+            codec = Codecs.normalize(dto.codec),
             language = dto.language,
             channels = dto.channels,
             width = dto.width,
