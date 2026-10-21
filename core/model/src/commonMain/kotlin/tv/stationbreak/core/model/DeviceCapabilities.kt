@@ -3,7 +3,8 @@ package tv.stationbreak.core.model
 
 /**
  * What one decoder handles for one video [codec]. [maxLevel] is the codec's bitstream level_idc (H.264 4.1 = 41; HEVC
- * as defined by HEVC), or null when unknown. [profiles] are lowercase ffmpeg profile names from [Codecs] (checked for h264 and hevc).
+ * as defined by HEVC), or null when unknown. [profiles] are lowercase ffmpeg profile names from [Codecs] (checked for
+ * h264 and hevc).
  */
 data class VideoCodecSupport(
     val codec: String,

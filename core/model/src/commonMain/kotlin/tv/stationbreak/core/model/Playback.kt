@@ -81,6 +81,7 @@ interface StreamUrls {
      * the index of a subtitle stream to burn into the picture, or null (text subtitles never travel in this URL).
      * [limits] are the device's, [start] is where to begin and [forceTranscode] stops the video being copied.
      */
+    @Suppress("LongParameterList") // Each is one independent fact the URL carries; a holder would only rename them.
     fun hls(
         source: MediaSource,
         audioIndex: Int?,

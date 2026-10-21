@@ -373,8 +373,8 @@ internal class MediaCalls(
         val seen = mutableMapOf<StreamKind, Int>()
         return dtos.mapNotNull { dto ->
             val kind = STREAM_KINDS[dto.type] ?: return@mapNotNull null
-            val position =
-                if (kind == StreamKind.SUBTITLE && dto.isExternal) null else seen.merge(kind, 1, Int::plus)!! - 1
+            val external = kind == StreamKind.SUBTITLE && dto.isExternal
+            val position = if (external) null else seen.getOrDefault(kind, 0).also { seen[kind] = it + 1 }
             stream(dto, kind, position)
         }
     }

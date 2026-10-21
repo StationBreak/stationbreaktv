@@ -83,6 +83,7 @@ abstract class PlaybackContractSuite {
     }
 
     /** One signed-in adapter with the answer to `PlaybackInfo` for one clip. */
+    @Suppress("LongParameterList") // A plain carrier for one case's state.
     private inner class Played(
         val adapter: JellyfinMediaServer,
         val session: Session,
@@ -524,12 +525,13 @@ abstract class PlaybackContractSuite {
                 played
                     .hls()
                     .toHttpUrl()
-                    .queryParameter("AudioCodec")!!
+                    .queryParameter("AudioCodec")
+                    .orEmpty()
                     .contains("ac3"),
             )
-            // The server names the audio codec it chose (the clip's own AC-3) where the built URL lists those allowed. Its
-            // audio bitrate is the clip's own 96 kb/s, where HlsUrls assumes stereo AAC's 192 kb/s (a known limit of
-            // AUDIO_RESERVE, tracked separately), and the video budget follows from it.
+            // The server names the audio codec it chose (the clip's own AC-3) where the built URL lists those
+            // allowed. Its audio bitrate is the clip's own 96 kb/s, where HlsUrls assumes stereo AAC's 192 kb/s (a
+            // known limit of AUDIO_RESERVE, #324), and the video budget follows from it.
             assertNoDrift(
                 "ac3 passthrough",
                 played,
@@ -646,15 +648,16 @@ abstract class PlaybackContractSuite {
         val compared = serverUrl.queryParameterNames.filter { it.lowercase() !in skipped }
         val absent = compared.filter { built.value(it) == null }
         val different =
-            compared.filter { built.value(it) != null }.filter { name ->
-                val ours = built.value(name)
-                val theirs = serverUrl.value(name)
-                if (name.lowercase() in permitted) {
-                    !ours!!.split(',').toSet().containsAll(theirs.orEmpty().split(','))
-                } else {
-                    ours != theirs
-                }
-            }
+            compared
+                .mapNotNull { name -> built.value(name)?.let { name to it } }
+                .filter { (name, ours) ->
+                    val theirs = serverUrl.value(name)
+                    if (name.lowercase() in permitted) {
+                        !ours.split(',').toSet().containsAll(theirs.orEmpty().split(','))
+                    } else {
+                        ours != theirs
+                    }
+                }.map { (name, _) -> name }
         val values = different.joinToString { "$it server=${serverUrl.value(it)} built=${built.value(it)}" }
         finding("drift $label: different values=${values.ifEmpty { "none" }} absent=${absent.sorted()}")
         assertEquals(emptyList(), absent.sorted(), "$label: parameters the server sets that the built URL lacks")
@@ -785,8 +788,9 @@ abstract class PlaybackContractSuite {
          * The only server parameters the built URL need not carry (lowercase). Identity of the request or client:
          * api_key/apikey (a credential, never built), deviceid, playsessionid, transcodereasons. Facts the server
          * derives from the source file or its own defaults, not device limits: tag (the item's etag), audiosamplerate,
-         * maxframerate and h264-audiochannels (the clip's own rate, fps and channel count), aac-audiochannels and aac-profile (per-stream echoes of the audio it writes; the
-         * limit we send is TranscodingMaxAudioChannels), enableaudiovbrencoding and requireavc (encoder defaults).
+         * maxframerate and h264-audiochannels (the clip's own rate, fps and channel count), aac-audiochannels and
+         * aac-profile (per-stream echoes of the audio it writes; the limit we send is TranscodingMaxAudioChannels),
+         * enableaudiovbrencoding and requireavc (encoder defaults).
          */
         val IGNORED_PARAMETERS =
             setOf(

@@ -39,6 +39,7 @@ class HlsUrlTest {
     private fun source(defaultAudioIndex: Int? = null) =
         MediaSource(MediaSourceId("src1"), null, "mkv", null, true, true, defaultAudioIndex = defaultAudioIndex)
 
+    @Suppress("LongParameterList") // Defaults let each test name only what it varies.
     private fun hls(
         limits: DeviceCapabilities = insigniaCapabilities(),
         audioIndex: Int? = null,

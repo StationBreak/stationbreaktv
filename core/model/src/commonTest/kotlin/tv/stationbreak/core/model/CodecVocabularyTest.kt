@@ -16,7 +16,16 @@ class CodecVocabularyTest {
         passthrough: Set<String> = emptySet(),
     ) = DeviceCapabilities(containers, video, decoders, passthrough, maxAudioChannels = 2)
 
-    private fun h264(vararg profiles: String) = VideoCodecSupport(Codecs.H264, profiles.toSet(), 41, 1920, 1080, 8, emptySet())
+    private fun h264(vararg profiles: String) =
+        VideoCodecSupport(
+            codec = Codecs.H264,
+            profiles = profiles.toSet(),
+            maxLevel = 41,
+            maxWidth = 1920,
+            maxHeight = 1080,
+            maxBitDepth = 8,
+            hdr = emptySet(),
+        )
 
     @Test
     fun knownNamesAreAccepted() {
