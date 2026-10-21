@@ -44,6 +44,8 @@ internal class Seeded(
     /** A BoxSet holding the first two movies, and those movies (spec 10, Vimes H5). */
     val boxSetId: String = "",
     val boxSetMembers: List<String> = emptyList(),
+    /** Item ID of each synthetic format clip in the "Formats" library, by the clip's folder name (spec 13). */
+    val formats: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -83,14 +85,18 @@ internal class JellyfinServer private constructor(
             """.trimIndent()
 
         /** A server answering directly on its own mapped port, at no subpath. */
-        fun direct(image: String): JellyfinServer = start(image, proxy = false)
+        fun direct(
+            image: String,
+            formats: Boolean = false,
+        ): JellyfinServer = start(image, proxy = false, formats = formats)
 
         /** A server whose Base URL is [ContractEnvironment.SUBPATH], reached only through a Caddy container. */
-        fun behindProxy(image: String): JellyfinServer = start(image, proxy = true)
+        fun behindProxy(image: String): JellyfinServer = start(image, proxy = true, formats = false)
 
         private fun start(
             image: String,
             proxy: Boolean,
+            formats: Boolean,
         ): JellyfinServer {
             val started = mutableListOf<AutoCloseable>()
             var ready = false
@@ -115,7 +121,7 @@ internal class JellyfinServer private constructor(
                     }
                 val http = Harness("${address.baseUrl}/".toHttpUrl())
                 val accounts = ServerSeeding.Accounts()
-                val seeded = ServerSeeding.seed(jellyfin, http, accounts)
+                val seeded = ServerSeeding.seed(jellyfin, http, accounts, formats)
                 ready = true
                 return JellyfinServer(started, address, http, accounts, seeded, jellyfin)
             } finally {

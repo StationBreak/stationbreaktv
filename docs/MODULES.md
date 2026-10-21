@@ -213,6 +213,9 @@ Also allowed (not drawn above):
   with `@Provides` (they hold no `javax.inject`; see "Hilt in pure modules"), and implements the flavor-specific
   `ProEntitlement` from `core:domain`.
 - `feature:*` → `core:model`, because screens show domain entities.
+- `core:playback` → `core:model` and `core:domain`: it speaks the playback vocabulary (`PlaybackInfo`, `DeviceCapabilities`)
+  and the `MediaServer` port. It never reaches `data:jellyfin`; the app gives it the adapter's media `Call.Factory`
+  as a plain OkHttp `Call.Factory` (ADR-0016).
 - `data:*` → `core:model`. `data:settings` → `core:rules` too, because it stores channels as rules JSON.
 - `core:domain` and `core:engine` → `core:model` directly.
 - `core:testing` → `core:model` and `core:rules`, to build fixtures and golden vectors.

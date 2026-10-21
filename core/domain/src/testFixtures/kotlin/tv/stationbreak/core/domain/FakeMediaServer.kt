@@ -12,8 +12,10 @@ import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
+import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
@@ -49,6 +51,7 @@ class FakeMediaServer : MediaServer {
     var collectionIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
     var collectionMembersResult: ServerResult<CollectionMemberPage> = ServerResult.Failure(MediaServerError.Unknown())
     var playbackInfoResult: ServerResult<PlaybackInfo> = ServerResult.Failure(MediaServerError.Unknown())
+    var stopEncodingResult: ServerResult<Unit> = ServerResult.Success(Unit)
     var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
@@ -90,7 +93,8 @@ class FakeMediaServer : MediaServer {
 
     /** The collection, start index and limit of each [collectionMembers] call. */
     val collectionMembersCalls = mutableListOf<Triple<ItemId, Int, Int>>()
-    val playbackInfoCalls = mutableListOf<ItemId>()
+    val playbackInfoCalls = mutableListOf<Pair<ItemId, PlaybackRequest>>()
+    val stoppedEncodes = mutableListOf<PlaySessionId>()
 
     /** The reports sent, in order, as the call name and the report. */
     val reports = mutableListOf<Pair<String, PlaybackReport>>()
@@ -243,9 +247,18 @@ class FakeMediaServer : MediaServer {
     override suspend fun playbackInfo(
         session: Session,
         item: ItemId,
+        request: PlaybackRequest,
     ): ServerResult<PlaybackInfo> {
-        playbackInfoCalls += item
+        playbackInfoCalls += item to request
         return playbackInfoResult
+    }
+
+    override suspend fun stopEncoding(
+        session: Session,
+        playSession: PlaySessionId,
+    ): ServerResult<Unit> {
+        stoppedEncodes += playSession
+        return stopEncodingResult
     }
 
     override suspend fun reportStart(

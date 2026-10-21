@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
 import tv.stationbreak.core.domain.map
+import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.CollectionInfo
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionMemberKind
@@ -22,14 +27,17 @@ import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
-import tv.stationbreak.core.model.StreamUrls
+import tv.stationbreak.core.model.StreamKind
+import tv.stationbreak.core.model.SubtitleDelivery
 import java.time.DateTimeException
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -48,6 +56,7 @@ import kotlin.time.Instant
 @Suppress("TooManyFunctions") // One class for the media surface (libraries, items, playback, reports).
 internal class MediaCalls(
     private val calls: AuthorizedCall,
+    private val deviceIds: DeviceIdProvider,
 ) {
     suspend fun libraries(session: Session): ServerResult<List<Library>> =
         calls.send(session, Endpoint.get("UserViews")).flatMap { text ->
@@ -266,8 +275,10 @@ internal class MediaCalls(
     suspend fun playbackInfo(
         session: Session,
         item: ItemId,
-    ): ServerResult<PlaybackInfo> =
-        calls.send(session, Endpoint.post("Items/${item.value}/PlaybackInfo", PlaybackProfile.BODY)).flatMap { text ->
+        request: PlaybackRequest,
+    ): ServerResult<PlaybackInfo> {
+        val body = DeviceProfiles.body(request, session.userId)
+        return calls.send(session, Endpoint.post("Items/${item.value}/PlaybackInfo", body)).flatMap { text ->
             Wire.parse(text, PlaybackInfoDto.serializer()).flatMap { info ->
                 if (info.errorCode != null) {
                     ServerResult.Failure(MediaServerError.ServerError())
@@ -276,6 +287,21 @@ internal class MediaCalls(
                 }
             }
         }
+    }
+
+    /**
+     * Stops the server's encode for [playSession] (`DELETE /Videos/ActiveEncodings`). An encode that is already gone
+     * (a 404) is what was wanted, so it is success.
+     */
+    suspend fun stopEncoding(
+        session: Session,
+        playSession: PlaySessionId,
+    ): ServerResult<Unit> {
+        val query = listOf("DeviceId" to deviceIds.deviceId(), "PlaySessionId" to playSession.value)
+        val answer = calls.send(session, Endpoint("DELETE", "Videos/ActiveEncodings", query))
+        val gone = answer is ServerResult.Failure && answer.error is MediaServerError.NotFound
+        return if (answer is ServerResult.Failure && !gone) answer else ServerResult.Success(Unit)
+    }
 
     suspend fun report(
         session: Session,
@@ -318,7 +344,7 @@ internal class MediaCalls(
             itemId = item,
             playSessionId = playSession,
             sources = info.mediaSources.map(::source),
-            streams = DirectStreamUrls(address, item, playSession),
+            streams = HlsUrls(address, item, playSession),
         )
     }
 
@@ -330,7 +356,71 @@ internal class MediaCalls(
             runtime = dto.runTimeTicks?.let(::duration),
             supportsDirectPlay = dto.supportsDirectPlay,
             supportsDirectStream = dto.supportsDirectStream,
+            supportsTranscoding = dto.supportsTranscoding,
+            streams = streams(dto.mediaStreams),
+            defaultAudioIndex = dto.defaultAudioStreamIndex,
+            defaultSubtitleIndex = dto.defaultSubtitleStreamIndex,
+            bitrate = dto.bitrate?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt(),
+            transcodeReasons = reasons(dto.transcodeReasons),
         )
+
+    /**
+     * Video, audio and subtitle tracks; any other kind (an embedded picture, a data track) is dropped. Each embedded
+     * track also gets its position among the embedded tracks of its kind, counted over the list as the server sent it
+     * (a track with no index can't be chosen, but it is still a track in the file, so it holds its place).
+     */
+    private fun streams(dtos: List<MediaStreamDto>): List<MediaStreamInfo> {
+        val seen = mutableMapOf<StreamKind, Int>()
+        return dtos.mapNotNull { dto ->
+            val kind = STREAM_KINDS[dto.type] ?: return@mapNotNull null
+            val external = kind == StreamKind.SUBTITLE && dto.isExternal
+            val position = if (external) null else seen.getOrDefault(kind, 0).also { seen[kind] = it + 1 }
+            stream(dto, kind, position)
+        }
+    }
+
+    private fun stream(
+        dto: MediaStreamDto,
+        kind: StreamKind,
+        position: Int?,
+    ): MediaStreamInfo? {
+        val index = dto.index ?: return null
+        val delivery = DELIVERY_METHODS[dto.deliveryMethod] ?: SubtitleDelivery.NONE
+        return MediaStreamInfo(
+            index = index,
+            kind = kind,
+            codec = Codecs.normalize(dto.codec),
+            language = dto.language,
+            channels = dto.channels,
+            width = dto.width,
+            height = dto.height,
+            isExternal = dto.isExternal,
+            isDefault = dto.isDefault,
+            isForced = dto.isForced,
+            delivery = delivery.takeIf { kind == StreamKind.SUBTITLE },
+            positionInKind = position,
+        )
+    }
+
+    private fun reasons(value: JsonElement?): Set<String> =
+        when (value) {
+            is JsonArray -> {
+                value.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.toSet()
+            }
+
+            is JsonPrimitive -> {
+                value.contentOrNull
+                    .orEmpty()
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+            }
+
+            else -> {
+                emptySet()
+            }
+        }
 
     private companion object {
         /**
@@ -399,28 +489,6 @@ internal object PlaybackTicks {
 
     /** [position] in ticks; negative is zero, and a huge one can't overflow because nanoseconds are divided down. */
     fun of(position: Duration): Long = if (position.isNegative()) 0L else position.inWholeNanoseconds / NANOS_PER_TICK
-}
-
-/**
- * Stream URLs made from the base address and IDs and nothing else: no server-supplied URL, no credential in the query
- * or userinfo (R2). `playSessionId` is a hint for the server, not a secret.
- */
-private class DirectStreamUrls(
-    private val address: ServerAddress,
-    private val item: ItemId,
-    private val playSession: PlaySessionId?,
-) : StreamUrls {
-    override fun directStream(source: MediaSourceId): String {
-        val base = checkNotNull(address.baseUrl.toHttpUrlOrNull()) { "A stored address is always a URL" }
-        return base
-            .newBuilder()
-            .addPathSegments("Videos/${item.value}/stream")
-            .addQueryParameter("static", "true")
-            .addQueryParameter("mediaSourceId", source.value)
-            .apply { playSession?.let { addQueryParameter("playSessionId", it.value) } }
-            .build()
-            .toString()
-    }
 }
 
 /** One server item as the domain model's item. Dates and runtimes follow rules format v1, "Scheduler inputs". */
@@ -519,6 +587,18 @@ private const val LAST_YEAR = 9999
 private const val MS_PER_SECOND = 1000L
 private const val NANOS_PER_MS = 1_000_000
 private const val TICKS_PER_MS = 10_000L
+
+private val STREAM_KINDS =
+    mapOf("Video" to StreamKind.VIDEO, "Audio" to StreamKind.AUDIO, "Subtitle" to StreamKind.SUBTITLE)
+
+// How the server delivers a subtitle. Anything else, including a missing method and "Drop", is not delivered.
+private val DELIVERY_METHODS =
+    mapOf(
+        "Embed" to SubtitleDelivery.IN_STREAM,
+        "External" to SubtitleDelivery.SEPARATE,
+        "Hls" to SubtitleDelivery.SEPARATE,
+        "Encode" to SubtitleDelivery.BURNED_IN,
+    )
 
 private val ITEM_KINDS =
     mapOf(

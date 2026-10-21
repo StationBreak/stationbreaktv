@@ -7,9 +7,14 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import okhttp3.OkHttpClient
 import tv.stationbreak.core.domain.DeviceIdProvider
+import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
+import tv.stationbreak.core.model.DeviceCapabilities
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PlaybackInfo
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -20,6 +25,7 @@ import tv.stationbreak.core.model.UserId
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 internal val TEST_IDENTITY = ClientIdentity("StationBreak", "Living room TV", "0.0.1")
@@ -122,3 +128,19 @@ internal fun testSession(
         acknowledgement,
         false,
     )
+
+/** A request for tests that don't care what the device can do: H.264 and AAC in MP4, start at the beginning. */
+internal fun testPlaybackRequest(): PlaybackRequest =
+    PlaybackRequest(
+        capabilities = DeviceCapabilities(setOf("mp4"), emptyList(), setOf("aac"), emptySet(), 2),
+        start = Duration.ZERO,
+        audioIndex = null,
+        subtitleIndex = null,
+        forceTranscode = false,
+    )
+
+/** `playbackInfo` with [testPlaybackRequest], for tests of the answer rather than the request. */
+internal suspend fun JellyfinMediaServer.playbackInfo(
+    session: Session,
+    item: ItemId,
+): ServerResult<PlaybackInfo> = playbackInfo(session, item, testPlaybackRequest())

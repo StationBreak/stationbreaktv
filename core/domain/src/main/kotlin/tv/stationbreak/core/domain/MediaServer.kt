@@ -10,8 +10,10 @@ import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
+import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
@@ -226,14 +228,22 @@ interface MediaServer {
     ): ServerResult<CollectionMemberPage>
 
     /**
-     * Asks how [item] can be played, with a conservative static device profile (a placeholder until F1.6's capability
-     * probe). The result has the media sources, the play session to report under, and a URL builder. No URL, path or
-     * key the server supplied is passed on (R2).
+     * Asks how [item] can be played on a device with [request]'s capabilities, starting at [PlaybackRequest.start]. A
+     * null [PlaybackRequest.audioIndex] or [PlaybackRequest.subtitleIndex] means the server applies the user's
+     * preferences. The result has the media sources with their streams, the play session to report under, and a URL
+     * builder. No URL, path or key the server supplied is passed on (R2).
      */
     suspend fun playbackInfo(
         session: Session,
         item: ItemId,
+        request: PlaybackRequest,
     ): ServerResult<PlaybackInfo>
+
+    /** Tells the server to stop the transcode it runs for [playSession] and free its files. */
+    suspend fun stopEncoding(
+        session: Session,
+        playSession: PlaySessionId,
+    ): ServerResult<Unit>
 
     /** Tells the server playback of [report]'s item began (`POST /Sessions/Playing`). */
     suspend fun reportStart(

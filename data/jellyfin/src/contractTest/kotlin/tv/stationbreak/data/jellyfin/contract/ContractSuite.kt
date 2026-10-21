@@ -30,14 +30,17 @@ import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.core.model.CollectionMemberKind
+import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.VideoCodecSupport
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.AdapterTuning
 import tv.stationbreak.data.jellyfin.AuthHeaderBuilder
@@ -51,6 +54,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -707,6 +711,23 @@ abstract class ContractSuite {
         return server.http.expectOk("read item", server.http.get("Users/$viewerId/Items/$id", token)).obj()
     }
 
+    private val playbackRequest =
+        PlaybackRequest(
+            // The seeded movies are H.264/AAC in MP4: a profile that lists H.264 direct plays them (spec 13).
+            capabilities =
+                DeviceCapabilities(
+                    containers = setOf("mp4"),
+                    videoCodecs = listOf(VideoCodecSupport("h264", emptySet(), null, 1920, 1080, 8, emptySet())),
+                    audioDecoders = setOf("aac"),
+                    audioPassthrough = emptySet(),
+                    maxAudioChannels = 2,
+                ),
+            start = Duration.ZERO,
+            audioIndex = null,
+            subtitleIndex = null,
+            forceTranscode = false,
+        )
+
     @Test
     fun playbackInfoListsSourcesAndTheBuiltUrlStreamsWithTheHeader() {
         runBlocking {
@@ -714,7 +735,7 @@ abstract class ContractSuite {
             val session = session(adapter)
             val item = ItemId(server.seeded.movieIds.first())
 
-            val info = adapter.playbackInfo(session, item).getOrNull()
+            val info = adapter.playbackInfo(session, item, playbackRequest).getOrNull()
 
             assertNotNull(info)
             val source = info.sources.first()
@@ -722,7 +743,7 @@ abstract class ContractSuite {
             val request =
                 Request
                     .Builder()
-                    .url(info.streams.directStream(source.id))
+                    .url(info.streams.original(source.id))
                     .header("Range", "bytes=0-1023")
                     .header("Authorization", AuthHeaderBuilder(identity).build("contract-stream", session.token))
                     .build()
@@ -740,7 +761,7 @@ abstract class ContractSuite {
             val adapter = adapter()
             val session = session(adapter)
             val item = ItemId(server.seeded.movieIds.first())
-            val info = adapter.playbackInfo(session, item).getOrNull()
+            val info = adapter.playbackInfo(session, item, playbackRequest).getOrNull()
             assertNotNull(info)
             val source = info.sources.first().id
 

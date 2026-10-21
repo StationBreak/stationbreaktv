@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.PlaybackReport
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
@@ -86,6 +87,8 @@ class CleartextGateTest {
                 // The media calls (Unit 3) take a session, which carries the acknowledgement, plus plain values.
                 Library::class.java,
                 PlaybackReport::class.java,
+                // playbackInfo takes the device capabilities and start as a plain value; no acknowledgement in it.
+                PlaybackRequest::class.java,
                 // libraryItems takes the moment to fetch changes since: a plain value.
                 kotlin.time.Instant::class.java,
                 // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.

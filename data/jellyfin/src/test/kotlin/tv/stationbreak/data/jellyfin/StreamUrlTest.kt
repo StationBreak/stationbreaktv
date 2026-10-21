@@ -62,7 +62,7 @@ class StreamUrlTest {
             listOf(
                 info.toString(),
                 info?.sources.toString(),
-                info?.streams?.directStream(MediaSourceId("src1")).orEmpty(),
+                info?.streams?.original(MediaSourceId("src1")).orEmpty(),
                 logged.joinToString("\n"),
             ).joinToString("\n")
         for (forbidden in listOf(serverToken, "ApiKey", "api_key", "private-share", "master.m3u8", "TranscodingUrl")) {
@@ -90,7 +90,7 @@ class StreamUrlTest {
         val token = fake("token")
         val (info, _) = info(token)
 
-        val url = info!!.streams.directStream(MediaSourceId("src1")).toHttpUrl()
+        val url = info!!.streams.original(MediaSourceId("src1")).toHttpUrl()
 
         assertEquals("/Videos/i1/stream", url.encodedPath)
         assertEquals("true", url.queryParameter("static"))
@@ -107,7 +107,7 @@ class StreamUrlTest {
     fun theUrlKeepsTheSubpath() {
         val (info, _) = info(subpath = "/media/jf")
 
-        val url = info!!.streams.directStream(MediaSourceId("src1")).toHttpUrl()
+        val url = info!!.streams.original(MediaSourceId("src1")).toHttpUrl()
 
         assertEquals("/media/jf/Videos/i1/stream", url.encodedPath)
     }
@@ -116,7 +116,7 @@ class StreamUrlTest {
     fun aSourceIdIsEncodedNotInterpreted() {
         val (info, _) = info()
 
-        val url = info!!.streams.directStream(MediaSourceId("a&b=c/../d")).toHttpUrl()
+        val url = info!!.streams.original(MediaSourceId("a&b=c/../d")).toHttpUrl()
 
         assertEquals("a&b=c/../d", url.queryParameter("mediaSourceId"))
         assertEquals("/Videos/i1/stream", url.encodedPath)
@@ -127,7 +127,7 @@ class StreamUrlTest {
     fun theSessionIdTravelsOnlyAsAPlayerHint() {
         val (info, _) = info()
 
-        val url = info!!.streams.directStream(MediaSourceId("src1")).toHttpUrl()
+        val url = info!!.streams.original(MediaSourceId("src1")).toHttpUrl()
 
         assertEquals("play-1", url.queryParameter("playSessionId"))
         assertTrue(

@@ -383,6 +383,30 @@ class ArchitectureRulesTest {
     // The allowlist.
 
     @Test
+    fun playbackMayUseTheModelAndTheDomainPorts() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":core:playback",
+                project("implementation", ":core:model"),
+                project("implementation", ":core:domain"),
+                artifact("implementation", "com.squareup.okhttp3:okhttp"),
+            ),
+        )
+    }
+
+    @Test
+    fun playbackMayNotReachTheAdapterOrTheRulesLayers() {
+        for (target in listOf(":data:jellyfin", ":core:engine", ":core:scheduler", ":core:ui")) {
+            assertEquals(
+                listOf(Rule.NOT_ALLOWLISTED),
+                rulesBroken(":core:playback", project("implementation", target)),
+                target,
+            )
+        }
+    }
+
+    @Test
     fun allowedEdgesPass() {
         assertEquals(
             emptyList(),

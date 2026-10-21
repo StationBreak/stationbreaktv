@@ -13,6 +13,9 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.testcontainers.containers.GenericContainer
+import org.testcontainers.utility.MountableFile
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Duration
 import java.util.UUID
 
@@ -30,6 +33,11 @@ internal object ServerSeeding {
     }
 
     private const val FFMPEG = "/usr/lib/jellyfin-ffmpeg/ffmpeg"
+
+    // The contractTest task sets the repository directory as a system property (data/jellyfin/build.gradle.kts).
+    private const val REPO_PROPERTY = "stationbreak.repoDir"
+    private const val SCRIPT = "scripts/playback-matrix/synthetic-media.sh"
+    private const val SCRIPT_MODE = 0b111_101_101
 
     // Longer than 5 minutes, so a stopped report stores a resume position (ADR-0006).
     private const val MEDIA_SECONDS = 330
@@ -54,12 +62,13 @@ internal object ServerSeeding {
         jellyfin: GenericContainer<*>,
         http: Harness,
         accounts: Accounts,
+        formats: Boolean = false,
     ): Seeded {
         completeWizard(http, accounts.admin)
         val token = http.signIn(accounts.admin.name, accounts.admin.rawPassword())
         generateMedia(jellyfin)
         val libraries = createLibraries(http, token)
-        createUser(http, token, accounts.viewer)
+        val viewerId = createUser(http, token, accounts.viewer)
         disable(http, token, createUser(http, token, accounts.disabled))
         enableQuickConnect(http, token)
         enableGroupingIntoCollections(http, token)
@@ -67,6 +76,10 @@ internal object ServerSeeding {
         val premieres = seedPremiereDates(http, token, episodes)
         val seriesId = seedSeriesMetadata(http, token, libraries.getValue("tv"))
         val boxSetMembers = movies.take(BOX_SET_MEMBERS)
+        val looseEpisode = findLooseEpisode(http, token)
+        val boxSet = seedBoxSet(http, token, boxSetMembers)
+        // Last, so the new library's scan can't race the steps above.
+        val clips = if (formats) seedFormats(jellyfin, http, token, viewerId) else emptyMap()
         return Seeded(
             libraries.getValue("movies"),
             libraries.getValue("tv"),
@@ -75,10 +88,107 @@ internal object ServerSeeding {
             episodes,
             premieres,
             seriesId,
-            findLooseEpisode(http, token),
-            seedBoxSet(http, token, boxSetMembers),
+            looseEpisode,
+            boxSet,
             boxSetMembers,
+            clips,
         )
+    }
+
+    /**
+     * Spec 13: the synthetic format clips ([SCRIPT]) in a "Formats" library of one movie per clip folder, and the
+     * viewer's track preferences (English audio, English subtitles always). Returns each clip's item ID by folder name.
+     */
+    private fun seedFormats(
+        jellyfin: GenericContainer<*>,
+        http: Harness,
+        token: String,
+        viewerId: String,
+    ): Map<String, String> {
+        val repo = checkNotNull(System.getProperty(REPO_PROPERTY)) { "$REPO_PROPERTY isn't set by contractTest" }
+        val script = Path.of(repo, SCRIPT)
+        check(Files.isRegularFile(script)) { "the synthetic media script is missing" }
+        jellyfin.copyFileToContainer(MountableFile.forHostPath(script, SCRIPT_MODE), "/tmp/synthetic-media.sh")
+        val made = jellyfin.execInContainer("bash", "/tmp/synthetic-media.sh", FFMPEG, "/media/formats")
+        check(made.exitCode == 0) { "the synthetic media script exited with ${made.exitCode}" }
+        val folders =
+            jellyfin
+                .execInContainer("ls", "/media/formats")
+                .stdout
+                .lines()
+                .filter { it.isNotBlank() }
+        check(folders.isNotEmpty()) { "the synthetic media script made no clips" }
+        setViewerTrackPreferences(http, token, viewerId)
+        http.awaitIdle(token)
+        val query = listOf("name" to "Formats", "collectionType" to "movies", "refreshLibrary" to "false")
+        val options =
+            buildJsonObject {
+                putJsonObject("LibraryOptions") {
+                    putJsonArray("PathInfos") { add(buildJsonObject { put("Path", "/media/formats") }) }
+                }
+            }
+        http.expectOk("library Formats", http.post("Library/VirtualFolders", options.toString(), token, query))
+        http.expectOk("start Formats scan", http.post("Library/Refresh", token = token))
+        return waitForFormats(http, token, folders.size)
+    }
+
+    /** Gives the viewer `AudioLanguagePreference=eng`, `SubtitleLanguagePreference=eng`, `SubtitleMode=Always`. */
+    private fun setViewerTrackPreferences(
+        http: Harness,
+        token: String,
+        viewerId: String,
+    ) {
+        val user = http.expectOk("read viewer", http.get("Users/$viewerId", token)).obj()
+        val current = user.getValue("Configuration").jsonObject
+        val wanted =
+            JsonObject(
+                current +
+                    mapOf(
+                        "AudioLanguagePreference" to JsonPrimitive("eng"),
+                        "SubtitleLanguagePreference" to JsonPrimitive("eng"),
+                        "SubtitleMode" to JsonPrimitive("Always"),
+                        // Deliberate product behaviour (ruling R5), not a test convenience: "play default audio
+                        // track" is the user's own Jellyfin setting, and while it is on (the server's default) the
+                        // file's flagged track wins over the language preference. The viewer turns it off, so the
+                        // language preference is what the suite observes; the admin keeps the default for contrast.
+                        "PlayDefaultAudioTrack" to JsonPrimitive(false),
+                    ),
+            )
+        http.expectOk(
+            "set viewer track preferences",
+            http.post("Users/Configuration", wanted.toString(), token, listOf("userId" to viewerId)),
+        )
+    }
+
+    /** Waits, bounded, until every clip is a movie in the Formats library with its streams known. */
+    private fun waitForFormats(
+        http: Harness,
+        token: String,
+        count: Int,
+    ): Map<String, String> {
+        val deadline = System.nanoTime() + SCAN_TIMEOUT.toNanos()
+        val query =
+            listOf("recursive" to "true", "includeItemTypes" to "Movie", "fields" to "Path,MediaSources")
+        while (System.nanoTime() < deadline) {
+            val found =
+                http
+                    .expectOk("list Formats", http.get("Items", token, query))
+                    .obj()
+                    .getValue("Items")
+                    .jsonArray
+                    .map { it.jsonObject }
+                    .filter { "/media/formats/" in it["Path"]?.jsonPrimitive?.content.orEmpty() }
+            val probed = found.filter { it["MediaSources"]?.jsonArray?.isNotEmpty() == true }
+            if (probed.size == count) {
+                return probed.associate { item ->
+                    val path = item.getValue("Path").jsonPrimitive.content
+                    path.removePrefix("/media/formats/").substringBefore('/') to
+                        item.getValue("Id").jsonPrimitive.content
+                }
+            }
+            Thread.sleep(POLL.toMillis())
+        }
+        error("the Formats scan did not finish within $SCAN_TIMEOUT")
     }
 
     private fun adminId(

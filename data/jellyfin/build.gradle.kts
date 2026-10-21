@@ -40,6 +40,8 @@ dependencies {
 // A failed contract case prints its message in the job log. The harness's messages carry a step name and a status code
 // only (`harness step 'x' got HTTP 409`): no request, body or token (ADR-0009).
 tasks.named<Test>("contractTest") {
+    // The synthetic media script is copied into the server container from the repository, wherever Gradle runs from.
+    systemProperty("stationbreak.repoDir", rootProject.projectDir.absolutePath)
     testLogging {
         events(TestLogEvent.FAILED)
         exceptionFormat = TestExceptionFormat.FULL
