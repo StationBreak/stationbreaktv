@@ -231,8 +231,51 @@ class BackupRulesTest {
                 "androidx.work.impl.background.systemjob.SystemJobService",
                 "androidx.work.impl.diagnostics.DiagnosticsReceiver",
                 "androidx.profileinstaller.ProfileInstallReceiver",
-            )
+            ) + if (isBenchmarkVariant) setOf(playbackTestActivity) else emptySet()
         assertEquals(allowed, exported)
+    }
+
+    // The playback matrix's test activity is exported so `adb shell am start` can reach it, so it exists in the
+    // benchmark variant's manifest only (spec 13). The variant is the merged manifest's directory name.
+    private val variantDirectory: String
+        get() =
+            File(System.getProperty("mergedManifest").orEmpty())
+                .absoluteFile.parentFile.parentFile.name
+
+    private val isBenchmarkVariant: Boolean
+        get() = variantDirectory.endsWith("Benchmark")
+
+    private val playbackTestActivity = "tv.stationbreak.app.bench.PlaybackTestActivity"
+
+    @Test
+    fun onlyBenchmarkExportsThePlaybackTestActivity() {
+        // Source: only src/benchmark declares it.
+        val declaring =
+            manifests().filter { manifest ->
+                val activities = allElements(parse(manifest)).filter { it.tagName == "activity" }
+                activities.any { nameOf(it).endsWith("PlaybackTestActivity") }
+            }
+        assertEquals(listOf("src/benchmark/AndroidManifest.xml"), declaring.map { it.invariantSeparatorsPath })
+        // Merged: present, exported and not debuggable in the benchmark variant, absent from every other.
+        val merged = mergedManifest
+        val activities = allElements(merged).filter { it.tagName == "activity" && nameOf(it) == playbackTestActivity }
+        if (isBenchmarkVariant) {
+            assertEquals("true", activities.single().getAttributeNS(androidNamespace, "exported"))
+            val app = allElements(merged).single { it.tagName == "application" }
+            val debuggable = app.getAttributeNS(androidNamespace, "debuggable")
+            assertTrue("the benchmark build is debuggable", debuggable != "true")
+        } else {
+            assertEquals(emptyList<Element>(), activities)
+        }
+    }
+
+    @Test
+    fun releaseHasNoPlaybackTestActivity() {
+        assertTrue("unexpected variant directory: $variantDirectory", variantDirectory.isNotEmpty())
+        if (variantDirectory.endsWith("Release") || variantDirectory.endsWith("Debug")) {
+            val names = allElements(mergedManifest).map { nameOf(it) }
+            assertTrue("$variantDirectory has the playback test activity", playbackTestActivity !in names)
+        }
     }
 
     @Test
