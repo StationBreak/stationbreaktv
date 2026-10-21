@@ -32,7 +32,16 @@ class SecrecyTest {
     @Test
     fun aSourceWithSubtitlesDoesNotPrintTheirUrlsEither() {
         val source =
-            PlayerSource(url, true, Duration.ZERO, Duration.ZERO, listOf(SeparateSubtitle(url, "eng")), null, null, false)
+            PlayerSource(
+                url,
+                true,
+                Duration.ZERO,
+                Duration.ZERO,
+                listOf(SeparateSubtitle(url, "eng")),
+                null,
+                null,
+                false,
+            )
         assertFalse(source.toString().contains("secret"))
     }
 

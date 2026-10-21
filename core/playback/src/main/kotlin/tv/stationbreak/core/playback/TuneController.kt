@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-/** Why a tune failed, for the app to branch on. An expired session is not a failure: see [TuneResult.SessionExpired]. */
+/** Why a tune failed. An expired session is not one of these: see [TuneResult.SessionExpired]. */
 enum class TuneFailure { TIMEOUT, SERVER, PLAYER }
 
 /**
@@ -72,12 +72,12 @@ sealed interface TuneResult {
 
 /**
  * Tunes an item: resolve, play, check where playback landed (within [seekTolerance], 2 s by default), and fall back
- * once to a forced transcode when it missed by more or failed (ADR-0016, 4). The transcode starts at the requested
- * time and is judged with the same tolerance; if it misses too, [TuneResult.Played.positionError] says so. An expired session (HTTP 401 or 403 on a media load) never falls back. Every encode it
- * starts and abandons is stopped (ADR-0016, 5). Nothing here is logged. A timeout on direct play does not fall back.
- * When a tune ends with anything but [TuneResult.Played] the controller has already stopped the player and the
- * encode, so the caller need not call [stop]. A [ResolvedPlayback] it returns holds the
- * stream URL, which is a secret: its `toString` hides it, so do not read it out for a log or a report.
+ * once to a forced transcode when it missed by more, or failed (ADR-0016, 4). The transcode starts at the requested
+ * time and is judged with the same tolerance; if it misses too, [TuneResult.Played.positionError] says so. An expired
+ * session (HTTP 401 or 403 on a media load) never falls back, and neither does a timeout. Every encode it starts and
+ * abandons is stopped (ADR-0016, 5). When a tune ends with anything but [TuneResult.Played] the controller has already
+ * stopped the player and the encode, so the caller need not call [stop]. Nothing here is logged. A [ResolvedPlayback]
+ * it returns holds the stream URL, which is a secret: its `toString` hides it, so do not read it out for a log.
  */
 class TuneController(
     private val resolver: PlaybackResolver,
@@ -224,8 +224,14 @@ class TuneController(
     ): Resolution =
         try {
             when (val answer = resolver.resolve(session, item, start, override, forceTranscode)) {
-                is ServerResult.Failure -> Resolution(null, serverBroke(answer.error))
-                is ServerResult.Success -> Resolution(answer.value)
+                is ServerResult.Failure -> {
+                    val error = answer.error
+                    Resolution(null, Broke(null, TuneFailure.SERVER, error.stableName(), error.refusesSession()))
+                }
+
+                is ServerResult.Success -> {
+                    Resolution(answer.value)
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -234,14 +240,6 @@ class TuneController(
         ) {
             Resolution(null, Broke(null, TuneFailure.SERVER, UNEXPECTED))
         }
-
-    private fun serverBroke(error: MediaServerError): Broke {
-        val expired =
-            error is MediaServerError.HttpUnauthorized ||
-                error is MediaServerError.HttpForbidden ||
-                error is MediaServerError.SessionExpired
-        return Broke(null, TuneFailure.SERVER, error.stableName(), expired)
-    }
 
     @Suppress("LongParameterList") // One call's context.
     private suspend fun attempt(
@@ -377,37 +375,6 @@ class TuneController(
         server.stopEncoding(session, playSession)
     }
 
-    /** A name per error, written out so a rename of a class cannot change what a log or a matrix row says. */
-    @Suppress("CyclomaticComplexMethod") // One branch per error: the closed set is the point.
-    private fun MediaServerError.stableName(): String =
-        when (this) {
-            is MediaServerError.DnsFailure -> "DnsFailure"
-            is MediaServerError.ConnectionRefused -> "ConnectionRefused"
-            is MediaServerError.NetworkUnreachable -> "NetworkUnreachable"
-            is MediaServerError.Timeout -> "Timeout"
-            is MediaServerError.TlsUntrusted -> "TlsUntrusted"
-            is MediaServerError.TlsHostnameMismatch -> "TlsHostnameMismatch"
-            is MediaServerError.TlsCertificateExpired -> "TlsCertificateExpired"
-            is MediaServerError.TlsCertificateNotYetValid -> "TlsCertificateNotYetValid"
-            is MediaServerError.TlsCertificateChanged -> "TlsCertificateChanged"
-            is MediaServerError.TlsHandshakeFailed -> "TlsHandshakeFailed"
-            is MediaServerError.NotTls -> "NotTls"
-            is MediaServerError.HttpUnauthorized -> "HttpUnauthorized"
-            is MediaServerError.HttpForbidden -> "HttpForbidden"
-            is MediaServerError.NotJellyfin -> "NotJellyfin"
-            is MediaServerError.UnsupportedVersion -> "UnsupportedVersion"
-            is MediaServerError.ServerNotSetUp -> "ServerNotSetUp"
-            is MediaServerError.Redirected -> "Redirected"
-            is MediaServerError.CleartextNotConfirmed -> "CleartextNotConfirmed"
-            is MediaServerError.SessionExpired -> "SessionExpired"
-            is MediaServerError.ServerMismatch -> "ServerMismatch"
-            is MediaServerError.QuickConnectDisabled -> "QuickConnectDisabled"
-            is MediaServerError.ServerError -> "ServerError"
-            is MediaServerError.InvalidAddress -> "InvalidAddress"
-            is MediaServerError.NotFound -> "NotFound"
-            is MediaServerError.Unknown -> "Unknown"
-        }
-
     private companion object {
         val PLAYING_TIMEOUT = 20.seconds
         val FIRST_FRAME_WAIT = 2.seconds
@@ -417,3 +384,40 @@ class TuneController(
         const val HTTP_FORBIDDEN = 403
     }
 }
+
+/** A name per error, written out so a rename of a class cannot change what a log or a matrix row says. */
+@Suppress("CyclomaticComplexMethod") // One branch per error: the closed set is the point.
+private fun MediaServerError.stableName(): String =
+    when (this) {
+        is MediaServerError.DnsFailure -> "DnsFailure"
+        is MediaServerError.ConnectionRefused -> "ConnectionRefused"
+        is MediaServerError.NetworkUnreachable -> "NetworkUnreachable"
+        is MediaServerError.Timeout -> "Timeout"
+        is MediaServerError.TlsUntrusted -> "TlsUntrusted"
+        is MediaServerError.TlsHostnameMismatch -> "TlsHostnameMismatch"
+        is MediaServerError.TlsCertificateExpired -> "TlsCertificateExpired"
+        is MediaServerError.TlsCertificateNotYetValid -> "TlsCertificateNotYetValid"
+        is MediaServerError.TlsCertificateChanged -> "TlsCertificateChanged"
+        is MediaServerError.TlsHandshakeFailed -> "TlsHandshakeFailed"
+        is MediaServerError.NotTls -> "NotTls"
+        is MediaServerError.HttpUnauthorized -> "HttpUnauthorized"
+        is MediaServerError.HttpForbidden -> "HttpForbidden"
+        is MediaServerError.NotJellyfin -> "NotJellyfin"
+        is MediaServerError.UnsupportedVersion -> "UnsupportedVersion"
+        is MediaServerError.ServerNotSetUp -> "ServerNotSetUp"
+        is MediaServerError.Redirected -> "Redirected"
+        is MediaServerError.CleartextNotConfirmed -> "CleartextNotConfirmed"
+        is MediaServerError.SessionExpired -> "SessionExpired"
+        is MediaServerError.ServerMismatch -> "ServerMismatch"
+        is MediaServerError.QuickConnectDisabled -> "QuickConnectDisabled"
+        is MediaServerError.ServerError -> "ServerError"
+        is MediaServerError.InvalidAddress -> "InvalidAddress"
+        is MediaServerError.NotFound -> "NotFound"
+        is MediaServerError.Unknown -> "Unknown"
+    }
+
+/** The server no longer accepts this session: sign in again (ADR-0016, 4). */
+private fun MediaServerError.refusesSession(): Boolean =
+    this is MediaServerError.HttpUnauthorized ||
+        this is MediaServerError.HttpForbidden ||
+        this is MediaServerError.SessionExpired

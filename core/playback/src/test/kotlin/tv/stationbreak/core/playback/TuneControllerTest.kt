@@ -290,7 +290,8 @@ class TuneControllerTest {
     @Test
     fun diagnosticsAreStableNamesNotClassNames() =
         runTest {
-            server.playbackInfoResult = ServerResult.Failure(MediaServerError.Timeout(listOf("java.net.SocketTimeoutException")))
+            val cause = listOf("java.net.SocketTimeoutException")
+            server.playbackInfoResult = ServerResult.Failure(MediaServerError.Timeout(cause))
             val outcome = failure(tune())
             assertEquals("Timeout", outcome.diagnostic)
         }
