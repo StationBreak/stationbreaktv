@@ -46,11 +46,25 @@ of whatever URL it is given.
    is a media variant of the credentialed one: pinned trust, the same interceptors, no redirects (so a redirect
    cannot carry the header elsewhere), but no call timeout and a 30 s read timeout, because a stream's call lasts as
    long as the player plays it.
-4. **One fallback, never for an expired session.** The player starts with the cheapest route the server allows (direct
-   play, then direct stream via HLS copy). If that fails it falls back once, to a full transcode (`forceTranscode`),
-   then reports the failure. It never loops. An HTTP 401 or 403 on a media load means the session has expired: the
-   player does **not** fall back to a transcode (it would fail the same way) and routes the failure to the same
-   handling as an `Unauthorized` API answer.
+4. **One fallback, for a failure or a missed landing, never for an expired session.** The player starts with the
+   cheapest route the server allows (direct play, then direct stream via HLS copy). There are two reasons to fall back,
+   and either one falls back once, to a full transcode that starts at the requested time (`forceTranscode` with
+   `StartTimeTicks`), then reports what happened. It never loops:
+   - **The load failed** (a player error on a route that is not already a transcode).
+   - **The landing missed** (Ruling R21, the spec 13 design's "Seek check and fallback"). When playing starts, the
+     position is compared with the requested start; more than **2 s off** (either way) on direct play or direct stream
+     is a miss. The tolerance is a parameter of `TuneController` with a 2 s default, so it is a configurable default,
+     not a constant. The transcode is judged with the same tolerance; if it misses too there is no second retry, and
+     the result is `Played` with the position error set, which the playback matrix records as a failed row.
+
+   A **timeout** (nothing played within 20 s) on direct play does **not** fall back: nothing loaded, so a transcode
+   would only add another 20 s wait to a stream that is not answering. It is a `Failed(TIMEOUT)` result. An HTTP 401 or
+   403 on a media load, or a session error from the server, means the session has expired: the player does **not**
+   fall back to a transcode (it would fail the same way) and the tune ends as `SessionExpired`, the case the app
+   routes to the same handling as an `Unauthorized` API answer. The app branches on the `TuneResult` case, never on a
+   message; its diagnostic is a stable name (a Media3 error code name, a written-out server error name, or
+   "Unexpected"), never a class name or a message. A tune that ends with anything but `Played` has already stopped the
+   player and its encode, so a caller need not call `stop()` after it.
 5. **Every encode we start is stopped.** `stopEncoding` sends `DELETE /Videos/ActiveEncodings?DeviceId=&PlaySessionId=`
    through `AuthorizedCall` on a fallback, a stop and a release. A 404 (already gone) is success.
 6. **Default tracks are the server's, and the HLS URL carries them.** The request body carries `UserId`, so Jellyfin
@@ -75,10 +89,17 @@ of whatever URL it is given.
      subtitles). The contract case `burnedInImageSubtitleTranscodes` pins the server's answer.
    Both cases are the triggers to revisit: if a server version starts reporting these files as not direct playable, the
    case fails and the overrule can be dropped (or kept as a guard).
-9. **The media client is wired by the app.** `mediaCallFactory` is an extension of the Jellyfin adapter, so it is
-   adapter-specific. The app is its only consumer: it injects the factory into `core:playback` as a plain OkHttp
-   `Call.Factory`. `core:playback` never depends on `data:jellyfin` (the architecture rules allow it `core:model` and
-   `core:domain` only).
+9. **The media client is wired by the app, as a Media3 data source.** `mediaCallFactory` is an extension of the
+   Jellyfin adapter, so it is adapter-specific. The app is its only consumer: it wraps the media OkHttp client in
+   `media3-datasource-okhttp` and injects the resulting `OkHttpDataSource.Factory` into `core:playback` as a plain
+   Media3 `DataSource.Factory`. `core:playback` has no HTTP client of its own and never depends on `data:jellyfin` (the
+   architecture rules allow it `core:model` and `core:domain` only). The factory goes **directly** to
+   `DefaultMediaSourceFactory`, and is never wrapped in `DefaultDataSource.Factory`: that wrapper opens `file://`,
+   `content://`, `asset://` and other schemes, so a server playlist could name a local file for the player to read.
+   With the bare HTTP factory a playlist line that is not `http(s)` fails to load. **Media3's own logging is off** in
+   every build (`Log.setLogLevel(LOG_LEVEL_OFF)`, set before the player is built), because it logs player errors with
+   their full cause chains, which can quote a playlist line carrying `api_key` (decision 1). Our own events carry the
+   diagnostics instead: the stable error code name and the HTTP status.
 10. **Measure, don't grade, on the Insignia.** The Insignia is slow by nature. Its playback numbers are recorded, not
     scored, and the Phase 1 gate stays as it was (Phil, 2026-10-20). Wasted work is still removed.
 

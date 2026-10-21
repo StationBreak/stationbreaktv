@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -399,8 +400,14 @@ internal class MediaCalls(
             isForced = dto.isForced,
             delivery = delivery.takeIf { kind == StreamKind.SUBTITLE },
             positionInKind = position,
+            // Video facts only. Level is level_idc as sent (h264 41 = 4.1, hevc 153 = 5.1), the probe's unit.
+            videoProfile = Codecs.normalize(dto.profile).takeIf { kind == StreamKind.VIDEO },
+            videoLevel = number(dto.level).takeIf { kind == StreamKind.VIDEO },
+            bitDepth = number(dto.bitDepth).takeIf { kind == StreamKind.VIDEO },
         )
     }
+
+    private fun number(value: JsonElement?): Int? = (value as? JsonPrimitive)?.takeUnless { it.isString }?.intOrNull
 
     private fun reasons(value: JsonElement?): Set<String> =
         when (value) {

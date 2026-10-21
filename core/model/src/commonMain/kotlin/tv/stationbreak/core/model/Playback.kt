@@ -14,7 +14,8 @@ enum class SubtitleDelivery { IN_STREAM, SEPARATE, BURNED_IN, NONE }
  * track. [delivery] is set for subtitle streams only. [positionInKind] is the stream's 0-based position among the
  * file's embedded streams of its own [kind] (the third audio track is 2), or null for an external subtitle, which is
  * not in the file. A player that numbers tracks per kind (Media3's track groups on direct play) maps [index] to its
- * own track with it.
+ * own track with it. [videoProfile] (a [Codecs] profile name), [videoLevel] (level_idc) and [bitDepth] describe a video
+ * stream and are null when the server did not say; the route oracle skips a limit it has no fact for.
  */
 data class MediaStreamInfo(
     val index: Int,
@@ -29,6 +30,9 @@ data class MediaStreamInfo(
     val isForced: Boolean,
     val delivery: SubtitleDelivery?,
     val positionInKind: Int? = null,
+    val videoProfile: String? = null,
+    val videoLevel: Int? = null,
+    val bitDepth: Int? = null,
 )
 
 /** One playable version of an item. The server's file path is deliberately not here (R2). */

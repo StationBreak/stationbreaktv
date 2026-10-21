@@ -40,6 +40,11 @@ class CodecVocabularyTest {
     }
 
     @Test
+    fun mpegtsIsAKnownContainer() {
+        assertEquals(setOf("mpegts", "ts"), caps(containers = setOf(Codecs.MPEGTS, Codecs.TS)).containers)
+    }
+
+    @Test
     fun anUnknownContainerIsRejected() {
         assertFailsWith<IllegalArgumentException> { caps(containers = setOf("MP4")) }
         assertFailsWith<IllegalArgumentException> { caps(containers = setOf("matroska")) }

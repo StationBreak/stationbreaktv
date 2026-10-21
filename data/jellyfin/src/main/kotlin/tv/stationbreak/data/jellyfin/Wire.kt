@@ -229,6 +229,10 @@ internal class MediaStreamDto(
     @SerialName("IsDefault") val isDefault: Boolean = false,
     @SerialName("IsForced") val isForced: Boolean = false,
     @SerialName("DeliveryMethod") val deliveryMethod: String? = null,
+    @SerialName("Profile") val profile: String? = null,
+    // The level and depth are read as JSON values so one odd value on a track can't fail the whole answer.
+    @SerialName("Level") val level: JsonElement? = null,
+    @SerialName("BitDepth") val bitDepth: JsonElement? = null,
 )
 
 /** The body of `Sessions/Playing`, `/Progress` and `/Stopped`. `IsPaused` is left out of the last. */
