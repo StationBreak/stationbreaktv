@@ -883,8 +883,31 @@ abstract class ContractSuite {
                 val added = (after - before).single()
                 val page = adapter.libraryItems(session, library, 0, BIG_PAGE, mark).getOrNull()
                 assertNotNull(page)
-                assertEquals(setOf(added), page.items.map { it.id.value }.toSet(), "only the new item comes back")
-                val item = page.items.single()
+                val returned = page.items.map { it.id.value }.toSet()
+                assertTrue(added in returned, "the new item comes back")
+                // The server may save an older item too inside the window (a background metadata or image task; seen
+                // once on 12.2, #318), and it does not return DateLastSaved to compare. So an extra item is accepted
+                // only if the cursor is still being honoured: a fresh cursor, taken once the server is quiet, must
+                // return nothing. The churn can run on, so a few fresh cursors are tried; a query that ignored the
+                // cursor would return every item each time, and fail here.
+                val extras = returned - added
+                assertTrue(extras.all { it in before }, "anything else returned is an earlier fixture item")
+                if (extras.isNotEmpty()) {
+                    finding("incremental also returned $extras: the server saved them inside the window")
+                    var again: Set<String> = returned
+                    for (attempt in 1..QUIET_CURSOR_TRIES) {
+                        delay(SETTLE_MS * EDIT_SETTLE)
+                        val later = Instant.fromEpochMilliseconds(System.currentTimeMillis())
+                        delay(SETTLE_MS)
+                        val page2 = adapter.libraryItems(session, library, 0, BIG_PAGE, later).getOrNull()
+                        assertNotNull(page2)
+                        again = page2.items.map { it.id.value }.toSet()
+                        if (again.isEmpty()) break
+                        finding("a fresh cursor (try $attempt) still returned $again")
+                    }
+                    assertEquals(emptySet(), again, "a cursor taken once the server is quiet returns nothing")
+                }
+                val item = page.items.single { it.id.value == added }
                 assertNotNull(item.dateCreated)
                 assertTrue((item.runtime ?: 0.seconds) > 0.seconds)
             }
@@ -1192,6 +1215,7 @@ abstract class ContractSuite {
         const val SETTLE_MS = 1_200L
         const val TIE_SETTLE = 3
         const val EDIT_SETTLE = 4
+        const val QUIET_CURSOR_TRIES = 3
         const val FIRST_YEAR = 2001
         const val LAST_YEAR = 2003
         const val FUTURE_MS = 60_000L
