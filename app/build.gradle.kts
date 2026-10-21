@@ -14,10 +14,14 @@ plugins {
 }
 
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
-// benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13).
+// benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
+// share every source set and dependency, so the github benchmark manifest stands for the amazon one: that one alone is
+// left out, which saves a manifest merge and a test run. Amazon's release is kept: it is the one that ships.
 androidComponents {
     beforeVariants { variant ->
-        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+        val amazonBenchmark =
+            variant.buildType == "benchmark" && variant.productFlavors.contains("distribution" to "amazon")
+        if (!amazonBenchmark) variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
     }
 }
 
@@ -53,6 +57,7 @@ android {
         // signed with the per-machine debug key (never a protected one) so it installs with a plain `adb install`; its
         // own application ID keeps it beside the debug and release builds. Never published: CI and the stores build
         // debug and release only.
+        // initWith copies release's minify and shrink settings: keep them that way, or it measures code that is not shipped.
         create("benchmark") {
             initWith(getByName("release"))
             isDebuggable = false

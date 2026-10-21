@@ -188,7 +188,8 @@ check_tasks() {
 
 assemble_tasks() {
   gradle_env || return 1
-  ./gradlew assembleAmazonRelease assembleGithubDebug assembleGithubRelease --continue
+  # CI does not assemble the benchmark build (never published); building it here keeps it compiling.
+  ./gradlew assembleAmazonRelease assembleGithubDebug assembleGithubRelease assembleGithubBenchmark --continue
 }
 
 # --- the `jellyfin-contract` workflow ---
