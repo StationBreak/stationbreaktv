@@ -35,6 +35,7 @@ object Codecs {
     const val MKV: String = "mkv"
     const val WEBM: String = "webm"
     const val TS: String = "ts"
+    const val MPEGTS: String = "mpegts"
     const val AVI: String = "avi"
 
     const val BASELINE: String = "baseline"
@@ -49,7 +50,7 @@ object Codecs {
 
     /** What an HDMI sink can be handed as it is. */
     val PASSTHROUGH_AUDIO: Set<String> = setOf(AC3, EAC3, DTS, TRUEHD)
-    val CONTAINERS: Set<String> = setOf(MP4, M4V, MOV, MKV, WEBM, TS, AVI)
+    val CONTAINERS: Set<String> = setOf(MP4, M4V, MOV, MKV, WEBM, TS, MPEGTS, AVI)
 
     val H264_PROFILES: Set<String> = setOf(BASELINE, CONSTRAINED_BASELINE, MAIN, HIGH, HIGH_10)
     val HEVC_PROFILES: Set<String> = setOf(MAIN, MAIN_10)
