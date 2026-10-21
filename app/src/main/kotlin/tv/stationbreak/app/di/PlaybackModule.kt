@@ -66,8 +66,9 @@ internal object PlaybackModule {
     /**
      * The player's way to read media: the credentialed media client behind Media3's OkHttp data source, handed to the
      * player as it is. It is never wrapped in `DefaultDataSource.Factory`, which would open `file://` and `content://`
-     * URIs a server's playlist names (ADR-0016, 9). The call factory asks [SessionRepository.current] for every request. It reads
-     * the device ID with `runBlocking` on its first call, which is Media3's loader thread, never the main thread.
+     * URIs a server's playlist names (ADR-0016, 9). The call factory asks [SessionRepository.current] for every
+     * request. It reads the device ID with `runBlocking` on its first call, which is Media3's loader thread, never the
+     * main thread.
      */
     @Provides
     @MediaDataSource

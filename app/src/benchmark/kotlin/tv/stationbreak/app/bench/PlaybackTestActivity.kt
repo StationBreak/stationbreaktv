@@ -51,7 +51,8 @@ private const val RESULTS_FILE = "playback-results.jsonl"
 @AndroidEntryPoint
 @UnstableApi
 class PlaybackTestActivity : ComponentActivity() {
-    @Inject @field:MediaDataSource lateinit var dataSource: DataSource.Factory
+    @Inject @field:MediaDataSource
+    lateinit var dataSource: DataSource.Factory
 
     @Inject lateinit var resolver: PlaybackResolver
 

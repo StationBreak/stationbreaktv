@@ -47,11 +47,13 @@ class DeviceCapabilitiesCache(
 
     /** Applies a flagged sink change to the stored capabilities, if there are any yet. Safe from any thread. */
     private fun applyPendingSink() {
-        while (cached.get() != null && sinkChanged.getAndSet(false)) {
-            while (true) {
-                val current = cached.get() ?: break
-                if (cached.compareAndSet(current, withSink(current))) break
-            }
-        }
+        while (cached.get() != null && sinkChanged.getAndSet(false)) refreshStored()
+    }
+
+    /** Swaps in the stored capabilities with a fresh sink; retries if another thread stored something meanwhile. */
+    private fun refreshStored() {
+        do {
+            val current = cached.get() ?: return
+        } while (!cached.compareAndSet(current, withSink(current)))
     }
 }

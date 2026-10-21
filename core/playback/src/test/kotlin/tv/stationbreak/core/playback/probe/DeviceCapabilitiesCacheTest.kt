@@ -5,10 +5,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.model.DeviceCapabilities
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
-import tv.stationbreak.core.model.DeviceCapabilities
 
 class DeviceCapabilitiesCacheTest {
     private val base =
