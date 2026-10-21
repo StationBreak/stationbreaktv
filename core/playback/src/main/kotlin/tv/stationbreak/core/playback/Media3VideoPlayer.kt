@@ -15,7 +15,6 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -234,15 +233,8 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
-            flow.tryEmit(failure(error))
+            flow.tryEmit(playerFailure(error, active))
         }
-    }
-
-    private fun failure(error: PlaybackException): PlayerEvent.Failed {
-        val chain = generateSequence<Throwable>(error) { it.cause }.toList()
-        val status = chain.filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.responseCode
-        // The class name of the innermost cause only: never a message, which may hold a URL.
-        return PlayerEvent.Failed(chain.last().javaClass.simpleName, status, active)
     }
 
     private companion object {

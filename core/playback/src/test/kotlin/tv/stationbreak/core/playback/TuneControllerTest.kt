@@ -99,23 +99,26 @@ class TuneControllerTest {
     ) = listOf(Step { PlayerEvent.FirstFrame(atMs - 50, it) }, Step { PlayerEvent.Playing(atMs, position, it) })
 
     private fun failed(
-        errorClass: String,
+        errorCode: String,
         status: Int? = null,
-    ) = listOf(Step { PlayerEvent.Failed(errorClass, status, it) })
+    ) = listOf(Step { PlayerEvent.Failed(errorCode, status, it) })
 
     private val session = PlaybackTestData.session
 
     private suspend fun tune(start: Duration = Duration.ZERO) = controller.tune(session, item, start, null)
+
+    private suspend fun played(start: Duration = Duration.ZERO) = tune(start) as TuneResult.Played
+
+    private fun failure(result: TuneResult) = result as TuneResult.Failed
 
     @Test
     fun aDirectPlayableItemPlaysDirect() =
         runTest {
             answer(source())
             player.script = listOf(playing(1_400, 30.seconds))
-            val outcome = tune(30.seconds)
-            assertEquals(Route.DIRECT_PLAY, outcome.resolved?.route)
+            val outcome = played(30.seconds)
+            assertEquals(Route.DIRECT_PLAY, outcome.resolved.route)
             assertFalse(outcome.fallback)
-            assertNull(outcome.error)
             assertNull(outcome.positionError)
             assertEquals(350L, outcome.firstFrameMs)
             assertEquals(400L, outcome.playingMs)
@@ -129,12 +132,12 @@ class TuneControllerTest {
             answer(source())
             // Direct play lands at 0 when 60 s was asked. The forced transcode starts at 60 s on the server.
             player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, Duration.ZERO))
-            val outcome = tune(60.seconds)
+            val outcome = played(60.seconds)
             assertEquals(2, server.playbackInfoCalls.size)
             assertFalse(server.playbackInfoCalls[0].second.forceTranscode)
             assertTrue(server.playbackInfoCalls[1].second.forceTranscode)
             assertTrue(outcome.fallback)
-            assertEquals(Route.TRANSCODE, outcome.resolved?.route)
+            assertEquals(Route.TRANSCODE, outcome.resolved.route)
             assertNull(outcome.positionError)
             // Timings run from the tune call, fallback included.
             assertEquals(1_000L, outcome.playingMs)
@@ -146,7 +149,7 @@ class TuneControllerTest {
         runTest {
             answer(source())
             player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, 10.seconds))
-            val outcome = tune(60.seconds)
+            val outcome = played(60.seconds)
             assertEquals(2, player.played.size)
             assertEquals(2, server.playbackInfoCalls.size)
             assertTrue(outcome.fallback)
@@ -158,7 +161,7 @@ class TuneControllerTest {
         runTest {
             answer(source(directPlay = false, directStream = false))
             player.script = listOf(playing(1_300, 120.seconds), playing(2_000, Duration.ZERO))
-            val outcome = tune(60.seconds)
+            val outcome = played(60.seconds)
             assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
             assertTrue(outcome.fallback)
             assertNull(outcome.positionError)
@@ -199,9 +202,10 @@ class TuneControllerTest {
     fun aPlayerErrorIsReportedNotThrown() =
         runTest {
             answer(source(directPlay = false, directStream = false))
-            player.script = listOf(failed("ExoPlaybackException"))
-            val outcome = tune()
-            assertEquals("ExoPlaybackException", outcome.error)
+            player.script = listOf(failed("ERROR_CODE_DECODING_FAILED"))
+            val outcome = failure(tune())
+            assertEquals(TuneFailure.PLAYER, outcome.reason)
+            assertEquals("ERROR_CODE_DECODING_FAILED", outcome.diagnostic)
             assertNotNull(outcome.resolved)
             // A transcode already was the full fallback: no second attempt.
             assertEquals(1, player.played.size)
@@ -211,10 +215,9 @@ class TuneControllerTest {
     fun aMediaLoad401IsSessionExpiredWithoutFallback() =
         runTest {
             answer(source())
-            player.script = listOf(failed("InvalidResponseCodeException", 401))
-            val outcome = tune()
-            assertEquals("Unauthorized", outcome.error)
-            assertFalse(outcome.fallback)
+            player.script = listOf(failed("ERROR_CODE_IO_BAD_HTTP_STATUS", 401))
+            val outcome = tune() as TuneResult.SessionExpired
+            assertNotNull(outcome.resolved)
             assertEquals(1, server.playbackInfoCalls.size)
             assertEquals(1, player.played.size)
         }
@@ -223,8 +226,8 @@ class TuneControllerTest {
     fun aMediaLoad403IsAlsoSessionExpired() =
         runTest {
             answer(source())
-            player.script = listOf(failed("InvalidResponseCodeException", 403))
-            assertEquals("Unauthorized", tune().error)
+            player.script = listOf(failed("ERROR_CODE_IO_BAD_HTTP_STATUS", 403))
+            assertTrue(tune() is TuneResult.SessionExpired)
             assertEquals(1, player.played.size)
         }
 
@@ -234,12 +237,11 @@ class TuneControllerTest {
             answer(source())
             player.script =
                 listOf(
-                    failed("InvalidResponseCodeException", 500),
+                    failed("ERROR_CODE_IO_BAD_HTTP_STATUS", 500),
                     playing(2_000, Duration.ZERO),
                 )
-            val outcome = tune()
+            val outcome = played()
             assertTrue(outcome.fallback)
-            assertNull(outcome.error)
             assertTrue(server.playbackInfoCalls[1].second.forceTranscode)
         }
 
@@ -247,8 +249,9 @@ class TuneControllerTest {
     fun aFailedResolveIsReportedNotThrown() =
         runTest {
             server.playbackInfoResult = ServerResult.Failure(MediaServerError.NotFound())
-            val outcome = tune()
-            assertEquals("NotFound", outcome.error)
+            val outcome = failure(tune())
+            assertEquals(TuneFailure.SERVER, outcome.reason)
+            assertEquals("NotFound", outcome.diagnostic)
             assertNull(outcome.resolved)
             assertTrue(player.played.isEmpty())
         }
@@ -258,10 +261,44 @@ class TuneControllerTest {
         runTest {
             answer(source())
             player.script = listOf(emptyList())
-            val outcome = tune()
-            assertEquals("Timeout", outcome.error)
+            val outcome = failure(tune())
+            assertEquals(TuneFailure.TIMEOUT, outcome.reason)
             assertEquals(20_000L, currentTime)
-            assertNull(outcome.playingMs)
+        }
+
+    @Test
+    fun aSessionErrorFromTheServerIsSessionExpired() =
+        runTest {
+            server.playbackInfoResult = ServerResult.Failure(MediaServerError.SessionExpired())
+            val outcome = tune() as TuneResult.SessionExpired
+            assertNull(outcome.resolved)
+            assertTrue(player.played.isEmpty())
+        }
+
+    @Test
+    fun diagnosticsAreStableNamesNotClassNames() =
+        runTest {
+            server.playbackInfoResult = ServerResult.Failure(MediaServerError.Timeout(listOf("java.net.SocketTimeoutException")))
+            val outcome = failure(tune())
+            assertEquals("Timeout", outcome.diagnostic)
+        }
+
+    @Test
+    fun anUnexpectedExceptionIsNamedUnexpectedNotByItsClass() =
+        runTest {
+            val throwing = PlaybackResolver(server) { throw IllegalStateException("http://x/?api_key=secret") }
+            val thrown = TuneController(throwing, server, player) { 1_000L }
+            val outcome = failure(thrown.tune(session, item, Duration.ZERO, null))
+            assertEquals(TuneFailure.SERVER, outcome.reason)
+            assertEquals("Unexpected", outcome.diagnostic)
+        }
+
+    @Test
+    fun aPlayerFailureWithAStatusKeepsItInTheDiagnostic() =
+        runTest {
+            answer(source(directPlay = false, directStream = false))
+            player.script = listOf(failed("ERROR_CODE_IO_BAD_HTTP_STATUS", 500))
+            assertEquals("ERROR_CODE_IO_BAD_HTTP_STATUS (HTTP 500)", failure(tune()).diagnostic)
         }
 
     @Test
@@ -269,7 +306,7 @@ class TuneControllerTest {
         runTest {
             answer(source().copy(runtime = null))
             player.script = listOf(playing(1_300, Duration.ZERO))
-            val outcome = tune()
+            val outcome = played()
             assertEquals(
                 Duration.ZERO,
                 server.playbackInfoCalls
@@ -278,7 +315,6 @@ class TuneControllerTest {
             )
             assertFalse(outcome.fallback)
             assertNull(outcome.positionError)
-            assertNull(outcome.error)
         }
 
     @Test
@@ -296,7 +332,7 @@ class TuneControllerTest {
                     ),
                 )
             tune()
-            val outcome = tune()
+            val outcome = played()
             assertEquals(600L, outcome.playingMs)
             assertFalse(outcome.fallback)
             assertNull(outcome.positionError)
@@ -316,8 +352,7 @@ class TuneControllerTest {
                     ),
                 )
             tune()
-            val outcome = tune()
-            assertNull(outcome.error)
+            val outcome = played()
             assertFalse(outcome.fallback)
             assertEquals(600L, outcome.playingMs)
         }
@@ -330,9 +365,8 @@ class TuneControllerTest {
             val first = async { tune() }
             runCurrent()
             val second = async { tune() }
-            val firstOutcome = first.await()
-            assertEquals("Superseded", firstOutcome.error)
-            assertNull(second.await().error)
+            assertEquals(TuneResult.Superseded, first.await())
+            assertTrue(second.await() is TuneResult.Played)
             assertEquals(2, player.played.size)
             assertTrue("the first did not wait out its timeout", currentTime < 20_000L)
         }
@@ -349,10 +383,9 @@ class TuneControllerTest {
                         Step(500) { PlayerEvent.FirstFrame(1_350, it) },
                     ),
                 )
-            val outcome = tune()
+            val outcome = played()
             assertEquals(350L, outcome.firstFrameMs)
             assertEquals(300L, outcome.playingMs)
-            assertNull(outcome.error)
         }
 
     @Test
@@ -360,10 +393,9 @@ class TuneControllerTest {
         runTest {
             answer(source())
             player.script = listOf(listOf(Step { PlayerEvent.Playing(1_300, Duration.ZERO, it) }))
-            val outcome = tune()
+            val outcome = played()
             assertNull(outcome.firstFrameMs)
             assertEquals(300L, outcome.playingMs)
-            assertNull(outcome.error)
             assertFalse(outcome.fallback)
             assertEquals(2_000L, currentTime)
         }
@@ -373,8 +405,7 @@ class TuneControllerTest {
         runTest {
             answer(source(directPlay = false, directStream = false))
             player.script = listOf(emptyList())
-            val outcome = tune()
-            assertEquals("Timeout", outcome.error)
+            assertEquals(TuneFailure.TIMEOUT, failure(tune()).reason)
             assertEquals(1, player.stops)
             assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
         }
@@ -395,10 +426,11 @@ class TuneControllerTest {
             answer(source())
             player.script = listOf(playing(1_300, Duration.ZERO))
             player.onPlay = { server.playbackInfoResult = ServerResult.Failure(MediaServerError.NotFound()) }
-            val outcome = tune(60.seconds)
+            val outcome = failure(tune(60.seconds))
             // The first resolve succeeded (before the hook ran); the fallback's resolve then failed.
             assertTrue(outcome.fallback)
-            assertEquals("NotFound", outcome.error)
+            assertEquals("NotFound", outcome.diagnostic)
+            assertEquals(TuneFailure.SERVER, outcome.reason)
             assertEquals(Route.DIRECT_PLAY, outcome.resolved?.route)
         }
 }

@@ -8,6 +8,9 @@ plugins {
 
 android {
     namespace = "tv.stationbreak.core.playback"
+
+    // Media3 value types read the Android clock when built; the unit tests only need them to exist.
+    testOptions.unitTests.isReturnDefaultValues = true
 }
 
 dependencies {

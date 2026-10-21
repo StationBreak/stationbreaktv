@@ -25,25 +25,56 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+/** Why a tune failed, for the app to branch on. An expired session is not a failure: see [TuneResult.SessionExpired]. */
+enum class TuneFailure { TIMEOUT, SERVER, PLAYER }
+
 /**
- * What one tune did. [resolved] is the last route tried, null when nothing could be resolved. The times run from the
- * start of the call to the player's events, fallback included. [positionError] is how far from the requested start
- * the last attempt landed, set only when it missed. [error] is a class name (or "Timeout", or "Unauthorized" for an
- * expired session), never a message: messages may hold a URL or a token.
+ * What one tune did. The app branches on the case, never on a string. The times run from the start of the call to
+ * the player's events, fallback included.
  */
-data class TuneOutcome(
-    val resolved: ResolvedPlayback?,
-    val firstFrameMs: Long?,
-    val playingMs: Long?,
-    val positionError: Duration?,
-    val fallback: Boolean,
-    val error: String?,
-)
+sealed interface TuneResult {
+    /**
+     * Playing. [resolved] is the last route tried. [positionError] is how far from the requested start the last
+     * attempt landed; it is set only when that attempt missed too (the retry after the fallback also missed).
+     * [fallback] is true when the first attempt was abandoned for a forced transcode.
+     */
+    data class Played(
+        val resolved: ResolvedPlayback,
+        val firstFrameMs: Long?,
+        val playingMs: Long,
+        val positionError: Duration?,
+        val fallback: Boolean,
+    ) : TuneResult
+
+    /** A newer tune replaced this one before it finished. */
+    data object Superseded : TuneResult
+
+    /** [TuneController.stop] ended this tune before it finished. */
+    data object Stopped : TuneResult
+
+    /** The server refused the session (HTTP 401 or 403, or a session error): sign in again. No fallback is tried. */
+    data class SessionExpired(
+        val resolved: ResolvedPlayback?,
+    ) : TuneResult
+
+    /**
+     * Nothing is playing. [resolved] is the last route tried, null when nothing could be resolved. [diagnostic] is a
+     * stable name (a Media3 error code name, a server error name, or "Unexpected"), never a message, class name or
+     * URL: those may hold a token. It is for logs and the playback matrix, not for the app to branch on.
+     */
+    data class Failed(
+        val reason: TuneFailure,
+        val diagnostic: String?,
+        val resolved: ResolvedPlayback?,
+        val fallback: Boolean,
+    ) : TuneResult
+}
 
 /**
  * Tunes an item: resolve, play, check where playback landed, and fall back once to a forced transcode when it missed
  * or failed (ADR-0016, 4). An expired session (HTTP 401 or 403 on a media load) never falls back. Every encode it
- * starts and abandons is stopped (ADR-0016, 5). Nothing here is logged, and nothing it returns holds a URL.
+ * starts and abandons is stopped (ADR-0016, 5). Nothing here is logged. A [ResolvedPlayback] it returns holds the
+ * stream URL, which is a secret: its `toString` hides it, so do not read it out for a log or a report.
  */
 class TuneController(
     private val resolver: PlaybackResolver,
@@ -54,18 +85,18 @@ class TuneController(
     /** The attempt now on the player, so [stop] can end its encode. */
     @Volatile private var current: ResolvedPlayback? = null
     private val lock = Mutex()
-    private val inFlight = AtomicReference<Deferred<TuneOutcome>?>(null)
+    private val inFlight = AtomicReference<Deferred<TuneResult>?>(null)
 
     /**
-     * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns "Superseded") and
-     * starts only when that one has finished, so two never share the player.
+     * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns [TuneResult.Superseded])
+     * and starts only when that one has finished, so two never share the player.
      */
     suspend fun tune(
         session: Session,
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
-    ): TuneOutcome =
+    ): TuneResult =
         coroutineScope {
             val mine = async(start = CoroutineStart.LAZY) { lock.withLock { run(session, item, start, override) } }
             inFlight.getAndSet(mine)?.cancel()
@@ -76,7 +107,7 @@ class TuneController(
             ) {
                 // Cancelled by a newer tune: report it. Cancelled from outside: ensureActive rethrows.
                 currentCoroutineContext().ensureActive()
-                TuneOutcome(null, null, null, null, false, SUPERSEDED)
+                TuneResult.Superseded
             } finally {
                 inFlight.compareAndSet(mine, null)
             }
@@ -87,25 +118,36 @@ class TuneController(
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
-    ): TuneOutcome {
+    ): TuneResult {
         val began = clock()
         var fallback = false
         var attempt = attempt(session, item, start, override, false, began)
-        while (!fallback && attempt.wantsFallback()) {
+        while (!fallback && attempt.canFallBack) {
             fallback = true
             attempt.resolved?.let { stopEncode(session, it) }
             val next = attempt(session, item, start, override, true, began)
-            // A fallback that could not even resolve leaves the first attempt's route and landing on record.
-            attempt = if (next.resolved == null) attempt.withError(next.error) else next
+            // A fallback that could not even resolve leaves the first attempt's route on record.
+            attempt = if (next is Broke && next.resolved == null) next.copy(resolved = attempt.resolved) else next
         }
-        return TuneOutcome(
-            resolved = attempt.resolved,
-            firstFrameMs = attempt.firstFrameMs,
-            playingMs = attempt.playingMs,
-            positionError = attempt.positionError,
-            fallback = fallback,
-            error = attempt.error,
-        )
+        return when (attempt) {
+            is Landed -> {
+                TuneResult.Played(
+                    attempt.resolved,
+                    attempt.firstFrameMs,
+                    attempt.playingMs,
+                    attempt.positionError,
+                    fallback,
+                )
+            }
+
+            is Broke -> {
+                if (attempt.expired) {
+                    TuneResult.SessionExpired(attempt.resolved)
+                } else {
+                    TuneResult.Failed(attempt.reason, attempt.diagnostic, attempt.resolved, fallback)
+                }
+            }
+        }
     }
 
     /** Stops the player, then the server's encode for the current play session, if there is one. */
@@ -116,25 +158,35 @@ class TuneController(
         if (last != null) stopEncode(session, last)
     }
 
-    private class Attempt(
-        val resolved: ResolvedPlayback?,
-        val firstFrameMs: Long? = null,
-        val playingMs: Long? = null,
-        val positionError: Duration? = null,
-        val error: String? = null,
-        val canFallBack: Boolean = false,
-    ) {
-        fun wantsFallback() = canFallBack
-
-        fun withError(message: String?) = Attempt(resolved, firstFrameMs, playingMs, positionError, message, false)
+    private sealed interface Attempt {
+        val resolved: ResolvedPlayback?
+        val canFallBack: Boolean
     }
+
+    /** The player reached Playing. [positionError] is set when it landed off the requested start. */
+    private class Landed(
+        override val resolved: ResolvedPlayback,
+        val firstFrameMs: Long?,
+        val playingMs: Long,
+        val positionError: Duration?,
+        override val canFallBack: Boolean,
+    ) : Attempt
+
+    /** Nothing played. [expired] means the server refused the session. */
+    private data class Broke(
+        override val resolved: ResolvedPlayback?,
+        val reason: TuneFailure,
+        val diagnostic: String?,
+        val expired: Boolean = false,
+        override val canFallBack: Boolean = false,
+    ) : Attempt
 
     private class Resolution(
         val resolved: ResolvedPlayback?,
-        val error: String? = null,
+        val broke: Broke? = null,
     )
 
-    @Suppress("LongParameterList", "TooGenericExceptionCaught") // One call's context; failures become class names.
+    @Suppress("TooGenericExceptionCaught") // Any failure of the resolver becomes a stable name, never a message.
     private suspend fun resolve(
         session: Session,
         item: ItemId,
@@ -144,14 +196,24 @@ class TuneController(
     ): Resolution =
         try {
             when (val answer = resolver.resolve(session, item, start, override, forceTranscode)) {
-                is ServerResult.Failure -> Resolution(null, answer.error.className())
+                is ServerResult.Failure -> Resolution(null, serverBroke(answer.error))
                 is ServerResult.Success -> Resolution(answer.value)
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Resolution(null, e.javaClass.simpleName)
+        } catch (
+            @Suppress("SwallowedException") e: Exception,
+        ) {
+            Resolution(null, Broke(null, TuneFailure.SERVER, UNEXPECTED))
         }
+
+    private fun serverBroke(error: MediaServerError): Broke {
+        val expired =
+            error is MediaServerError.HttpUnauthorized ||
+                error is MediaServerError.HttpForbidden ||
+                error is MediaServerError.SessionExpired
+        return Broke(null, TuneFailure.SERVER, error.stableName(), expired)
+    }
 
     @Suppress("LongParameterList") // One call's context.
     private suspend fun attempt(
@@ -163,7 +225,7 @@ class TuneController(
         began: Long,
     ): Attempt {
         val resolution = resolve(session, item, start, override, forceTranscode)
-        val resolved = resolution.resolved ?: return Attempt(null, error = resolution.error)
+        val resolved = resolution.resolved ?: return checkNotNull(resolution.broke)
         current = resolved
         val result =
             try {
@@ -179,7 +241,7 @@ class TuneController(
                 current = null
                 player.stop()
                 stopEncode(session, resolved)
-                Attempt(resolved, error = TIMEOUT)
+                Broke(resolved, TuneFailure.TIMEOUT, TIMEOUT)
             }
 
             is Wait.Failed -> {
@@ -198,10 +260,10 @@ class TuneController(
         forced: Boolean,
     ): Attempt {
         val expired = event.httpStatus == HTTP_UNAUTHORIZED || event.httpStatus == HTTP_FORBIDDEN
-        val error = if (expired) UNAUTHORIZED else event.errorClass
+        val diagnostic = event.httpStatus?.let { "${event.errorCode} (HTTP $it)" } ?: event.errorCode
         // A transcode is already the last resort: asking for one again would play the same thing.
         val canFallBack = !expired && !forced && resolved.route != Route.TRANSCODE
-        return Attempt(resolved, error = error, canFallBack = canFallBack)
+        return Broke(resolved, TuneFailure.PLAYER, diagnostic, expired, canFallBack)
     }
 
     private fun landed(
@@ -213,7 +275,7 @@ class TuneController(
         val actual = resolved.source.serverOffset + landing.playing.position
         val verdict = SeekCheck.check(resolved.requested, actual)
         val missed = verdict as? SeekVerdict.Missed
-        return Attempt(
+        return Landed(
             resolved,
             firstFrameMs = landing.firstFrameAtMs?.minus(began),
             playingMs = landing.playing.atMs - began,
@@ -287,22 +349,42 @@ class TuneController(
         server.stopEncoding(session, playSession)
     }
 
-    private fun MediaServerError.className(): String =
+    /** A name per error, written out so a rename of a class cannot change what a log or a matrix row says. */
+    @Suppress("CyclomaticComplexMethod") // One branch per error: the closed set is the point.
+    private fun MediaServerError.stableName(): String =
         when (this) {
-            is MediaServerError.HttpUnauthorized,
-            is MediaServerError.HttpForbidden,
-            is MediaServerError.SessionExpired,
-            -> UNAUTHORIZED
-
-            else -> javaClass.simpleName
+            is MediaServerError.DnsFailure -> "DnsFailure"
+            is MediaServerError.ConnectionRefused -> "ConnectionRefused"
+            is MediaServerError.NetworkUnreachable -> "NetworkUnreachable"
+            is MediaServerError.Timeout -> "Timeout"
+            is MediaServerError.TlsUntrusted -> "TlsUntrusted"
+            is MediaServerError.TlsHostnameMismatch -> "TlsHostnameMismatch"
+            is MediaServerError.TlsCertificateExpired -> "TlsCertificateExpired"
+            is MediaServerError.TlsCertificateNotYetValid -> "TlsCertificateNotYetValid"
+            is MediaServerError.TlsCertificateChanged -> "TlsCertificateChanged"
+            is MediaServerError.TlsHandshakeFailed -> "TlsHandshakeFailed"
+            is MediaServerError.NotTls -> "NotTls"
+            is MediaServerError.HttpUnauthorized -> "HttpUnauthorized"
+            is MediaServerError.HttpForbidden -> "HttpForbidden"
+            is MediaServerError.NotJellyfin -> "NotJellyfin"
+            is MediaServerError.UnsupportedVersion -> "UnsupportedVersion"
+            is MediaServerError.ServerNotSetUp -> "ServerNotSetUp"
+            is MediaServerError.Redirected -> "Redirected"
+            is MediaServerError.CleartextNotConfirmed -> "CleartextNotConfirmed"
+            is MediaServerError.SessionExpired -> "SessionExpired"
+            is MediaServerError.ServerMismatch -> "ServerMismatch"
+            is MediaServerError.QuickConnectDisabled -> "QuickConnectDisabled"
+            is MediaServerError.ServerError -> "ServerError"
+            is MediaServerError.InvalidAddress -> "InvalidAddress"
+            is MediaServerError.NotFound -> "NotFound"
+            is MediaServerError.Unknown -> "Unknown"
         }
 
     private companion object {
         val PLAYING_TIMEOUT = 20.seconds
         val FIRST_FRAME_WAIT = 2.seconds
-        const val SUPERSEDED = "Superseded"
         const val TIMEOUT = "Timeout"
-        const val UNAUTHORIZED = "Unauthorized"
+        const val UNEXPECTED = "Unexpected"
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
     }

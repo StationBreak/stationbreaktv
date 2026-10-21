@@ -38,11 +38,14 @@ sealed interface PlayerEvent {
         override val generation: Long,
     ) : PlayerEvent
 
-    /** [errorClass] is a class name only. [httpStatus] is set when a media load was answered with an HTTP error. */
+    /**
+     * [errorCode] is the stable name of the Media3 error code (`ERROR_CODE_...`), never a class name or a message.
+     * [httpStatus] is set when a media load was answered with an HTTP error.
+     */
     data class Failed(
-        val errorClass: String,
-        val httpStatus: Int? = null,
-        override val generation: Long = 0,
+        val errorCode: String,
+        val httpStatus: Int?,
+        override val generation: Long,
     ) : PlayerEvent
 }
 
