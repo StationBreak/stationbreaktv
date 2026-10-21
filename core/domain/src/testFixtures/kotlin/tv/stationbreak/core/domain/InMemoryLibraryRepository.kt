@@ -4,7 +4,6 @@ package tv.stationbreak.core.domain
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
@@ -182,7 +181,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         passes.value = passes.value + (account to startedAt)
     }
 
-    /** Says that a sync wrote a change to [account]'s items, series or collections, as [contentChanges] shows. */
+    /** Says that a sync wrote a change to [account]'s items, series or collections, as [contentGeneration] shows. */
     fun noteContentChange(account: LibraryAccount) {
         changes.value = changes.value + (account to (changes.value[account] ?: 0L) + 1L)
     }
@@ -344,8 +343,6 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
     override suspend fun contentGeneration(account: LibraryAccount): Long = changes.value[account] ?: 0L
-
-    override fun contentChanges(account: LibraryAccount): Flow<Long> = changes.map { it[account] ?: 0L }.distinctUntilChanged()
 
     @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(

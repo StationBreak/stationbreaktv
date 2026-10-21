@@ -65,11 +65,7 @@ object LineupPlanner {
         }
         return if (current == null || !current.finalised) {
             val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs)
-            // The refresher's bookkeeping is the lineup's, so an unfinalised one keeps it.
-            firstChoice(planning, userId, withoutCollections).copy(
-                collectionPassActedOn = current?.collectionPassActedOn,
-                syncsAwaitingCollections = current?.syncsAwaitingCollections ?: 0,
-            )
+            firstChoice(planning, userId, withoutCollections)
         } else {
             refresh(current, Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs))
         }

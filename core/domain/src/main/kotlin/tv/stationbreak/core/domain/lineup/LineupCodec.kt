@@ -24,10 +24,7 @@ import tv.stationbreak.core.rules.RulesWriter
 /**
  * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 1`. Only `core:domain` reads or writes it.
  *
- * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION], once the version has
- * shipped; version 1 has not, so its optional `collectionPassActedOn` and `syncsAwaitingCollections` were added to it
- * (a file without them decodes with their defaults, and writing them out is skipped when they hold the default). So an
- * older app sees
+ * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a version-1 file with an
  * unknown key or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside, never silently trimmed). The
  * rules of a starter or custom channel are a rules-format file held as a JSON string, so they keep their own format
@@ -43,6 +40,10 @@ import tv.stationbreak.core.rules.RulesWriter
  * A channel `source` nested deeper than 32 levels is [ChannelSource.Unusable] without being re-encoded (its JSON is not
  * kept: a source that deep is not one this app or an older one wrote).
  *
+ * Beside the lineup the file may hold a `meta` object, the refresher's bookkeeping about the lineup ([RefreshMeta]).
+ * Version 1 gained it before any release shipped, so it is an optional key of version 1 and not a new version: a file
+ * without it loads with an empty [RefreshMeta], and an unknown key inside it is [Decoded.Unreadable] like any other.
+ *
  * Decoding never throws.
  */
 internal object LineupCodec {
@@ -51,9 +52,10 @@ internal object LineupCodec {
 
     /** What [decode] found. */
     sealed interface Decoded {
-        /** A version-[VERSION] lineup, perhaps with [ChannelSource.Unusable] channels. */
+        /** A version-[VERSION] lineup, perhaps with [ChannelSource.Unusable] channels, and its [meta]. */
         data class Loaded(
             val lineup: Lineup,
+            val meta: RefreshMeta = RefreshMeta(),
         ) : Decoded
 
         /** Not a lineup this version can read. The caller sets it aside before writing another. */
@@ -67,8 +69,11 @@ internal object LineupCodec {
 
     private val json = Json
 
-    /** The bytes to store for [lineup]. */
-    fun encode(lineup: Lineup): ByteArray {
+    /** The bytes to store for [lineup] and its [meta]. */
+    fun encode(
+        lineup: Lineup,
+        meta: RefreshMeta = RefreshMeta(),
+    ): ByteArray {
         val file =
             FileV1(
                 version = VERSION,
@@ -78,8 +83,7 @@ internal object LineupCodec {
                 utcOffsetMinutes = lineup.utcOffsetMinutes,
                 finalised = lineup.finalised,
                 channels = lineup.channels.map(::channelOf),
-                collectionPassActedOn = lineup.collectionPassActedOn,
-                syncsAwaitingCollections = lineup.syncsAwaitingCollections,
+                meta = MetaV1.of(meta),
             )
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
@@ -118,18 +122,9 @@ internal object LineupCodec {
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
         val channels = file.channels.map(::channelOf)
-        val lineup =
-            Lineup.ofOrNull(
-                server,
-                user,
-                file.catalogVersion,
-                file.utcOffsetMinutes,
-                file.finalised,
-                channels,
-                file.collectionPassActedOn,
-                file.syncsAwaitingCollections,
-            )
-        return if (lineup != null) Decoded.Loaded(lineup) else Decoded.Unreadable
+        val lineup = Lineup.ofOrNull(server, user, file.catalogVersion, file.utcOffsetMinutes, file.finalised, channels)
+        val meta = file.meta?.refreshMeta ?: RefreshMeta()
+        return if (lineup != null) Decoded.Loaded(lineup, meta) else Decoded.Unreadable
     }
 
     private fun validOffset(minutes: Int): Boolean =
@@ -296,9 +291,27 @@ private class FileV1(
     val utcOffsetMinutes: Int,
     val finalised: Boolean,
     val channels: List<ChannelV1>,
-    val collectionPassActedOn: Long? = null,
-    val syncsAwaitingCollections: Int = 0,
+    val meta: MetaV1? = null,
 )
+
+@Serializable
+private class MetaV1(
+    val plannedGeneration: Long? = null,
+    val collectionPassActedOn: Long? = null,
+    val plannedLibraries: List<String>? = null,
+) {
+    val refreshMeta get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries)
+
+    companion object {
+        /** Null for an empty [meta], so a file with nothing to say holds no `meta` key. */
+        fun of(meta: RefreshMeta): MetaV1? =
+            if (meta == RefreshMeta()) {
+                null
+            } else {
+                MetaV1(meta.plannedGeneration, meta.collectionPassActedOn, meta.plannedLibraries)
+            }
+    }
+}
 
 @Suppress("LongParameterList")
 @Serializable

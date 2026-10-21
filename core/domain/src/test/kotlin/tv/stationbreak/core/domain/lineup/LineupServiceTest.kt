@@ -45,7 +45,7 @@ class LineupServiceTest {
 
     private val service = LineupService(store, library, clock, { offset }, { events += it }, TestCatalog)
 
-    private fun encodingWith(encode: (Lineup) -> ByteArray) =
+    private fun encodingWith(encode: (Lineup, RefreshMeta) -> ByteArray) =
         LineupService(store, library, clock, { offset }, { events += it }, LineupSeams(TestCatalog, encode))
 
     private fun stored(account: LibraryAccount = ACCOUNT): Lineup? =
@@ -68,77 +68,85 @@ class LineupServiceTest {
             assertTrue(durations.all { it >= 0 })
         }
 
+    private fun storedMeta(account: LibraryAccount = ACCOUNT): RefreshMeta? =
+        (store.inner.peek(account)?.let { LineupCodec.decode(it) } as? LineupCodec.Decoded.Loaded)?.meta
+
     @Test
-    fun aPassTheReadHoldsIsRecordedWithTheLineup() =
+    fun aRefreshStoresTheGenerationTheLibrariesAndThePassItPlannedFrom() =
         runBlocking<Unit> {
             library.delegate.setCollectionsSynced(ACCOUNT, true)
             val pass = Instant.parse("2026-10-19T09:00:00Z")
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            library.delegate.noteContentChange(ACCOUNT)
+            library.delegate.noteContentChange(ACCOUNT)
 
-            service.refresh(ACCOUNT, LIBRARIES, pass)
-
-            assertEquals(pass.toEpochMilliseconds(), stored()?.collectionPassActedOn)
-            assertEquals(pass.toEpochMilliseconds(), current()?.collectionPassActedOn)
             service.refresh(ACCOUNT, LIBRARIES)
-            assertEquals(pass.toEpochMilliseconds(), stored()?.collectionPassActedOn, "a refresh without one keeps it")
+
+            val expected = RefreshMeta(2L, pass.toEpochMilliseconds(), LIBRARIES.map { it.value }.sorted())
+            assertEquals(expected, storedMeta())
+            assertEquals(expected, service.lineup(ACCOUNT).value?.meta, "and held in memory")
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(expected, storedMeta(), "the same library gives the same meta")
         }
 
     @Test
     fun aPassIsNotRecordedWhenTheReadLacksItsCollections() =
         runBlocking<Unit> {
             library.delegate.setCollectionsSynced(ACCOUNT, false)
-
-            service.refresh(ACCOUNT, LIBRARIES, Instant.parse("2026-10-19T09:00:00Z"))
-
-            assertNull(stored()?.collectionPassActedOn)
-        }
-
-    @Test
-    fun theSecondSyncThatFindsNoCollectionsPlansWithoutThem() =
-        runBlocking<Unit> {
-            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
 
             service.refresh(ACCOUNT, LIBRARIES)
-            assertEquals(false, current()?.finalised, "a refresh at start is no sync")
-            assertEquals(0, current()?.syncsAwaitingCollections)
 
-            service.refresh(ACCOUNT, LIBRARIES, afterSync = true)
-            assertEquals(false, current()?.finalised, "the first sync still waits for the collections")
-            assertEquals(1, stored()?.syncsAwaitingCollections, "and is counted with the lineup")
-
-            service.refresh(ACCOUNT, LIBRARIES, afterSync = true)
-            assertEquals(true, stored()?.finalised, "the second one does not wait again")
-            assertTrue(checkNotNull(stored()).channels.any { it.state == ChannelState.On })
-            assertEquals(1, stored()?.syncsAwaitingCollections)
+            assertNull(storedMeta()?.collectionPassActedOn)
         }
 
     @Test
-    fun aPassOnTheFirstSyncStillFinalisesWithTheCollections() =
+    fun aRefreshWithoutAPassKeepsTheOneRecordedBefore() =
         runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            val pass = Instant.parse("2026-10-19T09:00:00Z")
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            service.refresh(ACCOUNT, LIBRARIES)
+
             library.delegate.setCollectionsSynced(ACCOUNT, false)
-            service.refresh(ACCOUNT, LIBRARIES, afterSync = true)
-            assertEquals(false, current()?.finalised)
+            service.refresh(ACCOUNT, LIBRARIES)
 
-            library.delegate.setCollectionsSynced(ACCOUNT, true)
-            service.refresh(ACCOUNT, LIBRARIES, Instant.parse("2026-10-19T10:00:00Z"))
-
-            assertEquals(true, stored()?.finalised)
+            assertEquals(pass.toEpochMilliseconds(), storedMeta()?.collectionPassActedOn)
         }
 
     @Test
-    fun notingAPassChangesNoChannelAndKeepsTheRevision() =
+    fun notingAPassChangesTheMetaOnlyAndKeepsTheRevision() =
         runBlocking<Unit> {
             library.delegate.setCollectionsSynced(ACCOUNT, true)
-            val first = Instant.parse("2026-10-19T09:00:00Z")
-            service.refresh(ACCOUNT, LIBRARIES, first)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
+            service.refresh(ACCOUNT, LIBRARIES)
             val before = checkNotNull(service.lineup(ACCOUNT).value)
             val later = Instant.parse("2026-10-19T12:00:00Z")
 
             service.notePass(ACCOUNT, later)
 
-            assertEquals(later.toEpochMilliseconds(), stored()?.collectionPassActedOn)
+            assertEquals(later.toEpochMilliseconds(), storedMeta()?.collectionPassActedOn)
             val after = checkNotNull(service.lineup(ACCOUNT).value)
             assertEquals(before.revision, after.revision)
-            assertEquals(before.lineup.channels, after.lineup.channels)
+            assertEquals(before.lineup, after.lineup)
+            assertEquals(before.meta.plannedGeneration, after.meta.plannedGeneration)
+        }
+
+    @Test
+    fun aMetaOnlySaveNeverPutsAnOlderFileBackOverNewerChannelsInMemory() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
+            service.refresh(ACCOUNT, LIBRARIES)
+            val memory = checkNotNull(service.lineup(ACCOUNT).value).lineup
+            // The file falls behind the session (another writer, or a save that was lost): older channels, same meta.
+            val older = memory.copy(channels = memory.channels.drop(1))
+            store.inner.save(ACCOUNT, LineupCodec.encode(older, checkNotNull(storedMeta())))
+
+            service.notePass(ACCOUNT, Instant.parse("2026-10-19T12:00:00Z"))
+
+            assertEquals(memory, current(), "the session's channels stay")
+            assertEquals(memory, stored(), "and are what the file holds now, not the older ones")
         }
 
     @Test
@@ -391,7 +399,7 @@ class LineupServiceTest {
     @Test
     fun aLineupThatDoesNotRoundTripIsRejectedNotSaved() =
         runBlocking<Unit> {
-            val garbling = encodingWith { "{nope".encodeToByteArray() }
+            val garbling = encodingWith { _, _ -> "{nope".encodeToByteArray() }
 
             garbling.refresh(ACCOUNT, LIBRARIES)
 
@@ -404,7 +412,7 @@ class LineupServiceTest {
     @Test
     fun aLineupEncodedForAnotherAccountIsRejectedNotSaved() =
         runBlocking<Unit> {
-            val stolen = encodingWith { LineupCodec.encode(it.copy(userId = id(9))) }
+            val stolen = encodingWith { lineup, meta -> LineupCodec.encode(lineup.copy(userId = id(9)), meta) }
 
             stolen.refresh(ACCOUNT, LIBRARIES)
 
@@ -418,7 +426,7 @@ class LineupServiceTest {
             service.refresh(ACCOUNT, LIBRARIES)
             val saved = checkNotNull(store.inner.peek(ACCOUNT))
             events.clear()
-            val garbling = encodingWith { "{nope".encodeToByteArray() }
+            val garbling = encodingWith { _, _ -> "{nope".encodeToByteArray() }
 
             garbling.refresh(ACCOUNT, LIBRARIES)
 
@@ -429,9 +437,9 @@ class LineupServiceTest {
     @Test
     fun aLineupOverTheStoresSizeCapIsAFailedSaveAndStaysInMemory() =
         runBlocking<Unit> {
-            val fat: (Lineup) -> ByteArray = { lineup ->
+            val fat: (Lineup, RefreshMeta) -> ByteArray = { lineup, meta ->
                 val first = lineup.channels.first().copy(nameOverride = "x".repeat(SIZE_CAP + 1))
-                LineupCodec.encode(lineup.copy(channels = listOf(first) + lineup.channels.drop(1)))
+                LineupCodec.encode(lineup.copy(channels = listOf(first) + lineup.channels.drop(1)), meta)
             }
             val capped = CappedStore(store.inner)
             val seams = LineupSeams(TestCatalog, fat)

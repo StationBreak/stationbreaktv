@@ -6,7 +6,6 @@ import androidx.room.RoomDatabase
 import androidx.room.useReaderConnection
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -83,10 +82,6 @@ class RoomLibraryRepository internal constructor(
     private val retention: HistoryRetention = HistoryRetention(),
     internal val collectionRelist: CollectionRelist = CollectionRelist(),
 ) : LibraryRepository {
-    // Rises when a write changed what a reader of the library would see; see [contentChanges]. One count for the
-    // process: only one account's rows are held at a time (activate deletes the others).
-    private val changes = MutableStateFlow(0L)
-
     internal val dao = db.dao()
     internal val history = db.itemHistoryDao()
     private val seriesDao = db.seriesDao()
@@ -170,18 +165,10 @@ class RoomLibraryRepository internal constructor(
             .observeSyncSince(account.server.value, account.user.value)
             .map { ms -> ms?.let(Instant::fromEpochMilliseconds) }
 
-    // Counted where the rows change (the sync's writes below), never where a write found everything as it was, so a
-    // sync that finds nothing leaves it alone. Kept in memory: a restart begins again from zero.
-    override fun contentChanges(account: LibraryAccount): Flow<Long> = changes
-
     // A suspend read, not a Flow: the one reader decides at a trigger or at start, and nothing needs pushing to it.
     override suspend fun contentGeneration(account: LibraryAccount): Long {
         val (server, user) = account.keys()
         return dao.generation(server, user) ?: 0L
-    }
-
-    private fun noteChange(changed: Boolean = true) {
-        if (changed) changes.value += 1L
     }
 
     /** Not for the scheduler: it reads the current rows and hides tombstones. The scheduler reads [scheduleItems]. */
@@ -283,7 +270,6 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         // Unticked libraries go, with their items, genres, tags and checkpoint (foreign keys cascade).
         dao.select(server, user, libraries.map { it.value })
-        noteChange()
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> {
@@ -357,22 +343,17 @@ class RoomLibraryRepository internal constructor(
         rows: Map<String, ItemRows>,
         seriesRows: Map<String, SeriesEntity>,
         now: Long,
-    ): PageResult {
-        val result =
-            transactions.writePage(
-                server,
-                user,
-                checkpoint,
-                rows,
-                seriesRows,
-                now,
-                faultBetweenItemsAndHistory,
-                faultBetweenItemsAndCheckpoint,
-            )
-        // A row that was identical is not rewritten, so only a new or edited one is a change.
-        noteChange(listOf(result.items, result.series).any { it.inserted + it.updated > 0 })
-        return result
-    }
+    ): PageResult =
+        transactions.writePage(
+            server,
+            user,
+            checkpoint,
+            rows,
+            seriesRows,
+            now,
+            faultBetweenItemsAndHistory,
+            faultBetweenItemsAndCheckpoint,
+        )
 
     /**
      * Saves [series] of [library], with no checkpoint: a series page of the first sync or of a changed-since pass. The
@@ -400,7 +381,6 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         transactions.tombstoneSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
-        noteChange(ids.isNotEmpty())
     }
 
     /** Clears the tombstone of the series [ids]: each is kept as a version first. For tests, as [tombstoneSeries]. */
@@ -410,7 +390,6 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         transactions.reviveSeries(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
-        noteChange(ids.isNotEmpty())
     }
 
     /**
@@ -436,7 +415,6 @@ class RoomLibraryRepository internal constructor(
             clock.now().toEpochMilliseconds(),
             faultBetweenReconcileTombstonesAndRevives,
         )
-        noteChange()
     }
 
     /** The IDs of [library]'s live series, in order: what the series reconcile compares the server's list with. */
@@ -561,7 +539,6 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         transactions.tombstoneItems(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
-        noteChange(ids.isNotEmpty())
     }
 
     /** Clears the tombstone of [ids]: they are back in snapshots. For tests: the reconcile uses [applyReconcile]. */
@@ -571,7 +548,6 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         transactions.reviveAll(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
-        noteChange(ids.isNotEmpty())
     }
 
     /** The IDs of [library]'s live items, in order: what a reconciliation compares the server's list with. */
@@ -681,19 +657,15 @@ class RoomLibraryRepository internal constructor(
     ): CollectionWrite {
         val (server, user) = account.keys()
         val rows = members.map { it.toEntity(server, user, id.value) }
-        val write =
-            transactions.writeCollection(
-                server,
-                user,
-                id.value,
-                name,
-                rows,
-                clock.now().toEpochMilliseconds(),
-                faultBetweenCollectionAndMembers,
-            )
-        // No stamp: the collection and its members were as stored, and nothing was written.
-        noteChange(write.stamp != null || write.inserted || write.revived)
-        return write
+        return transactions.writeCollection(
+            server,
+            user,
+            id.value,
+            name,
+            rows,
+            clock.now().toEpochMilliseconds(),
+            faultBetweenCollectionAndMembers,
+        )
     }
 
     /** Marks the collections [ids] deleted as of now; an existing tombstone keeps its time, and no version is added. */
@@ -703,7 +675,6 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         transactions.tombstoneCollections(server, user, ids.map { it.value }, clock.now().toEpochMilliseconds())
-        noteChange(ids.isNotEmpty())
     }
 
     /** The collections this TV held before [cutoff], with their members, in ID order (see [CollectionDao]). */

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -28,10 +29,14 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
-/** A lineup with the revision it was published at. A new refresh gives a new revision, so it is a cache key. */
+/**
+ * A lineup with the revision it was published at, and the refresher's [meta] about it. A new refresh gives a new
+ * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed.
+ */
 internal data class Revisioned(
     val revision: Long,
     val lineup: Lineup,
+    val meta: RefreshMeta = RefreshMeta(),
 )
 
 /**
@@ -112,6 +117,7 @@ class LineupService internal constructor(
     /** Where a refresh starts from, and whether its result may be saved. */
     private class Start(
         val current: Lineup?,
+        val meta: RefreshMeta,
         val save: Boolean,
     )
 
@@ -127,20 +133,15 @@ class LineupService internal constructor(
      * Brings [account]'s lineup up to date with the library's [libraries]: after a sync, or at start when it is
      * absent, unfinalised or behind the catalog. Never throws for stored data.
      *
-     * [passSeen] is the start of the latest completed collection pass that was read before this call (null for none).
-     * It is recorded with the lineup as acted on, so a restart does not act on it again, but only when the planning
-     * read does hold the collections (`RuleSnapshot.collectionsSynced`); a refresh that throws records nothing.
-     *
-     * [afterSync] says that a successful sync asked for this refresh. The first choice waits for the collection pass.
-     * A sync that finds the lineup unfinalised with no pass in is counted with the lineup, and one that finds it so
-     * after an earlier such sync plans once without waiting: a pass that never completes must not keep the lineup
-     * empty for good. The collections reach it later through the hint pass of the next call that holds them.
+     * Before the planning read it takes what the lineup will be recorded as planned from: the library's content
+     * generation and the latest completed collection pass. They are stored with the lineup ([RefreshMeta]) only when
+     * the plan is saved or published, so a refresh that throws records nothing and is tried again while the
+     * generation still differs. The pass counts as taken in only when the planning read holds the collections
+     * (`RuleSnapshot.collectionsSynced`).
      */
     internal suspend fun refresh(
         account: LibraryAccount,
         libraries: Set<ItemId>,
-        passSeen: Instant? = null,
-        afterSync: Boolean = false,
     ) {
         val owner = ownerOf(account) ?: return report(LineupEvent.NonCanonicalAccount)
         val entry = entryOf(owner)
@@ -148,28 +149,32 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
+            // Before the read, so a write that lands during it leaves the generation behind and is seen next time.
+            val generation = library.contentGeneration(account)
+            val pass = library.collectionPassCompleted(account).first()
             val now = clock.now()
             val snapshot = library.ruleSnapshot(account, libraries, now)
             val names = library.collectionNames(account)
-            val current = start.current
-            val waited = current?.syncsAwaitingCollections ?: 0
-            val unfinalised = current == null || !current.finalised
-            val noCollections = afterSync && unfinalised && !snapshot.collectionsSynced
             val planned =
-                LineupPlanner
-                    .plan(
-                        current,
-                        owner.server,
-                        owner.user,
-                        standardOffsetMinutes(),
-                        snapshot,
-                        names,
-                        now.toEpochMilliseconds(),
-                        catalog,
-                        withoutCollections = noCollections && waited >= 1,
-                    ).let { stamped(it, waited, snapshot.collectionsSynced, passSeen, counting = noCollections) }
-            if (entry.writable) saveVerified(owner, planned)
-            publish(entry, planned)
+                LineupPlanner.plan(
+                    start.current,
+                    owner.server,
+                    owner.user,
+                    standardOffsetMinutes(),
+                    snapshot,
+                    names,
+                    now.toEpochMilliseconds(),
+                    catalog,
+                )
+            val taken = pass?.takeIf { snapshot.collectionsSynced }?.toEpochMilliseconds()
+            val meta =
+                RefreshMeta(
+                    plannedGeneration = generation,
+                    collectionPassActedOn = taken ?: start.meta.collectionPassActedOn,
+                    plannedLibraries = libraries.map { it.value }.sorted(),
+                )
+            if (entry.writable) saveVerified(owner, planned, meta)
+            publish(entry, planned, meta)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
         }
@@ -178,11 +183,12 @@ class LineupService internal constructor(
     }
 
     /**
-     * Records [pass] as taken in by [account]'s lineup without planning again: the library has not changed since the
-     * lineup last took in a pass (the refresher checked), so the lineup already reflects this pass too. Without this a
-     * pass that wrote nothing would look new after every restart. Only a lineup that already took in a pass is
-     * touched, and the revision does not move, since no channel changes. Never throws for stored data; saves under the
-     * same rules as [refresh].
+     * Records [pass] as taken in by [account]'s lineup without planning again: the refresher found nothing in the
+     * library to plan from since the lineup last took in a pass, so the lineup already reflects this one too. Without
+     * this a pass that wrote nothing would look new after every restart. Only a lineup that already took in a pass is
+     * touched. It changes the [RefreshMeta] and nothing else, so the revision does not move and the lineup saved is
+     * the one this session holds, never an older one read back from the file. Never throws for stored data; saves under
+     * the same rules as [refresh].
      */
     internal suspend fun notePass(
         account: LibraryAccount,
@@ -193,33 +199,19 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
+            val held = entry.state.value
+            val lineup = held?.lineup ?: start.current
+            val meta = held?.meta ?: start.meta
             val ms = pass.toEpochMilliseconds()
-            val current = start.current
-            val acted = current?.collectionPassActedOn
-            if (current != null && acted != null && acted != ms) {
-                val updated = current.copy(collectionPassActedOn = ms)
-                if (entry.writable) saveVerified(owner, updated)
-                val held = entry.state.value
-                if (held == null) publish(entry, updated) else entry.state.value = Revisioned(held.revision, updated)
+            val acted = meta.collectionPassActedOn
+            if (lineup != null && acted != null && acted != ms) {
+                val updated = meta.copy(collectionPassActedOn = ms)
+                if (entry.writable) saveVerified(owner, lineup, updated)
+                if (held == null) publish(entry, lineup, updated) else entry.state.value = held.copy(meta = updated)
                 entry.loaded = true
             }
         }
     }
-
-    // The refresher's bookkeeping on the planned lineup: the pass taken in (only if the read holds its collections),
-    // and the syncs that found the lineup unfinalised with no pass in, counted while it is still unfinalised.
-    private fun stamped(
-        planned: Lineup,
-        waited: Int,
-        collectionsIn: Boolean,
-        passSeen: Instant?,
-        counting: Boolean,
-    ): Lineup =
-        planned.copy(
-            collectionPassActedOn =
-                passSeen?.takeIf { collectionsIn }?.toEpochMilliseconds() ?: planned.collectionPassActedOn,
-            syncsAwaitingCollections = if (counting && !planned.finalised) waited + 1 else waited,
-        )
 
     /**
      * How many items of the [libraries] could air in a switched-on channel's day at [at] and yet air nowhere: in no
@@ -272,7 +264,7 @@ class LineupService internal constructor(
                     val stored = store.load(owner.key)
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
                     if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
-                        publish(entry, decoded.lineup)
+                        publish(entry, decoded.lineup, decoded.meta)
                     }
                     entry.loaded = stored != StoredBytes.Failed
                 }
@@ -300,19 +292,21 @@ class LineupService internal constructor(
         owner: Owner,
         entry: Entry,
     ): Start {
-        val session = entry.state.value?.lineup
+        val held = entry.state.value
+        val session = held?.lineup
+        val sessionMeta = held?.meta ?: RefreshMeta()
         return when (val stored = store.load(owner.key)) {
             StoredBytes.Absent -> {
-                Start(session, save = true)
+                Start(session, sessionMeta, save = true)
             }
 
             StoredBytes.Failed -> {
                 report(LineupEvent.ReadFailedLeftAlone)
-                Start(session, save = false)
+                Start(session, sessionMeta, save = false)
             }
 
             is StoredBytes.Present -> {
-                startOf(owner, LineupCodec.decode(stored.bytes), session)
+                startOf(owner, LineupCodec.decode(stored.bytes), session, sessionMeta)
             }
         }
     }
@@ -321,20 +315,21 @@ class LineupService internal constructor(
         owner: Owner,
         decoded: LineupCodec.Decoded,
         session: Lineup?,
+        sessionMeta: RefreshMeta,
     ): Start =
         when (decoded) {
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
-                if (owner.owns(lineup)) Start(lineup, save = true) else setAside(owner, session)
+                if (owner.owns(lineup)) Start(lineup, decoded.meta, save = true) else setAside(owner, session, sessionMeta)
             }
 
             is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
-                Start(session, save = false)
+                Start(session, sessionMeta, save = false)
             }
 
             LineupCodec.Decoded.Unreadable -> {
-                setAside(owner, session)
+                setAside(owner, session, sessionMeta)
             }
         }
 
@@ -342,13 +337,14 @@ class LineupService internal constructor(
     private suspend fun setAside(
         owner: Owner,
         session: Lineup?,
+        sessionMeta: RefreshMeta,
     ): Start =
         if (store.setAside(owner.key)) {
             report(LineupEvent.SetAsideUnreadable)
-            Start(null, save = true)
+            Start(null, RefreshMeta(), save = true)
         } else {
             report(LineupEvent.UnreadableLeftAlone)
-            Start(session, save = false)
+            Start(session, sessionMeta, save = false)
         }
 
     // A lineup is saved only when its own bytes decode back to a lineup of this account; otherwise the stored file is
@@ -356,8 +352,9 @@ class LineupService internal constructor(
     private suspend fun saveVerified(
         owner: Owner,
         planned: Lineup,
+        meta: RefreshMeta,
     ) {
-        val bytes = seams.encode(planned)
+        val bytes = seams.encode(planned, meta)
         val back = LineupCodec.decode(bytes)
         if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup)) {
             report(LineupEvent.SaveRejected)
@@ -369,18 +366,19 @@ class LineupService internal constructor(
     private fun publish(
         entry: Entry,
         lineup: Lineup,
+        meta: RefreshMeta,
     ) {
         val revision = synchronized(lock) { ++revisions }
-        entry.state.value = Revisioned(revision, lineup)
+        entry.state.value = Revisioned(revision, lineup, meta)
     }
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
 }
 
-/** What a test can swap in the service: its catalog, how it encodes a lineup for the store, and where timings go. */
+/** What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, and where timings go. */
 internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
-    val encode: (Lineup) -> ByteArray = LineupCodec::encode,
+    val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,
     val timed: (Long) -> Unit = {},
 )
 

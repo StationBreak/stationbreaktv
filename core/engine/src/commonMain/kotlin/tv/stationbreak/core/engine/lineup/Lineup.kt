@@ -77,13 +77,7 @@ data class LineupChannel(
  * One account's channel lineup on one server (spec 12). Every starter and leftovers channel uses the one
  * [utcOffsetMinutes] chosen at first setup.
  *
- * Two fields are the refresher's bookkeeping, kept with the lineup so a restart does not lose them. The planner never
- * sets them, it only carries them over: [collectionPassActedOn] is the start, in epoch milliseconds, of the last
- * collection pass a refresh took in (null for none yet), and [syncsAwaitingCollections] counts the successful syncs
- * that found the lineup unfinalised with no collection pass in (see `LineupService.refresh`).
- *
- * Invariants: channel IDs are unique, numbers that are set are unique, every switched-on channel has a number, and
- * [syncsAwaitingCollections] is not negative.
+ * Invariants: channel IDs are unique, numbers that are set are unique, and every switched-on channel has a number.
  */
 data class Lineup(
     val serverId: CanonicalId,
@@ -92,11 +86,8 @@ data class Lineup(
     val utcOffsetMinutes: Int,
     val finalised: Boolean,
     val channels: List<LineupChannel>,
-    val collectionPassActedOn: Long? = null,
-    val syncsAwaitingCollections: Int = 0,
 ) {
     init {
-        require(syncsAwaitingCollections >= 0) { "The count of syncs awaiting collections is not negative" }
         require(uniqueIds(channels)) { "Channel IDs are unique" }
         require(uniqueNumbers(channels)) { "Channel numbers are unique" }
         require(onAreNumbered(channels)) { "A switched-on channel has a number" }
@@ -105,8 +96,7 @@ data class Lineup(
     companion object {
         /**
          * The lineup, or null when [channels] break an invariant (duplicate IDs, duplicate numbers, or a switched-on
-         * channel without a number, or a negative [syncsAwaitingCollections]), for callers such as decoding that must
-         * not throw.
+         * channel without a number), for callers such as decoding that must not throw.
          */
         @Suppress("LongParameterList")
         fun ofOrNull(
@@ -116,28 +106,9 @@ data class Lineup(
             utcOffsetMinutes: Int,
             finalised: Boolean,
             channels: List<LineupChannel>,
-            collectionPassActedOn: Long? = null,
-            syncsAwaitingCollections: Int = 0,
         ): Lineup? {
-            val valid =
-                syncsAwaitingCollections >= 0 &&
-                    uniqueIds(channels) &&
-                    uniqueNumbers(channels) &&
-                    onAreNumbered(channels)
-            return if (valid) {
-                Lineup(
-                    serverId,
-                    userId,
-                    catalogVersion,
-                    utcOffsetMinutes,
-                    finalised,
-                    channels,
-                    collectionPassActedOn,
-                    syncsAwaitingCollections,
-                )
-            } else {
-                null
-            }
+            val valid = uniqueIds(channels) && uniqueNumbers(channels) && onAreNumbered(channels)
+            return if (valid) Lineup(serverId, userId, catalogVersion, utcOffsetMinutes, finalised, channels) else null
         }
     }
 }
