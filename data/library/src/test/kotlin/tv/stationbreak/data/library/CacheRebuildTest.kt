@@ -39,6 +39,7 @@ class CacheRebuildTest {
                 "collection_version",
                 "collection_member",
                 "collection_sync",
+                "sync_meta",
                 "item_genre",
                 "item_tag",
                 "checkpoint",
@@ -51,8 +52,8 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion6WithThePremiereDateExactMillisecondsAndTheSeasonId() {
-        assertEquals(6, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion7WithThePremiereDateExactMillisecondsAndTheSeasonId() {
+        assertEquals(7, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)

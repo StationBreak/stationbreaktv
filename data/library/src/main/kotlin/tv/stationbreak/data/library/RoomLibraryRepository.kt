@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
@@ -82,7 +83,17 @@ class RoomLibraryRepository internal constructor(
     private val retention: HistoryRetention = HistoryRetention(),
     internal val collectionRelist: CollectionRelist = CollectionRelist(),
 ) : LibraryRepository {
-    internal val dao = db.dao()
+    internal val dao =
+        db.dao().also { dao ->
+            dao.generationSeed = { clock.now().toEpochMilliseconds() shl LibraryDao.GENERATION_SHIFT }
+        }
+
+    /**
+     * Held for the length of a collection pass, so the first sync's pass and a stay-current run's never overlap: one
+     * would otherwise see the other's pass, still marked running, as a pass that died.
+     */
+    internal val collectionPassLock = Mutex()
+
     internal val history = db.itemHistoryDao()
     private val seriesDao = db.seriesDao()
     private val collectionDao = db.collectionDao()
@@ -164,6 +175,12 @@ class RoomLibraryRepository internal constructor(
         collectionDao
             .observeSyncSince(account.server.value, account.user.value)
             .map { ms -> ms?.let(Instant::fromEpochMilliseconds) }
+
+    // A suspend read, not a Flow: the one reader decides at a trigger or at start, and nothing needs pushing to it.
+    override suspend fun contentGeneration(account: LibraryAccount): Long {
+        val (server, user) = account.keys()
+        return dao.generation(server, user) ?: 0L
+    }
 
     /** Not for the scheduler: it reads the current rows and hides tombstones. The scheduler reads [scheduleItems]. */
     @Suppress("OVERRIDE_DEPRECATION")
@@ -337,16 +354,17 @@ class RoomLibraryRepository internal constructor(
         rows: Map<String, ItemRows>,
         seriesRows: Map<String, SeriesEntity>,
         now: Long,
-    ) = transactions.writePage(
-        server,
-        user,
-        checkpoint,
-        rows,
-        seriesRows,
-        now,
-        faultBetweenItemsAndHistory,
-        faultBetweenItemsAndCheckpoint,
-    )
+    ): PageResult =
+        transactions.writePage(
+            server,
+            user,
+            checkpoint,
+            rows,
+            seriesRows,
+            now,
+            faultBetweenItemsAndHistory,
+            faultBetweenItemsAndCheckpoint,
+        )
 
     /**
      * Saves [series] of [library], with no checkpoint: a series page of the first sync or of a changed-since pass. The
@@ -710,6 +728,31 @@ class RoomLibraryRepository internal constructor(
     internal suspend fun collectionsSynced(account: LibraryAccount): Boolean {
         val row = collectionSync(account)
         return row?.lastRelistMs != null
+    }
+
+    // The failed-pass count (see [SyncMetaEntity]). Neither call throws for an account that is no longer the signed-in
+    // one: the pass's own writes will say so, and a count is not worth failing a pass over.
+    internal suspend fun beginCollectionPass(account: LibraryAccount) {
+        val (server, user) = account.keys()
+        try {
+            transactions.beginCollectionPass(server, user)
+        } catch (_: AccountNotActiveException) {
+            // Not signed in any more; nothing to count for.
+        }
+    }
+
+    internal suspend fun abandonCollectionPass(account: LibraryAccount) {
+        val (server, user) = account.keys()
+        try {
+            transactions.abandonCollectionPass(server, user)
+        } catch (_: AccountNotActiveException) {
+            // Not signed in any more; nothing to count for.
+        }
+    }
+
+    override suspend fun failedCollectionPasses(account: LibraryAccount): Int {
+        val (server, user) = account.keys()
+        return dao.metaRow(server, user)?.failedPasses ?: 0
     }
 
     /** Records a collection pass that began at [started] and completed (see [CacheTransactionDao]). */

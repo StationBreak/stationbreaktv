@@ -92,6 +92,18 @@ class LineupPlannerTest {
     }
 
     @Test
+    fun theFirstChoiceCanBeToldNotToWaitForTheCollectionPass() {
+        val unsynced = libraryOf(fills(), collectionsSynced = false)
+        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base)
+        assertFalse(plain.finalised, "the default still waits")
+
+        val told =
+            LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base, withoutCollections = true)
+        assertTrue(told.finalised)
+        assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", told.onKeys())
+    }
+
+    @Test
     fun aRecipeThatFillsOnlyThroughItsCollectionIsOnAtFirstChoice() {
         // 60 recipes fill on their own, so the lineup is at the cap; "kaiju" fills only through its collection.
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }

@@ -87,6 +87,7 @@ interface AccountCache {
  *
  * All times are UTC instants (stored as milliseconds). The library stays readable with no network.
  */
+@Suppress("TooManyFunctions") // One port by decision: the reads, the signals and the choice of libraries stay together.
 interface LibraryRepository : AccountCache {
     /**
      * The state and the last-success time of [account]'s library, as a flow that emits the current value first and
@@ -208,6 +209,28 @@ interface LibraryRepository : AccountCache {
      * needs the collections waits for this and not for `lastSuccess`. A pass that stops part-way does not signal.
      */
     fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
+
+    /**
+     * [account]'s content generation: a number kept with the saved library that goes up for that account and never
+     * repeats a value the account held before. It changes exactly when a committed write changed that account's
+     * library rows (an item, series or collection that is new, edited, deleted or back, or the chosen libraries): the
+     * bump is in the same transaction as the write, so a write that rolls back or finds everything as stored leaves
+     * it alone, and another account's writes never move it. Because it is durable it can be compared across process
+     * restarts: a reader keeps the value it planned from and finds the library changed since when the two differ,
+     * even if the process died before it could act. When the account's saved data is dropped (a sign-out, another
+     * account, a cache rebuild) the number starts again from the clock, shifted so that it lies above anything the
+     * old data reached, so a value a reader kept never matches a different library state. It says the library
+     * differs, never how. A suspend read and not a flow, since the reader decides at a trigger or at start.
+     */
+    suspend fun contentGeneration(account: LibraryAccount): Long
+
+    /**
+     * How many collection passes of [account] ended without completing since the last one that completed: failed,
+     * cancelled, or killed with the process (a pass is recorded as started, and a start that finds the previous one
+     * never finished counts it). A completed pass sets it to zero, and so does a cache rebuild. A pass that is running
+     * now is not counted yet. The first lineup reads it to decide that collections are not coming.
+     */
+    suspend fun failedCollectionPasses(account: LibraryAccount): Int
 
     /**
      * How many live items of the [libraries] a snapshot leaves out for a missing, zero or negative running time (the

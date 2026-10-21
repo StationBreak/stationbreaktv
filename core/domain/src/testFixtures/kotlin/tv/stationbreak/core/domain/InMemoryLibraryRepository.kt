@@ -77,8 +77,10 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val seriesRows = mutableListOf<SeriesRow>()
     private val collectionRows = mutableListOf<CollectionRow>()
     private val collectionsSynced = mutableSetOf<LibraryAccount>()
+    private val failedPasses = mutableMapOf<LibraryAccount, Int>()
     private val collectionNameRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, NameRow>()
     private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
+    private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
     private val active = MutableStateFlow<LibraryAccount?>(null)
@@ -100,6 +102,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         tombstoned: Boolean = false,
     ) {
         items.forEach { rows += Row(account, library, it, tombstoned) }
+        noteContentChange(account)
     }
 
     /**
@@ -113,6 +116,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         vararg items: ScheduleItem,
     ) {
         items.forEach { held += HeldRow(account, library, it) }
+        noteContentChange(account)
     }
 
     /**
@@ -127,6 +131,7 @@ class InMemoryLibraryRepository : LibraryRepository {
             val extras = Extras(it.seasonId, it.officialRating, it.genres, it.tags)
             held += HeldRow(account, ItemId(it.libraryId.value), it.item, extras)
         }
+        noteContentChange(account)
     }
 
     /**
@@ -139,6 +144,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         deletedAtMs: Long? = null,
     ) {
         series.forEach { seriesRows += SeriesRow(account, it, deletedAtMs) }
+        noteContentChange(account)
     }
 
     /**
@@ -151,6 +157,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         deletedAtMs: Long? = null,
     ) {
         collections.forEach { collectionRows += CollectionRow(account, it, deletedAtMs) }
+        noteContentChange(account)
     }
 
     /**
@@ -178,6 +185,19 @@ class InMemoryLibraryRepository : LibraryRepository {
         startedAt: Instant,
     ) {
         passes.value = passes.value + (account to startedAt)
+    }
+
+    /** Says that a sync wrote a change to [account]'s items, series or collections, as [contentGeneration] shows. */
+    fun noteContentChange(account: LibraryAccount) {
+        changes.value = changes.value + (account to (changes.value[account] ?: 0L) + 1L)
+    }
+
+    /** Sets what [failedCollectionPasses] reports for [account]. */
+    fun setFailedCollectionPasses(
+        account: LibraryAccount,
+        count: Int,
+    ) {
+        failedPasses[account] = count
     }
 
     /** Says whether a full collection pass has succeeded for [account], which `RuleSnapshot.collectionsSynced` shows. */
@@ -336,6 +356,10 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
+    override suspend fun contentGeneration(account: LibraryAccount): Long = changes.value[account] ?: 0L
+
+    override suspend fun failedCollectionPasses(account: LibraryAccount): Int = failedPasses[account] ?: 0
+
     @Suppress("OVERRIDE_DEPRECATION")
     override suspend fun excludedCount(
         account: LibraryAccount,
@@ -352,6 +376,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         val held = pending.getOrPut(account) { mutableSetOf() }
         held.retainAll(libraries)
         held += libraries - saved
+        noteContentChange(account)
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()

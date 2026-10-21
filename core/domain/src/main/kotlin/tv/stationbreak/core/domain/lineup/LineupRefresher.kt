@@ -20,24 +20,46 @@ import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ItemId
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Instant
 
 /**
- * Keeps the active account's lineup up to date (spec 12): [LineupService.refresh] runs
- * - at start, when the lineup is absent, not yet finalised, or behind the starter catalog;
- * - when [LibraryRepository.collectionPassCompleted] shows a pass it has not acted on (the collections are in);
- * - when the last successful sync time advances (the items are in). A failed or running sync moves no time.
+ * Keeps the active account's lineup up to date (spec 12) without wasted work. The lineup is **behind** when it is
+ * absent, not yet finalised, planned from an older catalog than this app's, planned from a different set of libraries
+ * than the user has chosen now, or planned from an older content generation than the library holds now
+ * ([LibraryRepository.contentGeneration], durable, so a change that landed before a process died still counts).
+ * [LineupService.refresh] runs
+ * - at start, when the lineup is behind;
+ * - when the last successful sync time advances (the items are in), if the lineup is behind. A failed or running sync
+ *   moves no time;
+ * - when [LibraryRepository.collectionPassCompleted] shows a pass (the collections are in), if the lineup is behind or
+ *   has taken in no pass yet.
  *
- * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws is reported
- * ([LineupEvent.RefreshFailed]) and the refresher keeps listening, so one bad plan never stops later ones or reaches
- * the app scope. A trigger source that itself fails is reported the same way and listened to again after a wait that
- * starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no libraries are
- * chosen ([libraries] gives null or none).
+ * So a restart with nothing changed refreshes nothing, whatever the launch sync did: a sync or a collection pass that
+ * wrote nothing leaves the generation where it was, and the pass signal's replay of the latest pass is compared with
+ * the pass stored with the lineup ([RefreshMeta.collectionPassActedOn]). A pass that is new to the lineup but changes
+ * nothing is recorded without planning ([LineupService.notePass]), so the next start does not find it new either.
+ * Every refresh stores the generation and the pass it read before it, so a start refresh and the pass signal that
+ * follows it are one refresh.
+ *
+ * A refresh that throws is reported ([LineupEvent.RefreshFailed]) and stores nothing, so the lineup stays behind and
+ * the refresh is tried again by the next trigger of any kind, and at the next start, for as long as the generation (or
+ * the other reason) still differs. There is no timer of its own: with no further trigger it waits for the next one.
+ *
+ * A first lineup that cannot get its collections is not left empty: once the library reports that collection passes
+ * keep ending without completing ([LibraryRepository.failedCollectionPasses], two or more), the next refresh of an
+ * unfinalised lineup plans without them (see [LineupService.refresh]). A lineup that is unfinalised is behind, so any
+ * trigger, or the next start, makes that refresh.
+ *
+ * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
+ * ones or reaches the app scope. A trigger source that itself fails is reported the same way and listened to again
+ * after a wait that starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no
+ * libraries are chosen ([libraries] gives null or none).
  *
  * The account is [LibraryRepository.activeAccount], the one the sync uses; [libraries] reads the user's chosen
- * libraries each time it is asked, so a changed choice is seen by the next refresh.
+ * libraries each time it is asked, so a changed choice is seen by the next trigger. Nothing in the settings announces
+ * a changed choice, so it is not a trigger of its own: it waits for the next sync, pass or start.
  */
 class LineupRefresher(
     private val service: LineupService,
@@ -46,9 +68,6 @@ class LineupRefresher(
     private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
     private val report: (LineupEvent) -> Unit,
 ) {
-    // The pass last acted on, per account, kept for the process: Room re-emits a value it already gave.
-    private val actedOn = ConcurrentHashMap<LibraryAccount, Instant>()
-
     private var started: Job? = null
 
     /**
@@ -84,7 +103,8 @@ class LineupRefresher(
             library
                 .collectionPassCompleted(account)
                 .filterNotNull()
-                .map { Trigger.Pass(it) }
+                .distinctUntilChanged()
+                .map { Trigger.Pass }
         // The first value is where the sync stands, not news: the start check and the pass signal cover it.
         val successes =
             library
@@ -114,20 +134,39 @@ class LineupRefresher(
     @Suppress("TooGenericExceptionCaught") // An unreadable start state just means: refresh.
     private suspend fun isStale(account: LibraryAccount): Boolean =
         try {
-            val held = service.loaded(account)?.lineup
-            held == null || !held.finalised || held.catalogVersion < service.catalog.version
+            // With no libraries chosen yet, only the lineup itself can be behind; act() will do nothing about it.
+            behind(account, service.loaded(account), libraries()?.takeIf { it.isNotEmpty() })
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             true
         }
 
+    // See the class doc. [chosen] null means the choice is not known: then it and the generation are not compared.
+    private suspend fun behind(
+        account: LibraryAccount,
+        held: Revisioned?,
+        chosen: Set<ItemId>?,
+    ): Boolean {
+        if (held == null || needsPlan(held.lineup)) return true
+        return chosen != null &&
+            (
+                held.meta.plannedLibraries != chosen.map { it.value }.sorted() ||
+                    held.meta.plannedGeneration != library.contentGeneration(account)
+            )
+    }
+
+    // Not yet finalised, or planned from an older catalog than this app's.
+    private fun needsPlan(lineup: Lineup): Boolean {
+        val catalog = service.catalog.version
+        return !lineup.finalised || lineup.catalogVersion < catalog
+    }
+
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun act(
         account: LibraryAccount,
         trigger: Trigger,
     ) {
-        if (trigger is Trigger.Pass && actedOn[account] == trigger.startedAt) return
         try {
             val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
             // The choice is the active account's. The account flow may not have delivered a change yet (nothing is
@@ -135,16 +174,40 @@ class LineupRefresher(
             // this one, the libraries read may be the new account's, and nothing is refreshed or recorded.
             currentCoroutineContext().ensureActive()
             if (library.activeAccount().first() != account) return
+            val held = service.loaded(account)
+            val pass = library.collectionPassCompleted(account).first()
+            if (!worthRefreshing(trigger, account, held, chosen, pass)) {
+                // Nothing to plan, but the lineup does hold this pass's collections: say so, or the next start would
+                // find the pass new.
+                if (trigger == Trigger.Pass && pass != null) service.notePass(account, pass)
+                return
+            }
             service.refresh(account, chosen)
-            // Recorded once attempted: a pass that was cancelled, or had no libraries to refresh, is acted on later.
-            if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             report(LineupEvent.RefreshFailed)
-            if (trigger is Trigger.Pass) actedOn[account] = trigger.startedAt
         }
     }
+
+    // Start is asked again: another trigger may have caught the lineup up since the start check ran.
+    private suspend fun worthRefreshing(
+        trigger: Trigger,
+        account: LibraryAccount,
+        held: Revisioned?,
+        chosen: Set<ItemId>,
+        pass: Instant?,
+    ): Boolean =
+        when (trigger) {
+            Trigger.Start, Trigger.Success -> {
+                behind(account, held, chosen)
+            }
+
+            Trigger.Pass -> {
+                // The lineup has taken in no pass yet: its collections are not in, whatever else is so.
+                pass != null && (held?.meta?.collectionPassActedOn == null || behind(account, held, chosen))
+            }
+        }
 
     internal companion object {
         /** The wait after the first trigger failure; each further one doubles it, up to [MAX_BACKOFF_MS]. */
@@ -186,8 +249,6 @@ class LineupRefresher(
 
         data object Success : Trigger
 
-        data class Pass(
-            val startedAt: Instant,
-        ) : Trigger
+        data object Pass : Trigger
     }
 }

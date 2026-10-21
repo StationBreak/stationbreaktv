@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerResult
@@ -103,8 +106,21 @@ internal class CollectionPass(
     ) {
         private var summary = CollectionSummary()
 
-        suspend fun execute(): CollectionResult {
-            val outcome = pass()
+        suspend fun execute(): CollectionResult = repository.collectionPassLock.withLock { executeAlone() }
+
+        private suspend fun executeAlone(): CollectionResult {
+            repository.beginCollectionPass(account)
+            var outcome: SyncOutcome? = null
+            try {
+                outcome = pass()
+            } finally {
+                // A pass that ends any way but complete (a failure, a cancellation, an exception) is counted against
+                // the first lineup; a completed one reset the count itself when it recorded its cursor. A Cancelled
+                // outcome caused by an account switch counts too, which is harmless: that account's row is deleted.
+                if (outcome != SyncOutcome.Completed) {
+                    withContext(NonCancellable) { repository.abandonCollectionPass(account) }
+                }
+            }
             return CollectionResult(outcome, summary)
         }
 

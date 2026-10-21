@@ -69,6 +69,54 @@ class LineupCodecTest {
         assertEquals(LineupCodec.Decoded.Loaded(full), LineupCodec.decode(LineupCodec.encode(full)))
     }
 
+    private val meta =
+        RefreshMeta(
+            plannedGeneration = 7L,
+            collectionPassActedOn = 1_760_000_000_000L,
+            plannedLibraries = listOf("a", "b"),
+        )
+
+    @Test
+    fun theRefreshersMetaRoundTrips() {
+        assertEquals(LineupCodec.Decoded.Loaded(full, meta), LineupCodec.decode(LineupCodec.encode(full, meta)))
+        val written =
+            Json
+                .parseToJsonElement(LineupCodec.encode(full, meta).decodeToString())
+                .jsonObject
+                .getValue("meta")
+                .jsonObject
+        assertEquals(JsonPrimitive(7L), written["plannedGeneration"])
+        assertEquals(JsonPrimitive(1_760_000_000_000L), written["collectionPassActedOn"])
+        assertEquals(listOf("a", "b"), written.getValue("plannedLibraries").jsonArray.map { it.jsonPrimitive.content })
+    }
+
+    @Test
+    fun anEmptyMetaIsNotWrittenAtAll() {
+        assertEquals(null, tree()["meta"])
+    }
+
+    @Test
+    fun aVersionOneFileWithoutMetaStillLoadsWithAnEmptyMeta() {
+        // What a debug install already holds: the same version, written before meta was added.
+        val old = JsonObject(tree() - "meta")
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(old.toString()))
+        assertEquals(RefreshMeta(), loaded.meta)
+        assertEquals(full, loaded.lineup)
+    }
+
+    @Test
+    fun metaIsAKnownKeyAndAnythingUnknownAroundOrInsideItIsUnreadable() {
+        val known = tree().with("meta", JsonObject(mapOf("plannedGeneration" to JsonPrimitive(5L))))
+        assertIs<LineupCodec.Decoded.Loaded>(decode(known.toString()))
+        val unknownInside = mapOf("plannedGeneration" to JsonPrimitive(5L), "x" to JsonPrimitive(1))
+        val insideIt = tree().with("meta", JsonObject(unknownInside))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(insideIt.toString()))
+        val beside = known.with("anotherNewField", JsonPrimitive(true))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(beside.toString()))
+        val wrongType = tree().with("meta", JsonObject(mapOf("collectionPassActedOn" to JsonPrimitive("yesterday"))))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(wrongType.toString()))
+    }
+
     @Test
     fun unfinalisedEmptyLineupRoundTrips() {
         val empty = Lineup(SERVER, USER, 1, 60, finalised = false, channels = emptyList())
