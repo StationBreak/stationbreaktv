@@ -176,6 +176,8 @@ class JellyfinMediaServer internal constructor(
             withTimeoutOrNull(revokeTimeout) {
                 calls.send(session, Endpoint.post("Sessions/Logout")).flatMap { ServerResult.Success(Unit) }
             } ?: ServerResult.Failure(MediaServerError.Timeout())
+        // Whatever the server said, the user signed out: the token is not to be attached again.
+        calls.forget(session)
         adapterLog.log(
             when (result) {
                 is ServerResult.Success -> "revoke ok"

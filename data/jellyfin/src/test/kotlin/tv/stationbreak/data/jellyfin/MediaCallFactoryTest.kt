@@ -32,6 +32,10 @@ private class Recorder : Interceptor {
     @Volatile
     var armed = false
 
+    /** The status every armed call is answered with. */
+    @Volatile
+    var code = 200
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         if (!armed) return chain.proceed(request)
@@ -40,7 +44,7 @@ private class Recorder : Interceptor {
             .Builder()
             .request(request)
             .protocol(Protocol.HTTP_1_1)
-            .code(200)
+            .code(code)
             .message("OK")
             .body("".toResponseBody())
             .build()
@@ -154,6 +158,57 @@ class MediaCallFactoryTest {
 
         assertNull(factory.get("$origin/Videos/i1/master.m3u8"))
         assertNotNull(adapter.mediaCallFactory { acknowledged }.get("$origin/Videos/i1/master.m3u8"))
+    }
+
+    @Test
+    fun afterRevokeTheSessionIsNoLongerCleared() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+        assertNotNull(factory.get("$origin/Videos/i1/master.m3u8"))
+        assertTrue(adapter.calls.isCleared(session))
+
+        runBlocking { adapter.revoke(session) }
+
+        assertFalse(adapter.calls.isCleared(session))
+        // The caller's lambda still hands out the dead session; the binding alone keeps the header off.
+        assertNull(factory.get("$origin/Videos/i1/master.m3u8"))
+    }
+
+    @Test
+    fun aFailedRevokeForgetsTheBindingToo() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        recorder.code = 500
+
+        runBlocking { adapter.revoke(session) }
+
+        assertFalse(adapter.calls.isCleared(session))
+    }
+
+    @Test
+    fun aSessionExpiredResultForgetsTheBinding() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+        recorder.code = 401
+
+        runBlocking { adapter.libraries(session) }
+        recorder.code = 200
+
+        assertFalse(adapter.calls.isCleared(session))
+        assertNull(factory.get("$origin/Videos/i1/master.m3u8"))
+    }
+
+    @Test
+    fun otherFailuresKeepTheBinding() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        recorder.code = 500
+
+        runBlocking { adapter.libraries(session) }
+
+        assertTrue(adapter.calls.isCleared(session))
     }
 
     @Test

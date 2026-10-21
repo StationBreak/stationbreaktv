@@ -141,7 +141,9 @@ class TokenBindingTest {
             jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(204) }
             val adapter = testAdapter()
             val session = adapter.resume(stored()).getOrNull()!!
-            adapter.revoke(session)
+            // Not revoke twice: a revoke forgets the binding (issue 322), so only other calls share the one probe.
+            adapter.libraries(session)
+            adapter.libraries(session)
             adapter.revoke(session)
             assertEquals(1, jellyfin.requests("/System/Info/Public").size)
         }
