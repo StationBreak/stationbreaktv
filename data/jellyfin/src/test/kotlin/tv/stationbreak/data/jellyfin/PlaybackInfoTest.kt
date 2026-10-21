@@ -142,6 +142,33 @@ class PlaybackInfoTest {
     }
 
     @Test
+    fun eachEmbeddedStreamKnowsItsPositionWithinItsKind() {
+        runBlocking {
+            // Server indexes interleave the kinds and an external subtitle sits among them; positions count per kind.
+            val body =
+                """{"MediaSources":[{"Id":"src1","MediaStreams":[
+                |{"Index":0,"Type":"Video","Codec":"h264"},
+                |{"Index":1,"Type":"Audio","Codec":"aac"},
+                |{"Index":2,"Type":"Audio","Codec":"ac3"},
+                |{"Index":3,"Type":"Subtitle","Codec":"subrip","DeliveryMethod":"Embed"},
+                |{"Index":4,"Type":"Subtitle","Codec":"subrip","IsExternal":true,"DeliveryMethod":"External"},
+                |{"Index":5,"Type":"Subtitle","Codec":"pgssub","DeliveryMethod":"Encode"},
+                |{"Index":6,"Type":"Audio","Codec":"dts"}]}],"PlaySessionId":"play-1"}
+                """.trimMargin().replace("\n", "")
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
+
+            val source =
+                testAdapter()
+                    .playbackInfo(testSession(jellyfin.address), ItemId("i1"))
+                    .getOrNull()!!
+                    .sources
+                    .single()
+
+            assertEquals(listOf(0, 0, 1, 0, null, 1, 2), source.streams.map { it.positionInKind })
+        }
+    }
+
+    @Test
     fun theServerTranscodingUrlIsNeverRead() {
         runBlocking {
             val body =

@@ -11,7 +11,10 @@ enum class SubtitleDelivery { IN_STREAM, SEPARATE, BURNED_IN, NONE }
 
 /**
  * One track of a [MediaSource]. [index] is the server's own stream index, the number to send back when choosing a
- * track. [delivery] is set for subtitle streams only.
+ * track. [delivery] is set for subtitle streams only. [positionInKind] is the stream's 0-based position among the
+ * file's embedded streams of its own [kind] (the third audio track is 2), or null for an external subtitle, which is
+ * not in the file. A player that numbers tracks per kind (Media3's track groups on direct play) maps [index] to its
+ * own track with it.
  */
 data class MediaStreamInfo(
     val index: Int,
@@ -25,6 +28,7 @@ data class MediaStreamInfo(
     val isDefault: Boolean,
     val isForced: Boolean,
     val delivery: SubtitleDelivery?,
+    val positionInKind: Int? = null,
 )
 
 /** One playable version of an item. The server's file path is deliberately not here (R2). */

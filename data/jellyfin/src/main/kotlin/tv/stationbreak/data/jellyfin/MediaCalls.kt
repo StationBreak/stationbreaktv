@@ -357,18 +357,34 @@ internal class MediaCalls(
             supportsDirectPlay = dto.supportsDirectPlay,
             supportsDirectStream = dto.supportsDirectStream,
             supportsTranscoding = dto.supportsTranscoding,
-            streams = dto.mediaStreams.mapNotNull(::stream),
+            streams = streams(dto.mediaStreams),
             defaultAudioIndex = dto.defaultAudioStreamIndex,
             defaultSubtitleIndex = dto.defaultSubtitleStreamIndex,
             bitrate = dto.bitrate?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt(),
             transcodeReasons = reasons(dto.transcodeReasons),
         )
 
-    /** Video, audio and subtitle tracks; any other kind (an embedded picture, a data track) is dropped. */
-    private fun stream(dto: MediaStreamDto): MediaStreamInfo? {
-        val index = dto.index
-        val kind = STREAM_KINDS[dto.type]
-        if (index == null || kind == null) return null
+    /**
+     * Video, audio and subtitle tracks; any other kind (an embedded picture, a data track) is dropped. Each embedded
+     * track also gets its position among the embedded tracks of its kind, counted over the list as the server sent it
+     * (a track with no index can't be chosen, but it is still a track in the file, so it holds its place).
+     */
+    private fun streams(dtos: List<MediaStreamDto>): List<MediaStreamInfo> {
+        val seen = mutableMapOf<StreamKind, Int>()
+        return dtos.mapNotNull { dto ->
+            val kind = STREAM_KINDS[dto.type] ?: return@mapNotNull null
+            val position =
+                if (kind == StreamKind.SUBTITLE && dto.isExternal) null else seen.merge(kind, 1, Int::plus)!! - 1
+            stream(dto, kind, position)
+        }
+    }
+
+    private fun stream(
+        dto: MediaStreamDto,
+        kind: StreamKind,
+        position: Int?,
+    ): MediaStreamInfo? {
+        val index = dto.index ?: return null
         val delivery = DELIVERY_METHODS[dto.deliveryMethod] ?: SubtitleDelivery.NONE
         return MediaStreamInfo(
             index = index,
@@ -382,6 +398,7 @@ internal class MediaCalls(
             isDefault = dto.isDefault,
             isForced = dto.isForced,
             delivery = delivery.takeIf { kind == StreamKind.SUBTITLE },
+            positionInKind = position,
         )
     }
 
