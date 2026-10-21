@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
@@ -82,7 +83,17 @@ class RoomLibraryRepository internal constructor(
     private val retention: HistoryRetention = HistoryRetention(),
     internal val collectionRelist: CollectionRelist = CollectionRelist(),
 ) : LibraryRepository {
-    internal val dao = db.dao()
+    internal val dao =
+        db.dao().also { dao ->
+            dao.generationSeed = { clock.now().toEpochMilliseconds() shl LibraryDao.GENERATION_SHIFT }
+        }
+
+    /**
+     * Held for the length of a collection pass, so the first sync's pass and a stay-current run's never overlap: one
+     * would otherwise see the other's pass, still marked running, as a pass that died.
+     */
+    internal val collectionPassLock = Mutex()
+
     internal val history = db.itemHistoryDao()
     private val seriesDao = db.seriesDao()
     private val collectionDao = db.collectionDao()

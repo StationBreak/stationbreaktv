@@ -133,6 +133,7 @@ internal abstract class CacheTransactionDao(
         library.requireActive(serverId, userId)
         tombstoneSeriesIn(serverId, userId, ids, atMs)
         supersedeMembersIn(serverId, userId, ids, atMs)
+        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
     }
 
     /**
@@ -180,6 +181,7 @@ internal abstract class CacheTransactionDao(
     ) {
         library.requireActive(serverId, userId)
         reviveSeriesIn(serverId, userId, ids, nowMs)
+        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
     }
 
     private suspend fun tombstoneSeriesIn(
@@ -382,7 +384,7 @@ internal abstract class CacheTransactionDao(
         userId: String,
     ) {
         library.requireActive(serverId, userId)
-        library.ensureMeta(SyncMetaEntity(serverId, userId, 0L))
+        library.ensureMetaRow(serverId, userId)
         val row = library.metaRow(serverId, userId)
         val failed = (row?.failedPasses ?: 0) + if (row?.passRunning == true) 1 else 0
         library.setPassState(serverId, userId, failed, running = true)
@@ -412,7 +414,7 @@ internal abstract class CacheTransactionDao(
         relisted: Boolean,
     ) {
         library.requireActive(serverId, userId)
-        library.ensureMeta(SyncMetaEntity(serverId, userId, 0L))
+        library.ensureMetaRow(serverId, userId)
         library.setPassState(serverId, userId, failed = 0, running = false)
         val before = collections.syncRow(serverId, userId)
         val relistMs = if (relisted) startedMs else before?.lastRelistMs

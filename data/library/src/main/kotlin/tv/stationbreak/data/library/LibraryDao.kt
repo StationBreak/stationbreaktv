@@ -309,9 +309,25 @@ internal abstract class LibraryDao {
         serverId: String,
         userId: String,
     ) {
-        ensureMeta(SyncMetaEntity(serverId, userId, 0L))
+        ensureMetaRow(serverId, userId)
         raiseGeneration(serverId, userId)
     }
+
+    /**
+     * Where a new `sync_meta` row starts counting: set by the repository to its clock in milliseconds shifted left by
+     * ten bits. A row that is deleted (sign-out, another account, a rebuild) and made again therefore starts above
+     * every value the old row reached, as long as it gained fewer than 1024 bumps per millisecond it lived, and so a
+     * generation stored with a lineup is never equalled by a different library state. A clock set far back could
+     * break that; the lineup is then at worst refreshed or, in a freak case, taken for current.
+     */
+    @Volatile
+    var generationSeed: () -> Long = { System.currentTimeMillis() shl GENERATION_SHIFT }
+
+    /** Makes sure the account has a `sync_meta` row, starting its generation at [generationSeed]. */
+    suspend fun ensureMetaRow(
+        serverId: String,
+        userId: String,
+    ) = ensureMeta(SyncMetaEntity(serverId, userId, generationSeed()))
 
     @Query("SELECT contentGeneration FROM sync_meta WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun generation(
@@ -587,6 +603,8 @@ internal abstract class LibraryDao {
     }
 
     companion object {
+        const val GENERATION_SHIFT = 10
+
         /** SQLite on API 25 allows 999 variables in a statement; lookups by a list of IDs stay well under it. */
         const val MAX_VARIABLES = 400
     }

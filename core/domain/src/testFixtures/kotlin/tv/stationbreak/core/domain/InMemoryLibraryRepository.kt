@@ -102,6 +102,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         tombstoned: Boolean = false,
     ) {
         items.forEach { rows += Row(account, library, it, tombstoned) }
+        noteContentChange(account)
     }
 
     /**
@@ -115,6 +116,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         vararg items: ScheduleItem,
     ) {
         items.forEach { held += HeldRow(account, library, it) }
+        noteContentChange(account)
     }
 
     /**
@@ -129,6 +131,7 @@ class InMemoryLibraryRepository : LibraryRepository {
             val extras = Extras(it.seasonId, it.officialRating, it.genres, it.tags)
             held += HeldRow(account, ItemId(it.libraryId.value), it.item, extras)
         }
+        noteContentChange(account)
     }
 
     /**
@@ -141,6 +144,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         deletedAtMs: Long? = null,
     ) {
         series.forEach { seriesRows += SeriesRow(account, it, deletedAtMs) }
+        noteContentChange(account)
     }
 
     /**
@@ -153,6 +157,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         deletedAtMs: Long? = null,
     ) {
         collections.forEach { collectionRows += CollectionRow(account, it, deletedAtMs) }
+        noteContentChange(account)
     }
 
     /**
@@ -371,6 +376,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         val held = pending.getOrPut(account) { mutableSetOf() }
         held.retainAll(libraries)
         held += libraries - saved
+        noteContentChange(account)
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()

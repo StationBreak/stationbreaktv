@@ -79,10 +79,11 @@ class LineupServiceTest {
             library.delegate.completeCollectionPass(ACCOUNT, pass)
             library.delegate.noteContentChange(ACCOUNT)
             library.delegate.noteContentChange(ACCOUNT)
+            val generation = library.delegate.contentGeneration(ACCOUNT)
 
             service.refresh(ACCOUNT, LIBRARIES)
 
-            val expected = RefreshMeta(2L, pass.toEpochMilliseconds(), LIBRARIES.map { it.value }.sorted())
+            val expected = RefreshMeta(generation, pass.toEpochMilliseconds(), LIBRARIES.map { it.value }.sorted())
             assertEquals(expected, storedMeta())
             assertEquals(expected, service.lineup(ACCOUNT).value?.meta, "and held in memory")
             service.refresh(ACCOUNT, LIBRARIES)

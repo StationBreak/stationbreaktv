@@ -315,14 +315,15 @@ class LineupRefresherTest {
             // The last process died after the sync wrote rows and before the refresh: the library's generation moved
             // on, the lineup's stored one did not.
             library.delegate.noteContentChange(ACCOUNT)
-            assertEquals(0L, savedMeta().plannedGeneration)
+            val planned = savedMeta().plannedGeneration
 
             relaunch().start(scope)
             until("the next start refreshed") { refreshes == before + 1 }
             settle()
 
             assertEquals(before + 1, refreshes, "once")
-            assertEquals(1L, savedMeta().plannedGeneration)
+            assertEquals(library.delegate.contentGeneration(ACCOUNT), savedMeta().plannedGeneration)
+            assertTrue(savedMeta().plannedGeneration != planned)
         }
 
     @Test

@@ -9,6 +9,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.model.ItemId
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
@@ -195,6 +196,46 @@ class ContentGenerationTest {
         }
 
     @Test
+    fun aRecreatedMetaRowNeverRepeatsAnEarlierGeneration() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            val old = changes()
+            val reached = mutableSetOf(old)
+
+            // The row goes with the account's data (a sign-out), and comes back later on the same database.
+            repository.forget(ALICE)
+            rig.clock.instant += 1.hours
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            for (n in 1..50) {
+                repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", n)))
+                reached += changes()
+            }
+
+            assertEquals("every bump gave a new value, none an old one", 51, reached.size)
+            assertTrue(reached.drop(1).all { it > old })
+        }
+
+    @Test
+    fun everyWriteThatChangesRowsBumpsIncludingSeries() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            repository.select(ALICE, setOf(MOVIES))
+            val series = listOf(series("s1"))
+            repository.upsertSeries(ALICE, MOVIES, series)
+            var seen = changes()
+
+            repository.tombstoneSeries(ALICE, listOf(ItemId("s1")))
+            assertNotEquals("tombstoning a series", seen, changes())
+            seen = changes()
+
+            repository.reviveSeries(ALICE, listOf(ItemId("s1")))
+            assertNotEquals("reviving a series", seen, changes())
+        }
+
+    @Test
     fun anotherAccountSigningInDropsTheOldOnesGeneration() =
         runBlocking {
             repository.useAccount(ALICE)
@@ -204,6 +245,6 @@ class ContentGenerationTest {
 
             repository.useAccount(BOB)
 
-            assertEquals("the rows went, so the number starts again", 0L, changes())
+            assertEquals("the rows went, and the number goes with them", 0L, changes())
         }
 }

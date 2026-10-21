@@ -211,13 +211,15 @@ interface LibraryRepository : AccountCache {
     fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
 
     /**
-     * [account]'s content generation: a number that is kept with the saved library and only goes up for that account.
-     * It changes exactly when a committed write changed that account's library rows (an item, series or collection
-     * that is new, edited, deleted or back, or the chosen libraries): the bump is in the same transaction as the write,
-     * so a write that rolls back or finds everything as stored leaves it alone, and another account's writes never move
-     * it. Because it is durable it can be compared across process restarts: a reader keeps the value it planned from
-     * and finds the library changed since when the two differ, even if the process died before it could act. A cache
-     * rebuild may reset it to zero, and when it does the comparison simply reads as "changed". It says the library
+     * [account]'s content generation: a number kept with the saved library that goes up for that account and never
+     * repeats a value the account held before. It changes exactly when a committed write changed that account's
+     * library rows (an item, series or collection that is new, edited, deleted or back, or the chosen libraries): the
+     * bump is in the same transaction as the write, so a write that rolls back or finds everything as stored leaves
+     * it alone, and another account's writes never move it. Because it is durable it can be compared across process
+     * restarts: a reader keeps the value it planned from and finds the library changed since when the two differ,
+     * even if the process died before it could act. When the account's saved data is dropped (a sign-out, another
+     * account, a cache rebuild) the number starts again from the clock, shifted so that it lies above anything the
+     * old data reached, so a value a reader kept never matches a different library state. It says the library
      * differs, never how. A suspend read and not a flow, since the reader decides at a trigger or at start.
      */
     suspend fun contentGeneration(account: LibraryAccount): Long
