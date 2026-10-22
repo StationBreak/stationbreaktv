@@ -9,7 +9,7 @@ import tv.stationbreak.core.playback.ResolvedPlayback
 import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneResult
 
-/** What the player did during the watch window: stalls and cues seen, and how far the audio clock moved. */
+/** What the player did during the watch window: stalls and cues seen, and how far the audio clock ran. */
 data class Watch(
     val stalls: Int,
     val cues: Int,

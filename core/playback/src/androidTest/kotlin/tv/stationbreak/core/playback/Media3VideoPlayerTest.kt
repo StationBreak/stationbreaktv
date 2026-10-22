@@ -145,6 +145,28 @@ class Media3VideoPlayerTest {
         awaitPlaying()
     }
 
+    /** The next audio sample of [generation], skipping every other event. */
+    private fun awaitAudio(generation: Long): PlayerEvent.AudioAdvanced =
+        runBlocking {
+            withTimeout(WAIT) {
+                var event = seen.receive()
+                while (!(event is PlayerEvent.AudioAdvanced && event.generation == generation)) event = seen.receive()
+                event
+            }
+        }
+
+    @Test
+    fun stopTakesAClosingAudioSample() {
+        val generation = player.play(sourceAt(Duration.ZERO))
+        val first = awaitAudio(generation)
+        player.stop()
+        val closing = awaitAudio(generation)
+        assertTrue(
+            "closing ${closing.position} is before the first ${first.position}",
+            closing.position >= first.position,
+        )
+    }
+
     private companion object {
         val WAIT = 30.seconds
     }

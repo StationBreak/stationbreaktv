@@ -72,6 +72,7 @@ class Media3VideoPlayer(
     private var current: PlayerSource? = null
     private var tracksApplied = false
     private var hasPlayed = false
+    private val audio = AudioSampler()
 
     /** Whether the last direct-play audio pick matched the server's language and codec; null before any pick. */
     @Volatile var lastPickVerified: Boolean? = null
@@ -96,6 +97,7 @@ class Media3VideoPlayer(
             current = source
             tracksApplied = false
             hasPlayed = false
+            audio.reset()
             lastPickVerified = null
             exo.trackSelectionParameters =
                 exo.trackSelectionParameters
@@ -113,6 +115,10 @@ class Media3VideoPlayer(
     override fun stop() =
         onPlayerThread {
             current = null
+            // The closing audio sample, taken before the stop resets the position.
+            if (audio.takeClosingSample()) {
+                flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
+            }
             exo.stop()
             exo.clearMediaItems()
         }
@@ -237,6 +243,7 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             playoutStartSystemTimeMs: Long,
         ) {
+            audio.advancing()
             flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
         }
 

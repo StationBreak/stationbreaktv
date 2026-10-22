@@ -41,6 +41,9 @@ private class ScriptedPlayer(
     private var generation = 0L
     var stops = 0
 
+    /** The closing sample a real player takes as it stops, sent shortly after stop returns; null for none. */
+    var closing: ((Long) -> PlayerEvent)? = null
+
     /** Late events of the next play, as (milliseconds after the play, event of the generation). */
     var late: List<Pair<Long, (Long) -> PlayerEvent>> = emptyList()
 
@@ -59,6 +62,12 @@ private class ScriptedPlayer(
 
     override fun stop() {
         stops++
+        val event = closing ?: return
+        val mine = generation
+        scope.launch {
+            delay(50)
+            flow.tryEmit(event(mine))
+        }
     }
 
     override fun attach(surface: SurfaceView?) = Unit
@@ -99,11 +108,16 @@ class PlaybackRunTest {
     private suspend fun TestScope.run(
         late: List<Pair<Long, (Long) -> PlayerEvent>>,
         media: MediaSource,
+        closing: ((Long) -> PlayerEvent)? = null,
     ): Pair<PlaybackResult, ScriptedPlayer> {
         val server = FakeMediaServer()
         server.playbackInfoResult =
             ServerResult.Success(PlaybackInfo(item, PlaySessionId("ps1"), listOf(media), NoUrls()))
-        val player = ScriptedPlayer(this).also { it.late = late }
+        val player =
+            ScriptedPlayer(this).also {
+                it.late = late
+                it.closing = closing
+            }
         val controller = TuneController(PlaybackResolver(server) { capabilities }, server, player) { 1_000L }
         // The 15 s window runs on the test's virtual clock, so it costs nothing.
         val result = PlaybackRun(controller, player).run(BenchTestData.session, "video", Play("item1", 0, null), null)
@@ -145,5 +159,26 @@ class PlaybackRunTest {
             val (result, _) = run(late, playableMedia())
             assertEquals(false, result.audioOk)
             assertFalse(result.pass)
+        }
+
+    @Test
+    fun theClosingSampleAtStopCountsTowardTheAudioAdvance() =
+        runTest {
+            val late: List<Pair<Long, (Long) -> PlayerEvent>> =
+                listOf(1_000L to { g -> PlayerEvent.AudioAdvanced(1.seconds, g) })
+            val (result, _) =
+                run(late, playableMedia(), closing = { g -> PlayerEvent.AudioAdvanced(14.seconds, g) })
+            assertEquals(true, result.audioOk)
+        }
+
+    @Test
+    fun noWaitForAClosingSampleWhenAudioNeverStarted() =
+        runTest {
+            val before = testScheduler.currentTime
+            val closing = { g: Long -> PlayerEvent.AudioAdvanced(14.seconds, g) }
+            val (result, _) = run(emptyList(), playableMedia(), closing = closing)
+            // Audio never started, so the run does not wait and does not count a sample that arrives after it ends.
+            assertEquals(15_000L, testScheduler.currentTime - before)
+            assertEquals(false, result.audioOk)
         }
 }

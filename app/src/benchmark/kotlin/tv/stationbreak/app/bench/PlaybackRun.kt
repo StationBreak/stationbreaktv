@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app.bench
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlayerEvent
@@ -14,14 +16,17 @@ import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.TuneResult
 import tv.stationbreak.core.playback.VideoPlayer
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Plays one item through the [TuneController] and watches it for [window]: it counts stalls and subtitle cues and
- * measures how far the audio clock moved, then stops the tune. The events are tallied by play generation and the
- * highest generation wins, so the abandoned first attempt of a fallback does not count against the transcode.
+ * measures how far the audio clock ran, then stops the tune. The player reports the audio clock when audio first
+ * advances and once more as it stops, so the run waits for that closing sample before it counts. The events are
+ * tallied by play generation and the highest generation wins, so the abandoned first attempt of a fallback does not
+ * count against the transcode.
  * Nothing here logs; the caller prints the [PlaybackResult].
  */
 class PlaybackRun(
@@ -72,21 +77,36 @@ class PlaybackRun(
     ): PlaybackResult =
         coroutineScope {
             val tallies = HashMap<Long, Tally>()
+            // Completes when an audio sample arrives after the stop was asked for: the player's closing sample.
+            val closing = CompletableDeferred<Unit>()
+            val stopping = AtomicBoolean(false)
             // Subscribed before the tune starts (the flow replays nothing), and on the caller's thread so no event of
             // the first frame is missed.
             val collector =
                 launch(start = CoroutineStart.UNDISPATCHED) {
-                    player.events.collect { tallies.getOrPut(it.generation) { Tally() }.add(it) }
+                    player.events.collect {
+                        tallies.getOrPut(it.generation) { Tally() }.add(it)
+                        if (stopping.get() && it is PlayerEvent.AudioAdvanced) closing.complete(Unit)
+                    }
                 }
             val outcome = controller.tune(session, ItemId(play.item), play.startMs.milliseconds, play.override)
             if (outcome is TuneResult.Played) {
                 delay(window)
                 // Any other outcome has already stopped the player and the encode (TuneController).
+                // The player takes its closing audio sample on its own thread, so wait for it. Only audio that started
+                // gets one, so a silent play does not wait.
+                val audioStarted = tallies.maxByOrNull { it.key }?.value?.firstAudio != null
+                stopping.set(true)
                 controller.stop(session)
+                if (audioStarted) withTimeoutOrNull(CLOSING_SAMPLE_WAIT) { closing.await() }
             }
             collector.cancelAndJoin()
             val watch = tallies.maxByOrNull { it.key }?.value?.watch() ?: Watch(0, 0, 0)
             val oracle = (outcome as? TuneResult.Played)?.let { expected?.invoke(it.resolved) }
             PlaybackResult.from(section, outcome, watch, oracle, play.startMs)
         }
+
+    private companion object {
+        val CLOSING_SAMPLE_WAIT = 2.seconds
+    }
 }
