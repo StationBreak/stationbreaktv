@@ -60,6 +60,9 @@ COLUMNS = (
     ("Error", "error"),
 )
 
+# A start point can hint at the runtime of an item, so the real section, which plays the owner's own files, omits it.
+HIDDEN_COLUMNS = {"real": ("requestedMs",)}
+
 INTRO = """\
 # Playback matrix
 
@@ -69,8 +72,10 @@ through. Each section is one set of files on one device; each row is one file. T
 test clips made for this purpose; the real section plays a few files from the owner's own library, named here only by
 their format.
 
-How to read it: Route is what the server chose and Expected is what the player's own device model predicted, so a
-difference is a finding. Start is where playback was asked to begin. Position error is how far the first frame was
+How to read it: Expected is the route the player's own device model predicts and the server's first answer should
+match; Route is the route that finally played. They differ when Fallback is yes: a direct play or direct stream whose
+seek missed, or that failed to load, is replaced once by a transcode, which is by design and not a failure. A
+difference with Fallback no is a finding. Start (synthetic section only) is where playback was asked to begin. Position error is how far the first frame was
 from that point (empty when it landed within tolerance). Audio heard means the media clock advanced during a 15 s
 watch; Subtitle shown means text cues arrived or the server burned the subtitle in. A dash means the column does not
 apply or nothing was reported.
@@ -179,10 +184,11 @@ def render(files):
         out.append(f"\n## {section}: {device}\n")
         out.extend(_stamp(entry["meta"]))
         out.append(f"- Passed: {passed} of {len(rows)}\n")
-        out.append("| " + " | ".join(name for name, _ in COLUMNS) + " |")
-        out.append("|" + "|".join(" --- " for _ in COLUMNS) + "|")
+        columns = [(name, f) for name, f in COLUMNS if f not in HIDDEN_COLUMNS.get(section, ())]
+        out.append("| " + " | ".join(name for name, _ in columns) + " |")
+        out.append("|" + "|".join(" --- " for _ in columns) + "|")
         for row in rows:
-            cells = [_result_cell(row.get(f)) if f == "pass" else _cell(row.get(f)) for _, f in COLUMNS]
+            cells = [_result_cell(row.get(f)) if f == "pass" else _cell(row.get(f)) for _, f in columns]
             out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out) + "\n"
 

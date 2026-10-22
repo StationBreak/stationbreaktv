@@ -56,6 +56,19 @@ class RenderTest(unittest.TestCase):
         rows = [line for line in text.splitlines() if line.startswith("| ") and "direct-play" in line]
         self.assertEqual(len(rows), 3)
 
+    def test_theRealSectionHasNoStartColumnButTheSyntheticOneDoes(self):
+        text = render.render([[meta(), result(section="synthetic"), result(section="real", requestedMs=1234567)]])
+        sections = text.split("\n## ")
+        synthetic = next(part for part in sections if part.startswith("synthetic"))
+        real = next(part for part in sections if part.startswith("real"))
+        self.assertIn("Start (ms)", synthetic)
+        self.assertIn("30000", synthetic)
+        self.assertNotIn("Start (ms)", real)
+        self.assertNotIn("1234567", real)
+        # The table stays rectangular: header, rule and rows all drop the column together.
+        counts = {line.count("|") for line in real.splitlines() if line.startswith("|")}
+        self.assertEqual(len(counts), 1)
+
     def test_aRunIsStampedFromMeta(self):
         text = render.render([[meta(), result()]])
         self.assertIn("AFTMM", text)
