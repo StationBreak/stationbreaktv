@@ -4,7 +4,10 @@ package tv.stationbreak.app.bench
 import java.util.Locale
 
 /** One flat JSON object on one line. Values are strings, numbers, booleans or null; nothing else is accepted. */
-internal fun jsonObject(vararg fields: Pair<String, Any?>): String =
+internal fun jsonObject(vararg fields: Pair<String, Any?>): String = jsonObject(fields.asList())
+
+/** The same, from a list. */
+internal fun jsonObject(fields: List<Pair<String, Any?>>): String =
     fields.joinToString(",", "{", "}") { (name, value) ->
         val text =
             when (value) {

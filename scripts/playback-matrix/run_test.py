@@ -6,6 +6,7 @@ Run: python3 -I -m unittest discover -s scripts/playback-matrix -p '*_test.py'
 
 import json
 import os
+import re
 import tempfile
 import time
 import unittest
@@ -49,6 +50,19 @@ class PlanTest(unittest.TestCase):
         for seed in (1, 2):
             starts = [p["startMs"] for p in run.make_plan(items, seed=seed)["synthetic"]]
             self.assertEqual(starts, [30_000, 30_000, 30_000])
+
+    def test_onlyTheNamedSyntheticClipIsExpectedToMissItsSeek(self):
+        items = {
+            "synthetic": [
+                {"id": HEX, "name": "h264-aac-cues"},
+                {"id": HEX, "name": "h264-aac-nocues"},
+                {"id": HEX},
+            ],
+            "real": [real(600_000, name="h264-aac-nocues")],
+        }
+        plan = run.make_plan(items, seed=1)
+        self.assertEqual([p["seekMissExpected"] for p in plan["synthetic"]], [False, True, False])
+        self.assertEqual([p["seekMissExpected"] for p in plan["real"]], [False])
 
     def test_trackChoicesAreCarriedAndNothingElse(self):
         items = {"real": [real(600_000, audio=1, subtitle=-1)], "synthetic": []}
@@ -174,8 +188,8 @@ class LogTest(unittest.TestCase):
         lines = [
             'META {"device":"AFTMM"}',
             "noise",
-            'RESULT {"pass":true}',
-            'RESULT {"pass":false}',
+            'RESULT {"run_id":"r1","pass":true}',
+            'RESULT {"run_id":"r1","pass":false}',
             "DONE r1",
             "RESULT {}",
         ]
@@ -191,11 +205,11 @@ class LogTest(unittest.TestCase):
         self.assertEqual(got.results, [])
 
     def test_aStreamThatEndsBeforeDoneIsNotDone(self):
-        self.assertFalse(run.collect(iter(["RESULT {}"]), "r1").done)
+        self.assertFalse(run.collect(iter(['RESULT {"run_id":"r1"}']), "r1").done)
 
     def test_theMessageAfterTheLogcatPrefixIsUsed(self):
-        got = run.collect(iter(['I/SBPLAY( 123): RESULT {"a":1}', "I/SBPLAY( 123): DONE r1"]), "r1")
-        self.assertEqual(got.results, ['RESULT {"a":1}'])
+        got = run.collect(iter(['I/SBPLAY( 123): RESULT {"run_id":"r1"}', "I/SBPLAY( 123): DONE r1"]), "r1")
+        self.assertEqual(got.results, ['RESULT {"run_id":"r1"}'])
         self.assertTrue(got.done)
 
     def test_theResultsFileNameUsesDateModelAndSection(self):
@@ -205,10 +219,88 @@ class LogTest(unittest.TestCase):
         self.assertTrue(name.startswith("2026-10-21-") and name.endswith("-real.jsonl"))
 
 
+    def test_aResultOfAnotherRunIsLeftOut(self):
+        lines = ['RESULT {"run_id":"old","n":0}', 'RESULT {"run_id":"r1","n":0}', "RESULT {}", "DONE r1"]
+        self.assertEqual(run.collect(iter(lines), "r1").results, ['RESULT {"run_id":"r1","n":0}'])
+
+    def test_aResultThatIsNotJsonIsKeptForMarkingToReport(self):
+        self.assertEqual(run.collect(iter(["RESULT {oops", "DONE r1"]), "r1").results, ["RESULT {oops"])
+
+
+def line(n, run_id="r1", **fields):
+    return "RESULT " + json.dumps({"run_id": run_id, "n": n, "fallback": "no", "pass": True, **fields})
+
+
+def planned(*expected):
+    return [{"seekMissExpected": e} for e in expected]
+
+
+class MarkTest(unittest.TestCase):
+    def mark(self, batch, lines, section="synthetic"):
+        marked, problems = run.mark_expected(batch, lines, "r1", section)
+        return [json.loads(m[len("RESULT "):]) for m in marked], problems
+
+    def test_resultsArePairedByOrdinalWhateverTheOrder(self):
+        marked, problems = self.mark(planned(False, True), [line(1), line(0)])
+        self.assertEqual([(m["n"], m["seekMissExpected"]) for m in marked], [(1, True), (0, False)])
+        self.assertEqual(problems, [])
+
+    def test_aMalformedLineLeavesTheBatchUnmarkedAndIsReported(self):
+        lines = [line(0), "RESULT {oops"]
+        marked, problems = run.mark_expected(planned(False, False), lines, "r1", "synthetic")
+        self.assertEqual(marked, lines)
+        self.assertEqual(len(problems), 1)
+
+    def test_aNonObjectLineLeavesTheBatchUnmarked(self):
+        marked, problems = run.mark_expected(planned(False), ["RESULT [1]"], "r1", "synthetic")
+        self.assertEqual(marked, ["RESULT [1]"])
+        self.assertTrue(problems)
+
+    def test_aMissingOrRepeatedOrdinalLeavesTheBatchUnmarked(self):
+        for lines in (
+            [line(0), line(0)],
+            [line(0), line(2)],
+            [line(0)],
+            [line(0), "RESULT " + json.dumps({"run_id": "r1", "fallback": "no"})],
+            [line(0), line(True)],
+        ):
+            marked, problems = run.mark_expected(planned(True, True), lines, "r1", "synthetic")
+            self.assertEqual(marked, lines, msg=lines)
+            self.assertTrue(problems, msg=lines)
+            self.assertNotIn("seekMissExpected", marked[0])
+
+    def test_aLineFromAnotherRunLeavesTheBatchUnmarked(self):
+        lines = [line(0), line(1, run_id="old")]
+        marked, problems = run.mark_expected(planned(False, False), lines, "r1", "synthetic")
+        self.assertEqual(marked, lines)
+        self.assertTrue(problems)
+
+    def test_anUnexpectedSeekMissInTheSyntheticSectionIsRewrittenAsAFailure(self):
+        misses = [line(0, fallback="seek-miss"), line(1, fallback="seek-miss")]
+        marked, problems = self.mark(planned(False, True), misses)
+        self.assertEqual((marked[0]["pass"], marked[0]["error"]), (False, "unexpected-fallback"))
+        self.assertTrue(marked[1]["pass"])
+        self.assertEqual(len(problems), 1)
+
+    def test_aSeekMissInTheRealSectionIsLeftAlone(self):
+        marked, problems = self.mark(planned(False), [line(0, fallback="seek-miss")], section="real")
+        self.assertTrue(marked[0]["pass"])
+        self.assertEqual(problems, [])
+
+
+class SyntheticNamesTest(unittest.TestCase):
+    def test_everyExpectedSeekMissClipIsAClipTheScriptMakes(self):
+        script = os.path.join(os.path.dirname(os.path.abspath(run.__file__)), "synthetic-media.sh")
+        with open(script, encoding="utf-8") as handle:
+            slots = set(re.findall(r"\$\(slot ([A-Za-z0-9._-]+) ", handle.read()))
+        for name in run.SEEK_MISS_CLIPS:
+            self.assertIn(name, slots)
+
+
 class ReaderTest(unittest.TestCase):
     def test_everyLineOfOneWriteArrivesWithoutWaitingForTheTimeout(self):
         read_end, write_end = os.pipe()
-        os.write(write_end, b"META {}\nRESULT {}\nRESULT {}\nDONE r1\n")
+        os.write(write_end, b'META {}\nRESULT {"run_id":"r1"}\nRESULT {"run_id":"r1"}\nDONE r1\n')
         started = time.monotonic()
         got = run.collect(run.read_lines(read_end, time.monotonic() + 30), "r1")
         self.assertLess(time.monotonic() - started, 5)
@@ -226,10 +318,10 @@ class ReaderTest(unittest.TestCase):
 
     def test_aLineSplitAcrossWritesIsJoined(self):
         read_end, write_end = os.pipe()
-        os.write(write_end, b'RESULT {"a"')
-        os.write(write_end, b":1}\nDONE r1\n")
+        os.write(write_end, b'RESULT {"run_id"')
+        os.write(write_end, b':"r1"}\nDONE r1\n')
         got = run.collect(run.read_lines(read_end, time.monotonic() + 30), "r1")
-        self.assertEqual(got.results, ['RESULT {"a":1}'])
+        self.assertEqual(got.results, ['RESULT {"run_id":"r1"}'])
         os.close(read_end)
         os.close(write_end)
 
@@ -244,7 +336,7 @@ class ReaderTest(unittest.TestCase):
 
     def test_aStaleDoneFromAnotherRunIsIgnored(self):
         got = run.collect(iter(["DONE old", "RESULT {}", "DONE r1"]), "r1")
-        self.assertEqual(len(got.results), 1)
+        self.assertEqual(got.results, [])
         self.assertTrue(got.done)
         self.assertFalse(run.collect(iter(["DONE old"]), "r1").done)
 

@@ -26,7 +26,7 @@ class PlaybackResultTest {
         outcome: TuneResult? = null,
     ): PlaybackResult {
         val resolved = BenchTestData.resolved(route, subtitle)
-        val played = outcome ?: TuneResult.Played(resolved, 300, 400, positionError, false)
+        val played = outcome ?: TuneResult.Played(resolved, 300, 400, positionError, null)
         return PlaybackResult.from("video", played, watch, expected, 30_000)
     }
 
@@ -39,6 +39,13 @@ class PlaybackResultTest {
         assertFalse(line, line.contains("http"))
         assertTrue(line, line.contains("\"video\":\"hevc 1920x1080 10bit\""))
         assertTrue(line, line.contains("\"audio\":\"dts 6ch\""))
+    }
+
+    @Test
+    fun theLineNamesItsRunAndItsOrdinalInTheBatch() {
+        val line = result().toJsonLine("r1", 3)
+        assertTrue(line, line.startsWith("{\"run_id\":\"r1\",\"n\":3,"))
+        assertFalse(result().toJsonLine().contains("run_id"))
     }
 
     @Test
@@ -91,7 +98,7 @@ class PlaybackResultTest {
 
     @Test
     fun aFailureHasAStableErrorAndNeverPasses() {
-        val failed = TuneResult.Failed(TuneFailure.PLAYER, "ERROR_CODE_DECODING_FAILED", null, false)
+        val failed = TuneResult.Failed(TuneFailure.PLAYER, "ERROR_CODE_DECODING_FAILED", null, null)
         val r = result(outcome = failed)
         assertFalse(r.pass)
         assertEquals("failed:player:ERROR_CODE_DECODING_FAILED", r.error)

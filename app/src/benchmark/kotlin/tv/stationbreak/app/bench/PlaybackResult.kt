@@ -5,6 +5,8 @@ import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.SubtitleDelivery
+import tv.stationbreak.core.playback.Fallback
+import tv.stationbreak.core.playback.FallbackCause
 import tv.stationbreak.core.playback.ResolvedPlayback
 import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneResult
@@ -33,7 +35,7 @@ data class PlaybackResult(
     val expectedRoute: String,
     val transcodeReasons: String,
     val burnIn: Boolean,
-    val fallback: Boolean,
+    val fallback: String,
     val requestedMs: Long,
     val positionErrorMs: Long?,
     val firstFrameMs: Long?,
@@ -44,8 +46,16 @@ data class PlaybackResult(
     val pass: Boolean,
     val error: String?,
 ) {
-    fun toJsonLine(): String =
-        jsonObject(
+    /** The RESULT line. [runId] and [ordinal] (the item's index in its batch) let the driver pair it with its plan. */
+    fun toJsonLine(
+        runId: String,
+        ordinal: Int,
+    ): String = jsonObject(listOf<Pair<String, Any?>>("run_id" to runId, "n" to ordinal) + fields())
+
+    fun toJsonLine(): String = jsonObject(fields())
+
+    private fun fields(): List<Pair<String, Any?>> =
+        listOf(
             "section" to section,
             "container" to container,
             "video" to video,
@@ -72,7 +82,13 @@ data class PlaybackResult(
         const val AUDIO_ADVANCE_MS = 10_000L
         private const val NONE = "—"
 
-        /** [expected] is the oracle's route, null when there is none for this item (a track override). */
+        /**
+         * [expected] is the oracle's route, null when there is none for this item (a track override). It is compared
+         * with the route abandoned by a fallback, if there was one: a direct play whose seek missed falls back to a
+         * transcode by design (ADR-0016, 4), which the Fallback column reports and is not a failure by itself. A
+         * fallback after a load failure always fails the row, with its diagnostic in the error. The Route column is
+         * the route that finally played.
+         */
         fun from(
             section: String,
             outcome: TuneResult,
@@ -88,8 +104,12 @@ data class PlaybackResult(
             val subtitleOk = played?.let { subtitleOk(chosen, burnIn, watch) }
             val audioOk = played != null && audioHeard(resolved, watch)
             val route = resolved?.route
-            val routeOk = expected == null || route == expected
+            val fallback = fallbackOf(outcome)
+            val routeOk = expected == null || (fallback?.from ?: route) == expected
             val positionError = played?.positionError
+            val loadFailed = fallback?.cause is FallbackCause.LoadFailed
+            val passes =
+                played != null && positionError == null && !loadFailed && routeOk && audioOk && subtitleOk != false
             return PlaybackResult(
                 section = section,
                 container = resolved?.media?.container ?: NONE,
@@ -100,7 +120,7 @@ data class PlaybackResult(
                 expectedRoute = expected?.wire() ?: NONE,
                 transcodeReasons = reasonsOf(resolved),
                 burnIn = burnIn,
-                fallback = fallbackOf(outcome),
+                fallback = fallbackName(fallback),
                 requestedMs = requestedMs,
                 positionErrorMs = positionError?.inWholeMilliseconds,
                 firstFrameMs = played?.firstFrameMs,
@@ -108,7 +128,7 @@ data class PlaybackResult(
                 stalls = watch.stalls,
                 audioOk = audioOk,
                 subtitleOk = subtitleOk,
-                pass = played != null && positionError == null && routeOk && audioOk && subtitleOk != false,
+                pass = passes,
                 error = errorOf(outcome),
             )
         }
@@ -144,21 +164,35 @@ data class PlaybackResult(
                 TuneResult.Superseded, TuneResult.Stopped -> null
             }
 
-        private fun fallbackOf(outcome: TuneResult): Boolean =
+        private fun fallbackOf(outcome: TuneResult): Fallback? =
             when (outcome) {
                 is TuneResult.Played -> outcome.fallback
                 is TuneResult.Failed -> outcome.fallback
-                else -> false
+                else -> null
+            }
+
+        private fun fallbackName(fallback: Fallback?): String =
+            when (fallback?.cause) {
+                null -> "no"
+                FallbackCause.SeekMiss -> "seek-miss"
+                is FallbackCause.LoadFailed -> "load-failed"
             }
 
         private fun errorOf(outcome: TuneResult): String? =
             when (outcome) {
-                is TuneResult.Played -> if (outcome.positionError != null) "position-miss" else null
+                is TuneResult.Played -> playedError(outcome)
                 TuneResult.Superseded -> "superseded"
                 TuneResult.Stopped -> "stopped"
                 is TuneResult.SessionExpired -> "session-expired"
                 is TuneResult.Failed -> failedError(outcome)
             }
+
+        private fun playedError(outcome: TuneResult.Played): String? {
+            val cause = outcome.fallback?.cause as? FallbackCause.LoadFailed
+            val loaded = cause?.let { listOfNotNull("fallback", "load", it.diagnostic).joinToString(":") }
+            val missed = if (outcome.positionError != null) "position-miss" else null
+            return listOfNotNull(loaded, missed).joinToString(";").ifEmpty { null }
+        }
 
         private fun failedError(outcome: TuneResult.Failed): String =
             listOfNotNull("failed", outcome.reason.name.lowercase(), outcome.diagnostic).joinToString(":")

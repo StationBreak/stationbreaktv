@@ -7,8 +7,8 @@ PlaybackTestActivity, over adb. Standard library only; run it as `python3 -I scr
   run.py run -s SERIAL --plan plan.json --section real|synthetic [--results-dir DIR]
 
 items.local.json holds item IDs, so it, the plan and the raw results stay on this laptop (see .gitignore). Its shape:
-  {"synthetic": [{"id": "...", "runtimeMs": 60000}], "real": [{"id": "...", "runtimeMs": 5400000, "audio": 1,
-   "subtitle": -1}]}
+  {"synthetic": [{"id": "...", "name": "h264-aac-nocues", "runtimeMs": 60000}],
+   "real": [{"id": "...", "runtimeMs": 5400000, "audio": 1, "subtitle": -1}]}
 "audio" and "subtitle" are optional track indexes; an item with either one is played with the track override on
 (an unset one then means: audio, the server's choice; subtitle, off).
 
@@ -39,6 +39,10 @@ SECTIONS = ("synthetic", "real")
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ITEMS = os.path.join(HERE, "items.local.json")
 DEFAULT_PLAN = os.path.join(HERE, "plan.json")
+# Synthetic clips that are expected to miss their seek and fall back to a transcode, by the "name" temp-server.sh
+# writes beside each ID: Matroska muxed to a pipe has no Cues index to seek by. Any other clip that falls back fails.
+SEEK_MISS_CLIPS = frozenset({"h264-aac-nocues"})
+STRICT_FALLBACK_SECTIONS = frozenset({"synthetic"})  # as in render.py
 SYNTHETIC_START_MS = 30_000  # ruling R9: the same for every synthetic clip, whatever its runtime
 MIN_RANDOM_RUNTIME_MS = 120_000
 TAIL_MS = 30_000
@@ -96,9 +100,49 @@ def make_plan(items, seed):
                 start = 0
             else:
                 start = rng.randint(math.ceil(runtime * 0.10), runtime - TAIL_MS)
-            planned.append({"item": item, "startMs": start, "audio": audio, "subtitle": subtitle})
+            expect_miss = section == "synthetic" and entry.get("name") in SEEK_MISS_CLIPS
+            planned.append(
+                {"item": item, "startMs": start, "audio": audio, "subtitle": subtitle, "seekMissExpected": expect_miss}
+            )
         plan[section] = planned
     return plan
+
+
+def _parse_result(line):
+    value = json.loads(line[len("RESULT "):])
+    if not isinstance(value, dict):
+        raise ValueError("a RESULT line is not a JSON object")
+    return value
+
+
+def mark_expected(batch, lines, run_id, section):
+    """(lines, problems): the RESULT [lines] of one batch, run [run_id], with "seekMissExpected" added from the plan and
+    the seek-miss rule applied. A line is paired with its plan entry by the ordinal "n" the app prints, never by
+    position. A batch whose lines are not all JSON objects of this run, or whose ordinals are not exactly 0..N-1 once
+    each, is left as it is and reported: render.py then treats every seek-miss fallback in it as unexpected, which fails
+    closed. In a strict section an unexpected seek-miss fallback is rewritten to a failure (pass false, error
+    "unexpected-fallback") and reported, so the saved file and the exit status agree with render.py."""
+    try:
+        values = [_parse_result(line) for line in lines]
+    except ValueError:
+        return list(lines), ["a RESULT line is not a JSON object; its batch was not checked"]
+    ordinals = [value.get("n") for value in values]
+    if any(value.get("run_id") != run_id for value in values):
+        return list(lines), ["a RESULT line is from another run; its batch was not checked"]
+    valid = all(isinstance(n, int) and not isinstance(n, bool) for n in ordinals)
+    if not valid or sorted(ordinals) != list(range(len(batch))):
+        return list(lines), ["RESULT ordinals are missing, repeated or out of range; the batch was not checked"]
+    problems, marked = [], []
+    for value in values:
+        expected = batch[value["n"]].get("seekMissExpected") is True
+        value["seekMissExpected"] = expected
+        if section in STRICT_FALLBACK_SECTIONS and value.get("fallback") == "seek-miss" and not expected:
+            if value.get("pass") is True:
+                problems.append("a clip fell back on a seek miss and was not expected to: unexpected-fallback")
+            value["pass"] = False
+            value["error"] = value.get("error") or "unexpected-fallback"
+        marked.append("RESULT " + json.dumps(value))
+    return marked, problems
 
 
 def _overridden(entry):
@@ -182,6 +226,15 @@ class Collected(NamedTuple):
     done: bool
 
 
+def _from_other_run(line, run_id):
+    """True when a RESULT line names a run other than [run_id], or none. A line that is not JSON cannot say, so it is
+    kept and mark_expected reports it."""
+    try:
+        return _parse_result(line).get("run_id") != run_id
+    except ValueError:
+        return False
+
+
 def collect(lines, run_id):
     """Reads SBPLAY messages (META, RESULT, ERROR) up to and including this run's DONE.
 
@@ -194,6 +247,8 @@ def collect(lines, run_id):
         if line.startswith("META ") and meta is None:
             meta = line
         elif line.startswith("RESULT "):
+            if _from_other_run(line, run_id):
+                continue
             results.append(line)
         elif line.startswith("ERROR"):
             errors.append(line)
@@ -323,7 +378,9 @@ def command_run(args):
         print(f"run {number}: {len(batch)} items, waiting up to {timeout_seconds(len(batch))} s")
         got = _run_batch(args.serial, batch, args.section, run_id, override)
         meta = meta or got.meta
-        results.extend(got.results)
+        marked, marking = mark_expected(batch, got.results, run_id, args.section)
+        results.extend(marked)
+        problems.extend(f"run {number}: {text}" for text in marking)
         message = shortfall_message(got.done, len(got.results), len(batch), got.errors)
         if message:
             problems.append(f"run {number}: {message}")
