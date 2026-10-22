@@ -83,6 +83,12 @@ data class PlaybackResult(
         private const val NONE = "—"
 
         /**
+         * The section that plays the owner's files from a random start. A text subtitle may have no cue in its 15 s
+         * window there (a dialogue gap): subtitleOk reports it and the row is not failed for it.
+         */
+        const val REAL_SECTION = "real"
+
+        /**
          * [expected] is the oracle's route, null when there is none for this item (a track override). It is compared
          * with the route abandoned by a fallback, if there was one: a direct play whose seek missed falls back to a
          * transcode by design (ADR-0016, 4), which the Fallback column reports and is not a failure by itself. A
@@ -109,7 +115,8 @@ data class PlaybackResult(
             val positionError = played?.positionError
             val loadFailed = fallback?.cause is FallbackCause.LoadFailed
             val passes =
-                played != null && positionError == null && !loadFailed && routeOk && audioOk && subtitleOk != false
+                played != null && positionError == null && !loadFailed && routeOk && audioOk &&
+                    !subtitleFails(section, chosen, subtitleOk)
             return PlaybackResult(
                 section = section,
                 container = resolved?.media?.container ?: NONE,
@@ -213,3 +220,10 @@ data class PlaybackResult(
             }
     }
 }
+
+/** Ruling R30: in the real section a text subtitle with no cue is reported (subtitleOk stays false), not graded. */
+private fun subtitleFails(
+    section: String,
+    chosen: MediaStreamInfo?,
+    subtitleOk: Boolean?,
+): Boolean = subtitleOk == false && !(section == PlaybackResult.REAL_SECTION && chosen != null && !isImage(chosen))

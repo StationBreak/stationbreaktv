@@ -65,6 +65,11 @@ COLUMNS = (
 START_SHOWN_SECTIONS = frozenset({"synthetic"})
 START_FIELD = "requestedMs"
 
+# Real items start at a random point, so a text subtitle can have no line in the 15 s window. The benchmark reports it
+# without failing the row (ruling R30), and the cell says so rather than "no".
+REAL_SECTION = "real"
+SUBTITLE_FIELD = "subtitleOk"
+
 # Only generated clips have a known, fixed seek behaviour, so only this section is held to it: a seek-miss fallback
 # there passes only for a clip the run marked as expected to miss (an MKV without Cues). Anywhere else it passes
 # and is counted.
@@ -87,7 +92,8 @@ without a Cues index. Fallback "load-failed" means the first attempt did not loa
 and always fails the row. A difference between Expected and Route with Fallback "no" is a finding. Start (synthetic
 section only) is where playback was asked to begin. Position error is how far the first frame was from that point
 (empty when it landed within tolerance). Audio heard means the media clock advanced during a 15 s watch; Subtitle
-shown means text cues arrived or the server burned the subtitle in. A dash means the column does not apply or nothing
+shown means text cues arrived or the server burned the subtitle in; real items start at a random point, so a text
+subtitle with no line in the 15 s window is reported ("no cue seen") but not graded. A dash means the column does not apply or nothing
 was reported.
 
 Rows for audio the device cannot play (Expected: direct stream) assume an account with default audio-track playback
@@ -226,6 +232,8 @@ def render(files):
         out.append("|" + "|".join(" --- " for _ in columns) + "|")
         for row in rows:
             cells = [_result_cell(row.get(f)) if f == "pass" else _cell(row.get(f)) for _, f in columns]
+            if section == REAL_SECTION and row.get(SUBTITLE_FIELD) is False and str(row.get("subtitle")).startswith("text"):
+                cells[[f for _, f in columns].index(SUBTITLE_FIELD)] = "no cue seen"
             out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out) + "\n"
 

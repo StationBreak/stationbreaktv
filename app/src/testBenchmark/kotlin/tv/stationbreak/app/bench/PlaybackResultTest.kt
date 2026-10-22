@@ -22,12 +22,13 @@ class PlaybackResultTest {
         expected: Route? = Route.DIRECT_PLAY,
         watch: Watch = Watch(stalls = 0, cues = 0, audioAdvancedMs = 12_000),
         subtitle: MediaStreamInfo? = null,
+        section: String = "video",
         positionError: Duration? = null,
         outcome: TuneResult? = null,
     ): PlaybackResult {
         val resolved = BenchTestData.resolved(route, subtitle)
         val played = outcome ?: TuneResult.Played(resolved, 300, 400, positionError, null)
-        return PlaybackResult.from("video", played, watch, expected, 30_000)
+        return PlaybackResult.from(section, played, watch, expected, 30_000)
     }
 
     @Test
@@ -94,6 +95,28 @@ class PlaybackResultTest {
         assertTrue(r.burnIn)
         assertEquals(true, r.subtitleOk)
         assertEquals(false, result(subtitle = BenchTestData.textSubtitle(), watch = Watch(0, 0, 12_000)).subtitleOk)
+    }
+
+    // Ruling R30: the real section starts at a random point, so a text subtitle may have no cue in the window.
+    @Test
+    fun aRealTextSubtitleWithNoCueIsReportedButDoesNotFailTheRow() {
+        val silent = Watch(0, 0, 12_000)
+        val text = BenchTestData.textSubtitle()
+        val real = result(subtitle = text, watch = silent, section = PlaybackResult.REAL_SECTION)
+        assertEquals(false, real.subtitleOk)
+        assertTrue(real.toJsonLine().contains("\"subtitleOk\":false"))
+        assertTrue(real.pass)
+        val synthetic = result(subtitle = text, watch = silent, section = "synthetic")
+        assertEquals(false, synthetic.subtitleOk)
+        assertFalse(synthetic.pass)
+    }
+
+    @Test
+    fun aRealImageSubtitleThatWasNotBurnedInStillFails() {
+        val notBurned = BenchTestData.subtitleOf("pgssub", SubtitleDelivery.IN_STREAM)
+        val r = result(subtitle = notBurned, watch = Watch(0, 5, 12_000), section = PlaybackResult.REAL_SECTION)
+        assertEquals(false, r.subtitleOk)
+        assertFalse(r.pass)
     }
 
     @Test
