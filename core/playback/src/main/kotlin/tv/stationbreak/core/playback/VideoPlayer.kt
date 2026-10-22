@@ -34,6 +34,10 @@ sealed interface PlayerEvent {
         override val generation: Long,
     ) : PlayerEvent
 
+    /**
+     * A sample of the audio clock. One when audio first advances, and one more at stop if it did. The playing position
+     * follows the audio clock, so the two samples bracket how far the audio ran.
+     */
     data class AudioAdvanced(
         val position: Duration,
         override val generation: Long,
