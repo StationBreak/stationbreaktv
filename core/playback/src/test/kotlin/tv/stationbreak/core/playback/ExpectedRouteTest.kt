@@ -45,13 +45,18 @@ class ExpectedRouteTest {
     }
 
     @Test
-    fun dtsWithoutPassthroughTranscodes() {
-        assertEquals(Route.TRANSCODE, route(video(), audio(1, Codecs.DTS, 6)))
+    fun dtsWithoutPassthroughDirectStreams() {
+        assertEquals(Route.DIRECT_STREAM, route(video(), audio(1, Codecs.DTS, 6)))
     }
 
     @Test
-    fun tooManyDecodedChannelsTranscodes() {
-        assertEquals(Route.TRANSCODE, route(video(), audio(1, Codecs.AC3, 6)))
+    fun tooManyDecodedChannelsDirectStreams() {
+        assertEquals(Route.DIRECT_STREAM, route(video(), audio(1, Codecs.AC3, 6)))
+    }
+
+    @Test
+    fun videoThatDoesNotFitTranscodesWhateverTheAudio() {
+        assertEquals(Route.TRANSCODE, route(video(level = 51), audio(1, Codecs.DTS, 6)))
     }
 
     @Test

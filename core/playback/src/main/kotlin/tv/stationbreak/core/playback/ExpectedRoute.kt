@@ -33,7 +33,9 @@ internal fun audioPlays(
  * It is an independent oracle, not a copy of the resolver, so its subtitle rule is deliberately by file: an image
  * codec means a transcode, whatever delivery the server picked. It predicts for the default tracks only; a track
  * override is the resolver's business. Video levels compare as sent, in the probe's unit (level_idc: h264 41 = 4.1,
- * hevc 153 = 5.1).
+ * hevc 153 = 5.1). Video that fits with audio the device can't play is a direct stream: the server copies the video and
+ * converts only the audio (ADR-0016, the contract suite's `h264-dts`). A subtitle the device can't draw or video that
+ * doesn't fit is a transcode.
  */
 object ExpectedRoute {
     fun of(
@@ -46,7 +48,7 @@ object ExpectedRoute {
         return when {
             subtitle != null && Codecs.isImageSubtitle(subtitle.codec) -> Route.TRANSCODE
             video != null && !videoFits(capabilities, video) -> Route.TRANSCODE
-            !audioPlays(capabilities, audio) -> Route.TRANSCODE
+            !audioPlays(capabilities, audio) -> Route.DIRECT_STREAM
             Codecs.normalize(source.container) !in capabilities.containers -> Route.DIRECT_STREAM
             else -> Route.DIRECT_PLAY
         }
