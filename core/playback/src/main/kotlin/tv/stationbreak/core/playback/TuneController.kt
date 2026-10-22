@@ -28,6 +28,24 @@ import kotlin.time.Duration.Companion.seconds
 /** Why a tune failed. An expired session is not one of these: see [TuneResult.SessionExpired]. */
 enum class TuneFailure { TIMEOUT, SERVER, PLAYER }
 
+/** Why the first attempt was abandoned for a forced transcode. */
+sealed interface FallbackCause {
+    /** The first attempt played but landed too far from the requested start (ADR-0016, 4). */
+    data object SeekMiss : FallbackCause
+
+    /** The first attempt did not load or play. [diagnostic] is a stable name, as in [TuneResult.Failed.diagnostic]. */
+    data class LoadFailed(
+        val reason: TuneFailure,
+        val diagnostic: String?,
+    ) : FallbackCause
+}
+
+/** The first attempt, on route [from], was abandoned for [cause]; what followed was always a forced transcode. */
+data class Fallback(
+    val from: Route,
+    val cause: FallbackCause,
+)
+
 /**
  * What one tune did. The app branches on the case, never on a string. The times run from the start of the call to
  * the player's events, fallback included.
@@ -36,16 +54,14 @@ sealed interface TuneResult {
     /**
      * Playing. [resolved] is the last route tried. [positionError] is how far from the requested start the last
      * attempt landed; it is set only when that attempt missed too (the retry after the fallback also missed).
-     * [fallback] is true when the first attempt was abandoned for a forced transcode. [firstRoute] is the route the
-     * resolver chose first, before any fallback (the same as the last route when there was none).
+     * [fallback] is null when the first attempt played; otherwise it says which route was abandoned and why.
      */
     data class Played(
         val resolved: ResolvedPlayback,
         val firstFrameMs: Long?,
         val playingMs: Long,
         val positionError: Duration?,
-        val fallback: Boolean,
-        val firstRoute: Route = resolved.route,
+        val fallback: Fallback?,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -62,13 +78,14 @@ sealed interface TuneResult {
     /**
      * Nothing is playing. [resolved] is the last route tried, null when nothing could be resolved. [diagnostic] is a
      * stable name (a Media3 error code name, a server error name, or "Unexpected"), never a message, class name or
-     * URL: those may hold a token. It is for logs and the playback matrix, not for the app to branch on.
+     * URL: those may hold a token. It is for logs and the playback matrix, not for the app to branch on. [fallback] is
+     * null when no second attempt was made.
      */
     data class Failed(
         val reason: TuneFailure,
         val diagnostic: String?,
         val resolved: ResolvedPlayback?,
-        val fallback: Boolean,
+        val fallback: Fallback?,
     ) : TuneResult
 }
 
@@ -134,11 +151,10 @@ class TuneController(
         // the new play replaces the item.
         withContext(NonCancellable) { abandonEncode(session) }
         val began = clock()
-        var fallback = false
+        var fallback: Fallback? = null
         var attempt = attempt(session, item, start, override, false, began)
-        val firstRoute = attempt.resolved?.route
-        while (!fallback && attempt.canFallBack) {
-            fallback = true
+        while (fallback == null && attempt.canFallBack) {
+            fallback = Fallback(checkNotNull(attempt.resolved).route, attempt.fallbackCause())
             // Not cancellable: a stop or supersede here must not lose the first attempt's encode.
             withContext(NonCancellable) { abandonEncode(session) }
             val next = attempt(session, item, start, override, true, began)
@@ -155,7 +171,6 @@ class TuneController(
                     attempt.playingMs,
                     attempt.positionError,
                     fallback,
-                    firstRoute ?: attempt.resolved.route,
                 )
             }
 
@@ -198,6 +213,9 @@ class TuneController(
     private sealed interface Attempt {
         val resolved: ResolvedPlayback?
         val canFallBack: Boolean
+
+        /** Why this attempt is being abandoned for a transcode. */
+        fun fallbackCause(): FallbackCause
     }
 
     /** The player reached Playing. [positionError] is set when it landed off the requested start. */
@@ -207,7 +225,9 @@ class TuneController(
         val playingMs: Long,
         val positionError: Duration?,
         override val canFallBack: Boolean,
-    ) : Attempt
+    ) : Attempt {
+        override fun fallbackCause() = FallbackCause.SeekMiss
+    }
 
     /** Nothing played. [expired] means the server refused the session. */
     private data class Broke(
@@ -216,7 +236,9 @@ class TuneController(
         val diagnostic: String?,
         val expired: Boolean = false,
         override val canFallBack: Boolean = false,
-    ) : Attempt
+    ) : Attempt {
+        override fun fallbackCause() = FallbackCause.LoadFailed(reason, diagnostic)
+    }
 
     private class Resolution(
         val resolved: ResolvedPlayback?,

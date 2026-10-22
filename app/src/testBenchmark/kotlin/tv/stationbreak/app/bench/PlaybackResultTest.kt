@@ -24,11 +24,9 @@ class PlaybackResultTest {
         subtitle: MediaStreamInfo? = null,
         positionError: Duration? = null,
         outcome: TuneResult? = null,
-        firstRoute: Route = route,
     ): PlaybackResult {
         val resolved = BenchTestData.resolved(route, subtitle)
-        val played =
-            outcome ?: TuneResult.Played(resolved, 300, 400, positionError, firstRoute != route, firstRoute)
+        val played = outcome ?: TuneResult.Played(resolved, 300, 400, positionError, null)
         return PlaybackResult.from("video", played, watch, expected, 30_000)
     }
 
@@ -52,32 +50,6 @@ class PlaybackResultTest {
         // Silent audio or a missed seek still fails.
         assertFalse(result(watch = Watch(0, 0, 2_000)).pass)
         assertFalse(result(positionError = 5.seconds).pass)
-    }
-
-    // ADR-0016, 4: a direct play whose seek missed is replaced by a transcode on purpose. The route check looks at the
-    // route chosen first; the fallback is its own column.
-    @Test
-    fun aFallbackFromTheExpectedRouteIsNotAFailure() {
-        val r = result(route = Route.TRANSCODE, firstRoute = Route.DIRECT_PLAY, expected = Route.DIRECT_PLAY)
-        assertTrue(r.pass)
-        assertTrue(r.fallback)
-        assertEquals("transcode", r.route)
-        assertEquals("direct-play", r.expectedRoute)
-        assertTrue(r.toJsonLine().contains("\"fallback\":true"))
-    }
-
-    @Test
-    fun aFirstRouteThatIsNotTheExpectedOneFailsEvenIfTheFinalOneIs() {
-        // The resolver chose a transcode first where the oracle said direct play: a finding, whatever played last.
-        assertFalse(result(route = Route.TRANSCODE, firstRoute = Route.TRANSCODE, expected = Route.DIRECT_PLAY).pass)
-        val streamed = result(route = Route.DIRECT_PLAY, firstRoute = Route.DIRECT_STREAM, expected = Route.DIRECT_PLAY)
-        assertFalse(streamed.pass)
-    }
-
-    @Test
-    fun aFallbackThatMissedItsSeekStillFails() {
-        val r = result(Route.TRANSCODE, Route.DIRECT_PLAY, positionError = 5.seconds, firstRoute = Route.DIRECT_PLAY)
-        assertFalse(r.pass)
     }
 
     @Test
@@ -119,7 +91,7 @@ class PlaybackResultTest {
 
     @Test
     fun aFailureHasAStableErrorAndNeverPasses() {
-        val failed = TuneResult.Failed(TuneFailure.PLAYER, "ERROR_CODE_DECODING_FAILED", null, false)
+        val failed = TuneResult.Failed(TuneFailure.PLAYER, "ERROR_CODE_DECODING_FAILED", null, null)
         val r = result(outcome = failed)
         assertFalse(r.pass)
         assertEquals("failed:player:ERROR_CODE_DECODING_FAILED", r.error)

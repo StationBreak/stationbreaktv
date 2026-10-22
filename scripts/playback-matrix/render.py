@@ -60,8 +60,15 @@ COLUMNS = (
     ("Error", "error"),
 )
 
-# A start point can hint at the runtime of an item, so the real section, which plays the owner's own files, omits it.
-HIDDEN_COLUMNS = {"real": ("requestedMs",)}
+# A start point can hint at the runtime of an item, so only the sections listed here, which play generated clips,
+# show it. Fail closed: any other section name, however spelled, plays someone's own files and hides it.
+START_SHOWN_SECTIONS = frozenset({"synthetic"})
+START_FIELD = "requestedMs"
+
+# Only generated clips have a known, fixed seek behaviour, so only this section is held to it: a seek-miss fallback
+# there passes only for a clip the run marked as expected to miss (an MKV without Cues). Anywhere else it passes
+# and is counted.
+STRICT_FALLBACK_SECTIONS = frozenset({"synthetic"})
 
 INTRO = """\
 # Playback matrix
@@ -73,12 +80,18 @@ test clips made for this purpose; the real section plays a few files from the ow
 their format.
 
 How to read it: Expected is the route the player's own device model predicts and the server's first answer should
-match; Route is the route that finally played. They differ when Fallback is yes: a direct play or direct stream whose
-seek missed, or that failed to load, is replaced once by a transcode, which is by design and not a failure. A
-difference with Fallback no is a finding. Start (synthetic section only) is where playback was asked to begin. Position error is how far the first frame was
-from that point (empty when it landed within tolerance). Audio heard means the media clock advanced during a 15 s
-watch; Subtitle shown means text cues arrived or the server burned the subtitle in. A dash means the column does not
-apply or nothing was reported.
+match; Route is the route that finally played. They differ when Fallback is not "no". Fallback "seek-miss" means a
+direct play or direct stream landed away from the requested start and was replaced once by a transcode, which is by
+design (ADR-0016) and passes; in the synthetic section it passes only for the one clip expected to do so, an MKV
+without a Cues index. Fallback "load-failed" means the first attempt did not load or play (the Error column says why)
+and always fails the row. A difference between Expected and Route with Fallback "no" is a finding. Start (synthetic
+section only) is where playback was asked to begin. Position error is how far the first frame was from that point
+(empty when it landed within tolerance). Audio heard means the media clock advanced during a 15 s watch; Subtitle
+shown means text cues arrived or the server burned the subtitle in. A dash means the column does not apply or nothing
+was reported.
+
+Rows for audio the device cannot play (Expected: direct stream) assume an account with default audio-track playback
+turned on: the server offers a direct stream for such audio only then. The device runs use such an account.
 
 Timings (first frame, playing) are measured on a non-debuggable build, on the device as it is, and are not graded: a
 slow device is slow, and the number is there to be read, not to pass or fail. Only the Result column grades a row.
@@ -138,6 +151,23 @@ def _cell(value):
     return str(value)
 
 
+def _graded(section, row):
+    """A copy of [row] with the checks the renderer adds: a load-failed fallback fails the row, and so does an
+    unexpected seek-miss fallback in a strict section. The key that marks an expected one is not shown."""
+    row = dict(row)
+    expected = row.pop("seekMissExpected", None) is True
+    fallback = row.get("fallback")
+    reason = None
+    if fallback == "load-failed":
+        reason = "fallback-load-failed"
+    elif fallback == "seek-miss" and section in STRICT_FALLBACK_SECTIONS and not expected:
+        reason = "unexpected-fallback"
+    if reason and row.get("pass") is True:
+        row["pass"] = False
+        row["error"] = row.get("error") or reason
+    return row
+
+
 def _result_cell(value):
     return "pass" if value is True else "FAIL"
 
@@ -179,12 +209,14 @@ def render(files):
     for key in sorted(groups, key=order):
         section, device = key
         entry = groups[key]
-        rows = entry["rows"]
-        passed = sum(1 for row in rows if row.get("pass") is True)
+        rows = [_graded(section, row) for row in entry["rows"]]
+        passing = [row for row in rows if row.get("pass") is True]
+        via_fallback = sum(1 for row in passing if row.get("fallback") not in (None, False, "no"))
         out.append(f"\n## {section}: {device}\n")
         out.extend(_stamp(entry["meta"]))
-        out.append(f"- Passed: {passed} of {len(rows)}\n")
-        columns = [(name, f) for name, f in COLUMNS if f not in HIDDEN_COLUMNS.get(section, ())]
+        out.append(f"- Passed {len(passing)} of {len(rows)} ({via_fallback} via fallback)\n")
+        shown = section in START_SHOWN_SECTIONS
+        columns = [(name, f) for name, f in COLUMNS if shown or f != START_FIELD]
         out.append("| " + " | ".join(name for name, _ in columns) + " |")
         out.append("|" + "|".join(" --- " for _ in columns) + "|")
         for row in rows:

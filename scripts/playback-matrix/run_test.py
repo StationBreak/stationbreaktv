@@ -50,6 +50,31 @@ class PlanTest(unittest.TestCase):
             starts = [p["startMs"] for p in run.make_plan(items, seed=seed)["synthetic"]]
             self.assertEqual(starts, [30_000, 30_000, 30_000])
 
+    def test_onlyTheNamedSyntheticClipIsExpectedToMissItsSeek(self):
+        items = {
+            "synthetic": [
+                {"id": HEX, "name": "h264-aac-cues"},
+                {"id": HEX, "name": "h264-aac-nocues"},
+                {"id": HEX},
+            ],
+            "real": [real(600_000, name="h264-aac-nocues")],
+        }
+        plan = run.make_plan(items, seed=1)
+        self.assertEqual([p["seekMissExpected"] for p in plan["synthetic"]], [False, True, False])
+        self.assertEqual([p["seekMissExpected"] for p in plan["real"]], [False])
+
+    def test_resultsAreMarkedFromThePlanInOrder(self):
+        batch = [{"seekMissExpected": False}, {"seekMissExpected": True}]
+        lines = ['RESULT {"fallback":"no"}', 'RESULT {"fallback":"seek-miss"}']
+        marked = [json.loads(line[len("RESULT "):]) for line in run.mark_expected(batch, lines)]
+        self.assertEqual([m["seekMissExpected"] for m in marked], [False, True])
+        self.assertEqual(marked[1]["fallback"], "seek-miss")
+
+    def test_aShortBatchIsLeftUnmarked(self):
+        batch = [{"seekMissExpected": True}, {"seekMissExpected": True}]
+        lines = ['RESULT {"fallback":"seek-miss"}']
+        self.assertEqual(run.mark_expected(batch, lines), lines)
+
     def test_trackChoicesAreCarriedAndNothingElse(self):
         items = {"real": [real(600_000, audio=1, subtitle=-1)], "synthetic": []}
         entry = run.make_plan(items, seed=1)["real"][0]

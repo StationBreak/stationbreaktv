@@ -7,7 +7,7 @@ PlaybackTestActivity, over adb. Standard library only; run it as `python3 -I scr
   run.py run -s SERIAL --plan plan.json --section real|synthetic [--results-dir DIR]
 
 items.local.json holds item IDs, so it, the plan and the raw results stay on this laptop (see .gitignore). Its shape:
-  {"synthetic": [{"id": "...", "runtimeMs": 60000}], "real": [{"id": "...", "runtimeMs": 5400000, "audio": 1,
+  {"synthetic": [{"id": "...", "name": "h264-aac-nocues", "runtimeMs": 60000}], "real": [{"id": "...", "runtimeMs": 5400000, "audio": 1,
    "subtitle": -1}]}
 "audio" and "subtitle" are optional track indexes; an item with either one is played with the track override on
 (an unset one then means: audio, the server's choice; subtitle, off).
@@ -39,6 +39,9 @@ SECTIONS = ("synthetic", "real")
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ITEMS = os.path.join(HERE, "items.local.json")
 DEFAULT_PLAN = os.path.join(HERE, "plan.json")
+# Synthetic clips that are expected to miss their seek and fall back to a transcode, by the "name" temp-server.sh
+# writes beside each ID: Matroska muxed to a pipe has no Cues index to seek by. Any other clip that falls back fails.
+SEEK_MISS_CLIPS = frozenset({"h264-aac-nocues"})
 SYNTHETIC_START_MS = 30_000  # ruling R9: the same for every synthetic clip, whatever its runtime
 MIN_RANDOM_RUNTIME_MS = 120_000
 TAIL_MS = 30_000
@@ -96,9 +99,26 @@ def make_plan(items, seed):
                 start = 0
             else:
                 start = rng.randint(math.ceil(runtime * 0.10), runtime - TAIL_MS)
-            planned.append({"item": item, "startMs": start, "audio": audio, "subtitle": subtitle})
+            expect_miss = section == "synthetic" and entry.get("name") in SEEK_MISS_CLIPS
+            planned.append(
+                {"item": item, "startMs": start, "audio": audio, "subtitle": subtitle, "seekMissExpected": expect_miss}
+            )
         plan[section] = planned
     return plan
+
+
+def mark_expected(batch, lines):
+    """The RESULT [lines] of one batch with "seekMissExpected" added from the plan, in order. The lines are matched to
+    the plan by position, so a batch that came back short is left as it is: render.py then treats every seek-miss
+    fallback in it as unexpected, which fails closed."""
+    if len(lines) != len(batch):
+        return list(lines)
+    marked = []
+    for entry, line in zip(batch, lines):
+        value = json.loads(line[len("RESULT "):])
+        value["seekMissExpected"] = entry.get("seekMissExpected") is True
+        marked.append("RESULT " + json.dumps(value))
+    return marked
 
 
 def _overridden(entry):
@@ -323,7 +343,7 @@ def command_run(args):
         print(f"run {number}: {len(batch)} items, waiting up to {timeout_seconds(len(batch))} s")
         got = _run_batch(args.serial, batch, args.section, run_id, override)
         meta = meta or got.meta
-        results.extend(got.results)
+        results.extend(mark_expected(batch, got.results))
         message = shortfall_message(got.done, len(got.results), len(batch), got.errors)
         if message:
             problems.append(f"run {number}: {message}")

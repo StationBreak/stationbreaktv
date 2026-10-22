@@ -35,7 +35,7 @@ def result(**over):
         "expectedRoute": "direct-play",
         "transcodeReasons": "—",
         "burnIn": False,
-        "fallback": False,
+        "fallback": "no",
         "requestedMs": 30000,
         "positionErrorMs": 120,
         "firstFrameMs": 900,
@@ -68,6 +68,54 @@ class RenderTest(unittest.TestCase):
         # The table stays rectangular: header, rule and rows all drop the column together.
         counts = {line.count("|") for line in real.splitlines() if line.startswith("|")}
         self.assertEqual(len(counts), 1)
+
+    def test_everySectionButTheAllowlistedHidesTheStartColumn(self):
+        for name in ("Real", "owner", "real", "unnamed", "synthetic2", ""):
+            text = render.render([[meta(), result(section=name, requestedMs=1234567)]])
+            self.assertNotIn("Start (ms)", text, msg=repr(name))
+            self.assertNotIn("1234567", text, msg=repr(name))
+
+    def _section(self, text, name):
+        return next(part for part in text.split("\n## ") if part.startswith(name))
+
+    def test_theSummaryCountsPassesViaFallback(self):
+        rows = [
+            result(),
+            result(fallback="seek-miss", seekMissExpected=True),
+            result(section="real", fallback="seek-miss"),
+        ]
+        text = render.render([[meta(), *rows]])
+        self.assertIn("- Passed 2 of 2 (1 via fallback)", self._section(text, "synthetic"))
+        self.assertIn("- Passed 1 of 1 (1 via fallback)", self._section(text, "real"))
+
+    def test_anUnexpectedSeekMissFallbackOnASyntheticClipFails(self):
+        for marked in ({}, {"seekMissExpected": False}):
+            text = render.render([[meta(), result(fallback="seek-miss", **marked)]])
+            section = self._section(text, "synthetic")
+            self.assertIn("- Passed 0 of 1 (0 via fallback)", section)
+            self.assertIn("FAIL", section)
+            self.assertIn("unexpected-fallback", section)
+
+    def test_anExpectedSeekMissFallbackOnASyntheticClipPasses(self):
+        text = render.render([[meta(), result(fallback="seek-miss", seekMissExpected=True)]])
+        section = self._section(text, "synthetic")
+        self.assertIn("| pass |", section)
+        self.assertNotIn("seekMissExpected", text)
+
+    def test_aSeekMissFallbackInTheRealSectionPasses(self):
+        text = render.render([[meta(), result(section="real", fallback="seek-miss")]])
+        self.assertIn("| pass |", self._section(text, "real"))
+
+    def test_aLoadFailedFallbackFailsInEverySection(self):
+        for name in ("synthetic", "real"):
+            row = result(section=name, fallback="load-failed", error="fallback:load:ERROR_CODE_DECODER_INIT_FAILED")
+            section = self._section(render.render([[meta(), row]]), name)
+            self.assertIn("- Passed 0 of 1", section)
+            self.assertIn("ERROR_CODE_DECODER_INIT_FAILED", section)
+
+    def test_theIntroNamesTheAccountSetting(self):
+        text = render.render([[meta(), result()]])
+        self.assertIn("default audio-track playback", text)
 
     def test_aRunIsStampedFromMeta(self):
         text = render.render([[meta(), result()]])
