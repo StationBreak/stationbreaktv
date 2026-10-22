@@ -42,6 +42,13 @@ class PlaybackResultTest {
     }
 
     @Test
+    fun theLineNamesItsRunAndItsOrdinalInTheBatch() {
+        val line = result().toJsonLine("r1", 3)
+        assertTrue(line, line.startsWith("{\"run_id\":\"r1\",\"n\":3,"))
+        assertFalse(result().toJsonLine().contains("run_id"))
+    }
+
+    @Test
     fun passNeedsTheExpectedRoute() {
         assertTrue(result(route = Route.DIRECT_PLAY, expected = Route.DIRECT_PLAY).pass)
         assertFalse(result(route = Route.TRANSCODE, expected = Route.DIRECT_PLAY).pass)

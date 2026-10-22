@@ -46,8 +46,16 @@ data class PlaybackResult(
     val pass: Boolean,
     val error: String?,
 ) {
-    fun toJsonLine(): String =
-        jsonObject(
+    /** The RESULT line. [runId] and [ordinal] (the item's index in its batch) let the driver pair it with its plan. */
+    fun toJsonLine(
+        runId: String,
+        ordinal: Int,
+    ): String = jsonObject(listOf<Pair<String, Any?>>("run_id" to runId, "n" to ordinal) + fields())
+
+    fun toJsonLine(): String = jsonObject(fields())
+
+    private fun fields(): List<Pair<String, Any?>> =
+        listOf(
             "section" to section,
             "container" to container,
             "video" to video,

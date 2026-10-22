@@ -136,7 +136,7 @@ class PlaybackTestActivity : ComponentActivity() {
         }
         val clock = SystemClock::elapsedRealtime
         val run = PlaybackRun(TuneController(resolver, server, player, clock = clock), player)
-        for (play in args.plays) {
+        for ((ordinal, play) in args.plays.withIndex()) {
             val result =
                 run.run(session, args.section, play) { resolved ->
                     // The oracle predicts the default audio only; a chosen audio track is the resolver's business.
@@ -146,7 +146,7 @@ class PlaybackTestActivity : ComponentActivity() {
                         null
                     }
                 }
-            emit("RESULT " + result.toJsonLine())
+            emit("RESULT " + result.toJsonLine(args.runId, ordinal))
             if (result.error == "session-expired") {
                 sessions.onServerError(MediaServerError.SessionExpired())
             }
