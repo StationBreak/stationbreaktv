@@ -303,7 +303,7 @@ class TuneController(
         began: Long,
         forced: Boolean,
     ): Attempt {
-        val actual = resolved.source.serverOffset + landing.playing.position
+        val actual = landing.playing.position
         val verdict = SeekCheck.check(resolved.requested, actual, seekTolerance)
         val missed = verdict as? SeekVerdict.Missed
         return Landed(

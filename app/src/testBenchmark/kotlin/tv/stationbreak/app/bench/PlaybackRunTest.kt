@@ -74,7 +74,6 @@ private class NoUrls : StreamUrls {
         audioIndex: Int?,
         burnIn: Int?,
         limits: DeviceCapabilities,
-        start: Duration,
         forceTranscode: Boolean,
     ) = "https://media.example.com/hls"
 

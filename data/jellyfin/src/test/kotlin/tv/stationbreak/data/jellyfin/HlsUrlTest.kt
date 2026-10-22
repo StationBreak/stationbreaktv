@@ -44,15 +44,14 @@ class HlsUrlTest {
         limits: DeviceCapabilities = insigniaCapabilities(),
         audioIndex: Int? = null,
         burnIn: Int? = null,
-        start: Duration = Duration.ZERO,
         forceTranscode: Boolean = false,
         source: MediaSource = source(),
         subpath: String = "",
-    ) = streams(subpath).hls(source, audioIndex, burnIn, limits, start, forceTranscode).toHttpUrl()
+    ) = streams(subpath).hls(source, audioIndex, burnIn, limits, forceTranscode).toHttpUrl()
 
     @Test
     fun theUrlCarriesTheDeviceLimits() {
-        val url = hls(insigniaCapabilities(setOf("ac3"), 6), start = 90.seconds, audioIndex = 3)
+        val url = hls(insigniaCapabilities(setOf("ac3"), 6), audioIndex = 3)
 
         assertEquals("/Videos/i1/master.m3u8", url.encodedPath)
         val expected =
@@ -76,7 +75,6 @@ class HlsUrlTest {
                 "AudioBitrate" to "192000",
                 "SegmentContainer" to "ts",
                 "BreakOnNonKeyFrames" to "True",
-                "StartTimeTicks" to "900000000",
                 "AllowVideoStreamCopy" to "true",
                 "AllowAudioStreamCopy" to "true",
                 "AudioStreamIndex" to "3",
@@ -126,7 +124,7 @@ class HlsUrlTest {
             val dotted = MediaSource(MediaSourceId(id), null, null, null, true, true)
             assertFailsWith<IllegalArgumentException> { urls.original(dotted.id) }
             assertFailsWith<IllegalArgumentException> {
-                urls.hls(dotted, null, null, insigniaCapabilities(), Duration.ZERO, false)
+                urls.hls(dotted, null, null, insigniaCapabilities(), false)
             }
         }
     }

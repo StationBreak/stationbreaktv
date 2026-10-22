@@ -63,8 +63,8 @@ valid tunes. A tuned `LoadControl` (start buffer 750 ms) didn't consistently hel
 ### Findings the real app must handle
 
 1. **MKV without Cues can't be seeked, and fails silently.** ExoPlayer plays from the start and reports no
-   error. The player must compare the requested position with the actual one and fall back (transcode
-   with `StartTimeTicks`) when they differ (S1.3.1).
+   error. The player must compare the requested position with the actual one and fall back (transcode,
+   started by player seek; `StartTimeTicks` on the HLS URL is rejected by Jellyfin 12.2, ADR-0016) when they differ (S1.3.1).
 2. **MPEG-4 Part 2 video (seen in AVI) fails to decode** on the device. The capability probe must route it
    to a transcode (S1.6.1).
 3. **The device profile must declare subtitle formats,** both embedded and external, even with subtitles

@@ -38,15 +38,14 @@ data class SeparateSubtitle(
 
 /**
  * What the player is handed. [url] is a secret as far as logs go (ADR-0016): [toString] does not show it.
- * [serverOffset] is where the server starts the stream (HLS StartTimeTicks); [playerStart] is where the player seeks
- * within it. [directPlayTracks] is true when the player's own track selection applies (direct play only); then
- * [audioPick] and [subtitlePick] name the tracks to pick. A null [subtitlePick] with no [subtitles] means no subtitle.
+ * [playerStart] is where the player seeks, for HLS as for direct play. [directPlayTracks] is true when the player's
+ * own track selection applies (direct play only); then [audioPick] and [subtitlePick] name the tracks to pick.
+ * A null [subtitlePick] with no [subtitles] means no subtitle.
  */
 @Suppress("LongParameterList") // One independent fact each; the player reads them all.
 data class PlayerSource(
     val url: String,
     val isHls: Boolean,
-    val serverOffset: Duration,
     val playerStart: Duration,
     val subtitles: List<SeparateSubtitle>,
     val audioIndex: Int?,

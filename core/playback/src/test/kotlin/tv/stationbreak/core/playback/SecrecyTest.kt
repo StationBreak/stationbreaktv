@@ -16,7 +16,7 @@ class SecrecyTest {
     @Test
     fun aPlayerSourceDoesNotPrintItsUrl() {
         val source =
-            PlayerSource(url, true, Duration.ZERO, Duration.ZERO, emptyList(), null, null, false)
+            PlayerSource(url, true, Duration.ZERO, emptyList(), null, null, false)
         assertFalse(source.toString().contains("secret"))
         assertFalse(source.toString().contains("server.example"))
     }
@@ -35,7 +35,6 @@ class SecrecyTest {
             PlayerSource(
                 url,
                 true,
-                Duration.ZERO,
                 Duration.ZERO,
                 listOf(SeparateSubtitle(url, "eng")),
                 null,

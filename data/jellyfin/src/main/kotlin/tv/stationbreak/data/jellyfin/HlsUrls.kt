@@ -14,7 +14,6 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.StreamUrls
 import tv.stationbreak.core.model.SubtitleDelivery
-import kotlin.time.Duration
 
 /**
  * Stream URLs made from the base address, IDs and the device's own limits, and nothing else: never the server's
@@ -47,7 +46,6 @@ internal class HlsUrls(
         audioIndex: Int?,
         burnIn: Int?,
         limits: DeviceCapabilities,
-        start: Duration,
         forceTranscode: Boolean,
     ): String {
         val h264 = limits.videoCodecs.firstOrNull { it.codec == Codecs.H264 }
@@ -81,7 +79,6 @@ internal class HlsUrls(
                 param("AudioBitrate", AUDIO_RESERVE)
                 param("SegmentContainer", Codecs.TS)
                 param("BreakOnNonKeyFrames", "True")
-                param("StartTimeTicks", PlaybackTicks.of(start))
                 param("AllowVideoStreamCopy", !forceTranscode)
                 param("AllowAudioStreamCopy", true)
                 audio?.let { param("AudioStreamIndex", it) }

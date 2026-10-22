@@ -104,7 +104,6 @@ abstract class PlaybackContractSuite {
                 request.audioIndex,
                 burnIn,
                 request.capabilities,
-                request.start,
                 request.forceTranscode,
             )
     }
@@ -445,13 +444,58 @@ abstract class PlaybackContractSuite {
     }
 
     @Test
-    fun theBuiltUrlStartsAtTheOffset() {
+    fun theBuiltUrlCarriesNoStartAndTheSegmentsServe() {
         runBlocking {
-            val played = play("hevc-aac", requestFor(start = 30.seconds))
+            // The server copies the master's query into the variant and segment URLs, and refuses StartTimeTicks on a
+            // segment (400, 12.2): so the URL has none, and the player starts by seeking. Fetch what it would.
+            val played = play("h264-aac", requestFor(start = 30.seconds, forceTranscode = true))
 
-            assertEquals("300000000", played.hls().toHttpUrl().queryParameter("StartTimeTicks"))
-            assertPlaylistsServe(played)
+            assertNull(played.hls().toHttpUrl().queryParameter("StartTimeTicks"))
+            val master = fetch(played.factory, played.hls())
+            assertEquals(HTTP_OK, master.code, "the master playlist")
+            val variant = fetch(played.factory, entries(master.url, master.body).first())
+            assertEquals(HTTP_OK, variant.code, "the variant playlist")
+            assertTrue(variant.body.startsWith("#EXTM3U"), "the variant isn't a playlist")
+            val segments = entries(variant.url, variant.body)
+            val covering = segmentIndexAt(variant.body, 30.0)
+            assertTrue(covering > 0 && covering < segments.size, "no segment covers 30 s of ${segments.size}")
+            for (index in listOf(covering, 0)) {
+                val segment = fetchBytes(played.factory, segments[index])
+                assertEquals(HTTP_OK, segment.first, "segment $index")
+                assertTrue(segment.second.isNotEmpty(), "segment $index is empty")
+                assertEquals(TS_SYNC, segment.second[0], "segment $index isn't MPEG-TS")
+            }
         }
+    }
+
+    /** The index of the segment of [playlist] that covers [second], by its `#EXTINF` durations. */
+    private fun segmentIndexAt(
+        playlist: String,
+        second: Double,
+    ): Int {
+        var elapsed = 0.0
+        var index = 0
+        for (line in playlist.lines()) {
+            if (!line.startsWith("#EXTINF:")) continue
+            elapsed +=
+                line
+                    .removePrefix("#EXTINF:")
+                    .substringBefore(',')
+                    .trim()
+                    .toDouble()
+            if (elapsed > second) return index
+            index++
+        }
+        return index
+    }
+
+    /** The status and the raw body of one fetch. */
+    private fun fetchBytes(
+        factory: Call.Factory,
+        url: HttpUrl,
+    ): Pair<Int, ByteArray> {
+        val request = Request.Builder().url(url).build()
+        return factory.newCall(request).execute().use { it.code to it.body.bytes() }
     }
 
     @Test
@@ -773,6 +817,9 @@ abstract class PlaybackContractSuite {
         const val TRACKS_PER_KIND = 2
         val STREAM_OK = setOf(HTTP_OK, 206)
         const val MAX_BODY = 1_000_000L
+
+        /** The first byte of every MPEG-TS packet. */
+        const val TS_SYNC: Byte = 0x47
         const val HEX = 16
         const val LIMIT_WIDTH = 1920
         const val LIMIT_HEIGHT = 1080

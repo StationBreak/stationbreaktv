@@ -73,7 +73,7 @@ class PlaybackResolver(
         val url =
             if (hls) {
                 val burnIn = if (burnedIn) subtitleIndex else null
-                info.streams.hls(media, audioIndex, burnIn, limits, start, forceTranscode)
+                info.streams.hls(media, audioIndex, burnIn, limits, forceTranscode)
             } else {
                 info.streams.original(media.id)
             }
@@ -81,9 +81,9 @@ class PlaybackResolver(
             PlayerSource(
                 url = url,
                 isHls = hls,
-                // A StartTimeTicks stream begins at the start, so the player seeks nothing (Task 6 confirms).
-                serverOffset = if (hls) start else Duration.ZERO,
-                playerStart = if (hls) Duration.ZERO else start,
+                // HLS starts like Jellyfin's own clients: the playlist covers the whole runtime from 0 and the server
+                // rejects StartTimeTicks on segments (12.2), so the player seeks, as in direct play.
+                playerStart = start,
                 subtitles = listOfNotNull(separate),
                 audioIndex = audioIndex,
                 subtitleIndex = subtitleIndex,

@@ -217,7 +217,7 @@ class PlaybackInfoTest {
                     info.toString(),
                     source.toString(),
                     info.streams.original(source.id),
-                    info.streams.hls(source, null, null, insigniaCapabilities(), Duration.ZERO, false),
+                    info.streams.hls(source, null, null, insigniaCapabilities(), false),
                     info.streams.subtitle(source.id, source.streams.single()).orEmpty(),
                 ).joinToString("\n")
             assertFalse("secret" in everything, everything)

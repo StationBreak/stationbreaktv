@@ -108,7 +108,6 @@ class PlaybackResolverTest {
             assertEquals("https://media.example.com/original/src1", played.source.url)
             assertFalse(played.source.isHls)
             assertTrue(played.source.directPlayTracks)
-            assertEquals(Duration.ZERO, played.source.serverOffset)
             assertEquals(30.seconds, played.source.playerStart)
             assertEquals(30.seconds, played.requested)
             assertEquals(PlaySessionId("ps1"), played.playSession)
@@ -133,9 +132,7 @@ class PlaybackResolverTest {
             assertEquals(Route.DIRECT_STREAM, played.route)
             assertTrue(played.source.isHls)
             assertFalse(played.source.directPlayTracks)
-            assertEquals(30.seconds, played.source.serverOffset)
-            assertEquals(Duration.ZERO, played.source.playerStart)
-            assertEquals(30.seconds, urls.hlsCalls.single().start)
+            assertEquals(30.seconds, played.source.playerStart)
         }
 
     @Test
