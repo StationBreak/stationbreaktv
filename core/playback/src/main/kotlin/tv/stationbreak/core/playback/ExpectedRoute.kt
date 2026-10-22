@@ -8,29 +8,12 @@ import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.StreamKind
 
 /**
- * Can this device play [audio] (null: no audio track, nothing to refuse) as it is? The codec must be one it decodes or
- * passes through to the HDMI sink. The channel limit is the decoder's, so it applies to decoded audio only: a
- * passthrough codec leaves the app as it is and the sink decides (ADR-0016 is silent; this is the reading chosen).
- */
-internal fun audioPlays(
-    capabilities: DeviceCapabilities,
-    audio: MediaStreamInfo?,
-): Boolean {
-    if (audio == null) return true
-    val codec = Codecs.normalize(audio.codec)
-    return when {
-        codec == null -> false
-        codec in capabilities.audioPassthrough -> true
-        codec in capabilities.audioDecoders -> (audio.channels ?: 0) <= capabilities.maxAudioChannels
-        else -> false
-    }
-}
-
-/**
  * A test oracle and a diagnostic only. Playback always follows the server's answer. It says what the device's
  * capabilities imply for [source] with [subtitle] selected, for the audio track the source starts on.
  *
- * It is an independent oracle, not a copy of the resolver, so its subtitle rule is deliberately by file: an image
+ * It is an independent oracle, not a copy of the resolver: it shares no rule with it, and its audio rule is its own,
+ * written from the capabilities' raw sets (a table test holds the two to the same answers). Its subtitle rule is
+ * deliberately by file: an image
  * codec means a transcode, whatever delivery the server picked. It predicts for the default tracks only; a track
  * override is the resolver's business. Video levels compare as sent, in the probe's unit (level_idc: h264 41 = 4.1,
  * hevc 153 = 5.1). Video that fits with audio the device can't play is a direct stream: the server copies the video and
@@ -48,9 +31,28 @@ object ExpectedRoute {
         return when {
             subtitle != null && Codecs.isImageSubtitle(subtitle.codec) -> Route.TRANSCODE
             video != null && !videoFits(capabilities, video) -> Route.TRANSCODE
-            !audioPlays(capabilities, audio) -> Route.DIRECT_STREAM
+            !deviceTakesAudio(capabilities, audio) -> Route.DIRECT_STREAM
             Codecs.normalize(source.container) !in capabilities.containers -> Route.DIRECT_STREAM
             else -> Route.DIRECT_PLAY
+        }
+    }
+
+    /**
+     * No audio track: nothing to refuse. Otherwise the codec must be passed through to the sink (which then decides
+     * the channels) or decoded here with no more channels than the decoder takes; an unreported channel count is not
+     * held against the file. A codec the app does not know is refused.
+     */
+    private fun deviceTakesAudio(
+        capabilities: DeviceCapabilities,
+        audio: MediaStreamInfo?,
+    ): Boolean {
+        val codec = audio?.let { Codecs.normalize(it.codec) }
+        val channelsFit = audio?.channels?.let { it <= capabilities.maxAudioChannels } ?: true
+        return when {
+            audio == null -> true
+            codec == null -> false
+            capabilities.audioPassthrough.contains(codec) -> true
+            else -> capabilities.audioDecoders.contains(codec) && channelsFit
         }
     }
 

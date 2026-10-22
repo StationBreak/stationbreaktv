@@ -4,6 +4,7 @@ package tv.stationbreak.core.playback
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
@@ -115,4 +116,24 @@ class PlaybackResolver(
         kind: StreamKind,
         index: Int?,
     ): MediaStreamInfo? = index?.let { wanted -> streams.firstOrNull { it.kind == kind && it.index == wanted } }
+}
+
+/**
+ * Can this device play [audio] (null: no audio track, nothing to refuse) as it is? The codec must be one it decodes or
+ * passes through to the HDMI sink. The channel limit is the decoder's, so it applies to decoded audio only: a
+ * passthrough codec leaves the app as it is and the sink decides (ADR-0016 is silent; this is the reading chosen).
+ * The test oracle ([ExpectedRoute]) has its own rule; a table test holds the two to the same answers.
+ */
+internal fun audioPlays(
+    capabilities: DeviceCapabilities,
+    audio: MediaStreamInfo?,
+): Boolean {
+    if (audio == null) return true
+    val codec = Codecs.normalize(audio.codec)
+    return when {
+        codec == null -> false
+        codec in capabilities.audioPassthrough -> true
+        codec in capabilities.audioDecoders -> (audio.channels ?: 0) <= capabilities.maxAudioChannels
+        else -> false
+    }
 }
