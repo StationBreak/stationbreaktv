@@ -113,6 +113,19 @@ class RenderTest(unittest.TestCase):
             self.assertIn("- Passed 0 of 1", section)
             self.assertIn("ERROR_CODE_DECODER_INIT_FAILED", section)
 
+    def test_aLoadFailedFallbackWithNoErrorIsGivenTheKotlinFormName(self):
+        section = self._section(render.render([[meta(), result(fallback="load-failed", error=None)]]), "synthetic")
+        self.assertIn("fallback:load", section)
+
+    def test_anyOtherFallbackValueFailsTheRender(self):
+        for bad in (True, False, None, "yes", "seek_miss", "", "Seek-Miss", 1, ["no"]):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                render.render([[meta(), result(fallback=bad)]])
+        row = json.loads(result()[len("RESULT "):])
+        del row["fallback"]
+        with self.assertRaises(ValueError):
+            render.render([[meta(), "RESULT " + json.dumps(row)]])
+
     def test_theIntroNamesTheAccountSetting(self):
         text = render.render([[meta(), result()]])
         self.assertIn("default audio-track playback", text)

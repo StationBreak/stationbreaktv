@@ -102,6 +102,9 @@ class Leak(Exception):
     """A value that must not reach the public document. The message never holds the value."""
 
 
+FALLBACK_VALUES = ("no", "seek-miss", "load-failed")
+
+
 def _check(field, value):
     text = str(value)
     for rule, matches in LEAK_RULES:
@@ -159,7 +162,7 @@ def _graded(section, row):
     fallback = row.get("fallback")
     reason = None
     if fallback == "load-failed":
-        reason = "fallback-load-failed"
+        reason = "fallback:load"
     elif fallback == "seek-miss" and section in STRICT_FALLBACK_SECTIONS and not expected:
         reason = "unexpected-fallback"
     if reason and row.get("pass") is True:
@@ -193,6 +196,8 @@ def render(files):
             _check("a META key", field)
             _check(f"META {field}", value)
         for result in results:
+            if result.get("fallback") not in FALLBACK_VALUES:
+                raise ValueError("a result has no valid fallback value")
             for field, value in result.items():
                 _check("a RESULT key", field)
                 _check(f"RESULT {field}", value)
@@ -211,7 +216,7 @@ def render(files):
         entry = groups[key]
         rows = [_graded(section, row) for row in entry["rows"]]
         passing = [row for row in rows if row.get("pass") is True]
-        via_fallback = sum(1 for row in passing if row.get("fallback") not in (None, False, "no"))
+        via_fallback = sum(1 for row in passing if row.get("fallback") != "no")
         out.append(f"\n## {section}: {device}\n")
         out.extend(_stamp(entry["meta"]))
         out.append(f"- Passed {len(passing)} of {len(rows)} ({via_fallback} via fallback)\n")
