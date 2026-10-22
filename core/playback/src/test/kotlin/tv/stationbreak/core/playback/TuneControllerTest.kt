@@ -142,8 +142,8 @@ class TuneControllerTest {
     fun aFileThatLandsAtZeroFallsBackToTranscodeOnce() =
         runTest {
             answer(source())
-            // Direct play lands at 0 when 60 s was asked. The forced transcode starts at 60 s on the server.
-            player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, Duration.ZERO))
+            // Direct play lands at 0 when 60 s was asked. The forced transcode is then seeked to 60 s by the player.
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, 60.seconds))
             val outcome = played(60.seconds)
             assertEquals(2, server.playbackInfoCalls.size)
             assertFalse(server.playbackInfoCalls[0].second.forceTranscode)
@@ -160,7 +160,7 @@ class TuneControllerTest {
     fun aSecondMissIsReportedWithoutAThirdAttempt() =
         runTest {
             answer(source())
-            player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, 10.seconds))
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, 70.seconds))
             val outcome = played(60.seconds)
             assertEquals(2, player.played.size)
             assertEquals(2, server.playbackInfoCalls.size)
@@ -172,7 +172,7 @@ class TuneControllerTest {
     fun aTranscodedFirstAttemptIsStoppedBeforeFallback() =
         runTest {
             answer(source(directPlay = false, directStream = false))
-            player.script = listOf(playing(1_300, 120.seconds), playing(2_000, Duration.ZERO))
+            player.script = listOf(playing(1_300, 120.seconds), playing(2_000, 60.seconds))
             val outcome = played(60.seconds)
             assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
             assertTrue(outcome.fallback)
@@ -183,7 +183,7 @@ class TuneControllerTest {
     fun aDirectFirstAttemptStartedNoEncodeToStop() =
         runTest {
             answer(source())
-            player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, Duration.ZERO))
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(2_000, 60.seconds))
             tune(60.seconds)
             assertTrue(server.stoppedEncodes.isEmpty())
         }
@@ -617,7 +617,7 @@ class TuneControllerTest {
     fun theDefaultToleranceIsTwoSecondsAndFallsBackBeyondIt() =
         runTest {
             answer(source())
-            player.script = listOf(playing(1_300, 3.seconds), playing(2_000, Duration.ZERO))
+            player.script = listOf(playing(1_300, 3.seconds), playing(2_000, 60.seconds))
             val outcome = played()
             assertTrue(outcome.fallback)
             assertEquals(2, player.played.size)

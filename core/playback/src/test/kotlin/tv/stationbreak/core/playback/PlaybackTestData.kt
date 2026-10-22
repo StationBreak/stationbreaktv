@@ -25,7 +25,6 @@ import kotlin.time.Duration.Companion.minutes
 data class HlsCall(
     val audioIndex: Int?,
     val burnIn: Int?,
-    val start: Duration,
     val forceTranscode: Boolean,
 )
 
@@ -40,10 +39,9 @@ class RecordingUrls : StreamUrls {
         audioIndex: Int?,
         burnIn: Int?,
         limits: DeviceCapabilities,
-        start: Duration,
         forceTranscode: Boolean,
     ): String {
-        hlsCalls += HlsCall(audioIndex, burnIn, start, forceTranscode)
+        hlsCalls += HlsCall(audioIndex, burnIn, forceTranscode)
         return "https://media.example.com/hls/${source.id.value}"
     }
 

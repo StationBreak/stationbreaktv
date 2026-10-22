@@ -100,7 +100,6 @@ internal object BenchTestData {
             PlayerSource(
                 url = "https://media.example.com/Videos/abc123/master.m3u8",
                 isHls = route != Route.DIRECT_PLAY,
-                serverOffset = Duration.ZERO,
                 playerStart = Duration.ZERO,
                 subtitles = emptyList(),
                 audioIndex = 1,

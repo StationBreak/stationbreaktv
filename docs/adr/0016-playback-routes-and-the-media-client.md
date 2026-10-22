@@ -48,8 +48,8 @@ of whatever URL it is given.
    long as the player plays it.
 4. **One fallback, for a failure or a missed landing, never for an expired session.** The player starts with the
    cheapest route the server allows (direct play, then direct stream via HLS copy). There are two reasons to fall back,
-   and either one falls back once, to a full transcode that starts at the requested time (`forceTranscode` with
-   `StartTimeTicks`), then reports what happened. It never loops:
+   and either one falls back once, to a full transcode that starts at the requested time (`forceTranscode`; the player seeks to the
+   start), then reports what happened. It never loops:
    - **The load failed** (a player error on a route that is not already a transcode).
    - **The landing missed** (Ruling R21, the spec 13 design's "Seek check and fallback"). When playing starts, the
      position is compared with the requested start; more than **2 s off** (either way) on direct play or direct stream
@@ -102,6 +102,28 @@ of whatever URL it is given.
    diagnostics instead: the stable error code name and the HTTP status.
 10. **Measure, don't grade, on the Insignia.** The Insignia is slow by nature. Its playback numbers are recorded, not
     scored, and the Phase 1 gate stays as it was (Phil, 2026-10-20). Wasted work is still removed.
+
+## Update 2026-10-22: HLS starts by player position
+
+Jellyfin 12.2 rejects `StartTimeTicks` on segment requests (HTTP 400, "StartTimeTicks is not allowed"), and the server
+copies the `master.m3u8` query string into the variant playlist and segment URLs. So the HLS URL carries no
+`StartTimeTicks`: the playlist covers the whole runtime from 0, the player starts at the requested position (as in
+direct play), and the server encodes from the segment the player asks for. `PlayerSource.serverOffset` is gone. The
+`PlaybackInfo` request body still carries `StartTimeTicks`; that endpoint accepts it. The contract suite now fetches the
+master, the variant and the segments for a non-zero start, for a transcode and for a direct stream.
+
+- **What guards what.** The landing check (`SeekCheck`) guards direct play. For HLS it only confirms the player's own
+  playlist clock; HLS placement (that the segment at the player's position holds the picture for that time) is guarded
+  by the contract suite, which reads the first timestamp of the covering segment with `ffprobe` and requires it within
+  2 s of where the playlist puts it.
+- **The cost.** Each tune to an offset makes the server start an ffmpeg job at segment N rather than at 0.
+- **The dependency.** The server's variant playlist is built from the item's `RunTimeTicks`. An item with no runtime
+  has no usable playlist. The scheduler never airs one: a program needs `minRuntimeMs <= runtime <= epochMs`, and the
+  minimum is at least 1 s (`EpochPool`, `SchedulerSettings.isAirable`), so no resolver guard is added.
+- **Why segment URLs are not rewritten.** Stripping `StartTimeTicks` from the server's segment URLs would mean the
+  client rewriting playlists that are the server's own; we build the URL and leave the playlists alone.
+- **Revisit** if Jellyfin accepts `StartTimeTicks` on segments again (server-side start would save the seek), or if the
+  contract suite's placement check ever shows HLS placement drifting.
 
 ## Consequences
 

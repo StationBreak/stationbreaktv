@@ -83,7 +83,9 @@ interface StreamUrls {
      * server resolved, not the player's wish: [audioIndex] is the audio stream to carry, and when null it is the
      * source's own [MediaSource.defaultAudioIndex], which is where the user's Jellyfin preference ended up. [burnIn] is
      * the index of a subtitle stream to burn into the picture, or null (text subtitles never travel in this URL).
-     * [limits] are the device's, [start] is where to begin and [forceTranscode] stops the video being copied.
+     * [limits] are the device's, [forceTranscode] stops the video being copied.
+     * There is no start: the playlist covers the whole runtime from 0 and the player seeks (the server rejects
+     * `StartTimeTicks` on segment requests, Jellyfin 12.2; ADR-0016).
      */
     @Suppress("LongParameterList") // Each is one independent fact the URL carries; a holder would only rename them.
     fun hls(
@@ -91,7 +93,6 @@ interface StreamUrls {
         audioIndex: Int?,
         burnIn: Int?,
         limits: DeviceCapabilities,
-        start: Duration,
         forceTranscode: Boolean,
     ): String
 

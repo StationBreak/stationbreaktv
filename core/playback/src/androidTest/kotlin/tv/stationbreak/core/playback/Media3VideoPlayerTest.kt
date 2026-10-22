@@ -97,7 +97,6 @@ class Media3VideoPlayerTest {
         PlayerSource(
             url = server.url("/clip.mp4").toString(),
             isHls = false,
-            serverOffset = Duration.ZERO,
             playerStart = start,
             subtitles = emptyList(),
             audioIndex = null,
