@@ -41,10 +41,19 @@ slot() {
   echo "$out/$1/$2"
 }
 
-# Two short text tracks, English and French, at known times.
+# Two text tracks, English and French. A cue every 5 s covers the whole clip (a run starts at 30 s, so a cue must show
+# there), the text alternating between two lines.
 srt() {
-  printf '1\n00:00:01,000 --> 00:00:09,000\n%s\n\n2\n00:00:10,000 --> 00:00:19,000\n%s\n' "$2" "$2 again" >"$1"
+  : >"$1"
+  local i start end text
+  for ((i = 0; i < seconds / 5; i++)); do
+    start=$((i * 5))
+    end=$((start + 5))
+    if ((i % 2 == 0)); then text=$2; else text="$2 again"; fi
+    printf '%d\n%s --> %s\n%s\n\n' $((i + 1)) "$(srt_time "$start")" "$(srt_time "$end")" "$text" >>"$1"
+  done
 }
+srt_time() { printf '%02d:%02d:%02d,000' $(($1 / 3600)) $(($1 % 3600 / 60)) $(($1 % 60)); }
 srt "$work/eng.srt" "Hello"
 srt "$work/fre.srt" "Bonjour"
 
