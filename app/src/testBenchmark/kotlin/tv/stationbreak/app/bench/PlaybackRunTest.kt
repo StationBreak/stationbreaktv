@@ -175,7 +175,8 @@ class PlaybackRunTest {
     fun noWaitForAClosingSampleWhenAudioNeverStarted() =
         runTest {
             val before = testScheduler.currentTime
-            val (result, _) = run(emptyList(), playableMedia(), closing = { g -> PlayerEvent.AudioAdvanced(14.seconds, g) })
+            val closing = { g: Long -> PlayerEvent.AudioAdvanced(14.seconds, g) }
+            val (result, _) = run(emptyList(), playableMedia(), closing = closing)
             // Audio never started, so the run does not wait and does not count a sample that arrives after it ends.
             assertEquals(15_000L, testScheduler.currentTime - before)
             assertEquals(false, result.audioOk)
