@@ -39,7 +39,7 @@ python3 -I scripts/playback-matrix/run.py plan --seed 1 --items scripts/playback
   --out scripts/playback-matrix/plan.json
 python3 -I scripts/playback-matrix/run.py run -s SERIAL --plan scripts/playback-matrix/plan.json --section synthetic
 
-# 4. Remove the server, then the app: sign out of the benchmark app on the device, then
+# 4. Remove the app, then the server (on the throwaway server there is no session worth revoking):
 adb -s SERIAL uninstall tv.stationbreak.app.benchmark
 scripts/playback-matrix/temp-server.sh down
 
@@ -50,7 +50,8 @@ python3 -I scripts/playback-matrix/run.py plan --seed 1 --items scripts/playback
   --out scripts/playback-matrix/plan.json
 python3 -I scripts/playback-matrix/run.py run -s SERIAL --plan scripts/playback-matrix/plan.json --section real
 
-#    Then sign out of the benchmark app (it holds a session for the owner's server) and uninstall it:
+#    Then uninstall it, and revoke its session on the owner's server: uninstalling deletes the token on the device,
+#    but the server keeps the session until its device entry is removed (Dashboard > Devices, "StationBreak").
 adb -s SERIAL uninstall tv.stationbreak.app.benchmark
 
 # 6. Render (exits 1 and prints nothing if any value could leak a path, ID, address or key)
@@ -63,9 +64,9 @@ records an address. `run.py` waits for each run's `DONE` for items x 60 s + 60 s
 
 ## Safety notes
 
-- **The benchmark app stays installed only for a run.** Sign out of it, then `adb uninstall tv.stationbreak.app.benchmark`,
-  after the real-items run and again after the synthetic run (the server there is throwaway, but the exported activity
-  and its session are not worth keeping).
+- **The benchmark app stays installed only for a run.** `adb uninstall tv.stationbreak.app.benchmark` after each run
+  (the exported activity is not worth keeping). The app has no sign-out after setup, so after a run against the owner's
+  server also remove its device entry there, which ends its session. Its launcher label is "StationBreak benchmark".
 - **Docker-published ports bypass the host firewall.** `ufw` and `firewalld` rules do not apply to a port docker
   publishes, so `temp-server.sh` is reachable by everything on the LAN from the moment it is published there. It
   therefore finishes the setup wizard over loopback first, sets a random admin password, and only then publishes on the
