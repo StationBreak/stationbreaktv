@@ -148,6 +148,19 @@ class RenderTest(unittest.TestCase):
         headings = [line for line in render.render(files).splitlines() if line.startswith("## ")]
         self.assertEqual(len(headings), 3)
 
+    def test_aRealTextSubtitleWithNoCueIsNoCueSeenNotNo(self):
+        text = render.render([[meta(), result(section="real", subtitle="text-separate", subtitleOk=False)]])
+        self.assertIn("| no cue seen |", text)
+        self.assertNotIn("| no |", text.split("## real")[1].split("- Passed")[1].replace("| no | no", "x"))
+
+    def test_aSyntheticTextSubtitleWithNoCueIsStillNo(self):
+        text = render.render([[meta(), result(section="synthetic", subtitle="text-in-stream", subtitleOk=False)]])
+        self.assertNotIn("no cue seen", text.split("## synthetic")[1])
+
+    def test_aRealImageSubtitleNotShownIsStillNo(self):
+        text = render.render([[meta(), result(section="real", subtitle="image", subtitleOk=False, burnIn=False)]])
+        self.assertNotIn("no cue seen", text.split("## real")[1])
+
     def test_theIntroSaysTimingsAreMeasuredNotGraded(self):
         text = render.render([[meta(), result()]])
         self.assertIn("not graded", text)
