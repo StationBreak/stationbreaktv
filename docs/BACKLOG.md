@@ -210,9 +210,9 @@ These IDs become GitHub issue titles once creating issues is approved.
 Before this feature starts, the lineup refresh and `airings` speed on the Insignia must be fixed ([#309](https://github.com/StationBreak/stationbreaktv/issues/309); see S1.2.1).
 
 **S1.3.1** As a viewer, I want tuning to a channel to start the current program at the right point so that it feels live.
-- 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path, `StartTimeTicks` is passed so the server starts encoding at the offset (no client-side seek).
+- 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path the player seeks the same way: the HLS URL carries no `StartTimeTicks` (Jellyfin 12.2 rejects it on segments), and the server encodes from the segment the player asks for ([ADR-0016](adr/0016-playback-routes-and-the-media-client.md)).
 - 📺 Visual offset error is ≤ ±2 s versus the guide's expected position.
-- 🧪 After a seek, the player compares the actual position with the requested offset. If they differ by more than 2 s (for example an MKV without Cues, which ExoPlayer silently plays from 0; [ADR-0007](adr/0007-tune-latency-spike.md)), it falls back to the transcode path with `StartTimeTicks`.
+- 🧪 After a seek, the player compares the actual position with the requested offset. If they differ by more than 2 s (for example an MKV without Cues, which ExoPlayer silently plays from 0; [ADR-0007](adr/0007-tune-latency-spike.md)), it falls back to the transcode path, which the player seeks to the offset.
 
 **S1.3.2** As a viewer, I want playback to continue seamlessly into the next scheduled item so that the channel never stops.
 - 🧪 The next item is queued in the Media3 playlist ahead of time. When an item ends early or late (runtime metadata wrong), playback re-syncs to the schedule at the next boundary instead of drifting (see Q-SCH-3).
@@ -252,7 +252,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 **S1.6.1** As a viewer with a weak device, I want unsupported codecs transcoded automatically so that everything plays.
 - 🧪 A device capability probe (MediaCodecList: codecs, profiles, levels, max resolution, HDR) builds a Jellyfin `DeviceProfile`. `POST /Items/{id}/PlaybackInfo` decides between direct play, direct stream, and transcode.
 - 🧪 The `DeviceProfile` declares subtitle formats, both embedded and external, even with subtitles off. Without them Jellyfin refuses direct play for items carrying subtitle streams. Video the device can't decode, such as MPEG-4 Part 2 (seen in AVI), routes to transcode ([ADR-0007](adr/0007-tune-latency-spike.md)).
-- 🧪 Transcode uses HLS (`master.m3u8`) with `StartTimeTicks` = offset.
+- 🧪 Transcode uses HLS (`master.m3u8`) from 0, with no `StartTimeTicks`; the player starts at the offset.
 - 🧪 **Stream auth rule:** the token travels only in the `Authorization` header, via an OkHttp interceptor scoped to the pinned server origin. `ApiKey`/`api_key` is stripped from the server's `TranscodingUrl`, and no media URL carries the token.
 - 📺 A test matrix on the Insignia: H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and PGS subtitles (expect burn-in or off; see Q-PLY-1).
 
