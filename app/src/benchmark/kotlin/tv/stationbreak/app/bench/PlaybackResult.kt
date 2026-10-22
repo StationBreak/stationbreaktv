@@ -72,7 +72,12 @@ data class PlaybackResult(
         const val AUDIO_ADVANCE_MS = 10_000L
         private const val NONE = "—"
 
-        /** [expected] is the oracle's route, null when there is none for this item (a track override). */
+        /**
+         * [expected] is the oracle's route, null when there is none for this item (a track override). It is compared
+         * with the route the resolver chose first, before any fallback: a direct play whose seek missed falls back to a
+         * transcode by design (ADR-0016, 4), which the Fallback column reports and is not a failure by itself. The
+         * Route column is the route that finally played.
+         */
         fun from(
             section: String,
             outcome: TuneResult,
@@ -88,7 +93,7 @@ data class PlaybackResult(
             val subtitleOk = played?.let { subtitleOk(chosen, burnIn, watch) }
             val audioOk = played != null && audioHeard(resolved, watch)
             val route = resolved?.route
-            val routeOk = expected == null || route == expected
+            val routeOk = expected == null || (played?.firstRoute ?: route) == expected
             val positionError = played?.positionError
             return PlaybackResult(
                 section = section,

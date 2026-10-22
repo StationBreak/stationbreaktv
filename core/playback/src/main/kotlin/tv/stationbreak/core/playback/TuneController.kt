@@ -36,7 +36,8 @@ sealed interface TuneResult {
     /**
      * Playing. [resolved] is the last route tried. [positionError] is how far from the requested start the last
      * attempt landed; it is set only when that attempt missed too (the retry after the fallback also missed).
-     * [fallback] is true when the first attempt was abandoned for a forced transcode.
+     * [fallback] is true when the first attempt was abandoned for a forced transcode. [firstRoute] is the route the
+     * resolver chose first, before any fallback (the same as the last route when there was none).
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -44,6 +45,7 @@ sealed interface TuneResult {
         val playingMs: Long,
         val positionError: Duration?,
         val fallback: Boolean,
+        val firstRoute: Route = resolved.route,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -134,6 +136,7 @@ class TuneController(
         val began = clock()
         var fallback = false
         var attempt = attempt(session, item, start, override, false, began)
+        val firstRoute = attempt.resolved?.route
         while (!fallback && attempt.canFallBack) {
             fallback = true
             // Not cancellable: a stop or supersede here must not lose the first attempt's encode.
@@ -152,6 +155,7 @@ class TuneController(
                     attempt.playingMs,
                     attempt.positionError,
                     fallback,
+                    firstRoute ?: attempt.resolved.route,
                 )
             }
 

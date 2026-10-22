@@ -130,6 +130,7 @@ class TuneControllerTest {
             player.script = listOf(playing(1_400, 30.seconds))
             val outcome = played(30.seconds)
             assertEquals(Route.DIRECT_PLAY, outcome.resolved.route)
+            assertEquals(Route.DIRECT_PLAY, outcome.firstRoute)
             assertFalse(outcome.fallback)
             assertNull(outcome.positionError)
             assertEquals(350L, outcome.firstFrameMs)
@@ -150,6 +151,8 @@ class TuneControllerTest {
             assertTrue(server.playbackInfoCalls[1].second.forceTranscode)
             assertTrue(outcome.fallback)
             assertEquals(Route.TRANSCODE, outcome.resolved.route)
+            // The route the resolver chose first survives the fallback.
+            assertEquals(Route.DIRECT_PLAY, outcome.firstRoute)
             assertNull(outcome.positionError)
             // Timings run from the tune call, fallback included.
             assertEquals(1_000L, outcome.playingMs)
