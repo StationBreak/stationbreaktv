@@ -89,8 +89,9 @@ fi
 # shellcheck disable=SC2086
 ff $picture $sound -c:v mpeg4 -c:a libmp3lame "$(slot mpeg4-mp3 mpeg4-mp3.avi)"
 # 10. DTS audio, 11. AC-3 audio.
+# A keyframe every 2 s: copied video is cut only at keyframes, so the direct-stream segment case needs several.
 # shellcheck disable=SC2086
-ff $picture $sound $h264 -c:a dca -strict -2 "$(slot h264-dts h264-dts.mkv)"
+ff $picture $sound $h264 -g 10 -c:a dca -strict -2 "$(slot h264-dts h264-dts.mkv)"
 # shellcheck disable=SC2086
 ff $picture $sound $h264 -c:a ac3 "$(slot h264-ac3 h264-ac3.mkv)"
 # 12. An SRT track inside the file, with H.264 and with HEVC.

@@ -47,6 +47,7 @@ import tv.stationbreak.data.jellyfin.JellyfinMediaServer
 import tv.stationbreak.data.jellyfin.mediaCallFactory
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -448,24 +449,102 @@ abstract class PlaybackContractSuite {
         runBlocking {
             // The server copies the master's query into the variant and segment URLs, and refuses StartTimeTicks on a
             // segment (400, 12.2): so the URL has none, and the player starts by seeking. Fetch what it would.
-            val played = play("h264-aac", requestFor(start = 30.seconds, forceTranscode = true))
+            val played = play("h264-aac", requestFor(start = START_S.seconds, forceTranscode = true))
 
-            assertNull(played.hls().toHttpUrl().queryParameter("StartTimeTicks"))
-            val master = fetch(played.factory, played.hls())
-            assertEquals(HTTP_OK, master.code, "the master playlist")
-            val variant = fetch(played.factory, entries(master.url, master.body).first())
-            assertEquals(HTTP_OK, variant.code, "the variant playlist")
-            assertTrue(variant.body.startsWith("#EXTM3U"), "the variant isn't a playlist")
-            val segments = entries(variant.url, variant.body)
-            val covering = segmentIndexAt(variant.body, 30.0)
-            assertTrue(covering > 0 && covering < segments.size, "no segment covers 30 s of ${segments.size}")
-            for (index in listOf(covering, 0)) {
-                val segment = fetchBytes(played.factory, segments[index])
-                assertEquals(HTTP_OK, segment.first, "segment $index")
-                assertTrue(segment.second.isNotEmpty(), "segment $index is empty")
-                assertEquals(TS_SYNC, segment.second[0], "segment $index isn't MPEG-TS")
-            }
+            assertSegmentsServeAt(played, START_S.toDouble())
         }
+    }
+
+    /**
+     * The same for a direct stream, the route the resolver takes when the server agrees to a direct play the device
+     * can't do: the admin's DTS clip is offered as direct play and direct stream (see
+     * [dtsIsDirectPlayedForAnAccountThatPlaysTheDefaultTrack]), the device has no DTS decoder, so it plays by HLS with
+     * the video copied (AllowVideoStreamCopy).
+     */
+    @Test
+    fun aDirectStreamStartsAtThePlayersPositionToo() {
+        runBlocking {
+            val request = requestFor(start = START_S.seconds)
+            val played = play("h264-dts", request, server.admin)
+
+            assertTrue(played.source.supportsDirectStream, "the server should offer a direct stream")
+            val audio = played.source.streams.single { it.kind == StreamKind.AUDIO }
+            assertEquals("dts", audio.codec?.lowercase())
+            assertTrue("dts" !in request.capabilities.audioDecoders, "the device would direct play it")
+            assertEquals("true", played.hls().toHttpUrl().queryParameter("AllowVideoStreamCopy"))
+            assertSegmentsServeAt(played, START_S.toDouble())
+        }
+    }
+
+    /**
+     * Fetches the master, the variant, the segment covering [second] and segment 0 of [played]'s HLS URL, none with a
+     * StartTimeTicks. Each is HTTP 200 and the segments are non-empty MPEG-TS. The covering segment starts where the
+     * playlist says (within 2 s, from segment 0's own first timestamp), which is what guards HLS placement (ADR-0016).
+     */
+    private fun assertSegmentsServeAt(
+        played: Played,
+        second: Double,
+    ) {
+        assertNull(played.hls().toHttpUrl().queryParameter("StartTimeTicks"))
+        val master = fetch(played.factory, played.hls())
+        assertEquals(HTTP_OK, master.code, "the master playlist")
+        val variant = fetch(played.factory, entries(master.url, master.body).first())
+        assertEquals(HTTP_OK, variant.code, "the variant playlist")
+        assertTrue(variant.body.startsWith("#EXTM3U"), "the variant isn't a playlist")
+        val segments = entries(variant.url, variant.body)
+        val covering = segmentIndexAt(variant.body, second)
+        assertTrue(covering > 0 && covering < segments.size, "no segment covers $second s of ${segments.size}")
+        val firstPts = mutableMapOf<Int, Double>()
+        for (index in listOf(0, covering)) {
+            val segment = fetchBytes(played.factory, segments[index])
+            assertEquals(HTTP_OK, segment.first, "segment $index")
+            assertTrue(segment.second.isNotEmpty(), "segment $index is empty")
+            assertEquals(TS_SYNC, segment.second[0], "segment $index isn't MPEG-TS")
+            firstPts[index] = firstTimestamp(segment.second)
+        }
+        val expected = firstPts.getValue(0) + playlistStart(variant.body, covering)
+        val actual = firstPts.getValue(covering)
+        assertTrue(
+            abs(actual - expected) <= PLACEMENT_TOLERANCE_S,
+            "segment $covering starts at $actual s, the playlist puts it at $expected s",
+        )
+    }
+
+    /** The seconds before segment [index] of [playlist]: the sum of the earlier `#EXTINF` durations. */
+    private fun playlistStart(
+        playlist: String,
+        index: Int,
+    ): Double =
+        playlist
+            .lines()
+            .filter { it.startsWith("#EXTINF:") }
+            .take(index)
+            .sumOf {
+                it
+                    .removePrefix("#EXTINF:")
+                    .substringBefore(',')
+                    .trim()
+                    .toDouble()
+            }
+
+    /** The first timestamp of an MPEG-TS [segment], in seconds, by the server's own ffprobe. */
+    private fun firstTimestamp(segment: ByteArray): Double {
+        val path = "/tmp/segment-${UUID.randomUUID()}.ts"
+        server.jellyfin.copyFileToContainer(Transferable.of(segment), path)
+        val probed =
+            server.jellyfin.execInContainer(
+                "/usr/lib/jellyfin-ffmpeg/ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=start_time",
+                "-of",
+                "csv=p=0",
+                path,
+            )
+        server.jellyfin.execInContainer("rm", "-f", path)
+        assertEquals(0, probed.exitCode, "ffprobe on the segment")
+        return assertNotNull(probed.stdout.trim().toDoubleOrNull(), "ffprobe found no start time")
     }
 
     /** The index of the segment of [playlist] that covers [second], by its `#EXTINF` durations. */
@@ -818,6 +897,12 @@ abstract class PlaybackContractSuite {
         val STREAM_OK = setOf(HTTP_OK, 206)
         const val MAX_BODY = 1_000_000L
 
+        /** Where the placement cases start, in seconds of the 60 s clips. */
+        const val START_S = 30
+
+        /** How far a segment's first timestamp may be from where its playlist puts it. */
+        const val PLACEMENT_TOLERANCE_S = 2.0
+
         /** The first byte of every MPEG-TS packet. */
         const val TS_SYNC: Byte = 0x47
         const val HEX = 16
@@ -837,7 +922,8 @@ abstract class PlaybackContractSuite {
          * derives from the source file or its own defaults, not device limits: tag (the item's etag), audiosamplerate,
          * maxframerate and h264-audiochannels (the clip's own rate, fps and channel count), aac-audiochannels and
          * aac-profile (per-stream echoes of the audio it writes; the limit we send is TranscodingMaxAudioChannels),
-         * enableaudiovbrencoding and requireavc (encoder defaults).
+         * enableaudiovbrencoding and requireavc (encoder defaults). starttimeticks is left off the built URL on
+         * purpose: the server rejects it on segments (12.2), so the player seeks instead (ADR-0016).
          */
         val IGNORED_PARAMETERS =
             setOf(
@@ -854,6 +940,7 @@ abstract class PlaybackContractSuite {
                 "aac-profile",
                 "enableaudiovbrencoding",
                 "requireavc",
+                "starttimeticks",
             )
 
         /** An Insignia-like set-top box: H.264 to level 4.1 at 1080p, MPEG-2, AAC/MP3/AC-3, stereo, no passthrough. */

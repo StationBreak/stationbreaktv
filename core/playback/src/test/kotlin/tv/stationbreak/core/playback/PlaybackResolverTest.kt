@@ -178,6 +178,17 @@ class PlaybackResolverTest {
         }
 
     @Test
+    fun aForcedTranscodeStartsAtTheRequestedPosition() =
+        runTest {
+            answer(source())
+            val played = resolve(start = 30.seconds, force = true)
+            assertEquals(Route.TRANSCODE, played.route)
+            assertTrue(played.source.isHls)
+            assertEquals(30.seconds, played.source.playerStart)
+            assertEquals(30.seconds, played.requested)
+        }
+
+    @Test
     fun forceTranscodeIsPassedThrough() =
         runTest {
             answer(source())
