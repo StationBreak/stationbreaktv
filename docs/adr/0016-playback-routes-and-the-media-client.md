@@ -125,6 +125,28 @@ master, the variant and the segments for a non-zero start, for a transcode and f
 - **Revisit** if Jellyfin accepts `StartTimeTicks` on segments again (server-side start would save the seek), or if the
   contract suite's placement check ever shows HLS placement drifting.
 
+## Update 2026-10-22: embedded text subtitles on HLS, and HEVC with audio the device cannot play
+
+Two defects found in the whole-branch review of spec 13.
+
+- **An embedded text subtitle on an HLS route is delivered as WebVTT (R31).** When decision 8 moves a file to HLS, the
+  server's own choice for its text subtitle is still `IN_STREAM`, and the playlist carries no text subtitle, so none
+  showed while `chosenSubtitle` reported one. On an HLS route (direct stream or transcode) the resolver now treats an
+  `IN_STREAM` text subtitle as `SEPARATE`: the player fetches `Subtitles/{index}/0/Stream.vtt`, which the server
+  extracts from the file, and `chosenSubtitle` reports `SEPARATE`. The URL is built from IDs with no token, like the
+  other, and fetched through the media client's auth rule. Image subtitles are unchanged (burned in). On direct play the
+  subtitle stays in the file. The contract case `anEmbeddedSrtOfAFileWithUndecodableAudioServesAsVtt` proves the
+  endpoint serves cues for an embedded SRT.
+- **The device profile and HLS URL list the HEVC the device decodes (R32).** They allowed H.264 only, so the server
+  could not stream-copy HEVC: a file with HEVC video and audio the device cannot play became a full video transcode,
+  against design goal 4. `VideoCodec` is now `h264,hevc` where the probe found an HEVC decoder (H.264 first), with the
+  `hevc-*` limits beside the `h264-*` ones and the tightest size limit, and the segments are fMP4
+  (`SegmentContainer=mp4`, transcoding profile container `mp4`). A device without HEVC keeps `h264` and MPEG-TS. The
+  server only encodes H.264, so listing HEVC only ever means copy. The contract case
+  `hevcWithUndecodableAudioIsADirectStreamOfFmp4Segments` pins the server's answer; the route oracle already gives
+  DIRECT_STREAM for such a file.
+- **Also corrected:** a `BURNED_IN` subtitle now always resolves to a TRANSCODE (decision 8), not a direct stream.
+
 ## Consequences
 
 - A newer Jellyfin that renames a `master.m3u8` parameter fails the drift test before it fails a viewer.

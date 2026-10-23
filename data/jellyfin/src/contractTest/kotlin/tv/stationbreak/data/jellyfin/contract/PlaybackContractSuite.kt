@@ -377,6 +377,31 @@ abstract class PlaybackContractSuite {
         }
     }
 
+    /**
+     * The route the resolver takes for undecodable audio with an embedded text subtitle (ADR-0016, update 2026-10-22):
+     * the playlist carries no text subtitle, so the stream is fetched as WebVTT from the server's own endpoint, which
+     * extracts the embedded track. The server's delivery for this combination is recorded, not relied on.
+     */
+    @Test
+    fun anEmbeddedSrtOfAFileWithUndecodableAudioServesAsVtt() {
+        runBlocking {
+            val probe = play("h264-dts-srt-embedded", account = server.admin)
+            val text = probe.subtitles().single()
+            val played = play("h264-dts-srt-embedded", requestFor(subtitleIndex = text.index), server.admin)
+
+            assertTrue(played.source.supportsDirectStream, "the video can be copied, only the audio converted")
+            val chosen = played.subtitles().single()
+            finding("h264-dts-srt-embedded codec=${chosen.codec} delivery=${chosen.delivery} ${route(played.source)}")
+            val asVtt = chosen.copy(delivery = SubtitleDelivery.SEPARATE)
+            val url = played.info.streams.subtitle(played.source.id, asVtt)
+            assertNotNull(url, "no WebVTT URL for an embedded text subtitle")
+            val vtt = fetch(played.factory, url)
+            assertEquals(HTTP_OK, vtt.code, "the subtitle URL")
+            assertTrue(vtt.body.startsWith("WEBVTT"), "the subtitle doesn't start with the WEBVTT header")
+            assertTrue("-->" in vtt.body && "Hello" in vtt.body, "the extracted track holds no cues")
+        }
+    }
+
     private fun assertWebVtt(
         played: Played,
         stream: MediaStreamInfo,
@@ -473,6 +498,33 @@ abstract class PlaybackContractSuite {
             assertTrue("dts" !in request.capabilities.audioDecoders, "the device would direct play it")
             assertEquals("true", played.hls().toHttpUrl().queryParameter("AllowVideoStreamCopy"))
             assertSegmentsServeAt(played, START_S.toDouble())
+        }
+    }
+
+    /**
+     * HEVC with audio the device can't play: the video is copied and only the audio converted (design goal 4), so the
+     * server offers a direct stream and serves fMP4 segments (HEVC is not put in MPEG-TS). The device decodes HEVC.
+     */
+    @Test
+    fun hevcWithUndecodableAudioIsADirectStreamOfFmp4Segments() {
+        runBlocking {
+            val played = play("hevc-dts", requestFor(HEVC_DEVICE), server.admin)
+
+            assertTrue(played.source.supportsDirectStream, "the HEVC video should be copied, only the audio converted")
+            val url = played.hls().toHttpUrl()
+            assertEquals("h264,hevc", url.queryParameter("VideoCodec"))
+            assertEquals("mp4", url.queryParameter("SegmentContainer"))
+            val master = fetch(played.factory, played.hls())
+            assertEquals(HTTP_OK, master.code, "the master playlist")
+            val variant = fetch(played.factory, entries(master.url, master.body).first())
+            assertEquals(HTTP_OK, variant.code, "the variant playlist")
+            assertTrue("#EXT-X-MAP" in variant.body, "the variant has no fMP4 initialisation section")
+            val segment = fetchBytes(played.factory, entries(variant.url, variant.body).first())
+            assertEquals(HTTP_OK, segment.first, "the first segment")
+            val type = segment.second.copyOfRange(BOX_TYPE_AT, BOX_TYPE_AT + BOX_TYPE_LENGTH)
+            val box = String(type, Charsets.ISO_8859_1)
+            assertTrue(box in FMP4_BOXES, "the first segment isn't fMP4 (starts with a '$box' box)")
+            finding("hevc-dts ${route(played.source)} firstBox=$box")
         }
     }
 
@@ -956,6 +1008,19 @@ abstract class PlaybackContractSuite {
                 audioPassthrough = emptySet(),
                 maxAudioChannels = 2,
             )
+
+        /** [INSIGNIA_LIKE] that also decodes HEVC, as a Fire TV Stick does. */
+        val HEVC_DEVICE =
+            INSIGNIA_LIKE.copy(
+                videoCodecs =
+                    INSIGNIA_LIKE.videoCodecs +
+                        VideoCodecSupport("hevc", setOf("main", "main 10"), 153, 3840, 2160, 10, emptySet()),
+            )
+
+        /** Where a segment's first box names its type, and the types an fMP4 segment may start with. */
+        const val BOX_TYPE_AT = 4
+        const val BOX_TYPE_LENGTH = 4
+        val FMP4_BOXES = setOf("styp", "moof", "ftyp")
 
         const val LOUD_ABOVE_DB = -30.0
         val MEAN_VOLUME = Regex("""mean_volume: (-?[0-9.]+) dB""")
