@@ -236,7 +236,7 @@ abstract class PlaybackContractSuite {
     @Test
     fun hevcMkvTranscodes() {
         runBlocking {
-            val played = play("hevc-aac", requestFor(NO_HEVC_DEVICE))
+            val played = play("hevc-aac")
 
             assertTrue(!played.source.supportsDirectPlay, "HEVC isn't in the device's list")
             assertTrue(played.source.supportsTranscoding, "the server should offer a transcode")
@@ -365,9 +365,9 @@ abstract class PlaybackContractSuite {
     @Test
     fun embeddedSrtOnTranscodeIsSeparate() {
         runBlocking {
-            val probe = play("hevc-aac-srt-embedded", requestFor(NO_HEVC_DEVICE))
+            val probe = play("hevc-aac-srt-embedded")
             val text = probe.subtitles().single()
-            val played = play("hevc-aac-srt-embedded", requestFor(NO_HEVC_DEVICE, subtitleIndex = text.index))
+            val played = play("hevc-aac-srt-embedded", requestFor(subtitleIndex = text.index))
 
             assertTrue(!played.source.supportsDirectPlay, "HEVC needs a transcode")
             val chosen = played.subtitles().single()
@@ -503,104 +503,6 @@ abstract class PlaybackContractSuite {
             assertSegmentsServeAt(played, START_S.toDouble())
         }
     }
-
-    /**
-     * HEVC with audio the device can't play: the video is copied and only the audio converted (design goal 4), so the
-     * server offers a direct stream and serves fMP4 segments (HEVC is not put in MPEG-TS). The device decodes HEVC and
-     * passes DTS through like a Fire TV Stick, and the case proves the built URL does not ask for DTS in fMP4. The
-     * profile's transcoding container is `mp4` where the device decodes HEVC (the server offers the direct stream for
-     * that profile; this case fails if it stops), while the URL decides per source (R33).
-     */
-    @Test
-    fun hevcWithUndecodableAudioIsADirectStreamOfFmp4Segments() {
-        runBlocking {
-            val played = play("hevc-dts", requestFor(FIRESTICK_LIKE), server.admin)
-
-            assertTrue(played.source.supportsDirectStream, "the HEVC video should be copied, only the audio converted")
-            val url = played.hls().toHttpUrl()
-            assertEquals("h264,hevc", url.queryParameter("VideoCodec"))
-            assertEquals("mp4", url.queryParameter("SegmentContainer"))
-            assertTrue("dts" !in url.queryParameter("AudioCodec").orEmpty(), "DTS must not be asked for in fMP4")
-            assertNoDrift("hevc copy", played, sourceFacts = HEVC_COPIED_FACTS)
-            val master = fetch(played.factory, played.hls())
-            assertEquals(HTTP_OK, master.code, "the master playlist")
-            assertTrue("dts" !in master.body.lowercase(), "the master advertises DTS in fMP4")
-            val variant = fetch(played.factory, entries(master.url, master.body).first())
-            assertEquals(HTTP_OK, variant.code, "the variant playlist")
-            assertTrue("#EXT-X-MAP" in variant.body, "the variant has no fMP4 initialisation section")
-            assertFmp4SegmentsServeAt(played, variant, START_S.toDouble())
-            finding("hevc-dts ${route(played.source)}")
-        }
-    }
-
-    /**
-     * The fMP4 equivalent of [assertSegmentsServeAt]: the first segment and the one covering [second] are fMP4 boxes,
-     * and the covering one starts (its `tfdt` baseMediaDecodeTime, in the init segment's `mdhd` timescale) where the
-     * playlist puts it, within 2 s of segment 0's own start.
-     */
-    private fun assertFmp4SegmentsServeAt(
-        played: Played,
-        variant: Fetched,
-        second: Double,
-    ) {
-        val map = assertNotNull(MAP_URI.find(variant.body), "no #EXT-X-MAP URI").groupValues[1]
-        val init = fetchBytes(played.factory, assertNotNull(variant.url.resolve(map), "the init URI"))
-        assertEquals(HTTP_OK, init.first, "the init segment")
-        val timescale = timescale(init.second)
-        val segments = entries(variant.url, variant.body)
-        val covering = segmentIndexAt(variant.body, second)
-        assertTrue(covering > 0 && covering < segments.size, "no segment covers $second s of ${segments.size}")
-        val starts = mutableMapOf<Int, Double>()
-        for (index in listOf(0, covering)) {
-            val segment = fetchBytes(played.factory, segments[index])
-            assertEquals(HTTP_OK, segment.first, "segment $index")
-            val type = segment.second.copyOfRange(BOX_TYPE_AT, BOX_TYPE_AT + BOX_TYPE_LENGTH)
-            val box = String(type, Charsets.ISO_8859_1)
-            assertTrue(box in FMP4_BOXES, "segment $index isn't fMP4 (starts with a '$box' box)")
-            starts[index] = decodeTime(segment.second) / timescale
-        }
-        val expected = starts.getValue(0) + playlistStart(variant.body, covering)
-        val actual = starts.getValue(covering)
-        assertTrue(
-            abs(actual - expected) <= PLACEMENT_TOLERANCE_S,
-            "segment $covering starts at $actual s, the playlist puts it at $expected s",
-        )
-    }
-
-    /** The timescale of the first track's `mdhd` in an init segment. */
-    private fun timescale(init: ByteArray): Double {
-        val at = boxAt(init, "mdhd")
-        val version = init[at + MDHD_VERSION].toInt()
-        val offset = at + if (version == 1) MDHD_TIMESCALE_V1 else MDHD_TIMESCALE_V0
-        return readUnsigned(init, offset, Int.SIZE_BYTES).toDouble()
-    }
-
-    /** The first `tfdt` baseMediaDecodeTime of a media segment, in the track's timescale units. */
-    private fun decodeTime(segment: ByteArray): Double {
-        val at = boxAt(segment, "tfdt")
-        val version = segment[at + MDHD_VERSION].toInt()
-        val size = if (version == 1) Long.SIZE_BYTES else Int.SIZE_BYTES
-        return readUnsigned(segment, at + TFDT_TIME, size).toDouble()
-    }
-
-    /** Where the 4-character box type [type] first appears in [bytes]. */
-    private fun boxAt(
-        bytes: ByteArray,
-        type: String,
-    ): Int {
-        val needle = type.toByteArray(Charsets.ISO_8859_1)
-        val at = (0..bytes.size - needle.size).firstOrNull { i -> needle.indices.all { bytes[i + it] == needle[it] } }
-        return assertNotNull(at, "no '$type' box")
-    }
-
-    private fun readUnsigned(
-        bytes: ByteArray,
-        offset: Int,
-        size: Int,
-    ): Long =
-        (0 until size).fold(0L) { value, i ->
-            (value shl Byte.SIZE_BITS) or (bytes[offset + i].toLong() and BYTE_MASK)
-        }
 
     /**
      * Fetches the master, the variant, the segment covering [second] and segment 0 of [played]'s HLS URL, none with a
@@ -1069,45 +971,19 @@ abstract class PlaybackContractSuite {
                 "starttimeticks",
             )
 
-        /**
-         * An Insignia-like set-top box: H.264 to level 4.1 at 1080p, HEVC to 3840x2160 10-bit, MPEG-2, AAC/MP3/AC-3,
-         * stereo, no passthrough.
-         */
+        /** An Insignia-like set-top box: H.264 to level 4.1 at 1080p, MPEG-2, AAC/MP3/AC-3, stereo, no passthrough. */
         val INSIGNIA_LIKE =
             DeviceCapabilities(
                 containers = setOf("mp4", "m4v", "mkv", "webm", "ts"),
                 videoCodecs =
                     listOf(
                         VideoCodecSupport("h264", setOf("high", "main", "baseline"), 41, 1920, 1080, 8, emptySet()),
-                        VideoCodecSupport("hevc", setOf("main", "main 10"), 153, 3840, 2160, 10, emptySet()),
                         VideoCodecSupport("mpeg2video", emptySet(), null, 1920, 1080, 8, emptySet()),
                     ),
                 audioDecoders = setOf("aac", "mp3", "ac3"),
                 audioPassthrough = emptySet(),
                 maxAudioChannels = 2,
             )
-
-        /** [INSIGNIA_LIKE] without its HEVC decoder: the device of the cases that need HEVC to be transcoded. */
-        val NO_HEVC_DEVICE = INSIGNIA_LIKE.copy(videoCodecs = INSIGNIA_LIKE.videoCodecs.filter { it.codec != "hevc" })
-
-        /** [INSIGNIA_LIKE] that also passes AC-3, E-AC-3 and DTS through to the sink, as a Fire TV Stick does. */
-        val FIRESTICK_LIKE =
-            INSIGNIA_LIKE.copy(audioPassthrough = setOf("ac3", "eac3", "dts"), maxAudioChannels = 6)
-
-        /** The copied-video facts for HEVC: the server names the clip's own level and profile. */
-        val HEVC_COPIED_FACTS = setOf("h264-level", "h264-profile", "hevc-level", "hevc-profile")
-
-        val MAP_URI = Regex("""#EXT-X-MAP:URI="([^"]*)"""")
-        const val BYTE_MASK = 0xFFL
-        const val MDHD_VERSION = 4
-        const val MDHD_TIMESCALE_V0 = 16
-        const val MDHD_TIMESCALE_V1 = 24
-        const val TFDT_TIME = 8
-
-        /** Where a segment's first box names its type, and the types an fMP4 segment may start with. */
-        const val BOX_TYPE_AT = 4
-        const val BOX_TYPE_LENGTH = 4
-        val FMP4_BOXES = setOf("styp", "moof", "ftyp")
 
         const val LOUD_ABOVE_DB = -30.0
         val MEAN_VOLUME = Regex("""mean_volume: (-?[0-9.]+) dB""")

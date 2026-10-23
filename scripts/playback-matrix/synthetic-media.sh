@@ -103,7 +103,7 @@ ff $picture $sound -c:v mpeg4 -c:a libmp3lame "$(slot mpeg4-mp3 mpeg4-mp3.avi)"
 ff $picture $sound $h264 -g 10 -c:a dca -strict -2 "$(slot h264-dts h264-dts.mkv)"
 # shellcheck disable=SC2086
 ff $picture $sound $h264 -c:a ac3 "$(slot h264-ac3 h264-ac3.mkv)"
-# 11b. HEVC with DTS audio: the video can be copied and only the audio converted, which needs fMP4 segments.
+# 11b. HEVC with DTS audio: the video could be copied and only the audio converted (design goal 4; #351).
 # shellcheck disable=SC2086
 ff $picture $sound -c:v libx265 -preset ultrafast -pix_fmt yuv420p -g 10 \
   -x265-params log-level=none:pools=none:frame-threads=1:keyint=10:min-keyint=10 -c:a dca -strict -2 \

@@ -18,7 +18,8 @@ import tv.stationbreak.core.model.StreamKind
  * deliberately by file: an image codec means a transcode, whatever delivery the server picked. Video levels compare as
  * sent, in the probe's unit (level_idc: h264 41 = 4.1, hevc 153 = 5.1). Video that fits with audio the device can't
  * play is a direct stream: the server copies the video and converts only the audio (ADR-0016, the contract suite's
- * `h264-dts` and `hevc-dts`). A subtitle the device can't draw or video that doesn't fit is a transcode.
+ * `h264-dts`; for HEVC the server transcodes until #351). A subtitle the device can't draw or video that doesn't fit
+ * is a transcode.
  */
 object ExpectedRoute {
     fun of(

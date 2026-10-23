@@ -6,26 +6,17 @@ import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.VideoCodecSupport
 import kotlin.time.Duration
 
-/**
- * An Insignia-like set-top box: H.264 up to level 4.1 at 1080p and, unless [hevc] is off, HEVC up to 3840x2160 10-bit
- * (the real one decodes it), AAC in MP4 and Matroska, no passthrough.
- */
+/** An Insignia-like set-top box: H.264 up to level 4.1 at 1080p, AAC in MP4 and Matroska, no passthrough. */
 internal fun insigniaCapabilities(
     passthrough: Set<String> = emptySet(),
     maxAudioChannels: Int = 2,
-    hevc: Boolean = true,
 ): DeviceCapabilities =
     DeviceCapabilities(
         containers = setOf("mp4", "mkv"),
         videoCodecs =
             listOf(
                 VideoCodecSupport("h264", setOf("baseline", "main", "high"), 41, 1920, 1080, 8, emptySet()),
-            ) +
-                if (hevc) {
-                    listOf(VideoCodecSupport("hevc", setOf("main", "main 10"), 153, 3840, 2160, 10, emptySet()))
-                } else {
-                    emptyList()
-                },
+            ),
         audioDecoders = setOf("aac", "mp3"),
         audioPassthrough = passthrough,
         maxAudioChannels = maxAudioChannels,

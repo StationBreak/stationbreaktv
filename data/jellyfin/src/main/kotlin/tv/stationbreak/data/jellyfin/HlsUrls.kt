@@ -14,7 +14,6 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.StreamUrls
 import tv.stationbreak.core.model.SubtitleDelivery
-import tv.stationbreak.core.model.VideoCodecSupport
 
 /**
  * Stream URLs made from the base address, IDs and the device's own limits, and nothing else: never the server's
@@ -49,10 +48,7 @@ internal class HlsUrls(
         limits: DeviceCapabilities,
         forceTranscode: Boolean,
     ): String {
-        // fMP4 and HEVC only for an HEVC source that will be copied; everything else, every forced transcode included,
-        // is H.264 in MPEG-TS, so the fallback has a real way out (ADR-0016, update 2026-10-22, R33).
-        val hevc = hevcCopy(source, limits, forceTranscode)
-        val video = listOfNotNull(limits.videoCodecs.firstOrNull { it.codec == Codecs.H264 }, hevc)
+        val h264 = limits.videoCodecs.firstOrNull { it.codec == Codecs.H264 }
         val maxBitrate = limits.maxStreamingBitrate
         // The server resolved the user's own track preference into the source's default; without this the server would
         // fall back to the file's first track.
@@ -64,20 +60,24 @@ internal class HlsUrls(
             .apply {
                 param("MediaSourceId", segment(source.id.value))
                 playSession?.let { param("PlaySessionId", it.value) }
-                param("VideoCodec", if (hevc != null) "${Codecs.H264},${Codecs.HEVC}" else Codecs.H264)
-                param("AudioCodec", DeviceProfiles.transcodeAudio(limits, fmp4 = hevc != null))
+                param("VideoCodec", Codecs.H264)
+                param("AudioCodec", DeviceProfiles.transcodeAudio(limits))
                 param("MaxAudioChannels", limits.maxAudioChannels)
                 param("TranscodingMaxAudioChannels", limits.maxAudioChannels)
-                // The size limit of the codec the video will be in: HEVC's for a copied HEVC source, else H.264's.
-                (hevc ?: video.firstOrNull())?.let {
+                h264?.let {
                     param("MaxWidth", it.maxWidth)
                     param("MaxHeight", it.maxHeight)
+                    it.maxLevel?.let { level -> param("h264-level", level) }
+                    if (it.profiles.isNotEmpty()) {
+                        // The server's own spelling has no space ("constrainedbaseline").
+                        param("h264-profile", profileNames(it).joinToString(",") { name -> name.replace(" ", "") })
+                    }
+                    param("h264-videobitdepth", it.maxBitDepth)
                 }
-                video.forEach { codecParams(it) }
                 param("MaxStreamingBitrate", maxBitrate)
                 param("VideoBitrate", (maxBitrate - AUDIO_RESERVE).coerceAtLeast(1))
                 param("AudioBitrate", AUDIO_RESERVE)
-                param("SegmentContainer", if (hevc != null) Codecs.MP4 else Codecs.TS)
+                param("SegmentContainer", Codecs.TS)
                 param("BreakOnNonKeyFrames", "True")
                 param("AllowVideoStreamCopy", !forceTranscode)
                 param("AllowAudioStreamCopy", true)
@@ -113,50 +113,6 @@ internal class HlsUrls(
     private fun segment(id: String): String {
         require(id !in DOT_SEGMENTS) { "An ID can't be a dot segment" }
         return id
-    }
-
-    /**
-     * The device's HEVC support when [source]'s video is HEVC the device decodes within its limits and may be copied
-     * ([forceTranscode] off); null otherwise. An unreported limit is not held against the file.
-     */
-    private fun hevcCopy(
-        source: MediaSource,
-        limits: DeviceCapabilities,
-        forceTranscode: Boolean,
-    ): VideoCodecSupport? {
-        if (forceTranscode) return null
-        val stream = source.streams.firstOrNull { it.kind == StreamKind.VIDEO }
-        val video = stream?.takeIf { Codecs.normalize(it.codec) == Codecs.HEVC }
-        return limits.videoCodecs.firstOrNull { it.codec == Codecs.HEVC }?.takeIf { video != null && covers(it, video) }
-    }
-
-    private fun covers(
-        support: VideoCodecSupport,
-        video: MediaStreamInfo,
-    ): Boolean {
-        val profile = Codecs.normalize(video.videoProfile)
-        val profileFits = profile == null || support.profiles.isEmpty() || profile in support.profiles
-        return profileFits &&
-            within(video.videoLevel, support.maxLevel) &&
-            within(video.width, support.maxWidth) &&
-            within(video.height, support.maxHeight) &&
-            within(video.bitDepth, support.maxBitDepth)
-    }
-
-    private fun within(
-        value: Int?,
-        limit: Int?,
-    ) = value == null || limit == null || value <= limit
-
-    /** The server's own per-codec names: `h264-level`, `hevc-profile`, ... (profile spelled without spaces). */
-    private fun HttpUrl.Builder.codecParams(support: VideoCodecSupport) {
-        val codec = support.codec
-        support.maxLevel?.let { param("$codec-level", it) }
-        if (support.profiles.isNotEmpty()) {
-            // The server's own spelling has no space ("constrainedbaseline", "main10").
-            param("$codec-profile", profileNames(support).joinToString(",") { it.replace(" ", "") })
-        }
-        param("$codec-videobitdepth", support.maxBitDepth)
     }
 
     private fun HttpUrl.Builder.param(

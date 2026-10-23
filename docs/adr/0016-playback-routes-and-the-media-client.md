@@ -125,9 +125,9 @@ master, the variant and the segments for a non-zero start, for a transcode and f
 - **Revisit** if Jellyfin accepts `StartTimeTicks` on segments again (server-side start would save the seek), or if the
   contract suite's placement check ever shows HLS placement drifting.
 
-## Update 2026-10-22: embedded text subtitles on HLS, and HEVC with audio the device cannot play
+## Update 2026-10-22: embedded text subtitles on HLS
 
-Two defects found in the whole-branch review of spec 13.
+Found in the whole-branch review of spec 13.
 
 - **An embedded text subtitle on an HLS route is delivered as WebVTT (R31).** When decision 8 moves a file to HLS, the
   server's own choice for its text subtitle is still `IN_STREAM`, and the playlist carries no text subtitle, so none
@@ -137,18 +137,9 @@ Two defects found in the whole-branch review of spec 13.
   other, and fetched through the media client's auth rule. Image subtitles are unchanged (burned in). On direct play the
   subtitle stays in the file. The contract case `anEmbeddedSrtOfAFileWithUndecodableAudioServesAsVtt` proves the
   endpoint serves cues for an embedded SRT.
-- **HEVC is listed, and fMP4 used, only for an HEVC source that will be copied (R32, amended by R33).** The profile
-  and URL allowed H.264 only, so the server could not stream-copy HEVC: a file with HEVC video and audio the device
-  cannot play became a full video transcode, against design goal 4. The PlaybackInfo profile now lists `h264,hevc` where
-  the probe found an HEVC decoder (H.264 first, which keeps any encode on H.264, since a server admin can enable HEVC
-  encoding), with its transcoding container `mp4` so the server offers the direct stream. The HLS URL decides per
-  source: `VideoCodec=h264,hevc`, `SegmentContainer=mp4`, the `hevc-*` limits and HEVC's `MaxWidth`/`MaxHeight` only when
-  all hold: no forced transcode, the source video is HEVC, and the device's HEVC support covers its profile, level, bit
-  depth and size. Every other URL, every forced transcode included, is H.264 in MPEG-TS with H.264's limits, so the
-  fallback has a real way out and an H.264 route is unchanged on a device that also decodes HEVC (the Insignia and the
-  Firestick both do). In fMP4 the audio list is AAC, AC-3 and E-AC-3 only; DTS and TrueHD passthrough stay on MPEG-TS
-  URLs. The contract cases `hevcWithUndecodableAudioIsADirectStreamOfFmp4Segments` (with a drift check against the
-  server's own URL and an fMP4 placement check from the first segment's `tfdt`) pin the server's answer.
+- **HEVC copy is deferred.** HEVC copy (design goal 4 for HEVC sources) is deferred to #351. Until then, HEVC with
+  audio the device can't play is a full transcode. The route oracle still says DIRECT_STREAM for it (the goal), so the
+  matrix's `hevc-dts` row fails honestly until #351 lands.
 - **Also corrected:** a `BURNED_IN` subtitle now always resolves to a TRANSCODE (decision 8), not a direct stream. DVB and XSUB subtitles
   are picture subtitles, so they burn in too.
 

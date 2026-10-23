@@ -85,8 +85,7 @@ interface StreamUrls {
      * the index of a subtitle stream to burn into the picture, or null. A text subtitle never travels in this URL,
      * embedded or not: the caller fetches it as WebVTT from [subtitle], treating an embedded one as
      * [SubtitleDelivery.SEPARATE] on an HLS route (the server extracts it; ADR-0016, update 2026-10-22).
-     * [limits] are the device's, [forceTranscode] stops the video being copied. The URL lists H.264 and, where the
-     * device decodes it, HEVC, so the server can copy either and convert only the audio; HEVC comes in fMP4 segments.
+     * [limits] are the device's, [forceTranscode] stops the video being copied.
      * There is no start: the playlist covers the whole runtime from 0 and the player seeks (the server rejects
      * `StartTimeTicks` on segment requests, Jellyfin 12.2; ADR-0016).
      */
