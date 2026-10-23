@@ -93,21 +93,20 @@ internal class LiveViewModel
             }
             val player = players.create(context, SystemClock::elapsedRealtime)
             var tuner: TunePort? = null
+            var ended = false
             try {
                 player.attach(surface)
                 val port = tuners.create(player, session).also { tuner = it }
                 val live = LiveChannel(schedule, port, lastChannel, sessions, library, channels, clock)
                 coroutineScope {
-                    val mirror = launch { live.state.collect { shown.value = it } }
+                    // SignedOut is held back: the screen must not navigate away before the session is cleared.
+                    val mirror = launch { live.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
                     live.run()
                     // run() returns only when the session ended.
                     mirror.cancel()
                 }
-                shown.value = live.state.value
-                if (shown.value == LiveState.SignedOut) {
-                    // As everywhere else: the rejected session and its account's cached library go together.
-                    sessions.onServerError(MediaServerError.SessionExpired(), session)
-                }
+                ended = live.state.value == LiveState.SignedOut
+                if (!ended) shown.value = live.state.value
             } finally {
                 withContext(NonCancellable) {
                     tuner?.close(session)
@@ -115,5 +114,22 @@ internal class LiveViewModel
                     player.release()
                 }
             }
+            // As everywhere else, the rejected session and its account's cached library go together; only then does
+            // the screen learn it, because it navigates away at once and a cancelled sitting would skip the cleanup.
+            if (ended) {
+                publishAfterCleanup(
+                    { sessions.onServerError(MediaServerError.SessionExpired(), session) },
+                    { shown.value = LiveState.SignedOut },
+                )
+            }
         }
     }
+
+/** Runs [cleanup] to its end, even if the caller is cancelled, and only then calls [publish]. */
+internal suspend fun publishAfterCleanup(
+    cleanup: suspend () -> Unit,
+    publish: () -> Unit,
+) = withContext(NonCancellable) {
+    cleanup()
+    publish()
+}
