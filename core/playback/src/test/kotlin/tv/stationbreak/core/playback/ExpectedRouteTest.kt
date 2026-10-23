@@ -6,7 +6,6 @@ import org.junit.Test
 import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.SubtitleDelivery
-import tv.stationbreak.core.model.VideoCodecSupport
 import tv.stationbreak.core.playback.PlaybackTestData.audio
 import tv.stationbreak.core.playback.PlaybackTestData.insigniaLike
 import tv.stationbreak.core.playback.PlaybackTestData.source
@@ -26,7 +25,10 @@ class ExpectedRouteTest {
 
     @Test
     fun hevcTranscodesWithoutAnHevcDecoder() {
-        assertEquals(Route.TRANSCODE, route(video(Codecs.HEVC, Codecs.MAIN, 120), audio()))
+        val noHevc = insigniaLike(videoCodecs = listOf(PlaybackTestData.h264))
+        val s = source(streams = listOf(video(Codecs.HEVC, Codecs.MAIN, 120), audio()))
+        assertEquals(Route.TRANSCODE, ExpectedRoute.of(noHevc, s, null))
+        assertEquals(Route.DIRECT_PLAY, route(video(Codecs.HEVC, Codecs.MAIN, 120), audio()))
     }
 
     @Test
@@ -58,11 +60,10 @@ class ExpectedRouteTest {
 
     @Test
     fun hevcWithUndecodableAudioDirectStreamsWhereTheDeviceDecodesHevc() {
-        val hevc = VideoCodecSupport(Codecs.HEVC, setOf(Codecs.MAIN, Codecs.MAIN_10), 153, 3840, 2160, 10, emptySet())
-        val withHevc = insigniaLike(videoCodecs = listOf(PlaybackTestData.h264, hevc))
+        val noHevc = insigniaLike(videoCodecs = listOf(PlaybackTestData.h264))
         val s = source(streams = listOf(video(Codecs.HEVC, Codecs.MAIN, 120), audio(1, Codecs.DTS, 6)))
-        assertEquals(Route.DIRECT_STREAM, ExpectedRoute.of(withHevc, s, null))
-        assertEquals(Route.TRANSCODE, ExpectedRoute.of(caps, s, null))
+        assertEquals(Route.DIRECT_STREAM, ExpectedRoute.of(caps, s, null))
+        assertEquals(Route.TRANSCODE, ExpectedRoute.of(noHevc, s, null))
     }
 
     @Test

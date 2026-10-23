@@ -248,6 +248,17 @@ class PlaybackResolverTest {
         }
 
     @Test
+    fun aBurnedInDvbSubtitleTranscodesAndTheOracleAgrees() =
+        runTest {
+            val dvb = subtitle(3, "dvb_subtitle", SubtitleDelivery.BURNED_IN)
+            answer(source(streams = listOf(video(), audio(1), dvb), defaultSubtitle = 3))
+            val played = resolve()
+            assertEquals(Route.TRANSCODE, played.route)
+            assertEquals(3, urls.hlsCalls.single().burnIn)
+            assertEquals(played.route, ExpectedRoute.of(caps, played.media, played.chosenSubtitle, played.chosenAudio))
+        }
+
+    @Test
     fun undecodableAudioWithoutDirectStreamTranscodes() =
         runTest {
             answer(source(directStream = false, streams = listOf(video(), audio(1, Codecs.DTS, 6))))
