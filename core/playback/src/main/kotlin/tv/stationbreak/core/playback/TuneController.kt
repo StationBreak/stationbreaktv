@@ -21,6 +21,7 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -98,6 +99,7 @@ sealed interface TuneResult {
  * stopped the player and the encode, so the caller need not call [stop]. Nothing here is logged. A [ResolvedPlayback]
  * it returns holds the stream URL, which is a secret: its `toString` hides it, so do not read it out for a log.
  */
+@Suppress("TooManyFunctions") // One controller by decision: tune, stop, close and the attempt steps share its state.
 class TuneController(
     private val resolver: PlaybackResolver,
     private val server: MediaServer,
@@ -113,6 +115,9 @@ class TuneController(
     /** The tune [stop] cancelled, so it reports [TuneResult.Stopped] and not [TuneResult.Superseded]. */
     private val stopped = AtomicReference<Deferred<TuneResult>?>(null)
 
+    /** Set by [close]: no tune runs after it. */
+    private val closed = AtomicBoolean(false)
+
     /**
      * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns [TuneResult.Superseded])
      * and starts only when that one has finished, so two never share the player.
@@ -124,7 +129,15 @@ class TuneController(
         override: TrackOverride?,
     ): TuneResult =
         coroutineScope {
-            val mine = async(start = CoroutineStart.LAZY) { lock.withLock { run(session, item, start, override) } }
+            lateinit var mine: Deferred<TuneResult>
+            mine =
+                async(start = CoroutineStart.LAZY) {
+                    // Checked inside the lock, after any [close] that raced this call has set the flag: a tune that
+                    // close() could not see (not yet in flight) still never plays.
+                    lock.withLock {
+                        if (closed.get()) TuneResult.Stopped else run(session, item, start, override, mine)
+                    }
+                }
             inFlight.getAndSet(mine)?.cancel()
             try {
                 mine.await()
@@ -140,7 +153,29 @@ class TuneController(
             }
         }
 
+    /**
+     * One tune's attempts. A cancel at any point stops the encode of whatever attempt is current before it
+     * propagates. A cancel by a newer tune leaves the player running, because the new play replaces the item (a fast
+     * flip must not blank the screen); a stop, a close or a cancel from outside stops the player too. A newer tune
+     * only starts after this one has unwound, so its play is never disturbed by this clean-up. [mine] is this tune's
+     * own job.
+     */
     private suspend fun run(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        override: TrackOverride?,
+        mine: Deferred<TuneResult>,
+    ): TuneResult =
+        try {
+            attempts(session, item, start, override)
+        } catch (e: CancellationException) {
+            val supersededByNewer = inFlight.get() !== mine && stopped.get() !== mine
+            withContext(NonCancellable) { if (supersededByNewer) abandonEncode(session) else release(session) }
+            throw e
+        }
+
+    private suspend fun attempts(
         session: Session,
         item: ItemId,
         start: Duration,
@@ -195,6 +230,18 @@ class TuneController(
             it.cancel()
         }
         lock.withLock { withContext(NonCancellable) { release(session) } }
+    }
+
+    /**
+     * Ends the controller for good: what [stop] does, but it runs to the end even when the caller's scope is already
+     * cancelled, and every [tune] after it returns [TuneResult.Stopped] without playing. A host calls it when it is
+     * done (a screen closing), so a scope that is cancelled after [TuneResult.Played] still stops the player and the
+     * server's encode (ADR-0016, 5). It does not release the player: the host that created it does, and only after
+     * this returns (close, then release), so the stop it makes is never sent to a released player.
+     */
+    suspend fun close(session: Session) {
+        closed.set(true)
+        withContext(NonCancellable) { stop(session) }
     }
 
     /** Stops the player and the encode of the current attempt, and forgets it. */
@@ -286,16 +333,8 @@ class TuneController(
         // A stop or a newer tune during the resolve must not be followed by a play.
         currentCoroutineContext().ensureActive()
         current = resolved
-        val result =
-            try {
-                playAndWait(resolved.source)
-            } catch (e: CancellationException) {
-                // Superseded, stopped or cancelled mid-wait: nothing may keep loading. A newer tune only starts
-                // after this one has unwound, so its play is never disturbed by this clean-up.
-                withContext(NonCancellable) { release(session) }
-                throw e
-            }
-        return when (result) {
+        // A cancel mid-wait is cleaned up by run().
+        return when (val result = playAndWait(resolved.source)) {
             Wait.TimedOut -> {
                 // Nothing played; run() stops what is loading, on the player and on the server.
                 Broke(resolved, TuneFailure.TIMEOUT, TIMEOUT)

@@ -64,6 +64,7 @@ interface VideoPlayer {
      */
     fun play(source: PlayerSource): Long
 
+    /** Ends what is playing. A second call is a no-op, and implementations must keep it so: teardown calls it twice. */
     fun stop()
 
     /**

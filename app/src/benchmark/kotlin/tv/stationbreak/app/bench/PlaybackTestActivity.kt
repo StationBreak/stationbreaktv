@@ -11,14 +11,12 @@ import android.view.SurfaceView
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import tv.stationbreak.app.di.MediaDataSource
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.RestoreOutcome
@@ -26,10 +24,10 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.ExpectedRoute
-import tv.stationbreak.core.playback.Media3VideoPlayer
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
+import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
 import java.io.File
 import javax.inject.Inject
@@ -46,13 +44,12 @@ private const val RESULTS_FILE = "playback-results.jsonl"
  * are appended to `filesDir/playback-results.jsonl`. Item IDs, titles and URLs are never logged. It uses the stored
  * session, so the app must have been signed in before.
  *
- * One [Media3VideoPlayer] serves the whole run and is released when the activity goes.
+ * One player from the [VideoPlayerFactory] serves the whole run. The run closes the tune controller, and only then
+ * releases the player.
  */
 @AndroidEntryPoint
-@UnstableApi
 class PlaybackTestActivity : ComponentActivity() {
-    @Inject @field:MediaDataSource
-    lateinit var dataSource: DataSource.Factory
+    @Inject lateinit var playerFactory: VideoPlayerFactory
 
     @Inject lateinit var resolver: PlaybackResolver
 
@@ -63,8 +60,6 @@ class PlaybackTestActivity : ComponentActivity() {
     @Inject lateinit var settings: ServerSettings
 
     @Inject lateinit var capabilities: DeviceCapabilitiesCache
-
-    private var player: VideoPlayer? = null
 
     @Suppress("InjectDispatcher") // The activity is the root of this test run: there is nothing to inject into.
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,29 +75,29 @@ class PlaybackTestActivity : ComponentActivity() {
         val args = parseArgs() ?: return finish()
         val surface = SurfaceView(this)
         setContentView(surface)
-        val created = Media3VideoPlayer(this, dataSource, SystemClock::elapsedRealtime)
+        val created = playerFactory.create(this, SystemClock::elapsedRealtime)
         created.attach(surface)
-        player = created
-        lifecycleScope.launch(Dispatchers.Default) {
+        // ATOMIC: the body starts even if the activity is already gone, so the player below is always released.
+        lifecycleScope.launch(Dispatchers.Default, start = CoroutineStart.ATOMIC) {
             try {
-                runAll(args, created)
-            } catch (
-                @Suppress("SwallowedException", "TooGenericExceptionCaught") e: Exception,
-            ) {
-                if (e is CancellationException) throw e
-                // A name only: a message or a stack could hold a URL.
-                emit("ERROR run-failed")
+                try {
+                    runAll(args, created)
+                } catch (
+                    @Suppress("SwallowedException", "TooGenericExceptionCaught") e: Exception,
+                ) {
+                    if (e is CancellationException) throw e
+                    // A name only: a message or a stack could hold a URL.
+                    emit("ERROR run-failed")
+                }
+                emit("DONE ${args.runId}")
+                // Activity calls belong on the main thread.
+                withContext(Dispatchers.Main) { finish() }
+            } finally {
+                // Close, then release: runAll's own finally has closed the controller by now. The player is not
+                // released in onDestroy, which can run before that teardown has finished.
+                created.release()
             }
-            emit("DONE ${args.runId}")
-            // Activity calls belong on the main thread.
-            withContext(Dispatchers.Main) { finish() }
         }
-    }
-
-    override fun onDestroy() {
-        player?.release()
-        player = null
-        super.onDestroy()
     }
 
     private fun parseArgs(): RunArgs? =
@@ -135,17 +130,29 @@ class PlaybackTestActivity : ComponentActivity() {
             return
         }
         val clock = SystemClock::elapsedRealtime
-        val run = PlaybackRun(TuneController(resolver, server, player, clock = clock), player)
-        for ((ordinal, play) in args.plays.withIndex()) {
-            val result =
-                run.run(session, args.section, play) { resolved ->
-                    // The chosen audio track is the oracle's input (not the source default), so an override is graded.
-                    ExpectedRoute.of(capabilities.get(), resolved.media, resolved.chosenSubtitle, resolved.chosenAudio)
+        val controller = TuneController(resolver, server, player, clock = clock)
+        val run = PlaybackRun(controller, player)
+        try {
+            for ((ordinal, play) in args.plays.withIndex()) {
+                val result =
+                    run.run(session, args.section, play) { resolved ->
+                        // The chosen audio track is the oracle's input (not the source default), so an override is
+                        // graded.
+                        ExpectedRoute.of(
+                            capabilities.get(),
+                            resolved.media,
+                            resolved.chosenSubtitle,
+                            resolved.chosenAudio,
+                        )
+                    }
+                emit("RESULT " + result.toJsonLine(args.runId, ordinal))
+                if (result.error == "session-expired") {
+                    sessions.onServerError(MediaServerError.SessionExpired())
                 }
-            emit("RESULT " + result.toJsonLine(args.runId, ordinal))
-            if (result.error == "session-expired") {
-                sessions.onServerError(MediaServerError.SessionExpired())
             }
+        } finally {
+            // Even when the run is cancelled: nothing may keep playing or encoding. The player is released after this.
+            controller.close(session)
         }
     }
 

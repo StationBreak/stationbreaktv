@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -533,6 +534,139 @@ class TuneControllerTest {
         }
 
     @Test
+    fun aTuneCancelledFromOutsideDuringTheFallbacksResolveStopsTheFirstAttempt() =
+        runTest {
+            answer(transcode)
+            // The first attempt plays but lands at zero for a 60 s start, so the fallback resolves a second time.
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val gate = CompletableDeferred<Unit>()
+            var resolves = 0
+            val gated =
+                object : MediaServer by server {
+                    override suspend fun playbackInfo(
+                        session: Session,
+                        item: ItemId,
+                        request: PlaybackRequest,
+                    ): ServerResult<PlaybackInfo> {
+                        if (++resolves == 2) gate.await()
+                        return server.playbackInfo(session, item, request)
+                    }
+                }
+            val gatedController = TuneController(PlaybackResolver(gated) { insigniaLike() }, gated, player) { 1_000L }
+            val tuning = launch { gatedController.tune(session, item, 60.seconds, null) }
+            runCurrent()
+            assertEquals("the fallback is waiting on its resolve", 2, resolves)
+            tuning.cancel()
+            runCurrent()
+            // The player was still playing the abandoned attempt: the cancel stops it. Its encode was already stopped
+            // before the fallback resolved, and is not stopped again.
+            assertEquals(listOf("play", "stop"), player.calls)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    /** A server whose [call]th playback-info request waits for [gate] (1-based), counting the calls in [calls]. */
+    private class Gated(
+        private val inner: MediaServer,
+        private val call: Int,
+        val gate: CompletableDeferred<Unit> = CompletableDeferred(),
+    ) : MediaServer by inner {
+        var calls = 0
+
+        override suspend fun playbackInfo(
+            session: Session,
+            item: ItemId,
+            request: PlaybackRequest,
+        ): ServerResult<PlaybackInfo> {
+            if (++calls == call) gate.await()
+            return inner.playbackInfo(session, item, request)
+        }
+    }
+
+    @Test
+    fun aTuneAfterCloseNeverPlays() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            controller.close(session)
+            assertEquals(TuneResult.Stopped, tune())
+            assertTrue("a closed controller never plays", player.played.isEmpty())
+            assertTrue(server.playbackInfoCalls.isEmpty())
+        }
+
+    @Test
+    fun aTuneStartedButNotYetRunningWhenCloseRunsNeverPlays() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            // Created, but not yet registered as the tune in flight: close() cannot see it, so it must check itself.
+            val tuning = async { tune() }
+            controller.close(session)
+            assertEquals(TuneResult.Stopped, tuning.await())
+            assertTrue(player.played.isEmpty())
+        }
+
+    @Test
+    fun closeRunsToTheEndFromACancelledScope() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(playing(1_300, Duration.ZERO), emptyList())
+            val gated = Gated(server, call = 2)
+            val gatedController = TuneController(PlaybackResolver(gated) { insigniaLike() }, gated, player) { 1_000L }
+            gatedController.tune(session, item, Duration.ZERO, null)
+            // A second tune holds the lock while it waits on its resolve, so close() has to wait for it.
+            val busy = launch { gatedController.tune(session, item, Duration.ZERO, null) }
+            runCurrent()
+            val host =
+                launch {
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        gatedController.close(session)
+                    }
+                }
+            runCurrent()
+            host.cancel()
+            runCurrent()
+            busy.join()
+            // The busy tune's own clean-up stops the player once; close()'s release, which waited for the lock in a
+            // cancelled scope, stops it a second time.
+            assertEquals(listOf("play", "stop", "stop"), player.calls)
+        }
+
+    @Test
+    fun aTuneSupersededDuringItsResolveDoesNotStopThePlayer() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(1_300, Duration.ZERO))
+            val gated = Gated(server, call = 2)
+            val gatedController = TuneController(PlaybackResolver(gated) { insigniaLike() }, gated, player) { 1_000L }
+            gatedController.tune(session, item, Duration.ZERO, null)
+            val second = async { gatedController.tune(session, item, Duration.ZERO, null) }
+            runCurrent()
+            val third = async { gatedController.tune(session, item, Duration.ZERO, null) }
+            assertEquals(TuneResult.Superseded, second.await())
+            assertTrue(third.await() is TuneResult.Played)
+            // A fast flip: the screen is not blanked between the plays.
+            assertEquals(listOf("play", "play"), player.calls)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun aTuneCancelledFromOutsideDuringItsResolveStopsThePlayer() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val gated = Gated(server, call = 2)
+            val gatedController = TuneController(PlaybackResolver(gated) { insigniaLike() }, gated, player) { 1_000L }
+            gatedController.tune(session, item, Duration.ZERO, null)
+            val second = launch { gatedController.tune(session, item, Duration.ZERO, null) }
+            runCurrent()
+            second.cancel()
+            runCurrent()
+            assertEquals(listOf("play", "stop"), player.calls)
+        }
+
+    @Test
     fun aNewTuneStopsThePreviousPlaysEncode() =
         runTest {
             answer(transcode)
@@ -565,8 +699,9 @@ class TuneControllerTest {
             val second = async { tune() }
             assertEquals(TuneResult.Superseded, first.await())
             assertTrue(second.await() is TuneResult.Played)
-            // The first one's clean-up (stop, its encode) ran before the second one played, never after.
-            assertEquals(listOf("play", "stop", "play"), player.calls)
+            // The first one's clean-up (its encode) ran before the second one played, never after. The player is not
+            // stopped in between: the new play replaces the item.
+            assertEquals(listOf("play", "play"), player.calls)
             // The second play's attempt is still current, so stop() ends its encode too.
             controller.stop(session)
             assertEquals(2, server.stoppedEncodes.size)

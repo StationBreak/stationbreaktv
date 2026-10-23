@@ -17,7 +17,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.playback.Media3VideoPlayerFactory
 import tv.stationbreak.core.playback.PlaybackResolver
+import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.probe.AndroidCodecInventory
 import tv.stationbreak.core.playback.probe.CapabilityProbe
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
@@ -27,8 +29,8 @@ import javax.inject.Singleton
 
 /**
  * The bindings for playback (spec 13, ADR-0016): the device's capabilities, the data source the player reads media
- * through, and the resolver that decides how to play an item. There is no player here: the screen that plays creates
- * one `Media3VideoPlayer` for its lifetime and releases it.
+ * through, the factory that builds the player, and the resolver that decides how to play an item. The screen that plays
+ * creates one player from the [VideoPlayerFactory] for its lifetime and releases it; it never names a Media3 type.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -77,6 +79,13 @@ internal object PlaybackModule {
         server: JellyfinMediaServer,
         sessions: SessionRepository,
     ): DataSource.Factory = OkHttpDataSource.Factory(server.mediaCallFactory { sessions.current.value })
+
+    /** The way a screen gets its player: Media3 behind it, the media client's data source inside it. */
+    @Provides
+    @UnstableApi
+    fun videoPlayerFactory(
+        @MediaDataSource dataSource: DataSource.Factory,
+    ): VideoPlayerFactory = Media3VideoPlayerFactory(dataSource)
 
     @Provides
     fun playbackResolver(
