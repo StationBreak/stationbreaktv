@@ -82,8 +82,11 @@ interface StreamUrls {
      * The `master.m3u8` for [source]; the server may copy streams where it agrees. The tracks are the choice the
      * server resolved, not the player's wish: [audioIndex] is the audio stream to carry, and when null it is the
      * source's own [MediaSource.defaultAudioIndex], which is where the user's Jellyfin preference ended up. [burnIn] is
-     * the index of a subtitle stream to burn into the picture, or null (text subtitles never travel in this URL).
-     * [limits] are the device's, [forceTranscode] stops the video being copied.
+     * the index of a subtitle stream to burn into the picture, or null. A text subtitle never travels in this URL,
+     * embedded or not: the caller fetches it as WebVTT from [subtitle], treating an embedded one as
+     * [SubtitleDelivery.SEPARATE] on an HLS route (the server extracts it; ADR-0016, update 2026-10-22).
+     * [limits] are the device's, [forceTranscode] stops the video being copied. The URL lists H.264 and, where the
+     * device decodes it, HEVC, so the server can copy either and convert only the audio; HEVC comes in fMP4 segments.
      * There is no start: the playlist covers the whole runtime from 0 and the player seeks (the server rejects
      * `StartTimeTicks` on segment requests, Jellyfin 12.2; ADR-0016).
      */
@@ -96,7 +99,7 @@ interface StreamUrls {
         forceTranscode: Boolean,
     ): String
 
-    /** WebVTT for a text [stream] delivered [SubtitleDelivery.SEPARATE], else null. */
+    /** WebVTT for a text [stream] whose delivery is [SubtitleDelivery.SEPARATE], else null. Made from IDs, no token. */
     fun subtitle(
         source: MediaSourceId,
         stream: MediaStreamInfo,

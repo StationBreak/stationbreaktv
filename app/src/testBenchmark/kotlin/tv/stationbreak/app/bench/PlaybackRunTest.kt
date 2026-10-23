@@ -100,7 +100,7 @@ class PlaybackRunTest {
             containers = setOf("mkv", "mp4"),
             videoCodecs = emptyList(),
             audioDecoders = emptySet(),
-            audioPassthrough = emptySet(),
+            audioPassthrough = setOf("dts"),
             maxAudioChannels = 2,
         )
 

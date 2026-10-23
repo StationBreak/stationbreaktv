@@ -57,7 +57,18 @@ class PlaybackResolver(
                 ?: media.streams.firstOrNull { it.kind == StreamKind.AUDIO }
         val audioIndex = audio?.index
         val subtitleChoice = if (override != null) override.subtitleIndex else media.defaultSubtitleIndex
-        val wantedSubtitle = media.stream(StreamKind.SUBTITLE, subtitleChoice)
+        val chosen = media.stream(StreamKind.SUBTITLE, subtitleChoice)
+        val burnedIn = chosen?.delivery == SubtitleDelivery.BURNED_IN
+        val route = route(media, limits, audio, burnedIn, forceTranscode)
+        val hls = route != Route.DIRECT_PLAY
+        // On an HLS route the playlist carries no text subtitle, so an embedded one is fetched as WebVTT instead: the
+        // server extracts it (ADR-0016, update 2026-10-22). Direct play shows it from the file itself.
+        val wantedSubtitle =
+            if (hls && chosen != null && chosen.inStreamText()) {
+                chosen.copy(delivery = SubtitleDelivery.SEPARATE)
+            } else {
+                chosen
+            }
         val separate =
             wantedSubtitle
                 ?.takeIf { it.delivery == SubtitleDelivery.SEPARATE }
@@ -68,9 +79,6 @@ class PlaybackResolver(
         val subtitle =
             wantedSubtitle?.takeUnless { it.delivery == SubtitleDelivery.SEPARATE && separate == null }
         val subtitleIndex = subtitle?.index
-        val burnedIn = subtitle?.delivery == SubtitleDelivery.BURNED_IN
-        val route = route(media, limits, audio, burnedIn, forceTranscode)
-        val hls = route != Route.DIRECT_PLAY
         val url =
             if (hls) {
                 val burnIn = if (burnedIn) subtitleIndex else null
@@ -105,10 +113,13 @@ class PlaybackResolver(
     ): Route =
         when {
             forceTranscode -> Route.TRANSCODE
-            media.supportsDirectPlay && !burnedIn && audioPlays(limits, audio) -> Route.DIRECT_PLAY
+            burnedIn -> Route.TRANSCODE
+            media.supportsDirectPlay && audioPlays(limits, audio) -> Route.DIRECT_PLAY
             media.supportsDirectStream -> Route.DIRECT_STREAM
             else -> Route.TRANSCODE
         }
+
+    private fun MediaStreamInfo.inStreamText() = delivery == SubtitleDelivery.IN_STREAM && Codecs.isTextSubtitle(codec)
 
     private fun MediaStreamInfo.pick(): TrackPick? = positionInKind?.let { TrackPick(it, language, codec) }
 
