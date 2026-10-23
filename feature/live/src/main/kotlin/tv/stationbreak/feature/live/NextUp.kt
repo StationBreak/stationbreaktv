@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.feature.live
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import tv.stationbreak.core.domain.lineup.Airing
+import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.ChannelOnAir
+import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Session
+import kotlin.time.Duration
+
+/** A next program resolved ahead of its block: for the block of [item] that starts at [blockStartMs] at [start]. */
+internal class Pending(
+    val handle: NextHandle,
+    val item: CanonicalId,
+    val blockStartMs: Long,
+    val start: Duration,
+) {
+    /** Set when the handle is passed to a tune, which takes it whatever happens: it must not be discarded after. */
+    var consumed = false
+}
+
+/**
+ * The next program, resolved ahead so the cut at the boundary has no resolve in it. Tuning a handle consumes it, so a
+ * handle is discarded here only when the machine decides not to use it: stale after a re-query, a mismatch, leaving.
+ * A resolve cancelled before it returns is the controller's to end (its `close` ends every outstanding encode).
+ */
+internal class NextUp(
+    private val session: Session,
+    private val tuner: TunePort,
+    private val timings: LiveTimings,
+    private val now: () -> Long,
+) {
+    private var pending: Pending? = null
+
+    /** Starts resolving [onAir]'s next block [LiveTimings.preResolveLead] before this one ends, if it is a program. */
+    fun prepare(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+    ): Deferred<Pending?>? {
+        val next = onAir.next.firstOrNull()
+        val program = (next?.airing as? Airing.Program)?.takeIf { it.info != null }
+        val start = next?.positionAt(next.startMs)
+        if (next == null || program == null || start == null) return null
+        return scope.async {
+            val wait = onAir.now.endMs - timings.preResolveLead.inWholeMilliseconds - now()
+            if (wait > 0) delay(wait)
+            val handle = tuner.preResolve(session, ItemId(program.itemId.value), start)
+            handle?.let { Pending(it, program.itemId, next.startMs, start) }
+        }
+    }
+
+    /** Holds what [prepare] finished with (nothing if it had not finished). Safe when the caller is cancelled. */
+    suspend fun keep(ahead: Deferred<Pending?>?) {
+        withContext(NonCancellable) {
+            pending = ahead?.takeIf { it.isCompleted && !it.isCancelled }?.await()
+            ahead?.cancel()
+        }
+    }
+
+    /** The handle prepared for [block] when it is still exactly right; a stale or mismatched one is discarded. */
+    suspend fun takeFor(block: AiringBlock): Pending? {
+        val held = pending ?: return null
+        pending = null
+        val program = block.airing as? Airing.Program
+        val fits =
+            program != null &&
+                program.itemId == held.item &&
+                block.startMs == held.blockStartMs &&
+                block.positionAt(block.startMs) == held.start &&
+                now() - block.startMs <= CUT_SLACK_MS
+        if (!fits) discard(held)
+        return held.takeIf { fits }
+    }
+
+    /** Ends a handle the machine will not use (unless a tune already took it). */
+    suspend fun discard(handle: Pending) {
+        if (!handle.consumed) withContext(NonCancellable) { tuner.discard(session, handle.handle) }
+    }
+
+    /** Ends what is held. The caller stops the tuner. */
+    suspend fun release() {
+        val held = pending ?: return
+        pending = null
+        discard(held)
+    }
+
+    private companion object {
+        /** How far past a block's start a prepared cut may still happen (the spec's +-2 s offset error). */
+        const val CUT_SLACK_MS = 2_000L
+    }
+}
