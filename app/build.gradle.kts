@@ -87,6 +87,7 @@ dependencies {
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(project(":core:ui"))
     // The screens. Their ViewModels get the MediaServer port through Hilt, wired in di/.
+    implementation(project(":feature:live"))
     implementation(project(":feature:onboarding"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)

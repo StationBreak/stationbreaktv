@@ -210,15 +210,24 @@ These IDs become GitHub issue titles once creating issues is approved.
 Before this feature starts, the lineup refresh and `airings` speed on the Insignia must be fixed ([#309](https://github.com/StationBreak/stationbreaktv/issues/309); see S1.2.1).
 
 **S1.3.1** As a viewer, I want tuning to a channel to start the current program at the right point so that it feels live.
+
+📺 **Built 2026-10-23, device check pending** (spec 14, [ADR-0017](adr/0017-live-channel-playback.md)). The app opens on the live channel once setup is finished; the device check is the 📺 line below.
+
 - 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path the player seeks the same way: the HLS URL carries no `StartTimeTicks` (Jellyfin 12.2 rejects it on segments), and the server encodes from the segment the player asks for ([ADR-0016](adr/0016-playback-routes-and-the-media-client.md)).
 - 📺 Visual offset error is ≤ ±2 s versus the guide's expected position.
 - ✅ 🧪 After a seek, the player compares the actual position with the requested offset. If they differ by more than 2 s (for example an MKV without Cues, which ExoPlayer silently plays from 0; [ADR-0007](adr/0007-tune-latency-spike.md)), it falls back to the transcode path, which the player seeks to the offset. **Delivered in spec 13** (`SeekCheck` and `TuneController`, [ADR-0016](adr/0016-playback-routes-and-the-media-client.md), 4).
 
 **S1.3.2** As a viewer, I want playback to continue seamlessly into the next scheduled item so that the channel never stops.
-- 🧪 The next item is queued in the Media3 playlist ahead of time. When an item ends early or late (runtime metadata wrong), playback re-syncs to the schedule at the next boundary instead of drifting (see Q-SCH-3).
+
+📺 **Built 2026-10-23, device check pending** (spec 14, [ADR-0017](adr/0017-live-channel-playback.md)). The cut to the next block is checked on the Insignia and the Firestick.
+
+- 🧪 The next item is resolved ahead of time (45 s before the block ends) and played at the block's start. When an item ends early or late (runtime metadata wrong), the schedule wins: the ident card covers the rest of the block, or the item is cut at the boundary. Resolved as Q-SCH-3.
 
 **S1.3.3** As a viewer, I want a dead item (deleted, unplayable) to be skipped so that the channel doesn't hang.
-- 🧪 On a source error, the player skips to the next scheduled item with offset 0 and shows a brief "signal lost" slate. It retries the original item at most once.
+
+📺 **Built 2026-10-23, device check pending** (spec 14, [ADR-0017](adr/0017-live-channel-playback.md)). The dead-item cases are checked on the Insignia and the Firestick.
+
+- 🧪 On a source error, the player retries the original item once, shows a "Technical difficulties" slate for about 3 s, then moves on to the next scheduled item from its start (30 minutes or less left in the dead block; the channel then runs ahead for this sitting only and any retune re-anchors it) or fills the block with a deterministic stand-in (more than 30 minutes left).
 
 ## F1.4 Channel flipping & last-channel recall (M)
 

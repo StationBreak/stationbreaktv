@@ -54,9 +54,9 @@ import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.launch.LaunchTags
 import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
-import tv.stationbreak.feature.onboarding.libraries.SetupCompleteTags
 import tv.stationbreak.feature.onboarding.libraries.SignedInTags
 import tv.stationbreak.feature.onboarding.server.ServerTags
 import tv.stationbreak.feature.onboarding.signin.SignInTags
@@ -86,7 +86,7 @@ private object Launched {
  * Launch routing and the end of onboarding, on API 25 under the real Hilt graph (the adapter, the Keystore and the
  * settings file swapped for fakes), driven with real key events (spec 05, Unit 4): every route the app can open on, a
  * progress screen while the restore runs and no flash of onboarding, the library picker's Done, Back to "Signed in as"
- * with Continue and Switch user, and "Setup complete" with Back leaving the app.
+ * with Continue and Switch user, and the live screen with Back leaving the app.
  */
 @HiltAndroidTest
 @UninstallModules(MediaServerModule::class)
@@ -211,13 +211,12 @@ class LaunchNavigationTest {
     }
 
     @Test
-    fun aRestoredSessionWithAChoiceOpensSetupCompleteAndBackLeavesTheApp() {
+    fun aRestoredSessionWithAChoiceOpensTheLiveScreenAndBackLeavesTheApp() {
         storeSession()
         Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
         launchApp()
 
-        awaitExists(SetupCompleteTags.HEADLINE)
-        compose.onNodeWithTag(SetupCompleteTags.HEADLINE).assert(hasText("Setup complete"))
+        awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(ServerTags.FIELD))
         assertBackLeavesTheApp()
     }
@@ -282,7 +281,7 @@ class LaunchNavigationTest {
         Launched.server.fake.resumeResult = ServerResult.Success(session)
         press(KeyEvent.KEYCODE_DPAD_CENTER, LaunchTags.RETRY)
 
-        awaitExists(SetupCompleteTags.HEADLINE)
+        awaitExists(LiveTags.NO_CHANNELS)
     }
 
     @Test
@@ -334,14 +333,14 @@ class LaunchNavigationTest {
         assertEquals(0, count(SignInTags.USERNAME))
 
         gate.complete(Unit)
-        awaitExists(SetupCompleteTags.HEADLINE)
+        awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(ServerTags.FIELD))
     }
 
     // The end of onboarding
 
     @Test
-    fun doneSavesTheChoiceOpensSetupCompleteAndBackLeavesTheApp() {
+    fun doneSavesTheChoiceOpensTheLiveScreenAndBackLeavesTheApp() {
         storeSession()
         Launched.settings = InMemoryServerSettings(ServerRecord(https))
         launchApp()
@@ -349,7 +348,7 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.row("movies"))
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
 
-        awaitExists(SetupCompleteTags.HEADLINE)
+        awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(setOf(movies.id), Launched.settings.currentLibraries)
         assertBackLeavesTheApp()
     }

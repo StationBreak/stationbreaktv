@@ -27,10 +27,3 @@ object SignedInTags {
     const val SWITCH_USER = "signedIn:switchUser"
     const val SWITCHING = "signedIn:switching"
 }
-
-/** Test tags for the placeholder shown after setup. */
-object SetupCompleteTags {
-    const val SCREEN = "setupComplete:screen"
-    const val HEADLINE = "setupComplete:headline"
-    const val BODY = "setupComplete:body"
-}
