@@ -59,7 +59,9 @@ runs used plan seed 1 and the benchmark build.
     with DTS. That suggests the server re-encodes the video behind the direct-stream label (see
     [#351](https://github.com/StationBreak/stationbreaktv/issues/351)).
   - AFTKRT: the HEVC/TrueHD transcode took about 16 s to its first frame, against about 5 s for the same file on
-    AFTJMST12. Worth a look; not graded.
+    AFTJMST12. Worth a look; not graded. The same row was also silent to a person listening at the TV, although Audio
+    heard reads yes: that column measures the media clock, not sound
+    ([#355](https://github.com/StationBreak/stationbreaktv/issues/355)).
 
 ## synthetic: AFTJMST12
 
