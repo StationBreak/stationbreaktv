@@ -152,7 +152,7 @@ internal class Sitting(
                     else -> TuneKind.Fresh
                 }
             val outcome =
-                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, position)) {
+                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, use?.start ?: position)) {
                     if (use != null) {
                         use.consumed = true
                         tuner.tune(session, use.handle)

@@ -63,6 +63,21 @@ class LiveChannelReportTest {
         }
 
     @Test
+    fun aPreparedCutsLagCountsFromWhereItActuallyStarts() =
+        runTest {
+            val r = Rig(this, startMin = 10)
+            r.ordinaryDay()
+            r.tune.script(itemOf(2), FakeTune.playsAfter(300.milliseconds))
+            r.start()
+            r.schedule.onAirDelayMs = 200 // the boundary look at the schedule takes 200 ms
+            r.at(50 * MIN + 500)
+
+            // The handle plays from the block's start; the picture is 200 + 300 ms behind the schedule.
+            val prepared = r.reports.filterIsInstance<TuneReport.Tune>().single { it.kind == TuneKind.Prepared }
+            assertEquals(500L, prepared.lagMs)
+        }
+
+    @Test
     fun aCutWithNoUsableHandleIsAFreshTuneAndItsResolveIsNotSeparate() =
         runTest {
             val r = Rig(this, startMin = 10)

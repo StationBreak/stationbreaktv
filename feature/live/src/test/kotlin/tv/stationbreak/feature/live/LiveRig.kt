@@ -114,6 +114,9 @@ class FakeSchedule : ScheduleSource {
     /** Told how many following blocks each [onAir] asks for, as it is asked; may throw to fail the call. */
     var onAirObserver: (next: Int) -> Unit = {}
 
+    /** How long each [onAir] takes on the virtual clock (a slow schedule read). */
+    var onAirDelayMs = 0L
+
     fun channel(
         id: ChannelId,
         number: Int,
@@ -140,6 +143,7 @@ class FakeSchedule : ScheduleSource {
         val ms = at.toEpochMilliseconds()
         onAirCalls += channel to ms
         onAirObserver(next)
+        kotlinx.coroutines.delay(onAirDelayMs)
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {
