@@ -85,7 +85,13 @@ python3 -I scripts/playback-matrix/run.py signout -s SERIAL [--force]
 
 - Both activities demand the `DUMP` permission, which the shell behind `adb shell am start` holds and ordinary apps
   cannot get, on top of the USB-debugging check.
-- Only one `setup` or `signout` runs at a time; a second gets `busy`.
+- Only one `setup` or `signout` runs at a time; a second gets `busy`. Before it starts, `run.py` runs
+  `am force-stop` on the benchmark package, so an activity still waiting from an earlier `setup` cannot answer the new
+  one (it used to: `SETUP ERROR qc-expired`).
+- If the device's `logcat` stream ends before the answer (adb can drop it with `read: unexpected EOF!`), `run.py` does
+  not take that for the answer: it attaches again, with the same `--pid` scope, and keeps waiting until the app's
+  answer arrives or the timeout passes. Lines the earlier attach already delivered are skipped on the re-read, so
+  nothing is counted twice. `run` waits for its `DONE` line the same way.
 - `setup` never replaces a session: with any session stored (even without a server record) it stops with
   `already-signed-in`, and with a secret store it cannot read it stops with `store-unreadable`. A stale session that
   blocks setup is removed with `signout --force`. An explicit `http://` address is accepted as typed, but an `http`

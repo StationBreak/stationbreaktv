@@ -4,6 +4,7 @@
 Run: python3 -I -m unittest discover -s scripts/playback-matrix -p '*_test.py'
 """
 
+import itertools
 import json
 import os
 import re
@@ -484,6 +485,88 @@ class SetupMainTest(unittest.TestCase):
             self.assertEqual(run.main(["signout", "-s", "SER", "--force"]), 0)
         started = [call.args[0] for call in adb.call_args_list if "BenchSetupActivity" in " ".join(call.args[0])]
         self.assertIn("force", " ".join(started[0]))
+
+    def adb_calls(self, adb):
+        return [" ".join(call.args[0]) for call in adb.call_args_list]
+
+    def test_aStaleActivityIsForceStoppedBeforeSetupStarts(self):
+        env = {run.SERVER_ENV: "https://media.example.invalid"}
+        with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as adb, mock.patch(
+            "subprocess.Popen"
+        ), mock.patch.object(run, "_wait_for_pid", return_value=42), mock.patch.object(
+            run, "read_lines", return_value=iter(["SETUP OK"])
+        ):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["setup", "-s", "SER"]), 0)
+        calls = self.adb_calls(adb)
+        stop = calls.index(f"adb -s SER shell am force-stop {run.APP_ID}")
+        start = next(i for i, call in enumerate(calls) if "BenchSetupActivity" in call)
+        self.assertLess(stop, start)
+        self.assertLess(stop, calls.index("adb -s SER logcat -c"))
+
+    def test_aStaleActivityIsForceStoppedBeforeSignoutStarts(self):
+        with mock.patch("subprocess.run") as adb, mock.patch("subprocess.Popen"), mock.patch.object(
+            run, "_wait_for_pid", return_value=42
+        ), mock.patch.object(run, "read_lines", return_value=iter(["SIGNOUT OK revoked"])):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["signout", "-s", "SER"]), 0)
+        calls = self.adb_calls(adb)
+        stop = calls.index(f"adb -s SER shell am force-stop {run.APP_ID}")
+        start = next(i for i, call in enumerate(calls) if "BenchSetupActivity" in call)
+        self.assertLess(stop, start)
+
+    def run_with_reads(self, action, reads, seconds=0.5):
+        """main() for [action] with one iterator in [reads] per logcat attach; returns (status, codes, popen)."""
+        env = {run.SERVER_ENV: "https://media.example.invalid"}
+        codes = []
+        seconds_name = "SETUP_SECONDS" if action == "setup" else "SIGNOUT_SECONDS"
+        with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as adb, mock.patch(
+            "subprocess.Popen"
+        ) as popen, mock.patch.object(run, "_wait_for_pid", return_value=42), mock.patch.object(
+            run, "read_lines", side_effect=[iter(read) for read in reads]
+        ), mock.patch.object(run, "_announce_code", codes.append), mock.patch.object(
+            run, seconds_name, seconds
+        ), mock.patch.object(run, "REATTACH_SECONDS", 0.01):
+            adb.return_value.stdout = ""
+            status = run.main([action, "-s", "SER"])
+        return status, codes, popen
+
+    def test_anEarlyLogcatEndIsWaitedPastAndTheReReadAnswers(self):
+        status, codes, popen = self.run_with_reads("setup", [["QC 123456"], ["QC 123456", "SETUP OK"]])
+        self.assertEqual(status, 0)
+        self.assertEqual(codes, ["123456"])
+        self.assertEqual(popen.call_count, 2)
+        # Every attach reads the same process only, so an older line from another process cannot count.
+        self.assertEqual({tuple(call.args[0]) for call in popen.call_args_list}, {tuple(run.logcat_command("SER", 42))})
+
+    def test_aSignoutWaitsPastAnEarlyLogcatEndToo(self):
+        status, _, popen = self.run_with_reads("signout", [[], [], ["SIGNOUT OK revoked"]])
+        self.assertEqual(status, 0)
+        self.assertEqual(popen.call_count, 3)
+
+    def test_anEndWithNoAnswerBeforeTheDeadlineIsTheTimeout(self):
+        with mock.patch("sys.stderr") as err:
+            status, codes, popen = self.run_with_reads("setup", [["QC 123456"]] + [[]] * 200, seconds=0.2)
+        self.assertEqual(status, 1)
+        self.assertEqual(codes, ["123456"])
+        self.assertGreater(popen.call_count, 1)
+        printed = "".join(call.args[0] for call in err.write.call_args_list)
+        self.assertIn("setup: no answer from the app before the timeout", printed)
+
+    def test_aReReadDoesNotCountALineTwiceOrReplayAnOldOne(self):
+        status, codes, _ = self.run_with_reads(
+            "setup", [["QC 111111"], ["QC 111111", "QC 222222"], ["QC 111111", "QC 222222", "SETUP OK"]]
+        )
+        self.assertEqual(status, 0)
+        self.assertEqual(codes, ["111111", "222222"])
+
+    def test_aNewLineLikeAnEarlierOneIsKeptOnceAndAReplayedLineIsDropped(self):
+        attaches = [iter(["a", "b", "a"]), iter(["a", "b", "a", "a", "c"]), iter(["b", "a", "a", "a", "c", "d"])]
+        with mock.patch("subprocess.Popen"), mock.patch.object(run, "read_lines", side_effect=attaches), mock.patch.object(
+            run, "REATTACH_SECONDS", 0.01
+        ):
+            lines = list(itertools.islice(run.stream_logcat("SER", 42, time.monotonic() + 30), 6))
+        self.assertEqual(lines, ["a", "b", "a", "a", "c", "d"])
 
     def test_aBadServerExitsTwo(self):
         with mock.patch("subprocess.run") as adb:

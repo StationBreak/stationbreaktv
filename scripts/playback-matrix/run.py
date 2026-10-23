@@ -21,6 +21,8 @@ variable, never a file. Item IDs are never printed.
 """
 
 import argparse
+import collections
+import contextlib
 import datetime
 import json
 import math
@@ -336,6 +338,45 @@ def _wait_for_pid(serial):
         time.sleep(0.5)
 
 
+REATTACH_SECONDS = 1.0
+
+
+def stream_logcat(serial, pid, deadline):
+    """Lines of the benchmark app's SBPLAY log until [deadline], however many times the device's `logcat` ends early.
+
+    The stream can end before the deadline (adb has been seen to drop it with `read: unexpected EOF!`). That is not
+    the app's answer, so this attaches again, and each attach dumps the buffer from the clear that came before the
+    start, then follows it. The same `--pid` scope applies to every attach, so a line that was on the device before
+    this run, or from another app, never arrives. A re-read repeats the lines already seen: each is dropped once for
+    each time it was already yielded, so nothing is counted twice or lost, and a new line that looks like an old one
+    is still kept."""
+    seen = collections.Counter()
+    while True:
+        replay = collections.Counter(seen)
+        logcat = subprocess.Popen(logcat_command(serial, pid), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            for raw in read_lines(logcat.stdout.fileno(), deadline):
+                key = raw.strip()
+                if replay[key] > 0:
+                    replay[key] -= 1
+                    continue
+                seen[key] += 1
+                yield raw
+        finally:
+            logcat.kill()
+            logcat.wait()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(REATTACH_SECONDS, remaining))
+
+
+def _force_stop(serial):
+    """Ends any process of the benchmark app, so a stale BenchSetupActivity (still waiting on an earlier run) cannot
+    answer the one about to start."""
+    subprocess.run(["adb", "-s", serial, "shell", "am", "force-stop", APP_ID], check=True, capture_output=True)
+
+
 def _run_batch(serial, batch, section, run_id, override):
     # Cleared first, so the buffer holds only this run's lines when logcat is read after the start (below).
     subprocess.run(["adb", "-s", serial, "logcat", "-c"], check=True, capture_output=True)
@@ -344,18 +385,12 @@ def _run_batch(serial, batch, section, run_id, override):
     )
     if "Error" in started.stdout:
         raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
-    # Only this process's lines count; the buffer is dumped from the clear, then followed.
-    logcat = subprocess.Popen(
-        logcat_command(serial, _wait_for_pid(serial)),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    try:
-        deadline = time.monotonic() + timeout_seconds(len(batch))
-        return collect(read_lines(logcat.stdout.fileno(), deadline), run_id)
-    finally:
-        logcat.kill()
-        logcat.wait()
+    # Only this process's lines count; the buffer is dumped from the clear, then followed (and followed again if the
+    # stream ends early).
+    pid = _wait_for_pid(serial)
+    deadline = time.monotonic() + timeout_seconds(len(batch))
+    with contextlib.closing(stream_logcat(serial, pid, deadline)) as lines:
+        return collect(lines, run_id)
 
 
 def setup_command(serial, action, server=None, force=False):
@@ -476,7 +511,8 @@ def _announce_code(code):
 
 
 def command_setup(args):
-    """Starts BenchSetupActivity and follows its SBPLAY lines (this process's only), printing the Quick Connect code."""
+    """Force-stops any stale benchmark process, starts BenchSetupActivity and follows its SBPLAY lines (this process's
+    only), printing the Quick Connect code."""
     action = args.command
     server = None
     if action == "setup":
@@ -485,22 +521,16 @@ def command_setup(args):
             print(f"run.py: give --server ADDRESS or set {SERVER_ENV}", file=sys.stderr)
             return 2
     command = setup_command(args.serial, action, server, force=getattr(args, "force", False))
+    _force_stop(args.serial)
     subprocess.run(["adb", "-s", args.serial, "logcat", "-c"], check=True, capture_output=True)
     started = subprocess.run(command, capture_output=True, text=True, check=True)
     if "Error" in started.stdout:
         raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
-    logcat = subprocess.Popen(
-        logcat_command(args.serial, _wait_for_pid(args.serial)),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    try:
-        seconds = SETUP_SECONDS if action == "setup" else SIGNOUT_SECONDS
-        lines = read_lines(logcat.stdout.fileno(), time.monotonic() + seconds)
+    seconds = SETUP_SECONDS if action == "setup" else SIGNOUT_SECONDS
+    pid = _wait_for_pid(args.serial)
+    deadline = time.monotonic() + seconds
+    with contextlib.closing(stream_logcat(args.serial, pid, deadline)) as lines:
         status, message = follow_setup(lines, action, _announce_code)
-    finally:
-        logcat.kill()
-        logcat.wait()
     print(message, file=sys.stdout if status == 0 else sys.stderr)
     return status
 
