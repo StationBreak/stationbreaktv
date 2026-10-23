@@ -69,12 +69,21 @@ interface ScheduleSource {
     ): ChannelOnAir?
 
     /**
-     * The stand-in for [block] of [channel], a block that cannot play: items of the channel's own pool for the
-     * broadcast day that holds the block, laid end to end from the block's start (the last clipped to its end), each a
-     * [Airing.Program] from its start. The pick depends only on the channel's settings, the day and the block's start,
-     * so every TV gets the same one (ADR-0017). It never includes an id in [exclude] or an item gone from the library,
-     * and is empty when the pool has nothing else to give, or the channel is not on the air. Join it at the clock with
-     * [AiringBlock.positionAt].
+     * The stand-ins for [block] of [channel], a block that cannot play: items of the channel's own pool for the
+     * broadcast day that holds the block, laid end to end from the block's start (the last clipped to its end), each an
+     * [Airing.StandIn] from the start of its media. It never includes an id in [exclude] or an item gone from the
+     * library, and is empty when the pool has nothing else to give, or the channel is not on the air. Join it at the
+     * clock with [AiringBlock.positionAt].
+     *
+     * [block] must be the original scheduled block exactly as [onAir] returned it, so its airing is an
+     * [Airing.Program] (anything else, a stand-in included, throws [IllegalArgumentException]). Asking again for the
+     * same dead block, because a stand-in failed too, passes the same [block] with a larger [exclude]; a stand-in's
+     * own block is never passed back in.
+     *
+     * The guarantee is this much and no more (ADR-0017): the same channel settings, broadcast day, scheduled block
+     * start, library contents and [exclude] give the same stand-ins. [exclude] and which pool items still have a
+     * current row are device-local and the stand-ins are laid end to end, so TVs whose libraries or failures differ can
+     * differ for that block.
      */
     suspend fun standIns(
         channel: ChannelId,

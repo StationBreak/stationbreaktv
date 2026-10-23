@@ -11,6 +11,7 @@ import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -57,6 +58,8 @@ class BuiltInScheduleSourceStandInTest {
 
     private fun itemOf(block: AiringBlock) = assertIs<Airing.Program>(block.airing)
 
+    private fun standInOf(block: AiringBlock) = assertIs<Airing.StandIn>(block.airing)
+
     @Test
     fun standInsCoverTheBlockFromItsStart() {
         name(*(100..106).toList().toIntArray())
@@ -70,12 +73,12 @@ class BuiltInScheduleSourceStandInTest {
         assertEquals(block.endMs, result.last().endMs, "the last one is clipped to the block")
         result.zipWithNext().forEach { (a, b) -> assertEquals(a.endMs, b.startMs) }
         for (virtual in result) {
-            val program = itemOf(virtual)
-            assertEquals(0L, program.mediaStartMs)
-            assertNotNull(program.info)
-            assertTrue(program.itemId != deadItem)
+            val standIn = standInOf(virtual)
+            assertEquals(block.startMs, standIn.forBlockStartMs)
+            assertNotNull(standIn.info)
+            assertTrue(standIn.itemId != deadItem)
         }
-        assertEquals(result.size, result.map { itemOf(it).itemId }.toSet().size, "no item twice")
+        assertEquals(result.size, result.map { standInOf(it).itemId }.toSet().size, "no item twice")
         assertEquals(0L, virtualPosition(result.first(), block.startMs))
     }
 
@@ -110,9 +113,47 @@ class BuiltInScheduleSourceStandInTest {
         val block = dead(lengthMs = 12 * 3_600_000L)
         val exclude = setOf(itemOf(block).itemId)
 
-        val picked = standIns(block, exclude).map { itemOf(it).itemId }
+        val picked = standIns(block, exclude).map { standInOf(it).itemId }
 
         assertTrue(picked.isNotEmpty())
         assertTrue(picked.all { it in setOf(id(100), id(101), id(102)) }, "only items with a current row")
+    }
+
+    @Test
+    fun standInsRejectAStandInBlock() {
+        name(*(100..106).toList().toIntArray())
+        val block = dead(lengthMs = 5 * 3_600_000L)
+        val first = standIns(block, setOf(itemOf(block).itemId)).first()
+
+        assertFailsWith<IllegalArgumentException> { standIns(first, emptySet()) }
+    }
+
+    @Test
+    fun standInsOfTheSameBlockWithAGrowingExcludeKeepsTheBlockStart() {
+        name(*(100..106).toList().toIntArray())
+        val block = dead(lengthMs = 5 * 3_600_000L)
+        val deadItem = itemOf(block).itemId
+        val first = standIns(block, setOf(deadItem))
+        val failed = standInOf(first.first()).itemId
+
+        val second = standIns(block, setOf(deadItem, failed))
+
+        assertTrue(second.isNotEmpty())
+        assertEquals(block.startMs, second.first().startMs)
+        assertEquals(block.startMs, standInOf(second.first()).forBlockStartMs)
+        assertTrue(second.none { standInOf(it).itemId in setOf(deadItem, failed) })
+    }
+
+    @Test
+    fun standInsCheckLivenessWithOneNarrowReadAndNameOnlyThePicked() {
+        name(*(100..106).toList().toIntArray())
+        val block = dead(lengthMs = 5 * 3_600_000L)
+        library.programInfoCalls = 0
+
+        val result = standIns(block, setOf(itemOf(block).itemId))
+
+        assertEquals(1, library.currentIdsCalls)
+        assertEquals(1, library.programInfoCalls)
+        assertTrue(result.isNotEmpty())
     }
 }

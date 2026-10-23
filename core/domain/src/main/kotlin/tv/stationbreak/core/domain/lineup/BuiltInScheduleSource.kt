@@ -73,6 +73,7 @@ class BuiltInScheduleSource(
         block: AiringBlock,
         exclude: Set<CanonicalId>,
     ): List<AiringBlock> {
+        require(block.airing is Airing.Program) { "Stand-ins are asked for the scheduled block, not ${block.airing}" }
         val (account, chosen) = signedIn() ?: return emptyList()
         val at = Instant.fromEpochMilliseconds(block.startMs)
         val day = channelDays(account, chosen, at).firstOrNull { it.channel.id == channel }
@@ -86,17 +87,20 @@ class BuiltInScheduleSource(
         exclude: Set<CanonicalId>,
     ): List<AiringBlock> {
         val ids = day.pool.mapTo(HashSet()) { it.id }
-        val known = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids)
-        // A pool item with no current row is gone from the library: never a stand-in.
-        val barred = exclude + (ids - known.keys)
+        // A pool item with no current row is gone from the library: never a stand-in (a liveness read, not names).
+        val live = if (ids.isEmpty()) emptySet() else library.currentIds(account, ids)
+        val barred = exclude + (ids - live)
         val length = block.endMs - block.startMs
         val picked = StandIn.pick(day.settings, day.n, day.pool, block.startMs, length, barred)
+        val info = if (picked.isEmpty()) emptyMap() else library.programInfo(account, picked.mapTo(HashSet()) { it.id })
         var cursor = block.startMs
         val laid = ArrayList<AiringBlock>()
-        for (item in picked) {
+        // A current row that names nothing (not a movie or an episode) cannot be shown, so it is skipped.
+        for (item in picked.filter { it.id in info }) {
             if (cursor >= block.endMs) break
+            val named = info.getValue(item.id)
             val end = minOf(cursor + item.runtimeMs, block.endMs)
-            laid += AiringBlock(cursor, end, Airing.Program(item.id, 0L, known[item.id]))
+            laid += AiringBlock(cursor, end, Airing.StandIn(item.id, named, block.startMs))
             cursor = end
         }
         return laid

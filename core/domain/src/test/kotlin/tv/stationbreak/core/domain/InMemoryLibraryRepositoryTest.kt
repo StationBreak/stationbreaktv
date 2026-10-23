@@ -70,6 +70,18 @@ class InMemoryLibraryRepositoryTest {
         }
 
     @Test
+    fun currentIdsGivesTheLiveItemsOfTheAccountOnly() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.seed(alice, shows, item("d".repeat(32)))
+            repository.seed(alice, shows, item("e".repeat(32)), tombstoned = true)
+            val ids = setOf(CanonicalId.parse("d".repeat(32)), CanonicalId.parse("e".repeat(32)))
+
+            assertEquals(setOf(CanonicalId.parse("d".repeat(32))), repository.currentIds(alice, ids))
+            assertTrue(repository.currentIds(bob, ids).isEmpty())
+        }
+
+    @Test
     fun aSnapshotHoldsLiveUsableItemsCreatedBeforeTheInstantOfTheChosenLibraries() =
         runBlocking {
             val repository = InMemoryLibraryRepository()

@@ -10,8 +10,9 @@ import tv.stationbreak.core.scheduler.Epochs
 
 /**
  * The deterministic stand-in for a block that cannot play (spec 14, ADR-0017). It is client-local player behaviour,
- * not part of the rules format: the same channel settings, dead-block start and pool give every TV the same pick, so
- * every TV joins the same replacement at the clock position.
+ * not part of the rules format. The same channel settings, day, scheduled block start, pool and excluded set give the
+ * same pick; TVs whose libraries or failures differ (so whose pool or excluded set differs) can differ for that
+ * block.
  */
 internal object StandIn {
     /**

@@ -18,6 +18,18 @@ sealed interface Airing {
         val info: ProgramInfo?,
     ) : Airing
 
+    /**
+     * The stand-in for a scheduled block that cannot play (spec 14, ADR-0017), from [ScheduleSource.standIns]. It is
+     * its own type so a caller never mistakes it for a scheduled program: the item is always known ([info] is not
+     * null, since an item gone from the library is never picked) and always joins from the start of the media, at its
+     * own virtual block start. [forBlockStartMs] is the start of the scheduled block it replaces.
+     */
+    data class StandIn(
+        val itemId: CanonicalId,
+        val info: ProgramInfo,
+        val forBlockStartMs: Long,
+    ) : Airing
+
     /** Nothing to play: the grid gap before a program, or a whole day with nothing to air. */
     data object Slate : Airing
 }
@@ -29,12 +41,14 @@ data class AiringBlock(
     val airing: Airing,
 ) {
     /**
-     * The position in the media at [atMs] (programs only): `mediaStartMs + (atMs - startMs)`. Null for a slate. Every
+     * The position in the media at [atMs] (programs and stand-ins): `mediaStartMs + (atMs - startMs)`, where a
+     * stand-in's `mediaStartMs` is 0. Null for a slate. Every
      * tune that joins the clock starts here; one that joins from the start of a block starts at `mediaStartMs`.
      */
     fun positionAt(atMs: Long): Duration? =
         when (airing) {
             is Airing.Program -> (airing.mediaStartMs + (atMs - startMs)).milliseconds
+            is Airing.StandIn -> (atMs - startMs).milliseconds
             Airing.Slate -> null
         }
 }

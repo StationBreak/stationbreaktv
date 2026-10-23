@@ -380,6 +380,14 @@ class InMemoryLibraryRepository : LibraryRepository {
                 id to ProgramInfo(id, kind, row.item.name, seriesName, row.item.seasonNumber, row.item.episodeNumber)
             }.toMap()
 
+    override suspend fun currentIds(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Set<CanonicalId> =
+        rows
+            .filter { it.account == account && !it.tombstoned }
+            .mapNotNullTo(HashSet()) { row -> CanonicalId.parseOrNull(row.item.id.value)?.takeIf { it in ids } }
+
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
     override suspend fun contentGeneration(account: LibraryAccount): Long = changes.value[account] ?: 0L

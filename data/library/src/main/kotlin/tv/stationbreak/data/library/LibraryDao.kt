@@ -200,6 +200,17 @@ internal abstract class LibraryDao {
         ids: List<String>,
     ): List<ProgramRow>
 
+    // Which of [ids] (at most MAX_VARIABLES of them) are live items of the account: no join, no names (spec 14).
+    @Query(
+        "SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
+            "AND itemId IN (:ids)",
+    )
+    abstract suspend fun liveAmong(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<String>
+
     // Every row the account has, live or tombstoned, in any library: the primary key's own prefix.
     @Query("SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun allItemIds(

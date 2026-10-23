@@ -213,6 +213,16 @@ interface LibraryRepository : AccountCache {
     ): Map<CanonicalId, ProgramInfo>
 
     /**
+     * Which of [ids] have a current row (not deleted) for [account], whatever their kind: a liveness check with no
+     * names read. An id with no current row (deleted, a tombstone, another account's, or unknown) is absent. Like
+     * [programInfo] it reads the current state, so it is never for building a day.
+     */
+    suspend fun currentIds(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Set<CanonicalId>
+
+    /**
      * Signals that a whole collection pass of [account] completed. The value is the **start** time of the most recent
      * completed pass, and null until one has. It emits the current value first. It also emits null when the account's
      * saved data is cleared (it signed out, or another account became active), and Room may re-emit the same value,

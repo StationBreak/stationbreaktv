@@ -174,6 +174,11 @@ class RoomLibraryRepository internal constructor(
         ids: Set<CanonicalId>,
     ): Map<CanonicalId, ProgramInfo> = account.keys().let { (server, user) -> dao.programInfo(server, user, ids) }
 
+    override suspend fun currentIds(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Set<CanonicalId> = account.keys().let { (server, user) -> dao.currentIds(server, user, ids) }
+
     // The collection_sync row is written only after a whole pass succeeded (recordCollectionPass), and the items'
     // finishSync, which runs before the pass, never touches it. The flow also gives null when the account's row is
     // deleted (forget, or another account becoming active) and re-emits on writes to other accounts' rows.

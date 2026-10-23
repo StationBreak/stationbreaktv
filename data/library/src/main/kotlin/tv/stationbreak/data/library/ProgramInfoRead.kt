@@ -6,6 +6,22 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 
 /**
+ * The ids among [ids] that have a live row (spec 14), in the same chunks, with no join and no names. An ID the
+ * scheduler would not take is left out.
+ */
+internal suspend fun LibraryDao.currentIds(
+    server: String,
+    user: String,
+    ids: Set<CanonicalId>,
+): Set<CanonicalId> {
+    val live = HashSet<CanonicalId>()
+    for (chunk in ids.map { it.value }.chunked(LibraryDao.MAX_VARIABLES)) {
+        liveAmong(server, user, chunk).mapNotNullTo(live) { CanonicalId.parseOrNull(it) }
+    }
+    return live
+}
+
+/**
  * The names of the live movies and episodes among [ids] (spec 14), read in chunks the platform SQLite can bind. A row
  * whose ID or kind the scheduler would not take is left out.
  */

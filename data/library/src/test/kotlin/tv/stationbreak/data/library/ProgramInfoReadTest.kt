@@ -99,4 +99,31 @@ class ProgramInfoReadTest {
 
             assertEquals(setOf(canon(0x1001)), repository.programInfo(ALICE, many).keys)
         }
+
+    @Test
+    fun currentIdsOmitsDeletedItems() =
+        runBlocking {
+            save(ALICE)
+            repository.tombstone(ALICE, listOf(episodeId))
+
+            val live = repository.currentIds(ALICE, setOf(canon(0x1001), canon(0x1002), canon(0x1003)))
+
+            assertEquals(setOf(canon(0x1002)), live)
+        }
+
+    @Test
+    fun currentIdsIsScopedToTheAccount() =
+        runBlocking {
+            save(ALICE)
+
+            assertTrue(repository.currentIds(BOB, setOf(canon(0x1001), canon(0x1002))).isEmpty())
+        }
+
+    @Test
+    fun currentIdsOfAnEmptySetIsEmpty() =
+        runBlocking {
+            save(ALICE)
+
+            assertTrue(repository.currentIds(ALICE, emptySet()).isEmpty())
+        }
 }
