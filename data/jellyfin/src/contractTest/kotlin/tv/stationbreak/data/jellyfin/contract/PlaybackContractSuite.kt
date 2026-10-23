@@ -505,6 +505,24 @@ abstract class PlaybackContractSuite {
     }
 
     /**
+     * Record only (ADR-0016, #351): what the server says about HEVC video with DTS audio, and which video codec the
+     * HLS URL we build gets back. Nothing here asserts a route or a codec, so the profile and URL stay as they are. If
+     * the server reports a direct stream while the playlist says avc1, the resolver labels the route DIRECT_STREAM
+     * while the video is re-encoded.
+     */
+    @Test
+    fun recordsWhatTheServerDoesForHevcWithUndecodableAudio() {
+        runBlocking {
+            val played = play("hevc-dts", account = server.admin)
+
+            val master = assertPlaylistsServe(played)
+            val streamInf = master.lines().firstOrNull { it.startsWith("#EXT-X-STREAM-INF") }.orEmpty()
+            val codecs = CODECS.find(streamInf)?.groupValues?.get(1) ?: "none"
+            finding("hevc-dts ${route(played.source)} playlistCodecs=$codecs")
+        }
+    }
+
+    /**
      * Fetches the master, the variant, the segment covering [second] and segment 0 of [played]'s HLS URL, none with a
      * StartTimeTicks. Each is HTTP 200 and the segments are non-empty MPEG-TS. The covering segment starts where the
      * playlist says (within 2 s, from segment 0's own first timestamp), which is what guards HLS placement (ADR-0016).

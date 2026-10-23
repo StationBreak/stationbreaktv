@@ -138,10 +138,16 @@ Found in the whole-branch review of spec 13.
   subtitle stays in the file. The contract case `anEmbeddedSrtOfAFileWithUndecodableAudioServesAsVtt` proves the
   endpoint serves cues for an embedded SRT.
 - **HEVC copy is deferred.** HEVC copy (design goal 4 for HEVC sources) is deferred to #351. Until then, HEVC with
-  audio the device can't play is a full transcode. The route oracle still says DIRECT_STREAM for it (the goal), so the
-  matrix's `hevc-dts` row fails honestly until #351 lands.
-- **Also corrected:** a `BURNED_IN` subtitle now always resolves to a TRANSCODE (decision 8), not a direct stream. DVB and XSUB subtitles
-  are picture subtitles, so they burn in too.
+  audio the device can't play is a full transcode. The route oracle still says DIRECT_STREAM for it (the goal).
+  Until #351 the server re-encodes HEVC to H.264 on our URL. If the server reports `SupportsDirectStream`, the
+  resolver and the oracle both label the matrix's `hevc-dts` row DIRECT_STREAM while the video is re-encoded: the row
+  is mislabelled, not failed. The contract case `recordsWhatTheServerDoesForHevcWithUndecodableAudio` records which
+  happens (the server's flags and the playlist's `CODECS`) and asserts nothing about it.
+- **Also corrected:** a `BURNED_IN` subtitle now always resolves to a TRANSCODE (decision 8), not a direct stream.
+  DVB and XSUB subtitles are picture subtitles, so they burn in too.
+- **The oracle models the device, not the server's account or track rules (R35).** A real-section row with an audio
+  override is graded on the chosen track, so it can fail on the server's own track rule, for example the account's
+  "play default audio track" setting. Such a failure is a finding to explain, not a grading bug.
 
 ## Consequences
 

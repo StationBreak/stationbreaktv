@@ -93,7 +93,9 @@ data class PlaybackResult(
          * oracle, as a unit test does). It is compared with the route abandoned by a fallback, if there was one: a
          * direct play whose seek missed falls back to a transcode by design (ADR-0016, 4), which the Fallback column
          * reports and is not a failure by itself. A fallback after a load failure always fails the row, with its
-         * diagnostic in the error. The Route column is the route that finally played.
+         * diagnostic in the error. The Route column is the route that finally played. The oracle models the device,
+         * not the server's account or track rules, so a real-section row with an audio override can fail on the
+         * server's track rule (the account's "play default audio track", say): a finding to explain, not a grading bug.
          */
         fun from(
             section: String,

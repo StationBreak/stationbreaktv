@@ -8,7 +8,6 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
@@ -100,7 +99,10 @@ class DeviceProfilesTest {
         fun formats(method: String) = subs.filter { it.text("Method") == method }.map { it.text("Format") }.toSet()
         assertEquals(setOf("srt", "subrip", "ass", "ssa", "vtt", "webvtt", "mov_text"), formats("Embed"))
         assertEquals(setOf("vtt"), formats("External"))
-        assertEquals(Codecs.IMAGE_SUBTITLES, formats("Encode"))
+        assertEquals(
+            setOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub", "dvb_subtitle", "dvbsub", "xsub"),
+            formats("Encode"),
+        )
     }
 
     @Test
