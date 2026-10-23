@@ -5,11 +5,19 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,6 +29,8 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
@@ -47,6 +57,30 @@ data class Fallback(
     val cause: FallbackCause,
 )
 
+/** How a play that had started came to an end. */
+sealed interface PlaybackEnd {
+    /** The media played to its end. */
+    data object Ended : PlaybackEnd
+
+    /** The play broke after it started, or stalled longer than the playing timeout. [errorCode] is a stable name. */
+    data class Failed(
+        val errorCode: String,
+    ) : PlaybackEnd
+}
+
+/**
+ * An item resolved ahead of time by [TuneController.preResolve], to be played by [TuneController.tune] without a
+ * server round trip. Opaque: it holds the resolved stream, whose URL is a secret. The caller owns it until it is
+ * played, discarded, or the controller is closed; it holds a server encode while it waits, so do not keep it long.
+ */
+class Prepared internal constructor(
+    internal val item: ItemId,
+    internal val start: Duration,
+    internal val resolved: ResolvedPlayback,
+) {
+    override fun toString(): String = "Prepared"
+}
+
 /**
  * What one tune did. The app branches on the case, never on a string. The times run from the start of the call to
  * the player's events, fallback included.
@@ -56,6 +90,8 @@ sealed interface TuneResult {
      * Playing. [resolved] is the last route tried. [positionError] is how far from the requested start the last
      * attempt landed; it is set only when that attempt missed too (the retry after the fallback also missed).
      * [fallback] is null when the first attempt played; otherwise it says which route was abandoned and why.
+     * [end] is how this play ends: it completes after the first [PlaybackEnd] of this play. It is cold and reads the
+     * player's hot events, so collect it as soon as this result arrives; an end before that is missed.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -63,6 +99,7 @@ sealed interface TuneResult {
         val playingMs: Long,
         val positionError: Duration?,
         val fallback: Fallback?,
+        val end: Flow<PlaybackEnd> = emptyFlow(),
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -118,6 +155,9 @@ class TuneController(
     /** Set by [close]: no tune runs after it. */
     private val closed = AtomicBoolean(false)
 
+    /** The [Prepared] handles not yet played or discarded, so [close] can end their encodes. */
+    private val outstanding: MutableSet<Prepared> = Collections.newSetFromMap(ConcurrentHashMap())
+
     /**
      * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns [TuneResult.Superseded])
      * and starts only when that one has finished, so two never share the player.
@@ -127,6 +167,14 @@ class TuneController(
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
+    ): TuneResult = tuneWith(session, item, start, override, null)
+
+    private suspend fun tuneWith(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        override: TrackOverride?,
+        prepared: Prepared?,
     ): TuneResult =
         coroutineScope {
             lateinit var mine: Deferred<TuneResult>
@@ -135,7 +183,15 @@ class TuneController(
                     // Checked inside the lock, after any [close] that raced this call has set the flag: a tune that
                     // close() could not see (not yet in flight) still never plays.
                     lock.withLock {
-                        if (closed.get()) TuneResult.Stopped else run(session, item, start, override, mine)
+                        // Taken here, inside the lock, so a cancel while waiting for it leaves the handle with the
+                        // caller; a handle already discarded (or taken by close) is tuned the ordinary way.
+                        val ready = prepared?.takeIf { outstanding.remove(it) }
+                        if (closed.get()) {
+                            if (ready != null) withContext(NonCancellable) { stopEncode(session, ready.resolved) }
+                            TuneResult.Stopped
+                        } else {
+                            run(session, item, start, override, mine, ready?.resolved)
+                        }
                     }
                 }
             inFlight.getAndSet(mine)?.cancel()
@@ -154,21 +210,72 @@ class TuneController(
         }
 
     /**
+     * Resolves [item] at [start] with the server's default tracks, ahead of the [tune] that will play it, and returns
+     * a handle for it; null when it could not be resolved or the controller is closed. It does not touch the player
+     * and does not take the tune lock, so it can run while another item plays.
+     */
+    suspend fun preResolve(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+    ): Prepared? {
+        val resolved = if (closed.get()) null else resolve(session, item, start, null, false).resolved
+        val prepared = resolved?.let { Prepared(item, start, it) }
+        if (prepared != null) {
+            outstanding.add(prepared)
+            // Added before this check and close() sets the flag before it reads the set: one of the two sees the other.
+            if (closed.get()) discard(session, prepared)
+        }
+        return prepared?.takeUnless { closed.get() }
+    }
+
+    /**
+     * Plays [prepared] with no resolve call. If its play breaks, the normal fallback applies and that re-resolves. An
+     * [override] other than null cannot be honoured by a handle resolved with the default tracks, so that handle is
+     * discarded and the item is tuned the ordinary way. A handle that was already discarded is also tuned the ordinary
+     * way. After [close] it returns [TuneResult.Stopped] and the handle's encode is ended.
+     */
+    suspend fun tune(
+        session: Session,
+        prepared: Prepared,
+        override: TrackOverride?,
+    ): TuneResult {
+        if (override != null) {
+            discard(session, prepared)
+            return tune(session, prepared.item, prepared.start, override)
+        }
+        return tuneWith(session, prepared.item, prepared.start, null, prepared)
+    }
+
+    /**
+     * Gives up [prepared]: ends its server encode if it has one. A second call, or a call after [tune] played it, does
+     * nothing.
+     */
+    suspend fun discard(
+        session: Session,
+        prepared: Prepared,
+    ) {
+        if (outstanding.remove(prepared)) withContext(NonCancellable) { stopEncode(session, prepared.resolved) }
+    }
+
+    /**
      * One tune's attempts. A cancel at any point stops the encode of whatever attempt is current before it
      * propagates. A cancel by a newer tune leaves the player running, because the new play replaces the item (a fast
      * flip must not blank the screen); a stop, a close or a cancel from outside stops the player too. A newer tune
      * only starts after this one has unwound, so its play is never disturbed by this clean-up. [mine] is this tune's
-     * own job.
+     * own job. [ready] is a stream resolved ahead of time for the first attempt.
      */
+    @Suppress("LongParameterList") // One call's context.
     private suspend fun run(
         session: Session,
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
         mine: Deferred<TuneResult>,
+        ready: ResolvedPlayback?,
     ): TuneResult =
         try {
-            attempts(session, item, start, override)
+            attempts(session, item, start, override, ready)
         } catch (e: CancellationException) {
             val supersededByNewer = inFlight.get() !== mine && stopped.get() !== mine
             withContext(NonCancellable) { if (supersededByNewer) abandonEncode(session) else release(session) }
@@ -180,6 +287,7 @@ class TuneController(
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
+        ready: ResolvedPlayback?,
     ): TuneResult {
         // An earlier tune's play that is still current (a flip after it returned Played): end its encode now. A
         // cancelled tune already released its own attempt, so nothing is stopped twice. The player is left running:
@@ -187,7 +295,14 @@ class TuneController(
         withContext(NonCancellable) { abandonEncode(session) }
         val began = clock()
         var fallback: Fallback? = null
-        var attempt = attempt(session, item, start, override, false, began)
+        var attempt =
+            if (ready != null) {
+                // Recorded before anything can be cancelled, so a cancel still finds its encode to stop.
+                current = ready
+                play(ready, began, false)
+            } else {
+                attempt(session, item, start, override, false, began)
+            }
         while (fallback == null && attempt.canFallBack) {
             fallback = Fallback(checkNotNull(attempt.resolved).route, attempt.fallbackCause())
             // Not cancellable: a stop or supersede here must not lose the first attempt's encode.
@@ -206,6 +321,7 @@ class TuneController(
                     attempt.playingMs,
                     attempt.positionError,
                     fallback,
+                    endOf(attempt.generation),
                 )
             }
 
@@ -241,7 +357,10 @@ class TuneController(
      */
     suspend fun close(session: Session) {
         closed.set(true)
-        withContext(NonCancellable) { stop(session) }
+        withContext(NonCancellable) {
+            outstanding.toList().forEach { discard(session, it) }
+            stop(session)
+        }
     }
 
     /** Stops the player and the encode of the current attempt, and forgets it. */
@@ -272,6 +391,7 @@ class TuneController(
         val playingMs: Long,
         val positionError: Duration?,
         override val canFallBack: Boolean,
+        val generation: Long,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -333,6 +453,14 @@ class TuneController(
         // A stop or a newer tune during the resolve must not be followed by a play.
         currentCoroutineContext().ensureActive()
         current = resolved
+        return play(resolved, began, forceTranscode)
+    }
+
+    private suspend fun play(
+        resolved: ResolvedPlayback,
+        began: Long,
+        forceTranscode: Boolean,
+    ): Attempt {
         // A cancel mid-wait is cleaned up by run().
         return when (val result = playAndWait(resolved.source)) {
             Wait.TimedOut -> {
@@ -377,6 +505,7 @@ class TuneController(
             playingMs = landing.playing.atMs - began,
             positionError = missed?.error,
             canFallBack = missed != null && !forced,
+            generation = landing.generation,
         )
     }
 
@@ -390,6 +519,7 @@ class TuneController(
         class Landed(
             val firstFrameAtMs: Long?,
             val playing: PlayerEvent.Playing,
+            val generation: Long,
         ) : Wait
     }
 
@@ -419,7 +549,7 @@ class TuneController(
                 generation.complete(player.play(source))
                 when (val event = withTimeoutOrNull(PLAYING_TIMEOUT) { outcome.await() }) {
                     is PlayerEvent.Playing -> {
-                        Wait.Landed(withTimeoutOrNull(FIRST_FRAME_WAIT) { firstFrame.await() }, event)
+                        Wait.Landed(withTimeoutOrNull(FIRST_FRAME_WAIT) { firstFrame.await() }, event, event.generation)
                     }
 
                     is PlayerEvent.Failed -> {
@@ -435,6 +565,37 @@ class TuneController(
             }
         }
 
+    /**
+     * The end of the play of [generation]: the first [PlayerEvent.Ended] or [PlayerEvent.Failed] of it, or a
+     * [PlayerEvent.Stalled] that no [PlayerEvent.Playing] follows within [PLAYING_TIMEOUT]. Only these four kinds reach
+     * the timer, so a first frame or a cue during a stall does not restart it.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class) // transformLatest: a newer event drops the stall timer
+    private fun endOf(generation: Long): Flow<PlaybackEnd> =
+        player.events
+            .filter { it.generation == generation && it.endsOrPaces() }
+            .transformLatest { event ->
+                when (event) {
+                    is PlayerEvent.Ended -> {
+                        emit(PlaybackEnd.Ended)
+                    }
+
+                    is PlayerEvent.Failed -> {
+                        emit(PlaybackEnd.Failed(event.errorCode))
+                    }
+
+                    is PlayerEvent.Stalled -> {
+                        delay(PLAYING_TIMEOUT)
+                        emit(PlaybackEnd.Failed(STALLED))
+                    }
+
+                    else -> {
+                        emit(null)
+                    }
+                }
+            }.filterNotNull()
+            .take(1)
+
     private suspend fun stopEncode(
         session: Session,
         resolved: ResolvedPlayback,
@@ -449,6 +610,7 @@ class TuneController(
         val PLAYING_TIMEOUT = 20.seconds
         val FIRST_FRAME_WAIT = 2.seconds
         const val TIMEOUT = "Timeout"
+        const val STALLED = "StallTimeout"
         const val UNEXPECTED = "Unexpected"
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
@@ -491,3 +653,10 @@ private fun MediaServerError.refusesSession(): Boolean =
     this is MediaServerError.HttpUnauthorized ||
         this is MediaServerError.HttpForbidden ||
         this is MediaServerError.SessionExpired
+
+/** The events that decide how a play ends: its end, its failure, a stall and the recovery from one. */
+private fun PlayerEvent.endsOrPaces(): Boolean =
+    this is PlayerEvent.Ended ||
+        this is PlayerEvent.Failed ||
+        this is PlayerEvent.Stalled ||
+        this is PlayerEvent.Playing

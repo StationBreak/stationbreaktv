@@ -230,6 +230,7 @@ class Media3VideoPlayer(
         ) {
             // A rebuffer: buffering again after playback had begun.
             if (state == Player.STATE_BUFFERING && hasPlayed) flow.tryEmit(PlayerEvent.Stalled(active))
+            if (state == Player.STATE_ENDED) flow.tryEmit(PlayerEvent.Ended(active))
         }
 
         override fun onCues(

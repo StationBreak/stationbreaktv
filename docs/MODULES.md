@@ -186,7 +186,9 @@ section says where each piece lives.
     `VideoPlayerFactory` that `app` binds (so it names no Media3 type), reuses it for every play and releases it.
   - `TuneController`: resolves, plays, runs the seek check and makes the one fallback. It returns a `TuneResult`, and the
     app branches on the case. A host calls `close(session)` when it is done: it stops the player and the encode even
-    from a cancelled scope, and no tune runs after it. Close, then release the player.
+    from a cancelled scope, and no tune runs after it. Close, then release the player. `preResolve` hands back a
+    `Prepared` that a later `tune` plays with no server round trip (`discard` or `close` ends its encode), and a
+    `Played` result carries `end`, a flow that says how the play ends (`PlaybackEnd.Ended` or `Failed`).
 - **The media client.** `JellyfinMediaServer.mediaCallFactory` (in `data:jellyfin`) is an OkHttp `Call.Factory` for the
   player's requests. `app` wraps it in Media3's `OkHttpDataSource` in `di/PlaybackModule`, under the `@MediaDataSource`
   qualifier, and `core:playback` receives it as a plain `DataSource.Factory`. It shares the one `JellyfinMediaServer`
