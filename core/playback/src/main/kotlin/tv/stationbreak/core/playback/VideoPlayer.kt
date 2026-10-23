@@ -18,7 +18,7 @@ sealed interface PlayerEvent {
         override val generation: Long,
     ) : PlayerEvent
 
-    /** Playback is running at [position] within the stream (not counting the server's start offset). */
+    /** Playback is running at [position] within the stream. */
     data class Playing(
         val atMs: Long,
         val position: Duration,

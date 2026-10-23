@@ -6,6 +6,7 @@ import org.junit.Test
 import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.SubtitleDelivery
+import tv.stationbreak.core.model.VideoCodecSupport
 import tv.stationbreak.core.playback.PlaybackTestData.audio
 import tv.stationbreak.core.playback.PlaybackTestData.insigniaLike
 import tv.stationbreak.core.playback.PlaybackTestData.source
@@ -56,6 +57,15 @@ class ExpectedRouteTest {
     }
 
     @Test
+    fun hevcWithUndecodableAudioDirectStreamsWhereTheDeviceDecodesHevc() {
+        val hevc = VideoCodecSupport(Codecs.HEVC, setOf(Codecs.MAIN, Codecs.MAIN_10), 153, 3840, 2160, 10, emptySet())
+        val withHevc = insigniaLike(videoCodecs = listOf(PlaybackTestData.h264, hevc))
+        val s = source(streams = listOf(video(Codecs.HEVC, Codecs.MAIN, 120), audio(1, Codecs.DTS, 6)))
+        assertEquals(Route.DIRECT_STREAM, ExpectedRoute.of(withHevc, s, null))
+        assertEquals(Route.TRANSCODE, ExpectedRoute.of(caps, s, null))
+    }
+
+    @Test
     fun videoThatDoesNotFitTranscodesWhateverTheAudio() {
         assertEquals(Route.TRANSCODE, route(video(level = 51), audio(1, Codecs.DTS, 6)))
     }
@@ -65,6 +75,13 @@ class ExpectedRouteTest {
         val withPassthrough = insigniaLike(audioDecoders = setOf(Codecs.AAC), passthrough = setOf(Codecs.AC3))
         val s = source(streams = listOf(video(), audio(1, Codecs.AC3, 6)))
         assertEquals(Route.DIRECT_PLAY, ExpectedRoute.of(withPassthrough, s, null))
+    }
+
+    @Test
+    fun theChosenAudioTrackIsWhatIsGraded() {
+        val s = source(streams = listOf(video(), audio(1), audio(2, Codecs.DTS, 6)))
+        assertEquals(Route.DIRECT_PLAY, ExpectedRoute.of(caps, s, null))
+        assertEquals(Route.DIRECT_STREAM, ExpectedRoute.of(caps, s, null, s.streams.last()))
     }
 
     @Test

@@ -70,7 +70,7 @@ object PlaybackTestData {
             false,
         )
 
-    private val h264 =
+    val h264 =
         VideoCodecSupport(
             Codecs.H264,
             setOf(Codecs.BASELINE, Codecs.MAIN, Codecs.HIGH),

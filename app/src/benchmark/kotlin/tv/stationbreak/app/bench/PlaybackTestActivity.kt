@@ -139,12 +139,8 @@ class PlaybackTestActivity : ComponentActivity() {
         for ((ordinal, play) in args.plays.withIndex()) {
             val result =
                 run.run(session, args.section, play) { resolved ->
-                    // The oracle predicts the default audio only; a chosen audio track is the resolver's business.
-                    if (play.override?.audioIndex == null) {
-                        ExpectedRoute.of(capabilities.get(), resolved.media, resolved.chosenSubtitle)
-                    } else {
-                        null
-                    }
+                    // The chosen audio track is the oracle's input (not the source default), so an override is graded.
+                    ExpectedRoute.of(capabilities.get(), resolved.media, resolved.chosenSubtitle, resolved.chosenAudio)
                 }
             emit("RESULT " + result.toJsonLine(args.runId, ordinal))
             if (result.error == "session-expired") {
