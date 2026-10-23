@@ -69,22 +69,34 @@ USB debugging is on, and it is in no debug or release build (`BackupRulesTest` c
 Connect and accepts the library picker's defaults (every library except home videos), so a device is ready in seconds.
 
 ```
-# The server address comes from the environment or --server, never from a file in the repo.
+# The server address comes from the environment, never from a file in the repo. It must start with https:// or
+# http:// (the scheme is never guessed). Prefer the variable to --server, which lands in shell history and in the
+# process list.
 export SB_MATRIX_SERVER=https://media.example.invalid     # your own server's address
 python3 -I scripts/playback-matrix/run.py setup -s SERIAL
 #   prints "Quick Connect code: NNNNNN": approve it in a signed-in Jellyfin client (its Quick Connect page)
-#   exits 0 on "SETUP OK", non-zero on "SETUP ERROR <reason>" or after 400 s without an answer
+#   exits 0 on "SETUP OK", non-zero on "SETUP ERROR <reason>" or after 480 s without an answer
 
 python3 -I scripts/playback-matrix/run.py run -s SERIAL --plan scripts/playback-matrix/plan.json --section real
 
-python3 -I scripts/playback-matrix/run.py signout -s SERIAL
+python3 -I scripts/playback-matrix/run.py signout -s SERIAL [--force]
 #   exits 0 on "SIGNOUT OK revoked" or "SIGNOUT OK not-revoked", non-zero on "SIGNOUT ERROR <reason>"
 ```
 
-- `setup` never replaces a session: with one stored it stops with `already-signed-in`. If a step fails after the sign-in
+- Both activities demand the `DUMP` permission, which the shell behind `adb shell am start` holds and ordinary apps
+  cannot get, on top of the USB-debugging check.
+- Only one `setup` or `signout` runs at a time; a second gets `busy`.
+- `setup` never replaces a session: with any session stored (even without a server record) it stops with
+  `already-signed-in`, and with a secret store it cannot read it stops with `store-unreadable`. A stale session that
+  blocks setup is removed with `signout --force`. An explicit `http://` address is accepted as typed, but an `http`
+  address the app reached only by falling back from `https` is refused (`cleartext`). If the run is cancelled after
+  the sign-in (`cancelled`), the token is revoked again. If a step fails after the sign-in
   (the library list, say) it signs out again, so a retry starts clean. Reasons are short codes (`bad-server`,
   `unreachable`, `tls`, `qc-disabled`, `qc-denied`, `qc-expired`, ...); the app logs no address, token, user or library
   name. A server with a self-signed certificate is not handled here (`tls`): trust it in the app's own screens first.
+- `signout --force` is for a server that cannot be reached: it clears the stored session on the device and reports
+  `SIGNOUT OK not-revoked`, so the token may still be live on the server. Without `--force` an unreachable server is
+  `SIGNOUT ERROR unreachable` and nothing is cleared.
 - `signout` clears the stored session and asks the server to revoke its token (`POST /Sessions/Logout`), so the token is
   dead on the server and not only deleted on the device. `not-revoked` means the server could not be reached or refused
   the call: the token may still be live. Whether Jellyfin also removes the device entry on that call is not shown by

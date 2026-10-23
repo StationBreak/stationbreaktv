@@ -367,6 +367,7 @@ class SetupCommandTest(unittest.TestCase):
         text = " ".join(cmd)
         self.assertIn("--es action setup", text)
         self.assertIn("--es server https://media.example.invalid:8920/jf", text)
+        self.assertNotIn("force", text)
 
     def test_theSignoutCommandSendsNoServer(self):
         text = " ".join(run.setup_command("SER", "signout"))
@@ -374,9 +375,24 @@ class SetupCommandTest(unittest.TestCase):
         self.assertNotIn("server", text)
 
     def test_anAddressThatCouldReachAShellIsRefused(self):
-        for bad in (None, "", "a b", "host;reboot", "host$(id)", "host`id`", "h'x", 'h"x', "a|b", "a&b", "x" * 513):
+        refused = (None, "", "https://", "https://host\n", "media.example.invalid", "ftp://host", "a b")
+        refused += ("https://h;reboot", "https://h$(id)", "https://h`id`", "https://h'x", 'https://h"x')
+        refused += ("https://a|b", "https://a&b", "https://" + "x" * 513)
+        for bad in refused:
             with self.assertRaises(ValueError, msg=repr(bad)):
                 run.setup_command("SER", "setup", bad)
+
+    def test_forceIsAnExtraOfSignoutOnly(self):
+        self.assertIn("--ez force true", " ".join(run.setup_command("SER", "signout", force=True)))
+        self.assertNotIn("force", " ".join(run.setup_command("SER", "signout")))
+
+    def test_everyRemotePartIsQuotedForTheDeviceShell(self):
+        cmd = run.setup_command("SER", "setup", "https://[::1]:8096")
+        self.assertEqual(cmd[:4], ["adb", "-s", "SER", "shell"])
+        self.assertIn("'https://[::1]:8096'", cmd)
+
+    def test_setupWaitsLongerThanTheAppDoes(self):
+        self.assertGreater(run.SETUP_SECONDS, 6 * 60)
 
     def test_anUnknownActionIsRefused(self):
         with self.assertRaises(ValueError):
@@ -442,7 +458,7 @@ class SetupMainTest(unittest.TestCase):
             adb.assert_not_called()
 
     def test_theServerCanComeFromTheEnvironment(self):
-        env = {run.SERVER_ENV: "media.example.invalid"}
+        env = {run.SERVER_ENV: "https://media.example.invalid"}
         with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as adb, mock.patch(
             "subprocess.Popen"
         ), mock.patch.object(run, "_wait_for_pid", return_value=42), mock.patch.object(
@@ -451,7 +467,7 @@ class SetupMainTest(unittest.TestCase):
             adb.return_value.stdout = ""
             self.assertEqual(run.main(["setup", "-s", "SER"]), 0)
         started = [call.args[0] for call in adb.call_args_list if "BenchSetupActivity" in " ".join(call.args[0])]
-        self.assertIn("media.example.invalid", started[0])
+        self.assertIn("https://media.example.invalid", started[0])
 
     def test_anErrorLineMakesTheCommandExitNonZero(self):
         with mock.patch("subprocess.run") as adb, mock.patch("subprocess.Popen"), mock.patch.object(
@@ -459,6 +475,15 @@ class SetupMainTest(unittest.TestCase):
         ), mock.patch.object(run, "read_lines", return_value=iter(["SIGNOUT ERROR no-session"])):
             adb.return_value.stdout = ""
             self.assertEqual(run.main(["signout", "-s", "SER"]), 1)
+
+    def test_forceReachesTheSignoutCommand(self):
+        with mock.patch("subprocess.run") as adb, mock.patch("subprocess.Popen"), mock.patch.object(
+            run, "_wait_for_pid", return_value=42
+        ), mock.patch.object(run, "read_lines", return_value=iter(["SIGNOUT OK not-revoked"])):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["signout", "-s", "SER", "--force"]), 0)
+        started = [call.args[0] for call in adb.call_args_list if "BenchSetupActivity" in " ".join(call.args[0])]
+        self.assertIn("force", " ".join(started[0]))
 
     def test_aBadServerExitsTwo(self):
         with mock.patch("subprocess.run") as adb:

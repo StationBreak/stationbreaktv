@@ -264,6 +264,14 @@ class BackupRulesTest {
         if (isBenchmarkVariant) {
             assertEquals(benchmarkActivities, activities.map { nameOf(it) }.toSet())
             assertTrue(activities.all { it.getAttributeNS(androidNamespace, "exported") == "true" })
+            // Only the shell UID (adb) holds DUMP, so no ordinary app can start either activity.
+            activities.forEach {
+                assertEquals(
+                    nameOf(it),
+                    "android.permission.DUMP",
+                    it.getAttributeNS(androidNamespace, "permission"),
+                )
+            }
             val app = allElements(merged).single { it.tagName == "application" }
             val debuggable = app.getAttributeNS(androidNamespace, "debuggable")
             assertTrue("the benchmark build is debuggable", debuggable != "true")

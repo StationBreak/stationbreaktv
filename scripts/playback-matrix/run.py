@@ -5,8 +5,8 @@ PlaybackTestActivity, over adb. Standard library only; run it as `python3 -I scr
 
   run.py plan --seed N --items items.local.json [--out plan.json]
   run.py run -s SERIAL --plan plan.json --section real|synthetic [--results-dir DIR]
-  run.py setup -s SERIAL --server ADDRESS     (or SB_MATRIX_SERVER=ADDRESS)
-  run.py signout -s SERIAL
+  SB_MATRIX_SERVER=https://ADDRESS run.py setup -s SERIAL   (or --server, which shows in shell history)
+  run.py signout -s SERIAL [--force]
 
 items.local.json holds item IDs, so it, the plan and the raw results stay on this laptop (see .gitignore). Its shape:
   {"synthetic": [{"id": "...", "name": "h264-aac-nocues", "runtimeMs": 60000}],
@@ -29,6 +29,7 @@ import random
 import re
 import secrets
 import select
+import shlex
 import subprocess
 import sys
 import time
@@ -38,8 +39,11 @@ APP_ID = "tv.stationbreak.app.benchmark"
 COMPONENT = f"{APP_ID}/tv.stationbreak.app.bench.PlaybackTestActivity"
 SETUP_COMPONENT = f"{APP_ID}/tv.stationbreak.app.bench.BenchSetupActivity"
 SERVER_ENV = "SB_MATRIX_SERVER"
-SERVER_SAFE = re.compile(r"^[A-Za-z0-9._:/\[\]-]{1,512}$")  # SetupArgs.MAX_SERVER; no space or shell character
-SETUP_SECONDS = 400  # the app waits up to 6 minutes for the approval
+# An explicit scheme, then only the characters an address is made of (no space or shell character). Used with
+# fullmatch: `$` would let a trailing newline through. The length limit is SetupArgs.MAX_SERVER.
+SERVER_SAFE = re.compile(r"https?://[A-Za-z0-9._:/\[\]-]+")
+MAX_SERVER = 512
+SETUP_SECONDS = 480  # the app waits up to 6 minutes for the approval, after discover and before the libraries
 SIGNOUT_SECONDS = 60
 MAX_ITEMS = 200  # RunArgs.MAX_ITEMS
 MAX_LABEL = 64  # RunArgs.MAX_LABEL
@@ -354,17 +358,22 @@ def _run_batch(serial, batch, section, run_id, override):
         logcat.wait()
 
 
-def setup_command(serial, action, server=None):
-    """The adb command that starts BenchSetupActivity with the extras it reads (see SetupArgs). The server address
-    reaches a shell on the device, so only the characters an address is made of are let through."""
+def setup_command(serial, action, server=None, force=False):
+    """The adb command that starts BenchSetupActivity with the extras it reads (see SetupArgs). `adb shell` joins its
+    arguments and a shell on the device parses them again, so the server must start with http:// or https:// and
+    hold only the characters an address is made of, and every part of the remote command is quoted as well."""
     if action not in ("setup", "signout"):
         raise ValueError("action must be setup or signout")
-    command = ["adb", "-s", serial, "shell", "am", "start", "-n", SETUP_COMPONENT, "--es", "action", action]
+    remote = ["am", "start", "-n", SETUP_COMPONENT, "--es", "action", action]
     if action == "setup":
-        if not isinstance(server, str) or not SERVER_SAFE.match(server):
-            raise ValueError("the server address must be 1 to 512 letters, digits and . : / [ ] - _ (no spaces)")
-        command += ["--es", "server", server]
-    return command
+        if not isinstance(server, str) or len(server) > MAX_SERVER or not SERVER_SAFE.fullmatch(server):
+            raise ValueError(
+                "the server address must start with http:// or https:// and hold only letters, digits and . : / [ ] - _"
+            )
+        remote += ["--es", "server", server]
+    elif force:
+        remote += ["--ez", "force", "true"]
+    return ["adb", "-s", serial, "shell"] + [shlex.quote(part) for part in remote]
 
 
 class SetupLine(NamedTuple):
@@ -475,7 +484,7 @@ def command_setup(args):
         if not server:
             print(f"run.py: give --server ADDRESS or set {SERVER_ENV}", file=sys.stderr)
             return 2
-    command = setup_command(args.serial, action, server)
+    command = setup_command(args.serial, action, server, force=getattr(args, "force", False))
     subprocess.run(["adb", "-s", args.serial, "logcat", "-c"], check=True, capture_output=True)
     started = subprocess.run(command, capture_output=True, text=True, check=True)
     if "Error" in started.stdout:
@@ -511,9 +520,10 @@ def main(argv=None):
     run.add_argument("--results-dir", default=os.path.join(here, "results"))
     setup = sub.add_parser("setup", help="sign the benchmark app in with Quick Connect (no onboarding screens)")
     setup.add_argument("-s", "--serial", required=True)
-    setup.add_argument("--server", help=f"the server address (or set {SERVER_ENV}); never put it in a file")
+    setup.add_argument("--server", help=f"https://... or http://...; prefer {SERVER_ENV} (this shows in shell history)")
     signout = sub.add_parser("signout", help="sign the benchmark app out and revoke its token")
     signout.add_argument("-s", "--serial", required=True)
+    signout.add_argument("--force", action="store_true", help="clear the session here if the server is unreachable")
     args = parser.parse_args(argv)
     try:
         if args.command in ("setup", "signout"):

@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app.bench
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -11,15 +17,53 @@ import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
+import tv.stationbreak.core.model.Scheme
+import tv.stationbreak.core.model.ServerAddress
+import kotlin.time.Duration.Companion.seconds
+
+/** A server whose Quick Connect can be made to wait for ever (the user has not approved yet). */
+private class WaitingServer(
+    private val inner: FakeMediaServer,
+) : MediaServer by inner {
+    var waits = false
+
+    override fun quickConnect(
+        address: ServerAddress,
+        acknowledgement: CleartextAcknowledgement?,
+    ): Flow<QuickConnectState> =
+        if (waits) {
+            flow {
+                emit(QuickConnectState.CodeIssued("111111"))
+                awaitCancellation()
+            }
+        } else {
+            inner.quickConnect(address, acknowledgement)
+        }
+}
+
+/** Settings that can run a hook just before the library choice is stored, to cancel or fail the run there. */
+private class HookedSettings(
+    private val inner: InMemoryServerSettings,
+) : ServerSettings by inner {
+    var beforeSaveLibraries: () -> Unit = {}
+
+    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean {
+        beforeSaveLibraries()
+        return inner.saveLibraries(ids)
+    }
+}
 
 class BenchSetupTest {
     private val session = BenchTestData.session
@@ -28,8 +72,10 @@ class BenchSetupTest {
     private val store = InMemorySecretStore()
     private val sessions = SessionRepository(store, fake)
     private val settings = InMemoryServerSettings()
+    private val hooked = HookedSettings(settings)
+    private val waiting = WaitingServer(fake)
     private val lines = mutableListOf<String>()
-    private val setup = BenchSetup(fake, sessions, settings, lines::add)
+    private val setup = BenchSetup(waiting, sessions, hooked, store, lines::add)
 
     private val libraries =
         listOf(
@@ -113,10 +159,10 @@ class BenchSetupTest {
         }
 
     @Test
-    fun cleartextToAPublicHostIsAcknowledgedBecauseTheOperatorTypedIt() =
+    fun anExplicitHttpAddressIsAcknowledgedBecauseTheOperatorTypedIt() =
         runTest {
             approvedSignIn()
-            val cleartext = address.copy(scheme = tv.stationbreak.core.model.Scheme.Http, port = 80)
+            val cleartext = address.copy(scheme = Scheme.Http, port = 80)
             fake.discoverResult = ServerResult.Success(ResolvedServer(cleartext, session.server))
 
             setup.setup("http://media.example.invalid")
@@ -129,6 +175,19 @@ class BenchSetupTest {
                     .second
                     ?.address,
             )
+        }
+
+    @Test
+    fun anHttpAddressReachedByFallbackIsRefusedAsCleartext() =
+        runTest {
+            approvedSignIn()
+            val fallback = address.copy(scheme = Scheme.Http, port = 80, viaFallback = true)
+            fake.discoverResult = ServerResult.Success(ResolvedServer(fallback, session.server))
+
+            setup.setup("https://media.example.invalid")
+
+            assertEquals(listOf("SETUP ERROR cleartext"), lines)
+            assertTrue(fake.quickConnectCalls.isEmpty())
         }
 
     @Test
@@ -206,6 +265,168 @@ class BenchSetupTest {
             assertFalse(text.contains("example"))
             assertFalse(text.contains("tok"))
             assertFalse(text.contains("Films"))
+        }
+
+    @Test
+    fun aCodeNobodyApprovesExpiresAtTheWaitLimit() =
+        runTest {
+            approvedSignIn()
+            waiting.waits = true
+            val limited = BenchSetup(waiting, sessions, hooked, store, lines::add, waitLimit = 5.seconds)
+
+            limited.setup("https://media.example.invalid")
+
+            assertEquals(listOf("QC 111111", "SETUP ERROR qc-expired"), lines)
+            assertNull(stored())
+        }
+
+    @Test
+    fun cancellationAfterSignInRevokesTheTokenAndLeavesNothingStored() =
+        runTest {
+            approvedSignIn()
+            val job = launch { setup.setup("https://media.example.invalid") }
+            hooked.beforeSaveLibraries = { job.cancel() }
+
+            job.join()
+
+            assertEquals("SETUP ERROR cancelled", lines.last())
+            assertNull(stored())
+            assertEquals(1, fake.revokeCalls.size)
+        }
+
+    @Test
+    fun anExceptionWhileStoringRollsTheSignInBack() =
+        runTest {
+            approvedSignIn()
+            hooked.beforeSaveLibraries = { error("boom") }
+
+            val thrown = runCatching { setup.setup("https://media.example.invalid") }.exceptionOrNull()
+
+            assertTrue(thrown is IllegalStateException)
+            assertEquals("SETUP ERROR run-failed", lines.last())
+            assertNull(stored())
+            assertEquals(1, fake.revokeCalls.size)
+        }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun aSecondSetupOrSignOutWhileOneRunsIsBusy() =
+        runTest {
+            approvedSignIn()
+            waiting.waits = true
+            val first = launch { setup.setup("https://media.example.invalid") }
+            runCurrent()
+
+            setup.setup("https://media.example.invalid")
+            setup.signOut()
+            first.cancel()
+            first.join()
+
+            assertEquals(
+                listOf("QC 111111", "SETUP ERROR busy", "SIGNOUT ERROR busy", "SETUP ERROR cancelled"),
+                lines,
+            )
+            // The lock is free again.
+            setup.signOut()
+            assertEquals("SIGNOUT ERROR no-session", lines.last())
+        }
+
+    @Test
+    fun aSessionStoredWithNoServerRecordIsStillASession() =
+        runTest {
+            approvedSignIn()
+            sessions.save(session)
+
+            setup.setup("https://media.example.invalid")
+
+            assertNull(settings.current)
+            assertEquals(listOf("SETUP ERROR already-signed-in"), lines)
+            assertTrue(fake.discoverCalls.isEmpty())
+        }
+
+    @Test
+    fun anUnreadableStoreIsCantTellAndNothingIsOverwritten() =
+        runTest {
+            approvedSignIn()
+            store.failLoad = true
+
+            setup.setup("https://media.example.invalid")
+
+            assertEquals(listOf("SETUP ERROR store-unreadable"), lines)
+            assertTrue(fake.discoverCalls.isEmpty())
+            assertTrue(store.writtenKeys.isEmpty())
+        }
+
+    @Test
+    fun aServerRecordThatCannotBeSavedRollsBack() =
+        runTest {
+            approvedSignIn()
+            settings.failSave = true
+
+            setup.setup("https://media.example.invalid")
+
+            assertEquals("SETUP ERROR settings-not-saved", lines.last())
+            assertNull(stored())
+            assertEquals(1, fake.revokeCalls.size)
+        }
+
+    @Test
+    fun aSessionThatCannotBeSavedRollsBack() =
+        runTest {
+            approvedSignIn()
+            store.failSave = true
+
+            setup.setup("https://media.example.invalid")
+
+            assertEquals("SETUP ERROR session-not-saved", lines.last())
+            assertNull(stored())
+            assertEquals(1, fake.revokeCalls.size)
+        }
+
+    private suspend fun signedInDevice() {
+        sessions.save(session)
+        settings.save(ServerRecord(address))
+    }
+
+    @Test
+    fun aSessionTheServerRefusesIsClearedAndReportedNotRevoked() =
+        runTest {
+            signedInDevice()
+            fake.resumeResult = ServerResult.Failure(MediaServerError.SessionExpired())
+
+            setup.signOut()
+
+            assertEquals(listOf("SIGNOUT OK not-revoked"), lines)
+            assertNull(stored())
+        }
+
+    @Test
+    fun anUnreachableServerStopsSignOutUnlessForced() =
+        runTest {
+            signedInDevice()
+            fake.resumeResult = ServerResult.Failure(MediaServerError.Timeout())
+
+            setup.signOut()
+            assertEquals(listOf("SIGNOUT ERROR unreachable"), lines)
+            assertNotNull(stored())
+
+            setup.signOut(force = true)
+            assertEquals("SIGNOUT OK not-revoked", lines.last())
+            assertNull(stored())
+        }
+
+    @Test
+    fun forceDropsASessionThatHasNoServerRecord() =
+        runTest {
+            sessions.save(session)
+
+            setup.signOut()
+            assertEquals("SIGNOUT ERROR no-session", lines.last())
+            assertNotNull(stored())
+
+            setup.signOut(force = true)
+            assertEquals("SIGNOUT OK not-revoked", lines.last())
+            assertNull(stored())
         }
 
     @Test

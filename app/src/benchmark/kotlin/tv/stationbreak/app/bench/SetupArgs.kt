@@ -15,27 +15,35 @@ sealed interface SetupArgs {
         override fun toString(): String = "Setup(***)"
     }
 
-    /** Sign out and revoke the token. */
-    data object SignOut : SetupArgs
+    /** Sign out and revoke the token. With [force], also clear the session when the server cannot be asked. */
+    data class SignOut(
+        val force: Boolean = false,
+    ) : SetupArgs
 
     companion object {
         const val MAX_SERVER = 512
+        private val SCHEMES = listOf("https://", "http://")
 
-        /** Throws [IllegalArgumentException] for an unknown action, or a setup without a plausible server. */
+        /**
+         * Throws [IllegalArgumentException] for an unknown action, or a setup whose server does not start with
+         * `https://` or `http://`: the scheme is the operator's explicit choice, never guessed.
+         */
         fun parse(
             action: String?,
             server: String?,
+            force: Boolean = false,
         ): SetupArgs =
             when (action) {
                 "setup" -> {
                     val typed = server.orEmpty().trim()
                     require(typed.isNotEmpty()) { "no server" }
                     require(typed.length <= MAX_SERVER) { "server is longer than $MAX_SERVER" }
+                    require(SCHEMES.any { typed.startsWith(it, ignoreCase = true) }) { "no scheme" }
                     Setup(typed)
                 }
 
                 "signout" -> {
-                    SignOut
+                    SignOut(force)
                 }
 
                 else -> {
