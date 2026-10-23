@@ -281,7 +281,20 @@ class FakeTune(
     }
 
     companion object {
-        fun plays(end: Flow<PlaybackEnd> = flow { awaitCancellation() }): TuneOutcome = TuneOutcome.Playing(end)
+        fun plays(
+            end: Flow<PlaybackEnd> = flow { awaitCancellation() },
+            timings: TuneTimings = TuneTimings(),
+        ): TuneOutcome = TuneOutcome.Playing(end, timings)
+
+        /** A tune that takes [wait] to show a picture, with the [timings] the controller would have measured. */
+        fun playsAfter(
+            wait: Duration,
+            timings: TuneTimings = TuneTimings(firstFrameMs = wait.inWholeMilliseconds),
+        ): suspend () -> TuneOutcome =
+            {
+                delay(wait)
+                plays(timings = timings)
+            }
 
         fun dead(timedOut: Boolean = false): suspend () -> TuneOutcome = { TuneOutcome.Dead(timedOut) }
 
@@ -362,7 +375,11 @@ class Rig(
         )
     val sessions = SessionRepository(InMemorySecretStore(), FakeMediaServer())
 
-    val live = LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings)
+    /** Every report the machine made, in order. */
+    val reports = mutableListOf<TuneReport>()
+
+    val live =
+        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, report = { reports += it })
 
     /** Every state in order, each with how many port calls had been made when it appeared. */
     val states = mutableListOf<Pair<LiveState, Int>>()

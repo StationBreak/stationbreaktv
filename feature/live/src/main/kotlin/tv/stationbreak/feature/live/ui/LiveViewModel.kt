@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live.ui
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import android.view.SurfaceView
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +32,9 @@ import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
 import javax.inject.Inject
 import kotlin.time.Clock
+
+/** The logcat tag of the live channel's numbers: `SBLIVE tune ...`, `SBLIVE cut ...` and `SBLIVE sitting ...`. */
+private const val LOG_TAG = "SBLIVE"
 
 /** How a sitting gets its tuner: over [VideoPlayer], for [Session]. A test swaps it for one that records. */
 internal fun interface TunerFactory {
@@ -97,7 +101,18 @@ internal class LiveViewModel
             try {
                 player.attach(surface)
                 val port = tuners.create(player, session).also { tuner = it }
-                val live = LiveChannel(schedule, port, lastChannel, sessions, library, channels, clock)
+                // The measurements are numbers and fixed names only (TuneReport), so they may go to logcat.
+                val live =
+                    LiveChannel(
+                        schedule,
+                        port,
+                        lastChannel,
+                        sessions,
+                        library,
+                        channels,
+                        clock,
+                        report = { Log.i(LOG_TAG, it.line()) },
+                    )
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { live.state.collect { if (it != LiveState.SignedOut) shown.value = it } }

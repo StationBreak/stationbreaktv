@@ -211,6 +211,29 @@ class TunePortAdapterTest {
         }
 
     @Test
+    fun aPlayingTuneCarriesItsTimings() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer()
+            rig.player.answerAt = 30.seconds
+            val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
+            assertEquals(null, playing.timings.fallback)
+            assertEquals(null, playing.timings.positionErrorMs)
+            assertEquals(true, playing.timings.firstFrameMs != null)
+        }
+
+    @Test
+    fun aTuneThatMissedItsStartCarriesTheFallbackAndTheError() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer()
+            rig.player.answerAt = Duration.ZERO // the picture lands at 0 whatever the request: a miss twice over
+            val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
+            assertEquals("seekMiss", playing.timings.fallback)
+            assertEquals(30_000L, playing.timings.positionErrorMs)
+        }
+
+    @Test
     fun aFailedResolveIsDeadAndNotATimeout() =
         kotlinx.coroutines.test.runTest {
             val rig = Rig(this)

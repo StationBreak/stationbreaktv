@@ -60,7 +60,9 @@ private suspend fun Sitting.fillIn(
         val position = checkNotNull(piece.positionAt(at))
         val banner = bannerFor(onAir.channel, piece, BannerLabel.FillingIn, position.inWholeMilliseconds, driftMs)
         val outcome =
-            tuneAndShow(scope, banner, snow = true) { tuner.tune(session, ItemId(standIn.itemId.value), position) }
+            tuneAndShow(scope, banner, snow = true, what = TuneWhat(TuneKind.StandIn, piece, position)) {
+                tuner.tune(session, ItemId(standIn.itemId.value), position)
+            }
         val failed =
             when (outcome) {
                 is TuneOutcome.Playing -> {

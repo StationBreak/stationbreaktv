@@ -29,7 +29,7 @@ import kotlin.time.Clock
  * The live channel (spec 14, F1.3): one sitting. [run] picks a channel, tunes it at the schedule's offset and follows
  * its blocks, and [state] says what the screen shows. The block loop is [Sitting]; dead items are in `DeadItems.kt`.
  * Time comes only from [clock] and `delay`, so virtual time drives it in tests. Nothing here logs: titles and IDs are
- * for the screen only.
+ * for the screen only. What it measures about each tune goes to [report] as numbers (see [TuneReport]); the host logs.
  */
 @Suppress("LongParameterList") // The machine's ports, one for one.
 class LiveChannel(
@@ -41,6 +41,7 @@ class LiveChannel(
     private val channels: ChannelRepository,
     private val clock: Clock,
     private val timings: LiveTimings = LiveTimings(),
+    private val report: (TuneReport) -> Unit = {},
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val current = MutableStateFlow<LiveState>(LiveState.Ident(null))
@@ -70,7 +71,7 @@ class LiveChannel(
                 // a synced file write that must not sit in the cut).
                 if (id != saved) lastChannel.save(account, id)
                 saved = id
-                val next = Sitting(session, id, schedule, tuner, clock, timings, current)
+                val next = Sitting(session, id, schedule, tuner, clock, timings, current, report)
                 sitting = next
                 val exit = next.follow(first)
                 if (exit == Exit.SignedOut) return
