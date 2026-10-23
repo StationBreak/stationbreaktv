@@ -16,6 +16,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
+import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
 
 /** The live screen's states on the API 25 emulator: what each one puts on screen (spec 14). */
@@ -118,6 +119,25 @@ class LiveScreenTest {
         show(LiveState.TechnicalDifficulties(null))
         compose.onNodeWithText("TECHNICAL DIFFICULTIES").assertExists()
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
+    }
+
+    @Test
+    fun anIdentWithoutAnUpNextStillNamesTheChannel() {
+        show(LiveState.Ident(null, ChannelTag(7, "Laughs")))
+        compose.onNodeWithTag(LiveTags.IDENT).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER).assertExists()
+        compose.onNodeWithText("LAUGHS").assertExists()
+        compose.onNodeWithText("07").assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertDoesNotExist()
+    }
+
+    @Test
+    fun theDifficultiesSlateWithoutAnUpNextStillNamesTheChannel() {
+        show(LiveState.TechnicalDifficulties(null, ChannelTag(7, "Laughs")))
+        compose.onNodeWithText("TECHNICAL DIFFICULTIES").assertExists()
+        compose.onNodeWithText("LAUGHS").assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
     }
 
     @Test

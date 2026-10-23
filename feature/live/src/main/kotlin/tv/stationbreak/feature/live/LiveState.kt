@@ -18,19 +18,33 @@ sealed interface LiveState {
         val banner: Banner?,
     ) : LiveState
 
-    /** The slate for a show that is missing or will not play. [upNext] names what follows, when known. */
+    /**
+     * The slate for a show that is missing or will not play. [upNext] names what follows, when known; without it the
+     * card still names its [channel] (design: "the card shows the channel only").
+     */
     data class TechnicalDifficulties(
         val upNext: Banner?,
+        val channel: ChannelTag? = null,
     ) : LiveState
 
-    /** The StationBreak ident card: a gap in the schedule, or a show that ended early. */
+    /**
+     * The StationBreak ident card: a gap in the schedule, or a show that ended early. [upNext] and [channel] are as on
+     * [TechnicalDifficulties]; both are null before a channel is chosen.
+     */
     data class Ident(
         val upNext: Banner?,
+        val channel: ChannelTag? = null,
     ) : LiveState
 
     /** The session ended: hand over to sign-in. */
     data object SignedOut : LiveState
 }
+
+/** A channel's number and name: all a card says when no show follows. */
+data class ChannelTag(
+    val number: Int,
+    val name: String,
+)
 
 /** What a [Banner] says about its show. */
 enum class BannerLabel {

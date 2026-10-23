@@ -44,6 +44,7 @@ import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
+import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.R
 import java.time.ZoneId
 import java.util.Locale
@@ -94,6 +95,32 @@ internal fun CableBanner(
     }
 }
 
+/**
+ * The strip of a card with no show to name (an ident or slate with nothing coming up): the number and name of the
+ * channel, in the banner's own chrome, and no program lines.
+ */
+@Composable
+internal fun ChannelBanner(
+    channel: ChannelTag,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val side = maxWidth * OVERSCAN
+        val edge = maxHeight * OVERSCAN
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = side, end = side, bottom = edge)
+                .fillMaxWidth()
+                .background(BroadcastColors.Ink)
+                .testTag(LiveTags.BANNER),
+        ) {
+            Box(Modifier.fillMaxWidth().height(RULE_HEIGHT.dp).background(BroadcastColors.Accent))
+            Row(Modifier.height(IntrinsicSize.Min)) { NumberBlock(channel.number, channel.name) }
+        }
+    }
+}
+
 private fun channelNumber(number: Int) = String.format(Locale.ROOT, "%02d", number)
 
 @Composable
@@ -113,7 +140,7 @@ private fun BannerStrip(
     Column(modifier.fillMaxWidth().background(BroadcastColors.Ink).testTag(LiveTags.BANNER)) {
         Box(Modifier.fillMaxWidth().height(RULE_HEIGHT.dp).background(BroadcastColors.Accent))
         Row(Modifier.height(IntrinsicSize.Min)) {
-            NumberBlock(banner)
+            NumberBlock(banner.number, banner.channelName)
             Column(
                 Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -145,7 +172,10 @@ private fun BannerStrip(
 private const val SEPARATOR = " · "
 
 @Composable
-private fun NumberBlock(banner: Banner) {
+private fun NumberBlock(
+    number: Int,
+    name: String,
+) {
     Column(
         Modifier
             .fillMaxHeight()
@@ -155,12 +185,12 @@ private fun NumberBlock(banner: Banner) {
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         Text(
-            text = channelNumber(banner.number),
+            text = channelNumber(number),
             style = TextStyle(fontFamily = BroadcastType.Display, fontSize = NumberSize),
             color = BroadcastColors.Cream,
         )
         Text(
-            text = banner.channelName.uppercase(),
+            text = name.uppercase(),
             style = mono(LabelSize, letterSpacing = 1.5.sp),
             color = BroadcastColors.Ground,
             maxLines = 1,

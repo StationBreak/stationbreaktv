@@ -231,8 +231,10 @@ internal class Sitting(
         onAir: ChannelOnAir,
         untilMs: Long,
     ): Exit? {
+        // Worked out before the stop: the card must follow the stop at once, not after a look at the schedule.
+        val up = upNext(onAir)
         tuner.stop(session)
-        state.value = LiveState.Ident(upNext(onAir))
+        state.value = LiveState.Ident(up, onAir.tag())
         waitUntil(untilMs)
         return null
     }

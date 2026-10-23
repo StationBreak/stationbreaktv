@@ -111,6 +111,9 @@ class FakeSchedule : ScheduleSource {
     val standInCalls = mutableListOf<Pair<AiringBlock, Set<CanonicalId>>>()
     val onAirCalls = mutableListOf<Pair<ChannelId, Long>>()
 
+    /** Told how many following blocks each [onAir] asks for, as it is asked; may throw to fail the call. */
+    var onAirObserver: (next: Int) -> Unit = {}
+
     fun channel(
         id: ChannelId,
         number: Int,
@@ -136,6 +139,7 @@ class FakeSchedule : ScheduleSource {
     ): ChannelOnAir? {
         val ms = at.toEpochMilliseconds()
         onAirCalls += channel to ms
+        onAirObserver(next)
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {

@@ -37,11 +37,11 @@ internal fun LiveScreen(
             }
 
             is LiveState.TechnicalDifficulties -> {
-                DifficultiesSlate(state.upNext)
+                DifficultiesSlate(state.upNext, state.channel)
             }
 
             is LiveState.Ident -> {
-                IdentSlate(state.upNext)
+                IdentSlate(state.upNext, state.channel)
             }
 
             LiveState.NoChannels -> {
