@@ -68,6 +68,40 @@ class BuiltInScheduleSource(
         return today?.let { onAirOf(account, chosen, it, at, next) }
     }
 
+    override suspend fun standIns(
+        channel: ChannelId,
+        block: AiringBlock,
+        exclude: Set<CanonicalId>,
+    ): List<AiringBlock> {
+        val (account, chosen) = signedIn() ?: return emptyList()
+        val at = Instant.fromEpochMilliseconds(block.startMs)
+        val day = channelDays(account, chosen, at).firstOrNull { it.channel.id == channel }
+        return day?.let { standInsOf(account, it, block, exclude) } ?: emptyList()
+    }
+
+    private suspend fun standInsOf(
+        account: LibraryAccount,
+        day: ChannelDay,
+        block: AiringBlock,
+        exclude: Set<CanonicalId>,
+    ): List<AiringBlock> {
+        val ids = day.pool.mapTo(HashSet()) { it.id }
+        val known = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids)
+        // A pool item with no current row is gone from the library: never a stand-in.
+        val barred = exclude + (ids - known.keys)
+        val length = block.endMs - block.startMs
+        val picked = StandIn.pick(day.settings, day.n, day.pool, block.startMs, length, barred)
+        var cursor = block.startMs
+        val laid = ArrayList<AiringBlock>()
+        for (item in picked) {
+            if (cursor >= block.endMs) break
+            val end = minOf(cursor + item.runtimeMs, block.endMs)
+            laid += AiringBlock(cursor, end, Airing.Program(item.id, 0L, known[item.id]))
+            cursor = end
+        }
+        return laid
+    }
+
     private suspend fun onAirOf(
         account: LibraryAccount,
         chosen: Set<ItemId>,

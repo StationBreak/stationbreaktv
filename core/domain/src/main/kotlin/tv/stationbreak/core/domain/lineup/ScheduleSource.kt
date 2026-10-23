@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
@@ -66,6 +67,20 @@ interface ScheduleSource {
         at: Instant,
         next: Int,
     ): ChannelOnAir?
+
+    /**
+     * The stand-in for [block] of [channel], a block that cannot play: items of the channel's own pool for the
+     * broadcast day that holds the block, laid end to end from the block's start (the last clipped to its end), each a
+     * [Airing.Program] from its start. The pick depends only on the channel's settings, the day and the block's start,
+     * so every TV gets the same one (ADR-0017). It never includes an id in [exclude] or an item gone from the library,
+     * and is empty when the pool has nothing else to give, or the channel is not on the air. Join it at the clock with
+     * [AiringBlock.positionAt].
+     */
+    suspend fun standIns(
+        channel: ChannelId,
+        block: AiringBlock,
+        exclude: Set<CanonicalId>,
+    ): List<AiringBlock>
 
     /**
      * Every switched-on channel of the active account's lineup that can be scheduled, in number order, as it is at

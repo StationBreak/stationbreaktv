@@ -11,9 +11,11 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
@@ -36,6 +38,12 @@ class LineupTimingProbeTest {
                 at: Instant,
                 next: Int,
             ): ChannelOnAir? = null
+
+            override suspend fun standIns(
+                channel: ChannelId,
+                block: AiringBlock,
+                exclude: Set<CanonicalId>,
+            ): List<AiringBlock> = emptyList()
         }
 
     @After

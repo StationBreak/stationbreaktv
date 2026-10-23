@@ -713,7 +713,7 @@ An item is in the pool of day `n` if and only if **all four** hold:
    `createdAt`, so two devices that have synced the library past `S - G` agree.
 2. **Deleted at or after the cut-off.** An item deleted shortly before `S` still airs in day `n`, so the lineup does not
    shift under the viewer. The player skips it when it is reached (that slot then shows a slate, a matter for the player,
-   not for the scheduler). The scheduler uses the runtime it is given for such an item, which the library layer keeps as it
+   not for the scheduler). Non-normative: StationBreak's player may fill such a slot with a deterministic stand-in from the channel's pool, chosen client-side from the channel's settings and the slot's start (ADR-0017); the Day vectors do not change. The scheduler uses the runtime it is given for such an item, which the library layer keeps as it
    was before the deletion.
 3. **A program has a minimum length.** An item shorter than `minRuntimeMs` is not a program. Without this a bad runtime of
    a few milliseconds would make millions of blocks a day.
