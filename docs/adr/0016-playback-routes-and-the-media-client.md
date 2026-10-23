@@ -149,6 +149,22 @@ Found in the whole-branch review of spec 13.
   override is graded on the chosen track, so it can fail on the server's own track rule, for example the account's
   "play default audio track" setting. Such a failure is a finding to explain, not a grading bug.
 
+## Update 2026-10-23: the player's lifecycle seam
+
+Found in the whole-branch review of spec 13 (#348), before F1.3 puts the player on a screen.
+
+- **No Media3 type reaches a host.** `Media3VideoPlayer` took a Media3 `DataSource.Factory`, and `core:playback` keeps
+  Media3 as `implementation`, so a feature module would have needed Media3 itself. `core:playback` now has
+  `VideoPlayerFactory` (`create(context, clock): VideoPlayer`) and its Media3 implementation `Media3VideoPlayerFactory`.
+  `app` binds the factory in `di/PlaybackModule` over the `@MediaDataSource` data source; a screen injects
+  `VideoPlayerFactory`. The decision-9 rule is unchanged: the data source is still the OkHttp one, never wrapped.
+- **Teardown.** `TuneController.close(session)` does what `stop` does but runs under `NonCancellable`, so a host whose
+  scope is cancelled after `Played` still stops the player and the HLS encode (decision 5). It does not release the
+  player: the host that created it does.
+- **A cancel anywhere in a tune releases.** `run()` now catches `CancellationException` around the whole tune, not only
+  around the wait for Playing. A cancel from outside during the fallback's resolve used to leave the abandoned first
+  attempt playing; it is now stopped, with its encode.
+
 ## Consequences
 
 - A newer Jellyfin that renames a `master.m3u8` parameter fails the drift test before it fails a viewer.
