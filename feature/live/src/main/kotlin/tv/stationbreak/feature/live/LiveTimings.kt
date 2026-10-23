@@ -18,6 +18,8 @@ import kotlin.time.Duration.Companion.seconds
  *   drifts); over it, a stand-in fills the block.
  * @property standInAttempts how many stand-ins are tried for one dead block before the ident card holds.
  * @property preResolveLead how long before a block ends the next program is resolved.
+ * @property crashBackoff how long the card holds after a sitting broke on an unexpected exception, before a fresh
+ *   sitting re-anchors to the clock: long enough that a fault which repeats cannot spin the loop.
  */
 data class LiveTimings(
     val bannerLinger: Duration = 4.seconds,
@@ -26,6 +28,7 @@ data class LiveTimings(
     val standInThreshold: Duration = 30.minutes,
     val standInAttempts: Int = 2,
     val preResolveLead: Duration = 45.seconds,
+    val crashBackoff: Duration = 5.seconds,
 ) {
     init {
         require(standInAttempts >= 1) { "At least one stand-in must be tried" }

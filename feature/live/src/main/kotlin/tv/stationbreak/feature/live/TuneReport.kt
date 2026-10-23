@@ -59,6 +59,16 @@ sealed interface TuneReport {
         override fun line() = "cut gapMs=$gapMs resolveMs=$resolveMs toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE}"
     }
 
+    /**
+     * A sitting that broke on an unexpected exception and was started again. [error] is the exception's class name,
+     * never its message: a message can hold an id or a path.
+     */
+    data class Failed(
+        val error: String,
+    ) : TuneReport {
+        override fun line() = "sitting failed error=$error"
+    }
+
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L

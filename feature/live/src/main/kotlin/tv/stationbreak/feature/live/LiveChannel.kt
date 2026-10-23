@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -23,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
 
 /**
@@ -63,30 +65,41 @@ class LiveChannel(
         }
         var sitting: Sitting? = null
         var saved: ChannelId? = null
+        var known: ChannelTag? = null
         try {
             while (true) {
-                val (account, first) = awaitChannel()
-                val id = first.channel.id
-                // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save is
-                // a synced file write that must not sit in the cut).
-                if (id != saved) lastChannel.save(account, id)
-                saved = id
-                val next = Sitting(session, id, schedule, tuner, clock, timings, current, report)
-                sitting = next
-                val exit = next.follow(first)
-                if (exit == Exit.SignedOut) return
-                // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
-                currentCoroutineContext().ensureActive()
-                next.release()
-                tuner.stop(session)
-                if (exit == Exit.Lost) {
-                    // The channel stopped airing: the card, then look again.
-                    current.value = LiveState.Ident(null)
-                    delay(timings.slateHold)
-                } else {
-                    // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting, under
-                    // the snow of its tune. The pause only keeps a tuner that stays stopped from spinning this loop.
-                    delay(timings.minSnow)
+                try {
+                    val (account, first) = awaitChannel()
+                    val id = first.channel.id
+                    known = first.tag()
+                    // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save
+                    // is a synced file write that must not sit in the cut).
+                    if (id != saved) lastChannel.save(account, id)
+                    saved = id
+                    val next = Sitting(session, id, schedule, tuner, clock, timings, current, report)
+                    sitting = next
+                    val exit = next.follow(first)
+                    if (exit == Exit.SignedOut) return
+                    // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
+                    currentCoroutineContext().ensureActive()
+                    next.release()
+                    tuner.stop(session)
+                    if (exit == Exit.Lost) {
+                        // The channel stopped airing: the card, then look again.
+                        current.value = LiveState.Ident(null)
+                        delay(timings.slateHold)
+                    } else {
+                        // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting,
+                        // under the snow of its tune. The pause only keeps a tuner that stays stopped from spinning
+                        // this loop.
+                        delay(timings.minSnow)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
+                    recoverFrom(e, session, sitting, known)
                 }
             }
         } finally {
@@ -95,6 +108,33 @@ class LiveChannel(
                 tuner.stop(session)
             }
         }
+    }
+
+    /**
+     * An unexpected exception (a failed schedule or library read, say) must not end the screen: report its class name
+     * (never its message, which may hold an id), put the card up with the channel if one was chosen, stop what plays,
+     * and wait [LiveTimings.crashBackoff] so a fault that repeats cannot spin. The loop then starts a fresh sitting
+     * from the clock. Only cancellation is ever rethrown.
+     */
+    private suspend fun recoverFrom(
+        error: Exception,
+        session: Session,
+        sitting: Sitting?,
+        known: ChannelTag?,
+    ) {
+        report(TuneReport.Failed(error.javaClass.simpleName.ifEmpty { "Unknown" }))
+        current.value = LiveState.Ident(null, known)
+        withContext(NonCancellable) {
+            try {
+                sitting?.release()
+                tuner.stop(session)
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                // The cleanup failed too; the fresh sitting stops the tuner again before it tunes.
+            }
+        }
+        delay(timings.crashBackoff)
     }
 
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */
