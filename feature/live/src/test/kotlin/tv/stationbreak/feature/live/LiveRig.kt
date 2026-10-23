@@ -111,6 +111,12 @@ class FakeSchedule : ScheduleSource {
     val standInCalls = mutableListOf<Pair<AiringBlock, Set<CanonicalId>>>()
     val onAirCalls = mutableListOf<Pair<ChannelId, Long>>()
 
+    /** Told how many following blocks each [onAir] asks for, as it is asked; may throw to fail the call. */
+    var onAirObserver: (next: Int) -> Unit = {}
+
+    /** How long each [onAir] takes on the virtual clock (a slow schedule read). */
+    var onAirDelayMs = 0L
+
     fun channel(
         id: ChannelId,
         number: Int,
@@ -136,6 +142,8 @@ class FakeSchedule : ScheduleSource {
     ): ChannelOnAir? {
         val ms = at.toEpochMilliseconds()
         onAirCalls += channel to ms
+        onAirObserver(next)
+        kotlinx.coroutines.delay(onAirDelayMs)
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {
@@ -277,7 +285,20 @@ class FakeTune(
     }
 
     companion object {
-        fun plays(end: Flow<PlaybackEnd> = flow { awaitCancellation() }): TuneOutcome = TuneOutcome.Playing(end)
+        fun plays(
+            end: Flow<PlaybackEnd> = flow { awaitCancellation() },
+            timings: TuneTimings = TuneTimings(),
+        ): TuneOutcome = TuneOutcome.Playing(end, timings)
+
+        /** A tune that takes [wait] to show a picture, with the [timings] the controller would have measured. */
+        fun playsAfter(
+            wait: Duration,
+            timings: TuneTimings = TuneTimings(firstFrameMs = wait.inWholeMilliseconds),
+        ): suspend () -> TuneOutcome =
+            {
+                delay(wait)
+                plays(timings = timings)
+            }
 
         fun dead(timedOut: Boolean = false): suspend () -> TuneOutcome = { TuneOutcome.Dead(timedOut) }
 
@@ -358,16 +379,20 @@ class Rig(
         )
     val sessions = SessionRepository(InMemorySecretStore(), FakeMediaServer())
 
-    val live = LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings)
+    /** Every report the machine made, in order. */
+    val reports = mutableListOf<TuneReport>()
+
+    val live =
+        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, { reports += it })
 
     /** Every state in order, each with how many port calls had been made when it appeared. */
     val states = mutableListOf<Pair<LiveState, Int>>()
 
     val seen: List<LiveState> get() = states.map { it.first }
 
-    suspend fun start(): Job {
+    suspend fun start(withAccount: Boolean = true): Job {
         sessions.save(session)
-        library.useAccount(account)
+        if (withAccount) library.useAccount(account)
         channels.publish(*schedule.channels.map { it.key to it.value.number }.toTypedArray())
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
             live.state.collect { states += it to tune.calls.size }

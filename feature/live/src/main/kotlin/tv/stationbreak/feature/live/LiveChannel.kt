@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -9,7 +10,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -22,13 +23,15 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
 
 /**
  * The live channel (spec 14, F1.3): one sitting. [run] picks a channel, tunes it at the schedule's offset and follows
  * its blocks, and [state] says what the screen shows. The block loop is [Sitting]; dead items are in `DeadItems.kt`.
  * Time comes only from [clock] and `delay`, so virtual time drives it in tests. Nothing here logs: titles and IDs are
- * for the screen only.
+ * for the screen only. What it measures about each tune goes to [report] as numbers (see [TuneReport]); the host logs.
  */
 @Suppress("LongParameterList") // The machine's ports, one for one.
 class LiveChannel(
@@ -40,6 +43,7 @@ class LiveChannel(
     private val channels: ChannelRepository,
     private val clock: Clock,
     private val timings: LiveTimings = LiveTimings(),
+    private val report: (TuneReport) -> Unit = {},
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val current = MutableStateFlow<LiveState>(LiveState.Ident(null))
@@ -60,26 +64,42 @@ class LiveChannel(
             return
         }
         var sitting: Sitting? = null
+        var saved: ChannelId? = null
+        var known: ChannelTag? = null
         try {
             while (true) {
-                val (account, first) = awaitChannel()
-                val id = first.channel.id
-                val next = Sitting(session, account, id, schedule, tuner, lastChannel, clock, timings, current)
-                sitting = next
-                val exit = next.follow(first)
-                if (exit == Exit.SignedOut) return
-                // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
-                currentCoroutineContext().ensureActive()
-                next.release()
-                tuner.stop(session)
-                if (exit == Exit.Lost) {
-                    // The channel stopped airing: the card, then look again.
-                    current.value = LiveState.Ident(null)
-                    delay(timings.slateHold)
-                } else {
-                    // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting, under
-                    // the snow of its tune. The pause only keeps a tuner that stays stopped from spinning this loop.
-                    delay(timings.minSnow)
+                try {
+                    val (account, first) = awaitChannel()
+                    val id = first.channel.id
+                    known = first.tag()
+                    // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save
+                    // is a synced file write that must not sit in the cut).
+                    if (id != saved) lastChannel.save(account, id)
+                    saved = id
+                    val next = Sitting(session, id, schedule, tuner, clock, timings, current, report)
+                    sitting = next
+                    val exit = next.follow(first)
+                    if (exit == Exit.SignedOut) return
+                    // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
+                    currentCoroutineContext().ensureActive()
+                    next.release()
+                    tuner.stop(session)
+                    if (exit == Exit.Lost) {
+                        // The channel stopped airing: the card, then look again.
+                        current.value = LiveState.Ident(null)
+                        delay(timings.slateHold)
+                    } else {
+                        // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting,
+                        // under the snow of its tune. The pause only keeps a tuner that stays stopped from spinning
+                        // this loop.
+                        delay(timings.minSnow)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
+                    recoverFrom(e, session, sitting, known)
                 }
             }
         } finally {
@@ -90,14 +110,47 @@ class LiveChannel(
         }
     }
 
+    /**
+     * An unexpected exception (a failed schedule or library read, say) must not end the screen: report its class name
+     * (never its message, which may hold an id), put the card up with the channel if one was chosen, stop what plays,
+     * and wait [LiveTimings.crashBackoff] so a fault that repeats cannot spin. The loop then starts a fresh sitting
+     * from the clock. Only cancellation is ever rethrown.
+     */
+    private suspend fun recoverFrom(
+        error: Exception,
+        session: Session,
+        sitting: Sitting?,
+        known: ChannelTag?,
+    ) {
+        report(TuneReport.Failed(error.javaClass.simpleName.ifEmpty { "Unknown" }))
+        current.value = LiveState.Ident(null, known)
+        withContext(NonCancellable) {
+            try {
+                sitting?.release()
+                tuner.stop(session)
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                // The cleanup failed too; the fresh sitting stops the tuner again before it tunes.
+            }
+        }
+        delay(timings.crashBackoff)
+    }
+
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun awaitChannel(): Pair<LibraryAccount, ChannelOnAir> =
         library
             .activeAccount()
-            .filterNotNull()
-            .flatMapLatest { account -> channels.channels(account).map { account } }
-            .mapNotNull { account ->
+            .flatMapLatest { account ->
+                // No account is active until a library has been synced: nothing is on the air yet.
+                if (account == null) {
+                    current.value = LiveState.NoChannels
+                    emptyFlow()
+                } else {
+                    channels.channels(account).map { account }
+                }
+            }.mapNotNull { account ->
                 val chosen = choose(account)
                 if (chosen == null) current.value = LiveState.NoChannels
                 chosen?.let { account to it }

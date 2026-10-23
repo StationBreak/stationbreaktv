@@ -8,10 +8,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import tv.stationbreak.feature.live.ui.LiveDestination
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncDestination
 import tv.stationbreak.feature.onboarding.launch.LaunchDestination
 import tv.stationbreak.feature.onboarding.libraries.LibrariesDestination
-import tv.stationbreak.feature.onboarding.libraries.SetupCompleteDestination
 import tv.stationbreak.feature.onboarding.libraries.SignedInDestination
 import tv.stationbreak.feature.onboarding.server.ServerDestination
 import tv.stationbreak.feature.onboarding.signin.SignInDestination
@@ -40,7 +40,7 @@ internal fun AppNavGraph(
                 onSignIn = { navController.replaceAll(SignInRoute) },
                 onLibraries = { navController.replaceAll(LibrariesRoute) },
                 onFirstSync = { navController.replaceAll(FirstSyncRoute) },
-                onSetupComplete = { navController.replaceAll(SetupCompleteRoute) },
+                onSetupComplete = { navController.replaceAll(LiveRoute) },
                 // The stored session and pin stay: the server screen shows the stored address, and only a Continue
                 // (or a trust) on another address replaces them.
                 onChangeServer = { navController.replaceAll(ServerRoute) },
@@ -83,13 +83,16 @@ internal fun AppNavGraph(
         }
         composable<FirstSyncRoute> {
             FirstSyncDestination(
-                // No button: when the first sync ends the app moves on, and the placeholder is the next destination.
-                onFinished = { navController.replaceAll(SetupCompleteRoute) },
+                // No button: when the first sync ends the app moves on, to the live channel.
+                onFinished = { navController.replaceAll(LiveRoute) },
                 // The server no longer accepts the sign-in: launch routing explains and asks the user to sign in again.
                 onSessionLost = { navController.replaceAll(LaunchRoute) },
             )
         }
-        composable<SetupCompleteRoute> { SetupCompleteDestination() }
+        composable<LiveRoute> {
+            // The session ended while watching: the launch router decides where that leads, as for any lost session.
+            LiveDestination(onSignedOut = { navController.replaceAll(LaunchRoute) })
+        }
     }
 }
 

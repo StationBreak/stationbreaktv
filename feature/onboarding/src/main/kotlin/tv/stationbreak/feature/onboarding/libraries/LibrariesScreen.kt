@@ -73,7 +73,7 @@ private const val TOP_OFFSET = 0.08f
  * The library picker as the app shows it. Back is handled by the caller ([onBack]): it goes to "Signed in as", so the
  * user is never signed out silently.
  *
- * @param onDone setup is saved: on to the "Setup complete" screen.
+ * @param onDone setup is saved: on to the first sync.
  * @param onSessionLost the server refused the session: launch routing decides where to go (sign-in).
  * @param onMissingSession no sign-in is held (process death): launch routing restores it.
  */

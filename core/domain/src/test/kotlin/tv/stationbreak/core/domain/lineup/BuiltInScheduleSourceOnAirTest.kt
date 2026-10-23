@@ -143,6 +143,26 @@ class BuiltInScheduleSourceOnAirTest {
     }
 
     @Test
+    fun aDayAlreadyBuiltIsNotTimedAgain() {
+        onAir(at = dayEnd - 1.minutes, next = 3)
+        assertEquals(1, timings.size)
+
+        onAir(at = dayEnd - 1.minutes, next = 3)
+        onAir(at = dayEnd - 2.minutes, next = 3)
+
+        assertEquals(1, timings.size, "a cache hit is not a build")
+    }
+
+    @Test
+    fun onAirLooksNoFurtherThanTheEndOfTheNextDay() {
+        // Ask for far more blocks than two days hold: the answer stops at the end of day n + 1.
+        val result = checkNotNull(onAir(at = NOON, next = 200))
+
+        assertTrue(result.next.last().endMs <= result.builtUntilMs, "no block past builtUntilMs")
+        assertEquals(1, timings.size, "only day n + 1 was built ahead")
+    }
+
+    @Test
     fun onAirOfAHiddenOrUnknownChannelIsNull() {
         val frights = starter("frights", 310, ChannelState.On, rules("Frights", Source.Genre("Nothing like it")))
         val shelved = starter("after-hours", 590, ChannelState.Shelf, rules("After Hours", Source.Genre("Comedy")))

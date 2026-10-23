@@ -18,6 +18,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.feature.live.Banner
+import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.R
 
 // Card units, from board E2 and the icon: where the TV sits and where the lines start on the disc.
@@ -38,7 +39,10 @@ private const val SPACING_EM = 0.13f
 
 /** The slate for a show that is missing or will not play (design: board E2), with the "Up next" banner when known. */
 @Composable
-internal fun DifficultiesSlate(upNext: Banner?) {
+internal fun DifficultiesSlate(
+    upNext: Banner?,
+    channel: ChannelTag?,
+) {
     Box(Modifier.fillMaxSize()) {
         TestCard(tvY = DIFFICULTIES_TV_Y) { card ->
             Column(
@@ -64,7 +68,7 @@ internal fun DifficultiesSlate(upNext: Banner?) {
                 )
             }
         }
-        upNext?.let { CableBanner(it, cornerNumber = false) }
+        CardBanner(upNext, channel)
     }
 }
 
@@ -73,10 +77,26 @@ internal fun DifficultiesSlate(upNext: Banner?) {
  * early, with the "Up next" banner when known. F3.1's bumpers replace it later.
  */
 @Composable
-internal fun IdentSlate(upNext: Banner?) {
+internal fun IdentSlate(
+    upNext: Banner?,
+    channel: ChannelTag?,
+) {
     Box(Modifier.fillMaxSize()) {
         TestCard(tvY = IDENT_TV_Y) { card -> Wordmark(card, LiveTags.IDENT) }
-        upNext?.let { CableBanner(it, cornerNumber = false) }
+        CardBanner(upNext, channel)
+    }
+}
+
+/** The "up next" banner when known, else the channel's own strip (design: "the card shows the channel only"). */
+@Composable
+private fun CardBanner(
+    upNext: Banner?,
+    channel: ChannelTag?,
+) {
+    if (upNext != null) {
+        CableBanner(upNext, cornerNumber = false)
+    } else if (channel != null) {
+        ChannelBanner(channel)
     }
 }
 

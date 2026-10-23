@@ -87,6 +87,13 @@ Every other module is created by the first story that needs it, for example `dat
 It depends on `core:domain`, `core:model` and `core:ui` only, and applies the `hilt` convention plugin for `@HiltViewModel` (see
 "Hilt in pure modules"). `app` hosts its navigation graph and wires the adapters it consumes.
 
+`feature:live` exists since spec 14 (offset playback, F1.3). It owns the live channel state machine (`LiveChannel`, the
+sitting that follows a channel's blocks, dead items and stand-ins) and its screens (the snow, the cable banner, the test
+cards). It depends on `core:domain`, `core:model`, `core:ui` and `core:playback`, which differs from `feature:onboarding`'s
+set: the screen creates its player through `VideoPlayerFactory` and tunes through `TuneController`, both in `core:playback`,
+and never names a Media3 type. It applies the `hilt` convention plugin for `@HiltViewModel`. `app` hosts its route and binds
+what it needs (ADR-0017).
+
 `data:settings` exists since F0.4 and holds `KeystoreSecretStore` (the `SecretStore` implementation) and, since F0.5
 task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configured address and its certificate pin as one
 atomically replaced file in `noBackupFilesDir`). `app` binds both in `MediaServerModule`. The DataStore settings arrive with
@@ -96,6 +103,11 @@ Since spec 12, `data:settings` also holds `FileLineupStore` (the `LineupStore` i
 account, `lineup/<server>/<user>.json` under `filesDir`, replaced atomically. It keeps opaque bytes and knows nothing of
 their format; the codec is in `core:domain`. A path is built only from canonical IDs, a file over 1 MiB reads as a fault, and
 an unreadable file is moved to `<name>.unreadable.<timestamp>`, of which the newest three are kept.
+
+Since spec 14, `data:settings` also holds `FileLastChannelStore` (the `LastChannelStore` implementation in `core:domain`):
+one small file per account under `noBackupFilesDir/lastchannel`, named by a hash of the account so no server or user ID
+appears in a path, holding only the last channel's ID and replaced atomically. Sign-out leaves it. `app` binds it in
+`LiveModule`.
 
 **Privacy and removal of the lineup** ([#308](https://github.com/StationBreak/stationbreaktv/issues/308)). By design,
 sign-out, session expiry and an account switch never delete a household's lineup; only an explicit user action does. The

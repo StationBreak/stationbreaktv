@@ -184,10 +184,6 @@
     <string name="signed_in_switching">Signing out…</string>
     <string name="signed_in_progress_description">Signing out</string>
 
-    <!-- The placeholder shown after setup, until the first real screen exists (F1.x). No actions. -->
-    <string name="setup_complete_headline">Setup complete</string>
-    <string name="setup_complete_body">Your server and libraries are saved. There’s nothing to watch yet, because StationBreak is still being built.</string>
-
     <!--
       The first-sync progress screen (spec 06, Unit 3; owner answer 3: only for the very first sync, later syncs are
       quiet). DRAFT wording for Adorabelle, who finalises it before the screenshots are taken. A headline, one reassuring

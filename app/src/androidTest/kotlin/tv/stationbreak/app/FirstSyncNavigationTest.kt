@@ -28,6 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.app.di.LibraryModule
 import tv.stationbreak.app.di.MediaServerModule
+import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.FirstSync
@@ -57,12 +58,13 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
+import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncTags
 import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
-import tv.stationbreak.feature.onboarding.libraries.SetupCompleteTags
 import tv.stationbreak.feature.onboarding.signin.SignInTags
 import javax.inject.Singleton
 import kotlin.time.Clock
@@ -83,7 +85,7 @@ private object Syncing {
  * focus while it syncs, and that Back leaves the app with the sync still going.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class, LibraryModule::class)
+@UninstallModules(MediaServerModule::class, LibraryModule::class, PlayerModule::class)
 @RunWith(AndroidJUnit4::class)
 @Suppress("TooManyFunctions") // One function per route and behaviour.
 class FirstSyncNavigationTest {
@@ -115,6 +117,13 @@ class FirstSyncNavigationTest {
             store: SecretStore,
             server: MediaServer,
         ): SessionRepository = SessionRepository(store, server)
+
+        // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
+        @Provides
+        fun clock(): Clock = Clock.System
+
+        @Provides
+        fun players(): VideoPlayerFactory = LiveTestBindings.players
 
         @Provides
         @Singleton
@@ -213,20 +222,20 @@ class FirstSyncNavigationTest {
         launchApp()
 
         awaitExists(FirstSyncTags.HEADLINE)
-        assertEquals(0, count(SetupCompleteTags.HEADLINE))
+        assertEquals(0, count(LiveTags.NO_CHANNELS))
         compose.onAllNodes(isFocusable()).assertCountEquals(0)
         assertEquals(1, Syncing.firstSync.ensureCalls)
     }
 
     @Test
-    fun theScreenMovesOnToSetupCompleteWhenTheFirstSyncEnds() {
+    fun afterFirstSyncTheLiveScreenOpens() {
         Syncing.firstSync.current = running(900, 1_000)
         launchApp()
         awaitExists(FirstSyncTags.HEADLINE)
 
         Syncing.firstSync.current = finished
 
-        awaitExists(SetupCompleteTags.HEADLINE)
+        awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(FirstSyncTags.HEADLINE))
         assertBackLeavesTheApp()
     }
@@ -236,7 +245,7 @@ class FirstSyncNavigationTest {
         Syncing.firstSync.current = finished
         launchApp()
 
-        awaitExists(SetupCompleteTags.HEADLINE)
+        awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(FirstSyncTags.HEADLINE))
         assertEquals(0, Syncing.firstSync.ensureCalls)
     }

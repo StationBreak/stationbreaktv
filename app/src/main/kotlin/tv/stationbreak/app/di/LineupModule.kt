@@ -79,7 +79,13 @@ internal object LineupModule {
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
-    ): ScheduleSource = BuiltInScheduleSource(service, library) { settings.loadLibraries() }
+    ): ScheduleSource =
+        // The timing is numbers only: the day's index and how long it took to build, never an ID or a title.
+        BuiltInScheduleSource(
+            service,
+            library,
+            timed = { day, ms -> Log.i(TAG, "NextDayBuild day=$day ms=$ms") },
+        ) { settings.loadLibraries() }
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides

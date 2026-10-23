@@ -11,9 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import tv.stationbreak.core.domain.LastChannelStore
-import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.Airing
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
@@ -36,6 +35,13 @@ internal enum class Exit {
     Lost,
 }
 
+/** What a tune is for, as its report needs it: the way it is made, the block, and the media position asked for. */
+internal class TuneWhat(
+    val kind: TuneKind,
+    val block: AiringBlock,
+    val position: Duration,
+)
+
 /** How a play that had started ended, as [Sitting.hold] sees it. */
 internal enum class Held { Boundary, Ended, Failed }
 
@@ -49,14 +55,13 @@ internal enum class Held { Boundary, Ended, Failed }
 @Suppress("LongParameterList") // The machine's ports and clock, one for one.
 internal class Sitting(
     val session: Session,
-    private val account: LibraryAccount,
     val channel: ChannelId,
     val schedule: ScheduleSource,
     val tuner: TunePort,
-    private val lastChannel: LastChannelStore,
     val clock: Clock,
     val timings: LiveTimings,
     val state: MutableStateFlow<LiveState>,
+    val report: (TuneReport) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -66,6 +71,9 @@ internal class Sitting(
 
     private val nextUp = NextUp(session, tuner, timings, ::vnowMs)
     private var lingering: Job? = null
+
+    /** When the last play was cut off at a boundary (or an ident card ended): the start of the next tune's gap. */
+    private var cutFrom: Instant? = null
 
     fun vnowMs(): Long = clock.now().toEpochMilliseconds() + driftMs
 
@@ -79,10 +87,14 @@ internal class Sitting(
         var current: ChannelOnAir? = first
         while (true) {
             val at = Instant.fromEpochMilliseconds(vnowMs())
-            val onAir = current ?: schedule.onAir(channel, at, WINDOW) ?: return Exit.Lost
+            val onAir = current ?: schedule.onAir(channel, at, WINDOW)
             current = null
-            if (driftMs > 0 && onAir.now.startMs >= limitMs) {
-                // The drift has run past the schedule built ahead: back to the clock, under the snow of a retune.
+            // Nothing on at the drifted time (the schedule ends there, or the channel is hidden that day) is not the
+            // channel lost: look again from the clock before giving it up.
+            if (onAir == null && driftMs == 0L) return Exit.Lost
+            if (onAir == null || (driftMs > 0 && onAir.now.startMs >= limitMs)) {
+                // Back to the clock: nothing is on at the drifted time, or the drift has run past the schedule built
+                // ahead (under the snow of a retune).
                 driftMs = 0
                 continue
             }
@@ -124,17 +136,23 @@ internal class Sitting(
         if (program.info == null) return deadItem(scope, onAir, program.itemId)
         var cut = handle
         var failures = 0
-        lastChannel.save(account, channel)
         while (true) {
             val at = vnowMs()
             if (at >= block.endMs) return null
             val position = checkNotNull(block.positionAt(at))
             val label = if (cut != null) BannerLabel.Now else BannerLabel.TuningIn
-            val banner = bannerFor(onAir.channel, block, label, if (cut != null) null else position.inWholeMilliseconds)
+            val joined = if (cut != null) null else position.inWholeMilliseconds
+            val banner = bannerFor(onAir.channel, block, label, joined, driftMs)
             val use = cut
             cut = null
+            val kind =
+                when {
+                    use != null -> TuneKind.Prepared
+                    failures > 0 -> TuneKind.Retry
+                    else -> TuneKind.Fresh
+                }
             val outcome =
-                tuneAndShow(scope, banner, snow = use == null) {
+                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, use?.start ?: position)) {
                     if (use != null) {
                         use.consumed = true
                         tuner.tune(session, use.handle)
@@ -177,12 +195,16 @@ internal class Sitting(
         scope: CoroutineScope,
         banner: Banner,
         snow: Boolean,
+        what: TuneWhat,
         tune: suspend () -> TuneOutcome,
     ): TuneOutcome {
         if (snow) state.value = LiveState.Tuning(banner)
         val began = clock.now()
+        val cutSince = cutFrom
+        cutFrom = null
         val outcome = tune()
         if (outcome is TuneOutcome.Playing) {
+            reportTune(what, outcome.timings, cutSince)
             if (snow) {
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
@@ -218,9 +240,18 @@ internal class Sitting(
         val ended = if (left <= 0) null else withTimeoutOrNull(left) { end.firstOrNull() ?: PlaybackEnd.Ended }
         if (ended == null) waitUntil(untilMs)
         return when {
-            ended == null || vnowMs() >= untilMs -> Held.Boundary
-            ended is PlaybackEnd.Failed -> Held.Failed
-            else -> Held.Ended
+            ended == null || vnowMs() >= untilMs -> {
+                cutFrom = clock.now()
+                Held.Boundary
+            }
+
+            ended is PlaybackEnd.Failed -> {
+                Held.Failed
+            }
+
+            else -> {
+                Held.Ended
+            }
         }
     }
 
@@ -229,9 +260,12 @@ internal class Sitting(
         onAir: ChannelOnAir,
         untilMs: Long,
     ): Exit? {
+        // Worked out before the stop: the card must follow the stop at once, not after a look at the schedule.
+        val up = upNext(onAir)
         tuner.stop(session)
-        state.value = LiveState.Ident(upNext(onAir))
+        state.value = LiveState.Ident(up, onAir.tag())
         waitUntil(untilMs)
+        cutFrom = clock.now()
         return null
     }
 

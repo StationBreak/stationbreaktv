@@ -31,6 +31,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.app.di.MediaServerModule
+import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavGraph
 import tv.stationbreak.app.nav.LibrariesRoute
 import tv.stationbreak.app.nav.ServerRoute
@@ -56,11 +57,13 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
 import tv.stationbreak.feature.onboarding.server.ServerTags
 import tv.stationbreak.feature.onboarding.signin.SignInTags
 import javax.inject.Singleton
+import kotlin.time.Clock
 
 /** One scripted server for the whole graph, shared with the test through this holder. */
 private object Scripted {
@@ -76,7 +79,7 @@ private object Scripted {
  * the server screen with nothing left under it.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class)
+@UninstallModules(MediaServerModule::class, PlayerModule::class)
 @RunWith(AndroidJUnit4::class)
 class SignInNavigationTest {
     @get:Rule(order = 0)
@@ -110,6 +113,13 @@ class SignInNavigationTest {
             store: SecretStore,
             server: MediaServer,
         ): SessionRepository = SessionRepository(store, server)
+
+        // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
+        @Provides
+        fun clock(): Clock = Clock.System
+
+        @Provides
+        fun players(): VideoPlayerFactory = LiveTestBindings.players
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))

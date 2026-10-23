@@ -21,10 +21,12 @@ internal suspend fun Sitting.deadItem(
     dead: CanonicalId,
 ): Exit? {
     val block = onAir.now
+    // Worked out before the stop: the slate must follow the stop at once, not after a look at the schedule.
+    val up = upNext(onAir)
     tuner.stop(session)
     val remaining = block.endMs - vnowMs()
     if (remaining <= 0) return null
-    state.value = LiveState.TechnicalDifficulties(upNext(onAir))
+    state.value = LiveState.TechnicalDifficulties(up, onAir.tag())
     delay(timings.slateHold)
     if (remaining <= timings.standInThreshold.inWholeMilliseconds) {
         // Move on: the next show plays from its start, so this sitting now runs ahead of the clock.
@@ -56,9 +58,11 @@ private suspend fun Sitting.fillIn(
         val piece = pieces.firstOrNull { at >= it.startMs && at < it.endMs } ?: break
         val standIn = piece.airing as Airing.StandIn
         val position = checkNotNull(piece.positionAt(at))
-        val banner = bannerFor(onAir.channel, piece, BannerLabel.FillingIn, position.inWholeMilliseconds)
+        val banner = bannerFor(onAir.channel, piece, BannerLabel.FillingIn, position.inWholeMilliseconds, driftMs)
         val outcome =
-            tuneAndShow(scope, banner, snow = true) { tuner.tune(session, ItemId(standIn.itemId.value), position) }
+            tuneAndShow(scope, banner, snow = true, what = TuneWhat(TuneKind.StandIn, piece, position)) {
+                tuner.tune(session, ItemId(standIn.itemId.value), position)
+            }
         val failed =
             when (outcome) {
                 is TuneOutcome.Playing -> {

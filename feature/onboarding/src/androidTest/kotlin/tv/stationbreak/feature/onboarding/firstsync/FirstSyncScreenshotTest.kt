@@ -21,7 +21,7 @@ import java.io.File
  * Spec 06 task 3.11: the first-sync progress screen on the API 25 emulator, at the start, part way and finished, as
  * PNG files in the test app's own external files directory, for the proof file. The numbers are those of the generated
  * 15,000-item library (`SyntheticLibrary`), never of a real one. The "done" picture is the last frame before the app
- * moves on to "Setup complete": the bar full, with the count at the total.
+ * moves on to the live channel: the bar full, with the count at the total.
  *
  * Compose's own `captureToImage` needs API 26 (PixelCopy), so the whole screen is taken with UiAutomation, which API 25
  * has.

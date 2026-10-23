@@ -14,11 +14,31 @@ class NextHandle(
     override fun toString(): String = "NextHandle"
 }
 
+/**
+ * How long a tune that played took, as the controller measured it: numbers and a cause name only, safe to log. The
+ * times run from the start of the tune call (a fresh tune's include its resolve; a prepared one's do not).
+ *
+ * @property firstFrameMs until the first picture, null if the player gave none.
+ * @property playingMs until the player said it was playing.
+ * @property positionErrorMs how far from the requested start the last attempt landed, set only when it missed.
+ * @property fallback why the first attempt was abandoned for a forced transcode (`seekMiss`, `loadFailed`), or null.
+ */
+data class TuneTimings(
+    val firstFrameMs: Long? = null,
+    val playingMs: Long = 0,
+    val positionErrorMs: Long? = null,
+    val fallback: String? = null,
+)
+
 /** How one tune went, as the machine needs it. */
 sealed interface TuneOutcome {
-    /** The picture plays. [end] emits how the play ends, or completes empty when it is stopped or replaced. */
+    /**
+     * The picture plays. [end] emits how the play ends, or completes empty when it is stopped or replaced. [timings]
+     * is what the controller measured.
+     */
     data class Playing(
         val end: Flow<PlaybackEnd>,
+        val timings: TuneTimings = TuneTimings(),
     ) : TuneOutcome
 
     /** Nothing plays: every route failed. [timedOut] is true when the failure was a timeout (it is not retried). */

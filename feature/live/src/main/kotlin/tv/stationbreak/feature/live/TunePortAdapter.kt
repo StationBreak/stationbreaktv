@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.FallbackCause
 import tv.stationbreak.core.playback.Prepared
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.TuneFailure
@@ -58,9 +59,22 @@ class TunePortAdapter(
 
     private fun NextHandle.prepared(): Prepared = token as Prepared
 
+    private fun TuneResult.Played.timings() =
+        TuneTimings(
+            firstFrameMs = firstFrameMs,
+            playingMs = playingMs,
+            positionErrorMs = positionError?.inWholeMilliseconds,
+            fallback =
+                when (fallback?.cause) {
+                    null -> null
+                    FallbackCause.SeekMiss -> "seekMiss"
+                    is FallbackCause.LoadFailed -> "loadFailed"
+                },
+        )
+
     private fun TuneResult.toOutcome(): TuneOutcome =
         when (this) {
-            is TuneResult.Played -> TuneOutcome.Playing(end)
+            is TuneResult.Played -> TuneOutcome.Playing(end, timings())
             is TuneResult.SessionExpired -> TuneOutcome.Expired
             TuneResult.Superseded, TuneResult.Stopped -> TuneOutcome.Cancelled
             is TuneResult.Failed -> TuneOutcome.Dead(timedOut = reason == TuneFailure.TIMEOUT)
