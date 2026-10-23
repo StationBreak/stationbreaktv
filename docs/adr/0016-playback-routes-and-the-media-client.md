@@ -159,11 +159,17 @@ Found in the whole-branch review of spec 13 (#348), before F1.3 puts the player 
   `app` binds the factory in `di/PlaybackModule` over the `@MediaDataSource` data source; a screen injects
   `VideoPlayerFactory`. The decision-9 rule is unchanged: the data source is still the OkHttp one, never wrapped.
 - **Teardown.** `TuneController.close(session)` does what `stop` does but runs under `NonCancellable`, so a host whose
-  scope is cancelled after `Played` still stops the player and the HLS encode (decision 5). It does not release the
-  player: the host that created it does.
-- **A cancel anywhere in a tune releases.** `run()` now catches `CancellationException` around the whole tune, not only
-  around the wait for Playing. A cancel from outside during the fallback's resolve used to leave the abandoned first
-  attempt playing; it is now stopped, with its encode.
+  scope is cancelled after `Played` still stops the player and the HLS encode (decision 5). It is final: a `tune` after
+  it returns `Stopped` without playing, including one that was created but not yet in flight when `close` ran. The
+  order is close, then release: the host waits for `close` and only then calls `VideoPlayer.release()`, and must not
+  release the player from a lifecycle callback that can run before the tune's teardown has finished (the benchmark
+  activity releases in the coroutine that ran the tune, after `close`).
+- **A cancel anywhere in a tune cleans up.** `run()` now catches `CancellationException` around the whole tune, not
+  only around the wait for Playing. A cancel from outside during the fallback's resolve used to leave the abandoned
+  first attempt's player running (its encode was already stopped before the fallback, so no encode leaked); it now
+  stops the player. A tune cancelled by a newer one stops only its encode and leaves the player running, because the
+  new play replaces the item and a fast flip must not blank the screen. `VideoPlayer.stop` is a no-op when called
+  twice, and implementations must keep it so.
 
 ## Consequences
 

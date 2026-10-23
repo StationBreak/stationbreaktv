@@ -7,7 +7,9 @@ import androidx.media3.datasource.DataSource
 
 /**
  * How a host gets a [VideoPlayer] without naming a Media3 type: `app` binds one (with the credentialed data source
- * behind it), and a screen injects it. The host creates one player for its lifetime and releases it (ADR-0016, 5).
+ * behind it), and a screen injects it. The host creates one player for its lifetime. Teardown order is
+ * close, then release: it calls `TuneController.close` and waits for it, and only then [VideoPlayer.release]
+ * (ADR-0016, 5).
  */
 fun interface VideoPlayerFactory {
     /**
