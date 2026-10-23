@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.feature.live
+
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * The live screen's tunables (spec 14): safe defaults in one place, never inline constants (memory: configurable
+ * defaults).
+ *
+ * @property bannerLinger how long the banner stays over the picture once it plays.
+ * @property minSnow the least time the snow shows, even when the picture is ready sooner, so tuning always reads as
+ *   tuning.
+ * @property slateHold how long the "Technical difficulties" slate holds before the channel moves on.
+ * @property standInThreshold the time left in a dead block at or under which the channel moves straight on (and
+ *   drifts); over it, a stand-in fills the block.
+ * @property standInAttempts how many stand-ins are tried for one dead block before the ident card holds.
+ * @property preResolveLead how long before a block ends the next program is resolved.
+ */
+data class LiveTimings(
+    val bannerLinger: Duration = 4.seconds,
+    val minSnow: Duration = 500.milliseconds,
+    val slateHold: Duration = 3.seconds,
+    val standInThreshold: Duration = 30.minutes,
+    val standInAttempts: Int = 2,
+    val preResolveLead: Duration = 45.seconds,
+) {
+    init {
+        require(standInAttempts >= 1) { "At least one stand-in must be tried" }
+    }
+}
