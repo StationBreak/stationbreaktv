@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.model.ChannelId
@@ -17,6 +18,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
@@ -97,6 +99,23 @@ class BuiltInScheduleSourceOnAirTest {
         assertEquals(Airing.Slate, result.now.airing)
         assertNull(result.now.positionAt(slate.startMs))
         assertEquals(1, result.next.size)
+    }
+
+    @Test
+    fun onAirSaysHowFarAheadTheScheduleIsBuilt() {
+        // A 24-hour day: the end of the day after the one holding the moment.
+        assertEquals((dayEnd + 24.hours).toEpochMilliseconds(), checkNotNull(onAir()).builtUntilMs)
+
+        // A six-hour channel: the moment is in the day that starts at 12:00, so day n + 1 ends at 00:00.
+        val quick = rules("Quick", Source.Genre("Comedy"), timing = timing().copy(epochHours = 6))
+        val sixHours = channel("custom-6h", 600, ChannelState.On, ChannelSource.Custom(quick))
+        holding(laughs, sixHours)
+        // The service holds the first lineup in memory, so the six-hour one is read by a fresh service.
+        val quickService = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
+        val fresh = BuiltInScheduleSource(quickService, library) { LIBRARIES }
+        val quickAir = runBlocking { fresh.onAir(sixHours.id, NOON + 1.minutes, 1) }
+        val expected = Instant.parse("2026-10-20T00:00:00Z").toEpochMilliseconds()
+        assertEquals(expected, checkNotNull(quickAir).builtUntilMs)
     }
 
     @Test

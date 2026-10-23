@@ -102,6 +102,8 @@ class FakeSchedule : ScheduleSource {
         val name: String,
         var hidden: HiddenReason? = null,
         var blocks: List<AiringBlock> = emptyList(),
+        /** The channel's day length; the schedule is built to the end of the day after the one that holds `at`. */
+        var epochMs: Long = DAY,
     )
 
     val channels = linkedMapOf<ChannelId, Entry>()
@@ -120,7 +122,12 @@ class FakeSchedule : ScheduleSource {
         id: ChannelId,
         e: Entry,
         at: Long,
-    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(T0 + (at - T0).floorDiv(DAY) * DAY), e.hidden)
+    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden)
+
+    private fun dayStart(
+        e: Entry,
+        at: Long,
+    ) = T0 + (at - T0).floorDiv(e.epochMs) * e.epochMs
 
     override suspend fun onAir(
         channel: ChannelId,
@@ -132,7 +139,8 @@ class FakeSchedule : ScheduleSource {
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {
-            ChannelOnAir(airing(channel, it, ms), it.blocks[index], it.blocks.drop(index + 1).take(next))
+            val builtUntil = dayStart(it, ms) + 2 * it.epochMs
+            ChannelOnAir(airing(channel, it, ms), it.blocks[index], it.blocks.drop(index + 1).take(next), builtUntil)
         }
     }
 

@@ -61,7 +61,7 @@ internal class Sitting(
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
 
-    /** The end of the schedule built ahead (day n+1) as of the last anchor; a drift that reaches it re-anchors. */
+    /** [ChannelOnAir.builtUntilMs] as of the last anchor; a drift that reaches it re-anchors (ADR-0017). */
     private var limitMs = Long.MAX_VALUE
 
     private val nextUp = NextUp(session, tuner, timings, ::vnowMs)
@@ -86,7 +86,7 @@ internal class Sitting(
                 driftMs = 0
                 continue
             }
-            if (driftMs == 0L) limitMs = onAir.channel.epochStart.toEpochMilliseconds() + BUILT_AHEAD_DAYS * DAY_MS
+            if (driftMs == 0L) limitMs = onAir.builtUntilMs
             val exit = inBlock(onAir)
             if (exit != null) return exit
         }
@@ -243,13 +243,5 @@ internal class Sitting(
     internal companion object {
         /** How many following blocks each look at the schedule asks for (the next one is pre-resolved). */
         const val WINDOW = 3
-
-        const val DAY_MS = 24 * 60 * 60 * 1000L
-
-        /**
-         * A drift is limited to the schedule built ahead: the broadcast day that holds the clock and the one after it
-         * (ADR-0017). The built-in lineup's day is 24 hours unless a channel's rules say otherwise.
-         */
-        const val BUILT_AHEAD_DAYS = 2
     }
 }

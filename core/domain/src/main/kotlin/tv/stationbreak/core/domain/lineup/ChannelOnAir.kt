@@ -56,9 +56,12 @@ data class AiringBlock(
 /**
  * What is on a channel at a moment: the [channel] as the guide knows it, the block that is on [now], and the [next]
  * blocks in order (contiguous with [now], continuing into the following broadcast day when the day runs out).
+ * [builtUntilMs] is how far ahead the schedule is built: the end of the broadcast day after the one that holds [now],
+ * in the channel's own day length (milliseconds since 1970). A caller that runs ahead of the clock stays inside it.
  */
 data class ChannelOnAir(
     val channel: ChannelAiring,
     val now: AiringBlock,
     val next: List<AiringBlock>,
+    val builtUntilMs: Long,
 )

@@ -54,6 +54,8 @@ data class ChannelAiring(
  * libraries it is asked about: callers give only the moment. F1.3 (spec 14) extends it with [onAir], what is on one
  * channel and the blocks that follow, so the live screen can tune at the schedule's offset and name the show. The
  * built-in source's days (`ChannelDay`) are internal to it and are not part of the port.
+ *
+ * Implementations are main-safe: they never block the caller's thread (building a day is real work).
  */
 interface ScheduleSource {
     /**

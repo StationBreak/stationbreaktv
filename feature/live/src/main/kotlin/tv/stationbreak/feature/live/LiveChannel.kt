@@ -3,7 +3,9 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,8 +47,10 @@ class LiveChannel(
     val state: StateFlow<LiveState> = current.asStateFlow()
 
     /**
-     * One sitting: pick a channel, tune, follow boundaries. Returns when the session ends; otherwise it runs until
-     * cancelled. Its finally stops the tuner under [NonCancellable], so backgrounding never leaves picture, sound or an
+     * One sitting: pick a channel, tune, follow boundaries. Returns only when the session ends; otherwise it runs
+     * until cancelled. A tune that is cancelled while this run is still active (the tuner stopped under it) starts a
+     * fresh sitting from the clock instead of ending the run. Its finally stops the tuner under [NonCancellable], so
+     * backgrounding never leaves picture, sound or an
      * encode running. It does not close the tuner: the host does, then releases the player (ADR-0016).
      */
     suspend fun run() {
@@ -62,12 +66,21 @@ class LiveChannel(
                 val id = first.channel.id
                 val next = Sitting(session, account, id, schedule, tuner, lastChannel, clock, timings, current)
                 sitting = next
-                if (next.follow(first) != Exit.Lost) return
-                // The channel stopped airing: the card, then look again.
+                val exit = next.follow(first)
+                if (exit == Exit.SignedOut) return
+                // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
+                currentCoroutineContext().ensureActive()
                 next.release()
                 tuner.stop(session)
-                current.value = LiveState.Ident(null)
-                delay(timings.slateHold)
+                if (exit == Exit.Lost) {
+                    // The channel stopped airing: the card, then look again.
+                    current.value = LiveState.Ident(null)
+                    delay(timings.slateHold)
+                } else {
+                    // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting, under
+                    // the snow of its tune. The pause only keeps a tuner that stays stopped from spinning this loop.
+                    delay(timings.minSnow)
+                }
             }
         } finally {
             withContext(NonCancellable) {

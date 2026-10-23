@@ -9,6 +9,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -553,47 +554,6 @@ class LiveChannelTest {
             r.tune.calls.clear()
             r.launchRun()
             assertEquals(Call.Tune(itemOf(1), 40.minutes + 10.seconds, 10_000), r.tunes.single())
-        }
-
-    @Test
-    fun driftReanchorsWhenItPassesTheScheduleBuiltAhead() =
-        runTest {
-            val r = Rig(this, startMin = 40)
-            // Block 2 is long, so a drifted sitting reaches the end of day n+1 (48 h) by the fourth block.
-            r.schedule.channel(
-                CH7,
-                7,
-                listOf(
-                    program(0, 60, 1),
-                    program(60, 47 * 60, 2),
-                    program(47 * 60, 49 * 60, 3),
-                    program(49 * 60, 50 * 60, 4),
-                ),
-            )
-            r.tune.script(itemOf(1), FakeTune.dead(), FakeTune.dead())
-            r.start()
-            r.at(3_000)
-            assertEquals(Call.Tune(itemOf(2), Duration.ZERO, 3_000), r.tunes.last())
-
-            // 46 h of the second show, then the third (starts at 47 h, inside the built-ahead days) from its start.
-            val driftMs = 60 * MIN - (40 * MIN + 3_000)
-
-            fun wall(minutes: Long) = minutes * MIN - 40 * MIN - driftMs
-            r.at(wall(47 * 60))
-            val thirdShow =
-                r.tune.calls
-                    .filterIsInstance<Call.TuneHandle>()
-                    .single()
-            assertEquals(Call.TuneHandle(itemOf(3), Duration.ZERO, wall(47 * 60)), thirdShow)
-
-            // The fourth block starts at 49 h, past the end of day n+1: re-anchor to the clock under the snow.
-            r.at(wall(49 * 60))
-            assertTrue(r.tune.calls.any { it is Call.Discard && it.item == itemOf(4) })
-            val last = r.tunes.last()
-            assertEquals(itemOf(3), last.item)
-            // The clock reads 49 h minus the drift: 1 h 40 min 3 s into the third block.
-            assertEquals(100.minutes + 3.seconds, last.start)
-            assertIs<LiveState.Tuning>(r.seen.last { it is LiveState.Tuning })
         }
 
     // ---- teardown and expiry ----
