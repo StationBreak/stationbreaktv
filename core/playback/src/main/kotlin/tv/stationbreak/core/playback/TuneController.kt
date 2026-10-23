@@ -3,21 +3,21 @@ package tv.stationbreak.core.playback
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -90,8 +90,10 @@ sealed interface TuneResult {
      * Playing. [resolved] is the last route tried. [positionError] is how far from the requested start the last
      * attempt landed; it is set only when that attempt missed too (the retry after the fallback also missed).
      * [fallback] is null when the first attempt played; otherwise it says which route was abandoned and why.
-     * [end] is how this play ends: it completes after the first [PlaybackEnd] of this play. It is cold and reads the
-     * player's hot events, so collect it as soon as this result arrives; an end before that is missed.
+     * [end] is how this play ends: it emits the first [PlaybackEnd] of this play and completes. The controller watches
+     * the play from before it starts, so an end that comes before anyone collects is still delivered to a late
+     * collector. It completes without a value when the play is replaced by a newer tune or ended by [TuneController.stop]
+     * or [TuneController.close]. It defaults to an empty flow, for the other constructors of this result.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -135,6 +137,10 @@ sealed interface TuneResult {
  * abandons is stopped (ADR-0016, 5). When a tune ends with anything but [TuneResult.Played] the controller has already
  * stopped the player and the encode, so the caller need not call [stop]. Nothing here is logged. A [ResolvedPlayback]
  * it returns holds the stream URL, which is a secret: its `toString` hides it, so do not read it out for a log.
+ *
+ * [watchScope] runs the watcher that sees how a play ends ([TuneResult.Played.end]); it is the controller's own and
+ * the watcher is cancelled by [stop], [close] and the next play, so it never outlives them. A [Prepared] handle that
+ * the caller drops without [tune], [discard] or [close] keeps its server encode until the server times it out.
  */
 @Suppress("TooManyFunctions") // One controller by decision: tune, stop, close and the attempt steps share its state.
 class TuneController(
@@ -142,6 +148,7 @@ class TuneController(
     private val server: MediaServer,
     private val player: VideoPlayer,
     private val seekTolerance: Duration = SeekCheck.TOLERANCE,
+    private val watchScope: CoroutineScope = CoroutineScope(SupervisorJob()),
     private val clock: () -> Long,
 ) {
     /** The attempt now on the player, so [stop] can end its encode. */
@@ -154,6 +161,9 @@ class TuneController(
 
     /** Set by [close]: no tune runs after it. */
     private val closed = AtomicBoolean(false)
+
+    /** The watcher of the current play's end; one at a time, cancelled by a newer play, [stop] and [close]. */
+    @Volatile private var watching: Job? = null
 
     /** The [Prepared] handles not yet played or discarded, so [close] can end their encodes. */
     private val outstanding: MutableSet<Prepared> = Collections.newSetFromMap(ConcurrentHashMap())
@@ -321,7 +331,7 @@ class TuneController(
                     attempt.playingMs,
                     attempt.positionError,
                     fallback,
-                    endOf(attempt.generation),
+                    attempt.end,
                 )
             }
 
@@ -365,6 +375,7 @@ class TuneController(
 
     /** Stops the player and the encode of the current attempt, and forgets it. */
     private suspend fun release(session: Session) {
+        watching?.cancel()
         player.stop()
         abandonEncode(session)
     }
@@ -391,7 +402,7 @@ class TuneController(
         val playingMs: Long,
         val positionError: Duration?,
         override val canFallBack: Boolean,
-        val generation: Long,
+        val end: Flow<PlaybackEnd>,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -505,7 +516,7 @@ class TuneController(
             playingMs = landing.playing.atMs - began,
             positionError = missed?.error,
             canFallBack = missed != null && !forced,
-            generation = landing.generation,
+            end = landing.end,
         )
     }
 
@@ -519,7 +530,7 @@ class TuneController(
         class Landed(
             val firstFrameAtMs: Long?,
             val playing: PlayerEvent.Playing,
-            val generation: Long,
+            val end: Flow<PlaybackEnd>,
         ) : Wait
     }
 
@@ -533,6 +544,8 @@ class TuneController(
             val generation = CompletableDeferred<Long>()
             val outcome = CompletableDeferred<PlayerEvent>()
             val firstFrame = CompletableDeferred<Long>()
+            // Before play(), like the listener, so the end of this play cannot be missed.
+            val watch = watchEnd(generation)
             // Listening starts before play(), so no event of this play is missed; events wait for its generation.
             val listener =
                 launch(start = CoroutineStart.UNDISPATCHED) {
@@ -549,52 +562,79 @@ class TuneController(
                 generation.complete(player.play(source))
                 when (val event = withTimeoutOrNull(PLAYING_TIMEOUT) { outcome.await() }) {
                     is PlayerEvent.Playing -> {
-                        Wait.Landed(withTimeoutOrNull(FIRST_FRAME_WAIT) { firstFrame.await() }, event, event.generation)
+                        Wait.Landed(withTimeoutOrNull(FIRST_FRAME_WAIT) { firstFrame.await() }, event, watch.flow)
                     }
 
                     is PlayerEvent.Failed -> {
+                        watch.job.cancel()
                         Wait.Failed(event)
                     }
 
                     else -> {
+                        watch.job.cancel()
                         Wait.TimedOut
                     }
                 }
+            } catch (e: CancellationException) {
+                watch.job.cancel()
+                throw e
             } finally {
                 listener.cancel()
             }
         }
 
+    /** A running watcher: its [job], and [flow], which emits the end it saw (nothing if the watcher was cancelled). */
+    private class Watch(
+        val job: Job,
+        val flow: Flow<PlaybackEnd>,
+    )
+
     /**
-     * The end of the play of [generation]: the first [PlayerEvent.Ended] or [PlayerEvent.Failed] of it, or a
-     * [PlayerEvent.Stalled] that no [PlayerEvent.Playing] follows within [PLAYING_TIMEOUT]. Only these four kinds reach
-     * the timer, so a first frame or a cue during a stall does not restart it.
+     * Starts watching the play whose generation [generation] will hold, in [watchScope], replacing the previous
+     * watcher. It ends at the first [PlayerEvent.Ended] or [PlayerEvent.Failed] of that play, or at a
+     * [PlayerEvent.Stalled] that no [PlayerEvent.Playing] follows within [PLAYING_TIMEOUT]. The result is kept, so a
+     * collector that comes late still gets it. Subscribing is not dispatched, so no event after this call is missed.
      */
-    @OptIn(ExperimentalCoroutinesApi::class) // transformLatest: a newer event drops the stall timer
-    private fun endOf(generation: Long): Flow<PlaybackEnd> =
-        player.events
-            .filter { it.generation == generation && it.endsOrPaces() }
-            .transformLatest { event ->
-                when (event) {
-                    is PlayerEvent.Ended -> {
-                        emit(PlaybackEnd.Ended)
-                    }
+    private fun watchEnd(generation: CompletableDeferred<Long>): Watch {
+        val result = CompletableDeferred<PlaybackEnd?>()
+        watching?.cancel()
+        val job =
+            watchScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                var stall: Job? = null
+                player.events.collect { event ->
+                    if (event.generation != generation.await()) return@collect
+                    val end: PlaybackEnd? =
+                        when (event) {
+                            is PlayerEvent.Ended -> PlaybackEnd.Ended
+                            is PlayerEvent.Failed -> PlaybackEnd.Failed(event.errorCode)
+                            else -> null
+                        }
+                    when {
+                        end != null -> {
+                            result.complete(end)
+                            cancel()
+                        }
 
-                    is PlayerEvent.Failed -> {
-                        emit(PlaybackEnd.Failed(event.errorCode))
-                    }
+                        event is PlayerEvent.Stalled -> {
+                            stall?.cancel()
+                            stall =
+                                launch {
+                                    delay(PLAYING_TIMEOUT)
+                                    result.complete(PlaybackEnd.Failed(STALLED))
+                                    cancel()
+                                }
+                        }
 
-                    is PlayerEvent.Stalled -> {
-                        delay(PLAYING_TIMEOUT)
-                        emit(PlaybackEnd.Failed(STALLED))
-                    }
-
-                    else -> {
-                        emit(null)
+                        event is PlayerEvent.Playing -> {
+                            stall?.cancel()
+                        }
                     }
                 }
-            }.filterNotNull()
-            .take(1)
+            }
+        job.invokeOnCompletion { result.complete(null) }
+        watching = job
+        return Watch(job, flow { result.await()?.let { emit(it) } })
+    }
 
     private suspend fun stopEncode(
         session: Session,
@@ -653,10 +693,3 @@ private fun MediaServerError.refusesSession(): Boolean =
     this is MediaServerError.HttpUnauthorized ||
         this is MediaServerError.HttpForbidden ||
         this is MediaServerError.SessionExpired
-
-/** The events that decide how a play ends: its end, its failure, a stall and the recovery from one. */
-private fun PlayerEvent.endsOrPaces(): Boolean =
-    this is PlayerEvent.Ended ||
-        this is PlayerEvent.Failed ||
-        this is PlayerEvent.Stalled ||
-        this is PlayerEvent.Playing

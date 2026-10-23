@@ -2,12 +2,17 @@
 package tv.stationbreak.core.playback
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -35,7 +40,17 @@ class TuneControllerPreparedTest {
     private val player = FakeVideoPlayer()
     private val item = ItemId("item1")
     private val resolver = PlaybackResolver(server) { insigniaLike() }
-    private val controller = TuneController(resolver, server, player) { 1_000L }
+    private val scheduler = TestCoroutineScheduler()
+    private val watchScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(scheduler))
+    private val controller = TuneController(resolver, server, player, watchScope = watchScope) { 1_000L }
+
+    private fun liveWatchers() = watchScope.coroutineContext[Job]!!.children.count { it.isActive }
+
+    private fun noWatcherIsLeft() = liveWatchers() == 0
+
+    private fun runTest(body: suspend TestScope.() -> Unit) =
+        kotlinx.coroutines.test.runTest(StandardTestDispatcher(scheduler), testBody = body)
+
     private val session = PlaybackTestData.session
     private val transcode get() = source(directPlay = false, directStream = false)
 
@@ -213,5 +228,51 @@ class TuneControllerPreparedTest {
             player.scope = this
             val outcome = played()
             assertEquals(listOf<PlaybackEnd>(PlaybackEnd.Failed("ERROR_CODE_IO_UNSPECIFIED")), outcome.end.toList())
+        }
+
+    @Test
+    fun endIsReportedToALateCollector() =
+        runTest {
+            answer(source())
+            // Ended arrives inside the play, long before anyone collects.
+            player.script = listOf(playing(1_300, Duration.ZERO) + Step { PlayerEvent.Ended(it) })
+            val outcome = played()
+            testScheduler.advanceTimeBy(60_000)
+            testScheduler.runCurrent()
+            assertEquals(listOf<PlaybackEnd>(PlaybackEnd.Ended), outcome.end.toList())
+            assertEquals("a second collector gets it too", listOf<PlaybackEnd>(PlaybackEnd.Ended), outcome.end.toList())
+        }
+
+    @Test
+    fun stopCancelsTheWatcherAndEndCompletesWithoutAValue() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val outcome = played()
+            controller.stop(session)
+            assertTrue(outcome.end.toList().isEmpty())
+            assertTrue("no watcher is left", noWatcherIsLeft())
+        }
+
+    @Test
+    fun closeCancelsTheWatcher() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val outcome = played()
+            controller.close(session)
+            assertTrue(outcome.end.toList().isEmpty())
+            assertTrue(noWatcherIsLeft())
+        }
+
+    @Test
+    fun aNewTuneReplacesTheWatcher() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO), playing(1_400, Duration.ZERO))
+            val first = played()
+            played()
+            assertTrue("the first play's end completes empty", first.end.toList().isEmpty())
+            assertEquals(1, liveWatchers())
         }
 }

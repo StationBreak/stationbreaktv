@@ -188,7 +188,9 @@ cut and a screen has to learn when a play is over.
 - **The end of a play.** `PlayerEvent.Ended` is sent by `Media3VideoPlayer` on `STATE_ENDED`. `TuneResult.Played.end` is
   a cold flow of that play's generation that completes after the first `PlaybackEnd`: `Ended`, `Failed(errorCode)` for
   a `Failed` event, or `Failed("StallTimeout")` for a `Stalled` that no `Playing` follows within the controller's 20 s
-  playing timeout. The caller collects it as soon as `Played` arrives, because it reads the player's hot events.
+  playing timeout. The controller watches each play from before it starts, in a scope it owns, and keeps the result, so a
+  collector that comes late still gets it. `stop`, `close` and the next play cancel the watcher; `end` then completes
+  with no value.
 - **Not done here.** No Media3 playlist queueing: the block-boundary cut is a prepared `tune`, and its gap is measured
   as resolve time plus play-to-first-frame time.
 
