@@ -43,25 +43,23 @@ runs used plan seed 1 and the benchmark build.
     that is not chosen (so Subtitle reads "none"), and with two audio tracks where the preferred one is second;
   - the subtitle rows: text in the stream (H.264 and HEVC), a sidecar SRT next to an MP4, and two audio and two
     subtitle tracks;
-  - the DTS rows: H.264 with DTS, HEVC with DTS, and H.264 with DTS plus an embedded SRT, which the direct-stream
-    route delivers as a separate text track, so its Subtitle column reads "text-separate".
+  - the DTS rows: H.264 with DTS, HEVC with DTS, and H.264 with DTS plus an embedded SRT, which the server delivers
+    as a separate text track, so its Subtitle column reads "text-separate".
 - Known failures and findings:
-  - AFTKRT: all three DTS clips fail the passthrough start (ERROR_CODE_AUDIO_TRACK_INIT_FAILED) and play through the
-    transcode fallback ([#344](https://github.com/StationBreak/stationbreaktv/issues/344)). HEVC with DTS also relates
-    to [#351](https://github.com/StationBreak/stationbreaktv/issues/351).
-  - AFTJMST12: the real-section AVI (MPEG-4 Part 2) does not decode and plays through the transcode fallback
+  - AFTJMST12: the real AVI (MPEG-4 Part 2) does not decode and plays through the transcode fallback
     ([#340](https://github.com/StationBreak/stationbreaktv/issues/340)).
-  - Both devices: real rows that use an audio-track override (the HEVC/TrueHD row and, on AFTJMST12, the H.264/FLAC
-    row) were transcoded by the server where the player expected direct stream (AFTJMST12) or direct play (AFTKRT).
-    They play with sound; the expectation for overridden audio does not yet match the server's choice. Tracked as a
-    finding of this run.
   - AFTJMST12: HEVC with DTS reports direct stream, but its first frame took about 3.7 s against about 0.3 s for H.264
-    with DTS. That suggests the server re-encodes the video behind the direct-stream label (see
-    [#351](https://github.com/StationBreak/stationbreaktv/issues/351)).
-  - AFTKRT: the HEVC/TrueHD transcode took about 16 s to its first frame, against about 5 s for the same file on
-    AFTJMST12. Worth a look; not graded. The same row was also silent to a person listening at the TV, although Audio
-    heard reads yes: that column measures the media clock, not sound
-    ([#355](https://github.com/StationBreak/stationbreaktv/issues/355)).
+    with DTS. That suggests, unconfirmed, that the server re-encodes the video behind the direct-stream label
+    ([#351](https://github.com/StationBreak/stationbreaktv/issues/351)).
+  - AFTKRT: all three DTS clips fail the passthrough start (ERROR_CODE_AUDIO_TRACK_INIT_FAILED) and play through the
+    transcode fallback ([#344](https://github.com/StationBreak/stationbreaktv/issues/344)).
+  - Both devices: real rows that use an audio-track override (the HEVC/TrueHD row and, on AFTJMST12, the H.264/FLAC
+    row) were transcoded by the server, with no fallback, where the player expected direct stream (AFTJMST12) or
+    direct play (AFTKRT), so they fail. The expectation for an overridden track does not yet match the server's choice
+    ([#357](https://github.com/StationBreak/stationbreaktv/issues/357)).
+  - AFTKRT: the HEVC/TrueHD override row took about 16 s to its first frame, against about 5 s for the same file on
+    AFTJMST12 (not graded). It was also silent to a person listening at the TV, although Audio heard reads yes: that
+    column measures the media clock, not sound ([#355](https://github.com/StationBreak/stationbreaktv/issues/355)).
 
 ## synthetic: AFTJMST12
 
