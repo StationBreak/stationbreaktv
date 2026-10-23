@@ -140,7 +140,25 @@ class TuneController(
             }
         }
 
+    /**
+     * One tune's attempts. A cancel at any point (a stop, a newer tune, or the caller's scope) stops the player and
+     * the encode of whatever attempt is current before it propagates: a newer tune only starts after this one has
+     * unwound, so its play is never disturbed by this clean-up.
+     */
     private suspend fun run(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        override: TrackOverride?,
+    ): TuneResult =
+        try {
+            attempts(session, item, start, override)
+        } catch (e: CancellationException) {
+            withContext(NonCancellable) { release(session) }
+            throw e
+        }
+
+    private suspend fun attempts(
         session: Session,
         item: ItemId,
         start: Duration,
@@ -196,6 +214,14 @@ class TuneController(
         }
         lock.withLock { withContext(NonCancellable) { release(session) } }
     }
+
+    /**
+     * Ends the controller's work for good: what [stop] does, but it runs to the end even when the caller's scope is
+     * already cancelled. A host calls it when it is done with the player (a screen closing), so a scope that is
+     * cancelled after [TuneResult.Played] still stops the player and the server's encode (ADR-0016, 5). It does not
+     * release the player: the host that created it does that.
+     */
+    suspend fun close(session: Session) = withContext(NonCancellable) { stop(session) }
 
     /** Stops the player and the encode of the current attempt, and forgets it. */
     private suspend fun release(session: Session) {
@@ -286,16 +312,8 @@ class TuneController(
         // A stop or a newer tune during the resolve must not be followed by a play.
         currentCoroutineContext().ensureActive()
         current = resolved
-        val result =
-            try {
-                playAndWait(resolved.source)
-            } catch (e: CancellationException) {
-                // Superseded, stopped or cancelled mid-wait: nothing may keep loading. A newer tune only starts
-                // after this one has unwound, so its play is never disturbed by this clean-up.
-                withContext(NonCancellable) { release(session) }
-                throw e
-            }
-        return when (result) {
+        // A cancel mid-wait is cleaned up by run().
+        return when (val result = playAndWait(resolved.source)) {
             Wait.TimedOut -> {
                 // Nothing played; run() stops what is loading, on the player and on the server.
                 Broke(resolved, TuneFailure.TIMEOUT, TIMEOUT)

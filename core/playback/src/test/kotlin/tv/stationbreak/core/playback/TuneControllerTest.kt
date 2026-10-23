@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -530,6 +531,68 @@ class TuneControllerTest {
             // `current` was cleared: a later stop() has no encode left to stop.
             controller.stop(session)
             assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun aTuneCancelledFromOutsideDuringTheFallbacksResolveStopsTheFirstAttempt() =
+        runTest {
+            answer(transcode)
+            // The first attempt plays but lands at zero for a 60 s start, so the fallback resolves a second time.
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val gate = CompletableDeferred<Unit>()
+            var resolves = 0
+            val gated =
+                object : MediaServer by server {
+                    override suspend fun playbackInfo(
+                        session: Session,
+                        item: ItemId,
+                        request: PlaybackRequest,
+                    ): ServerResult<PlaybackInfo> {
+                        if (++resolves == 2) gate.await()
+                        return server.playbackInfo(session, item, request)
+                    }
+                }
+            val gatedController = TuneController(PlaybackResolver(gated) { insigniaLike() }, gated, player) { 1_000L }
+            val tuning = launch { gatedController.tune(session, item, 60.seconds, null) }
+            runCurrent()
+            assertEquals("the fallback is waiting on its resolve", 2, resolves)
+            tuning.cancel()
+            runCurrent()
+            // The abandoned first attempt was still playing: it is stopped, and so is its encode, once.
+            assertEquals(listOf("play", "stop"), player.calls)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun closeStopsThePlayerAndTheEncodeOfAPlayedTune() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            played()
+            controller.close(session)
+            assertEquals(listOf("play", "stop"), player.calls)
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+        }
+
+    @Test
+    fun closeRunsToTheEndFromACancelledScope() =
+        runTest {
+            answer(transcode)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            played()
+            val host =
+                launch {
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        controller.close(session)
+                    }
+                }
+            runCurrent()
+            host.cancel()
+            runCurrent()
+            assertEquals(listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+            assertEquals(listOf("play", "stop"), player.calls)
         }
 
     @Test
