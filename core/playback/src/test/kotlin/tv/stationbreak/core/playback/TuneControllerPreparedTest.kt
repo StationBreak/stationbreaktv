@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
@@ -68,6 +69,37 @@ class TuneControllerPreparedTest {
 
     private suspend fun played() = controller.tune(session, item, Duration.ZERO, null) as TuneResult.Played
 
+    /** Holds the [gateInfoCall]th playback-info request and the first stop-encoding request until their gates open. */
+    private class Held(
+        private val inner: MediaServer,
+        private val gateInfoCall: Int = 0,
+        val infoGate: CompletableDeferred<Unit> = CompletableDeferred(),
+        val stopGate: CompletableDeferred<Unit>? = null,
+    ) : MediaServer by inner {
+        private var infoCalls = 0
+        private var stopCalls = 0
+
+        override suspend fun playbackInfo(
+            session: Session,
+            item: ItemId,
+            request: PlaybackRequest,
+        ): ServerResult<PlaybackInfo> {
+            if (++infoCalls == gateInfoCall) infoGate.await()
+            return inner.playbackInfo(session, item, request)
+        }
+
+        override suspend fun stopEncoding(
+            session: Session,
+            playSession: PlaySessionId,
+        ): ServerResult<Unit> {
+            if (++stopCalls == 1) stopGate?.await()
+            return inner.stopEncoding(session, playSession)
+        }
+    }
+
+    private fun controllerOver(held: Held) =
+        TuneController(PlaybackResolver(held) { insigniaLike() }, held, player, watchScope = watchScope) { 1_000L }
+
     /** A server whose first playback-info request waits for [gate], so a test can close the controller meanwhile. */
     private class Gated(
         private val inner: MediaServer,
@@ -107,7 +139,7 @@ class TuneControllerPreparedTest {
         }
 
     @Test
-    fun aDiscardedPreparedDoesNotStopAPlayThatConsumedIt() =
+    fun discardAfterTuneIsANoOp() =
         runTest {
             answer(transcode)
             player.script = listOf(playing(1_300, Duration.ZERO))
@@ -274,5 +306,90 @@ class TuneControllerPreparedTest {
             played()
             assertTrue("the first play's end completes empty", first.end.toList().isEmpty())
             assertEquals(1, liveWatchers())
+        }
+
+    @Test
+    fun aPreparedTuneStoppedDuringTheOldEncodeStopDoesNotPlay() =
+        runTest {
+            answer(transcode)
+            val held = Held(server, stopGate = CompletableDeferred())
+            val held2 = controllerOver(held)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            held2.tune(session, item, Duration.ZERO, null)
+            val prepared = checkNotNull(held2.preResolve(session, item, Duration.ZERO))
+            val tuning = async { held2.tune(session, prepared, null) }
+            runCurrent()
+            val stopping = async { held2.stop(session) }
+            runCurrent()
+            checkNotNull(held.stopGate).complete(Unit)
+            stopping.await()
+            assertEquals(TuneResult.Stopped, tuning.await())
+            assertEquals("only the first play reached the player", 1, player.played.size)
+            assertEquals("the old encode and the prepared one are both stopped", 2, server.stoppedEncodes.size)
+        }
+
+    @Test
+    fun aPreparedTuneCancelledWhileWaitingForTheLockStopsItsEncode() =
+        runTest {
+            answer(transcode)
+            val held = Held(server, stopGate = CompletableDeferred())
+            val held2 = controllerOver(held)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            held2.tune(session, item, Duration.ZERO, null)
+            val first = checkNotNull(held2.preResolve(session, item, Duration.ZERO))
+            val second = checkNotNull(held2.preResolve(session, item, Duration.ZERO))
+            // This tune holds the lock while the server is slow to end the old play's encode.
+            val busy = async { held2.tune(session, first, null) }
+            runCurrent()
+            val waiting = launch { held2.tune(session, second, null) }
+            runCurrent()
+            waiting.cancel()
+            runCurrent()
+            assertEquals("the cancelled tune ended its own handle", listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+            checkNotNull(held.stopGate).complete(Unit)
+            busy.join()
+            assertEquals("only the first play reached the player", 1, player.played.size)
+        }
+
+    @Test
+    fun aNewerTuneSilencesTheOldEndBeforeItResolves() =
+        runTest {
+            answer(source())
+            val held = Held(server, gateInfoCall = 2)
+            val held2 = controllerOver(held)
+            val late = Step(afterMs = 5_000) { PlayerEvent.Ended(it) }
+            player.script = listOf(playing(1_300, Duration.ZERO) + late, playing(7_000, Duration.ZERO))
+            player.scope = this
+            val old = held2.tune(session, item, Duration.ZERO, null) as TuneResult.Played
+            val newer = async { held2.tune(session, item, Duration.ZERO, null) }
+            runCurrent()
+            testScheduler.advanceTimeBy(6_000)
+            testScheduler.runCurrent()
+            assertTrue("the old end is silent once a newer tune has the lock", old.end.toList().isEmpty())
+            held.infoGate.complete(Unit)
+            newer.await()
+        }
+
+    @Test
+    fun aStallFailureLeavesNoWatcher() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, Duration.ZERO) + Step(afterMs = 1_000) { PlayerEvent.Stalled(it) })
+            player.scope = this
+            val outcome = played()
+            assertTrue(outcome.end.toList().single() is PlaybackEnd.Failed)
+            testScheduler.runCurrent()
+            assertTrue("the watcher ended with the stall", noWatcherIsLeft())
+        }
+
+    @Test
+    fun aPlayerThatThrowsOnPlayLeavesNoWatcher() =
+        runTest {
+            answer(source())
+            player.onPlay = { error("boom") }
+            val outcome = runCatching { played() }
+            assertTrue(outcome.isFailure)
+            testScheduler.runCurrent()
+            assertTrue(noWatcherIsLeft())
         }
 }
