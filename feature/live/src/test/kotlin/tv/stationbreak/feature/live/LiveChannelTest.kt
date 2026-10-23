@@ -130,7 +130,9 @@ class LiveChannelTest {
             r.start()
             r.at(500 + 3_999)
             assertIs<LiveState.Watching>(r.state)
-            assertTrue((r.state as LiveState.Watching).banner != null)
+            val lingering = checkNotNull((r.state as LiveState.Watching).banner)
+            assertEquals(BannerLabel.Now, lingering.label)
+            assertEquals(10.minutes.inWholeMilliseconds, lingering.joinedMs)
             r.at(500 + 4_000)
             assertEquals(LiveState.Watching(null), r.state)
         }
@@ -660,7 +662,8 @@ class LiveChannelTest {
             assertEquals(expected.now.positionAt(tunedAtMs)?.inWholeMilliseconds, tuning.joinedMs)
             assertEquals(26 * MIN, tuning.joinedMs)
             // The picture shows the same banner while it lingers.
-            assertEquals(tuning, (r.seen.first { it is LiveState.Watching } as LiveState.Watching).banner)
+            val watching = r.seen.first { it is LiveState.Watching } as LiveState.Watching
+            assertEquals(tuning.copy(label = BannerLabel.Now), watching.banner)
         }
 
     @Test

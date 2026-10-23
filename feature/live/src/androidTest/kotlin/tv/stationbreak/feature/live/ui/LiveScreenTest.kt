@@ -79,6 +79,14 @@ class LiveScreenTest {
     }
 
     @Test
+    fun aLingeringBannerOverThePictureSaysNowNotTuningIn() {
+        show(LiveState.Watching(banner(BannerLabel.Now)))
+        compose.onNodeWithText("Now").assertExists()
+        compose.onNodeWithText("Tuning in").assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("joining 12 min in")
+    }
+
+    @Test
     fun watchingWithBannerShowsBannerOnly() {
         show(LiveState.Watching(banner(BannerLabel.TuningIn)))
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()

@@ -104,7 +104,10 @@ internal class LiveViewModel
                     mirror.cancel()
                 }
                 shown.value = live.state.value
-                if (shown.value == LiveState.SignedOut) sessions.onServerError(MediaServerError.SessionExpired())
+                if (shown.value == LiveState.SignedOut) {
+                    // As everywhere else: the rejected session and its account's cached library go together.
+                    sessions.onServerError(MediaServerError.SessionExpired(), session)
+                }
             } finally {
                 withContext(NonCancellable) {
                     tuner?.close(session)

@@ -197,7 +197,9 @@ internal class Sitting(
         banner: Banner,
     ) {
         lingering?.cancel()
-        val shown = LiveState.Watching(banner)
+        // Once the picture plays, "Tuning in" becomes "Now" (R22); the joining line stays. Filling in stays as it is.
+        val label = if (banner.label == BannerLabel.TuningIn) BannerLabel.Now else banner.label
+        val shown = LiveState.Watching(banner.copy(label = label))
         state.value = shown
         lingering =
             scope.launch {
