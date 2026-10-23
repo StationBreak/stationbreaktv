@@ -185,6 +185,25 @@ class TuneControllerPreparedTest {
         }
 
     @Test
+    fun aPreparedTuneWithAnOverrideStopsTheStaleEncodeBeforeResolving() =
+        runTest {
+            answer(transcode)
+            val held = Held(server, gateInfoCall = 2)
+            val heldController = controllerOver(held)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(heldController.preResolve(session, item, Duration.ZERO))
+            val override = TrackOverride(audioIndex = 2, subtitleIndex = null)
+            val tuning = async { heldController.tune(session, prepared, override) }
+            runCurrent()
+            assertTrue("the fresh resolve is still waiting", tuning.isActive)
+            val before = "stopped before the fresh resolve answers"
+            assertEquals(before, listOf(PlaySessionId("ps1")), server.stoppedEncodes)
+            held.infoGate.complete(Unit)
+            assertTrue(tuning.await() is TuneResult.Played)
+            assertEquals("stopped exactly once", 1, server.stoppedEncodes.size)
+        }
+
+    @Test
     fun preResolveFailureIsNull() =
         runTest {
             server.playbackInfoResult = ServerResult.Failure(MediaServerError.NotFound())

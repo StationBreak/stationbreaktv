@@ -78,7 +78,7 @@ class Prepared internal constructor(
     internal val start: Duration,
     internal val resolved: ResolvedPlayback,
 ) {
-    /** Set once a tune has recorded this handle's stream as the current attempt, which then owns its encode. */
+    /** Set once nothing else need end this handle's encode: a tune adopted it, or already stopped it. */
     @Volatile internal var adopted: Boolean = false
 
     override fun toString(): String = "Prepared"
@@ -263,6 +263,13 @@ class TuneController(
             if (taken && override == null) {
                 tuneWith(session, prepared.item, prepared.start, null, prepared)
             } else {
+                if (taken) {
+                    // Resolved without the override, so it is of no use: end its encode now, not after this tune, so
+                    // the server never runs two encodes of the item while the user waits. Handled, so the finally
+                    // below does not stop it again.
+                    prepared.adopted = true
+                    withContext(NonCancellable) { stopEncode(session, prepared.resolved) }
+                }
                 tuneWith(session, prepared.item, prepared.start, override, null)
             }
         } finally {
