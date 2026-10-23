@@ -89,12 +89,15 @@ match; Route is the route that finally played. They differ when Fallback is not 
 direct play or direct stream landed away from the requested start and was replaced once by a transcode, which is by
 design (ADR-0016) and passes; in the synthetic section it passes only for the one clip expected to do so, an MKV
 without a Cues index. Fallback "load-failed" means the first attempt did not load or play (the Error column says why)
-and always fails the row. A difference between Expected and Route with Fallback "no" is a finding. Start (synthetic
-section only) is where playback was asked to begin. Position error is how far the first frame was from that point
-(empty when it landed within tolerance). Audio heard means the media clock advanced during a 15 s watch; Subtitle
-shown means text cues arrived or the server burned the subtitle in; real items start at a random point, so a text
-subtitle with no line in the 15 s window is reported ("no cue seen") but not graded. A dash means the column does not apply or nothing
-was reported.
+and always fails the row. A difference between Expected and Route with Fallback "no" is a finding.
+
+Start (synthetic section only) is where playback was asked to begin. Position error is how far the first frame was
+from that point (a dash when it landed within tolerance). Audio heard means the media clock advanced during a 15 s
+watch. Subtitle is how the player received the subtitle it chose, which can differ by route for the same file.
+Subtitle shown means text cues arrived or the server burned the subtitle in; real items start at a random point, so a
+text subtitle with no line in the 15 s window is reported ("no cue seen") but not graded. Transcode reasons is a dash
+while the server reports its reasons only inside a transcoding URL the player does not use. A dash elsewhere means the
+column does not apply or nothing was reported.
 
 Rows for audio the device cannot play (Expected: direct stream) assume an account with default audio-track playback
 turned on: the server offers a direct stream for such audio only then. The device runs use such an account.

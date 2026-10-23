@@ -251,13 +251,13 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 
 **S1.6.1** ✅ As a viewer with a weak device, I want unsupported codecs transcoded automatically so that everything plays.
 
-✅ **Built 2026-10-21** (spec 13, [ADR-0016](adr/0016-playback-routes-and-the-media-client.md)). The player, the capability probe, the route decision and the media client are in. The 📺 matrix below is the one open item: it comes from a device run.
+✅ **Built 2026-10-21** (spec 13, [ADR-0016](adr/0016-playback-routes-and-the-media-client.md)). The player, the capability probe, the route decision and the media client are in. The 📺 matrix ran on 2026-10-22: [playback matrix](compatibility/playback-matrix.md), 24 of 25 on each Fire TV, with the two failures open as #340 and #344.
 
 - 🧪 A device capability probe (MediaCodecList: codecs, profiles, levels, max resolution, HDR) builds a Jellyfin `DeviceProfile`. `POST /Items/{id}/PlaybackInfo` decides between direct play, direct stream, and transcode.
 - 🧪 The `DeviceProfile` declares subtitle formats, both embedded and external, even with subtitles off. Without them Jellyfin refuses direct play for items carrying subtitle streams. Video the device can't decode, such as MPEG-4 Part 2 (seen in AVI), routes to transcode ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - 🧪 Transcode uses HLS (`master.m3u8`) from 0, with no `StartTimeTicks`; the player starts at the offset.
 - 🧪 **Stream auth rule:** URLs are built from IDs, and the header is gated to the origin and base path. The token travels only in the `Authorization` header, which the media client adds only for the pinned server's origin and base path. We never use the server's `TranscodingUrl`, and no media URL we build carries the token. Any `ApiKey`/`api_key` in a playlist is stripped before the request is sent.
-- 📺 A test matrix on the Insignia: H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and PGS subtitles (expect burn-in; see Q-PLY-1).
+- 📺 ✅ A test matrix on the Insignia (and the Firestick): H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and image subtitles (expect burn-in; see Q-PLY-1).
 
 ---
 

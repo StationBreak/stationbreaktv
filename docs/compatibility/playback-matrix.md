@@ -11,12 +11,15 @@ match; Route is the route that finally played. They differ when Fallback is not 
 direct play or direct stream landed away from the requested start and was replaced once by a transcode, which is by
 design (ADR-0016) and passes; in the synthetic section it passes only for the one clip expected to do so, an MKV
 without a Cues index. Fallback "load-failed" means the first attempt did not load or play (the Error column says why)
-and always fails the row. A difference between Expected and Route with Fallback "no" is a finding. Start (synthetic
-section only) is where playback was asked to begin. Position error is how far the first frame was from that point
-(empty when it landed within tolerance). Audio heard means the media clock advanced during a 15 s watch; Subtitle
-shown means text cues arrived or the server burned the subtitle in; real items start at a random point, so a text
-subtitle with no line in the 15 s window is reported ("no cue seen") but not graded. A dash means the column does not apply or nothing
-was reported.
+and always fails the row. A difference between Expected and Route with Fallback "no" is a finding.
+
+Start (synthetic section only) is where playback was asked to begin. Position error is how far the first frame was
+from that point (a dash when it landed within tolerance). Audio heard means the media clock advanced during a 15 s
+watch. Subtitle is how the player received the subtitle it chose, which can differ by route for the same file.
+Subtitle shown means text cues arrived or the server burned the subtitle in; real items start at a random point, so a
+text subtitle with no line in the 15 s window is reported ("no cue seen") but not graded. Transcode reasons is a dash
+while the server reports its reasons only inside a transcoding URL the player does not use. A dash elsewhere means the
+column does not apply or nothing was reported.
 
 Rows for audio the device cannot play (Expected: direct stream) assume an account with default audio-track playback
 turned on: the server offers a direct stream for such audio only then. The device runs use such an account.
@@ -24,7 +27,18 @@ turned on: the server offers a direct stream for such audio only then. The devic
 Timings (first frame, playing) are measured on a non-debuggable build, on the device as it is, and are not graded: a
 slow device is slow, and the number is there to be read, not to pass or fail. Only the Result column grades a row.
 
-Measured on 2026-10-22 with the benchmark build at commit 55750d3 (APK sha256 6a32b4550383a751f1da8bfc428e6311d8d0340c40514c8c785bf88cd369ed45), plan seed 1. Known failures: the AVI decode on the AFTJMST12 is #340; the DTS passthrough on the AFTKRT is #344.
+## This run
+
+Measured on 2026-10-22 with the benchmark build at commit 55750d3 (APK sha256
+`6a32b4550383a751f1da8bfc428e6311d8d0340c40514c8c785bf88cd369ed45`), plan seed 1.
+
+- AFTJMST12 is the Insignia Fire TV Edition (API 25), the gate device. AFTKRT is a Fire TV Stick (API 30).
+- The synthetic clips are made by [`synthetic-media.sh`](../../scripts/playback-matrix/synthetic-media.sh). Rows that
+  look alike differ in ways the columns do not show: MP4 with its index at the front or the end, MKV with and without a
+  Cues index (the seek-miss row is the one without), and different audio and subtitle track layouts.
+- Known failures: the real-section AVI on the AFTJMST12 does not decode on the device
+  ([#340](https://github.com/StationBreak/stationbreaktv/issues/340)); the DTS passthrough on the AFTKRT fails to start ([#344](https://github.com/StationBreak/stationbreaktv/issues/344)). Both played through the
+  transcode fallback.
 
 ## synthetic: AFTJMST12
 
