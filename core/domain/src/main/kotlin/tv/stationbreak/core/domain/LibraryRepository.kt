@@ -2,6 +2,8 @@
 package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import tv.stationbreak.core.domain.lineup.ProgramInfo
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
@@ -197,6 +199,18 @@ interface LibraryRepository : AccountCache {
      * the current state, not an as-of read, so it is for planning a lineup and never for building a day.
      */
     suspend fun collectionNames(account: LibraryAccount): CollectionNames
+
+    /**
+     * The names of the items [ids] for a banner that says what is on (spec 14): the item's name and, for an episode,
+     * its series' name and season and episode numbers. It reads the current rows, so an id with no current row
+     * (deleted, a tombstone, another account's, or unknown) is absent from the result, and so is a row that is not a
+     * movie or an episode. A series that is itself deleted gives a null series name. This is for display only, never
+     * for building a day.
+     */
+    suspend fun programInfo(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, ProgramInfo>
 
     /**
      * Signals that a whole collection pass of [account] completed. The value is the **start** time of the most recent

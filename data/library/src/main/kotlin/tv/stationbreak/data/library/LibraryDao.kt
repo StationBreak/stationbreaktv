@@ -53,6 +53,16 @@ internal class ItemRows(
     val tags: List<TagEntity>,
 )
 
+/** One live item's names, with its live series' name when it has one (see [LibraryDao.programRows]). */
+internal data class ProgramRow(
+    val itemId: String,
+    val kind: String,
+    val name: String,
+    val seriesName: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+)
+
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
 internal data class PageWrite(
     val inserted: Int,
@@ -174,6 +184,21 @@ internal abstract class LibraryDao {
         userId: String,
         libraryId: String,
     ): List<String>
+
+    // The names of the live items among [ids] (at most MAX_VARIABLES of them), with the live series' name (spec 14).
+    @Query(
+        "SELECT item.itemId AS itemId, item.kind AS kind, item.name AS name, series.name AS seriesName, " +
+            "item.seasonNumber AS seasonNumber, item.episodeNumber AS episodeNumber FROM item " +
+            "LEFT JOIN series ON series.serverId = item.serverId AND series.userId = item.userId " +
+            "AND series.seriesId = item.seriesId AND series.deletedAtMs IS NULL " +
+            "WHERE item.serverId = :serverId AND item.userId = :userId AND item.deletedAtMs IS NULL " +
+            "AND item.itemId IN (:ids)",
+    )
+    abstract suspend fun programRows(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<ProgramRow>
 
     // Every row the account has, live or tombstoned, in any library: the primary key's own prefix.
     @Query("SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId")
