@@ -3,28 +3,18 @@ package tv.stationbreak.core.ui
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.luminance
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The dark theme's colours against WCAG: 3:1 for the focus ring and icons, 4.5:1 for text (spec 05, Adorabelle). */
 class ContrastTest {
     private val colors = StationBreakDarkColors
 
-    private fun ratio(
-        a: Color,
-        b: Color,
-    ): Double {
-        val (light, dark) = listOf(a.luminance(), b.luminance()).sortedDescending()
-        return (light + 0.05) / (dark + 0.05)
-    }
-
     private fun assertAtLeast(
         minimum: Double,
         a: Color,
         b: Color,
         what: String,
-    ) = assertTrue("$what is ${ratio(a, b)}, needs $minimum", ratio(a, b) >= minimum)
+    ) = assertContrastAtLeast(minimum, a, b, what)
 
     @Test
     fun theButtonRingShowsAgainstThePageAndTheInvertedFocusedFill() {

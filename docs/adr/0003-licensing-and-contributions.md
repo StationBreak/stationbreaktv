@@ -31,3 +31,20 @@ license *before* they contribute avoids that.
   qualified party. This is a tracked task (S0.1.2).
 - The owner can't relicense contributed code later without contributors' consent. This is accepted
   in favour of contributor trust.
+
+## Update 2026-10-23: bundled third-party assets keep their own licence
+
+The app now bundles two fonts, Archivo Black and Space Mono Bold, unmodified from github.com/google/fonts. Both are under
+the SIL Open Font License 1.1 (OFL-1.1). They are aggregated with the app, not part of the GPL-3.0 work.
+
+- **Decision (decided by the owner, 2026-10-23): third-party assets bundled in the app keep their own licence.** This
+  covers these fonts and any later fonts, images or similar files. They are not covered by the project's GPL-3.0 licence
+  or by the app-store additional permission. The OFL requires this: the fonts must stay under the OFL only, and each
+  copy ships with its copyright notice and licence text.
+- **Where things are.** The licence texts ship in the APK under `core/ui/src/main/assets/licenses/`
+  (`OFL-ArchivoBlack.txt`, `OFL-SpaceMono.txt`). `core/ui/FONTS.md` records the source commit, the file hashes, the
+  update steps, and the rule that fonts load only from the APK.
+- **Consequence: a new bundled asset needs a hand check.** Licensee checks Maven dependencies only and does not see
+  vendored assets. So a new bundled asset has its licence checked by hand at review (security review), and is recorded
+  the same way: a provenance file next to it, and its licence text shipped in the APK.
+- **Later.** If an in-app open-source licences screen is added, these assets appear on it.
