@@ -36,13 +36,13 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /** One scripted event: emitted [afterMs] after the play (0 means inside `play`), given the play's generation. */
-private class Step(
+internal class Step(
     val afterMs: Long = 0,
     val event: (Long) -> PlayerEvent,
 )
 
 /** A player that answers each [play] with the steps scripted for that attempt, some of them late. */
-private class FakeVideoPlayer : VideoPlayer {
+internal class FakeVideoPlayer : VideoPlayer {
     private val flow = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
     override val events: SharedFlow<PlayerEvent> = flow
     val played = mutableListOf<PlayerSource>()

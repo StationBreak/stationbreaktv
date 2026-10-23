@@ -29,6 +29,11 @@ sealed interface PlayerEvent {
         override val generation: Long,
     ) : PlayerEvent
 
+    /** The media played to its end. Sent once, when the player reaches the end of the stream. */
+    data class Ended(
+        override val generation: Long,
+    ) : PlayerEvent
+
     data class Cues(
         val count: Int,
         override val generation: Long,

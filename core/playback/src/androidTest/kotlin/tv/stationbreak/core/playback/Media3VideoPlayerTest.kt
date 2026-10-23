@@ -20,6 +20,7 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import okio.Buffer
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -164,6 +165,23 @@ class Media3VideoPlayerTest {
             "closing ${closing.position} is before the first ${first.position}",
             closing.position >= first.position,
         )
+    }
+
+    /** The next Ended event of [generation], skipping every other event. */
+    private fun awaitEnded(generation: Long): PlayerEvent.Ended =
+        runBlocking {
+            withTimeout(WAIT) {
+                var event = seen.receive()
+                while (!(event is PlayerEvent.Ended && event.generation == generation)) event = seen.receive()
+                event
+            }
+        }
+
+    @Test
+    fun aClipThatRunsOutEmitsEnded() {
+        // Start 2 s before the end of the 10 s clip, so it runs out inside the wait.
+        val generation = player.play(sourceAt(8.seconds))
+        assertEquals(generation, awaitEnded(generation).generation)
     }
 
     private companion object {

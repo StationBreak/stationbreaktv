@@ -171,6 +171,36 @@ Found in the whole-branch review of spec 13 (#348), before F1.3 puts the player 
   new play replaces the item and a fast flip must not blank the screen. `VideoPlayer.stop` is a no-op when called
   twice, and implementations must keep it so.
 
+## Update 2026-10-23: pre-resolve and the end of a play
+
+Spec 14 (offset playback) cuts from one block to the next on a clock, so the server round trip has to come out of the
+cut and a screen has to learn when a play is over.
+
+- **Pre-resolve.** `TuneController.preResolve(session, item, start)` resolves ahead of time with the server's default
+  tracks and returns an opaque `Prepared` (or null on a failure, or when closed). `tune(session, prepared, override)`
+  plays it with no resolve call; if that play breaks, the normal fallback applies and re-resolves. A non-null
+  `override` cannot be honoured by a default-track handle, so it discards the handle and tunes the ordinary way. A
+  resolve of a transcode or direct stream holds a server encode, so callers pre-resolve shortly before the cut
+  (`preResolveLead`, 45 s), not early.
+- **No leaked encode.** The controller tracks every outstanding handle. `discard` ends its encode (once; a handle
+  already played is untouched), `close` discards all of them, and a `preResolve` that finishes after `close` discards
+  its own handle. **A handle is gone once it is passed to `tune`, or after `discard`; `discard` on a consumed handle is
+  a no-op.** `tune(prepared)` takes the handle on entry, and when the tune ends without having started its play
+  (cancelled while waiting for the lock, superseded, stopped, closed, or an override that sends it the ordinary way)
+  the handle's encode is ended before the call returns, so a `Superseded` or `Stopped` result never leaves the caller
+  guessing whether it still owns the handle. A prepared tune checks for a cancel again after it records its stream and
+  before it touches the player.
+- **The end of a play.** `PlayerEvent.Ended` is sent by `Media3VideoPlayer` on `STATE_ENDED`. `TuneResult.Played.end` is
+  a cold flow of that play's generation that completes after the first `PlaybackEnd`: `Ended`, `Failed(errorCode)` for
+  a `Failed` event, or `Failed("StallTimeout")` for a `Stalled` that no `Playing` follows within the controller's 20 s
+  playing timeout. The controller watches each play from before it starts, in a scope it owns, and keeps the result, so a
+  collector that comes late still gets it. The watcher is cancelled, and `end` completes
+  with no value, as soon as a newer tune (either overload) takes the tune lock, and by `stop` and `close`: the old
+  picture keeps playing until the new one is ready, but its end is no longer reported. A controller that made its own
+  watch scope cancels it in `close`; a scope passed in is left to its owner.
+- **Not done here.** No Media3 playlist queueing: the block-boundary cut is a prepared `tune`, and its gap is measured
+  as resolve time plus play-to-first-frame time.
+
 ## Consequences
 
 - A newer Jellyfin that renames a `master.m3u8` parameter fails the drift test before it fails a viewer.
