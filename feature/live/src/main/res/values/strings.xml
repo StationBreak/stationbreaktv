@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The copy for the live channel screen (spec 14): the cable banner and the test-card slates. The strings that spec
+  14's global constraints give word for word are exact; the others are the mockups' own wording.
+-->
+<resources>
+    <!-- The test-card slate for a show that is missing or will not play. -->
+    <string name="live_difficulties_title">TECHNICAL DIFFICULTIES</string>
+    <string name="live_difficulties_standby">PLEASE STAND BY</string>
+
+    <!-- The StationBreak ident card: the app icon's wordmark, on two lines. -->
+    <string name="live_ident_station" translatable="false">STATION</string>
+    <string name="live_ident_break" translatable="false">BREAK</string>
+    <string name="live_no_channels">No channels on the air yet</string>
+
+    <!-- The banner's label line. -->
+    <string name="live_label_tuning_in">Tuning in</string>
+    <string name="live_label_now">Now</string>
+    <string name="live_label_up_next">Up next</string>
+    <string name="live_label_filling_in">Filling in</string>
+
+    <!-- How far in the viewer joined; "Just started" under a minute. -->
+    <string name="live_just_started">Just started</string>
+    <string name="live_joining">joining %1$d min in</string>
+
+    <!-- The episode line: season and episode numbers (the ones that are known), then the episode's title. -->
+    <string name="live_episode_both">S%1$d E%2$d · %3$s</string>
+    <string name="live_episode_season">S%1$d · %2$s</string>
+    <string name="live_episode_number">E%1$d · %2$s</string>
+</resources>

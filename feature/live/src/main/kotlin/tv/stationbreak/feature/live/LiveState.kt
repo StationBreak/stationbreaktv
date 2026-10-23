@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import tv.stationbreak.core.domain.lineup.ProgramInfo
+
 /** What the live screen shows (spec 14). The screen draws it; the machine in [LiveChannel] decides it. */
 sealed interface LiveState {
     /** Signed in, but no channel is on the air. Not final: a lineup that arrives later opens a channel. */
@@ -47,15 +49,16 @@ enum class BannerLabel {
 
 /**
  * The cable-box banner: all values are the schedule's own answer for the moment it was made (design goal 7). Times are
- * UTC milliseconds; the screen converts them to wall-clock time. [joinedMs] is how far into the media the viewer joined
- * (null when the show cut in at its start, and for "up next").
+ * UTC milliseconds; the screen converts them to wall-clock time. [title] is the movie's or the series' name; [info]
+ * holds the rest of the show's names (the episode line is made from it on the screen, from resources). [joinedMs] is
+ * how far into the media the viewer joined (null when the show cut in at its start, and for "up next").
  */
 data class Banner(
     val number: Int,
     val channelName: String,
     val label: BannerLabel,
     val title: String?,
-    val subtitle: String?,
+    val info: ProgramInfo?,
     val slotStartMs: Long,
     val slotEndMs: Long,
     val joinedMs: Long?,

@@ -654,7 +654,7 @@ class LiveChannelTest {
             assertEquals(expected.channel.name, tuning.channelName)
             assertEquals(BannerLabel.TuningIn, tuning.label)
             assertEquals("Test Series B", tuning.title)
-            assertEquals("S2 E5 · Test Episode 5", tuning.subtitle)
+            assertEquals(episode, tuning.info)
             assertEquals(expected.now.startMs, tuning.slotStartMs)
             assertEquals(expected.now.endMs, tuning.slotEndMs)
             assertEquals(expected.now.positionAt(tunedAtMs)?.inWholeMilliseconds, tuning.joinedMs)
@@ -664,14 +664,14 @@ class LiveChannelTest {
         }
 
     @Test
-    fun aMovieBannerHasATitleAndNoSubtitle() =
+    fun aMovieBannerHasATitleAndNoEpisodeInfo() =
         runTest {
             val r = Rig(this)
             r.ordinaryDay()
             r.start()
             val b = banner(r.seen.first { it is LiveState.Tuning })
             assertEquals("Test Movie 1", b.title)
-            assertNull(b.subtitle)
+            assertNull(b.info?.seriesName)
             assertEquals(10.minutes.inWholeMilliseconds, b.joinedMs)
         }
 }

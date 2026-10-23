@@ -26,29 +26,18 @@ internal fun bannerFor(
             is Airing.StandIn -> airing.info
             Airing.Slate -> null
         }
-    val (title, subtitle) = namesOf(info)
-    return Banner(channel.number, channel.name, label, title, subtitle, block.startMs, block.endMs, joinedMs)
+    return Banner(channel.number, channel.name, label, titleOf(info), info, block.startMs, block.endMs, joinedMs)
 }
 
 /**
- * A movie shows its title. An episode of a known series shows the series name, with "S2 E5 · episode title" under it
- * (the numbers that are known).
+ * A movie shows its title. An episode of a known series shows the series name; its "S2 E5 · episode title" line is made
+ * on the screen from [Banner.info] (`BannerText.episodeLine`), so all copy lives in resources.
  */
-private fun namesOf(info: ProgramInfo?): Pair<String?, String?> =
+private fun titleOf(info: ProgramInfo?): String? =
     when {
-        info == null -> {
-            null to null
-        }
-
-        info.kind == ScheduleItemKind.Episode && info.seriesName != null -> {
-            val numbers = listOfNotNull(info.seasonNumber?.let { "S$it" }, info.episodeNumber?.let { "E$it" })
-            val subtitle = if (numbers.isEmpty()) info.title else "${numbers.joinToString(" ")} · ${info.title}"
-            info.seriesName to subtitle
-        }
-
-        else -> {
-            info.title to null
-        }
+        info == null -> null
+        info.kind == ScheduleItemKind.Episode && info.seriesName != null -> info.seriesName
+        else -> info.title
     }
 
 /** How many following blocks to look through for the next program on the ident card: a day of half hours. */
