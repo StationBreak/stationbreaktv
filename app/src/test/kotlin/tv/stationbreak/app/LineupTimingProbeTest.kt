@@ -11,8 +11,12 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
+import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
 /** The debug-only device timing probe (spec 12): numbers only in its log line, once per process, never in release. */
@@ -28,6 +32,18 @@ class LineupTimingProbeTest {
                 calls++
                 return emptyList()
             }
+
+            override suspend fun onAir(
+                channel: ChannelId,
+                at: Instant,
+                next: Int,
+            ): ChannelOnAir? = null
+
+            override suspend fun standIns(
+                channel: ChannelId,
+                block: AiringBlock,
+                exclude: Set<CanonicalId>,
+            ): List<AiringBlock> = emptyList()
         }
 
     @After

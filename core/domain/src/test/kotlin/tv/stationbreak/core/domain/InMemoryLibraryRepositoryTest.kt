@@ -36,6 +36,52 @@ class InMemoryLibraryRepositoryTest {
     ) = MediaItem(ItemId(id), id, ItemKind.Movie, runtime, null, dateCreated = created)
 
     @Test
+    fun programInfoNamesLiveItemsOfTheAccountAndTheSeriesOfEpisodes() =
+        runBlocking {
+            val seriesId = "b".repeat(32)
+            val episodeId = "c".repeat(32)
+            val movieId = "d".repeat(32)
+            val episode =
+                MediaItem(
+                    ItemId(episodeId),
+                    "Episode One",
+                    ItemKind.Episode,
+                    30.minutes,
+                    null,
+                    seriesId = ItemId(seriesId),
+                    seasonNumber = 2,
+                    episodeNumber = 5,
+                )
+            val repository = InMemoryLibraryRepository()
+            repository.seed(alice, shows, episode)
+            repository.seed(alice, movies, MediaItem(ItemId(movieId), "Test Movie A", ItemKind.Movie, 90.minutes, null))
+            val gone = MediaItem(ItemId("e".repeat(32)), "Gone", ItemKind.Movie, null, null)
+            repository.seed(alice, movies, gone, tombstoned = true)
+            repository.seedSeriesName(alice, CanonicalId.parse(seriesId), "Test Series B")
+            val ids = setOf(CanonicalId.parse(episodeId), CanonicalId.parse(movieId), CanonicalId.parse("e".repeat(32)))
+
+            val info = repository.programInfo(alice, ids)
+
+            assertEquals(setOf(CanonicalId.parse(episodeId), CanonicalId.parse(movieId)), info.keys)
+            assertEquals("Test Series B", info.getValue(CanonicalId.parse(episodeId)).seriesName)
+            assertEquals(5, info.getValue(CanonicalId.parse(episodeId)).episodeNumber)
+            assertEquals(ScheduleItemKind.Movie, info.getValue(CanonicalId.parse(movieId)).kind)
+            assertTrue(repository.programInfo(bob, ids).isEmpty())
+        }
+
+    @Test
+    fun currentIdsGivesTheLiveItemsOfTheAccountOnly() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.seed(alice, shows, item("d".repeat(32)))
+            repository.seed(alice, shows, item("e".repeat(32)), tombstoned = true)
+            val ids = setOf(CanonicalId.parse("d".repeat(32)), CanonicalId.parse("e".repeat(32)))
+
+            assertEquals(setOf(CanonicalId.parse("d".repeat(32))), repository.currentIds(alice, ids))
+            assertTrue(repository.currentIds(bob, ids).isEmpty())
+        }
+
+    @Test
     fun aSnapshotHoldsLiveUsableItemsCreatedBeforeTheInstantOfTheChosenLibraries() =
         runBlocking {
             val repository = InMemoryLibraryRepository()

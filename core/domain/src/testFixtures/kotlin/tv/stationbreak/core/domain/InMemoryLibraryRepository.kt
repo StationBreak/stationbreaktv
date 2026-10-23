@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
@@ -78,6 +79,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val collectionRows = mutableListOf<CollectionRow>()
     private val collectionsSynced = mutableSetOf<LibraryAccount>()
     private val failedPasses = mutableMapOf<LibraryAccount, Int>()
+    private val seriesNameRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, String>()
     private val collectionNameRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, NameRow>()
     private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
     private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
@@ -174,6 +176,15 @@ class InMemoryLibraryRepository : LibraryRepository {
             it.name = name
             it.deleted = deleted
         }
+    }
+
+    /** Saves the [name] of the series [id] for [account], which [programInfo] gives to the episodes of that series. */
+    fun seedSeriesName(
+        account: LibraryAccount,
+        id: CanonicalId,
+        name: String,
+    ) {
+        seriesNameRows[account to id] = name
     }
 
     /**
@@ -354,6 +365,29 @@ class InMemoryLibraryRepository : LibraryRepository {
                 .associate { it.key.second to it.value.name },
         )
 
+    /** Reads the live rows saved with [seed]; the series names come from [seedSeriesName]. */
+    override suspend fun programInfo(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, ProgramInfo> =
+        rows
+            .filter { it.account == account && !it.tombstoned }
+            .mapNotNull { row ->
+                val id = CanonicalId.parseOrNull(row.item.id.value)?.takeIf { it in ids } ?: return@mapNotNull null
+                val kind = ScheduleItemKind.entries.firstOrNull { it.name == row.item.kind.name } ?: return@mapNotNull null
+                val series = row.item.seriesId?.let { CanonicalId.parseOrNull(it.value) }
+                val seriesName = series?.let { seriesNameRows[account to it] }
+                id to ProgramInfo(id, kind, row.item.name, seriesName, row.item.seasonNumber, row.item.episodeNumber)
+            }.toMap()
+
+    override suspend fun currentIds(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Set<CanonicalId> =
+        rows
+            .filter { it.account == account && !it.tombstoned }
+            .mapNotNullTo(HashSet()) { row -> CanonicalId.parseOrNull(row.item.id.value)?.takeIf { it in ids } }
+
     override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> = passes.map { it[account] }
 
     override suspend fun contentGeneration(account: LibraryAccount): Long = changes.value[account] ?: 0L
@@ -407,6 +441,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         collectionRows.removeAll { forAccount(it.account) }
         collectionsSynced.removeAll(forAccount)
         collectionNameRows.keys.removeAll { forAccount(it.first) }
+        seriesNameRows.keys.removeAll { forAccount(it.first) }
         passes.value = passes.value.filterKeys { !forAccount(it) }
     }
 

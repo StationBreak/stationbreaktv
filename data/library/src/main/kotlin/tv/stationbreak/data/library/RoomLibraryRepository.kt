@@ -16,6 +16,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionNames
@@ -167,6 +168,16 @@ class RoomLibraryRepository internal constructor(
         }
         return CollectionNames(names)
     }
+
+    override suspend fun programInfo(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, ProgramInfo> = account.keys().let { (server, user) -> dao.programInfo(server, user, ids) }
+
+    override suspend fun currentIds(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Set<CanonicalId> = account.keys().let { (server, user) -> dao.currentIds(server, user, ids) }
 
     // The collection_sync row is written only after a whole pass succeeded (recordCollectionPass), and the items'
     // finishSync, which runs before the pass, never touches it. The flow also gives null when the account's row is
