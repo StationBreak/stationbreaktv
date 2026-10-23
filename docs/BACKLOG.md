@@ -212,7 +212,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 **S1.3.1** As a viewer, I want tuning to a channel to start the current program at the right point so that it feels live.
 - 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path the player seeks the same way: the HLS URL carries no `StartTimeTicks` (Jellyfin 12.2 rejects it on segments), and the server encodes from the segment the player asks for ([ADR-0016](adr/0016-playback-routes-and-the-media-client.md)).
 - 📺 Visual offset error is ≤ ±2 s versus the guide's expected position.
-- 🧪 After a seek, the player compares the actual position with the requested offset. If they differ by more than 2 s (for example an MKV without Cues, which ExoPlayer silently plays from 0; [ADR-0007](adr/0007-tune-latency-spike.md)), it falls back to the transcode path, which the player seeks to the offset.
+- ✅ 🧪 After a seek, the player compares the actual position with the requested offset. If they differ by more than 2 s (for example an MKV without Cues, which ExoPlayer silently plays from 0; [ADR-0007](adr/0007-tune-latency-spike.md)), it falls back to the transcode path, which the player seeks to the offset. **Delivered in spec 13** (`SeekCheck` and `TuneController`, [ADR-0016](adr/0016-playback-routes-and-the-media-client.md), 4).
 
 **S1.3.2** As a viewer, I want playback to continue seamlessly into the next scheduled item so that the channel never stops.
 - 🧪 The next item is queued in the Media3 playlist ahead of time. When an item ends early or late (runtime metadata wrong), playback re-syncs to the schedule at the next boundary instead of drifting (see Q-SCH-3).
@@ -249,12 +249,15 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 
 ## F1.6 Direct-play / transcode fallback (M)
 
-**S1.6.1** As a viewer with a weak device, I want unsupported codecs transcoded automatically so that everything plays.
+**S1.6.1** ✅ As a viewer with a weak device, I want unsupported codecs transcoded automatically so that everything plays.
+
+✅ **Built 2026-10-21** (spec 13, [ADR-0016](adr/0016-playback-routes-and-the-media-client.md)). The player, the capability probe, the route decision and the media client are in. The 📺 matrix ran on 2026-10-22: [playback matrix](compatibility/playback-matrix.md), 24 of 25 on each Fire TV, with the two failures open as #340 and #344.
+
 - 🧪 A device capability probe (MediaCodecList: codecs, profiles, levels, max resolution, HDR) builds a Jellyfin `DeviceProfile`. `POST /Items/{id}/PlaybackInfo` decides between direct play, direct stream, and transcode.
 - 🧪 The `DeviceProfile` declares subtitle formats, both embedded and external, even with subtitles off. Without them Jellyfin refuses direct play for items carrying subtitle streams. Video the device can't decode, such as MPEG-4 Part 2 (seen in AVI), routes to transcode ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - 🧪 Transcode uses HLS (`master.m3u8`) from 0, with no `StartTimeTicks`; the player starts at the offset.
-- 🧪 **Stream auth rule:** the token travels only in the `Authorization` header, via an OkHttp interceptor scoped to the pinned server origin. `ApiKey`/`api_key` is stripped from the server's `TranscodingUrl`, and no media URL carries the token.
-- 📺 A test matrix on the Insignia: H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and PGS subtitles (expect burn-in or off; see Q-PLY-1).
+- 🧪 **Stream auth rule:** URLs are built from IDs, and the header is gated to the origin and base path. The token travels only in the `Authorization` header, which the media client adds only for the pinned server's origin and base path. We never use the server's `TranscodingUrl`, and no media URL we build carries the token. Any `ApiKey`/`api_key` in a playlist is stripped before the request is sent.
+- 📺 ✅ A test matrix on the Insignia (and the Firestick): H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and image subtitles (expect burn-in; see Q-PLY-1).
 
 ---
 

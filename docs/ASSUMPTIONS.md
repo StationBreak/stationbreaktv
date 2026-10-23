@@ -48,7 +48,7 @@ can be answered later, by the phase shown.
 - ~~**Q-SCH-2**~~ ✅ **Resolved 2026-10-06:** programs **align to :00/:30 grid slots**, as cable did. `alignToGrid` defaults to on. Until F3.1 filler exists, gaps are shown as a station ID slate (a non-item `ScheduleBlock`, S1.1.4).
 - **Q-SCH-3** When real playback duration differs from metadata, which wins: snap back to the schedule, or let the channel drift and re-anchor at the next epoch? **This is F1.3's question** (playback and drift): the scheduler (F1.1) plans from metadata runtimes and never reads playback.
 - **Q-GATE-1** For the Phase 1 "< 2 s" gate: LAN only, or also via your reverse proxy over WAN? Direct play only, or must transcoded channels also hit 2 s? (Transcode start is usually slower.) *Proposed: home network only, direct-play channels only.* **Partly resolved 2026-10-09 (after SP-1):** the gate times two moments, **first frame** and **playing** (picture moving). Playing must happen within 2 s; first frame is tracked with no hard target ([ADR-0007](adr/0007-tune-latency-spike.md)). The network and direct-play questions are still open.
-- **Q-PLY-1** Subtitles: off by default? Should PGS/ASS subtitles be burned in (forcing a transcode) or skipped?
+- ~~**Q-PLY-1**~~ ✅ **Resolved 2026-10-20 (owner decision, spec 13; [ADR-0016](adr/0016-playback-routes-and-the-media-client.md), 6 and 7):** image subtitles such as PGS are **burned in by the server**, which forces a transcode when one is selected. Default audio and subtitle tracks follow the user's own Jellyfin preferences, including their "play default audio track" setting; the client accepts what the server resolves. Text subtitles are delivered in the stream or as WebVTT.
 
 ### Before/during Phase 2–3
 

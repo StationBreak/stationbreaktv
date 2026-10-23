@@ -56,7 +56,7 @@ stationbreaktv/
 │   │                            (Port fakes live in core:domain testFixtures.)
 │   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers
 │   └── playback/       [Android] Media3 wrapper: tune-at-offset, direct-play vs transcode decision,
-│                                codec capability probe, player reuse/pre-warm
+│                                codec capability probe, one reused player (spec 13; see "Playback")
 │
 ├── data/
 │   ├── jellyfin/       [JVM]    Jellyfin adapter (jellyfin-sdk-kotlin sealed inside, per ADR-0005):
@@ -168,6 +168,32 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
 - Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
   channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
   land before F1.3.
+
+### Playback (spec 13)
+
+The routes, the fallback rules and the auth rule are in [ADR-0016](adr/0016-playback-routes-and-the-media-client.md). This
+section says where each piece lives.
+
+- **`core:playback` holds:**
+  - The capability probe, in the `probe` package: `CapabilityProbe` turns a `CodecInventory` into `DeviceCapabilities`
+    (`AndroidCodecInventory` reads the platform). `DeviceCapabilitiesCache` probes once, warmed off the main thread at app
+    start, and keeps the result. It refreshes only the audio sink part when an HDMI sink changes.
+  - `PlaybackResolver`: asks the server for the item's playback info and follows its answer, except where the device
+    can't play it (undecodable audio, a burned-in subtitle), and builds the URL for that route.
+  - `ExpectedRoute`: a test oracle and a diagnostic. It predicts the route from the capabilities. Playback never follows it.
+  - `SeekCheck`: judges whether a start or seek landed within the tolerance.
+  - `VideoPlayer`, the interface, and `Media3VideoPlayer`, its one Media3 implementation. The host creates one and reuses it
+    for every play.
+  - `TuneController`: resolves, plays, runs the seek check and makes the one fallback. It returns a `TuneResult`, and the
+    app branches on the case.
+- **The media client.** `JellyfinMediaServer.mediaCallFactory` (in `data:jellyfin`) is an OkHttp `Call.Factory` for the
+  player's requests. `app` wraps it in Media3's `OkHttpDataSource` in `di/PlaybackModule`, under the `@MediaDataSource`
+  qualifier, and `core:playback` receives it as a plain `DataSource.Factory`. It shares the one `JellyfinMediaServer`
+  instance (a singleton) that is also bound as `MediaServer`, so it sees the same token bindings as every API call.
+- **The benchmark build type** is release code with a `.benchmark` application ID suffix. It is not debuggable, it is signed
+  with the per-machine debug key, and CI and the stores never build it. Only it contains `PlaybackTestActivity`
+  (`app/src/benchmark`), which plays a list of items on a real device and reports result lines. It is exported, and it does
+  nothing unless ADB debugging is on. A manifest test checks that the debug and release manifests do not contain it.
 
 `[KMP]` means Kotlin Multiplatform (`commonMain`; `jvm()` + `linuxX64()` canary). `[JVM]` means a pure Kotlin/JVM module with no Android plugin. `[Android]` means an Android library module.
 
