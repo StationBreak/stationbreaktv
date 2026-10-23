@@ -83,6 +83,30 @@ class HlsUrlTest {
     }
 
     @Test
+    fun hevcIsListedAfterH264AndTheSegmentsAreFmp4WhereTheDeviceDecodesIt() {
+        val url = hls(insigniaCapabilities(hevc = true))
+
+        assertEquals("h264,hevc", url.queryParameter("VideoCodec"))
+        assertEquals("mp4", url.queryParameter("SegmentContainer"))
+        assertEquals("153", url.queryParameter("hevc-level"))
+        assertEquals("main,main10", url.queryParameter("hevc-profile"))
+        assertEquals("10", url.queryParameter("hevc-videobitdepth"))
+        assertEquals("41", url.queryParameter("h264-level"))
+        // The tightest limit of the listed codecs.
+        assertEquals("1920", url.queryParameter("MaxWidth"))
+        assertEquals("1080", url.queryParameter("MaxHeight"))
+    }
+
+    @Test
+    fun aDeviceWithoutHevcKeepsTheH264OnlyUrl() {
+        val url = hls(insigniaCapabilities())
+
+        assertEquals("h264", url.queryParameter("VideoCodec"))
+        assertEquals("ts", url.queryParameter("SegmentContainer"))
+        assertNull(url.queryParameter("hevc-level"))
+    }
+
+    @Test
     fun theUrlHasNoCredential() {
         val url = hls(burnIn = 4)
 

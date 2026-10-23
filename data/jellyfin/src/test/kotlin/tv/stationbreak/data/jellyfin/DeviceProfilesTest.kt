@@ -111,6 +111,24 @@ class DeviceProfilesTest {
     }
 
     @Test
+    fun hevcIsTranscodableAsFmp4OnlyWhereTheDeviceDecodesIt() {
+        val withHevc = body(requestFor(insigniaCapabilities(hevc = true))).profile()
+        val transcode = withHevc.list("TranscodingProfiles").single().jsonObject
+        assertEquals("h264,hevc", transcode.text("VideoCodec"))
+        assertEquals("mp4", transcode.text("Container"))
+        assertEquals("hls", transcode.text("Protocol"))
+
+        val without =
+            body()
+                .profile()
+                .list("TranscodingProfiles")
+                .single()
+                .jsonObject
+        assertEquals("h264", without.text("VideoCodec"))
+        assertEquals("ts", without.text("Container"))
+    }
+
+    @Test
     fun ac3PassthroughIsDeclaredWhenTheSinkSupportsIt() {
         val profile = body(requestFor(insigniaCapabilities(setOf("ac3"), maxAudioChannels = 6))).profile()
 
