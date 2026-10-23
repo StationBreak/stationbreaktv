@@ -9,7 +9,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -95,9 +95,15 @@ class LiveChannel(
     private suspend fun awaitChannel(): Pair<LibraryAccount, ChannelOnAir> =
         library
             .activeAccount()
-            .filterNotNull()
-            .flatMapLatest { account -> channels.channels(account).map { account } }
-            .mapNotNull { account ->
+            .flatMapLatest { account ->
+                // No account is active until a library has been synced: nothing is on the air yet.
+                if (account == null) {
+                    current.value = LiveState.NoChannels
+                    emptyFlow()
+                } else {
+                    channels.channels(account).map { account }
+                }
+            }.mapNotNull { account ->
                 val chosen = choose(account)
                 if (chosen == null) current.value = LiveState.NoChannels
                 chosen?.let { account to it }

@@ -76,6 +76,21 @@ class LiveChannelTest {
         }
 
     @Test
+    fun showsNoChannelsWhenNoAccountIsActiveYetAndOpensOneWhenItBecomesActive() =
+        runTest {
+            val r = Rig(this)
+            r.schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
+            r.start(withAccount = false)
+            assertEquals(LiveState.NoChannels, r.state)
+            assertTrue(r.tune.calls.isEmpty())
+
+            r.library.useAccount(r.account)
+            r.at(1_000)
+
+            assertIs<LiveState.Tuning>(r.seen.first { it is LiveState.Tuning })
+        }
+
+    @Test
     fun noChannelsOpensAChannelWhenTheLineupArrives() =
         runTest {
             val r = Rig(this)

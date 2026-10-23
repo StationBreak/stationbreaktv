@@ -365,9 +365,9 @@ class Rig(
 
     val seen: List<LiveState> get() = states.map { it.first }
 
-    suspend fun start(): Job {
+    suspend fun start(withAccount: Boolean = true): Job {
         sessions.save(session)
-        library.useAccount(account)
+        if (withAccount) library.useAccount(account)
         channels.publish(*schedule.channels.map { it.key to it.value.number }.toTypedArray())
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
             live.state.collect { states += it to tune.calls.size }
