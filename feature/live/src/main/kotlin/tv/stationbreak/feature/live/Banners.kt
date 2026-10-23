@@ -12,13 +12,15 @@ import kotlin.time.Instant
 /**
  * The banner for [block] on [channel], made from the schedule's own answer (design goal 7): the channel's number and
  * name, the show's names, the block's slot, and [joinedMs] (how far into the media the viewer joined; null for a cut at
- * the start and for "up next").
+ * the start and for "up next"). [driftMs] is how far the sitting runs ahead of the clock: the block's times move back
+ * by it, so the slot is the one the clock shows (design goal 6: the banner shows what is actually on).
  */
 internal fun bannerFor(
     channel: ChannelAiring,
     block: AiringBlock,
     label: BannerLabel,
     joinedMs: Long?,
+    driftMs: Long = 0,
 ): Banner {
     val info =
         when (val airing = block.airing) {
@@ -26,7 +28,7 @@ internal fun bannerFor(
             is Airing.StandIn -> airing.info
             Airing.Slate -> null
         }
-    return Banner(channel.number, channel.name, label, titleOf(info), info, block.startMs, block.endMs, joinedMs)
+    return Banner(channel.number, channel.name, label, titleOf(info), info, block.startMs - driftMs, block.endMs - driftMs, joinedMs)
 }
 
 /**

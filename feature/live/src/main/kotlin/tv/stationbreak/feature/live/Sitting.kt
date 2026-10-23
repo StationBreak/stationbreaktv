@@ -75,8 +75,15 @@ internal class Sitting(
         var current: ChannelOnAir? = first
         while (true) {
             val at = Instant.fromEpochMilliseconds(vnowMs())
-            val onAir = current ?: schedule.onAir(channel, at, WINDOW) ?: return Exit.Lost
+            val onAir = current ?: schedule.onAir(channel, at, WINDOW)
             current = null
+            if (onAir == null) {
+                // Nothing on at the drifted time (the schedule ends there, or the channel is hidden that day) is not
+                // the channel lost: look again from the clock before giving it up.
+                if (driftMs == 0L) return Exit.Lost
+                driftMs = 0
+                continue
+            }
             if (driftMs > 0 && onAir.now.startMs >= limitMs) {
                 // The drift has run past the schedule built ahead: back to the clock, under the snow of a retune.
                 driftMs = 0
@@ -125,7 +132,7 @@ internal class Sitting(
             if (at >= block.endMs) return null
             val position = checkNotNull(block.positionAt(at))
             val label = if (cut != null) BannerLabel.Now else BannerLabel.TuningIn
-            val banner = bannerFor(onAir.channel, block, label, if (cut != null) null else position.inWholeMilliseconds)
+            val banner = bannerFor(onAir.channel, block, label, if (cut != null) null else position.inWholeMilliseconds, driftMs)
             val use = cut
             cut = null
             val outcome =
