@@ -98,6 +98,7 @@ sealed interface TuneResult {
  * stopped the player and the encode, so the caller need not call [stop]. Nothing here is logged. A [ResolvedPlayback]
  * it returns holds the stream URL, which is a secret: its `toString` hides it, so do not read it out for a log.
  */
+@Suppress("TooManyFunctions") // One controller by decision: tune, stop, close and the attempt steps share its state.
 class TuneController(
     private val resolver: PlaybackResolver,
     private val server: MediaServer,
