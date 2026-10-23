@@ -178,10 +178,10 @@ class BuiltInScheduleSource(
         val held = service.loaded(account) ?: return emptyList<ChannelDay>() to null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
         val key = Key(held.revision, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
-        synchronized(lock) { built[key] }?.let { return it to null }
+        val cached = synchronized(lock) { built[key] }
         val began = TimeSource.Monotonic.markNow()
-        val result = build(key, account, held.lineup, scheduled)
-        return result to began.elapsedNow().inWholeMilliseconds
+        val result = cached ?: build(key, account, held.lineup, scheduled)
+        return result to if (cached == null) began.elapsedNow().inWholeMilliseconds else null
     }
 
     private suspend fun build(

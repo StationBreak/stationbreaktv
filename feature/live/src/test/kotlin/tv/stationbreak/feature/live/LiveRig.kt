@@ -379,7 +379,7 @@ class Rig(
     val reports = mutableListOf<TuneReport>()
 
     val live =
-        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, report = { reports += it })
+        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, { reports += it })
 
     /** Every state in order, each with how many port calls had been made when it appeared. */
     val states = mutableListOf<Pair<LiveState, Int>>()

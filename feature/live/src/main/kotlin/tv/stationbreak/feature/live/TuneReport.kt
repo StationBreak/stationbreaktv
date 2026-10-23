@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlin.time.Duration
+import kotlin.time.Instant
+
 /** Which way a tune was made, for [TuneReport.Tune]. */
 enum class TuneKind(
     val label: String,
@@ -72,5 +75,32 @@ sealed interface TuneReport {
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L
+    }
+}
+
+/** One record of how the tune went (numbers only), and, for the first tune after a boundary, the cut's gap. */
+internal fun Sitting.reportTune(
+    what: TuneWhat,
+    timings: TuneTimings,
+    cutSince: Instant?,
+) {
+    val block = what.block
+    val mediaAtStart = block.positionAt(block.startMs) ?: Duration.ZERO
+    val lagMs = (vnowMs() - block.startMs) - (what.position - mediaAtStart).inWholeMilliseconds
+    val resolveMs = if (what.kind == TuneKind.Prepared) 0L else TuneReport.NOT_SEPARATE
+    report(
+        TuneReport.Tune(
+            what.kind,
+            resolveMs,
+            timings.firstFrameMs,
+            timings.playingMs,
+            timings.positionErrorMs,
+            timings.fallback,
+            lagMs,
+        ),
+    )
+    if (cutSince != null) {
+        val gapMs = (clock.now() - cutSince).inWholeMilliseconds
+        report(TuneReport.Cut(gapMs, resolveMs, timings.firstFrameMs))
     }
 }

@@ -20,7 +20,7 @@ class LiveChannelReportTest {
         runTest {
             val r = Rig(this, startMin = 10)
             r.ordinaryDay()
-            val timings = TuneTimings(firstFrameMs = 1_800, playingMs = 2_000, positionErrorMs = 300, fallback = "seekMiss")
+            val timings = TuneTimings(1_800, playingMs = 2_000, positionErrorMs = 300, fallback = "seekMiss")
             r.tune.script(itemOf(1), FakeTune.playsAfter(2.seconds, timings))
             r.start()
             r.at(2_000)

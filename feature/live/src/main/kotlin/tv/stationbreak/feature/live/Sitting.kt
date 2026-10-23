@@ -61,7 +61,7 @@ internal class Sitting(
     val clock: Clock,
     val timings: LiveTimings,
     val state: MutableStateFlow<LiveState>,
-    private val report: (TuneReport) -> Unit = {},
+    val report: (TuneReport) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -89,15 +89,12 @@ internal class Sitting(
             val at = Instant.fromEpochMilliseconds(vnowMs())
             val onAir = current ?: schedule.onAir(channel, at, WINDOW)
             current = null
-            if (onAir == null) {
-                // Nothing on at the drifted time (the schedule ends there, or the channel is hidden that day) is not
-                // the channel lost: look again from the clock before giving it up.
-                if (driftMs == 0L) return Exit.Lost
-                driftMs = 0
-                continue
-            }
-            if (driftMs > 0 && onAir.now.startMs >= limitMs) {
-                // The drift has run past the schedule built ahead: back to the clock, under the snow of a retune.
+            // Nothing on at the drifted time (the schedule ends there, or the channel is hidden that day) is not the
+            // channel lost: look again from the clock before giving it up.
+            if (onAir == null && driftMs == 0L) return Exit.Lost
+            if (onAir == null || (driftMs > 0 && onAir.now.startMs >= limitMs)) {
+                // Back to the clock: nothing is on at the drifted time, or the drift has run past the schedule built
+                // ahead (under the snow of a retune).
                 driftMs = 0
                 continue
             }
@@ -144,7 +141,8 @@ internal class Sitting(
             if (at >= block.endMs) return null
             val position = checkNotNull(block.positionAt(at))
             val label = if (cut != null) BannerLabel.Now else BannerLabel.TuningIn
-            val banner = bannerFor(onAir.channel, block, label, if (cut != null) null else position.inWholeMilliseconds, driftMs)
+            val joined = if (cut != null) null else position.inWholeMilliseconds
+            val banner = bannerFor(onAir.channel, block, label, joined, driftMs)
             val use = cut
             cut = null
             val kind =
@@ -216,33 +214,6 @@ internal class Sitting(
         return outcome
     }
 
-    /** One record of how the tune went (numbers only), and, for the first tune after a boundary, the cut's gap. */
-    private fun reportTune(
-        what: TuneWhat,
-        timings: TuneTimings,
-        cutSince: Instant?,
-    ) {
-        val block = what.block
-        val mediaAtStart = block.positionAt(block.startMs) ?: Duration.ZERO
-        val lagMs = (vnowMs() - block.startMs) - (what.position - mediaAtStart).inWholeMilliseconds
-        val resolveMs = if (what.kind == TuneKind.Prepared) 0L else TuneReport.NOT_SEPARATE
-        report(
-            TuneReport.Tune(
-                what.kind,
-                resolveMs,
-                timings.firstFrameMs,
-                timings.playingMs,
-                timings.positionErrorMs,
-                timings.fallback,
-                lagMs,
-            ),
-        )
-        if (cutSince != null) {
-            val gapMs = (clock.now() - cutSince).inWholeMilliseconds
-            report(TuneReport.Cut(gapMs, resolveMs, timings.firstFrameMs))
-        }
-    }
-
     private fun showWatching(
         scope: CoroutineScope,
         banner: Banner,
@@ -274,8 +245,13 @@ internal class Sitting(
                 Held.Boundary
             }
 
-            ended is PlaybackEnd.Failed -> Held.Failed
-            else -> Held.Ended
+            ended is PlaybackEnd.Failed -> {
+                Held.Failed
+            }
+
+            else -> {
+                Held.Ended
+            }
         }
     }
 

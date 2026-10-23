@@ -26,7 +26,7 @@ class LiveChannelFailureTest {
             r.schedule.onAirObserver = {
                 if (!thrown) {
                     thrown = true
-                    throw IllegalStateException(secret)
+                    error(secret)
                 }
             }
             val job = r.start()
@@ -49,7 +49,7 @@ class LiveChannelFailureTest {
             val r = Rig(this, startMin = 10)
             r.ordinaryDay()
             var calls = 0
-            r.schedule.onAirObserver = { if (++calls == 2) throw IllegalStateException(secret) }
+            r.schedule.onAirObserver = { if (++calls == 2) error(secret) }
             val job = r.start()
             r.atMin(50) // the boundary: the schedule is asked again, and throws
 
@@ -73,7 +73,7 @@ class LiveChannelFailureTest {
             r.schedule.onAirObserver = {
                 if (!thrown) {
                     thrown = true
-                    throw IllegalStateException(secret)
+                    error(secret)
                 }
             }
             r.start()
@@ -88,7 +88,7 @@ class LiveChannelFailureTest {
         runTest {
             val r = Rig(this, startMin = 10)
             r.ordinaryDay()
-            r.schedule.onAirObserver = { throw IllegalStateException(secret) }
+            r.schedule.onAirObserver = { error(secret) }
             val job = r.start()
             r.at(2_000)
             assertTrue(job.isActive)

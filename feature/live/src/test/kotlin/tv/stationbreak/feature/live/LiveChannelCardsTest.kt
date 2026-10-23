@@ -105,7 +105,8 @@ class LiveChannelCardsTest {
         runTest {
             // The first show dies with 20 min left, so the sitting drifts; the ident later names the show after.
             val r = Rig(this, startMin = 40)
-            r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2), slate(120, 150), program(150, 180, 3)))
+            val blocks = listOf(program(0, 60, 1), program(60, 120, 2), slate(120, 150), program(150, 180, 3))
+            r.schedule.channel(CH7, 7, blocks)
             r.tune.script(itemOf(1), FakeTune.dead(), FakeTune.dead())
             r.start()
             r.at(3_000)

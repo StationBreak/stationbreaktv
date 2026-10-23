@@ -28,7 +28,8 @@ internal fun bannerFor(
             is Airing.StandIn -> airing.info
             Airing.Slate -> null
         }
-    return Banner(channel.number, channel.name, label, titleOf(info), info, block.startMs - driftMs, block.endMs - driftMs, joinedMs)
+    val start = block.startMs - driftMs
+    return Banner(channel.number, channel.name, label, titleOf(info), info, start, block.endMs - driftMs, joinedMs)
 }
 
 /**
