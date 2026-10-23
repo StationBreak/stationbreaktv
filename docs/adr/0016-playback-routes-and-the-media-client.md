@@ -125,6 +125,30 @@ master, the variant and the segments for a non-zero start, for a transcode and f
 - **Revisit** if Jellyfin accepts `StartTimeTicks` on segments again (server-side start would save the seek), or if the
   contract suite's placement check ever shows HLS placement drifting.
 
+## Update 2026-10-22: embedded text subtitles on HLS
+
+Found in the whole-branch review of spec 13.
+
+- **An embedded text subtitle on an HLS route is delivered as WebVTT (R31).** When decision 8 moves a file to HLS, the
+  server's own choice for its text subtitle is still `IN_STREAM`, and the playlist carries no text subtitle, so none
+  showed while `chosenSubtitle` reported one. On an HLS route (direct stream or transcode) the resolver now treats an
+  `IN_STREAM` text subtitle as `SEPARATE`: the player fetches `Subtitles/{index}/0/Stream.vtt`, which the server
+  extracts from the file, and `chosenSubtitle` reports `SEPARATE`. The URL is built from IDs with no token, like the
+  other, and fetched through the media client's auth rule. Image subtitles are unchanged (burned in). On direct play the
+  subtitle stays in the file. The contract case `anEmbeddedSrtOfAFileWithUndecodableAudioServesAsVtt` proves the
+  endpoint serves cues for an embedded SRT.
+- **HEVC copy is deferred.** HEVC copy (design goal 4 for HEVC sources) is deferred to #351. Until then, HEVC with
+  audio the device can't play is a full transcode. The route oracle still says DIRECT_STREAM for it (the goal).
+  Until #351 the server re-encodes HEVC to H.264 on our URL. If the server reports `SupportsDirectStream`, the
+  resolver and the oracle both label the matrix's `hevc-dts` row DIRECT_STREAM while the video is re-encoded: the row
+  is mislabelled, not failed. The contract case `recordsWhatTheServerDoesForHevcWithUndecodableAudio` records which
+  happens (the server's flags and the playlist's `CODECS`) and asserts nothing about it.
+- **Also corrected:** a `BURNED_IN` subtitle now always resolves to a TRANSCODE (decision 8), not a direct stream.
+  DVB and XSUB subtitles are picture subtitles, so they burn in too.
+- **The oracle models the device, not the server's account or track rules (R35).** A real-section row with an audio
+  override is graded on the chosen track, so it can fail on the server's own track rule, for example the account's
+  "play default audio track" setting. Such a failure is a finding to explain, not a grading bug.
+
 ## Consequences
 
 - A newer Jellyfin that renames a `master.m3u8` parameter fails the drift test before it fails a viewer.

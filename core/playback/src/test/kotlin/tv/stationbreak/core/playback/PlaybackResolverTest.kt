@@ -157,7 +157,7 @@ class PlaybackResolverTest {
             )
             val played = resolve()
             assertTrue(played.source.isHls)
-            assertNotEquals(Route.DIRECT_PLAY, played.route)
+            assertEquals(Route.TRANSCODE, played.route)
             assertEquals(3, urls.hlsCalls.single().burnIn)
         }
 
@@ -210,6 +210,52 @@ class PlaybackResolverTest {
             val played = resolve()
             assertEquals(Route.DIRECT_STREAM, played.route)
             assertTrue(played.source.isHls)
+        }
+
+    @Test
+    fun anEmbeddedTextSubtitleOnAnHlsRouteIsDeliveredAsASeparateVtt() =
+        runTest {
+            answer(
+                source(
+                    streams = listOf(video(), audio(1, Codecs.DTS, 6), subtitle(3)),
+                    defaultSubtitle = 3,
+                ),
+            )
+            val played = resolve()
+            assertTrue(played.source.isHls)
+            assertEquals(SubtitleDelivery.SEPARATE, played.chosenSubtitle?.delivery)
+            assertEquals(3, played.chosenSubtitle?.index)
+            assertEquals(
+                "https://media.example.com/sub/src1/3",
+                played.source.subtitles
+                    .single()
+                    .url,
+            )
+            assertNull(played.source.subtitlePick)
+            assertNull(urls.hlsCalls.single().burnIn)
+        }
+
+    @Test
+    fun anEmbeddedTextSubtitleOnDirectPlayStaysInTheFile() =
+        runTest {
+            answer(source(streams = listOf(video(), audio(1), subtitle(3)), defaultSubtitle = 3))
+            val played = resolve()
+            assertEquals(Route.DIRECT_PLAY, played.route)
+            assertEquals(SubtitleDelivery.IN_STREAM, played.chosenSubtitle?.delivery)
+            assertTrue(played.source.subtitles.isEmpty())
+            assertEquals(3, played.chosenSubtitle?.index)
+            assertTrue(played.source.subtitlePick != null)
+        }
+
+    @Test
+    fun aBurnedInDvbSubtitleTranscodesAndTheOracleAgrees() =
+        runTest {
+            val dvb = subtitle(3, "dvb_subtitle", SubtitleDelivery.BURNED_IN)
+            answer(source(streams = listOf(video(), audio(1), dvb), defaultSubtitle = 3))
+            val played = resolve()
+            assertEquals(Route.TRANSCODE, played.route)
+            assertEquals(3, urls.hlsCalls.single().burnIn)
+            assertEquals(played.route, ExpectedRoute.of(caps, played.media, played.chosenSubtitle, played.chosenAudio))
         }
 
     @Test

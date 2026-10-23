@@ -2,6 +2,7 @@
 package tv.stationbreak.data.jellyfin
 
 import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSourceId
@@ -11,6 +12,7 @@ import tv.stationbreak.core.model.SubtitleDelivery
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class SubtitleUrlTest {
@@ -42,6 +44,16 @@ class SubtitleUrlTest {
             "$base/media/jf/Videos/i1/src1/Subtitles/3/0/Stream.vtt",
             subtitle("ass", SubtitleDelivery.SEPARATE, subpath = "/media/jf"),
         )
+    }
+
+    @Test
+    fun theVttUrlIsMadeFromIdsAndCarriesNoCredential() {
+        val url = subtitle("subrip", SubtitleDelivery.SEPARATE)!!
+
+        assertEquals("/Videos/i1/src1/Subtitles/3/0/Stream.vtt", url.toHttpUrl().encodedPath)
+        assertNull(url.toHttpUrl().query)
+        assertEquals("", url.toHttpUrl().username)
+        for (forbidden in listOf("api_key", "ApiKey", "Token", "token")) assertFalse(forbidden in url, url)
     }
 
     @Test

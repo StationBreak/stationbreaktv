@@ -257,7 +257,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 - 🧪 The `DeviceProfile` declares subtitle formats, both embedded and external, even with subtitles off. Without them Jellyfin refuses direct play for items carrying subtitle streams. Video the device can't decode, such as MPEG-4 Part 2 (seen in AVI), routes to transcode ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - 🧪 Transcode uses HLS (`master.m3u8`) from 0, with no `StartTimeTicks`; the player starts at the offset.
 - 🧪 **Stream auth rule:** URLs are built from IDs, and the header is gated to the origin and base path. The token travels only in the `Authorization` header, which the media client adds only for the pinned server's origin and base path. We never use the server's `TranscodingUrl`, and no media URL we build carries the token. Any `ApiKey`/`api_key` in a playlist is stripped before the request is sent.
-- 📺 ✅ A test matrix on the Insignia (and the Firestick): H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio (expect audio transcode), and image subtitles (expect burn-in; see Q-PLY-1).
+- 📺 ✅ A test matrix on the Insignia (and the Firestick): H.264 MP4, HEVC MKV, AV1 (expect transcode), DTS audio on H.264 sources (expect audio transcode; HEVC with DTS is a full transcode until #351), and image subtitles (expect burn-in; see Q-PLY-1).
 
 ---
 

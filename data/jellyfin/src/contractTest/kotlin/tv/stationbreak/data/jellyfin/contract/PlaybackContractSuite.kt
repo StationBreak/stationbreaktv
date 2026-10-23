@@ -377,6 +377,34 @@ abstract class PlaybackContractSuite {
         }
     }
 
+    /**
+     * The route the resolver takes for undecodable audio with an embedded text subtitle (ADR-0016, update 2026-10-22):
+     * the playlist carries no text subtitle, so the stream is fetched as WebVTT from the server's own endpoint, which
+     * extracts the embedded track. The server's delivery for this combination is recorded, not relied on. It runs as
+     * the admin because only an account that plays the default track is offered the DTS clip as a direct stream (see
+     * [dtsIsDirectPlayedForAnAccountThatPlaysTheDefaultTrack]); the viewer's answer for it is a transcode, a route this
+     * case does not need to repeat (the VTT endpoint does not depend on the account's route).
+     */
+    @Test
+    fun anEmbeddedSrtOfAFileWithUndecodableAudioServesAsVtt() {
+        runBlocking {
+            val probe = play("h264-dts-srt-embedded", account = server.admin)
+            val text = probe.subtitles().single()
+            val played = play("h264-dts-srt-embedded", requestFor(subtitleIndex = text.index), server.admin)
+
+            assertTrue(played.source.supportsDirectStream, "the video can be copied, only the audio converted")
+            val chosen = played.subtitles().single()
+            finding("h264-dts-srt-embedded codec=${chosen.codec} delivery=${chosen.delivery} ${route(played.source)}")
+            val asVtt = chosen.copy(delivery = SubtitleDelivery.SEPARATE)
+            val url = played.info.streams.subtitle(played.source.id, asVtt)
+            assertNotNull(url, "no WebVTT URL for an embedded text subtitle")
+            val vtt = fetch(played.factory, url)
+            assertEquals(HTTP_OK, vtt.code, "the subtitle URL")
+            assertTrue(vtt.body.startsWith("WEBVTT"), "the subtitle doesn't start with the WEBVTT header")
+            assertTrue("-->" in vtt.body && "Hello" in vtt.body, "the extracted track holds no cues")
+        }
+    }
+
     private fun assertWebVtt(
         played: Played,
         stream: MediaStreamInfo,
@@ -473,6 +501,24 @@ abstract class PlaybackContractSuite {
             assertTrue("dts" !in request.capabilities.audioDecoders, "the device would direct play it")
             assertEquals("true", played.hls().toHttpUrl().queryParameter("AllowVideoStreamCopy"))
             assertSegmentsServeAt(played, START_S.toDouble())
+        }
+    }
+
+    /**
+     * Record only (ADR-0016, #351): what the server says about HEVC video with DTS audio, and which video codec the
+     * HLS URL we build gets back. Nothing here asserts a route or a codec, so the profile and URL stay as they are. If
+     * the server reports a direct stream while the playlist says avc1, the resolver labels the route DIRECT_STREAM
+     * while the video is re-encoded.
+     */
+    @Test
+    fun recordsWhatTheServerDoesForHevcWithUndecodableAudio() {
+        runBlocking {
+            val played = play("hevc-dts", account = server.admin)
+
+            val master = assertPlaylistsServe(played)
+            val streamInf = master.lines().firstOrNull { it.startsWith("#EXT-X-STREAM-INF") }.orEmpty()
+            val codecs = CODECS.find(streamInf)?.groupValues?.get(1) ?: "none"
+            finding("hevc-dts ${route(played.source)} playlistCodecs=$codecs")
         }
     }
 

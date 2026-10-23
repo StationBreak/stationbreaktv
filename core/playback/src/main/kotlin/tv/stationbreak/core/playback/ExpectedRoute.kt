@@ -9,25 +9,26 @@ import tv.stationbreak.core.model.StreamKind
 
 /**
  * A test oracle and a diagnostic only. Playback always follows the server's answer. It says what the device's
- * capabilities imply for [source] with [subtitle] selected, for the audio track the source starts on.
+ * capabilities imply for [source] with [subtitle] selected, for [audio], the track the player starts on (the source's
+ * default when not given). The chosen track is an input here, not a rule: which track is chosen is the resolver's
+ * business, what that track implies is this oracle's.
  *
  * It is an independent oracle, not a copy of the resolver: it shares no rule with it, and its audio rule is its own,
  * written from the capabilities' raw sets (a table test holds the two to the same answers). Its subtitle rule is
- * deliberately by file: an image
- * codec means a transcode, whatever delivery the server picked. It predicts for the default tracks only; a track
- * override is the resolver's business. Video levels compare as sent, in the probe's unit (level_idc: h264 41 = 4.1,
- * hevc 153 = 5.1). Video that fits with audio the device can't play is a direct stream: the server copies the video and
- * converts only the audio (ADR-0016, the contract suite's `h264-dts`). A subtitle the device can't draw or video that
- * doesn't fit is a transcode.
+ * deliberately by file: an image codec means a transcode, whatever delivery the server picked. Video levels compare as
+ * sent, in the probe's unit (level_idc: h264 41 = 4.1, hevc 153 = 5.1). Video that fits with audio the device can't
+ * play is a direct stream: the server copies the video and converts only the audio (ADR-0016, the contract suite's
+ * `h264-dts`; for HEVC the server transcodes until #351). A subtitle the device can't draw or video that doesn't fit
+ * is a transcode.
  */
 object ExpectedRoute {
     fun of(
         capabilities: DeviceCapabilities,
         source: MediaSource,
         subtitle: MediaStreamInfo?,
+        audio: MediaStreamInfo? = defaultAudio(source),
     ): Route {
         val video = source.streams.firstOrNull { it.kind == StreamKind.VIDEO }
-        val audio = source.streams.firstOrNull { it.kind == StreamKind.AUDIO && it.index == source.defaultAudioIndex }
         return when {
             subtitle != null && Codecs.isImageSubtitle(subtitle.codec) -> Route.TRANSCODE
             video != null && !videoFits(capabilities, video) -> Route.TRANSCODE
@@ -36,6 +37,9 @@ object ExpectedRoute {
             else -> Route.DIRECT_PLAY
         }
     }
+
+    private fun defaultAudio(source: MediaSource): MediaStreamInfo? =
+        source.streams.firstOrNull { it.kind == StreamKind.AUDIO && it.index == source.defaultAudioIndex }
 
     /**
      * No audio track: nothing to refuse. Otherwise the codec must be passed through to the sink (which then decides

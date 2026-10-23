@@ -100,7 +100,8 @@ class PlaybackRunTest {
             containers = setOf("mkv", "mp4"),
             videoCodecs = emptyList(),
             audioDecoders = emptySet(),
-            audioPassthrough = emptySet(),
+            // The test audio is DTS: passing it through keeps the file on direct play, which these cases are about.
+            audioPassthrough = setOf("dts"),
             maxAudioChannels = 2,
         )
 

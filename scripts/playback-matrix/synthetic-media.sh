@@ -103,6 +103,11 @@ ff $picture $sound -c:v mpeg4 -c:a libmp3lame "$(slot mpeg4-mp3 mpeg4-mp3.avi)"
 ff $picture $sound $h264 -g 10 -c:a dca -strict -2 "$(slot h264-dts h264-dts.mkv)"
 # shellcheck disable=SC2086
 ff $picture $sound $h264 -c:a ac3 "$(slot h264-ac3 h264-ac3.mkv)"
+# 11b. HEVC with DTS audio: the video could be copied and only the audio converted (design goal 4; #351).
+# shellcheck disable=SC2086
+ff $picture $sound -c:v libx265 -preset ultrafast -pix_fmt yuv420p -g 10 \
+  -x265-params log-level=none:pools=none:frame-threads=1:keyint=10:min-keyint=10 -c:a dca -strict -2 \
+  "$(slot hevc-dts hevc-dts.mkv)"
 # 12. An SRT track inside the file, with H.264 and with HEVC.
 # shellcheck disable=SC2086
 ff $picture $sound -i "$work/eng.srt" $h264 -c:a aac -c:s srt -metadata:s:s:0 language=eng \
@@ -111,6 +116,11 @@ ff $picture $sound -i "$work/eng.srt" $h264 -c:a aac -c:s srt -metadata:s:s:0 la
 ff $picture $sound -i "$work/eng.srt" -c:v libx265 -preset ultrafast -pix_fmt yuv420p \
   -x265-params log-level=none:pools=none:frame-threads=1 -c:a aac -c:s srt -metadata:s:s:0 language=eng \
   "$(slot hevc-aac-srt-embedded hevc-aac-srt-embedded.mkv)"
+# 12b. An SRT track inside the file, with DTS audio: the audio cannot be played as it is, so the file goes over HLS and
+# the embedded subtitle has to come as WebVTT.
+# shellcheck disable=SC2086
+ff $picture $sound -i "$work/eng.srt" $h264 -g 10 -c:a dca -strict -2 -c:s srt -metadata:s:s:0 language=eng \
+  "$(slot h264-dts-srt-embedded h264-dts-srt-embedded.mkv)"
 # 13. MP4 with an SRT file beside it (an external subtitle).
 sidecar=$(slot h264-aac-srt-sidecar h264-aac.mp4)
 # shellcheck disable=SC2086

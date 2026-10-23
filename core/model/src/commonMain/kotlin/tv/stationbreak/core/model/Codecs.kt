@@ -59,7 +59,8 @@ object Codecs {
     val TEXT_SUBTITLES: Set<String> = setOf("srt", "subrip", "ass", "ssa", "vtt", "webvtt", "mov_text")
 
     /** Subtitle formats that are pictures: the server burns them into the video when one is selected. */
-    val IMAGE_SUBTITLES: Set<String> = setOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub")
+    val IMAGE_SUBTITLES: Set<String> =
+        setOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub", "dvb_subtitle", "dvbsub", "xsub")
 
     /** [name] in the vocabulary's form (trimmed, lowercase); a name we don't know passes through, only folded. */
     fun normalize(name: String?): String? = name?.trim()?.lowercase()

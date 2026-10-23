@@ -70,7 +70,7 @@ object PlaybackTestData {
             false,
         )
 
-    private val h264 =
+    val h264 =
         VideoCodecSupport(
             Codecs.H264,
             setOf(Codecs.BASELINE, Codecs.MAIN, Codecs.HIGH),
@@ -81,9 +81,21 @@ object PlaybackTestData {
             emptySet(),
         )
 
-    /** Roughly the Insignia: h264 up to 4.1 at 1080p, aac/mp3/ac3 decoders, no passthrough, stereo. */
+    /** HEVC up to level 5.1 at 3840x2160 10-bit, which the real Insignia decodes. */
+    val hevc =
+        VideoCodecSupport(
+            Codecs.HEVC,
+            setOf(Codecs.MAIN, Codecs.MAIN_10),
+            153,
+            3840,
+            2160,
+            10,
+            emptySet(),
+        )
+
+    /** Roughly the Insignia: h264 to 4.1 at 1080p, HEVC to 3840 10-bit, aac/mp3/ac3, no passthrough, stereo. */
     fun insigniaLike(
-        videoCodecs: List<VideoCodecSupport> = listOf(h264),
+        videoCodecs: List<VideoCodecSupport> = listOf(h264, hevc),
         audioDecoders: Set<String> = setOf(Codecs.AAC, Codecs.MP3, Codecs.AC3),
         passthrough: Set<String> = emptySet(),
         maxChannels: Int = 2,

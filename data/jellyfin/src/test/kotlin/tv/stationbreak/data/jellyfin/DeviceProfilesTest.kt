@@ -99,7 +99,10 @@ class DeviceProfilesTest {
         fun formats(method: String) = subs.filter { it.text("Method") == method }.map { it.text("Format") }.toSet()
         assertEquals(setOf("srt", "subrip", "ass", "ssa", "vtt", "webvtt", "mov_text"), formats("Embed"))
         assertEquals(setOf("vtt"), formats("External"))
-        assertEquals(setOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub"), formats("Encode"))
+        assertEquals(
+            setOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub", "dvb_subtitle", "dvbsub", "xsub"),
+            formats("Encode"),
+        )
     }
 
     @Test
