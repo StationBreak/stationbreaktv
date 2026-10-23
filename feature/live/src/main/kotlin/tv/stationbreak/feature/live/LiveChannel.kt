@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Clock
 
 /**
@@ -60,11 +61,16 @@ class LiveChannel(
             return
         }
         var sitting: Sitting? = null
+        var saved: ChannelId? = null
         try {
             while (true) {
                 val (account, first) = awaitChannel()
                 val id = first.channel.id
-                val next = Sitting(session, account, id, schedule, tuner, lastChannel, clock, timings, current)
+                // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save is
+                // a synced file write that must not sit in the cut).
+                if (id != saved) lastChannel.save(account, id)
+                saved = id
+                val next = Sitting(session, id, schedule, tuner, clock, timings, current)
                 sitting = next
                 val exit = next.follow(first)
                 if (exit == Exit.SignedOut) return

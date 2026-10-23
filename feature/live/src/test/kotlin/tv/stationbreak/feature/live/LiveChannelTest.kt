@@ -154,15 +154,17 @@ class LiveChannelTest {
         }
 
     @Test
-    fun everyTuneSavesTheChannel() =
+    fun theChannelIsSavedOncePerChannelNotOncePerBlock() =
         runTest {
             val r = Rig(this)
             r.ordinaryDay()
             r.start()
             assertEquals(1, r.lastChannel.saves)
             assertEquals(CH7, r.lastChannel.load(r.account))
-            r.atMin(50) // the boundary: the cut is a tune
-            assertEquals(2, r.lastChannel.saves)
+            r.atMin(50) // the boundary: a cut on the same channel is not a new channel, and saves nothing
+            assertEquals(1, r.lastChannel.saves)
+            r.atMin(110)
+            assertEquals(1, r.lastChannel.saves)
         }
 
     // ---- block boundaries ----

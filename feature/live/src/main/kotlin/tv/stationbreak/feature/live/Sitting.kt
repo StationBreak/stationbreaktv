@@ -11,8 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import tv.stationbreak.core.domain.LastChannelStore
-import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -49,11 +47,9 @@ internal enum class Held { Boundary, Ended, Failed }
 @Suppress("LongParameterList") // The machine's ports and clock, one for one.
 internal class Sitting(
     val session: Session,
-    private val account: LibraryAccount,
     val channel: ChannelId,
     val schedule: ScheduleSource,
     val tuner: TunePort,
-    private val lastChannel: LastChannelStore,
     val clock: Clock,
     val timings: LiveTimings,
     val state: MutableStateFlow<LiveState>,
@@ -124,7 +120,6 @@ internal class Sitting(
         if (program.info == null) return deadItem(scope, onAir, program.itemId)
         var cut = handle
         var failures = 0
-        lastChannel.save(account, channel)
         while (true) {
             val at = vnowMs()
             if (at >= block.endMs) return null
