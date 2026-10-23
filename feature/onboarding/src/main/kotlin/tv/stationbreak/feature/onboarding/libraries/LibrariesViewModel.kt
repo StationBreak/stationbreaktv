@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.LibraryDefaults
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerRecord
@@ -21,7 +22,6 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
-import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -124,7 +124,7 @@ internal class LibrariesViewModel
                     LibrariesUiState(phase = LibrariesPhase.NoLibraries)
                 } else {
                     // Everything is ticked except home videos (decision 7).
-                    val ticked = libraries.filter { it.kind != LibraryKind.HomeVideos }.map { it.id }.toSet()
+                    val ticked = LibraryDefaults.ticked(libraries)
                     LibrariesUiState(LibrariesPhase.Choosing, libraries, ticked)
                 }
         }

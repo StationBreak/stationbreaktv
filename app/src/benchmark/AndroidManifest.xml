@@ -11,6 +11,13 @@
         <activity
             android:name="tv.stationbreak.app.bench.PlaybackTestActivity"
             android:exported="true" />
+        <!--
+            Signs the benchmark build in (Quick Connect) and out for the matrix, without the onboarding screens. Same
+            rules as above: exported for `adb shell am start`, refused unless debugging is on, benchmark variant only.
+        -->
+        <activity
+            android:name="tv.stationbreak.app.bench.BenchSetupActivity"
+            android:exported="true" />
     </application>
 
 </manifest>

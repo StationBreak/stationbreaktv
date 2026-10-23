@@ -62,11 +62,41 @@ python3 -I scripts/playback-matrix/render.py scripts/playback-matrix/results/*.j
 records an address. `run.py` waits for each run's `DONE` for items x 60 s + 60 s, and exits non-zero (saying how many
 `RESULT` lines arrived) if it does not come. Use `--dry-run` with `temp-server.sh` to see its steps without running them.
 
+## Fast path: set the device up without the onboarding screens
+
+`BenchSetupActivity` is a second benchmark-only, exported activity. Like `PlaybackTestActivity` it does nothing unless
+USB debugging is on, and it is in no debug or release build (`BackupRulesTest` checks). It signs the app in with Quick
+Connect and accepts the library picker's defaults (every library except home videos), so a device is ready in seconds.
+
+```
+# The server address comes from the environment or --server, never from a file in the repo.
+export SB_MATRIX_SERVER=https://media.example.invalid     # your own server's address
+python3 -I scripts/playback-matrix/run.py setup -s SERIAL
+#   prints "Quick Connect code: NNNNNN": approve it in a signed-in Jellyfin client (its Quick Connect page)
+#   exits 0 on "SETUP OK", non-zero on "SETUP ERROR <reason>" or after 400 s without an answer
+
+python3 -I scripts/playback-matrix/run.py run -s SERIAL --plan scripts/playback-matrix/plan.json --section real
+
+python3 -I scripts/playback-matrix/run.py signout -s SERIAL
+#   exits 0 on "SIGNOUT OK revoked" or "SIGNOUT OK not-revoked", non-zero on "SIGNOUT ERROR <reason>"
+```
+
+- `setup` never replaces a session: with one stored it stops with `already-signed-in`. If a step fails after the sign-in
+  (the library list, say) it signs out again, so a retry starts clean. Reasons are short codes (`bad-server`,
+  `unreachable`, `tls`, `qc-disabled`, `qc-denied`, `qc-expired`, ...); the app logs no address, token, user or library
+  name. A server with a self-signed certificate is not handled here (`tls`): trust it in the app's own screens first.
+- `signout` clears the stored session and asks the server to revoke its token (`POST /Sessions/Logout`), so the token is
+  dead on the server and not only deleted on the device. `not-revoked` means the server could not be reached or refused
+  the call: the token may still be live. Whether Jellyfin also removes the device entry on that call is not shown by
+  this repo's code or tests (they use a stub server), so the entry may still need removing in the dashboard
+  (Dashboard > Devices, "StationBreak").
+
 ## Safety notes
 
 - **The benchmark app stays installed only for a run.** `adb uninstall tv.stationbreak.app.benchmark` after each run
-  (the exported activity is not worth keeping). The app has no sign-out after setup, so after a run against the owner's
-  server also remove its device entry there, which ends its session. Its launcher label is "StationBreak benchmark".
+  (the exported activity is not worth keeping). After a run against the owner's server, run `run.py signout` first
+  (it revokes the token) and check the dashboard for a leftover device entry. Its launcher label is "StationBreak
+  benchmark".
 - **Docker-published ports bypass the host firewall.** `ufw` and `firewalld` rules do not apply to a port docker
   publishes, so `temp-server.sh` is reachable by everything on the LAN from the moment it is published there. It
   therefore finishes the setup wizard over loopback first, sets a random admin password, and only then publishes on the
