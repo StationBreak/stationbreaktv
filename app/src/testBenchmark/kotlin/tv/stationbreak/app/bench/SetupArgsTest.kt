@@ -9,7 +9,8 @@ import org.junit.Test
 class SetupArgsTest {
     @Test
     fun setupNeedsAServerAndTrimsIt() {
-        assertEquals(SetupArgs.Setup("https://media.example.invalid"), SetupArgs.parse("setup", "  https://media.example.invalid "))
+        val parsed = SetupArgs.parse("setup", "  https://media.example.invalid ")
+        assertEquals(SetupArgs.Setup("https://media.example.invalid"), parsed)
     }
 
     @Test
