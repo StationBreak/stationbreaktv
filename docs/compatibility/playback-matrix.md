@@ -34,11 +34,15 @@ Measured on 2026-10-22 with the benchmark build at commit 55750d3 (APK sha256
 
 - AFTJMST12 is the Insignia Fire TV Edition (API 25), the gate device. AFTKRT is a Fire TV Stick (API 30).
 - The synthetic clips are made by [`synthetic-media.sh`](../../scripts/playback-matrix/synthetic-media.sh). Rows that
-  look alike differ in ways the columns do not show: MP4 with its index at the front or the end, MKV with and without a
-  Cues index (the seek-miss row is the one without), and different audio and subtitle track layouts.
-- Known failures: the real-section AVI on the AFTJMST12 does not decode on the device
-  ([#340](https://github.com/StationBreak/stationbreaktv/issues/340)); the DTS passthrough on the AFTKRT fails to start ([#344](https://github.com/StationBreak/stationbreaktv/issues/344)). Both played through the
-  transcode fallback.
+  look alike are different clips, differing in ways the columns do not show:
+  - the three MP4 rows with no subtitle: index at the front, index at the end, and fragmented MP4;
+  - the MKV rows with no subtitle: with a Cues index, without one (the seek-miss row), with a picture-subtitle track
+    that is not chosen (so Subtitle reads "none"), and with two audio tracks where the preferred one is second;
+  - the subtitle rows: text in the stream (H.264 and HEVC), a sidecar SRT next to an MP4, and two audio and two
+    subtitle tracks.
+- Known failures, both of which played through the transcode fallback:
+  - the real-section AVI on the AFTJMST12 does not decode on the device ([#340](https://github.com/StationBreak/stationbreaktv/issues/340));
+  - the DTS passthrough on the AFTKRT fails to start ([#344](https://github.com/StationBreak/stationbreaktv/issues/344)).
 
 ## synthetic: AFTJMST12
 
