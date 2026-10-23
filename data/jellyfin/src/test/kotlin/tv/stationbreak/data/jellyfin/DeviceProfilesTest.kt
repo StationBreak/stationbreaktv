@@ -8,6 +8,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
@@ -18,7 +19,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 class DeviceProfilesTest {
-    private fun body(request: PlaybackRequest = requestFor()): JsonObject =
+    private fun body(request: PlaybackRequest = requestFor(insigniaCapabilities(hevc = false))): JsonObject =
         Json.parseToJsonElement(DeviceProfiles.body(request, UserId("user1")).decodeToString()).jsonObject
 
     private fun JsonObject.profile(): JsonObject = getValue("DeviceProfile").jsonObject
@@ -62,7 +63,7 @@ class DeviceProfilesTest {
     @Test
     fun constrainedBaselineIsAddedOnlyWhereBaselineIsDeclared() {
         fun profiles(vararg names: String): String {
-            val caps = insigniaCapabilities()
+            val caps = insigniaCapabilities(hevc = false)
             val h264 = caps.videoCodecs.single().copy(profiles = names.toSet())
             val body = body(requestFor(caps.copy(videoCodecs = listOf(h264))))
             val conditions =
@@ -99,7 +100,7 @@ class DeviceProfilesTest {
         fun formats(method: String) = subs.filter { it.text("Method") == method }.map { it.text("Format") }.toSet()
         assertEquals(setOf("srt", "subrip", "ass", "ssa", "vtt", "webvtt", "mov_text"), formats("Embed"))
         assertEquals(setOf("vtt"), formats("External"))
-        assertEquals(setOf("pgs", "pgssub", "dvdsub", "dvd_subtitle", "vobsub"), formats("Encode"))
+        assertEquals(Codecs.IMAGE_SUBTITLES, formats("Encode"))
     }
 
     @Test
@@ -111,26 +112,36 @@ class DeviceProfilesTest {
     }
 
     @Test
-    fun hevcIsTranscodableAsFmp4OnlyWhereTheDeviceDecodesIt() {
+    fun hevcIsListedAfterH264AndTheContainerIsFmp4OnlyWhereTheDeviceDecodesIt() {
         val withHevc = body(requestFor(insigniaCapabilities(hevc = true))).profile()
         val transcode = withHevc.list("TranscodingProfiles").single().jsonObject
         assertEquals("h264,hevc", transcode.text("VideoCodec"))
         assertEquals("mp4", transcode.text("Container"))
         assertEquals("hls", transcode.text("Protocol"))
 
-        val without =
-            body()
+        val without = body(requestFor(insigniaCapabilities(hevc = false))).profile()
+        val h264Only = without.list("TranscodingProfiles").single().jsonObject
+        assertEquals("h264", h264Only.text("VideoCodec"))
+        assertEquals("ts", h264Only.text("Container"))
+    }
+
+    @Test
+    fun fmp4TranscodingKeepsOnlyAudioFmp4Takes() {
+        val caps = insigniaCapabilities(setOf("dts", "ac3", "eac3", "truehd"), 6)
+        assertEquals("aac,ac3,eac3", DeviceProfiles.transcodeAudio(caps, fmp4 = true))
+        assertEquals("aac,ac3,dts,eac3,truehd", DeviceProfiles.transcodeAudio(caps, fmp4 = false))
+        val profile =
+            body(requestFor(caps))
                 .profile()
                 .list("TranscodingProfiles")
                 .single()
                 .jsonObject
-        assertEquals("h264", without.text("VideoCodec"))
-        assertEquals("ts", without.text("Container"))
+        assertEquals("aac,ac3,eac3", profile.text("AudioCodec"))
     }
 
     @Test
     fun ac3PassthroughIsDeclaredWhenTheSinkSupportsIt() {
-        val profile = body(requestFor(insigniaCapabilities(setOf("ac3"), maxAudioChannels = 6))).profile()
+        val profile = body(requestFor(insigniaCapabilities(setOf("ac3"), maxAudioChannels = 6, hevc = false))).profile()
 
         val direct = profile.list("DirectPlayProfiles").single().jsonObject
         assertEquals(setOf("aac", "mp3", "ac3"), csv(direct.text("AudioCodec")))

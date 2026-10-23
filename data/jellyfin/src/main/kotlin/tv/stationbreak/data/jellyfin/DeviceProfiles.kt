@@ -81,17 +81,25 @@ internal object DeviceProfiles {
             put("Type", "Video")
             put("Protocol", "hls")
             put("VideoCodec", transcodeVideoNames(caps))
-            put("AudioCodec", transcodeAudio(caps))
+            put("AudioCodec", transcodeAudio(caps, segmentContainer(caps) == Codecs.MP4))
             put("Context", "Streaming")
             put("MaxAudioChannels", caps.maxAudioChannels.toString())
             put("BreakOnNonKeyFrames", true)
         }
 
-    /** What the server may put in the transcoded audio: AAC, or a codec the sink takes as it is. */
-    fun transcodeAudio(caps: DeviceCapabilities): String {
-        val codecs = listOf(Codecs.AAC) + caps.audioPassthrough.sorted()
-        return codecs.joinToString(",")
+    /**
+     * What the server may put in the transcoded audio: AAC, or a codec the sink takes as it is. In fMP4 segments
+     * ([fmp4]) only AAC, AC-3 and E-AC-3, which every fMP4 muxer and player takes; DTS and TrueHD stay on MPEG-TS.
+     */
+    fun transcodeAudio(
+        caps: DeviceCapabilities,
+        fmp4: Boolean = false,
+    ): String {
+        val passthrough = caps.audioPassthrough.sorted().filter { !fmp4 || it in FMP4_AUDIO }
+        return (listOf(Codecs.AAC) + passthrough).joinToString(",")
     }
+
+    private val FMP4_AUDIO = setOf(Codecs.AAC, Codecs.AC3, Codecs.EAC3)
 
     private fun codecProfiles(caps: DeviceCapabilities): JsonArray =
         buildJsonArray {
@@ -171,7 +179,8 @@ internal fun profileNames(support: VideoCodecSupport): List<String> =
 /**
  * The video codecs the server may put in an HLS stream, H.264 first. HEVC is listed only where the probe found a
  * decoder, so the server can copy an HEVC video and convert just its audio (ADR-0016, update 2026-10-22); a device
- * without one keeps the H.264-only list. The server only encodes H.264, so HEVC here means copy, never encode.
+ * without one keeps the H.264-only list. H.264 comes first, which keeps any encode on H.264 (a server admin can enable
+ * HEVC encoding). The HLS URL lists HEVC only for a source it will copy (R33); this list is for the profile.
  */
 internal fun transcodeVideo(caps: DeviceCapabilities): List<VideoCodecSupport> =
     listOfNotNull(
@@ -184,8 +193,8 @@ internal fun transcodeVideoNames(caps: DeviceCapabilities): String =
     (listOf(Codecs.H264) + transcodeVideo(caps).map { it.codec }).distinct().joinToString(",")
 
 /**
- * Segments are fMP4 where HEVC may be copied (HEVC in MPEG-TS is not what Media3 or the server's copy path
- * expects), MPEG-TS otherwise.
+ * The container the profile declares for its transcoding profile: fMP4 where the device decodes HEVC, so the server
+ * offers a direct stream of HEVC. The HLS URL decides per source and uses fMP4 only for an HEVC source it copies.
  */
 internal fun segmentContainer(caps: DeviceCapabilities): String =
     if (transcodeVideo(caps).any { it.codec == Codecs.HEVC }) Codecs.MP4 else Codecs.TS
