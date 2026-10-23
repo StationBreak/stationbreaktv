@@ -227,7 +227,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 
 📺 **Built 2026-10-23, device check pending** (spec 14, [ADR-0017](adr/0017-live-channel-playback.md)). The dead-item cases are checked on the Insignia and the Firestick.
 
-- 🧪 On a source error, the player retries the original item once, shows a "Technical difficulties" slate for about 3 s, then moves on to the next scheduled item from its start (30 minutes or less left in the dead block; the channel then runs ahead for this sitting only and any retune re-anchors it) or fills the block with a deterministic stand-in (more than 30 minutes left).
+- 🧪 On a source error, the player retries the original item once, shows a "Technical difficulties" slate for about 3 s, then moves on to the next scheduled item from its start (30 minutes or less left in the dead block, a configurable default in `LiveTimings`; the channel then runs ahead for this sitting only and any retune re-anchors it) or fills the block with a deterministic stand-in (more than 30 minutes left).
 
 ## F1.4 Channel flipping & last-channel recall (M)
 

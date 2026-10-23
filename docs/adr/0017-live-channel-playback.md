@@ -31,12 +31,16 @@ what the screen does then, and the few structural choices that go with it.
    (`ChannelOnAir.builtUntilMs`, the end of the next day by the channel's own epoch length); if the drift reaches it,
    the channel re-anchors to the clock.
 3. **The 30-minute rule is applied per tune, by the time left at that moment.** If the time left in the dead block is
-   at or under the threshold (default 30 minutes, a setting), the channel moves on and drifts. If it is over, a
+   at or under the threshold (default 30 minutes, a configurable default in `LiveTimings`), the channel moves on
+   and drifts. If it is over, a
    stand-in fills the rest of the block and the channel is back on the schedule at the next block. Each TV decides for
    itself from the clock; TVs never talk to each other. So a long film that fails with 70 minutes left gets a stand-in on
    one TV, and a second TV that tunes the same channel with 30 minutes left, finds the same failure and simply moves
    on. A TV already playing a stand-in keeps it until the block ends; it does not decide again. The dead item stays in
    the schedule and is tried again when it next airs.
+   The tunables of the live screen are all defaults in `LiveTimings`, in code and not user-configurable: banner linger
+   4 seconds, minimum snow 0.5 seconds, slate hold 3 seconds, stand-in threshold 30 minutes, stand-in attempts 2, and
+   pre-resolve lead 45 seconds.
 4. **Stand-ins are deterministic and client-local.** A stand-in is an item from the same channel's pool, chosen from
    the channel's settings, the broadcast day, the dead block's start, the library's contents and the set of items
    already tried. It plays as if it had been scheduled in that block all along: it is joined at the clock position
