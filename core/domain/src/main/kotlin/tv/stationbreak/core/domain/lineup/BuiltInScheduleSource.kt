@@ -126,34 +126,35 @@ class BuiltInScheduleSource(
         next: Int,
     ): ChannelOnAir {
         val now = today.day.whatsOn(at.toEpochMilliseconds(), next)
-        val following = followingBlocks(account, chosen, today, next - now.next.size)
+        // The end of the day after the one that holds `at`, in the channel's own epoch length.
+        val builtUntilMs = today.epochStartMs + 2 * today.settings.epochMs
+        val following = followingBlocks(account, chosen, today, next - now.next.size, builtUntilMs)
         val blocks = listOf(now.block) + now.next + following
         val ids = blocks.mapNotNullTo(HashSet()) { (it.content as? ScheduleContent.Program)?.itemId }
         val info = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids)
         val airings = blocks.map { it.toAiring(info) }
-        // The end of the day after the one that holds `at`, in the channel's own epoch length.
-        val builtUntilMs = today.epochStartMs + 2 * today.settings.epochMs
         return ChannelOnAir(today.airing(), airings.first(), airings.drop(1), builtUntilMs)
     }
 
     /**
-     * [count] blocks after [from]'s day, from the days that follow it, each built from its own snapshot. Fewer only if
-     * the channel stops airing.
+     * Up to [count] blocks after [from]'s day, from the days that follow it, each built from its own snapshot. Fewer if
+     * the channel stops airing, or if the days run to [builtUntilMs] (the end of day n + 1): nothing is built past it.
      */
     private suspend fun followingBlocks(
         account: LibraryAccount,
         chosen: Set<ItemId>,
         from: ChannelDay,
         count: Int,
+        builtUntilMs: Long,
     ): List<ScheduleBlock> {
         val blocks = ArrayList<ScheduleBlock>()
         var day = from
-        while (blocks.size < count) {
-            val began = TimeSource.Monotonic.markNow()
+        while (blocks.size < count && day.day.endMs < builtUntilMs) {
             val start = Instant.fromEpochMilliseconds(day.day.endMs)
-            day = channelDays(account, chosen, start).firstOrNull { it.channel.id == from.channel.id } ?: break
+            val (days, builtInMs) = channelDaysTimed(account, chosen, start)
+            day = days.firstOrNull { it.channel.id == from.channel.id } ?: break
             val built = day.day
-            timed(day.n, began.elapsedNow().inWholeMilliseconds)
+            if (builtInMs != null) timed(day.n, builtInMs)
             val ahead = built.whatsOn(built.startMs, count - blocks.size - 1)
             blocks += ahead.block
             blocks += ahead.next
@@ -166,11 +167,21 @@ class BuiltInScheduleSource(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         at: Instant,
-    ): List<ChannelDay> {
-        val held = service.loaded(account) ?: return emptyList()
+    ): List<ChannelDay> = channelDaysTimed(account, libraries, at).first
+
+    /** The days at [at], and how long they took to build in milliseconds (null when they were already built). */
+    private suspend fun channelDaysTimed(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Pair<List<ChannelDay>, Long?> {
+        val held = service.loaded(account) ?: return emptyList<ChannelDay>() to null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
         val key = Key(held.revision, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
-        return synchronized(lock) { built[key] } ?: build(key, account, held.lineup, scheduled)
+        synchronized(lock) { built[key] }?.let { return it to null }
+        val began = TimeSource.Monotonic.markNow()
+        val result = build(key, account, held.lineup, scheduled)
+        return result to began.elapsedNow().inWholeMilliseconds
     }
 
     private suspend fun build(
