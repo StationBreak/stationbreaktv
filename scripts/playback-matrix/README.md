@@ -62,11 +62,59 @@ python3 -I scripts/playback-matrix/render.py scripts/playback-matrix/results/*.j
 records an address. `run.py` waits for each run's `DONE` for items x 60 s + 60 s, and exits non-zero (saying how many
 `RESULT` lines arrived) if it does not come. Use `--dry-run` with `temp-server.sh` to see its steps without running them.
 
+## Fast path: set the device up without the onboarding screens
+
+`BenchSetupActivity` is a second benchmark-only, exported activity. Like `PlaybackTestActivity` it does nothing unless
+USB debugging is on, and it is in no debug or release build (`BackupRulesTest` checks). It signs the app in with Quick
+Connect and accepts the library picker's defaults (every library except home videos), so a device is ready in seconds.
+
+```
+# The server address comes from the environment, never from a file in the repo. It must start with https:// or
+# http:// (the scheme is never guessed). Prefer the variable to --server, which lands in shell history and in the
+# process list.
+export SB_MATRIX_SERVER=https://media.example.invalid     # your own server's address
+python3 -I scripts/playback-matrix/run.py setup -s SERIAL
+#   prints "Quick Connect code: NNNNNN": approve it in a signed-in Jellyfin client (its Quick Connect page)
+#   exits 0 on "SETUP OK", non-zero on "SETUP ERROR <reason>" or after 480 s without an answer
+
+python3 -I scripts/playback-matrix/run.py run -s SERIAL --plan scripts/playback-matrix/plan.json --section real
+
+python3 -I scripts/playback-matrix/run.py signout -s SERIAL [--force]
+#   exits 0 on "SIGNOUT OK revoked" or "SIGNOUT OK not-revoked", non-zero on "SIGNOUT ERROR <reason>"
+```
+
+- Both activities demand the `DUMP` permission, which the shell behind `adb shell am start` holds and ordinary apps
+  cannot get, on top of the USB-debugging check.
+- Only one `setup` or `signout` runs at a time; a second gets `busy`. Before it starts, `run.py` runs
+  `am force-stop` on the benchmark package, so an activity still waiting from an earlier `setup` cannot answer the new
+  one (it used to: `SETUP ERROR qc-expired`).
+- If the device's `logcat` stream ends before the answer (adb can drop it with `read: unexpected EOF!`), `run.py` does
+  not take that for the answer: it attaches again, with the same `--pid` scope, and keeps waiting until the app's
+  answer arrives or the timeout passes. Lines the earlier attach already delivered are skipped on the re-read, so
+  nothing is counted twice. `run` waits for its `DONE` line the same way.
+- `setup` never replaces a session: with any session stored (even without a server record) it stops with
+  `already-signed-in`, and with a secret store it cannot read it stops with `store-unreadable`. A stale session that
+  blocks setup is removed with `signout --force`. An explicit `http://` address is accepted as typed, but an `http`
+  address the app reached only by falling back from `https` is refused (`cleartext`). If the run is cancelled after
+  the sign-in (`cancelled`), the token is revoked again. If a step fails after the sign-in
+  (the library list, say) it signs out again, so a retry starts clean. Reasons are short codes (`bad-server`,
+  `unreachable`, `tls`, `qc-disabled`, `qc-denied`, `qc-expired`, ...); the app logs no address, token, user or library
+  name. A server with a self-signed certificate is not handled here (`tls`): trust it in the app's own screens first.
+- `signout --force` is for a server that cannot be reached: it clears the stored session on the device and reports
+  `SIGNOUT OK not-revoked`, so the token may still be live on the server. Without `--force` an unreachable server is
+  `SIGNOUT ERROR unreachable` and nothing is cleared.
+- `signout` clears the stored session and asks the server to revoke its token (`POST /Sessions/Logout`), so the token is
+  dead on the server and not only deleted on the device. `not-revoked` means the server could not be reached or refused
+  the call: the token may still be live. Whether Jellyfin also removes the device entry on that call is not shown by
+  this repo's code or tests (they use a stub server), so the entry may still need removing in the dashboard
+  (Dashboard > Devices, "StationBreak").
+
 ## Safety notes
 
 - **The benchmark app stays installed only for a run.** `adb uninstall tv.stationbreak.app.benchmark` after each run
-  (the exported activity is not worth keeping). The app has no sign-out after setup, so after a run against the owner's
-  server also remove its device entry there, which ends its session. Its launcher label is "StationBreak benchmark".
+  (the exported activity is not worth keeping). After a run against the owner's server, run `run.py signout` first
+  (it revokes the token) and check the dashboard for a leftover device entry. Its launcher label is "StationBreak
+  benchmark".
 - **Docker-published ports bypass the host firewall.** `ufw` and `firewalld` rules do not apply to a port docker
   publishes, so `temp-server.sh` is reachable by everything on the LAN from the moment it is published there. It
   therefore finishes the setup wizard over loopback first, sets a random admin password, and only then publishes on the

@@ -5,12 +5,24 @@
         The playback matrix's test activity (spec 13). Exported so `adb shell am start -n
         tv.stationbreak.app.benchmark/tv.stationbreak.app.bench.PlaybackTestActivity` can reach it; it plays items the
         extras name and prints result lines, so it exists in the benchmark variant only. BackupRulesTest checks that
-        the debug and release manifests do not contain it.
+        the debug and release manifests do not contain it. Both activities also demand the DUMP permission: the shell
+        UID that `adb shell am start` runs as holds it, and an ordinary app cannot be granted it, so no other app can
+        start them. The activities' own check that debugging is on stays as a second line.
     -->
     <application>
         <activity
             android:name="tv.stationbreak.app.bench.PlaybackTestActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+        <!--
+            Signs the benchmark build in (Quick Connect) and out for the matrix, without the onboarding screens. Same
+            rules as above: exported for `adb shell am start`, DUMP permission, refused unless debugging is on,
+            benchmark variant only.
+        -->
+        <activity
+            android:name="tv.stationbreak.app.bench.BenchSetupActivity"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 
 </manifest>

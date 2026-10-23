@@ -5,6 +5,8 @@ PlaybackTestActivity, over adb. Standard library only; run it as `python3 -I scr
 
   run.py plan --seed N --items items.local.json [--out plan.json]
   run.py run -s SERIAL --plan plan.json --section real|synthetic [--results-dir DIR]
+  SB_MATRIX_SERVER=https://ADDRESS run.py setup -s SERIAL   (or --server, which shows in shell history)
+  run.py signout -s SERIAL [--force]
 
 items.local.json holds item IDs, so it, the plan and the raw results stay on this laptop (see .gitignore). Its shape:
   {"synthetic": [{"id": "...", "name": "h264-aac-nocues", "runtimeMs": 60000}],
@@ -12,11 +14,15 @@ items.local.json holds item IDs, so it, the plan and the raw results stay on thi
 "audio" and "subtitle" are optional track indexes; an item with either one is played with the track override on
 (an unset one then means: audio, the server's choice; subtitle, off).
 
-The app must already be signed in to the server (the stored session is used), and the benchmark APK installed.
-Item IDs are never printed.
+The app must already be signed in to the server (the stored session is used), and the benchmark APK installed. `setup`
+signs it in without the onboarding screens: it prints a Quick Connect code to approve on the server, and `signout`
+signs it out again and revokes the token. The server address comes from --server or the SB_MATRIX_SERVER environment
+variable, never a file. Item IDs are never printed.
 """
 
 import argparse
+import collections
+import contextlib
 import datetime
 import json
 import math
@@ -25,6 +31,7 @@ import random
 import re
 import secrets
 import select
+import shlex
 import subprocess
 import sys
 import time
@@ -32,6 +39,14 @@ from typing import NamedTuple, Optional
 
 APP_ID = "tv.stationbreak.app.benchmark"
 COMPONENT = f"{APP_ID}/tv.stationbreak.app.bench.PlaybackTestActivity"
+SETUP_COMPONENT = f"{APP_ID}/tv.stationbreak.app.bench.BenchSetupActivity"
+SERVER_ENV = "SB_MATRIX_SERVER"
+# An explicit scheme, then only the characters an address is made of (no space or shell character). Used with
+# fullmatch: `$` would let a trailing newline through. The length limit is SetupArgs.MAX_SERVER.
+SERVER_SAFE = re.compile(r"https?://[A-Za-z0-9._:/\[\]-]+")
+MAX_SERVER = 512
+SETUP_SECONDS = 480  # the app waits up to 6 minutes for the approval, after discover and before the libraries
+SIGNOUT_SECONDS = 60
 MAX_ITEMS = 200  # RunArgs.MAX_ITEMS
 MAX_LABEL = 64  # RunArgs.MAX_LABEL
 SECTIONS = ("synthetic", "real")
@@ -323,6 +338,45 @@ def _wait_for_pid(serial):
         time.sleep(0.5)
 
 
+REATTACH_SECONDS = 1.0
+
+
+def stream_logcat(serial, pid, deadline):
+    """Lines of the benchmark app's SBPLAY log until [deadline], however many times the device's `logcat` ends early.
+
+    The stream can end before the deadline (adb has been seen to drop it with `read: unexpected EOF!`). That is not
+    the app's answer, so this attaches again, and each attach dumps the buffer from the clear that came before the
+    start, then follows it. The same `--pid` scope applies to every attach, so a line that was on the device before
+    this run, or from another app, never arrives. A re-read repeats the lines already seen: each is dropped once for
+    each time it was already yielded, so nothing is counted twice or lost, and a new line that looks like an old one
+    is still kept."""
+    seen = collections.Counter()
+    while True:
+        replay = collections.Counter(seen)
+        logcat = subprocess.Popen(logcat_command(serial, pid), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            for raw in read_lines(logcat.stdout.fileno(), deadline):
+                key = raw.strip()
+                if replay[key] > 0:
+                    replay[key] -= 1
+                    continue
+                seen[key] += 1
+                yield raw
+        finally:
+            logcat.kill()
+            logcat.wait()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(REATTACH_SECONDS, remaining))
+
+
+def _force_stop(serial):
+    """Ends any process of the benchmark app, so a stale BenchSetupActivity (still waiting on an earlier run) cannot
+    answer the one about to start."""
+    subprocess.run(["adb", "-s", serial, "shell", "am", "force-stop", APP_ID], check=True, capture_output=True)
+
+
 def _run_batch(serial, batch, section, run_id, override):
     # Cleared first, so the buffer holds only this run's lines when logcat is read after the start (below).
     subprocess.run(["adb", "-s", serial, "logcat", "-c"], check=True, capture_output=True)
@@ -331,18 +385,77 @@ def _run_batch(serial, batch, section, run_id, override):
     )
     if "Error" in started.stdout:
         raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
-    # Only this process's lines count; the buffer is dumped from the clear, then followed.
-    logcat = subprocess.Popen(
-        logcat_command(serial, _wait_for_pid(serial)),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    try:
-        deadline = time.monotonic() + timeout_seconds(len(batch))
-        return collect(read_lines(logcat.stdout.fileno(), deadline), run_id)
-    finally:
-        logcat.kill()
-        logcat.wait()
+    # Only this process's lines count; the buffer is dumped from the clear, then followed (and followed again if the
+    # stream ends early).
+    pid = _wait_for_pid(serial)
+    deadline = time.monotonic() + timeout_seconds(len(batch))
+    with contextlib.closing(stream_logcat(serial, pid, deadline)) as lines:
+        return collect(lines, run_id)
+
+
+def setup_command(serial, action, server=None, force=False):
+    """The adb command that starts BenchSetupActivity with the extras it reads (see SetupArgs). `adb shell` joins its
+    arguments and a shell on the device parses them again, so the server must start with http:// or https:// and
+    hold only the characters an address is made of, and every part of the remote command is quoted as well."""
+    if action not in ("setup", "signout"):
+        raise ValueError("action must be setup or signout")
+    remote = ["am", "start", "-n", SETUP_COMPONENT, "--es", "action", action]
+    if action == "setup":
+        if not isinstance(server, str) or len(server) > MAX_SERVER or not SERVER_SAFE.fullmatch(server):
+            raise ValueError(
+                "the server address must start with http:// or https:// and hold only letters, digits and . : / [ ] - _"
+            )
+        remote += ["--es", "server", server]
+    elif force:
+        remote += ["--ez", "force", "true"]
+    return ["adb", "-s", serial, "shell"] + [shlex.quote(part) for part in remote]
+
+
+class SetupLine(NamedTuple):
+    kind: str  # "qc", "ok" or "error"
+    value: str  # the code, the revoke outcome, or the reason
+
+
+QC_CODE = re.compile(r"^[A-Za-z0-9]{1,16}$")
+REASON = re.compile(r"^[a-z0-9-]{1,40}$")
+
+
+def parse_setup_line(raw, action):
+    """The meaning of one logcat line from BenchSetupActivity, or None for any other line. The line must have exactly
+    the shape the app prints (see BenchSetup): anything else is ignored rather than guessed at. [action] picks the
+    prefix, so a setup run does not take a sign-out line for its answer. A bare `ERROR <reason>` is the activity
+    refusing to run (debugging off, bad extras)."""
+    line = LOGCAT_PREFIX.sub("", raw.strip())
+    prefix = "SETUP" if action == "setup" else "SIGNOUT"
+    words = line.split(" ")
+    if action == "setup" and len(words) == 2 and words[0] == "QC" and QC_CODE.match(words[1]):
+        return SetupLine("qc", words[1])
+    if len(words) == 3 and words[0] == prefix and words[1] == "ERROR" and REASON.match(words[2]):
+        return SetupLine("error", words[2])
+    if len(words) == 2 and words[0] == "ERROR" and REASON.match(words[1]):
+        return SetupLine("error", words[1])
+    if action == "setup" and words == ["SETUP", "OK"]:
+        return SetupLine("ok", "")
+    if action == "signout" and words[:2] == ["SIGNOUT", "OK"] and words[2:] in (["revoked"], ["not-revoked"]):
+        return SetupLine("ok", words[2])
+    return None
+
+
+def follow_setup(lines, action, on_code=print):
+    """(exit status, message) for the lines of one setup or sign-out. [on_code] gets each Quick Connect code as it
+    arrives, because the operator has to approve it while the app is still waiting. 0 only for the app's OK line;
+    1 for its ERROR line or for lines that ended without either."""
+    for raw in lines:
+        parsed = parse_setup_line(raw, action)
+        if parsed is None:
+            continue
+        if parsed.kind == "qc":
+            on_code(parsed.value)
+        elif parsed.kind == "error":
+            return 1, f"{action} failed: {parsed.value}"
+        else:
+            return 0, f"{action} ok" + (f" ({parsed.value})" if parsed.value else "")
+    return 1, f"{action}: no answer from the app before the timeout"
 
 
 def write_private(path, text):
@@ -393,6 +506,35 @@ def command_run(args):
     return 1 if problems else 0
 
 
+def _announce_code(code):
+    print(f"\nQuick Connect code: {code}\nApprove it on the server (Settings > Quick Connect). Waiting...", flush=True)
+
+
+def command_setup(args):
+    """Force-stops any stale benchmark process, starts BenchSetupActivity and follows its SBPLAY lines (this process's
+    only), printing the Quick Connect code."""
+    action = args.command
+    server = None
+    if action == "setup":
+        server = args.server or os.environ.get(SERVER_ENV)
+        if not server:
+            print(f"run.py: give --server ADDRESS or set {SERVER_ENV}", file=sys.stderr)
+            return 2
+    command = setup_command(args.serial, action, server, force=getattr(args, "force", False))
+    _force_stop(args.serial)
+    subprocess.run(["adb", "-s", args.serial, "logcat", "-c"], check=True, capture_output=True)
+    started = subprocess.run(command, capture_output=True, text=True, check=True)
+    if "Error" in started.stdout:
+        raise RuntimeError("the activity did not start (is the benchmark APK installed?)")
+    seconds = SETUP_SECONDS if action == "setup" else SIGNOUT_SECONDS
+    pid = _wait_for_pid(args.serial)
+    deadline = time.monotonic() + seconds
+    with contextlib.closing(stream_logcat(args.serial, pid, deadline)) as lines:
+        status, message = follow_setup(lines, action, _announce_code)
+    print(message, file=sys.stdout if status == 0 else sys.stderr)
+    return status
+
+
 def main(argv=None):
     here = HERE
     parser = argparse.ArgumentParser(description="Plan and run the playback matrix on a device.")
@@ -406,8 +548,16 @@ def main(argv=None):
     run.add_argument("--plan", default=DEFAULT_PLAN)
     run.add_argument("--section", choices=SECTIONS, required=True)
     run.add_argument("--results-dir", default=os.path.join(here, "results"))
+    setup = sub.add_parser("setup", help="sign the benchmark app in with Quick Connect (no onboarding screens)")
+    setup.add_argument("-s", "--serial", required=True)
+    setup.add_argument("--server", help=f"https://... or http://...; prefer {SERVER_ENV} (this shows in shell history)")
+    signout = sub.add_parser("signout", help="sign the benchmark app out and revoke its token")
+    signout.add_argument("-s", "--serial", required=True)
+    signout.add_argument("--force", action="store_true", help="clear the session here if the server is unreachable")
     args = parser.parse_args(argv)
     try:
+        if args.command in ("setup", "signout"):
+            return command_setup(args)
         return command_plan(args) if args.command == "plan" else command_run(args)
     except subprocess.CalledProcessError as error:
         # Not the command: its arguments hold item IDs.

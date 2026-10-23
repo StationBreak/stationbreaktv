@@ -231,7 +231,7 @@ class BackupRulesTest {
                 "androidx.work.impl.background.systemjob.SystemJobService",
                 "androidx.work.impl.diagnostics.DiagnosticsReceiver",
                 "androidx.profileinstaller.ProfileInstallReceiver",
-            ) + if (isBenchmarkVariant) setOf(playbackTestActivity) else emptySet()
+            ) + if (isBenchmarkVariant) benchmarkActivities else emptySet()
         assertEquals(allowed, exported)
     }
 
@@ -245,22 +245,33 @@ class BackupRulesTest {
     private val isBenchmarkVariant: Boolean
         get() = variantDirectory.endsWith("Benchmark")
 
-    private val playbackTestActivity = "tv.stationbreak.app.bench.PlaybackTestActivity"
+    // Both are started by `adb shell am start` (the second signs the device in and out for the matrix).
+    private val benchmarkActivities =
+        setOf("tv.stationbreak.app.bench.PlaybackTestActivity", "tv.stationbreak.app.bench.BenchSetupActivity")
 
     @Test
-    fun onlyBenchmarkExportsThePlaybackTestActivity() {
+    fun onlyBenchmarkExportsTheBenchmarkActivities() {
         // Source: only src/benchmark declares it.
         val declaring =
             manifests().filter { manifest ->
                 val activities = allElements(parse(manifest)).filter { it.tagName == "activity" }
-                activities.any { nameOf(it).endsWith("PlaybackTestActivity") }
+                activities.any { nameOf(it) in benchmarkActivities }
             }
         assertEquals(listOf("src/benchmark/AndroidManifest.xml"), declaring.map { it.invariantSeparatorsPath })
         // Merged: present, exported and not debuggable in the benchmark variant, absent from every other.
         val merged = mergedManifest
-        val activities = allElements(merged).filter { it.tagName == "activity" && nameOf(it) == playbackTestActivity }
+        val activities = allElements(merged).filter { it.tagName == "activity" && nameOf(it) in benchmarkActivities }
         if (isBenchmarkVariant) {
-            assertEquals("true", activities.single().getAttributeNS(androidNamespace, "exported"))
+            assertEquals(benchmarkActivities, activities.map { nameOf(it) }.toSet())
+            assertTrue(activities.all { it.getAttributeNS(androidNamespace, "exported") == "true" })
+            // Only the shell UID (adb) holds DUMP, so no ordinary app can start either activity.
+            activities.forEach {
+                assertEquals(
+                    nameOf(it),
+                    "android.permission.DUMP",
+                    it.getAttributeNS(androidNamespace, "permission"),
+                )
+            }
             val app = allElements(merged).single { it.tagName == "application" }
             val debuggable = app.getAttributeNS(androidNamespace, "debuggable")
             assertTrue("the benchmark build is debuggable", debuggable != "true")
@@ -270,11 +281,11 @@ class BackupRulesTest {
     }
 
     @Test
-    fun releaseHasNoPlaybackTestActivity() {
+    fun releaseHasNoBenchmarkActivities() {
         assertTrue("unexpected variant directory: $variantDirectory", variantDirectory.isNotEmpty())
         if (variantDirectory.endsWith("Release") || variantDirectory.endsWith("Debug")) {
             val names = allElements(mergedManifest).map { nameOf(it) }
-            assertTrue("$variantDirectory has the playback test activity", playbackTestActivity !in names)
+            assertTrue("$variantDirectory has a benchmark activity", names.none { it in benchmarkActivities })
         }
     }
 

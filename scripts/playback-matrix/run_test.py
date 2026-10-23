@@ -4,6 +4,7 @@
 Run: python3 -I -m unittest discover -s scripts/playback-matrix -p '*_test.py'
 """
 
+import itertools
 import json
 import os
 import re
@@ -357,6 +358,220 @@ class DefaultsTest(unittest.TestCase):
             self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
             with open(path, encoding="utf-8") as handle:
                 self.assertEqual(handle.read(), "new")
+
+
+class SetupCommandTest(unittest.TestCase):
+    def test_theSetupCommandUsesTheExtrasTheActivityReads(self):
+        cmd = run.setup_command("SER", "setup", "https://media.example.invalid:8920/jf")
+        self.assertEqual(cmd[:6], ["adb", "-s", "SER", "shell", "am", "start"])
+        self.assertIn("tv.stationbreak.app.benchmark/tv.stationbreak.app.bench.BenchSetupActivity", cmd)
+        text = " ".join(cmd)
+        self.assertIn("--es action setup", text)
+        self.assertIn("--es server https://media.example.invalid:8920/jf", text)
+        self.assertNotIn("force", text)
+
+    def test_theSignoutCommandSendsNoServer(self):
+        text = " ".join(run.setup_command("SER", "signout"))
+        self.assertIn("--es action signout", text)
+        self.assertNotIn("server", text)
+
+    def test_anAddressThatCouldReachAShellIsRefused(self):
+        refused = (None, "", "https://", "https://host\n", "media.example.invalid", "ftp://host", "a b")
+        refused += ("https://h;reboot", "https://h$(id)", "https://h`id`", "https://h'x", 'https://h"x')
+        refused += ("https://a|b", "https://a&b", "https://" + "x" * 513)
+        for bad in refused:
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                run.setup_command("SER", "setup", bad)
+
+    def test_forceIsAnExtraOfSignoutOnly(self):
+        self.assertIn("--ez force true", " ".join(run.setup_command("SER", "signout", force=True)))
+        self.assertNotIn("force", " ".join(run.setup_command("SER", "signout")))
+
+    def test_everyRemotePartIsQuotedForTheDeviceShell(self):
+        cmd = run.setup_command("SER", "setup", "https://[::1]:8096")
+        self.assertEqual(cmd[:4], ["adb", "-s", "SER", "shell"])
+        self.assertIn("'https://[::1]:8096'", cmd)
+
+    def test_setupWaitsLongerThanTheAppDoes(self):
+        self.assertGreater(run.SETUP_SECONDS, 6 * 60)
+
+    def test_anUnknownActionIsRefused(self):
+        with self.assertRaises(ValueError):
+            run.setup_command("SER", "wipe")
+
+
+class SetupLineTest(unittest.TestCase):
+    def test_theLinesTheAppPrintsAreRecognised(self):
+        parse = run.parse_setup_line
+        self.assertEqual(parse("QC 123456", "setup"), run.SetupLine("qc", "123456"))
+        self.assertEqual(parse("I/SBPLAY  ( 123): QC 123456", "setup"), run.SetupLine("qc", "123456"))
+        self.assertEqual(parse("SETUP OK", "setup"), run.SetupLine("ok", ""))
+        self.assertEqual(parse("SETUP ERROR qc-denied", "setup"), run.SetupLine("error", "qc-denied"))
+        self.assertEqual(parse("SIGNOUT OK revoked", "signout"), run.SetupLine("ok", "revoked"))
+        self.assertEqual(parse("SIGNOUT OK not-revoked", "signout"), run.SetupLine("ok", "not-revoked"))
+        self.assertEqual(parse("SIGNOUT ERROR no-session", "signout"), run.SetupLine("error", "no-session"))
+        self.assertEqual(parse("ERROR adb-disabled", "setup"), run.SetupLine("error", "adb-disabled"))
+
+    def test_otherLinesAreIgnored(self):
+        parse = run.parse_setup_line
+        for line in ("", "META {}", "RESULT {}", "DONE r1", "QC", "QC a b", "QC 12 34", "SETUP", "SETUP MAYBE",
+                     "SETUP ERROR", "SETUP ERROR Bad Reason", "SIGNOUT OK maybe", "SETUP OK extra", "SETUP ERROR a b"):
+            self.assertIsNone(parse(line, "setup"), line)
+
+    def test_aLineForTheOtherActionIsNotTakenAsTheAnswer(self):
+        self.assertIsNone(run.parse_setup_line("SIGNOUT OK revoked", "setup"))
+        self.assertIsNone(run.parse_setup_line("SETUP OK", "signout"))
+        self.assertIsNone(run.parse_setup_line("QC 123456", "signout"))
+
+
+class FollowSetupTest(unittest.TestCase):
+    def test_theCodeIsShownThenOkExitsZero(self):
+        codes = []
+        status, message = run.follow_setup(iter(["noise", "QC 123456", "SETUP OK"]), "setup", codes.append)
+        self.assertEqual((status, codes), (0, ["123456"]))
+        self.assertIn("ok", message)
+
+    def test_anErrorExitsNonZeroWithItsReason(self):
+        status, message = run.follow_setup(iter(["QC 123456", "SETUP ERROR qc-expired"]), "setup", lambda code: None)
+        self.assertEqual(status, 1)
+        self.assertIn("qc-expired", message)
+
+    def test_linesThatEndWithoutAnAnswerAreATimeout(self):
+        status, message = run.follow_setup(iter(["QC 123456"]), "setup", lambda code: None)
+        self.assertEqual(status, 1)
+        self.assertIn("no answer", message)
+
+    def test_signoutReportsWhetherTheTokenWasRevoked(self):
+        self.assertEqual(run.follow_setup(iter(["SIGNOUT OK revoked"]), "signout")[0], 0)
+        self.assertIn("not-revoked", run.follow_setup(iter(["SIGNOUT OK not-revoked"]), "signout")[1])
+        self.assertEqual(run.follow_setup(iter(["SIGNOUT ERROR no-session"]), "signout")[0], 1)
+
+    def test_theLinesAfterTheAnswerAreNotRead(self):
+        lines = iter(["SETUP OK", "SETUP ERROR late"])
+        self.assertEqual(run.follow_setup(lines, "setup")[0], 0)
+
+
+class SetupMainTest(unittest.TestCase):
+    def test_setupWithoutAServerExitsTwoBeforeAnyAdbCall(self):
+        with mock.patch.dict(os.environ, {}, clear=False), mock.patch("subprocess.run") as adb:
+            os.environ.pop(run.SERVER_ENV, None)
+            self.assertEqual(run.main(["setup", "-s", "SER"]), 2)
+            adb.assert_not_called()
+
+    def test_theServerCanComeFromTheEnvironment(self):
+        env = {run.SERVER_ENV: "https://media.example.invalid"}
+        with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as adb, mock.patch(
+            "subprocess.Popen"
+        ), mock.patch.object(run, "_wait_for_pid", return_value=42), mock.patch.object(
+            run, "read_lines", return_value=iter(["SETUP OK"])
+        ):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["setup", "-s", "SER"]), 0)
+        started = [call.args[0] for call in adb.call_args_list if "BenchSetupActivity" in " ".join(call.args[0])]
+        self.assertIn("https://media.example.invalid", started[0])
+
+    def test_anErrorLineMakesTheCommandExitNonZero(self):
+        with mock.patch("subprocess.run") as adb, mock.patch("subprocess.Popen"), mock.patch.object(
+            run, "_wait_for_pid", return_value=42
+        ), mock.patch.object(run, "read_lines", return_value=iter(["SIGNOUT ERROR no-session"])):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["signout", "-s", "SER"]), 1)
+
+    def test_forceReachesTheSignoutCommand(self):
+        with mock.patch("subprocess.run") as adb, mock.patch("subprocess.Popen"), mock.patch.object(
+            run, "_wait_for_pid", return_value=42
+        ), mock.patch.object(run, "read_lines", return_value=iter(["SIGNOUT OK not-revoked"])):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["signout", "-s", "SER", "--force"]), 0)
+        started = [call.args[0] for call in adb.call_args_list if "BenchSetupActivity" in " ".join(call.args[0])]
+        self.assertIn("force", " ".join(started[0]))
+
+    def adb_calls(self, adb):
+        return [" ".join(call.args[0]) for call in adb.call_args_list]
+
+    def test_aStaleActivityIsForceStoppedBeforeSetupStarts(self):
+        env = {run.SERVER_ENV: "https://media.example.invalid"}
+        with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as adb, mock.patch(
+            "subprocess.Popen"
+        ), mock.patch.object(run, "_wait_for_pid", return_value=42), mock.patch.object(
+            run, "read_lines", return_value=iter(["SETUP OK"])
+        ):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["setup", "-s", "SER"]), 0)
+        calls = self.adb_calls(adb)
+        stop = calls.index(f"adb -s SER shell am force-stop {run.APP_ID}")
+        start = next(i for i, call in enumerate(calls) if "BenchSetupActivity" in call)
+        self.assertLess(stop, start)
+        self.assertLess(stop, calls.index("adb -s SER logcat -c"))
+
+    def test_aStaleActivityIsForceStoppedBeforeSignoutStarts(self):
+        with mock.patch("subprocess.run") as adb, mock.patch("subprocess.Popen"), mock.patch.object(
+            run, "_wait_for_pid", return_value=42
+        ), mock.patch.object(run, "read_lines", return_value=iter(["SIGNOUT OK revoked"])):
+            adb.return_value.stdout = ""
+            self.assertEqual(run.main(["signout", "-s", "SER"]), 0)
+        calls = self.adb_calls(adb)
+        stop = calls.index(f"adb -s SER shell am force-stop {run.APP_ID}")
+        start = next(i for i, call in enumerate(calls) if "BenchSetupActivity" in call)
+        self.assertLess(stop, start)
+
+    def run_with_reads(self, action, reads, seconds=0.5):
+        """main() for [action] with one iterator in [reads] per logcat attach; returns (status, codes, popen)."""
+        env = {run.SERVER_ENV: "https://media.example.invalid"}
+        codes = []
+        seconds_name = "SETUP_SECONDS" if action == "setup" else "SIGNOUT_SECONDS"
+        with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as adb, mock.patch(
+            "subprocess.Popen"
+        ) as popen, mock.patch.object(run, "_wait_for_pid", return_value=42), mock.patch.object(
+            run, "read_lines", side_effect=[iter(read) for read in reads]
+        ), mock.patch.object(run, "_announce_code", codes.append), mock.patch.object(
+            run, seconds_name, seconds
+        ), mock.patch.object(run, "REATTACH_SECONDS", 0.01):
+            adb.return_value.stdout = ""
+            status = run.main([action, "-s", "SER"])
+        return status, codes, popen
+
+    def test_anEarlyLogcatEndIsWaitedPastAndTheReReadAnswers(self):
+        status, codes, popen = self.run_with_reads("setup", [["QC 123456"], ["QC 123456", "SETUP OK"]])
+        self.assertEqual(status, 0)
+        self.assertEqual(codes, ["123456"])
+        self.assertEqual(popen.call_count, 2)
+        # Every attach reads the same process only, so an older line from another process cannot count.
+        self.assertEqual({tuple(call.args[0]) for call in popen.call_args_list}, {tuple(run.logcat_command("SER", 42))})
+
+    def test_aSignoutWaitsPastAnEarlyLogcatEndToo(self):
+        status, _, popen = self.run_with_reads("signout", [[], [], ["SIGNOUT OK revoked"]])
+        self.assertEqual(status, 0)
+        self.assertEqual(popen.call_count, 3)
+
+    def test_anEndWithNoAnswerBeforeTheDeadlineIsTheTimeout(self):
+        with mock.patch("sys.stderr") as err:
+            status, codes, popen = self.run_with_reads("setup", [["QC 123456"]] + [[]] * 200, seconds=0.2)
+        self.assertEqual(status, 1)
+        self.assertEqual(codes, ["123456"])
+        self.assertGreater(popen.call_count, 1)
+        printed = "".join(call.args[0] for call in err.write.call_args_list)
+        self.assertIn("setup: no answer from the app before the timeout", printed)
+
+    def test_aReReadDoesNotCountALineTwiceOrReplayAnOldOne(self):
+        status, codes, _ = self.run_with_reads(
+            "setup", [["QC 111111"], ["QC 111111", "QC 222222"], ["QC 111111", "QC 222222", "SETUP OK"]]
+        )
+        self.assertEqual(status, 0)
+        self.assertEqual(codes, ["111111", "222222"])
+
+    def test_aNewLineLikeAnEarlierOneIsKeptOnceAndAReplayedLineIsDropped(self):
+        attaches = [iter(["a", "b", "a"]), iter(["a", "b", "a", "a", "c"]), iter(["b", "a", "a", "a", "c", "d"])]
+        with mock.patch("subprocess.Popen"), mock.patch.object(run, "read_lines", side_effect=attaches), mock.patch.object(
+            run, "REATTACH_SECONDS", 0.01
+        ):
+            lines = list(itertools.islice(run.stream_logcat("SER", 42, time.monotonic() + 30), 6))
+        self.assertEqual(lines, ["a", "b", "a", "a", "c", "d"])
+
+    def test_aBadServerExitsTwo(self):
+        with mock.patch("subprocess.run") as adb:
+            self.assertEqual(run.main(["setup", "-s", "SER", "--server", "a;b"]), 2)
+            adb.assert_not_called()
 
 
 class ShortfallTest(unittest.TestCase):
