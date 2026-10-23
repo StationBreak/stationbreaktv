@@ -77,7 +77,7 @@ class BuiltInScheduleSource(
         val (account, chosen) = signedIn() ?: return emptyList()
         val at = Instant.fromEpochMilliseconds(block.startMs)
         val day = channelDays(account, chosen, at).firstOrNull { it.channel.id == channel }
-        return day?.let { standInsOf(account, it, block, exclude) } ?: emptyList()
+        return day?.let { standInsOf(account, it, block, exclude) }.orEmpty()
     }
 
     private suspend fun standInsOf(

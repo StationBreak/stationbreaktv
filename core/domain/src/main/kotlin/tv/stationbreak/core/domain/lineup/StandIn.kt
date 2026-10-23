@@ -21,6 +21,7 @@ internal object StandIn {
      * `splitmix64(base xor fnv1a64(id))` where `base = splitmix64(seedN(seed, n) + blockStartMs)`, and taken in
      * `(key, id)` order until their runtimes sum to at least [lengthMs]. A pool that runs out first gives what it has.
      */
+    @Suppress("LongParameterList") // The pinned formula's inputs, one for one.
     fun pick(
         settings: SchedulerSettings,
         n: Long,
