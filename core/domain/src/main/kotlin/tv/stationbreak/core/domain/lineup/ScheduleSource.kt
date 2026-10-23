@@ -50,10 +50,23 @@ data class ChannelAiring(
 
 /**
  * Where the guide and flipping learn which channels air (spec 12). A source works out for itself whose lineup and which
- * libraries it is asked about: callers give only the moment. F1.3 will extend this port with what it needs to build a
- * schedule; the built-in source's days (`ChannelDay`) are internal to it and are not part of the port.
+ * libraries it is asked about: callers give only the moment. F1.3 (spec 14) extends it with [onAir], what is on one
+ * channel and the blocks that follow, so the live screen can tune at the schedule's offset and name the show. The
+ * built-in source's days (`ChannelDay`) are internal to it and are not part of the port.
  */
 interface ScheduleSource {
+    /**
+     * What is on [channel] at [at], with the [next] blocks that follow it ([next] of them: when the broadcast day
+     * runs out they continue into the following days, each built from its own library snapshot). Null while nobody is
+     * signed in or no libraries are chosen, and when the channel is not switched on or is hidden at [at] (see
+     * [ChannelAiring.hidden]).
+     */
+    suspend fun onAir(
+        channel: ChannelId,
+        at: Instant,
+        next: Int,
+    ): ChannelOnAir?
+
     /**
      * Every switched-on channel of the active account's lineup that can be scheduled, in number order, as it is at
      * [at]. Empty while nobody is signed in, no libraries are chosen, or there is no lineup.

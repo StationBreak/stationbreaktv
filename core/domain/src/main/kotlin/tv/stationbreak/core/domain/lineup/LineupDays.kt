@@ -23,8 +23,10 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RatingLadder
+import tv.stationbreak.core.scheduler.Day
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
+import tv.stationbreak.core.scheduler.buildDay
 
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
@@ -41,6 +43,9 @@ internal class ChannelDay(
 ) {
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
+
+    /** The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once). */
+    val day: Day by lazy { buildDay(settings, pool, n) }
 }
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */

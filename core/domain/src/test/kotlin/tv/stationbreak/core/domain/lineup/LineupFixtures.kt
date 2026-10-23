@@ -185,6 +185,7 @@ internal class CountingLibrary(
 
     val snapshotCutoffs = mutableListOf<Instant>()
     var scheduleItemsCalls = 0
+    var programInfoCalls = 0
 
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
@@ -202,6 +203,14 @@ internal class CountingLibrary(
     ): List<ScheduleItem> {
         scheduleItemsCalls++
         return delegate.scheduleItems(account, libraries, cutoff)
+    }
+
+    override suspend fun programInfo(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, ProgramInfo> {
+        programInfoCalls++
+        return delegate.programInfo(account, ids)
     }
 
     fun seed(vararg items: RuleItem) = delegate.seedRule(ACCOUNT, *items)
