@@ -28,6 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.app.di.LibraryModule
 import tv.stationbreak.app.di.MediaServerModule
+import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.FirstSync
@@ -57,6 +58,7 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
@@ -83,7 +85,7 @@ private object Syncing {
  * focus while it syncs, and that Back leaves the app with the sync still going.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class, LibraryModule::class)
+@UninstallModules(MediaServerModule::class, LibraryModule::class, PlayerModule::class)
 @RunWith(AndroidJUnit4::class)
 @Suppress("TooManyFunctions") // One function per route and behaviour.
 class FirstSyncNavigationTest {
@@ -115,6 +117,13 @@ class FirstSyncNavigationTest {
             store: SecretStore,
             server: MediaServer,
         ): SessionRepository = SessionRepository(store, server)
+
+        // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
+        @Provides
+        fun clock(): Clock = Clock.System
+
+        @Provides
+        fun players(): VideoPlayerFactory = LiveTestBindings.players
 
         @Provides
         @Singleton

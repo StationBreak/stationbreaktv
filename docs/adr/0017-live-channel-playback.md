@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-23
-- **Decided by:** the owner (Phil, 2026-10-23) for how a dead item, a stand-in and the drift behave and for how the screen looks; technical calls under his standing instruction for the rest (marked in the text)
+- **Decided by:** the owner (Phil, 2026-10-23) for how a dead item, a stand-in and the drift behave and for how the screen looks; technical calls under the owner's standing instruction for the rest (marked in the text)
 - **Revisit:** if a later spec lets a viewer flip channels (F1.4) or call up the banner (F2.2), when the input shape under "Future input" is built; if stand-ins ever need to agree across TVs whose libraries differ; if the shared channel manager in #354 is built
 - **Informs:** spec 14 (offset playback, F1.3), ADR-0016 (the player's lifecycle seam), `docs/rules-format.md` (the stand-in note under the pool's cut-off rules), BACKLOG S1.3.1 to S1.3.3, ASSUMPTIONS Q-SCH-3
 

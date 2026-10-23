@@ -27,6 +27,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.app.di.MediaServerModule
+import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -53,6 +54,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.launch.LaunchTags
@@ -62,6 +64,7 @@ import tv.stationbreak.feature.onboarding.server.ServerTags
 import tv.stationbreak.feature.onboarding.signin.SignInTags
 import tv.stationbreak.feature.onboarding.trust.TrustTags
 import javax.inject.Singleton
+import kotlin.time.Clock
 
 /** A scripted server whose restore can be held open, to see the app while launch routing is still working. */
 private class ScriptedServer(
@@ -89,7 +92,7 @@ private object Launched {
  * with Continue and Switch user, and the live screen with Back leaving the app.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class)
+@UninstallModules(MediaServerModule::class, PlayerModule::class)
 @RunWith(AndroidJUnit4::class)
 @Suppress("TooManyFunctions") // One function per route and behaviour.
 class LaunchNavigationTest {
@@ -121,6 +124,13 @@ class LaunchNavigationTest {
             store: SecretStore,
             server: MediaServer,
         ): SessionRepository = SessionRepository(store, server)
+
+        // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
+        @Provides
+        fun clock(): Clock = Clock.System
+
+        @Provides
+        fun players(): VideoPlayerFactory = LiveTestBindings.players
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))

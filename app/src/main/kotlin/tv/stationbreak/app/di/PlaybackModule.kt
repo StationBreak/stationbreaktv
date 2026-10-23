@@ -8,29 +8,21 @@ import android.content.IntentFilter
 import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.MediaServer
-import tv.stationbreak.core.domain.SessionRepository
-import tv.stationbreak.core.playback.Media3VideoPlayerFactory
 import tv.stationbreak.core.playback.PlaybackResolver
-import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.probe.AndroidCodecInventory
 import tv.stationbreak.core.playback.probe.CapabilityProbe
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
-import tv.stationbreak.data.jellyfin.JellyfinMediaServer
-import tv.stationbreak.data.jellyfin.mediaCallFactory
 import javax.inject.Singleton
 
 /**
- * The bindings for playback (spec 13, ADR-0016): the device's capabilities, the data source the player reads media
- * through, the factory that builds the player, and the resolver that decides how to play an item. The screen that plays
- * creates one player from the [VideoPlayerFactory] for its lifetime and releases it; it never names a Media3 type.
+ * The bindings for playback (spec 13, ADR-0016): the device's capabilities and the resolver that decides how to play an
+ * item. The player itself is in [PlayerModule], so a test that replaces the HTTP client can replace the player too.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -64,28 +56,6 @@ internal object PlaybackModule {
         )
         return cache
     }
-
-    /**
-     * The player's way to read media: the credentialed media client behind Media3's OkHttp data source, handed to the
-     * player as it is. It is never wrapped in `DefaultDataSource.Factory`, which would open `file://` and `content://`
-     * URIs a server's playlist names (ADR-0016, 9). The call factory asks [SessionRepository.current] for every
-     * request. It reads the device ID with `runBlocking` on its first call, which is Media3's loader thread, never the
-     * main thread.
-     */
-    @Provides
-    @MediaDataSource
-    @UnstableApi
-    fun mediaDataSource(
-        server: JellyfinMediaServer,
-        sessions: SessionRepository,
-    ): DataSource.Factory = OkHttpDataSource.Factory(server.mediaCallFactory { sessions.current.value })
-
-    /** The way a screen gets its player: Media3 behind it, the media client's data source inside it. */
-    @Provides
-    @UnstableApi
-    fun videoPlayerFactory(
-        @MediaDataSource dataSource: DataSource.Factory,
-    ): VideoPlayerFactory = Media3VideoPlayerFactory(dataSource)
 
     @Provides
     fun playbackResolver(
