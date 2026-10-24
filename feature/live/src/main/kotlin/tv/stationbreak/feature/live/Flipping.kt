@@ -1,0 +1,200 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.feature.live
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.lineup.ChannelAiring
+import tv.stationbreak.core.domain.lineup.ChannelOnAir
+import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.ChannelId
+import kotlin.time.Clock
+import kotlin.time.Instant
+
+/** When the viewer last pressed a key for a flip, and how long the settle waited after it (for [TuneReport.Flip]). */
+internal class FlipTiming(
+    val lastCommandAt: Instant,
+    val settleMs: Long,
+)
+
+/**
+ * Which channel the next sitting is on: [first] is what was on it at the commit, or null to choose as spec 14 does (the
+ * saved channel, else the first with something on). [flip] is set when a flip asked for it.
+ */
+internal class SitRequest(
+    val first: ChannelOnAir?,
+    val flip: FlipTiming?,
+)
+
+/**
+ * The channel being watched and the one before it, for Menu. Both are written from the sitting and from [Flipper], and
+ * [moveTo] is idempotent, so whichever sees a channel change first sets it and the other changes nothing. Kept for this
+ * run only (design: not persisted).
+ */
+internal class Tuned {
+    @Volatile
+    var playing: ChannelAiring? = null
+        private set
+
+    @Volatile
+    var previous: ChannelId? = null
+        private set
+
+    @Synchronized
+    fun moveTo(channel: ChannelAiring) {
+        val was = playing
+        if (was != null && was.id != channel.id) previous = was.id
+        playing = channel
+    }
+}
+
+/**
+ * Flipping (spec 15): follows the viewer's [LiveCommand]s and asks for a new sitting with [start] when a flip commits.
+ * It never touches the running sitting: [LiveState.Choosing] is only laid over the screen ([Screen]), so the old
+ * channel plays on while the number moves, and the commit is the one place a sitting is replaced (the machine's
+ * `collectLatest` cancels the old sitting, which stops the tuner, before the new one starts). Commands are handled one
+ * at a time; only the settle runs beside them, and each command ends a pending settle (and waits for it to stop)
+ * before it acts, so a commit is either whole or never began.
+ */
+@Suppress("LongParameterList") // The machine's ports, one for one.
+internal class Flipper(
+    private val schedule: ScheduleSource,
+    private val clock: Clock,
+    private val timings: LiveTimings,
+    private val screen: Screen,
+    private val tuned: Tuned,
+    private val report: (TuneReport) -> Unit,
+    private val start: (SitRequest) -> Unit,
+) {
+    // The snapshot of the lineup, taken at the first press after a commit and kept until the next commit.
+    private var order: FlipOrder? = null
+
+    // Where a commit would go; null before the first press after a commit.
+    private var target: ChannelAiring? = null
+    private var settling: Job? = null
+
+    /** Handles [commands] until the flow ends and any settle has run. A command that fails is dropped, not fatal. */
+    suspend fun follow(commands: Flow<LiveCommand>) =
+        coroutineScope {
+            commands.collect { command ->
+                try {
+                    when (command) {
+                        is LiveCommand.Flip -> press(this, command.direction)
+                        LiveCommand.Previous -> previous()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
+                    failed(e)
+                }
+            }
+        }
+
+    private val onScreen: Boolean
+        get() = screen.value.let { it != LiveState.NoChannels && it != LiveState.SignedOut }
+
+    private suspend fun press(
+        scope: CoroutineScope,
+        direction: FlipDirection,
+    ) {
+        val now = clock.now()
+        settling?.cancelAndJoin()
+        val playing = tuned.playing
+        if (playing == null || !onScreen) return
+        val steps = order ?: FlipOrder(schedule.airings(now)).also { order = it }
+        val next = steps.step(target?.number ?: playing.number, direction) ?: return
+        target = next
+        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.value is LiveState.Watching))
+        settling = scope.launch { settle(steps, next, direction, now) }
+    }
+
+    /** Waits out the settle after the last press at [pressedAt], then commits to [chosen]. */
+    private suspend fun settle(
+        steps: FlipOrder,
+        chosen: ChannelAiring,
+        direction: FlipDirection,
+        pressedAt: Instant,
+    ) {
+        try {
+            delay(timings.flipSettle)
+            val timing = FlipTiming(pressedAt, (clock.now() - pressedAt).inWholeMilliseconds)
+            commit(steps, chosen, direction, timing)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            failed(e)
+        }
+    }
+
+    /**
+     * Commit to [chosen]; a channel with nothing on the air is stepped past in [direction], at most once round the
+     * order, and if none has anything on the sitting chooses as it does at start. This is the one point where a flip
+     * becomes a tune.
+     */
+    private suspend fun commit(
+        steps: FlipOrder,
+        chosen: ChannelAiring,
+        direction: FlipDirection,
+        timing: FlipTiming,
+    ) {
+        var candidate: ChannelAiring? = chosen
+        var onAir: ChannelOnAir? = null
+        var looked = 0
+        while (candidate != null && onAir == null && looked < steps.size) {
+            onAir = schedule.onAir(candidate.id, clock.now(), Sitting.WINDOW)
+            if (onAir == null) candidate = steps.step(candidate.number, direction)
+            looked++
+        }
+        land(onAir, chosen, timing)
+    }
+
+    /** Menu: the channel before this one, now. Nothing happens when there is none, or it is gone or off the air. */
+    private suspend fun previous() {
+        val now = clock.now()
+        val wanted = tuned.previous?.takeIf { tuned.playing != null && onScreen } ?: return
+        val onAir = FlipOrder(schedule.airings(now)).byId(wanted)?.let { schedule.onAir(it.id, now, Sitting.WINDOW) }
+        if (onAir == null) return
+        settling?.cancelAndJoin()
+        // A settle that finished while this looked would have moved the channel on: leave that commit be.
+        if (tuned.previous == wanted) land(onAir, onAir.channel, FlipTiming(now, 0))
+    }
+
+    /**
+     * Starts a sitting on [onAir]. The number stays up over snow until that sitting writes its first state. A landing
+     * on the channel already playing (a full wrap) tunes nothing and drops the number.
+     */
+    private fun land(
+        onAir: ChannelOnAir?,
+        chosen: ChannelAiring,
+        timing: FlipTiming,
+    ) {
+        order = null
+        target = null
+        if (onAir != null && onAir.channel.id == tuned.playing?.id) {
+            screen.drop()
+            return
+        }
+        onAir?.let { tuned.moveTo(it.channel) }
+        screen.commit(LiveState.Choosing((onAir?.channel ?: chosen).tag(), overPicture = false))
+        start(SitRequest(onAir, timing))
+    }
+
+    /** A flip that broke on an unexpected exception: report its class name only, and show the channel again. */
+    private fun failed(error: Exception) {
+        report(TuneReport.Failed(error.javaClass.simpleName.ifEmpty { "Unknown" }))
+        order = null
+        target = null
+        screen.drop()
+    }
+
+    private fun ChannelAiring.tag() = ChannelTag(number, name)
+}

@@ -6,6 +6,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -392,14 +393,17 @@ class Rig(
 
     val seen: List<LiveState> get() = states.map { it.first }
 
-    suspend fun start(withAccount: Boolean = true): Job {
+    suspend fun start(
+        withAccount: Boolean = true,
+        commands: Flow<LiveCommand> = emptyFlow(),
+    ): Job {
         sessions.save(session)
         if (withAccount) library.useAccount(account)
         channels.publish(*schedule.channels.map { it.key to it.value.number }.toTypedArray())
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
             live.state.collect { states += it to tune.calls.size }
         }
-        val job = scope.backgroundScope.launch { live.run() }
+        val job = scope.backgroundScope.launch { live.run(commands) }
         scope.runCurrent()
         return job
     }

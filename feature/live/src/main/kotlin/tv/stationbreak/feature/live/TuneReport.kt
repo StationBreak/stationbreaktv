@@ -73,6 +73,25 @@ sealed interface TuneReport {
         override fun line() = "sitting failed error=$error"
     }
 
+    /**
+     * One flip, timed from the viewer's last key press (spec 15): [toFirstFrameMs] and [toPlayingMs] include the
+     * [settleMs] wait, so they are what the viewer waited. A null time is logged as [NOT_SEPARATE]. [outcome] is what
+     * the channel's first block came to: `playing`, `slate`, `standin` or `failed`. [route] and [fallback] are the
+     * first tune's, as in [Tune].
+     */
+    data class Flip(
+        val toFirstFrameMs: Long?,
+        val toPlayingMs: Long?,
+        val settleMs: Long,
+        val outcome: String,
+        val route: String?,
+        val fallback: String?,
+    ) : TuneReport {
+        override fun line() =
+            "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
+                "settleMs=$settleMs outcome=$outcome route=${route ?: "none"} fallback=${fallback ?: "none"}"
+    }
+
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L
@@ -105,4 +124,33 @@ internal fun Sitting.reportTune(
         val gapMs = (clock.now() - cutSince).inWholeMilliseconds
         report(TuneReport.Cut(gapMs, resolveMs, timings.firstFrameMs))
     }
+}
+
+/** The flip's line, once its first tune has played. Times run from the viewer's last key press ([Sitting.flip]). */
+internal fun Sitting.reportFlipPlayed(
+    kind: TuneKind,
+    began: Instant,
+    returned: Instant,
+    timings: TuneTimings,
+) {
+    val timing = flip ?: return
+    flip = null
+    val waitMs = (began - timing.lastCommandAt).inWholeMilliseconds
+    report(
+        TuneReport.Flip(
+            timings.firstFrameMs?.let { waitMs + it },
+            (returned - timing.lastCommandAt).inWholeMilliseconds,
+            timing.settleMs,
+            if (kind == TuneKind.StandIn) "standin" else "playing",
+            timings.route,
+            timings.fallback,
+        ),
+    )
+}
+
+/** The flip's line when its first block came to a card instead of a picture: [outcome] is `slate` or `failed`. */
+internal fun Sitting.reportFlipEnded(outcome: String) {
+    val timing = flip ?: return
+    flip = null
+    report(TuneReport.Flip(null, null, timing.settleMs, outcome, null, null))
 }

@@ -20,6 +20,9 @@ import kotlin.time.Duration.Companion.seconds
  * @property preResolveLead how long before a block ends the next program is resolved.
  * @property crashBackoff how long the card holds after a sitting broke on an unexpected exception, before a fresh
  *   sitting re-anchors to the clock: long enough that a fault which repeats cannot spin the loop.
+ * @property flipSettle how long after the last Up or Down press the channel the viewer stopped on is tuned (spec 15):
+ *   long enough that a held key only moves the number, short enough to cost the flip little of its time budget.
+ * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
     val bannerLinger: Duration = 4.seconds,
@@ -29,8 +32,11 @@ data class LiveTimings(
     val standInAttempts: Int = 2,
     val preResolveLead: Duration = 45.seconds,
     val crashBackoff: Duration = 5.seconds,
+    val flipSettle: Duration = 400.milliseconds,
+    val flipLogSize: Int = 50,
 ) {
     init {
+        require(flipLogSize >= 1) { "At least one flip must be kept" }
         require(standInAttempts >= 1) { "At least one stand-in must be tried" }
     }
 }

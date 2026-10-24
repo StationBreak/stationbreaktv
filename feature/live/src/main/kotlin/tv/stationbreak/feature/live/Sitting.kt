@@ -7,7 +7,6 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -60,8 +59,10 @@ internal class Sitting(
     val tuner: TunePort,
     val clock: Clock,
     val timings: LiveTimings,
-    val state: MutableStateFlow<LiveState>,
+    val state: Screen,
     val report: (TuneReport) -> Unit = {},
+    /** Set for a sitting a flip started: its first block reports the flip's line (once), then this is null. */
+    var flip: FlipTiming? = null,
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -113,9 +114,18 @@ internal class Sitting(
             val ahead = nextUp.prepare(this, onAir)
             try {
                 when (val airing = onAir.now.airing) {
-                    Airing.Slate -> holdIdent(onAir, onAir.now.endMs)
-                    is Airing.Program -> playProgram(this, onAir, airing, handle)
-                    is Airing.StandIn -> error("A schedule never holds a stand-in")
+                    Airing.Slate -> {
+                        reportFlipEnded("slate")
+                        holdIdent(onAir, onAir.now.endMs)
+                    }
+
+                    is Airing.Program -> {
+                        playProgram(this, onAir, airing, handle)
+                    }
+
+                    is Airing.StandIn -> {
+                        error("A schedule never holds a stand-in")
+                    }
                 }
             } finally {
                 handle?.let { nextUp.discard(it) }
@@ -205,6 +215,7 @@ internal class Sitting(
         val outcome = tune()
         if (outcome is TuneOutcome.Playing) {
             reportTune(what, outcome.timings, cutSince)
+            reportFlipPlayed(what.kind, began, clock.now(), outcome.timings)
             if (snow) {
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))

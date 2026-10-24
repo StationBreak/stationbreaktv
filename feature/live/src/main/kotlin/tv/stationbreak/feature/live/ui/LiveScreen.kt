@@ -36,6 +36,11 @@ internal fun LiveScreen(
                 state.banner?.let { CableBanner(it) }
             }
 
+            is LiveState.Choosing -> {
+                // The number itself is drawn in spec 15's screen task; until then, snow when no picture is under it.
+                if (!state.overPicture) Snow()
+            }
+
             is LiveState.TechnicalDifficulties -> {
                 DifficultiesSlate(state.upNext, state.channel)
             }
