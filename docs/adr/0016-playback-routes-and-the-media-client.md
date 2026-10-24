@@ -126,8 +126,9 @@ master, the variant and the segments for a non-zero start, for a transcode and f
   client rewriting playlists that are the server's own; we build the URL and leave the playlists alone.
 - **Revisit** if Jellyfin accepts `StartTimeTicks` on segments again (server-side start would save the seek), or if the
   contract suite's placement check ever shows HLS placement drifting. `TuneController`'s `startingAt` (a handle played
-  from a later start, spec 15) is correct only while the URL has no start, and a resolver test holds that; the day a
-  URL carries a start, `startingAt` must re-resolve instead.
+  from a later start, spec 15) is correct only while the URL has no start. Two things hold that: `StreamUrls.hls` takes
+  no start, and the contract suite asserts the built URL has no `StartTimeTicks`
+  (`assertSegmentsServeAt`); the day a URL carries a start, `startingAt` must re-resolve instead.
 
 ## Update 2026-10-22: embedded text subtitles on HLS
 
@@ -185,12 +186,15 @@ cut and a screen has to learn when a play is over.
   plays it with no resolve call; if that play breaks, the normal fallback applies and re-resolves. A non-null
   `override` cannot be honoured by a default-track handle, so it discards the handle and tunes the ordinary way. A
   pre-resolve is one `PlaybackInfo` call and the URL builders: it starts no encode (the server starts one with the
-  first playlist or segment request, and the contract suite checks that `PlaybackInfo` alone leaves none), so a held
-  handle costs nothing on the server. It does go stale when its block ends, so callers pre-resolve shortly before the
-  cut (`preResolveLead`, 45 s), or keep a handle only while its block is on. `tune(session, prepared, override,
+  first playlist or segment request, and the contract case `aPlaybackInfoAloneStartsNoEncode` checks that
+  `PlaybackInfo` alone leaves none, with a stream request as its positive control), so a held handle costs nothing on
+  the server. It does go stale when its block ends, so callers pre-resolve shortly before the cut (`preResolveLead`,
+  45 s), or keep a handle only while its block is on. **Revisit:** if that case fails on a supported Jellyfin, a held
+  handle holds an encode: `Neighbours` must stop holding handles (resolve at commit instead) and the just-in-time
+  `preResolveLead` rule applies again. `tune(session, prepared, override,
   start)` may replace the handle's start (spec 15, look-ahead): the played copy has the new start, which is sound
   because the HLS URL carries no start.
-- **No leaked encode.** The controller tracks every outstanding handle. `discard` ends its encode (once; a handle
+- **No leaked encode.** The controller tracks every outstanding handle. `discard` ends any encode its play started (once; a handle
   already played is untouched), `close` discards all of them, and a `preResolve` that finishes after `close` discards
   its own handle. **A handle is gone once it is passed to `tune`, or after `discard`; `discard` on a consumed handle is
   a no-op.** `tune(prepared)` takes the handle on entry, and when the tune ends without having started its play

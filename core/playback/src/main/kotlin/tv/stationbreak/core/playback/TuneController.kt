@@ -71,15 +71,15 @@ sealed interface PlaybackEnd {
 /**
  * An item resolved ahead of time by [TuneController.preResolve], to be played by [TuneController.tune] without a
  * server round trip. Opaque: it holds the resolved stream, whose URL is a secret. The caller owns it until it is
- * played, discarded, or the controller is closed. Resolving starts no encode (the server starts one with the first
- * playlist or segment request), so a held handle costs nothing on the server; it goes stale when the item's block ends.
+ * played, discarded, or the controller is closed. What a held handle costs the server, and how long to keep one, is
+ * ADR-0016 (pre-resolve); it goes stale when the item's block ends.
  */
 class Prepared internal constructor(
     internal val item: ItemId,
     internal val start: Duration,
     internal val resolved: ResolvedPlayback,
 ) {
-    /** Set once nothing else need end this handle's encode: a tune adopted it, or already stopped it. */
+    /** Set once nothing else need end any encode this handle's play started: a tune adopted it, or stopped it. */
     @Volatile internal var adopted: Boolean = false
 
     override fun toString(): String = "Prepared"

@@ -88,6 +88,8 @@ what the screen does then, and the few structural choices that go with it.
 - **Kept fresh.** They are made again at each picture of the current channel (so after a block change or a skipped
   look while the number was moving), and a handle is dropped once its block has ended. Look-ahead never runs while the
   viewer is moving the number.
+- **Revisit** if the contract case `aPlaybackInfoAloneStartsNoEncode` fails on a supported Jellyfin (ADR-0016): a held
+  handle then holds an encode, so `Neighbours` must stop holding handles and resolve at commit instead.
 - **Retargeted.** A handle waits, so it is played from the schedule's position at the commit, not the one it was
   resolved for (`TuneController.tune(prepared, override, start)`); a flip's tune is reported as kind `neighbour`.
   A flip still shows the snow, whatever route it takes.
