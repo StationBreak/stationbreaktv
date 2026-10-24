@@ -2,14 +2,16 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
-import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -70,16 +72,41 @@ class LiveBannerOverflowTest {
         )
     }
 
-    /** The node sits between the banner's sides, and the banner between the safe-area insets. */
+    /** The root's size and every tagged node's bounds, all read from one pass over one semantics tree (#385). */
+    private class Frame(
+        val root: Rect,
+        val tagged: Map<String, Rect>,
+    ) {
+        override fun toString() = "root=$root, tagged=$tagged"
+    }
+
+    private fun frame(): Frame {
+        val tagged = mutableMapOf<String, Rect>()
+
+        fun walk(node: SemanticsNode) {
+            node.config.getOrNull(SemanticsProperties.TestTag)?.let { tagged[it] = node.boundsInRoot }
+            node.children.forEach(::walk)
+        }
+        val root = compose.onRoot(useUnmergedTree = true).fetchSemanticsNode()
+        walk(root)
+        return Frame(root.boundsInRoot, tagged)
+    }
+
+    /**
+     * The node sits between the banner's sides, and the banner between the safe-area insets. The bounds come from one
+     * [frame]: separate reads can straddle a layout pass and disagree (#385), and a failure now says what every bound
+     * was.
+     */
     private fun assertInside(tag: String) {
-        val root = compose.onRoot().getBoundsInRoot()
-        val banner = compose.onNodeWithTag(LiveTags.BANNER).getBoundsInRoot()
-        val node = compose.onNodeWithTag(tag).getBoundsInRoot()
-        val inset = root.right * SAFE
-        assertTrue("banner left is inside the safe area", banner.left >= inset - TOLERANCE)
-        assertTrue("banner right is inside the safe area", banner.right <= root.right - inset + TOLERANCE)
-        assertTrue("$tag left is inside the banner", node.left >= banner.left - TOLERANCE)
-        assertTrue("$tag right is inside the banner", node.right <= banner.right + TOLERANCE)
+        val frame = frame()
+        val tolerance = compose.activity.resources.displayMetrics.density
+        val banner = checkNotNull(frame.tagged[LiveTags.BANNER]) { "no banner in $frame" }
+        val node = checkNotNull(frame.tagged[tag]) { "no $tag in $frame" }
+        val inset = frame.root.right * SAFE
+        assertTrue("banner left is inside the safe area: $frame", banner.left >= inset - tolerance)
+        assertTrue("banner right is inside the safe area: $frame", banner.right <= frame.root.right - inset + tolerance)
+        assertTrue("$tag left is inside the banner: $frame", node.left >= banner.left - tolerance)
+        assertTrue("$tag right is inside the banner: $frame", node.right <= banner.right + tolerance)
     }
 
     @Test
@@ -118,6 +145,5 @@ class LiveBannerOverflowTest {
         const val MINUTE = 60_000L
         const val START = 1_800_000_000_000L
         const val SAFE = 0.05f
-        val TOLERANCE = 1.dp
     }
 }
