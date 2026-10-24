@@ -96,8 +96,8 @@ sealed interface TuneReport {
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
-                "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} route=${route ?: "none"} " +
-                "fallback=${fallback ?: "none"}"
+                "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} " +
+                "route=${route ?: "none"} fallback=${fallback ?: "none"}"
     }
 
     companion object {
