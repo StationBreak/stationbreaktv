@@ -58,6 +58,14 @@ class LiveChannel(
     private var saved: ChannelId? = null
     private var account: LibraryAccount? = null
 
+    // A commit queued and not yet picked up by a sitting, and whether one has been queued since a sitting began: a
+    // sitting that is cancelled then was replaced by that commit, else the run is ending.
+    private var unstarted: SitRequest? = null
+
+    @Volatile
+    private var replaced = false
+    private var refresher: () -> Unit = {}
+
     @Volatile
     private var flipLog: List<TuneReport.Flip> = emptyList()
 
@@ -86,9 +94,10 @@ class LiveChannel(
         }
         val requests = Channel<SitRequest>(Channel.CONFLATED)
         requests.trySend(SitRequest(null, null))
-        val flipper = Flipper(schedule, clock, timings, screen, tuned, ::record) { requests.trySend(it) }
         try {
             coroutineScope {
+                val flipper = Flipper(schedule, clock, timings, screen, tuned, ::record, this) { send(requests, it) }
+                refresher = flipper::refresh
                 launch { flipper.follow(commands) }
                 requests.receiveAsFlow().collectLatest { request -> if (sit(session, request)) throw RunEnded() }
             }
@@ -97,8 +106,23 @@ class LiveChannel(
         ) {
             // The session ended: the sitting already said so on the screen.
         } finally {
+            // A commit nobody started a sitting for is a flip that never resolved.
+            unstarted?.flip?.let { record(it.ended("abandoned", clock.now())) }
+            unstarted = null
+            refresher = {}
             screen.drop()
         }
+    }
+
+    /** Queues a commit's sitting; a commit still waiting for its sitting is replaced, and its flip is logged so. */
+    private fun send(
+        requests: Channel<SitRequest>,
+        request: SitRequest,
+    ) {
+        unstarted?.flip?.let { record(it.ended("superseded", clock.now())) }
+        unstarted = request
+        replaced = true
+        requests.trySend(request)
     }
 
     /** Ends [run] from inside its sitting without being mistaken for a fault ([sit] returns instead of throwing). */
@@ -117,6 +141,8 @@ class LiveChannel(
         session: Session,
         request: SitRequest,
     ): Boolean {
+        if (unstarted === request) unstarted = null
+        replaced = false
         if (request.flip != null) screen.handOver()
         var sitting: Sitting? = null
         var known: ChannelTag? = null
@@ -131,6 +157,7 @@ class LiveChannel(
                     val id = first.channel.id
                     known = first.tag()
                     tuned.moveTo(first.channel)
+                    refresher()
                     // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save
                     // is a synced file write that must not sit in the cut).
                     if (id != saved) lastChannel.save(acct, id)
@@ -140,6 +167,7 @@ class LiveChannel(
                     sitting = next
                     val exit = next.follow(first)
                     if (exit == Exit.SignedOut) return true
+                    closeFlip(next, null, "abandoned")
                     // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
                     currentCoroutineContext().ensureActive()
                     next.release()
@@ -159,15 +187,29 @@ class LiveChannel(
                 } catch (
                     @Suppress("TooGenericExceptionCaught") e: Exception,
                 ) {
+                    closeFlip(sitting, flip, "abandoned")
+                    flip = null
                     recoverFrom(e, session, sitting, known)
                 }
             }
         } finally {
+            closeFlip(sitting, flip, if (replaced) "superseded" else "abandoned")
             withContext(NonCancellable) {
                 sitting?.release()
                 tuner.stop(session)
             }
         }
+    }
+
+    /** Logs the flip a sitting (or the request not yet a sitting) still holds, once: it ended without resolving. */
+    private fun closeFlip(
+        sitting: Sitting?,
+        flip: FlipTiming?,
+        outcome: String,
+    ) {
+        val open = sitting?.flip ?: flip ?: return
+        sitting?.flip = null
+        record(open.ended(outcome, clock.now()))
     }
 
     /**

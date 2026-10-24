@@ -75,21 +75,25 @@ sealed interface TuneReport {
 
     /**
      * One flip, timed from the viewer's last key press (spec 15): [toFirstFrameMs] and [toPlayingMs] include the
-     * [settleMs] wait, so they are what the viewer waited. A null time is logged as [NOT_SEPARATE]. [outcome] is what
-     * the channel's first block came to: `playing`, `slate`, `standin` or `failed`. [route] and [fallback] are the
+     * [settleMs] wait, so they are what the viewer waited. A null time is logged as [NOT_SEPARATE]. [elapsedMs] is
+     * the time from the last press to the [outcome], whatever it is: `playing`, `slate`, `standin`, `failed`, or, for a
+     * flip that never resolved, `superseded` (a newer commit replaced it) or `abandoned` (the run stopped first).
+     * [route] and [fallback] are the
      * first tune's, as in [Tune].
      */
     data class Flip(
         val toFirstFrameMs: Long?,
         val toPlayingMs: Long?,
         val settleMs: Long,
+        val elapsedMs: Long,
         val outcome: String,
         val route: String?,
         val fallback: String?,
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
-                "settleMs=$settleMs outcome=$outcome route=${route ?: "none"} fallback=${fallback ?: "none"}"
+                "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome route=${route ?: "none"} " +
+                "fallback=${fallback ?: "none"}"
     }
 
     companion object {
@@ -141,6 +145,7 @@ internal fun Sitting.reportFlipPlayed(
             timings.firstFrameMs?.let { waitMs + it },
             (returned - timing.lastCommandAt).inWholeMilliseconds,
             timing.settleMs,
+            (returned - timing.lastCommandAt).inWholeMilliseconds,
             if (kind == TuneKind.StandIn) "standin" else "playing",
             timings.route,
             timings.fallback,
@@ -152,5 +157,11 @@ internal fun Sitting.reportFlipPlayed(
 internal fun Sitting.reportFlipEnded(outcome: String) {
     val timing = flip ?: return
     flip = null
-    report(TuneReport.Flip(null, null, timing.settleMs, outcome, null, null))
+    report(timing.ended(outcome, clock.now()))
 }
+
+/** The line of a flip with no picture, or none yet: no times but the wait since the last press. */
+internal fun FlipTiming.ended(
+    outcome: String,
+    now: Instant,
+) = TuneReport.Flip(null, null, settleMs, (now - lastCommandAt).inWholeMilliseconds, outcome, null, null)

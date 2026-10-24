@@ -164,8 +164,13 @@ class FakeSchedule : ScheduleSource {
         return standInScript(block, exclude)
     }
 
-    override suspend fun airings(at: Instant): List<ChannelAiring> =
-        channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
+    /** How long each [airings] takes on the virtual clock (a slow lineup read). */
+    var airingsDelayMs = 0L
+
+    override suspend fun airings(at: Instant): List<ChannelAiring> {
+        kotlinx.coroutines.delay(airingsDelayMs)
+        return channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
+    }
 
     companion object {
         const val DAY = 24 * HOUR
@@ -323,12 +328,16 @@ class CountingLastChannel(
 ) : LastChannelStore {
     var saves = 0
 
+    /** How long each save takes on the virtual clock. */
+    var saveDelayMs = 0L
+
     override suspend fun load(account: LibraryAccount): ChannelId? = inner.load(account)
 
     override suspend fun save(
         account: LibraryAccount,
         channel: ChannelId,
     ): Boolean {
+        kotlinx.coroutines.delay(saveDelayMs)
         saves++
         return inner.save(account, channel)
     }

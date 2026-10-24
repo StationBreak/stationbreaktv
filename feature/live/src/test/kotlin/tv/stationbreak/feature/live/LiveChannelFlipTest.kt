@@ -286,6 +286,7 @@ class LiveChannelFlipTest {
             val flip = flips[0]
             assertEquals(400L, flip.settleMs)
             assertEquals(1100L, flip.toPlayingMs)
+            assertEquals(1100L, flip.elapsedMs)
             assertEquals(1000L, flip.toFirstFrameMs)
             assertEquals("playing", flip.outcome)
             assertEquals(flips, f.r.live.flips)
@@ -324,9 +325,9 @@ class LiveChannelFlipTest {
 
     @Test
     fun theFlipLineHasNumbersAndFixedNamesOnly() {
-        val line = TuneReport.Flip(null, 900, 400, "playing", "transcode", "loadFailed:CODE").line()
+        val line = TuneReport.Flip(null, 900, 400, 900, "playing", "transcode", "loadFailed:CODE").line()
         assertEquals(
-            "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 outcome=playing route=transcode " +
+            "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 elapsedMs=900 outcome=playing route=transcode " +
                 "fallback=loadFailed:CODE",
             line,
         )
@@ -342,5 +343,72 @@ class LiveChannelFlipTest {
             advanceTimeBy(10.seconds)
             runCurrent()
             assertEquals(listOf("failed"), f.r.flipReports().map { it.outcome })
+        }
+
+    @Test
+    fun aPressShowsTheNumberAtOnceWhateverTheLineupReadCosts() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.airingsDelayMs = 2_000
+            f.up()
+            assertTrue(f.r.state is LiveState.Choosing)
+            // A commit refreshes the snapshot in the background, and the next press still needs no wait.
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            f.up()
+            assertTrue(f.r.state is LiveState.Choosing)
+        }
+
+    @Test
+    fun aCommitSupersededMidTuneLogsSuperseded() =
+        runTest {
+            val f = flipping { tune.script(itemOf(9), FakeTune.playsAfter(3.seconds)) }
+            f.up()
+            advanceTimeBy(1401.milliseconds)
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            advanceTimeBy(2.seconds)
+            val flips = f.r.flipReports()
+            assertEquals(listOf("superseded", "playing"), flips.map { it.outcome })
+            assertEquals(1801L, flips[0].elapsedMs)
+            assertEquals(flips, f.r.live.flips)
+        }
+
+    @Test
+    fun cancellingTheRunMidTuneLogsAbandoned() =
+        runTest {
+            val f = flipping { tune.script(itemOf(9), FakeTune.playsAfter(3.seconds)) }
+            f.up()
+            advanceTimeBy(1401.milliseconds)
+            f.job.cancel()
+            runCurrent()
+            val flips = f.r.flipReports()
+            assertEquals(listOf("abandoned"), flips.map { it.outcome })
+            assertEquals(1401L, flips[0].elapsedMs)
+        }
+
+    @Test
+    fun aSlateOutcomeCarriesTheElapsedTime() =
+        runTest {
+            val f = flipping { schedule.channels.getValue(CH9).blocks = listOf(slate(0, 600)) }
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            val flip = f.r.flipReports().single()
+            assertEquals("slate", flip.outcome)
+            assertEquals(400L, flip.elapsedMs)
+        }
+
+    @Test
+    fun aPressBetweenACommitAndTheNewSittingsFirstStateIsOverSnow() =
+        runTest {
+            val f = flipping()
+            f.r.lastChannel.saveDelayMs = 300
+            f.up()
+            advanceTimeBy(401.milliseconds)
+            // The old player has stopped and the new sitting has not written a state yet.
+            f.up()
+            assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = false), f.r.state)
         }
 }

@@ -19,6 +19,10 @@ internal class Screen(
     private var choosing: LiveState.Choosing? = null
     private var committed = false
 
+    // After a commit the old picture is gone (the tuner stops) until the new sitting writes its first state.
+    private var stale = false
+    private var handedOver = false
+
     /** What the screen shows, [LiveState.Choosing] included. */
     val flow: StateFlow<LiveState> = out.asStateFlow()
 
@@ -28,8 +32,15 @@ internal class Screen(
         set(next) =
             synchronized(this) {
                 shown = next
+                if (handedOver) {
+                    stale = false
+                    handedOver = false
+                }
                 if (choosing == null) out.value = next
             }
+
+    /** True only while the sitting's picture is up: it is Watching, and no commit is waiting on the new sitting. */
+    val pictureUp: Boolean get() = synchronized(this) { !stale && shown is LiveState.Watching }
 
     fun compareAndSet(
         expect: LiveState,
@@ -54,12 +65,15 @@ internal class Screen(
         synchronized(this) {
             choosing = state
             committed = true
+            stale = true
+            handedOver = false
             out.value = state
         }
 
     /** The new sitting has started: its next write replaces a commit's hold. A newer press is left alone. */
     fun handOver() =
         synchronized(this) {
+            if (stale) handedOver = true
             if (committed) {
                 choosing = null
                 committed = false

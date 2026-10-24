@@ -69,14 +69,38 @@ internal class Flipper(
     private val screen: Screen,
     private val tuned: Tuned,
     private val report: (TuneReport) -> Unit,
+    private val scope: CoroutineScope,
     private val start: (SitRequest) -> Unit,
 ) {
-    // The snapshot of the lineup, taken at the first press after a commit and kept until the next commit.
+    // The lineup as of the last refresh, read off the key path (a sitting starting, a commit). A press uses it and
+    // reads the lineup itself only when there is none yet.
+    @Volatile
+    private var cached: FlipOrder? = null
+    private var refreshing: Job? = null
+
+    // The snapshot a run of presses steps through: the cache as of the first press after a commit.
     private var order: FlipOrder? = null
 
     // Where a commit would go; null before the first press after a commit.
     private var target: ChannelAiring? = null
     private var settling: Job? = null
+
+    /** Reads the lineup in the background for the presses to come; a read still running is replaced. */
+    fun refresh() {
+        refreshing?.cancel()
+        refreshing =
+            scope.launch {
+                try {
+                    cached = FlipOrder(schedule.airings(clock.now()))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+                ) {
+                    // Keep the last good snapshot; a press reads for itself if there is none.
+                }
+            }
+    }
 
     /** Handles [commands] until the flow ends and any settle has run. A command that fails is dropped, not fatal. */
     suspend fun follow(commands: Flow<LiveCommand>) =
@@ -84,7 +108,7 @@ internal class Flipper(
             commands.collect { command ->
                 try {
                     when (command) {
-                        is LiveCommand.Flip -> press(this, command.direction)
+                        is LiveCommand.Flip -> press(command.direction)
                         LiveCommand.Previous -> previous()
                     }
                 } catch (e: CancellationException) {
@@ -100,18 +124,25 @@ internal class Flipper(
     private val onScreen: Boolean
         get() = screen.value.let { it != LiveState.NoChannels && it != LiveState.SignedOut }
 
-    private suspend fun press(
-        scope: CoroutineScope,
-        direction: FlipDirection,
-    ) {
+    private suspend fun press(direction: FlipDirection) {
         val now = clock.now()
-        settling?.cancelAndJoin()
+        // Cancelled, not yet joined: the number must not wait for a commit's lookup to unwind.
+        val pending = settling?.also { it.cancel() }
         val playing = tuned.playing
-        if (playing == null || !onScreen) return
-        val steps = order ?: FlipOrder(schedule.airings(now)).also { order = it }
-        val next = steps.step(target?.number ?: playing.number, direction) ?: return
+        if (playing == null || !onScreen) {
+            pending?.join()
+            return
+        }
+        val steps = order ?: cached ?: FlipOrder(schedule.airings(now))
+        order = steps
+        val next = steps.step(target?.number ?: playing.number, direction)
+        if (next == null) {
+            pending?.join()
+            return
+        }
         target = next
-        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.value is LiveState.Watching))
+        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
+        pending?.join()
         settling = scope.launch { settle(steps, next, direction, now) }
     }
 
@@ -184,6 +215,7 @@ internal class Flipper(
             return
         }
         onAir?.let { tuned.moveTo(it.channel) }
+        refresh()
         screen.commit(LiveState.Choosing((onAir?.channel ?: chosen).tag(), overPicture = false))
         start(SitRequest(onAir, timing))
     }
