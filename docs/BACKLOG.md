@@ -217,7 +217,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 - ✅ The first open after a fresh setup lands on a PG-tier channel ([#375](https://github.com/StationBreak/stationbreaktv/issues/375)).
 - ✅ The screen stays awake during live TV past the 5-minute sleep timeout, and the normal screensaver and ambient mode return after leaving live TV ([#374](https://github.com/StationBreak/stationbreaktv/issues/374)).
 - ✅ Banner text stays inside the banner and the safe area ([#374](https://github.com/StationBreak/stationbreaktv/issues/374)), checked on the channel that opened. Recheck the long-channel-name case once flipping (F1.4) exists.
-- Open: every tune on an item with MPEG-4 Part 2 video and MP3 audio in an AVI container went through a failed direct-play attempt before the transcode fallback, taking 6.7–18.4 s to first frame ([#371](https://github.com/StationBreak/stationbreaktv/issues/371), related [#340](https://github.com/StationBreak/stationbreaktv/issues/340)). F1.4 removes the doomed attempt.
+- Open: every tune on an item with MPEG-4 Part 2 video and MP3 audio in an AVI container went through a failed direct-play attempt before the transcode fallback, taking 6.7–18.4 s to first frame ([#371](https://github.com/StationBreak/stationbreaktv/issues/371), related [#340](https://github.com/StationBreak/stationbreaktv/issues/340)). The capability probe no longer offers AVI for direct play (PR [#386](https://github.com/StationBreak/stationbreaktv/pull/386)); recheck on the device after flipping lands.
 - Open: the first-setup "No channels on the air yet" card showed for about 80–90 s. The wait is accepted, and the copy changes to a "building your channels" state ([#372](https://github.com/StationBreak/stationbreaktv/issues/372)).
 
 - 🧪 The player requests the Jellyfin static stream URL for the item and seeks to `offset`. On the transcode path the player seeks the same way: the HLS URL carries no `StartTimeTicks` (Jellyfin 12.2 rejects it on segments), and the server encodes from the segment the player asks for ([ADR-0016](adr/0016-playback-routes-and-the-media-client.md)).
@@ -239,20 +239,28 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 ## F1.4 Channel flipping & last-channel recall (M)
 
 **S1.4.1** As a viewer, I want Up/Down (and CH+/CH− where the remote has them) to change channel so that I can surf.
-- 📺 Up = next channel number, Down = previous, wrapping around. Fire TV remotes without CH keys work via D-pad. Media keys are mapped where present.
+
+📺 **Built 2026-10-24, device check pending** (spec 15, [ADR-0017](adr/0017-live-channel-playback.md); engine in PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390), keys in PR C).
+- 📺 Up = next channel number, Down = previous, wrapping around. Fire TV remotes without CH keys work via D-pad. The media next and previous keys are not mapped: they are reserved for pause and skip ([#383](https://github.com/StationBreak/stationbreaktv/issues/383)).
 
 **S1.4.2** As a viewer, I want the app to open on the last channel I watched so that it's "just on".
 - 🧪 The last channel is persisted on every tune. Cold start goes directly to the live player on that channel (skipping menus) once setup is complete.
 
 **S1.4.3** As a viewer, I want a "previous channel" toggle so that I can jump between two channels.
+
+📺 **Menu half built 2026-10-24, device check pending** (spec 15, PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390) and PR C). The banner action waits for F2.2.
 - 📺 The now/next banner (opened with Select) offers a **"Last: <channel>"** action that tunes the previous channel; pressing it again toggles back.
 - 📺 The **Menu (☰)** key is a one-press shortcut for the same toggle. Back is **not** used for it (Q-UX-2).
 - 📺 Back follows the platform convention: it closes an open overlay or the guide first, then leaves live TV.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
+
+📺 **Ring buffer and logcat line built 2026-10-24** (spec 15, PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390)): one `SBLIVE flip` line per committed flip, timed from the last press, the newest 50 kept. The diagnostics view is deferred.
 - 🧪 For each tune, the app records two times: `keypress → first rendered frame` (Media3 `onRenderedFirstFrame`) and `keypress → playing`, the first point at which playback is actually advancing (`onIsPlayingChanged(true)`, so a frozen first frame doesn't count). They're kept in a local ring buffer, shown on a diagnostics screen and exportable to logcat. Nothing is sent anywhere. Spike SP-1 found the first frame can appear 1–2 s before playback moves.
 
 **S1.4.5** As a viewer, I want flipping to be fast even on a budget stick so that surfing feels like cable.
+
+📺 **Gate measurement pending** the device check after PR C, against the two-tier gate in [EPICS.md](EPICS.md). Look-ahead for the neighbours is built (PR B, [ADR-0017](adr/0017-live-channel-playback.md)).
 - 📺 **Gate measurement** (the two-tier Phase 1 gate, [EPICS.md](EPICS.md), decided 2026-10-24), timed from the last key press over 30 flips per device. Firestick 4K (API 30): keypress → playing < 2.0 s on at least 29 of 30 direct-play flips. Insignia (API 25): the banner's channel number updates within about 250 ms, the median direct-play flip is under 4 s and the worst under 8 s, and no flip hangs: every flip ends on a moving picture or the channel's stand-in or slate. Transcoded flips are reported, not gated. First frame is reported but not gated.
 - 🧪 Investigate and close the first-frame-to-playing gap SP-1 found on some items, where the frame shows at about 0.9 s but playback starts at 1.9–2.9 s. The suspected cause is audio renderer readiness ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - Techniques to evaluate (spike first; see R-PERF-1): reusing one ExoPlayer instance, tuned `LoadControl` buffers for fast start, pre-resolving stream URLs for adjacent channels, and optionally pre-warming the adjacent channel's first segment.
