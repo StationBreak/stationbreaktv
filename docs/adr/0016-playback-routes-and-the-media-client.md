@@ -102,6 +102,8 @@ of whatever URL it is given.
    diagnostics instead: the stable error code name and the HTTP status.
 10. **Measure, don't grade, on the Insignia.** The Insignia is slow by nature. Its playback numbers are recorded, not
     scored, and the Phase 1 gate stays as it was (Phil, 2026-10-20). Wasted work is still removed.
+    *Amended 2026-10-24:* the Phase 1 gate itself changed to a two-tier gate, a 2 s bar on the Firestick 4K and a
+    usable-floor bar on the Insignia (see the Phase 1 gate in [EPICS.md](../EPICS.md) and ADR-0007's amendment).
 
 ## Update 2026-10-22: HLS starts by player position
 

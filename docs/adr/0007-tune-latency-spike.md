@@ -96,7 +96,7 @@ transcoded channels must meet 2 s.
 
 ## Consequences
 
-- The gate is **not met today** on the owner's library: 2–5 of 18 valid tunes per run are over 2 s. That's
+- The gate (the 2026-10-09 bar; see the amendment above) is **not met today** on the owner's library: 2–5 of 18 valid tunes per run are over 2 s. That's
   expected at spike stage. Phase 1 has a specific, measured problem to solve instead of a guess.
 - Files that can't seek or decode are a correctness problem as well as a latency one, so they're now
   acceptance criteria in F1.3 and F1.6.

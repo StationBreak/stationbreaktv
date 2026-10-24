@@ -24,7 +24,7 @@ No calendar estimates are given; this is a solo/evenings project, and gates matt
 ```
 Phase 0  Foundations ─────► Gate: connects by URL, lists libraries on Insignia
    │
-Phase 1  Live core ───────► Gate: 30 flips; Firestick < 2 s, Insignia usable
+Phase 1  Live core ───────► Gate: 30 flips; Firestick < 2 s, Insignia median < 4 s, no hangs
    │
 Phase 2  Guide + builder ─► Gate: 14 days daily use replacing NostalgiaTV
    │
