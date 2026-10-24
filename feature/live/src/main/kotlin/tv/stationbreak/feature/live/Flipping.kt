@@ -20,7 +20,12 @@ import kotlin.time.Instant
 internal class FlipTiming(
     val lastCommandAt: Instant,
     val settleMs: Long,
-)
+) {
+    private var logged = false
+
+    /** True the first time only: a flip writes one line, whoever gets to it first. */
+    fun claim(): Boolean = !logged.also { logged = true }
+}
 
 /**
  * Which channel the next sitting is on: [first] is what was on it at the commit, or null to choose as spec 14 does (the
@@ -37,11 +42,9 @@ internal class SitRequest(
  * run only (design: not persisted).
  */
 internal class Tuned {
-    @Volatile
     var playing: ChannelAiring? = null
         private set
 
-    @Volatile
     var previous: ChannelId? = null
         private set
 
@@ -72,9 +75,8 @@ internal class Flipper(
     private val scope: CoroutineScope,
     private val start: (SitRequest) -> Unit,
 ) {
-    // The lineup as of the last refresh, read off the key path (a sitting starting, a commit). A press uses it and
-    // reads the lineup itself only when there is none yet.
-    @Volatile
+    // The lineup as of the last refresh, read off the key path (a sitting starting). A press uses it and reads the
+    // lineup itself only when there is none yet.
     private var cached: FlipOrder? = null
     private var refreshing: Job? = null
 
@@ -102,7 +104,10 @@ internal class Flipper(
             }
     }
 
-    /** Handles [commands] until the flow ends and any settle has run. A command that fails is dropped, not fatal. */
+    /**
+     * Handles [commands] until the flow ends; a settle still pending carries on in the run's scope. A command that
+     * fails is dropped, not fatal.
+     */
     suspend fun follow(commands: Flow<LiveCommand>) =
         coroutineScope {
             commands.collect { command ->
@@ -192,7 +197,8 @@ internal class Flipper(
     private suspend fun previous() {
         val now = clock.now()
         val wanted = tuned.previous?.takeIf { tuned.playing != null && onScreen } ?: return
-        val onAir = FlipOrder(schedule.airings(now)).byId(wanted)?.let { schedule.onAir(it.id, now, Sitting.WINDOW) }
+        val steps = order ?: cached ?: FlipOrder(schedule.airings(now))
+        val onAir = steps.byId(wanted)?.let { schedule.onAir(it.id, now, Sitting.WINDOW) }
         if (onAir == null) return
         settling?.cancelAndJoin()
         // A settle that finished while this looked would have moved the channel on: leave that commit be.
@@ -215,7 +221,6 @@ internal class Flipper(
             return
         }
         onAir?.let { tuned.moveTo(it.channel) }
-        refresh()
         screen.commit(LiveState.Choosing((onAir?.channel ?: chosen).tag(), overPicture = false))
         start(SitRequest(onAir, timing))
     }

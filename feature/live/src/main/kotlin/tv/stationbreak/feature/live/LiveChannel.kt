@@ -58,15 +58,9 @@ class LiveChannel(
     private var saved: ChannelId? = null
     private var account: LibraryAccount? = null
 
-    // A commit queued and not yet picked up by a sitting, and whether one has been queued since a sitting began: a
-    // sitting that is cancelled then was replaced by that commit, else the run is ending.
+    // A commit queued and not yet begun by a sitting: replaced, it is a flip that never resolved.
     private var unstarted: SitRequest? = null
-
-    @Volatile
-    private var replaced = false
     private var refresher: () -> Unit = {}
-
-    @Volatile
     private var flipLog: List<TuneReport.Flip> = emptyList()
 
     val state: StateFlow<LiveState> = screen.flow
@@ -76,7 +70,9 @@ class LiveChannel(
 
     /**
      * Follows the viewer: picks a channel, tunes it at the schedule's offset and follows its blocks, and obeys
-     * [commands] (spec 15). Returns only when the session ends; otherwise it runs until cancelled.
+     * [commands] (spec 15). Everything here runs on one dispatcher (the main thread; the host launches it there), so
+     * the shared fields need no locks; only [Screen], which the UI reads, has one.
+     * Returns only when the session ends; otherwise it runs until cancelled.
      *
      * One sitting runs at a time ([sit]), and a flip's commit replaces it: the requests are collected with
      * `collectLatest`, so a newer one cancels the old sitting, whose finally stops the tuner, and only then does the
@@ -107,7 +103,7 @@ class LiveChannel(
             // The session ended: the sitting already said so on the screen.
         } finally {
             // A commit nobody started a sitting for is a flip that never resolved.
-            unstarted?.flip?.let { record(it.ended("abandoned", clock.now())) }
+            logFlip(unstarted?.flip, "abandoned")
             unstarted = null
             refresher = {}
             screen.drop()
@@ -119,9 +115,8 @@ class LiveChannel(
         requests: Channel<SitRequest>,
         request: SitRequest,
     ) {
-        unstarted?.flip?.let { record(it.ended("superseded", clock.now())) }
+        logFlip(unstarted?.flip, "superseded")
         unstarted = request
-        replaced = true
         requests.trySend(request)
     }
 
@@ -142,7 +137,6 @@ class LiveChannel(
         request: SitRequest,
     ): Boolean {
         if (unstarted === request) unstarted = null
-        replaced = false
         if (request.flip != null) screen.handOver()
         var sitting: Sitting? = null
         var known: ChannelTag? = null
@@ -193,7 +187,8 @@ class LiveChannel(
                 }
             }
         } finally {
-            closeFlip(sitting, flip, if (replaced) "superseded" else "abandoned")
+            // A newer commit waiting means this sitting was replaced; else the run is ending.
+            closeFlip(sitting, flip, if (unstarted != null) "superseded" else "abandoned")
             withContext(NonCancellable) {
                 sitting?.release()
                 tuner.stop(session)
@@ -207,9 +202,17 @@ class LiveChannel(
         flip: FlipTiming?,
         outcome: String,
     ) {
-        val open = sitting?.flip ?: flip ?: return
+        val open = sitting?.flip ?: flip
         sitting?.flip = null
-        record(open.ended(outcome, clock.now()))
+        logFlip(open, outcome)
+    }
+
+    /** Writes the line of a flip that ended without resolving, unless its line is already written. */
+    private fun logFlip(
+        timing: FlipTiming?,
+        outcome: String,
+    ) {
+        if (timing != null && timing.claim()) record(timing.ended(outcome, clock.now()))
     }
 
     /**

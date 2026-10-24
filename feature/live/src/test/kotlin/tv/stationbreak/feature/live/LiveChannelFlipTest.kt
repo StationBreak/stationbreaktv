@@ -24,7 +24,7 @@ class LiveChannelFlipTest {
     private class Flipping(
         val r: Rig,
         val job: Job,
-        private val keys: Channel<LiveCommand>,
+        val keys: Channel<LiveCommand>,
         private val scope: TestScope,
     ) {
         fun send(command: LiveCommand) {
@@ -410,5 +410,62 @@ class LiveChannelFlipTest {
             // The old player has stopped and the new sitting has not written a state yet.
             f.up()
             assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = false), f.r.state)
+        }
+
+    @Test
+    fun aMenuPressDuringTheStopLogsEachFlipOnce() =
+        runTest {
+            val f = flipping()
+            f.r.tune.stopDelayMs = 500
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            // The first commit is out of the queue and its sitting waits on the old player's stop.
+            f.send(LiveCommand.Previous)
+            advanceTimeBy(3.seconds)
+            runCurrent()
+            assertEquals(listOf("superseded", "playing"), f.r.flipReports().map { it.outcome })
+            assertEquals(f.r.flipReports(), f.r.live.flips)
+        }
+
+    @Test
+    fun aQueuedCommitReplacedBeforeItsSittingStartsLogsSupersededOnce() =
+        runTest {
+            val f = flipping()
+            f.up()
+            advanceTimeBy(1.seconds)
+            // Two Menu presses in one go: the first commit is replaced before any sitting picks it up.
+            f.keys.trySend(LiveCommand.Previous)
+            f.keys.trySend(LiveCommand.Previous)
+            runCurrent()
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            assertEquals(listOf("playing", "superseded", "playing"), f.r.flipReports().map { it.outcome })
+        }
+
+    @Test
+    fun aQueuedCommitAtRunEndLogsAbandonedOnce() =
+        runTest {
+            val f = flipping()
+            f.r.tune.stopDelayMs = 500
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            f.job.cancel()
+            runCurrent()
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            assertEquals(listOf("abandoned"), f.r.flipReports().map { it.outcome })
+        }
+
+    @Test
+    fun aPressShowsTheNumberBeforeAnUnwindingCommitHasStopped() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.onAirDelayMs = 1_000
+            f.r.schedule.onAirUncancellable = true
+            f.up()
+            // The settle is now inside a lookup that will not stop at once.
+            advanceTimeBy(500.milliseconds)
+            f.up()
+            assertEquals(ChannelTag(2, "Test Channel 2"), (f.r.state as LiveState.Choosing).target)
         }
 }

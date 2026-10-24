@@ -120,6 +120,9 @@ class FakeSchedule : ScheduleSource {
     /** How long each [onAir] takes on the virtual clock (a slow schedule read). */
     var onAirDelayMs = 0L
 
+    /** When set, the [onAirDelayMs] wait ignores cancellation (a read that unwinds slowly). */
+    var onAirUncancellable = false
+
     fun channel(
         id: ChannelId,
         number: Int,
@@ -146,7 +149,11 @@ class FakeSchedule : ScheduleSource {
         val ms = at.toEpochMilliseconds()
         onAirCalls += channel to ms
         onAirObserver(next)
-        kotlinx.coroutines.delay(onAirDelayMs)
+        if (onAirUncancellable) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { kotlinx.coroutines.delay(onAirDelayMs) }
+        } else {
+            kotlinx.coroutines.delay(onAirDelayMs)
+        }
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {
@@ -224,6 +231,9 @@ class FakeTune(
 ) : TunePort {
     val calls = mutableListOf<Call>()
     val scripts = mutableMapOf<ItemId, ArrayDeque<suspend () -> TuneOutcome>>()
+
+    /** How long each [stop] takes on the virtual clock (a slow player). */
+    var stopDelayMs = 0L
     var preResolveResult: (ItemId) -> Boolean = { true }
 
     fun script(
@@ -286,6 +296,7 @@ class FakeTune(
 
     override suspend fun stop(session: Session) {
         calls += Call.Stop(now())
+        delay(stopDelayMs)
     }
 
     override suspend fun close(session: Session) {

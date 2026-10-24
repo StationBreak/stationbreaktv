@@ -139,6 +139,7 @@ internal fun Sitting.reportFlipPlayed(
 ) {
     val timing = flip ?: return
     flip = null
+    if (!timing.claim()) return
     val waitMs = (began - timing.lastCommandAt).inWholeMilliseconds
     report(
         TuneReport.Flip(
@@ -157,6 +158,7 @@ internal fun Sitting.reportFlipPlayed(
 internal fun Sitting.reportFlipEnded(outcome: String) {
     val timing = flip ?: return
     flip = null
+    if (!timing.claim()) return
     report(timing.ended(outcome, clock.now()))
 }
 
