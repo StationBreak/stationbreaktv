@@ -163,6 +163,26 @@ class LiveScreenTest {
         compose.onNodeWithText("Filling in").assertExists()
     }
 
+    @Test
+    fun choosingOverPictureShowsTheChannelOnlyBanner() {
+        show(LiveState.Choosing(ChannelTag(7, "Laughs"), overPicture = true))
+        compose.onNodeWithTag(LiveTags.BANNER_CHOOSING).assertExists()
+        compose.onNodeWithText("07").assertExists()
+        compose.onNodeWithText("LAUGHS").assertExists()
+        compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertDoesNotExist()
+    }
+
+    @Test
+    fun choosingOverSnowShowsSnowAndTheBanner() {
+        show(LiveState.Choosing(ChannelTag(12, "Westerns"), overPicture = false))
+        compose.onNodeWithTag(LiveTags.SNOW).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_CHOOSING).assertExists()
+        compose.onNodeWithText("12").assertExists()
+        compose.onNodeWithText("WESTERNS").assertExists()
+    }
+
     private companion object {
         const val MINUTE = 60_000L
         const val START = 1_800_000_000_000L
