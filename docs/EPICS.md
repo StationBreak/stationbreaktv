@@ -37,12 +37,19 @@ mid-program and flip between with the remote.
 F1.4 Channel flipping & last-channel recall · F1.5 Playback reporting · F1.6 Direct-play / transcode fallback
 
 **Gate (acceptance criteria):**
-- [ ] **3 runs of 10 consecutive flips** on the Insignia. Each flip is timed at two moments (Q-GATE-1):
+- [ ] **A two-tier flip gate** (owner decision 2026-10-24, Q-GATE-1). Each flip is timed at two moments:
       - **first frame**: the correct mid-program picture appears. Tracked and reported, with no hard target ([ADR-0007](adr/0007-tune-latency-spike.md)).
-      - **playing**: the picture is moving, not a frozen first frame. In under **2 seconds** of the key press.
+      - **playing**: the picture is moving, not a frozen first frame. This is what the gate judges.
 
-      Pass or fail is judged on **playing** alone: at most 1 of the 30 flips may be over. Timing is logged by the app (S1.4.4). Network conditions
-      and direct-play-only are pending Q-GATE-1.
+      Timing runs from the **last** key press, so a short settle delay after rapid presses is inside the budget. Timing is logged by the app (S1.4.4).
+      - **Firestick 4K (AFTKRT, API 30), the speed gate:** keypress → playing under **2.0 seconds** on at least 29 of 30 flips onto items that direct play. Flips onto items the server transcodes are timed and reported, not gated.
+      - **Insignia (AFTJMST12, API 25, the minSdk floor), the usable floor:**
+        - every key press updates the banner's channel number within about 250 ms;
+        - over 30 direct-play flips, the median keypress → playing is under **4 s** and the worst is under **8 s**;
+        - no hangs: every flip ends on a moving picture or the channel's stand-in or slate, never a frozen or black screen;
+        - transcoded flips are reported only.
+
+      Both devices keep being optimised. Only the pass or fail bar moved. Older and budget hardware can never match a newer stick, and people with older devices deserve a good app too, so the floor device must be comfortable to use rather than fast. The thresholds are a starting point and may be adjusted after measurement.
 - [ ] Scheduler golden-vector tests pass in CI.
 
 Cross-device agreement is **not** a gate ([ADR-0002](adr/0002-determinism-scope.md)). It's observed during

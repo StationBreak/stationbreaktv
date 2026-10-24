@@ -130,7 +130,7 @@ Each phase ends with a gate that must pass before the next starts.
 1. **Phase 0 — Foundations.** Repo, CI, module layout, Jellyfin adapter, library sync.
    - Gate: app connects by URL and lists all libraries on the Insignia Fire TV.
 2. **Phase 1 — Live core.** Scheduler, default channels, offset playback, channel flipping.
-   - Gate: flip through 10 channels, each lands mid-program in under 2 seconds.
+   - Gate: flips land mid-program fast on the Firestick and comfortably on the older Insignia (two-tier gate, 2026-10-24; see [EPICS.md](EPICS.md)).
 3. **Phase 2 — Guide and builder.** Grid guide, now/next, custom channel builder.
    - Gate: used daily on the reference Insignia for 2 weeks, replacing NostalgiaTV.
 4. **Phase 3 — Polish and personality.** Filler/bumpers, retro mode, themes, onboarding.
