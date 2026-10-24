@@ -16,6 +16,10 @@
 # Needs: JDK 17, the Android SDK, docker, uvx (uv), jq, git. A missing tool fails its step with an install hint.
 # Toolchain: JAVA_HOME and ANDROID_HOME are used if set. Otherwise $HOME/.local/share/stationbreak-toolchain/jdk-17
 # and /android-sdk are used if they exist.
+# Instrumented tests are bounded: PREFLIGHT_INSTRUMENTED_TIMEOUT seconds (default 1200; a normal run takes 3-5
+# minutes). On a timeout it saves logcat, the foreground activity, the device's processes and a Gradle client thread
+# dump and fails the step. The logcat is kept for every --emulator run, in a per-run directory under
+# ${XDG_CACHE_HOME:-$HOME/.cache}/stationbreak/preflight-runs/ (the last 10 are kept); the path is printed at the end.
 # Exit: 0 all passed, 1 a step failed, 2 usage error.
 set -euo pipefail
 
@@ -103,6 +107,7 @@ script_tests() {
   bash .github/scripts/instrumented-infra.test.sh
   bash .github/scripts/release-scope.test.sh
   bash scripts/guard-tree.test.sh
+  bash scripts/run-bounded.test.sh
   bash scripts/playback-matrix/playback-matrix.test.sh
 }
 
@@ -219,13 +224,24 @@ contract_tests() {
 
 # --- the `emulator` job ---
 
+# shellcheck source=scripts/run-bounded.sh
+source scripts/run-bounded.sh
+
 emulator_image='system-images;android-25;android-tv;x86'
 emulator_port=5580
 emulator_lock_fd=""
 emulator_pid=""
+logcat_pid=""
 avd_home=""
+# Per run, outside the repo and the AVD directory: cleanup deletes the AVD, and something removed a repo-root build/
+# directory after a run (2026-10), taking the logcat with it.
+preflight_out=""
 
 emulator_cleanup() {
+  if [ -n "$logcat_pid" ]; then
+    kill "$logcat_pid" 2>/dev/null || true
+    wait "$logcat_pid" 2>/dev/null || true
+  fi
   if [ -n "$emulator_pid" ]; then
     kill "$emulator_pid" 2>/dev/null || true
     wait "$emulator_pid" 2>/dev/null || true
@@ -247,6 +263,21 @@ emulator_prereqs() {
   if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
     echo "/dev/kvm is not usable by this user; the x86 emulator needs it." >&2
     exit 1
+  fi
+}
+
+# Saves what a hung instrumented run needs to be understood afterwards, into $preflight_out. Called by run_bounded with
+# the Gradle client's pid, before anything is killed. Every adb call is itself bounded: adb stalling is one of the
+# things this has to tell apart, and a stalled call here must not hang the diagnosis. Best effort throughout.
+save_hang_evidence() {
+  local client_pid="$1" adb="$ANDROID_HOME/platform-tools/adb"
+  echo "Saving hang evidence to $preflight_out" >&2
+  timeout 20 "$adb" shell dumpsys activity activities 2>&1 | head -n 200 >"$preflight_out/activities.txt" || true
+  # API 25 has `ps` with no -A; newer images want it.
+  { timeout 20 "$adb" shell ps -A 2>/dev/null || timeout 20 "$adb" shell ps 2>&1; } >"$preflight_out/ps.txt" || true
+  timeout 20 "$adb" devices -l >"$preflight_out/adb-devices.txt" 2>&1 || true
+  if command -v jstack >/dev/null 2>&1; then
+    timeout 30 jstack "$client_pid" >"$preflight_out/gradle-client-threads.txt" 2>&1 || true
   fi
 }
 
@@ -321,10 +352,40 @@ instrumented_tests() {
     "$adb" shell settings put global "$setting" 0
   done
 
+  # Kept for every run, so a hang leaves evidence of which test stalled. Cleared first so it holds only this run.
+  local runs_dir="$lock_dir/preflight-runs" old
+  preflight_out="$runs_dir/$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$preflight_out"
+  # Keep the last 10 runs (names sort by time), so this doesn't grow without end.
+  while IFS= read -r old; do
+    rm -rf "${runs_dir:?}/$old"
+  done < <(ls -1 "$runs_dir" | sort | head -n -10)
+  "$adb" logcat -c
+  "$adb" logcat -v threadtime >"$preflight_out/logcat.txt" 2>&1 &
+  logcat_pid=$!
+
   # One module at a time: gradle.properties turns on org.gradle.parallel, and when several modules' connected tasks ran
   # together on the one emulator, one of them never reported and the run hung for its full hour (2026-10).
+  # Bounded, because hangs here have run to the outer hour (most recently :feature:onboarding). The limit is well over a
+  # normal 3-5 minute run.
+  local limit="${PREFLIGHT_INSTRUMENTED_TIMEOUT:-1200}" status=0
+  case "$limit" in
+    '' | *[!0-9]*)
+      echo "PREFLIGHT_INSTRUMENTED_TIMEOUT must be a number of seconds, not '$limit'." >&2
+      return 1
+      ;;
+  esac
   # shellcheck disable=SC2086
-  ./gradlew --no-parallel $connected
+  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel $connected || status=$?
+  if [ "$status" -eq 124 ]; then
+    echo "The instrumented tests hung: no result after ${limit}s. Evidence (logcat, activities, ps, thread dump) is in:" >&2
+    echo "  $preflight_out" >&2
+    echo "The Gradle client was stopped and the emulator is shut down next. Gradle's daemon is asked to cancel the build but" >&2
+    echo "may stay busy a while if a task is stuck in adb; it was not stopped, as that would stop other builds too." >&2
+  else
+    echo "Instrumented run evidence (logcat): $preflight_out"
+  fi
+  return "$status"
 }
 
 trap emulator_cleanup EXIT
