@@ -48,14 +48,34 @@ class LiveChannelFirstChannelTest {
         }
 
     @Test
-    fun withNoPgCeilingTheLowestChannelWithAnyCeilingIsNext() =
+    fun withNoPgCeilingTheLowestChannelBelowPgIsNext() =
         runTest {
             val r = Rig(this)
             r.channelWith(CH5, 5, 1, null)
             r.channelWith(CH7, 7, 2, tv14)
             r.channelWith(CH9, 9, 3, tvY)
             r.start()
-            assertEquals(itemOf(2), r.tunes.first().item)
+            assertEquals(itemOf(3), r.tunes.first().item)
+        }
+
+    @Test
+    fun aCeilingAbovePgDoesNotJumpAheadOfALowerNumberedChannelWithNone() =
+        runTest {
+            val r = Rig(this)
+            r.channelWith(CH5, 5, 1, null)
+            r.channelWith(CH7, 7, 2, tv14)
+            r.start()
+            assertEquals(itemOf(1), r.tunes.first().item)
+        }
+
+    @Test
+    fun aCeilingAbovePgAndNoneFallInNumberOrder() =
+        runTest {
+            val r = Rig(this)
+            r.channelWith(CH5, 5, 1, tv14)
+            r.channelWith(CH7, 7, 2, null)
+            r.start()
+            assertEquals(itemOf(1), r.tunes.first().item)
         }
 
     @Test

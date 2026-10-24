@@ -166,6 +166,36 @@ class BuiltInScheduleSourceTest {
     }
 
     @Test
+    fun airingsCarryTheEffectiveCeilingTierWithTheKidsCap() {
+        library.seed(fillingLibrary())
+        val comedy = Source.Genre("Comedy")
+        holding(
+            lineupOf(
+                // Kids band, no stored ceiling: capped to PG.
+                starter("band-none", 5, ChannelState.On, rules("Band none", comedy)),
+                // Kids band, TV-Y: kept.
+                starter("band-tv-y", 6, ChannelState.On, rules("Band TV-Y", comedy, maxRating = "TV-Y")),
+                // Once kid-safe, renumbered out of the band, no stored ceiling: still PG.
+                starter("little-farm", 600, ChannelState.On, rules("Little farm", comedy)),
+                // Unedited starter: the recipe's ceiling (toons is G) over the stored one.
+                starter("toons", 610, ChannelState.On, rules("Toons", comedy, maxRating = "PG-13")),
+                // Outside the band, not kid-safe: its own ceiling, or none.
+                starter("laughs", 620, ChannelState.On, rules("Laughs", comedy, maxRating = "TV-14")),
+                starter("frights", 630, ChannelState.On, rules("Frights", comedy)),
+            ),
+        )
+
+        val ranks = airings().associate { it.number to it.ceilingRank }
+
+        assertEquals(ChannelAiring.PG_TIER, ranks[5], "Kids band with no ceiling is capped to PG")
+        assertEquals(0, ranks[6])
+        assertEquals(ChannelAiring.PG_TIER, ranks[600], "once kid-safe stays capped out of the band")
+        assertEquals(0, ranks[610], "the recipe's G, not the stored PG-13")
+        assertEquals(ChannelAiring.PG_TIER + 2, ranks[620])
+        assertNull(ranks[630])
+    }
+
+    @Test
     fun airingsAtCrossesTheDayBoundary() {
         library.seed(fillingLibrary())
         holding(lineupOf(laughs()))
