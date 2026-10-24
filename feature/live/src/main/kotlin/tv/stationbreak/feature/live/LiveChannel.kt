@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -24,6 +25,8 @@ import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.Airing
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
@@ -31,6 +34,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
+import kotlin.time.Duration
 
 /**
  * The live channel (spec 14, F1.3): one sitting. [run] picks a channel, tunes it at the schedule's offset and follows
@@ -61,6 +65,7 @@ class LiveChannel(
     // A commit queued and not yet begun by a sitting: replaced, it is a flip that never resolved.
     private var unstarted: SitRequest? = null
     private var refresher: () -> Unit = {}
+    private var lineup: suspend () -> FlipOrder = { FlipOrder(emptyList()) }
     private var flipLog: List<TuneReport.Flip> = emptyList()
 
     val state: StateFlow<LiveState> = screen.flow
@@ -88,14 +93,18 @@ class LiveChannel(
             screen.value = LiveState.SignedOut
             return
         }
+        val neighbours = Neighbours(session, tuner, schedule, clock)
         val requests = Channel<SitRequest>(Channel.CONFLATED)
         requests.trySend(SitRequest(null, null))
         try {
             coroutineScope {
                 val flipper = Flipper(schedule, clock, timings, screen, tuned, ::record, this) { send(requests, it) }
                 refresher = flipper::refresh
+                lineup = flipper::lineup
                 launch { flipper.follow(commands) }
-                requests.receiveAsFlow().collectLatest { request -> if (sit(session, request)) throw RunEnded() }
+                requests.receiveAsFlow().collectLatest { request ->
+                    if (sit(session, request, neighbours)) throw RunEnded()
+                }
             }
         } catch (
             @Suppress("SwallowedException") e: RunEnded,
@@ -106,6 +115,8 @@ class LiveChannel(
             logFlip(unstarted?.flip, "abandoned")
             unstarted = null
             refresher = {}
+            lineup = { FlipOrder(emptyList()) }
+            withContext(NonCancellable) { neighbours.release() }
             screen.drop()
         }
     }
@@ -135,6 +146,7 @@ class LiveChannel(
     private suspend fun sit(
         session: Session,
         request: SitRequest,
+        neighbours: Neighbours,
     ): Boolean {
         if (unstarted === request) unstarted = null
         if (request.flip != null) screen.handOver()
@@ -156,7 +168,12 @@ class LiveChannel(
                     // is a synced file write that must not sit in the cut).
                     if (id != saved) lastChannel.save(acct, id)
                     saved = id
-                    val next = Sitting(session, id, schedule, tuner, clock, timings, screen, ::record, flip)
+                    // The look-ahead's handle for this channel, if it is still for what is on: the sitting plays it.
+                    val lead = neighbours.take(id, first)?.let { leadOf(it, first.now) }
+                    val next =
+                        Sitting(session, id, schedule, tuner, clock, timings, screen, ::record, flip, lead) { scope ->
+                            lookAhead(scope, neighbours, first.channel)
+                        }
                     flip = null
                     sitting = next
                     val exit = next.follow(first)
@@ -192,6 +209,29 @@ class LiveChannel(
             withContext(NonCancellable) {
                 sitting?.release()
                 tuner.stop(session)
+            }
+        }
+    }
+
+    /**
+     * After a sitting's first picture: resolves the channels above and below beside the picture. Not while the viewer
+     * is moving the number (the press is about to commit, and a commit ends these anyway).
+     */
+    private fun lookAhead(
+        scope: CoroutineScope,
+        neighbours: Neighbours,
+        playing: ChannelAiring,
+    ) {
+        if (screen.flow.value is LiveState.Choosing) return
+        scope.launch {
+            try {
+                neighbours.prepareAround(playing, lineup())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                // No look-ahead is a slower flip, never a failed sitting.
             }
         }
     }
@@ -286,4 +326,13 @@ class LiveChannel(
             ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
             else -> 2
         }
+}
+
+/** A handle from [Neighbours.take] as the sitting wants it: for the block on air, played from the position then. */
+private fun leadOf(
+    handle: NextHandle,
+    block: AiringBlock,
+): Pending? {
+    val program = block.airing as? Airing.Program ?: return null
+    return Pending(handle, program.itemId, block.startMs, Duration.ZERO, retarget = true)
 }

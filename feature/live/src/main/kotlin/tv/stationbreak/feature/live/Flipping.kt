@@ -104,6 +104,9 @@ internal class Flipper(
             }
     }
 
+    /** The lineup as of the last refresh, read now when there has been none; for the look-ahead, off the key path. */
+    suspend fun lineup(): FlipOrder = cached ?: FlipOrder(schedule.airings(clock.now())).also { cached = it }
+
     /**
      * Handles [commands] until the flow ends; a settle still pending carries on in the run's scope. A command that
      * fails is dropped, not fatal.

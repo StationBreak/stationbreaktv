@@ -772,4 +772,30 @@ class TuneControllerTest {
             assertEquals(Fallback(Route.DIRECT_PLAY, FallbackCause.SeekMiss), outcome.fallback)
             assertEquals(2, player.played.size)
         }
+
+    @Test
+    fun aPreparedTuneWithAStartOverridePlaysFromThatStart() =
+        runTest {
+            for (media in listOf(source(), PlaybackTestData.source(directPlay = false, directStream = false))) {
+                player.played.clear()
+                answer(media)
+                player.script = listOf(playing(1_300, 45.seconds))
+                val prepared = checkNotNull(controller.preResolve(session, item, 10.seconds))
+                val outcome = controller.tune(session, prepared, null, 45.seconds) as TuneResult.Played
+                assertEquals(1, player.played.size)
+                assertEquals(45.seconds, player.played.single().playerStart)
+                assertEquals(media.supportsDirectPlay, !player.played.single().isHls)
+                assertNull(outcome.fallback)
+            }
+        }
+
+    @Test
+    fun aNullStartKeepsTheHandlesStart() =
+        runTest {
+            answer(source())
+            player.script = listOf(playing(1_300, 10.seconds))
+            val prepared = checkNotNull(controller.preResolve(session, item, 10.seconds))
+            controller.tune(session, prepared, null, null)
+            assertEquals(10.seconds, player.played.single().playerStart)
+        }
 }

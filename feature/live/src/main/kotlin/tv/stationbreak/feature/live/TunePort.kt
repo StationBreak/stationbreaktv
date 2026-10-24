@@ -74,10 +74,18 @@ interface TunePort {
         start: Duration,
     ): NextHandle?
 
+    /** Plays [next] from [start] (the schedule's position now, as the handle may have waited), or null for its own. */
     suspend fun tune(
         session: Session,
         next: NextHandle,
+        start: Duration?,
     ): TuneOutcome
+
+    /** Plays [next] from the start it was resolved with. */
+    suspend fun tune(
+        session: Session,
+        next: NextHandle,
+    ): TuneOutcome = tune(session, next, null)
 
     suspend fun discard(
         session: Session,

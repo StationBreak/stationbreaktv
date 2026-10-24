@@ -63,6 +63,10 @@ internal class Sitting(
     val report: (TuneReport) -> Unit = {},
     /** Set for a sitting a flip started: its first block reports the flip's line (once), then this is null. */
     var flip: FlipTiming? = null,
+    /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
+    lead: Pending? = null,
+    /** Called once, when the first picture of the sitting plays, with the scope of the block that showed it. */
+    private val onFirstPicture: (CoroutineScope) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -70,8 +74,9 @@ internal class Sitting(
     /** [ChannelOnAir.builtUntilMs] as of the last anchor; a drift that reaches it re-anchors (ADR-0017). */
     private var limitMs = Long.MAX_VALUE
 
-    private val nextUp = NextUp(session, tuner, timings, ::vnowMs)
+    private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
+    private var pictured = false
 
     /** When the last play was cut off at a boundary (or an ident card ended): the start of the next tune's gap. */
     private var cutFrom: Instant? = null
@@ -150,8 +155,9 @@ internal class Sitting(
             val at = vnowMs()
             if (at >= block.endMs) return null
             val position = checkNotNull(block.positionAt(at))
-            val label = if (cut != null) BannerLabel.Now else BannerLabel.TuningIn
-            val joined = if (cut != null) null else position.inWholeMilliseconds
+            val joins = cut == null || cut.retarget
+            val label = if (joins) BannerLabel.TuningIn else BannerLabel.Now
+            val joined = if (joins) position.inWholeMilliseconds else null
             val banner = bannerFor(onAir.channel, block, label, joined, driftMs)
             val use = cut
             cut = null
@@ -161,11 +167,12 @@ internal class Sitting(
                     failures > 0 -> TuneKind.Retry
                     else -> TuneKind.Fresh
                 }
+            val asked = if (use != null && !use.retarget) use.start else position
             val outcome =
-                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, use?.start ?: position)) {
+                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, asked)) {
                     if (use != null) {
                         use.consumed = true
-                        tuner.tune(session, use.handle)
+                        tuner.tune(session, use.handle, position.takeIf { use.retarget })
                     } else {
                         tuner.tune(session, ItemId(program.itemId.value), position)
                     }
@@ -221,6 +228,10 @@ internal class Sitting(
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
             showWatching(scope, banner)
+            if (!pictured) {
+                pictured = true
+                onFirstPicture(scope)
+            }
         }
         return outcome
     }

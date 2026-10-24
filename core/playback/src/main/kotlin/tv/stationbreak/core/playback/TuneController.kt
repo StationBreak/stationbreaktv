@@ -251,17 +251,21 @@ class TuneController(
      * handle that was already discarded is tuned the ordinary way, with a fresh resolve. An [override] other than null
      * cannot be honoured by a handle resolved with the default tracks, so the handle is ended and the item is tuned the
      * ordinary way.
+     *
+     * [start] replaces the start the handle was resolved with (a handle held a while is played from where the schedule
+     * is now); null keeps it. The handle itself is not changed. Direct play and HLS both seek to it.
      */
     suspend fun tune(
         session: Session,
         prepared: Prepared,
         override: TrackOverride?,
+        start: Duration? = null,
     ): TuneResult {
         // Taken before waiting for the lock, so the caller never has to wonder whether it still owns the handle.
         val taken = outstanding.remove(prepared)
         return try {
             if (taken && override == null) {
-                tuneWith(session, prepared.item, prepared.start, null, prepared)
+                tuneWith(session, prepared.item, start ?: prepared.start, null, prepared)
             } else {
                 if (taken) {
                     // Resolved without the override, so it is of no use: end its encode now, not after this tune, so
@@ -270,7 +274,7 @@ class TuneController(
                     prepared.adopted = true
                     withContext(NonCancellable) { stopEncode(session, prepared.resolved) }
                 }
-                tuneWith(session, prepared.item, prepared.start, override, null)
+                tuneWith(session, prepared.item, start ?: prepared.start, override, null)
             }
         } finally {
             // A play that began owns the encode now (it is the current attempt); otherwise nothing will end it.
@@ -330,10 +334,11 @@ class TuneController(
             if (ready != null) {
                 // Recorded before anything can be cancelled, so a cancel still finds its encode to stop; then a cancel
                 // that came during the clean-up above is seen before the player is touched.
-                current = ready.resolved
+                val resolved = ready.resolved.startingAt(start)
+                current = resolved
                 ready.adopted = true
                 currentCoroutineContext().ensureActive()
-                play(ready.resolved, began, false)
+                play(resolved, began, false)
             } else {
                 attempt(session, item, start, override, false, began)
             }
@@ -720,3 +725,10 @@ private fun MediaServerError.refusesSession(): Boolean =
     this is MediaServerError.HttpUnauthorized ||
         this is MediaServerError.HttpForbidden ||
         this is MediaServerError.SessionExpired
+
+/**
+ * This play with its start moved to [start]. The URL does not carry the start (the player seeks, for HLS as for direct
+ * play), so only the source's start and the start the seek check judges against change.
+ */
+private fun ResolvedPlayback.startingAt(start: Duration): ResolvedPlayback =
+    copy(source = source.copy(playerStart = start), requested = start)

@@ -48,6 +48,8 @@ class LiveChannelFlipTest {
         r.schedule.channel(CH5, 5, listOf(program(0, 600, 5)))
         r.schedule.channel(CH9, 9, listOf(program(0, 600, 9)))
         r.lastChannel.save(r.account, startOn)
+        // These tests are about the flip's own sequence; look-ahead has its own (LiveChannelNeighboursTest).
+        r.tune.preResolveResult = { false }
         r.setup()
         val keys = Channel<LiveCommand>(Channel.UNLIMITED)
         val job = r.start(commands = keys.receiveAsFlow())

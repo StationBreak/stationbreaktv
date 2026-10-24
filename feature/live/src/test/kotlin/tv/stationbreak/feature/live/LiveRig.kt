@@ -281,9 +281,10 @@ class FakeTune(
     override suspend fun tune(
         session: Session,
         next: NextHandle,
+        start: Duration?,
     ): TuneOutcome {
         val p = next.token as Prepared
-        calls += Call.TuneHandle(p.item, p.start, now())
+        calls += Call.TuneHandle(p.item, start ?: p.start, now())
         return outcomeFor(p.item)
     }
 

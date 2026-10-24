@@ -21,6 +21,8 @@ internal class Pending(
     val item: CanonicalId,
     val blockStartMs: Long,
     val start: Duration,
+    /** True for a neighbour channel's handle: it waited a while, so it is played from the schedule's position then. */
+    val retarget: Boolean = false,
 ) {
     /** Set when the handle is passed to a tune, which takes it whatever happens: it must not be discarded after. */
     var consumed = false
@@ -36,6 +38,8 @@ internal class NextUp(
     private val tuner: TunePort,
     private val timings: LiveTimings,
     private val now: () -> Long,
+    /** A neighbour channel's handle for the first block of the sitting; tried when no handle was prepared for it. */
+    private var lead: Pending? = null,
 ) {
     private var pending: Pending? = null
 
@@ -66,15 +70,26 @@ internal class NextUp(
 
     /** The handle prepared for [block] when it is still exactly right; a stale or mismatched one is discarded. */
     suspend fun takeFor(block: AiringBlock): Pending? {
-        val held = pending ?: return null
+        val held = pending
         pending = null
         val program = block.airing as? Airing.Program
         val fits =
-            program != null &&
+            held != null &&
+                program != null &&
                 program.itemId == held.item &&
                 block.startMs == held.blockStartMs &&
                 block.positionAt(block.startMs) == held.start &&
                 now() - block.startMs <= CUT_SLACK_MS
+        if (held != null && !fits) discard(held)
+        return held?.takeIf { fits } ?: takeLead(block)
+    }
+
+    /** The lead handle when it is for exactly this block and the block is still on; otherwise it is ended. */
+    private suspend fun takeLead(block: AiringBlock): Pending? {
+        val held = lead ?: return null
+        lead = null
+        val program = block.airing as? Airing.Program
+        val fits = program?.itemId == held.item && block.startMs == held.blockStartMs && now() < block.endMs
         if (!fits) discard(held)
         return held.takeIf { fits }
     }
@@ -86,9 +101,10 @@ internal class NextUp(
 
     /** Ends what is held. The caller stops the tuner. */
     suspend fun release() {
-        val held = pending ?: return
+        val all = listOfNotNull(pending, lead)
         pending = null
-        discard(held)
+        lead = null
+        all.forEach { discard(it) }
     }
 
     private companion object {

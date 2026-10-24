@@ -105,6 +105,7 @@ class LiveDestinationLifecycleTest {
         override suspend fun tune(
             session: Session,
             next: NextHandle,
+            start: Duration?,
         ): TuneOutcome = TuneOutcome.Cancelled
 
         override suspend fun discard(
