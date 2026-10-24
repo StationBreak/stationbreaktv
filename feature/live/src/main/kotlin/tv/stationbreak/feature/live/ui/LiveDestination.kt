@@ -66,32 +66,50 @@ internal fun LiveRoot(
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
     // The root holds focus so the remote's keys reach it; its preview handler sees them before anything below does.
     val focus = remember { FocusRequester() }
-    LaunchedEffect(focus) { focus.requestFocus() }
+    // Asked again at every start: coming back from Home must not leave the keys without a target.
+    LaunchedEffect(focus, owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
+    }
     Box(
         Modifier
             .fillMaxSize()
             .focusRequester(focus)
-            .onPreviewKeyEvent { event -> liveKeyCommand(event)?.also(onCommand) != null }
+            .onPreviewKeyEvent { event -> handleLiveKey(event, onCommand) }
             .focusable(),
     ) {
         LiveScreen(state) { AndroidView(factory = { surface }) }
     }
 }
 
-/**
- * What a key does on the live screen (spec 15), or null when the screen leaves it alone. Key-down only, auto-repeat
- * included, so holding Up or Down keeps flipping; the release does nothing. Up/Down and the remote's CH+/CH- flip,
- * Menu goes to the previous channel. Back is never mapped (it still leaves the app from live), nor are the media
- * next/previous keys, which are kept for pause and skip.
- */
-internal fun liveKeyCommand(event: KeyEvent): LiveCommand? {
-    if (event.type != KeyEventType.KeyDown) return null
-    return when (event.key) {
+private fun mappedCommand(key: Key): LiveCommand? =
+    when (key) {
         Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
         Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
         Key.Menu -> LiveCommand.Previous
         else -> null
     }
+
+/**
+ * What a key does on the live screen (spec 15), or null when it does nothing. Key-down only, auto-repeat included, so
+ * holding Up or Down keeps flipping. Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel. Back is
+ * never mapped (it still leaves the app from live), nor are the media next/previous keys, kept for pause and skip.
+ */
+internal fun liveKeyCommand(event: KeyEvent): LiveCommand? {
+    if (event.type != KeyEventType.KeyDown) return null
+    return mappedCommand(event.key)
+}
+
+/**
+ * Sends the command of a mapped key and says whether the screen consumed [event]: a mapped key's down (which sends) and
+ * its up (which does nothing, but nothing else should see a stray release). Everything else, Back included, passes.
+ */
+internal fun handleLiveKey(
+    event: KeyEvent,
+    send: (LiveCommand) -> Unit,
+): Boolean {
+    val command = mappedCommand(event.key) ?: return false
+    if (event.type == KeyEventType.KeyDown) send(command)
+    return event.type == KeyEventType.KeyDown || event.type == KeyEventType.KeyUp
 }
 
 /**

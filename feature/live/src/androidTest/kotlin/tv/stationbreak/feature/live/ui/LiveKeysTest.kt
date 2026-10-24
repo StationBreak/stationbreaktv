@@ -5,9 +5,11 @@ import android.view.KeyEvent.ACTION_DOWN
 import android.view.KeyEvent.ACTION_UP
 import android.view.KeyEvent.KEYCODE_BACK
 import android.view.KeyEvent.KEYCODE_DPAD_CENTER
+import android.view.KeyEvent.KEYCODE_DPAD_DOWN
 import android.view.KeyEvent.KEYCODE_DPAD_UP
 import android.view.KeyEvent.KEYCODE_MEDIA_NEXT
 import android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
+import android.view.KeyEvent.KEYCODE_MENU
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -15,11 +17,14 @@ import androidx.compose.ui.test.KeyInjectionScope
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -180,6 +185,30 @@ class LiveKeysTest {
     @Test
     fun releasingAKeyDoesNothing() {
         assertNull(liveKeyCommand(key(ACTION_UP, KEYCODE_DPAD_UP)))
+    }
+
+    @Test
+    fun theReleaseOfAMappedKeyIsConsumedButSendsNothingAndBackPassesBothWays() {
+        val got = mutableListOf<LiveCommand>()
+        for (code in listOf(KEYCODE_DPAD_UP, KEYCODE_DPAD_DOWN, KEYCODE_MENU)) {
+            assertTrue("$code up consumed", handleLiveKey(key(ACTION_UP, code)) { got += it })
+        }
+        assertEquals(emptyList<LiveCommand>(), got)
+        assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_DPAD_UP)) { got += it })
+        assertEquals(listOf<LiveCommand>(LiveCommand.Flip(FlipDirection.Up)), got)
+        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK)) { got += it })
+        assertFalse(handleLiveKey(key(ACTION_UP, KEYCODE_BACK)) { got += it })
+        assertEquals(1, got.size)
+    }
+
+    @Test
+    fun theKeysStillWorkAfterTheScreenStopsAndStartsAgain() {
+        show()
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        compose.waitForIdle()
+        press(listOf(Key.DirectionUp))
+        assertEquals(listOf<LiveCommand>(LiveCommand.Flip(FlipDirection.Up)), sent.toList())
     }
 
     @Test
