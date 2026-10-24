@@ -17,6 +17,9 @@ check() { # <description> <condition exit status>
 # shellcheck source=scripts/run-bounded.sh
 source "$here/run-bounded.sh"
 
+# The grace between SIGTERM and SIGKILL, short so this test stays quick.
+export RUN_BOUNDED_GRACE=1
+
 noop() { :; }
 record() { # records whether the command was still alive when the on-timeout command ran
   if kill -0 "$1" 2>/dev/null; then echo alive >"$work/state"; else echo dead >"$work/state"; fi
@@ -47,7 +50,7 @@ check "the command was stopped" $?
 status=0
 start=$SECONDS
 run_bounded 1 noop bash -c 'trap "" TERM; while :; do sleep 1; done' || status=$?
-[ "$status" -eq 124 ] && [ $((SECONDS - start)) -lt 60 ]
+[ "$status" -eq 124 ] && [ $((SECONDS - start)) -lt 20 ]
 check "a command that ignores SIGTERM is killed" $?
 
 # A failing on-timeout command does not stop the kill.
@@ -56,6 +59,29 @@ status=0
 run_bounded 1 fail_hook sleep 300 || status=$?
 [ "$status" -eq 124 ]
 check "a failing on-timeout command still lets the command be stopped" $?
+
+# Ctrl-C: SIGINT sent to the script's process group must reach the command. A background job in a script starts with
+# SIGINT ignored unless run_bounded restores it. The script is started from an interactive-less subshell with job control
+# on (set -m), so it has its own process group to signal.
+cat >"$work/ctrlc.sh" <<EOS
+source "$here/run-bounded.sh"
+noop() { :; }
+run_bounded 60 noop sleep 4242
+EOS
+set -m
+bash "$work/ctrlc.sh" &
+script_pid=$!
+set +m
+sleep 2
+kill -INT -- "-$script_pid" 2>/dev/null || true
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  pgrep -f "sleep 4242" >/dev/null || break
+  sleep 1
+done
+! pgrep -f "sleep 4242" >/dev/null
+check "SIGINT reaches the command" $?
+pkill -f "sleep 4242" 2>/dev/null || true
+wait "$script_pid" 2>/dev/null || true
 
 if [ "$failures" -ne 0 ]; then
   echo "$failures check(s) failed"

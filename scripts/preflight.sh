@@ -18,7 +18,8 @@
 # and /android-sdk are used if they exist.
 # Instrumented tests are bounded: PREFLIGHT_INSTRUMENTED_TIMEOUT seconds (default 1200; a normal run takes 3-5
 # minutes). On a timeout it saves logcat, the foreground activity, the device's processes and a Gradle client thread
-# dump under build/preflight/ and fails the step. The logcat is kept there for every --emulator run.
+# dump and fails the step. The logcat is kept for every --emulator run, in a per-run directory under
+# ${XDG_CACHE_HOME:-$HOME/.cache}/stationbreak/preflight-runs/ (the last 10 are kept); the path is printed at the end.
 # Exit: 0 all passed, 1 a step failed, 2 usage error.
 set -euo pipefail
 
@@ -232,7 +233,8 @@ emulator_lock_fd=""
 emulator_pid=""
 logcat_pid=""
 avd_home=""
-# Per run, in the repo's ignored build/ so it outlives the AVD directory that cleanup deletes.
+# Per run, outside the repo and the AVD directory: cleanup deletes the AVD, and something removed a repo-root build/
+# directory after a run (2026-10), taking the logcat with it.
 preflight_out=""
 
 emulator_cleanup() {
@@ -351,8 +353,13 @@ instrumented_tests() {
   done
 
   # Kept for every run, so a hang leaves evidence of which test stalled. Cleared first so it holds only this run.
-  preflight_out="$PWD/build/preflight/instrumented-$(date +%Y%m%d-%H%M%S)"
+  local runs_dir="$lock_dir/preflight-runs" old
+  preflight_out="$runs_dir/$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$preflight_out"
+  # Keep the last 10 runs (names sort by time), so this doesn't grow without end.
+  while IFS= read -r old; do
+    rm -rf "${runs_dir:?}/$old"
+  done < <(ls -1 "$runs_dir" | sort | head -n -10)
   "$adb" logcat -c
   "$adb" logcat -v threadtime >"$preflight_out/logcat.txt" 2>&1 &
   logcat_pid=$!
@@ -373,7 +380,10 @@ instrumented_tests() {
   if [ "$status" -eq 124 ]; then
     echo "The instrumented tests hung: no result after ${limit}s. Evidence (logcat, activities, ps, thread dump) is in:" >&2
     echo "  $preflight_out" >&2
-    echo "The Gradle client was stopped; the emulator is shut down next." >&2
+    echo "The Gradle client was stopped and the emulator is shut down next. Gradle's daemon is asked to cancel the build but" >&2
+    echo "may stay busy a while if a task is stuck in adb; it was not stopped, as that would stop other builds too." >&2
+  else
+    echo "Instrumented run evidence (logcat): $preflight_out"
   fi
   return "$status"
 }
