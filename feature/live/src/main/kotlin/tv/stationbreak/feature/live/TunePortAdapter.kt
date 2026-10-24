@@ -6,6 +6,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.FallbackCause
 import tv.stationbreak.core.playback.Prepared
+import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.TuneFailure
 import tv.stationbreak.core.playback.TuneResult
@@ -65,12 +66,22 @@ class TunePortAdapter(
             playingMs = playingMs,
             positionErrorMs = positionError?.inWholeMilliseconds,
             fallback =
-                when (fallback?.cause) {
+                when (val cause = fallback?.cause) {
                     null -> null
                     FallbackCause.SeekMiss -> "seekMiss"
-                    is FallbackCause.LoadFailed -> "loadFailed"
+                    is FallbackCause.LoadFailed -> loadFailedName(cause.diagnostic)
+                },
+            route =
+                when (resolved.route) {
+                    Route.DIRECT_PLAY -> "direct"
+                    Route.DIRECT_STREAM -> "stream"
+                    Route.TRANSCODE -> "transcode"
                 },
         )
+
+    /** The stable error name, one token for logcat (an HTTP status inside it has its spaces replaced). */
+    private fun loadFailedName(diagnostic: String?): String =
+        if (diagnostic == null) "loadFailed" else "loadFailed:" + diagnostic.replace(' ', '_')
 
     private fun TuneResult.toOutcome(): TuneOutcome =
         when (this) {

@@ -285,13 +285,14 @@ class CapabilityProbeTest {
     }
 
     @Test
-    fun aviIsAContainerOnlyWithAnMpeg4Decoder() {
+    fun aviIsNeverOfferedForDirectPlay() {
         val without = probeOf(FakeInventory(video = listOf(avc())))
         assertFalse(Codecs.AVI in without.containers)
 
         val mpeg4 = DecoderInfo("video/mp4v-es", emptySet(), null, 1920, 1080)
         val with = probeOf(FakeInventory(video = listOf(mpeg4)))
-        assertTrue(Codecs.AVI in with.containers)
+        assertFalse(Codecs.AVI in with.containers)
+        assertTrue(with.videoCodecs.any { it.codec == Codecs.MPEG4 })
     }
 
     @Test

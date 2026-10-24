@@ -234,6 +234,58 @@ class TunePortAdapterTest {
         }
 
     @Test
+    fun theRouteTheServerChoseIsCarriedInTheTimings() =
+        kotlinx.coroutines.test.runTest {
+            val cases =
+                listOf(
+                    playable to "direct",
+                    playable.copy(supportsDirectPlay = false) to "stream",
+                    playable.copy(supportsDirectPlay = false, supportsDirectStream = false) to "transcode",
+                )
+            for ((source, route) in cases) {
+                val rig = Rig(this)
+                rig.answer(source)
+                rig.player.answerAt = Duration.ZERO
+                val playing = rig.port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing
+                assertEquals(route, playing.timings.route)
+            }
+        }
+
+    private suspend fun TestScope.loadFailedTiming(
+        code: String,
+        httpStatus: Int?,
+    ): String? {
+        val rig = Rig(this)
+        rig.answer()
+        val outcome = async { rig.port.tune(session, item, Duration.ZERO) }
+        runCurrent()
+        rig.player.emit(PlayerEvent.Failed(code, httpStatus, rig.player.generation))
+        runCurrent()
+        rig.player.emit(PlayerEvent.FirstFrame(950, rig.player.generation))
+        rig.player.emit(PlayerEvent.Playing(1_000, Duration.ZERO, rig.player.generation))
+        runCurrent()
+        return (outcome.await() as TuneOutcome.Playing).timings.fallback
+    }
+
+    @Test
+    fun aLoadFailureFallbackCarriesTheErrorName() =
+        kotlinx.coroutines.test.runTest {
+            assertEquals(
+                "loadFailed:ERROR_CODE_DECODING_FAILED",
+                loadFailedTiming("ERROR_CODE_DECODING_FAILED", null),
+            )
+        }
+
+    @Test
+    fun aLoadFailureWithAnHttpStatusIsOneTokenInTheLog() =
+        kotlinx.coroutines.test.runTest {
+            assertEquals(
+                "loadFailed:ERROR_CODE_IO_BAD_HTTP_STATUS_(HTTP_404)",
+                loadFailedTiming("ERROR_CODE_IO_BAD_HTTP_STATUS", 404),
+            )
+        }
+
+    @Test
     fun aFailedResolveIsDeadAndNotATimeout() =
         kotlinx.coroutines.test.runTest {
             val rig = Rig(this)

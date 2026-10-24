@@ -26,8 +26,9 @@ data class VideoCodecSupport(
 
 /**
  * What this device can play, as the player's capability probe found it: the input to the server's device profile.
- * [containers] are what the player opens directly (mp4, m4v, mkv, webm, ts, avi ...). [audioPassthrough] is a subset
- * of [Codecs.PASSTHROUGH_AUDIO]. Every name is from the [Codecs] vocabulary, or construction fails.
+ * [containers] are what the player opens directly (mp4, m4v, mkv, webm, ts ...; never avi, whose direct play fails on
+ * the target TVs, spec 15). [audioPassthrough] is a subset of [Codecs.PASSTHROUGH_AUDIO]. Every name is from the
+ * [Codecs] vocabulary, or construction fails.
  */
 data class DeviceCapabilities(
     val containers: Set<String>,
