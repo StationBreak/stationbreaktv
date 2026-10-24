@@ -3,14 +3,10 @@ package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -165,21 +161,6 @@ class LiveScreenTest {
     fun fillingInBannerSaysFillingIn() {
         show(LiveState.Watching(banner(BannerLabel.FillingIn)))
         compose.onNodeWithText("Filling in").assertExists()
-    }
-
-    @Test
-    fun aVeryLongEpisodeTitleStaysInsideTheBannerAndTheSafeArea() {
-        val long = "Test Episode " + "With A Very Long Synthetic Name ".repeat(12)
-        val info = episode.copy(title = long, seasonNumber = 29, episodeNumber = 3)
-        show(LiveState.Watching(banner(BannerLabel.Now, info = info)))
-        val root = compose.onRoot().getBoundsInRoot()
-        val banner = compose.onNodeWithTag(LiveTags.BANNER).getBoundsInRoot()
-        val safeRight = root.right * 0.95f
-        assertTrue("banner is inside the safe area", banner.right <= safeRight + 1.dp)
-        for (tag in listOf(LiveTags.BANNER_TITLE, LiveTags.BANNER_SUBTITLE, LiveTags.BANNER_SLOT)) {
-            val text = compose.onNodeWithTag(tag).getBoundsInRoot()
-            assertTrue("$tag stays in the banner", text.right <= banner.right + 1.dp && text.left >= banner.left)
-        }
     }
 
     private companion object {

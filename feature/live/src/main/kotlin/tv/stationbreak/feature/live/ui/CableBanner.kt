@@ -23,12 +23,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -142,7 +140,6 @@ private fun BannerStrip(
     Column(
         modifier
             .fillMaxWidth()
-            .clipToBounds()
             .background(BroadcastColors.Ink)
             .testTag(LiveTags.BANNER),
     ) {
@@ -168,7 +165,7 @@ private fun BannerStrip(
                 Row(Modifier.fillMaxWidth()) {
                     Detail(slot, LiveTags.BANNER_SLOT, Modifier.weight(1f, fill = false))
                     joined?.let {
-                        Detail(SEPARATOR, null, Modifier.wrapContentWidth(unbounded = false))
+                        Detail(SEPARATOR, null)
                         Detail(it, LiveTags.BANNER_JOINED, Modifier.weight(1f, fill = false))
                     }
                 }
@@ -200,6 +197,7 @@ private fun NumberBlock(
         )
         Text(
             text = name.uppercase(),
+            modifier = Modifier.testTag(LiveTags.BANNER_CHANNEL),
             style = mono(LabelSize, letterSpacing = 1.5.sp),
             color = BroadcastColors.Ground,
             maxLines = 1,
