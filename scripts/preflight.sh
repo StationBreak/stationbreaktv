@@ -321,8 +321,10 @@ instrumented_tests() {
     "$adb" shell settings put global "$setting" 0
   done
 
+  # One module at a time: gradle.properties turns on org.gradle.parallel, and several modules' connected tasks on the
+  # one emulator fight over the foreground window; one of them then waits forever (hung runs, 2026-10).
   # shellcheck disable=SC2086
-  ./gradlew $connected
+  ./gradlew --no-parallel $connected
 }
 
 trap emulator_cleanup EXIT
