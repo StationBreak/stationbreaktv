@@ -327,10 +327,10 @@ class LiveChannelFlipTest {
 
     @Test
     fun theFlipLineHasNumbersAndFixedNamesOnly() {
-        val line = TuneReport.Flip(null, 900, 400, 900, "playing", "transcode", "loadFailed:CODE").line()
+        val line = TuneReport.Flip(null, 900, 400, 900, "playing", "transcode", "loadFailed:CODE", "direct").line()
         assertEquals(
-            "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 elapsedMs=900 outcome=playing route=transcode " +
-                "fallback=loadFailed:CODE",
+            "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 elapsedMs=900 outcome=playing from=direct " +
+                "route=transcode fallback=loadFailed:CODE",
             line,
         )
     }

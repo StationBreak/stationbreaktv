@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-23
 - **Decided by:** the owner (Phil, 2026-10-23) for how a dead item, a stand-in and the drift behave and for how the screen looks; technical calls under the owner's standing instruction for the rest (marked in the text)
-- **Revisit:** if a later spec lets a viewer flip channels (F1.4) or call up the banner (F2.2), when the input shape under "Future input" is built; if stand-ins ever need to agree across TVs whose libraries differ; if the shared channel manager in #354 is built
+- **Revisit:** if a later spec lets a viewer call up the banner (F2.2), which needs a new `LiveCommand`; if stand-ins ever need to agree across TVs whose libraries differ; if the shared channel manager in #354 is built
 - **Informs:** spec 14 (offset playback, F1.3), ADR-0016 (the player's lifecycle seam), `docs/rules-format.md` (the stand-in note under the pool's cut-off rules), BACKLOG S1.3.1 to S1.3.3, ASSUMPTIONS Q-SCH-3
 
 ## Context
@@ -86,22 +86,48 @@ what the screen does then, and the few structural choices that go with it.
 - **Ownership.** The handles belong to the run, not to a sitting. A commit takes the target's handle (if it is still
   for the item on air) and discards the others; the run's end, when live TV stops, discards all.
 - **Kept fresh.** They are made again at each picture of the current channel (so after a block change or a skipped
-  look while the number was moving), and a handle is dropped once its block has ended. Look-ahead never runs while the
-  viewer is moving the number.
+  look while the number was moving). A held handle is refreshed per block of the current channel; a stale handle is
+  re-checked and never played (see #389 for the remaining gaps). Look-ahead never runs while the viewer is moving the
+  number.
 - **Revisit** if the contract case `aPlaybackInfoAloneStartsNoEncode` fails on a supported Jellyfin (ADR-0016): a held
   handle then holds an encode, so `Neighbours` must stop holding handles and resolve at commit instead.
 - **Retargeted.** A handle waits, so it is played from the schedule's position at the commit, not the one it was
   resolved for (`TuneController.tune(prepared, override, start)`); a flip's tune is reported as kind `neighbour`.
   A flip still shows the snow, whatever route it takes.
 
-## Future input
+## Decision 2026-10-24: flipping channels (spec 15, F1.4)
 
-F1.4 (flipping) and F2.2 (Select for the banner) need a way to send the live channel a command. Spec 14 does not build
-it. The intended shape, so that it is not a rewrite later: `run(requests: Flow<LiveCommand>)`, with the machine
-collecting with `collectLatest` so that a newer command replaces the sitting the older one started. The cleanup of a
-sitting (cancelling its watchers and cut timers) stays separate from `tuner.stop`, since a flip keeps the player and
-the picture up until the new one is ready. The current banner is kept across a command that does not change what is
-on, such as asking for the banner again.
+Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banner) will add its own command.
+
+- **Commands.** `LiveChannel.run(commands: Flow<LiveCommand>)` takes `LiveCommand.Flip(direction)` and
+  `LiveCommand.Previous`. On the live screen (key down only, auto-repeat included): Up and Channel Up flip up, Down and
+  Channel Down flip down, Menu goes to the previous channel. Back is unchanged: it leaves the app from live and is never
+  the previous-channel key (Q-UX-2). The media next and previous keys are deliberately not mapped; they are reserved for
+  pause and skip (#383). The keys land in PR #391 (https://github.com/StationBreak/stationbreaktv/pull/391).
+- **Settle, then commit.** A press moves the number at once (`LiveState.Choosing`) while the old channel keeps playing.
+  After `LiveTimings.flipSettle` (400 ms, a default like the others) with no further press, the commit stops the old
+  play and tunes the target under the snow. Only the channel the viewer stops on is tuned; look-ahead (above) covers
+  its neighbours.
+- **Previous is immediate.** It commits at once with no settle and toggles between the last two channels. With nothing
+  earlier, or an earlier channel that is no longer flippable, it does nothing.
+- **Flip order.** The unhidden channels of a lineup snapshot, refreshed in the background so a press never waits on a
+  read. A target with nothing on the air is stepped past in the same direction; a full wrap back to the playing channel
+  tunes nothing.
+- **A flip shows the snow, not the old picture.** These devices decode one video at a time, so the old picture cannot
+  stay up while the new one loads. Owner decision, 2026-10-24. This replaces the earlier idea of keeping the player and
+  picture up until the new one is ready.
+- **Measurement.** Each committed flip writes exactly one line, except a commit whose lookup throws, which logs a
+  failure line (#388). The line is `SBLIVE flip toFirstFrameMs toPlayingMs settleMs elapsedMs outcome from route
+  fallback`, timed from the last press. The clock starts when the live channel processes the command, so a press queued
+  behind an unwinding commit is timed slightly short. `from` is the route of the first attempt and `route` the one that
+  finally played; they differ after a fallback. The gate counts the flips whose first attempt was direct (`from=direct`),
+  whatever they fell back to. Outcomes: playing, slate, standin, failed, superseded,
+  abandoned. A ring buffer keeps the newest `flipLogSize` (50). The on-screen diagnostics view (S1.4.4) is deferred. The
+  Phase 1 gate reads these lines (S1.4.5).
+- **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
+  (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
+  longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the
+  load-failure name.
 
 ## Consequences
 

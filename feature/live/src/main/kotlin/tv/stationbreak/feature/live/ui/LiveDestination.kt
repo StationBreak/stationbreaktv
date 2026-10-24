@@ -2,11 +2,23 @@
 package tv.stationbreak.feature.live.ui
 
 import android.view.SurfaceView
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
@@ -17,6 +29,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import tv.stationbreak.feature.live.FlipDirection
+import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveState
 
 /**
@@ -35,6 +49,7 @@ fun LiveDestination(onSignedOut: () -> Unit) {
 internal fun LiveRoot(
     viewModel: LiveViewModel,
     onSignedOut: () -> Unit,
+    onCommand: (LiveCommand) -> Unit = viewModel::send,
     tuners: TunerFactory? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -49,7 +64,52 @@ internal fun LiveRoot(
     }
     KeepScreenOn(owner)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
-    LiveScreen(state) { AndroidView(factory = { surface }) }
+    // The root holds focus so the remote's keys reach it; its preview handler sees them before anything below does.
+    val focus = remember { FocusRequester() }
+    // Asked again at every start: coming back from Home must not leave the keys without a target.
+    LaunchedEffect(focus, owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .focusRequester(focus)
+            .onPreviewKeyEvent { event -> handleLiveKey(event, onCommand) }
+            .focusable(),
+    ) {
+        LiveScreen(state) { AndroidView(factory = { surface }) }
+    }
+}
+
+private fun mappedCommand(key: Key): LiveCommand? =
+    when (key) {
+        Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
+        Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
+        Key.Menu -> LiveCommand.Previous
+        else -> null
+    }
+
+/**
+ * What a key does on the live screen (spec 15), or null when it does nothing. Key-down only, auto-repeat included, so
+ * holding Up or Down keeps flipping. Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel. Back is
+ * never mapped (it still leaves the app from live), nor are the media next/previous keys, kept for pause and skip.
+ */
+internal fun liveKeyCommand(event: KeyEvent): LiveCommand? {
+    if (event.type != KeyEventType.KeyDown) return null
+    return mappedCommand(event.key)
+}
+
+/**
+ * Sends the command of a mapped key and says whether the screen consumed [event]: a mapped key's down (which sends) and
+ * its up (which does nothing, but nothing else should see a stray release). Everything else, Back included, passes.
+ */
+internal fun handleLiveKey(
+    event: KeyEvent,
+    send: (LiveCommand) -> Unit,
+): Boolean {
+    val command = mappedCommand(event.key) ?: return false
+    if (event.type == KeyEventType.KeyDown) send(command)
+    return event.type == KeyEventType.KeyDown || event.type == KeyEventType.KeyUp
 }
 
 /**

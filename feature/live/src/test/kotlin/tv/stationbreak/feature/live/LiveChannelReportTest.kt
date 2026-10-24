@@ -129,10 +129,10 @@ class LiveChannelReportTest {
 
     @Test
     fun theLogLinesAreNumbersAndFixedNamesOnly() {
-        val tune = TuneReport.Tune(TuneKind.Fresh, -1, 1_800, 2_000, null, null, 40, "stream")
+        val tune = TuneReport.Tune(TuneKind.Fresh, -1, 1_800, 2_000, null, null, 40, "stream", "direct")
         val line =
             "tune kind=fresh resolveMs=-1 firstFrameMs=1800 playingMs=2000 posErrMs=-1 fallback=none lagMs=40 " +
-                "route=stream"
+                "from=direct route=stream"
         assertEquals(line, tune.line())
         val cut = TuneReport.Cut(gapMs = 300, resolveMs = 0, toFirstFrameMs = null)
         assertEquals("cut gapMs=300 resolveMs=0 toFirstFrameMs=-1", cut.line())

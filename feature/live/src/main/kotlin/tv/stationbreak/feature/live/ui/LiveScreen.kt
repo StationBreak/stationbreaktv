@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.feature.live.LiveState
 
@@ -37,8 +38,9 @@ internal fun LiveScreen(
             }
 
             is LiveState.Choosing -> {
-                // The number itself is drawn in spec 15's screen task; until then, snow when no picture is under it.
+                // The number moving (spec 15): the old picture shows through untouched, or snow when there is none.
                 if (!state.overPicture) Snow()
+                Box(Modifier.fillMaxSize().testTag(LiveTags.BANNER_CHOOSING)) { ChannelBanner(state.target) }
             }
 
             is LiveState.TechnicalDifficulties -> {

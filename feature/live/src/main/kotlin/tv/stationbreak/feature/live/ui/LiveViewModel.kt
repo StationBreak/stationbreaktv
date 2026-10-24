@@ -8,10 +8,12 @@ import android.view.SurfaceView
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LastChannelStore
@@ -27,6 +29,7 @@ import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.feature.live.LiveChannel
+import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
@@ -79,6 +82,14 @@ internal class LiveViewModel
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
 
+        // Here, not in the composition, because the ViewModel outlives it; drained at the start of each sitting.
+        private val commands = Channel<LiveCommand>(Channel.UNLIMITED)
+
+        /** A key press, in order. Presses made while the screen was stopped are dropped by the next [sit]. */
+        fun send(command: LiveCommand) {
+            commands.trySend(command)
+        }
+
         /**
          * One STARTED period: makes the player, shows it on [surface], runs the live channel, and on the way out (a
          * stop, or the session ending) closes the tuner, then detaches and releases the player, in that order
@@ -90,6 +101,9 @@ internal class LiveViewModel
             tuners: TunerFactory = controllers,
         ) {
             shown.value = LiveState.Ident(null)
+            while (commands.tryReceive().isSuccess) {
+                // A press from before the stop would flip a channel the viewer is no longer looking at.
+            }
             val session = sessions.current.value
             if (session == null) {
                 shown.value = LiveState.SignedOut
@@ -116,7 +130,7 @@ internal class LiveViewModel
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { live.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
-                    live.run()
+                    live.run(commands.receiveAsFlow())
                     // run() returns only when the session ended.
                     mirror.cancel()
                 }
