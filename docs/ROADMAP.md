@@ -24,7 +24,7 @@ No calendar estimates are given; this is a solo/evenings project, and gates matt
 ```
 Phase 0  Foundations ─────► Gate: connects by URL, lists libraries on Insignia
    │
-Phase 1  Live core ───────► Gate: 10 flips, each mid-program < 2 s
+Phase 1  Live core ───────► Gate: 30 flips; Firestick < 2 s, Insignia usable
    │
 Phase 2  Guide + builder ─► Gate: 14 days daily use replacing NostalgiaTV
    │
@@ -113,7 +113,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 
 | ID | Risk | Sev | Mitigation |
 | --- | --- | --- | --- |
-| R-PERF-1 | **< 2 s mid-program tune-in on a budget Fire TV.** Seeking into an MKV without cues, slow server disk, remote (WAN) servers, or a transcode start can each blow the budget. The spec's gate also implies a LAN server. | 🔴 | SP-1 spike in Phase 0; a single reused player; pre-resolve adjacent channels; close the first-frame→playing gap (ADR-0007); verify seeks landed and fall back to transcode; define the gate's network conditions (Q-GATE-1). |
+| R-PERF-1 | **< 2 s mid-program tune-in on a budget Fire TV.** Seeking into an MKV without cues, slow server disk, remote (WAN) servers, or a transcode start can each blow the budget. The spec's gate also implies a LAN server. The 2026-10-24 gate holds the 2 s bar on the Firestick 4K only; the Insignia has a usable-floor bar (EPICS.md). | 🔴 | SP-1 spike in Phase 0; a single reused player; pre-resolve adjacent channels; close the first-frame→playing gap (ADR-0007); verify seeks landed and fall back to transcode; the gate is measured on the home network (A-NET-1). |
 | R-PERF-2 | Compose for TV performance on low-end hardware (≈1–1.5 GB RAM, older Mali GPU) for a 6h × 50-channel grid. | 🟠 | SP-2 passed with standard Compose lists ([ADR-0008](adr/0008-guide-grid-spike.md)); Baseline Profiles (decisive in SP-2); R8; watch fast horizontal sweeps. |
 | R-DET-1 | **Cross-device determinism.** It depends on both devices having the same snapshot (sync lag), the same epoch math (timezone/DST), and the same hash-keyed ordering bit-for-bit, including future Swift/BrightScript ports. | 🔴 | Snapshot = items with `dateCreated < epochStart − grace`; tombstones; UTC origin + fixed offset in rules; SplitMix64-derived seeds; ID-byte canonical sort; hard epoch cuts; golden vectors (incl. `formatVersion`) as the cross-platform contract. |
 | R-DET-2 | Per-user library permissions and watch-state make lineups account-dependent. | 🟢 | **Resolved by ADR-0002:** same account → same lineup; channel rules set content limits; hash-keyed ordering keeps reduced lineups recognisably similar. |

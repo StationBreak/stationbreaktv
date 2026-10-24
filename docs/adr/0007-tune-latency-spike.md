@@ -88,6 +88,12 @@ valid tunes. A tuned `LoadControl` (start buffer 750 ms) didn't consistently hel
 Still open in Q-GATE-1: whether the gate also covers access from outside the home network, and whether
 transcoded channels must meet 2 s.
 
+> **Amendment, 2026-10-24 (owner decision, Q-GATE-1).** The pass bar in item 2 above was replaced by a
+> two-tier gate: a 2.0 s keypress → playing bar on the Firestick 4K (API 30), and a usable-floor bar on the
+> Insignia (API 25). Items 1, 3 and 4 stand. The open questions are settled: the gate is measured on the home
+> network (A-NET-1), and transcoded flips are timed and reported but not gated. See the Phase 1 gate in
+> [EPICS.md](../EPICS.md). The text above is left as decided on 2026-10-09.
+
 ## Consequences
 
 - The gate is **not met today** on the owner's library: 2–5 of 18 valid tunes per run are over 2 s. That's
