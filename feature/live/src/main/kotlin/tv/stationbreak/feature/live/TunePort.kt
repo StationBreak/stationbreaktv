@@ -24,6 +24,8 @@ class NextHandle(
  * @property fallback why the first attempt was abandoned for a forced transcode (`seekMiss`, or `loadFailed:<name>`
  * with the player's stable error name, spaces as `_`), or null.
  * @property route the route that played: `direct`, `stream` or `transcode`.
+ * @property from the route of the first attempt, the same names: it differs from [route] only after a [fallback]. The
+ * flip gate counts direct-play flips by this, so a direct attempt that fell back to a transcode still counts.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -31,6 +33,7 @@ data class TuneTimings(
     val positionErrorMs: Long? = null,
     val fallback: String? = null,
     val route: String? = null,
+    val from: String? = null,
 )
 
 /** How one tune went, as the machine needs it. */

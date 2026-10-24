@@ -72,13 +72,16 @@ class TunePortAdapter(
                     FallbackCause.SeekMiss -> "seekMiss"
                     is FallbackCause.LoadFailed -> loadFailedName(cause.diagnostic)
                 },
-            route =
-                when (resolved.route) {
-                    Route.DIRECT_PLAY -> "direct"
-                    Route.DIRECT_STREAM -> "stream"
-                    Route.TRANSCODE -> "transcode"
-                },
+            route = resolved.route.label(),
+            from = (fallback?.from ?: resolved.route).label(),
         )
+
+    private fun Route.label() =
+        when (this) {
+            Route.DIRECT_PLAY -> "direct"
+            Route.DIRECT_STREAM -> "stream"
+            Route.TRANSCODE -> "transcode"
+        }
 
     /** The stable error name, one token for logcat (an HTTP status inside it has its spaces replaced). */
     private fun loadFailedName(diagnostic: String?): String =

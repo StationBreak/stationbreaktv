@@ -47,11 +47,12 @@ sealed interface TuneReport {
         val fallback: String?,
         val lagMs: Long,
         val route: String? = null,
+        val from: String? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
-                "lagMs=$lagMs route=${route ?: "none"}"
+                "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"}"
     }
 
     /**
@@ -81,8 +82,7 @@ sealed interface TuneReport {
      * [settleMs] wait, so they are what the viewer waited. A null time is logged as [NOT_SEPARATE]. [elapsedMs] is
      * the time from the last press to the [outcome], whatever it is: `playing`, `slate`, `standin`, `failed`, or, for a
      * flip that never resolved, `superseded` (a newer commit replaced it) or `abandoned` (the run stopped first).
-     * [route] and [fallback] are the
-     * first tune's, as in [Tune].
+     * [route], [from] and [fallback] are the first tune's, as in [Tune].
      */
     data class Flip(
         val toFirstFrameMs: Long?,
@@ -92,10 +92,11 @@ sealed interface TuneReport {
         val outcome: String,
         val route: String?,
         val fallback: String?,
+        val from: String? = null,
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
-                "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome route=${route ?: "none"} " +
+                "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} route=${route ?: "none"} " +
                 "fallback=${fallback ?: "none"}"
     }
 
@@ -126,6 +127,7 @@ internal fun Sitting.reportTune(
             timings.fallback,
             lagMs,
             timings.route,
+            timings.from,
         ),
     )
     if (cutSince != null) {
@@ -154,6 +156,7 @@ internal fun Sitting.reportFlipPlayed(
             if (kind == TuneKind.StandIn) "standin" else "playing",
             timings.route,
             timings.fallback,
+            timings.from,
         ),
     )
 }

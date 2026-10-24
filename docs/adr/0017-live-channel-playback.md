@@ -86,8 +86,9 @@ what the screen does then, and the few structural choices that go with it.
 - **Ownership.** The handles belong to the run, not to a sitting. A commit takes the target's handle (if it is still
   for the item on air) and discards the others; the run's end, when live TV stops, discards all.
 - **Kept fresh.** They are made again at each picture of the current channel (so after a block change or a skipped
-  look while the number was moving), and a handle is dropped once its block has ended. Look-ahead never runs while the
-  viewer is moving the number.
+  look while the number was moving). A held handle is refreshed per block of the current channel; a stale handle is
+  re-checked and never played (see #389 for the remaining gaps). Look-ahead never runs while the viewer is moving the
+  number.
 - **Revisit** if the contract case `aPlaybackInfoAloneStartsNoEncode` fails on a supported Jellyfin (ADR-0016): a held
   handle then holds an encode, so `Neighbours` must stop holding handles and resolve at commit instead.
 - **Retargeted.** A handle waits, so it is played from the schedule's position at the commit, not the one it was
@@ -102,7 +103,7 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   `LiveCommand.Previous`. On the live screen (key down only, auto-repeat included): Up and Channel Up flip up, Down and
   Channel Down flip down, Menu goes to the previous channel. Back is unchanged: it leaves the app from live and is never
   the previous-channel key (Q-UX-2). The media next and previous keys are deliberately not mapped; they are reserved for
-  pause and skip (#383). The keys land in PR C.
+  pause and skip (#383). The keys land in PR #391 (https://github.com/StationBreak/stationbreaktv/pull/391).
 - **Settle, then commit.** A press moves the number at once (`LiveState.Choosing`) while the old channel keeps playing.
   After `LiveTimings.flipSettle` (400 ms, a default like the others) with no further press, the commit stops the old
   play and tunes the target under the snow. Only the channel the viewer stops on is tuned; look-ahead (above) covers
@@ -115,13 +116,17 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
 - **A flip shows the snow, not the old picture.** These devices decode one video at a time, so the old picture cannot
   stay up while the new one loads. Owner decision, 2026-10-24. This replaces the earlier idea of keeping the player and
   picture up until the new one is ready.
-- **Measurement.** Each committed flip writes exactly one line, `SBLIVE flip toFirstFrameMs toPlayingMs settleMs
-  elapsedMs outcome route fallback`, timed from the last press. Outcomes: playing, slate, standin, failed, superseded,
+- **Measurement.** Each committed flip writes exactly one line, except a commit whose lookup throws, which logs a
+  failure line (#388). The line is `SBLIVE flip toFirstFrameMs toPlayingMs settleMs elapsedMs outcome from route
+  fallback`, timed from the last press. The clock starts when the live channel processes the command, so a press queued
+  behind an unwinding commit is timed slightly short. `from` is the route of the first attempt and `route` the one that
+  finally played; they differ after a fallback. The gate counts the flips whose first attempt was direct (`from=direct`),
+  whatever they fell back to. Outcomes: playing, slate, standin, failed, superseded,
   abandoned. A ring buffer keeps the newest `flipLogSize` (50). The on-screen diagnostics view (S1.4.4) is deferred. The
   Phase 1 gate reads these lines (S1.4.5).
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
   (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
-  longer offers it and those files go straight to direct stream or transcode. The tune line carries `route=` and the
+  longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the
   load-failure name.
 
 ## Consequences

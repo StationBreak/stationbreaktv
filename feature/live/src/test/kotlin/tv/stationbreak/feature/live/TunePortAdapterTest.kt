@@ -234,6 +234,24 @@ class TunePortAdapterTest {
         }
 
     @Test
+    fun aFallbackKeepsTheRouteOfTheFirstAttemptAndANormalTuneIsFromItsOwnRoute() =
+        kotlinx.coroutines.test.runTest {
+            val missed = Rig(this)
+            missed.answer()
+            missed.player.answerAt = Duration.ZERO
+            val fellBack = (missed.port.tune(session, item, 30.seconds) as TuneOutcome.Playing).timings
+            assertEquals("direct", fellBack.from)
+            assertEquals("transcode", fellBack.route)
+
+            val clean = Rig(this)
+            clean.answer()
+            clean.player.answerAt = Duration.ZERO
+            val straight = (clean.port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing).timings
+            assertEquals("direct", straight.from)
+            assertEquals(straight.route, straight.from)
+        }
+
+    @Test
     fun theRouteTheServerChoseIsCarriedInTheTimings() =
         kotlinx.coroutines.test.runTest {
             val cases =
