@@ -2,7 +2,12 @@
 package tv.stationbreak.feature.live.ui
 
 import android.view.SurfaceView
+import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -194,6 +199,23 @@ class LiveDestinationLifecycleTest {
         awaitLog("attach(surface)#2")
         assertEquals(1, log.count { it == "release#1" })
         assertTrue("the second player is not released while the screen is up", "release#2" !in log)
+    }
+
+    @Test
+    fun theScreenStaysOnWhileShownAndStartedAndNotAfter() {
+        var shown by mutableStateOf(true)
+        var host: View? = null
+        compose.setContent {
+            host = LocalView.current
+            StationBreakTheme { if (shown) LiveRoot(viewModel(), {}) { _, _ -> RecordingTuner() } }
+        }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
+        compose.runOnIdle { shown = false }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
     }
 
     @Test
