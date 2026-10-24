@@ -7,6 +7,7 @@ object LiveTags {
     const val BANNER = "live:banner"
     const val BANNER_TITLE = "live:banner:title"
     const val BANNER_SUBTITLE = "live:banner:subtitle"
+    const val BANNER_CHANNEL = "live:banner:channel"
     const val BANNER_SLOT = "live:banner:slot"
     const val BANNER_JOINED = "live:banner:joined"
     const val TEST_CARD = "live:testCard"
