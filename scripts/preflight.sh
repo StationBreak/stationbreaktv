@@ -321,8 +321,10 @@ instrumented_tests() {
     "$adb" shell settings put global "$setting" 0
   done
 
+  # One module at a time: gradle.properties turns on org.gradle.parallel, and when several modules' connected tasks ran
+  # together on the one emulator, one of them never reported and the run hung for its full hour (2026-10).
   # shellcheck disable=SC2086
-  ./gradlew $connected
+  ./gradlew --no-parallel $connected
 }
 
 trap emulator_cleanup EXIT
