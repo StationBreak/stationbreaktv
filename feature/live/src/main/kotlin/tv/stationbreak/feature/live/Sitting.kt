@@ -64,9 +64,9 @@ internal class Sitting(
     /** Set for a sitting a flip started: its first block reports the flip's line (once), then this is null. */
     var flip: FlipTiming? = null,
     /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
-    lead: Pending? = null,
-    /** Called once, when the first picture of the sitting plays, with the scope of the block that showed it. */
-    private val onFirstPicture: (CoroutineScope) -> Unit = {},
+    lead: Pending.Retarget? = null,
+    /** Called each time a tune plays, with the scope of the block that showed it (look-ahead, spec 15). */
+    private val onPicture: (CoroutineScope) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -76,7 +76,6 @@ internal class Sitting(
 
     private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
-    private var pictured = false
 
     /** When the last play was cut off at a boundary (or an ident card ended): the start of the next tune's gap. */
     private var cutFrom: Instant? = null
@@ -155,7 +154,7 @@ internal class Sitting(
             val at = vnowMs()
             if (at >= block.endMs) return null
             val position = checkNotNull(block.positionAt(at))
-            val joins = cut == null || cut.retarget
+            val joins = cut !is Pending.AtBoundary
             val label = if (joins) BannerLabel.TuningIn else BannerLabel.Now
             val joined = if (joins) position.inWholeMilliseconds else null
             val banner = bannerFor(onAir.channel, block, label, joined, driftMs)
@@ -163,18 +162,20 @@ internal class Sitting(
             cut = null
             val kind =
                 when {
-                    use != null -> TuneKind.Prepared
+                    use is Pending.AtBoundary -> TuneKind.Prepared
+                    use is Pending.Retarget -> TuneKind.Neighbour
                     failures > 0 -> TuneKind.Retry
                     else -> TuneKind.Fresh
                 }
-            val asked = if (use != null && !use.retarget) use.start else position
+            val asked = if (use is Pending.AtBoundary) use.start else position
+            // Only a cut at a block boundary has no snow: a flip shows it on every route (one decode at a time).
             val outcome =
-                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, asked)) {
-                    if (use != null) {
-                        use.consumed = true
-                        tuner.tune(session, use.handle, position.takeIf { use.retarget })
-                    } else {
-                        tuner.tune(session, ItemId(program.itemId.value), position)
+                tuneAndShow(scope, banner, snow = use !is Pending.AtBoundary, what = TuneWhat(kind, block, asked)) {
+                    use?.consumed = true
+                    when (use) {
+                        is Pending.AtBoundary -> tuner.tune(session, use.handle)
+                        is Pending.Retarget -> tuner.tune(session, use.handle, position)
+                        null -> tuner.tune(session, ItemId(program.itemId.value), position)
                     }
                 }
             val dead =
@@ -228,10 +229,7 @@ internal class Sitting(
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
             showWatching(scope, banner)
-            if (!pictured) {
-                pictured = true
-                onFirstPicture(scope)
-            }
+            onPicture(scope)
         }
         return outcome
     }

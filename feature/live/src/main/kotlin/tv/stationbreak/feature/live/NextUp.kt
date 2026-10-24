@@ -15,17 +15,29 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import kotlin.time.Duration
 
-/** A next program resolved ahead of its block: for the block of [item] that starts at [blockStartMs] at [start]. */
-internal class Pending(
+/** A program resolved ahead, for the block of [item] that starts at [blockStartMs]. */
+internal sealed class Pending(
     val handle: NextHandle,
     val item: CanonicalId,
     val blockStartMs: Long,
-    val start: Duration,
-    /** True for a neighbour channel's handle: it waited a while, so it is played from the schedule's position then. */
-    val retarget: Boolean = false,
 ) {
     /** Set when the handle is passed to a tune, which takes it whatever happens: it must not be discarded after. */
     var consumed = false
+
+    /** The next block of the channel playing, resolved for its [start]: the cut at the boundary plays it as it is. */
+    class AtBoundary(
+        handle: NextHandle,
+        item: CanonicalId,
+        blockStartMs: Long,
+        val start: Duration,
+    ) : Pending(handle, item, blockStartMs)
+
+    /** A neighbour channel's block: it waited, so the tune plays it from where the schedule is by then. */
+    class Retarget(
+        handle: NextHandle,
+        item: CanonicalId,
+        blockStartMs: Long,
+    ) : Pending(handle, item, blockStartMs)
 }
 
 /**
@@ -39,15 +51,15 @@ internal class NextUp(
     private val timings: LiveTimings,
     private val now: () -> Long,
     /** A neighbour channel's handle for the first block of the sitting; tried when no handle was prepared for it. */
-    private var lead: Pending? = null,
+    private var lead: Pending.Retarget? = null,
 ) {
-    private var pending: Pending? = null
+    private var pending: Pending.AtBoundary? = null
 
     /** Starts resolving [onAir]'s next block [LiveTimings.preResolveLead] before this one ends, if it is a program. */
     fun prepare(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
-    ): Deferred<Pending?>? {
+    ): Deferred<Pending.AtBoundary?>? {
         val next = onAir.next.firstOrNull()
         val program = (next?.airing as? Airing.Program)?.takeIf { it.info != null }
         val start = next?.positionAt(next.startMs)
@@ -56,12 +68,12 @@ internal class NextUp(
             val wait = onAir.now.endMs - timings.preResolveLead.inWholeMilliseconds - now()
             if (wait > 0) delay(wait)
             val handle = tuner.preResolve(session, ItemId(program.itemId.value), start)
-            handle?.let { Pending(it, program.itemId, next.startMs, start) }
+            handle?.let { Pending.AtBoundary(it, program.itemId, next.startMs, start) }
         }
     }
 
     /** Holds what [prepare] finished with (nothing if it had not finished). Safe when the caller is cancelled. */
-    suspend fun keep(ahead: Deferred<Pending?>?) {
+    suspend fun keep(ahead: Deferred<Pending.AtBoundary?>?) {
         withContext(NonCancellable) {
             pending = ahead?.takeIf { it.isCompleted && !it.isCancelled }?.await()
             ahead?.cancel()
@@ -85,7 +97,7 @@ internal class NextUp(
     }
 
     /** The lead handle when it is for exactly this block and the block is still on; otherwise it is ended. */
-    private suspend fun takeLead(block: AiringBlock): Pending? {
+    private suspend fun takeLead(block: AiringBlock): Pending.Retarget? {
         val held = lead ?: return null
         lead = null
         val program = block.airing as? Airing.Program

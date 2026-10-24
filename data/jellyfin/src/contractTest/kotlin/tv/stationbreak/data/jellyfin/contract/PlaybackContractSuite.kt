@@ -643,6 +643,25 @@ abstract class PlaybackContractSuite {
         }
     }
 
+    /**
+     * Look-ahead (spec 15) relies on this: the `PlaybackInfo` call a pre-resolve makes starts no encode. A transcode is
+     * forced, so there would be one to start; the server gives a play session and a transcoding route, and after a
+     * pause that is long enough for a job to begin writing, there are no transcode files (a job writes its first
+     * segment as soon as the first playlist or segment is requested, which a pre-resolve never does).
+     */
+    @Test
+    fun aPlaybackInfoAloneStartsNoEncode() {
+        runBlocking {
+            val before = transcodeFiles()
+            val played = play("h264-aac-moov-end", requestFor(forceTranscode = true))
+
+            assertNotNull(played.info.playSessionId, "the server gave no play session")
+            assertTrue(played.source.supportsTranscoding, "the server should offer a transcode")
+            delay(NO_ENCODE_WAIT_MS)
+            assertTrue((transcodeFiles() - before).isEmpty(), "PlaybackInfo alone started an encode")
+        }
+    }
+
     /** The transcode files in the server container (paths hold the job's hash, no library name), by path. */
     private fun transcodeFiles(): Set<String> =
         server.jellyfin
@@ -961,6 +980,7 @@ abstract class PlaybackContractSuite {
         val AVC = Regex("""avc1\.([0-9a-fA-F]{2})[0-9a-fA-F]{2}([0-9a-fA-F]{2})""")
         const val JOB_POLLS = 20
         const val JOB_POLL_MS = 1_000L
+        const val NO_ENCODE_WAIT_MS = 5_000L
 
         /**
          * The only server parameters the built URL need not carry (lowercase). Identity of the request or client:

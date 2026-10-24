@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -34,7 +35,6 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
-import kotlin.time.Duration
 
 /**
  * The live channel (spec 14, F1.3): one sitting. [run] picks a channel, tunes it at the schedule's offset and follows
@@ -66,6 +66,7 @@ class LiveChannel(
     private var unstarted: SitRequest? = null
     private var refresher: () -> Unit = {}
     private var lineup: suspend () -> FlipOrder = { FlipOrder(emptyList()) }
+    private var looking: Job? = null
     private var flipLog: List<TuneReport.Flip> = emptyList()
 
     val state: StateFlow<LiveState> = screen.flow
@@ -214,26 +215,28 @@ class LiveChannel(
     }
 
     /**
-     * After a sitting's first picture: resolves the channels above and below beside the picture. Not while the viewer
-     * is moving the number (the press is about to commit, and a commit ends these anyway).
+     * Each time a picture plays: resolves the channels above and below beside it, and again as their blocks end. Not
+     * while the viewer is moving the number (the press is about to commit, and a commit ends these anyway); it looks
+     * again when the number is still.
      */
     private fun lookAhead(
         scope: CoroutineScope,
         neighbours: Neighbours,
         playing: ChannelAiring,
     ) {
-        if (screen.flow.value is LiveState.Choosing) return
-        scope.launch {
-            try {
-                neighbours.prepareAround(playing, lineup())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (
-                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
-            ) {
-                // No look-ahead is a slower flip, never a failed sitting.
+        looking?.cancel()
+        looking =
+            scope.launch {
+                try {
+                    neighbours.keepAround(playing, lineup) { screen.flow.value !is LiveState.Choosing }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+                ) {
+                    // No look-ahead is a slower flip, never a failed sitting.
+                }
             }
-        }
     }
 
     /** Logs the flip a sitting (or the request not yet a sitting) still holds, once: it ended without resolving. */
@@ -332,7 +335,7 @@ class LiveChannel(
 private fun leadOf(
     handle: NextHandle,
     block: AiringBlock,
-): Pending? {
+): Pending.Retarget? {
     val program = block.airing as? Airing.Program ?: return null
-    return Pending(handle, program.itemId, block.startMs, Duration.ZERO, retarget = true)
+    return Pending.Retarget(handle, program.itemId, block.startMs)
 }

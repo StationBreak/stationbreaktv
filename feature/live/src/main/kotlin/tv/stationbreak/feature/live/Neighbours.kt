@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.lineup.Airing
@@ -21,6 +22,7 @@ private class Resolved(
     val handle: NextHandle,
     val item: CanonicalId,
     val blockStartMs: Long,
+    val blockEndMs: Long,
 ) {
     /** True when [program] in [block] is the very block this handle was resolved for. */
     fun isFor(
@@ -32,8 +34,9 @@ private class Resolved(
 /**
  * The look-ahead of a flip (spec 15): what is on the channel one step above and one below the channel playing, resolved
  * ahead (one PlaybackInfo call and the URL, no stream or playlist request), so a flip to either skips that round trip.
- * At most one handle is held per channel, and each holds a server encode while it waits, so only the two neighbours
- * are ever kept. Confined to the main dispatcher with the rest of the run ([LiveChannel.run]), so it needs no lock.
+ * A pre-resolve starts no encode on the server, so a held handle costs nothing there; it goes stale when its block
+ * ends, so [keepAround] makes it again then. At most one handle is held per channel, and only the two neighbours are
+ * kept. Confined to the main dispatcher with the rest of the run ([LiveChannel.run]), so it needs no lock.
  */
 internal class Neighbours(
     private val session: Session,
@@ -61,6 +64,24 @@ internal class Neighbours(
         coroutineScope { wanted.forEach { channel -> launch { prepare(channel.id) } } }
     }
 
+    /**
+     * [prepareAround], and again whenever a held handle's block ends, until cancelled (the picture it was started for
+     * goes, or the sitting is replaced). Nothing is resolved while [idle] is false (the viewer is moving the number).
+     */
+    suspend fun keepAround(
+        current: ChannelAiring,
+        lineup: suspend () -> FlipOrder,
+        idle: () -> Boolean,
+    ) {
+        while (true) {
+            if (idle()) prepareAround(current, lineup())
+            val endMs = held.values.minOfOrNull { it.blockEndMs }
+            val wait = if (idle()) endMs?.minus(clock.now().toEpochMilliseconds()) else BUSY_RETRY_MS
+            if (wait == null) return
+            delay(maxOf(wait, MIN_WAIT_MS))
+        }
+    }
+
     private suspend fun prepare(channel: ChannelId) {
         val now = clock.now()
         // No following blocks: only what is on now matters here.
@@ -72,7 +93,7 @@ internal class Neighbours(
         val start = block?.positionAt(now.toEpochMilliseconds())
         if (program != null && start != null) {
             tuner.preResolve(session, ItemId(program.itemId.value), start)?.let {
-                held[channel] = Resolved(it, program.itemId, block.startMs)
+                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs)
             }
         }
     }
@@ -105,5 +126,13 @@ internal class Neighbours(
 
     private suspend fun discard(resolved: Resolved) {
         withContext(NonCancellable) { tuner.discard(session, resolved.handle) }
+    }
+
+    private companion object {
+        /** Looking again while the number is moving. */
+        const val BUSY_RETRY_MS = 1_000L
+
+        /** Never looks again sooner than this, whatever the clock says. */
+        const val MIN_WAIT_MS = 500L
     }
 }

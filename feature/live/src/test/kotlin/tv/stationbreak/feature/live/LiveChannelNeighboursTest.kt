@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.ChannelId
@@ -108,20 +109,73 @@ class LiveChannelNeighboursTest {
     @Test
     fun aStaleHandleIsDiscardedNotPlayed() =
         runTest {
-            val w = watching { schedule.channel(CH9, 9, listOf(program(0, 12, 9), program(12, 600, 19))) }
+            val r = rig { schedule.channel(CH9, 9, listOf(program(0, 12, 9), program(12, 600, 19))) }
+            val neighbours = Neighbours(r.session, r.tune, r.schedule, r.clock)
+            val order = FlipOrder(r.schedule.airings(r.clock.now()))
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
             // Past the end of 9's first block, which is what 9's handle was resolved for.
+            r.jumpMs += 3 * MIN
+            val onAir = checkNotNull(r.schedule.onAir(CH9, r.clock.now(), 0))
+            assertNull(neighbours.take(CH9, onAir))
+            assertTrue(r.discards().any { it.item == itemOf(9) })
+            assertTrue(r.tune.calls.none { it is Call.TuneHandle })
+        }
+
+    @Test
+    fun aHeldHandleIsMadeAgainWhenItsBlockEnds() =
+        runTest {
+            val w = watching { schedule.channel(CH9, 9, listOf(program(0, 12, 9), program(12, 600, 19))) }
+            // Past the end of 9's first block, with no key pressed.
             advanceTimeBy(2.minutes)
             runCurrent()
+            assertTrue("the old handle was discarded", w.r.discards().any { it.item == itemOf(9) })
+            assertTrue("the new block was resolved", w.r.preResolves().any { it.item == itemOf(19) })
             w.up()
             runCurrent()
             advanceTimeBy(500.milliseconds)
             runCurrent()
-            val calls = w.r.tune.calls
-            val discard = calls.indexOfFirst { it is Call.Discard && it.item == itemOf(9) }
-            val fresh = calls.indexOfFirst { it is Call.Tune && it.item == itemOf(19) }
-            assertTrue("the stale handle was discarded", discard >= 0)
-            assertTrue("then the new item was tuned", fresh > discard)
-            assertTrue(calls.none { it is Call.TuneHandle && it.item == itemOf(9) })
+            assertTrue(
+                w.r.tune.calls
+                    .any { it is Call.TuneHandle && it.item == itemOf(19) },
+            )
+        }
+
+    @Test
+    fun aFlipToANeighbourShowsTheSnowBeforeThePicture() =
+        runTest {
+            val w = watching()
+            val before = w.r.seen.size
+            w.up()
+            runCurrent()
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            // The snow shows for its minimum, then the picture.
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertTrue(
+                w.r.tune.calls
+                    .any { it is Call.TuneHandle && it.item == itemOf(9) },
+            )
+            val after = w.r.seen.drop(before)
+            val snow = after.indexOfFirst { it is LiveState.Tuning }
+            val picture = after.indexOfFirst { it is LiveState.Watching }
+            assertTrue("the snow showed", snow >= 0)
+            assertTrue("and then the picture", picture > snow)
+        }
+
+    @Test
+    fun aFlipToANeighbourReportsItsOwnKind() =
+        runTest {
+            val w = watching()
+            w.up()
+            runCurrent()
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            val kinds =
+                w.r.reports
+                    .filterIsInstance<TuneReport.Tune>()
+                    .map { it.kind }
+            assertEquals(listOf(TuneKind.Fresh, TuneKind.Neighbour), kinds)
         }
 
     @Test
@@ -132,6 +186,9 @@ class LiveChannelNeighboursTest {
             w.up()
             runCurrent()
             advanceTimeBy(500.milliseconds)
+            runCurrent()
+            // The snow shows for its minimum, then the picture.
+            advanceTimeBy(1.seconds)
             runCurrent()
             val calls = w.r.tune.calls
             val discard = calls.indexOfFirst { it is Call.Discard && it.item == itemOf(2) }

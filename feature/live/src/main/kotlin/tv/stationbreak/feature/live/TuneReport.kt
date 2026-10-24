@@ -11,6 +11,9 @@ enum class TuneKind(
     /** A cut at a block boundary to a handle resolved ahead. */
     Prepared("prepared"),
 
+    /** A flip to a neighbour channel whose handle was resolved ahead and is played from the position at the commit. */
+    Neighbour("neighbour"),
+
     /** A tune that resolves for itself: tuning in, a cut with no usable handle, a re-anchor. */
     Fresh("fresh"),
 
@@ -111,7 +114,8 @@ internal fun Sitting.reportTune(
     val block = what.block
     val mediaAtStart = block.positionAt(block.startMs) ?: Duration.ZERO
     val lagMs = (vnowMs() - block.startMs) - (what.position - mediaAtStart).inWholeMilliseconds
-    val resolveMs = if (what.kind == TuneKind.Prepared) 0L else TuneReport.NOT_SEPARATE
+    val cached = what.kind == TuneKind.Prepared || what.kind == TuneKind.Neighbour
+    val resolveMs = if (cached) 0L else TuneReport.NOT_SEPARATE
     report(
         TuneReport.Tune(
             what.kind,

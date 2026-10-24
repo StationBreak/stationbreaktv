@@ -71,7 +71,8 @@ sealed interface PlaybackEnd {
 /**
  * An item resolved ahead of time by [TuneController.preResolve], to be played by [TuneController.tune] without a
  * server round trip. Opaque: it holds the resolved stream, whose URL is a secret. The caller owns it until it is
- * played, discarded, or the controller is closed; it holds a server encode while it waits, so do not keep it long.
+ * played, discarded, or the controller is closed. Resolving starts no encode (the server starts one with the first
+ * playlist or segment request), so a held handle costs nothing on the server; it goes stale when the item's block ends.
  */
 class Prepared internal constructor(
     internal val item: ItemId,

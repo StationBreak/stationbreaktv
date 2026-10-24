@@ -145,6 +145,20 @@ class PlaybackResolverTest {
             assertEquals("https://media.example.com/hls/src1", played.source.url)
         }
 
+    /** `startingAt` moves a handle's start without a new URL: true only while no HLS URL has a start. */
+    @Test
+    fun twoStartsGiveTheSameHlsUrl() =
+        runTest {
+            answer(source(directPlay = false, directStream = false))
+            val early = resolve(start = 10.seconds)
+            val late = resolve(start = 50.seconds)
+            assertEquals(early.source.url, late.source.url)
+            assertEquals(2, urls.hlsCalls.size)
+            assertEquals(urls.hlsCalls[0], urls.hlsCalls[1])
+            assertEquals(10.seconds, early.source.playerStart)
+            assertEquals(50.seconds, late.source.playerStart)
+        }
+
     @Test
     fun aBurnedInSubtitleForcesHlsWithBurnIn() =
         runTest {
