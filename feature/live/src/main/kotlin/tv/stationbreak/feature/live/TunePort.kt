@@ -21,13 +21,16 @@ class NextHandle(
  * @property firstFrameMs until the first picture, null if the player gave none.
  * @property playingMs until the player said it was playing.
  * @property positionErrorMs how far from the requested start the last attempt landed, set only when it missed.
- * @property fallback why the first attempt was abandoned for a forced transcode (`seekMiss`, `loadFailed`), or null.
+ * @property fallback why the first attempt was abandoned for a forced transcode (`seekMiss`, or `loadFailed:<name>`
+ * with the player's stable error name, spaces as `_`), or null.
+ * @property route the route that played: `direct`, `stream` or `transcode`.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
     val playingMs: Long = 0,
     val positionErrorMs: Long? = null,
     val fallback: String? = null,
+    val route: String? = null,
 )
 
 /** How one tune went, as the machine needs it. */

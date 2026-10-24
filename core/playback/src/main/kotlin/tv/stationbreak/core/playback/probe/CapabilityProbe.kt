@@ -20,7 +20,7 @@ class CapabilityProbe(
         val video = mergeByCodec(inventory.videoDecoders(), display)
         val audioDecoders = inventory.audioDecoders().mapNotNullTo(mutableSetOf()) { AUDIO_MIMES[it] }
         return DeviceCapabilities(
-            containers = containersFor(video.any { it.codec == Codecs.MPEG4 }),
+            containers = BASE_CONTAINERS,
             videoCodecs = video,
             audioDecoders = audioDecoders,
             audioPassthrough = passthroughNames(),
@@ -64,9 +64,6 @@ class CapabilityProbe(
             )
         }
     }
-
-    private fun containersFor(hasMpeg4Decoder: Boolean): Set<String> =
-        if (hasMpeg4Decoder) BASE_CONTAINERS + Codecs.AVI else BASE_CONTAINERS
 
     private fun profileNames(
         codec: String,
