@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -156,15 +157,29 @@ class LiveChannel(
                 chosen?.let { account to it }
             }.first()
 
-    /** The saved channel, else the lowest unhidden one: the first of them that has something on now. */
+    /**
+     * The saved channel, else the first of these with something on now (#375): the lowest-numbered unhidden channel
+     * whose rating ceiling is the PG tier, then the lowest held to a ceiling below PG, then the lowest. Nobody has
+     * chosen yet and anyone may be in the room, so little kids' channels are not preferred.
+     */
     private suspend fun choose(account: LibraryAccount): ChannelOnAir? {
         val now = clock.now()
         val unhidden = schedule.airings(now).filter { it.hidden == null }
         val saved = lastChannel.load(account)
-        val ordered = unhidden.filter { it.id == saved } + unhidden.filter { it.id != saved }
+        // The sort is stable, so each group stays in number order.
+        val rest = unhidden.filter { it.id != saved }.sortedBy { firstOpenGroup(it.ceilingRank) }
+        val ordered = unhidden.filter { it.id == saved } + rest
         for (airing in ordered) {
             schedule.onAir(airing.id, now, Sitting.WINDOW)?.let { return it }
         }
         return null
     }
+
+    /** 0 for the PG tier, 1 for a ceiling below PG, 2 for a higher ceiling or none. */
+    private fun firstOpenGroup(ceilingRank: Int?): Int =
+        when {
+            ceilingRank == ChannelAiring.PG_TIER -> 0
+            ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
+            else -> 2
+        }
 }

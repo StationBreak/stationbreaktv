@@ -64,7 +64,12 @@ what the screen does then, and the few structural choices that go with it.
    (default `Dispatchers.Default`) for its work. Its timings are logged as numbers only (the day's index and the
    milliseconds), never an ID or a title.
 8. **The last channel is saved on every tune** in a small file per account holding only the channel ID (S1.4.2). The
-   first time, the lowest-numbered channel that is not hidden is used.
+   first time (nothing saved, or the saved channel is not on the air), the first of these with something on now is used
+   (#375): the lowest-numbered unhidden channel whose rating ceiling is the PG tier (`RatingLadder` rank of PG, so
+   TV-PG counts too), else the lowest-numbered channel held to a ceiling below PG, else the lowest-numbered channel (so
+   channels with a higher ceiling, or none, go in number order). The ceiling is the one the channel is scheduled
+   under, so Kids-band and once-kid-safe channels with no lower ceiling count as PG tier through the kids' cap. Little
+   kids' channels are not preferred on a first open; the rule does not promise a new owner never sees one first.
 9. **The app opens on the live screen.** The setup-complete placeholder is gone. After setup, and on every launch with a
    finished setup, the launch router sends the app to the live screen with nothing beneath it, so Back leaves the app.
    A session that ends while watching goes back to the launch router, which decides where the viewer goes.

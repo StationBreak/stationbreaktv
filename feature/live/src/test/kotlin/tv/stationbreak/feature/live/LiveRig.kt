@@ -104,6 +104,8 @@ class FakeSchedule : ScheduleSource {
         var blocks: List<AiringBlock> = emptyList(),
         /** The channel's day length; the schedule is built to the end of the day after the one that holds `at`. */
         var epochMs: Long = DAY,
+        /** The tier of the channel's rating ceiling, null for none. */
+        var ceilingRank: Int? = null,
     )
 
     val channels = linkedMapOf<ChannelId, Entry>()
@@ -128,7 +130,7 @@ class FakeSchedule : ScheduleSource {
         id: ChannelId,
         e: Entry,
         at: Long,
-    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden)
+    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden, e.ceilingRank)
 
     private fun dayStart(
         e: Entry,
