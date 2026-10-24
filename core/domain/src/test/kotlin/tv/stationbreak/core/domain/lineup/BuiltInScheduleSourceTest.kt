@@ -137,6 +137,35 @@ class BuiltInScheduleSourceTest {
     }
 
     @Test
+    fun airingsCarryTheCeilingTierSoSpellingsOnOneTierAreEqual() {
+        library.seed(fillingLibrary())
+
+        fun custom(
+            id: String,
+            number: Int,
+            maxRating: String?,
+        ): LineupChannel {
+            val ruled = rules(id, Source.Genre("Comedy"), maxRating = maxRating)
+            return channel(id, number, ChannelState.On, ChannelSource.Custom(ruled))
+        }
+        holding(
+            lineupOf(
+                custom("a", 600, "TV-PG"),
+                custom("b", 601, "PG"),
+                custom("c", 602, "TV-Y"),
+                custom("d", 603, null),
+            ),
+        )
+
+        val ranks = airings().associate { it.number to it.ceilingRank }
+
+        assertEquals(ChannelAiring.PG_TIER, ranks[600])
+        assertEquals(ranks[600], ranks[601], "TV-PG and PG are one tier")
+        assertEquals(0, ranks[602])
+        assertNull(ranks[603], "no ceiling")
+    }
+
+    @Test
     fun airingsAtCrossesTheDayBoundary() {
         library.seed(fillingLibrary())
         holding(lineupOf(laughs()))

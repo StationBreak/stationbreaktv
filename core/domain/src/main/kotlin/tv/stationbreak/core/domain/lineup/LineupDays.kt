@@ -31,8 +31,9 @@ import tv.stationbreak.core.scheduler.buildDay
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
  * canonical-ID order. With `buildDay(settings, pool, n)` it is the input of the day's schedule. [hidden] is why the day
- * is empty, or null.
+ * is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
+@Suppress("LongParameterList") // The day's fixed facts, one for one.
 internal class ChannelDay(
     val channel: LineupChannel,
     val name: String,
@@ -40,6 +41,7 @@ internal class ChannelDay(
     val n: Long,
     val pool: List<ScheduleItem>,
     val hidden: HiddenReason?,
+    val ceilingRank: Int?,
 ) {
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
@@ -198,7 +200,9 @@ internal class LineupDays(
             pool: Pool,
         ): ChannelDay {
             val day = EpochPool.build(s.settings, pool.items, s.n)
-            return ChannelDay(s.channel, s.channel.displayName(catalog), s.settings, s.n, day, hiddenReason(pool, day))
+            val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
+            val name = s.channel.displayName(catalog)
+            return ChannelDay(s.channel, name, s.settings, s.n, day, hiddenReason(pool, day), ceilingRank)
         }
 
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */

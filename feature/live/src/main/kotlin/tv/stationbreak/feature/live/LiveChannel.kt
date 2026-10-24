@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -156,12 +157,21 @@ class LiveChannel(
                 chosen?.let { account to it }
             }.first()
 
-    /** The saved channel, else the lowest unhidden one: the first of them that has something on now. */
+    /**
+     * The saved channel, else the first of these with something on now (#375): the lowest-numbered unhidden channel
+     * whose rating ceiling is the PG tier, then the lowest with any ceiling, then the lowest. Nobody has chosen yet and
+     * anyone may be in the room, so the first open is not a little kids' channel.
+     */
     private suspend fun choose(account: LibraryAccount): ChannelOnAir? {
         val now = clock.now()
         val unhidden = schedule.airings(now).filter { it.hidden == null }
         val saved = lastChannel.load(account)
-        val ordered = unhidden.filter { it.id == saved } + unhidden.filter { it.id != saved }
+        val rest = unhidden.filter { it.id != saved }
+        val ordered =
+            unhidden.filter { it.id == saved } +
+                rest.filter { it.ceilingRank == ChannelAiring.PG_TIER } +
+                rest.filter { it.ceilingRank != null && it.ceilingRank != ChannelAiring.PG_TIER } +
+                rest.filter { it.ceilingRank == null }
         for (airing in ordered) {
             schedule.onAir(airing.id, now, Sitting.WINDOW)?.let { return it }
         }
