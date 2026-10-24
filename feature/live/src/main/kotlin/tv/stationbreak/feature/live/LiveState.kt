@@ -36,6 +36,15 @@ sealed interface LiveState {
         val channel: ChannelTag? = null,
     ) : LiveState
 
+    /**
+     * The channel number is moving (spec 15): [target] is where a commit would go. [overPicture] is true while the old
+     * channel's picture is playing underneath (the banner only), false over snow or a slate (snow under the banner).
+     */
+    data class Choosing(
+        val target: ChannelTag,
+        val overPicture: Boolean,
+    ) : LiveState
+
     /** The session ended: hand over to sign-in. */
     data object SignedOut : LiveState
 }

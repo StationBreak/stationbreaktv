@@ -643,6 +643,46 @@ abstract class PlaybackContractSuite {
         }
     }
 
+    /**
+     * Look-ahead (spec 15, ADR-0016) relies on this: the `PlaybackInfo` call a pre-resolve makes starts no encode. A
+     * transcode is forced, so there would be one to start. After a pause long enough for a job to begin writing there
+     * are no transcode files; then the same session's playlist, variant and first segment are fetched and now there
+     * are, so the check can see an encode when there is one (a job writes as soon as a playlist or segment is asked
+     * for, which a pre-resolve never does). If this fails on a supported server, a held handle holds an encode.
+     */
+    @Test
+    fun aPlaybackInfoAloneStartsNoEncode() {
+        runBlocking {
+            val before = settledTranscodeFiles()
+            val played = play("h264-aac-moov-end", requestFor(forceTranscode = true))
+
+            assertNotNull(played.info.playSessionId, "the server gave no play session")
+            assertTrue(played.source.supportsTranscoding, "the server should offer a transcode")
+            delay(NO_ENCODE_WAIT_MS)
+            assertTrue((transcodeFiles() - before).isEmpty(), "PlaybackInfo alone started an encode")
+
+            // The positive control: asking for the stream is what starts one.
+            val master = fetch(played.factory, played.hls())
+            val variant = fetch(played.factory, entries(master.url, master.body).first())
+            assertEquals(HTTP_OK, variant.code, "the first variant playlist")
+            val segment = fetch(played.factory, entries(variant.url, variant.body).first())
+            assertEquals(HTTP_OK, segment.code, "the first segment")
+            assertTrue((transcodeFiles() - before).isNotEmpty(), "the stream request left no transcode files to see")
+        }
+    }
+
+    /** The transcode files once they stop changing: an earlier case's job may still be finishing a segment. */
+    private suspend fun settledTranscodeFiles(): Set<String> {
+        var last = transcodeFiles()
+        repeat(JOB_POLLS) {
+            delay(JOB_POLL_MS)
+            val now = transcodeFiles()
+            if (now == last) return now
+            last = now
+        }
+        return last
+    }
+
     /** The transcode files in the server container (paths hold the job's hash, no library name), by path. */
     private fun transcodeFiles(): Set<String> =
         server.jellyfin
@@ -961,6 +1001,7 @@ abstract class PlaybackContractSuite {
         val AVC = Regex("""avc1\.([0-9a-fA-F]{2})[0-9a-fA-F]{2}([0-9a-fA-F]{2})""")
         const val JOB_POLLS = 20
         const val JOB_POLL_MS = 1_000L
+        const val NO_ENCODE_WAIT_MS = 5_000L
 
         /**
          * The only server parameters the built URL need not carry (lowercase). Identity of the request or client:

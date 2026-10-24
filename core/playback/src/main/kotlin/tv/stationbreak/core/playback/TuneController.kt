@@ -71,14 +71,15 @@ sealed interface PlaybackEnd {
 /**
  * An item resolved ahead of time by [TuneController.preResolve], to be played by [TuneController.tune] without a
  * server round trip. Opaque: it holds the resolved stream, whose URL is a secret. The caller owns it until it is
- * played, discarded, or the controller is closed; it holds a server encode while it waits, so do not keep it long.
+ * played, discarded, or the controller is closed. What a held handle costs the server, and how long to keep one, is
+ * ADR-0016 (pre-resolve); it goes stale when the item's block ends.
  */
 class Prepared internal constructor(
     internal val item: ItemId,
     internal val start: Duration,
     internal val resolved: ResolvedPlayback,
 ) {
-    /** Set once nothing else need end this handle's encode: a tune adopted it, or already stopped it. */
+    /** Set once nothing else need end any encode this handle's play started: a tune adopted it, or stopped it. */
     @Volatile internal var adopted: Boolean = false
 
     override fun toString(): String = "Prepared"
@@ -251,17 +252,21 @@ class TuneController(
      * handle that was already discarded is tuned the ordinary way, with a fresh resolve. An [override] other than null
      * cannot be honoured by a handle resolved with the default tracks, so the handle is ended and the item is tuned the
      * ordinary way.
+     *
+     * [start] replaces the start the handle was resolved with (a handle held a while is played from where the schedule
+     * is now); null keeps it. The handle itself is not changed. Direct play and HLS both seek to it.
      */
     suspend fun tune(
         session: Session,
         prepared: Prepared,
         override: TrackOverride?,
+        start: Duration? = null,
     ): TuneResult {
         // Taken before waiting for the lock, so the caller never has to wonder whether it still owns the handle.
         val taken = outstanding.remove(prepared)
         return try {
             if (taken && override == null) {
-                tuneWith(session, prepared.item, prepared.start, null, prepared)
+                tuneWith(session, prepared.item, start ?: prepared.start, null, prepared)
             } else {
                 if (taken) {
                     // Resolved without the override, so it is of no use: end its encode now, not after this tune, so
@@ -270,7 +275,7 @@ class TuneController(
                     prepared.adopted = true
                     withContext(NonCancellable) { stopEncode(session, prepared.resolved) }
                 }
-                tuneWith(session, prepared.item, prepared.start, override, null)
+                tuneWith(session, prepared.item, start ?: prepared.start, override, null)
             }
         } finally {
             // A play that began owns the encode now (it is the current attempt); otherwise nothing will end it.
@@ -330,10 +335,11 @@ class TuneController(
             if (ready != null) {
                 // Recorded before anything can be cancelled, so a cancel still finds its encode to stop; then a cancel
                 // that came during the clean-up above is seen before the player is touched.
-                current = ready.resolved
+                val resolved = ready.resolved.startingAt(start)
+                current = resolved
                 ready.adopted = true
                 currentCoroutineContext().ensureActive()
-                play(ready.resolved, began, false)
+                play(resolved, began, false)
             } else {
                 attempt(session, item, start, override, false, began)
             }
@@ -720,3 +726,10 @@ private fun MediaServerError.refusesSession(): Boolean =
     this is MediaServerError.HttpUnauthorized ||
         this is MediaServerError.HttpForbidden ||
         this is MediaServerError.SessionExpired
+
+/**
+ * This play with its start moved to [start]. The URL does not carry the start (the player seeks, for HLS as for direct
+ * play), so only the source's start and the start the seek check judges against change.
+ */
+private fun ResolvedPlayback.startingAt(start: Duration): ResolvedPlayback =
+    copy(source = source.copy(playerStart = start), requested = start)

@@ -78,6 +78,22 @@ what the screen does then, and the few structural choices that go with it.
     [#354](https://github.com/StationBreak/stationbreaktv/issues/354). Spec 14 needs none of it, because every
     decision above comes from the clock and the library.
 
+## Update 2026-10-24: look-ahead for flipping (spec 15)
+
+- **Look-ahead.** Once a channel's picture plays, the run resolves what is on the channel one step above and one below
+  (`Neighbours`; one `PlaybackInfo` call and the URL, which starts no encode on the server), so a flip to either skips
+  the round trip.
+- **Ownership.** The handles belong to the run, not to a sitting. A commit takes the target's handle (if it is still
+  for the item on air) and discards the others; the run's end, when live TV stops, discards all.
+- **Kept fresh.** They are made again at each picture of the current channel (so after a block change or a skipped
+  look while the number was moving), and a handle is dropped once its block has ended. Look-ahead never runs while the
+  viewer is moving the number.
+- **Revisit** if the contract case `aPlaybackInfoAloneStartsNoEncode` fails on a supported Jellyfin (ADR-0016): a held
+  handle then holds an encode, so `Neighbours` must stop holding handles and resolve at commit instead.
+- **Retargeted.** A handle waits, so it is played from the schedule's position at the commit, not the one it was
+  resolved for (`TuneController.tune(prepared, override, start)`); a flip's tune is reported as kind `neighbour`.
+  A flip still shows the snow, whatever route it takes.
+
 ## Future input
 
 F1.4 (flipping) and F2.2 (Select for the banner) need a way to send the live channel a command. Spec 14 does not build

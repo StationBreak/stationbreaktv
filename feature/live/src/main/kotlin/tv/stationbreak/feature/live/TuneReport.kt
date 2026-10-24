@@ -11,6 +11,9 @@ enum class TuneKind(
     /** A cut at a block boundary to a handle resolved ahead. */
     Prepared("prepared"),
 
+    /** A flip to a neighbour channel whose handle was resolved ahead and is played from the position at the commit. */
+    Neighbour("neighbour"),
+
     /** A tune that resolves for itself: tuning in, a cut with no usable handle, a re-anchor. */
     Fresh("fresh"),
 
@@ -73,6 +76,29 @@ sealed interface TuneReport {
         override fun line() = "sitting failed error=$error"
     }
 
+    /**
+     * One flip, timed from the viewer's last key press (spec 15): [toFirstFrameMs] and [toPlayingMs] include the
+     * [settleMs] wait, so they are what the viewer waited. A null time is logged as [NOT_SEPARATE]. [elapsedMs] is
+     * the time from the last press to the [outcome], whatever it is: `playing`, `slate`, `standin`, `failed`, or, for a
+     * flip that never resolved, `superseded` (a newer commit replaced it) or `abandoned` (the run stopped first).
+     * [route] and [fallback] are the
+     * first tune's, as in [Tune].
+     */
+    data class Flip(
+        val toFirstFrameMs: Long?,
+        val toPlayingMs: Long?,
+        val settleMs: Long,
+        val elapsedMs: Long,
+        val outcome: String,
+        val route: String?,
+        val fallback: String?,
+    ) : TuneReport {
+        override fun line() =
+            "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
+                "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome route=${route ?: "none"} " +
+                "fallback=${fallback ?: "none"}"
+    }
+
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L
@@ -88,7 +114,8 @@ internal fun Sitting.reportTune(
     val block = what.block
     val mediaAtStart = block.positionAt(block.startMs) ?: Duration.ZERO
     val lagMs = (vnowMs() - block.startMs) - (what.position - mediaAtStart).inWholeMilliseconds
-    val resolveMs = if (what.kind == TuneKind.Prepared) 0L else TuneReport.NOT_SEPARATE
+    val cached = what.kind == TuneKind.Prepared || what.kind == TuneKind.Neighbour
+    val resolveMs = if (cached) 0L else TuneReport.NOT_SEPARATE
     report(
         TuneReport.Tune(
             what.kind,
@@ -106,3 +133,41 @@ internal fun Sitting.reportTune(
         report(TuneReport.Cut(gapMs, resolveMs, timings.firstFrameMs))
     }
 }
+
+/** The flip's line, once its first tune has played. Times run from the viewer's last key press ([Sitting.flip]). */
+internal fun Sitting.reportFlipPlayed(
+    kind: TuneKind,
+    began: Instant,
+    returned: Instant,
+    timings: TuneTimings,
+) {
+    val timing = flip ?: return
+    flip = null
+    if (!timing.claim()) return
+    val waitMs = (began - timing.lastCommandAt).inWholeMilliseconds
+    report(
+        TuneReport.Flip(
+            timings.firstFrameMs?.let { waitMs + it },
+            (returned - timing.lastCommandAt).inWholeMilliseconds,
+            timing.settleMs,
+            (returned - timing.lastCommandAt).inWholeMilliseconds,
+            if (kind == TuneKind.StandIn) "standin" else "playing",
+            timings.route,
+            timings.fallback,
+        ),
+    )
+}
+
+/** The flip's line when its first block came to a card instead of a picture: [outcome] is `slate` or `failed`. */
+internal fun Sitting.reportFlipEnded(outcome: String) {
+    val timing = flip ?: return
+    flip = null
+    if (!timing.claim()) return
+    report(timing.ended(outcome, clock.now()))
+}
+
+/** The line of a flip with no picture, or none yet: no times but the wait since the last press. */
+internal fun FlipTiming.ended(
+    outcome: String,
+    now: Instant,
+) = TuneReport.Flip(null, null, settleMs, (now - lastCommandAt).inWholeMilliseconds, outcome, null, null)

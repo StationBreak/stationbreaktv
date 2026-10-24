@@ -47,7 +47,8 @@ class TunePortAdapter(
     override suspend fun tune(
         session: Session,
         next: NextHandle,
-    ): TuneOutcome = controller.tune(session, next.prepared(), null).toOutcome()
+        start: Duration?,
+    ): TuneOutcome = controller.tune(session, next.prepared(), null, start).toOutcome()
 
     override suspend fun discard(
         session: Session,

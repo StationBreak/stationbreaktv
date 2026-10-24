@@ -31,6 +31,7 @@ internal suspend fun Sitting.deadItem(
     if (remaining <= timings.standInThreshold.inWholeMilliseconds) {
         // Move on: the next show plays from its start, so this sitting now runs ahead of the clock.
         driftMs = maxOf(driftMs, block.endMs - clock.now().toEpochMilliseconds())
+        reportFlipEnded("slate")
         return null
     }
     return fillIn(scope, onAir, dead)
@@ -90,5 +91,6 @@ private suspend fun Sitting.fillIn(
             laid = null
         }
     }
+    reportFlipEnded("failed")
     return holdIdent(onAir, block.endMs)
 }

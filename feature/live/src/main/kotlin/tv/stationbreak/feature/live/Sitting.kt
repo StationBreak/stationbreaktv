@@ -7,7 +7,6 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -60,8 +59,14 @@ internal class Sitting(
     val tuner: TunePort,
     val clock: Clock,
     val timings: LiveTimings,
-    val state: MutableStateFlow<LiveState>,
+    val state: Screen,
     val report: (TuneReport) -> Unit = {},
+    /** Set for a sitting a flip started: its first block reports the flip's line (once), then this is null. */
+    var flip: FlipTiming? = null,
+    /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
+    lead: Pending.Retarget? = null,
+    /** Called each time a tune plays, with the scope of the block that showed it (look-ahead, spec 15). */
+    private val onPicture: (CoroutineScope) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -69,7 +74,7 @@ internal class Sitting(
     /** [ChannelOnAir.builtUntilMs] as of the last anchor; a drift that reaches it re-anchors (ADR-0017). */
     private var limitMs = Long.MAX_VALUE
 
-    private val nextUp = NextUp(session, tuner, timings, ::vnowMs)
+    private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
 
     /** When the last play was cut off at a boundary (or an ident card ended): the start of the next tune's gap. */
@@ -113,9 +118,18 @@ internal class Sitting(
             val ahead = nextUp.prepare(this, onAir)
             try {
                 when (val airing = onAir.now.airing) {
-                    Airing.Slate -> holdIdent(onAir, onAir.now.endMs)
-                    is Airing.Program -> playProgram(this, onAir, airing, handle)
-                    is Airing.StandIn -> error("A schedule never holds a stand-in")
+                    Airing.Slate -> {
+                        reportFlipEnded("slate")
+                        holdIdent(onAir, onAir.now.endMs)
+                    }
+
+                    is Airing.Program -> {
+                        playProgram(this, onAir, airing, handle)
+                    }
+
+                    is Airing.StandIn -> {
+                        error("A schedule never holds a stand-in")
+                    }
                 }
             } finally {
                 handle?.let { nextUp.discard(it) }
@@ -140,24 +154,28 @@ internal class Sitting(
             val at = vnowMs()
             if (at >= block.endMs) return null
             val position = checkNotNull(block.positionAt(at))
-            val label = if (cut != null) BannerLabel.Now else BannerLabel.TuningIn
-            val joined = if (cut != null) null else position.inWholeMilliseconds
+            val joins = cut !is Pending.AtBoundary
+            val label = if (joins) BannerLabel.TuningIn else BannerLabel.Now
+            val joined = if (joins) position.inWholeMilliseconds else null
             val banner = bannerFor(onAir.channel, block, label, joined, driftMs)
             val use = cut
             cut = null
             val kind =
                 when {
-                    use != null -> TuneKind.Prepared
+                    use is Pending.AtBoundary -> TuneKind.Prepared
+                    use is Pending.Retarget -> TuneKind.Neighbour
                     failures > 0 -> TuneKind.Retry
                     else -> TuneKind.Fresh
                 }
+            val asked = if (use is Pending.AtBoundary) use.start else position
+            // Only a cut at a block boundary has no snow: a flip shows it on every route (one decode at a time).
             val outcome =
-                tuneAndShow(scope, banner, snow = use == null, what = TuneWhat(kind, block, use?.start ?: position)) {
-                    if (use != null) {
-                        use.consumed = true
-                        tuner.tune(session, use.handle)
-                    } else {
-                        tuner.tune(session, ItemId(program.itemId.value), position)
+                tuneAndShow(scope, banner, snow = use !is Pending.AtBoundary, what = TuneWhat(kind, block, asked)) {
+                    use?.consumed = true
+                    when (use) {
+                        is Pending.AtBoundary -> tuner.tune(session, use.handle)
+                        is Pending.Retarget -> tuner.tune(session, use.handle, position)
+                        null -> tuner.tune(session, ItemId(program.itemId.value), position)
                     }
                 }
             val dead =
@@ -205,11 +223,13 @@ internal class Sitting(
         val outcome = tune()
         if (outcome is TuneOutcome.Playing) {
             reportTune(what, outcome.timings, cutSince)
+            reportFlipPlayed(what.kind, began, clock.now(), outcome.timings)
             if (snow) {
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
             showWatching(scope, banner)
+            onPicture(scope)
         }
         return outcome
     }

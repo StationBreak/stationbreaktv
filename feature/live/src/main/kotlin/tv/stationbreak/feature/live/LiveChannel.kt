@@ -2,24 +2,32 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.Airing
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
@@ -47,47 +55,138 @@ class LiveChannel(
     private val report: (TuneReport) -> Unit = {},
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
-    private val current = MutableStateFlow<LiveState>(LiveState.Ident(null))
+    private val screen = Screen(LiveState.Ident(null))
+    private val tuned = Tuned()
 
-    val state: StateFlow<LiveState> = current.asStateFlow()
+    // The channel last saved as the last channel, and the account it is saved for: shared by the sittings of one run.
+    private var saved: ChannelId? = null
+    private var account: LibraryAccount? = null
+
+    // A commit queued and not yet begun by a sitting: replaced, it is a flip that never resolved.
+    private var unstarted: SitRequest? = null
+    private var refresher: () -> Unit = {}
+    private var lineup: suspend () -> FlipOrder = { FlipOrder(emptyList()) }
+    private var looking: Job? = null
+    private var flipLog: List<TuneReport.Flip> = emptyList()
+
+    val state: StateFlow<LiveState> = screen.flow
+
+    /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
+    val flips: List<TuneReport.Flip> get() = flipLog
 
     /**
-     * One sitting: pick a channel, tune, follow boundaries. Returns only when the session ends; otherwise it runs
-     * until cancelled. A tune that is cancelled while this run is still active (the tuner stopped under it) starts a
-     * fresh sitting from the clock instead of ending the run. Its finally stops the tuner under [NonCancellable], so
-     * backgrounding never leaves picture, sound or an
-     * encode running. It does not close the tuner: the host does, then releases the player (ADR-0016).
+     * Follows the viewer: picks a channel, tunes it at the schedule's offset and follows its blocks, and obeys
+     * [commands] (spec 15). Everything here runs on one dispatcher (the main thread; the host launches it there), so
+     * the shared fields need no locks; only [Screen], which the UI reads, has one.
+     * Returns only when the session ends; otherwise it runs until cancelled.
+     *
+     * One sitting runs at a time ([sit]), and a flip's commit replaces it: the requests are collected with
+     * `collectLatest`, so a newer one cancels the old sitting, whose finally stops the tuner, and only then does the
+     * new one start. Moving the number ([Flipper]) never reaches the sitting, so the old channel plays on until then.
+     * A tune that is cancelled while this run is still active (the tuner stopped under it) starts a fresh sitting
+     * from the clock instead of ending the run. The finally of a sitting stops the tuner under [NonCancellable], so
+     * backgrounding never leaves picture, sound or an encode running. It does not close the tuner: the host does,
+     * then releases the player (ADR-0016).
      */
-    suspend fun run() {
+    suspend fun run(commands: Flow<LiveCommand> = emptyFlow()) {
         val session = sessions.current.value
         if (session == null) {
-            current.value = LiveState.SignedOut
+            screen.value = LiveState.SignedOut
             return
         }
+        val neighbours = Neighbours(session, tuner, schedule, clock)
+        val requests = Channel<SitRequest>(Channel.CONFLATED)
+        requests.trySend(SitRequest(null, null))
+        try {
+            coroutineScope {
+                val flipper = Flipper(schedule, clock, timings, screen, tuned, ::record, this) { send(requests, it) }
+                refresher = flipper::refresh
+                lineup = flipper::lineup
+                launch { flipper.follow(commands) }
+                requests.receiveAsFlow().collectLatest { request ->
+                    if (sit(session, request, neighbours)) throw RunEnded()
+                }
+            }
+        } catch (
+            @Suppress("SwallowedException") e: RunEnded,
+        ) {
+            // The session ended: the sitting already said so on the screen.
+        } finally {
+            // A commit nobody started a sitting for is a flip that never resolved.
+            logFlip(unstarted?.flip, "abandoned")
+            unstarted = null
+            refresher = {}
+            lineup = { FlipOrder(emptyList()) }
+            withContext(NonCancellable) { neighbours.release() }
+            screen.drop()
+        }
+    }
+
+    /** Queues a commit's sitting; a commit still waiting for its sitting is replaced, and its flip is logged so. */
+    private fun send(
+        requests: Channel<SitRequest>,
+        request: SitRequest,
+    ) {
+        logFlip(unstarted?.flip, "superseded")
+        unstarted = request
+        requests.trySend(request)
+    }
+
+    /** Ends [run] from inside its sitting without being mistaken for a fault ([sit] returns instead of throwing). */
+    private class RunEnded : RuntimeException()
+
+    private fun record(what: TuneReport) {
+        if (what is TuneReport.Flip) flipLog = (flipLog + what).takeLast(timings.flipLogSize)
+        report(what)
+    }
+
+    /**
+     * One sitting for one [request]: choose the channel (the one the flip landed on, or as at start), tune and follow
+     * it, and when it ends of itself, look again. Returns true when the session ended.
+     */
+    private suspend fun sit(
+        session: Session,
+        request: SitRequest,
+        neighbours: Neighbours,
+    ): Boolean {
+        if (unstarted === request) unstarted = null
+        if (request.flip != null) screen.handOver()
         var sitting: Sitting? = null
-        var saved: ChannelId? = null
         var known: ChannelTag? = null
+        var landed = request.first
+        var flip = request.flip
         try {
             while (true) {
                 try {
-                    val (account, first) = awaitChannel()
+                    val (acct, first) =
+                        landed?.let { checkNotNull(account) to it } ?: awaitChannel().also { account = it.first }
+                    landed = null
                     val id = first.channel.id
                     known = first.tag()
+                    tuned.moveTo(first.channel)
+                    refresher()
                     // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save
                     // is a synced file write that must not sit in the cut).
-                    if (id != saved) lastChannel.save(account, id)
+                    if (id != saved) lastChannel.save(acct, id)
                     saved = id
-                    val next = Sitting(session, id, schedule, tuner, clock, timings, current, report)
+                    // The look-ahead's handle for this channel, if it is still for what is on: the sitting plays it.
+                    val lead = neighbours.take(id, first)?.let { leadOf(it, first.now) }
+                    val next =
+                        Sitting(session, id, schedule, tuner, clock, timings, screen, ::record, flip, lead) { scope ->
+                            lookAhead(scope, neighbours, first.channel)
+                        }
+                    flip = null
                     sitting = next
                     val exit = next.follow(first)
-                    if (exit == Exit.SignedOut) return
+                    if (exit == Exit.SignedOut) return true
+                    closeFlip(next, null, "abandoned")
                     // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
                     currentCoroutineContext().ensureActive()
                     next.release()
                     tuner.stop(session)
                     if (exit == Exit.Lost) {
                         // The channel stopped airing: the card, then look again.
-                        current.value = LiveState.Ident(null)
+                        screen.value = LiveState.Ident(null)
                         delay(timings.slateHold)
                     } else {
                         // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting,
@@ -100,15 +199,63 @@ class LiveChannel(
                 } catch (
                     @Suppress("TooGenericExceptionCaught") e: Exception,
                 ) {
+                    closeFlip(sitting, flip, "abandoned")
+                    flip = null
                     recoverFrom(e, session, sitting, known)
                 }
             }
         } finally {
+            // A newer commit waiting means this sitting was replaced; else the run is ending.
+            closeFlip(sitting, flip, if (unstarted != null) "superseded" else "abandoned")
             withContext(NonCancellable) {
                 sitting?.release()
                 tuner.stop(session)
             }
         }
+    }
+
+    /**
+     * Each time a picture plays: resolves the channels above and below beside it, and again as their blocks end. Not
+     * while the viewer is moving the number (the press is about to commit, and a commit ends these anyway); it looks
+     * again when the number is still.
+     */
+    private fun lookAhead(
+        scope: CoroutineScope,
+        neighbours: Neighbours,
+        playing: ChannelAiring,
+    ) {
+        looking?.cancel()
+        looking =
+            scope.launch {
+                try {
+                    neighbours.keepAround(playing, lineup) { screen.flow.value !is LiveState.Choosing }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+                ) {
+                    // No look-ahead is a slower flip, never a failed sitting.
+                }
+            }
+    }
+
+    /** Logs the flip a sitting (or the request not yet a sitting) still holds, once: it ended without resolving. */
+    private fun closeFlip(
+        sitting: Sitting?,
+        flip: FlipTiming?,
+        outcome: String,
+    ) {
+        val open = sitting?.flip ?: flip
+        sitting?.flip = null
+        logFlip(open, outcome)
+    }
+
+    /** Writes the line of a flip that ended without resolving, unless its line is already written. */
+    private fun logFlip(
+        timing: FlipTiming?,
+        outcome: String,
+    ) {
+        if (timing != null && timing.claim()) record(timing.ended(outcome, clock.now()))
     }
 
     /**
@@ -124,7 +271,7 @@ class LiveChannel(
         known: ChannelTag?,
     ) {
         report(TuneReport.Failed(error.javaClass.simpleName.ifEmpty { "Unknown" }))
-        current.value = LiveState.Ident(null, known)
+        screen.value = LiveState.Ident(null, known)
         withContext(NonCancellable) {
             try {
                 sitting?.release()
@@ -146,14 +293,14 @@ class LiveChannel(
             .flatMapLatest { account ->
                 // No account is active until a library has been synced: nothing is on the air yet.
                 if (account == null) {
-                    current.value = LiveState.NoChannels
+                    screen.value = LiveState.NoChannels
                     emptyFlow()
                 } else {
                     channels.channels(account).map { account }
                 }
             }.mapNotNull { account ->
                 val chosen = choose(account)
-                if (chosen == null) current.value = LiveState.NoChannels
+                if (chosen == null) screen.value = LiveState.NoChannels
                 chosen?.let { account to it }
             }.first()
 
@@ -182,4 +329,13 @@ class LiveChannel(
             ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
             else -> 2
         }
+}
+
+/** A handle from [Neighbours.take] as the sitting wants it: for the block on air, played from the position then. */
+private fun leadOf(
+    handle: NextHandle,
+    block: AiringBlock,
+): Pending.Retarget? {
+    val program = block.airing as? Airing.Program ?: return null
+    return Pending.Retarget(handle, program.itemId, block.startMs)
 }

@@ -6,6 +6,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -119,6 +120,9 @@ class FakeSchedule : ScheduleSource {
     /** How long each [onAir] takes on the virtual clock (a slow schedule read). */
     var onAirDelayMs = 0L
 
+    /** When set, the [onAirDelayMs] wait ignores cancellation (a read that unwinds slowly). */
+    var onAirUncancellable = false
+
     fun channel(
         id: ChannelId,
         number: Int,
@@ -145,7 +149,11 @@ class FakeSchedule : ScheduleSource {
         val ms = at.toEpochMilliseconds()
         onAirCalls += channel to ms
         onAirObserver(next)
-        kotlinx.coroutines.delay(onAirDelayMs)
+        if (onAirUncancellable) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { kotlinx.coroutines.delay(onAirDelayMs) }
+        } else {
+            kotlinx.coroutines.delay(onAirDelayMs)
+        }
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {
@@ -163,8 +171,13 @@ class FakeSchedule : ScheduleSource {
         return standInScript(block, exclude)
     }
 
-    override suspend fun airings(at: Instant): List<ChannelAiring> =
-        channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
+    /** How long each [airings] takes on the virtual clock (a slow lineup read). */
+    var airingsDelayMs = 0L
+
+    override suspend fun airings(at: Instant): List<ChannelAiring> {
+        kotlinx.coroutines.delay(airingsDelayMs)
+        return channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
+    }
 
     companion object {
         const val DAY = 24 * HOUR
@@ -218,6 +231,9 @@ class FakeTune(
 ) : TunePort {
     val calls = mutableListOf<Call>()
     val scripts = mutableMapOf<ItemId, ArrayDeque<suspend () -> TuneOutcome>>()
+
+    /** How long each [stop] takes on the virtual clock (a slow player). */
+    var stopDelayMs = 0L
     var preResolveResult: (ItemId) -> Boolean = { true }
 
     fun script(
@@ -265,9 +281,10 @@ class FakeTune(
     override suspend fun tune(
         session: Session,
         next: NextHandle,
+        start: Duration?,
     ): TuneOutcome {
         val p = next.token as Prepared
-        calls += Call.TuneHandle(p.item, p.start, now())
+        calls += Call.TuneHandle(p.item, start ?: p.start, now())
         return outcomeFor(p.item)
     }
 
@@ -280,6 +297,7 @@ class FakeTune(
 
     override suspend fun stop(session: Session) {
         calls += Call.Stop(now())
+        delay(stopDelayMs)
     }
 
     override suspend fun close(session: Session) {
@@ -322,12 +340,16 @@ class CountingLastChannel(
 ) : LastChannelStore {
     var saves = 0
 
+    /** How long each save takes on the virtual clock. */
+    var saveDelayMs = 0L
+
     override suspend fun load(account: LibraryAccount): ChannelId? = inner.load(account)
 
     override suspend fun save(
         account: LibraryAccount,
         channel: ChannelId,
     ): Boolean {
+        kotlinx.coroutines.delay(saveDelayMs)
         saves++
         return inner.save(account, channel)
     }
@@ -392,14 +414,17 @@ class Rig(
 
     val seen: List<LiveState> get() = states.map { it.first }
 
-    suspend fun start(withAccount: Boolean = true): Job {
+    suspend fun start(
+        withAccount: Boolean = true,
+        commands: Flow<LiveCommand> = emptyFlow(),
+    ): Job {
         sessions.save(session)
         if (withAccount) library.useAccount(account)
         channels.publish(*schedule.channels.map { it.key to it.value.number }.toTypedArray())
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
             live.state.collect { states += it to tune.calls.size }
         }
-        val job = scope.backgroundScope.launch { live.run() }
+        val job = scope.backgroundScope.launch { live.run(commands) }
         scope.runCurrent()
         return job
     }
