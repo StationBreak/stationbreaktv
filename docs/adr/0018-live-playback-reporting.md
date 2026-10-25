@@ -85,18 +85,24 @@ else 0), then `Stopped` with `Failed=true`:
 
    The app never sends the real position, never a positionless progress report, and never a stop without a position.
 2. **The app counts the watched time itself.** It counts the seconds actually watched per item. At 90% or more
-   (configurable, default 90) it calls `POST /UserPlayedItems/{itemId}`. Flipping past an item never counts.
+   (configurable, default 90) it calls `POST /UserPlayedItems/{itemId}`. Time on the same airing adds up across
+   flips away and back; flipping past an item never counts. An item with no known runtime is never marked. After the
+   mark, the safe position becomes 0, as for any played item, so a later check-in cannot write the old resume point
+   back onto it.
 3. **Reporting starts only after the viewer stays on a channel for 30 s** (configurable). This is a technical call by
-   Rincewind: a flip through several channels then adds no play counts and no activity-log entries.
+   Rincewind: a flip through several channels then adds no play counts and no activity-log entries. The gate is the
+   channel, not the item: once the viewer has settled, the next program on the same channel is reported straight away.
+   Reporting never delays a tune or a flip: it runs outside the sitting, in order, with a short timeout per call.
 4. **Accepted costs.**
    - `PlayCount` rises by 1 and `LastPlayedDate` is updated for each reported visit.
    - Each reported visit adds two activity-log entries.
    - The dashboard progress bar is wrong: it shows the safe position plus up to about 20 s.
    - `Failed=true` is a semantic stretch of the API: the playback did not fail.
 5. **Risk and guard.** The design depends on server behaviour that is not in the API contract. The
-   `jellyfin-contract` CI suite must pin it. The F1.5 implementation adds contract tests for the safe-position cases
-   (unwatched, resume point, played, and the auto-stop) on 12.1 and 12.2. The SP-6 script can be re-run against new
-   images before the contract matrix moves.
+   `jellyfin-contract` CI suite pins what it can: the F1.5 implementation adds contract tests on 12.1 and 12.2 for the
+   safe-position sequences (unwatched, resume point, played), marking played followed by a check-in at 0, and the
+   dashboard's `NowPlayingItem`. The server's idle auto-stop takes about 10 minutes, too slow for CI: the SP-6 script
+   (`SP6_ONLY=crash` and `safe`) covers it and is re-run against new images before the contract matrix moves.
 
 ## Consequences
 

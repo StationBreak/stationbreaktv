@@ -270,7 +270,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 **S1.5.1** As a Jellyfin user, I want my live viewing to show on the server dashboard without cluttering "Continue Watching", and an item I really watched to be marked played.
 
 Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6, Q-JF-5).
-- 🧪 Reporting starts only after the viewer stays on a channel for 30 s (configurable), so flipping adds no play counts or activity-log entries.
+- 🧪 Reporting starts only after the viewer stays on a channel for 30 s (configurable), so flipping adds no play counts or activity-log entries; once settled, the next program on that channel is reported at once. Reporting never delays a tune or a flip.
 - 🧪 `POST /Sessions/Playing` carries `PositionTicks` = the safe position (the item's existing resume position, else 0). `POST /Sessions/Playing/Progress` is sent at the same safe position every 30 s. The real position and a positionless progress are never sent.
 - 🧪 `POST /Sessions/Playing/Stopped` is sent with `Failed=true` and the safe position when the viewer leaves the item (flip, cut, exit). A stop without a position is never sent.
 - 🧪 The app counts the seconds actually watched per item. At 90% or more (configurable, default 90) it calls `POST /UserPlayedItems/{itemId}`. Flipping past never counts.
