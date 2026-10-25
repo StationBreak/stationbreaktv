@@ -90,6 +90,7 @@ internal class Flipper(
     private val tuned: Tuned,
     private val report: (TuneReport) -> Unit,
     private val scope: CoroutineScope,
+    private val earlyLineup: suspend () -> EarlyLineup?,
     private val start: (SitRequest) -> Unit,
 ) {
     // The lineup as of the last refresh, read off the key path (a sitting starting). A press uses it and reads the
@@ -107,6 +108,11 @@ internal class Flipper(
     // Presses made while there was no lineup to step through, and the read being made for them.
     private val queued = ArrayList<Pair<FlipDirection, Instant>>()
     private var reading: Job? = null
+
+    // Presses made before the first sitting had a channel, and the read of the lineup list for their banner.
+    private val early = EarlyPresses()
+    private var earlyRead: Job? = null
+    private var earlyShown = false
 
     // Menu's lookups of the previous channel, in the order pressed, while they are running.
     private val recalls = ArrayList<Job>()
@@ -126,6 +132,42 @@ internal class Flipper(
                     // Keep the last good snapshot; a press reads for itself if there is none.
                 }
             }
+        anchored()
+    }
+
+    /** The first sitting has a channel: presses made before are applied now, as one flip from where it landed. */
+    private fun anchored() {
+        if (early.isEmpty || tuned.playing == null) return
+        earlyRead?.cancel()
+        val presses = early.take()
+        if (!onScreen) {
+            writeLines(presses, presses.size, "abandoned")
+            return
+        }
+        // Each press the viewer waited out is a commit that the next one absorbed.
+        writeLines(presses, presses.size - 1, "superseded")
+        queued += presses
+        if (reading?.isActive != true) reading = scope.launch { readThenStep() }
+    }
+
+    /** Writes a line for each of the first [count] [presses] that waited out the settle before the next (or now). */
+    private fun writeLines(
+        presses: List<Press>,
+        count: Int,
+        outcome: String,
+    ) {
+        val now = clock.now()
+        for (i in 0 until count) {
+            val at = presses[i].second
+            if ((presses.getOrNull(i + 1)?.second ?: now) - at < timings.flipSettle) continue
+            report(FlipTiming(at, timings.flipSettle.inWholeMilliseconds).ended(outcome, now))
+        }
+    }
+
+    /** The run is ending: presses still waiting for a first sitting can never be acted on. */
+    fun abandonEarly() {
+        val presses = early.take()
+        writeLines(presses, presses.size, "abandoned")
     }
 
     /** The lineup as of the last refresh, or a fresh read when there is none yet (not kept: a refresh sets it). */
@@ -166,7 +208,19 @@ internal class Flipper(
         // Cancelled, not joined: the number must not wait for a commit's lookup to unwind.
         settling?.cancel()
         recalls.forEach { it.cancel() }
-        if (tuned.playing == null || !onScreen) return
+        if (!onScreen) {
+            abandonEarly()
+        } else if (tuned.playing == null) {
+            holdEarly(direction, now)
+        } else {
+            stepOrQueue(direction, now)
+        }
+    }
+
+    private fun stepOrQueue(
+        direction: FlipDirection,
+        now: Instant,
+    ) {
         val steps = order ?: cached
         if (steps == null || queued.isNotEmpty()) {
             // No lineup yet: the collector must not wait for the read. Presses behind this one queue in order.
@@ -175,6 +229,43 @@ internal class Flipper(
             return
         }
         step(steps, direction, now)
+    }
+
+    /**
+     * A press before the first sitting: kept, never dropped. The banner follows it as soon as the lineup list is
+     * loaded, read in a job of its own so the collector never waits for it (nor for the day build).
+     */
+    private fun holdEarly(
+        direction: FlipDirection,
+        pressedAt: Instant,
+    ) {
+        early.add(direction, pressedAt)
+        if (early.lineup != null) {
+            showEarly()
+        } else if (earlyRead?.isActive != true) {
+            earlyRead = scope.launch { readEarly() }
+        }
+    }
+
+    private suspend fun readEarly() {
+        early.lineup =
+            try {
+                earlyLineup()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                // No early banner; the presses still wait for the sitting.
+                null
+            }
+        if (tuned.playing == null) showEarly()
+    }
+
+    private fun showEarly() {
+        val next = early.target() ?: return
+        earlyShown = true
+        screen.choose(LiveState.Choosing(next.tag(), overPicture = false))
     }
 
     /** Reads the lineup for the presses that queued, then applies them in the order they were made. */
@@ -205,7 +296,14 @@ internal class Flipper(
         val playing = tuned.playing ?: return
         settling?.cancel()
         order = steps
-        val next = steps.step(target?.number ?: playing.number, direction) ?: return
+        val next = steps.step(target?.number ?: playing.number, direction)
+        if (next == null) {
+            // Nowhere to go: take down a banner the early presses put up.
+            if (earlyShown) screen.drop()
+            earlyShown = false
+            return
+        }
+        earlyShown = false
         target = next
         screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
         settling = scope.launch { settle(steps, next, direction, pressedAt) }
