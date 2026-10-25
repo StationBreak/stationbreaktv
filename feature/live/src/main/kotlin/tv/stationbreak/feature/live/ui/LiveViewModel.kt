@@ -33,11 +33,30 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
+import tv.stationbreak.feature.live.TuneReport
 import javax.inject.Inject
 import kotlin.time.Clock
 
 /** The logcat tag of the live channel's numbers: `SBLIVE tune ...`, `SBLIVE cut ...` and `SBLIVE sitting ...`. */
 private const val LOG_TAG = "SBLIVE"
+
+/**
+ * Empties [commands] at the start of a sitting: a press from before the stop would flip a channel the viewer is no
+ * longer looking at. Writes one `press dropped` line to [log] when there was any, with the count (#392).
+ */
+internal fun drainStalePresses(
+    commands: Channel<LiveCommand>,
+    state: String,
+    noSession: Boolean,
+    log: (String) -> Unit,
+) {
+    var drained = 0
+    while (commands.tryReceive().isSuccess) drained++
+    if (drained > 0) {
+        val reason = if (noSession) "no-session" else "drained-at-sit"
+        log(TuneReport.PressDropped(reason, state, drained).line())
+    }
+}
 
 /** How a sitting gets its tuner: over [VideoPlayer], for [Session]. A test swaps it for one that records. */
 internal fun interface TunerFactory {
@@ -87,7 +106,7 @@ internal class LiveViewModel
 
         /** A key press, in order. Presses made while the screen was stopped are dropped by the next [sit]. */
         fun send(command: LiveCommand) {
-            commands.trySend(command)
+            if (commands.trySend(command).isFailure) Log.i(LOG_TAG, "press dropped reason=send-failed")
         }
 
         /**
@@ -100,11 +119,10 @@ internal class LiveViewModel
             surface: SurfaceView,
             tuners: TunerFactory = controllers,
         ) {
+            val before = shown.value.javaClass.simpleName
             shown.value = LiveState.Ident(null)
-            while (commands.tryReceive().isSuccess) {
-                // A press from before the stop would flip a channel the viewer is no longer looking at.
-            }
             val session = sessions.current.value
+            drainStalePresses(commands, before, session == null) { Log.i(LOG_TAG, it) }
             if (session == null) {
                 shown.value = LiveState.SignedOut
                 return

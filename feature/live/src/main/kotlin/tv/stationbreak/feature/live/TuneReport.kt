@@ -161,8 +161,9 @@ sealed interface TuneReport {
     data class PressDropped(
         val reason: String,
         val state: String,
+        val count: Int? = null,
     ) : TuneReport {
-        override fun line() = "press dropped reason=$reason state=$state"
+        override fun line() = "press dropped reason=$reason${count?.let { " n=$it" }.orEmpty()} state=$state"
     }
 
     companion object {

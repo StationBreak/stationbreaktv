@@ -217,7 +217,10 @@ internal class Flipper(
         val now = clock.now()
         // Cancelled, not joined: the number must not wait for a commit's lookup to unwind.
         settling?.cancel()
-        recalls.forEach { it.cancel() }
+        recalls.forEach {
+            dropped("menu-superseded")
+            it.cancel()
+        }
         if (!onScreen) {
             dropped("off-screen")
             abandonEarly()
@@ -419,6 +422,7 @@ internal class Flipper(
         // with no previous channel it does nothing, and must not take a queued press with it.
         if (tuned.previous != null && tuned.playing != null && onScreen) {
             reading?.cancel()
+            repeat(queued.size) { dropped("superseded-by-menu") }
             queued.clear()
         }
         val before = recalls.lastOrNull()
