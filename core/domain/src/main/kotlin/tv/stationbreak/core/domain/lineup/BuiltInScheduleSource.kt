@@ -10,7 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -216,7 +215,6 @@ class BuiltInScheduleSource(
             (today + following).forEach {
                 // So that a cancelled warm stops here and a tune that starts meanwhile gets the thread.
                 yield()
-                ensureActive()
                 it.day
             }
         }

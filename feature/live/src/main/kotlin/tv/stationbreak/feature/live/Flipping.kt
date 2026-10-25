@@ -287,14 +287,18 @@ internal class Flipper(
      * wait on it; a number press cancels it. Menu twice in a row is two commits, so each waits for the one before.
      */
     private fun recall() {
-        // Menu is the newer intent: presses still waiting for a lineup are not applied after it.
-        reading?.cancel()
-        queued.clear()
+        // Menu is the newer intent: presses still waiting for a lineup are not applied after it. Only when it can act:
+        // with no previous channel it does nothing, and must not take a queued press with it.
+        if (tuned.previous != null && tuned.playing != null && onScreen) {
+            reading?.cancel()
+            queued.clear()
+        }
         val before = recalls.lastOrNull()
         lateinit var job: Job
         job =
             scope.launch(start = CoroutineStart.LAZY) {
                 try {
+                    // Cancelled here (a press came first) it has no timing yet, so there is no flip line to write.
                     before?.join()
                     previous()
                 } catch (e: CancellationException) {
@@ -302,7 +306,8 @@ internal class Flipper(
                 } catch (
                     @Suppress("TooGenericExceptionCaught") e: Exception,
                 ) {
-                    failed(e)
+                    // Cancelled meanwhile, the failure belongs to a flip a newer press replaced: it is not reported.
+                    if (currentCoroutineContext().isActive) failed(e)
                 } finally {
                     recalls.remove(job)
                 }
@@ -315,27 +320,28 @@ internal class Flipper(
     private suspend fun previous() {
         val now = clock.now()
         val wanted = tuned.previous?.takeIf { tuned.playing != null && onScreen } ?: return
+        // Menu is a commit: from here it owes a flip line, `superseded` if a newer press replaces it.
         val timing = FlipTiming(now, 0)
-        val lookedAt = clock.now()
-        val onAir =
-            try {
-                val steps = order ?: lineup()
-                steps.byId(wanted)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (
-                @Suppress("TooGenericExceptionCaught") e: Exception,
-            ) {
-                close(timing, "failed")
-                throw e
-            }
-        // A lookup that ran on past a newer press must not touch that press's settle or overlay.
-        currentCoroutineContext().ensureActive()
-        if (onAir == null) return
-        timing.lookupMs = (clock.now() - lookedAt).inWholeMilliseconds
-        settling?.cancelAndJoin()
-        // A settle that finished while this looked would have moved the channel on: leave that commit be.
-        if (tuned.previous == wanted) land(onAir, onAir.channel, timing)
+        try {
+            val lookedAt = clock.now()
+            val steps = order ?: lineup()
+            val onAir = steps.byId(wanted)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+            // A lookup that ran on past a newer press must not touch that press's settle or overlay.
+            currentCoroutineContext().ensureActive()
+            if (onAir == null) return
+            timing.lookupMs = (clock.now() - lookedAt).inWholeMilliseconds
+            settling?.cancelAndJoin()
+            // A settle that finished while this looked would have moved the channel on: leave that commit be.
+            if (tuned.previous == wanted) land(onAir, onAir.channel, timing)
+        } catch (e: CancellationException) {
+            unresolved(timing)
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            if (currentCoroutineContext().isActive) close(timing, "failed") else unresolved(timing)
+            throw e
+        }
     }
 
     /**

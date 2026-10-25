@@ -120,6 +120,9 @@ class FakeSchedule : ScheduleSource {
     /** How long each [onAir] takes on the virtual clock (a slow schedule read). */
     var onAirDelayMs = 0L
 
+    /** The numbers (counting from 1) of the [onAir] calls that throw once their wait is over. */
+    var onAirThrowsAfterWaitOn: Set<Int> = emptySet()
+
     /** When set, the [onAirDelayMs] wait ignores cancellation (a read that unwinds slowly). */
     var onAirUncancellable = false
 
@@ -154,6 +157,7 @@ class FakeSchedule : ScheduleSource {
         } else {
             kotlinx.coroutines.delay(onAirDelayMs)
         }
+        check(onAirCalls.size !in onAirThrowsAfterWaitOn) { "lookup failed" }
         val e = channels[channel]?.takeIf { it.hidden == null }
         val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
         return e?.takeIf { index >= 0 }?.let {

@@ -158,6 +158,31 @@ class ScheduleWarmerTest {
         }
 
     @Test
+    fun aNudgeDuringAFailedWarmRetriesAtOnce() =
+        runTest {
+            lateinit var warmer: ScheduleWarmer
+            var asked = 0
+            val source =
+                BuiltInScheduleSource(
+                    service,
+                    library,
+                    built = { builds += it },
+                    dispatcher = StandardTestDispatcher(testScheduler),
+                ) {
+                    // The first warm fails, with the TV coming to the foreground while it ran.
+                    if (asked++ == 0) {
+                        warmer.nudge()
+                        error("settings unreadable")
+                    }
+                    LIBRARIES
+                }
+            warmer = ScheduleWarmer(source, service, library, clock)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "the nudge made the warm try again at once, not after the idle wait")
+        }
+
+    @Test
     fun theWarmerLooksAgainAtOnceWhenNudgedAndNeverWaitsPastTheCap() =
         runTest {
             val skew = longArrayOf(0)
