@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -129,6 +130,7 @@ class LiveChannel(
     ) {
         logFlip(unstarted?.flip, "superseded")
         unstarted = request
+        request.flip?.sentAt = clock.now()
         requests.trySend(request)
     }
 
@@ -187,7 +189,12 @@ class LiveChannel(
                     if (exit == Exit.Lost) {
                         // The channel stopped airing: the card, then look again.
                         screen.value = LiveState.Ident(null)
-                        delay(timings.slateHold)
+                        // A flip off the card is as likely as one off a picture: look ahead while it waits.
+                        coroutineScope {
+                            lookAhead(this, neighbours, first.channel)
+                            delay(timings.slateHold)
+                            coroutineContext[Job]?.cancelChildren()
+                        }
                     } else {
                         // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting,
                         // under the snow of its tune. The pause only keeps a tuner that stays stopped from spinning
@@ -215,7 +222,8 @@ class LiveChannel(
     }
 
     /**
-     * Each time a picture plays: resolves the channels above and below beside it, and again as their blocks end. Not
+     * Each time a picture plays or a card waits on the screen: resolves the channels above and below beside it, and
+     * again as their blocks end. Not
      * while the viewer is moving the number (the press is about to commit, and a commit ends these anyway); it looks
      * again when the number is still.
      */

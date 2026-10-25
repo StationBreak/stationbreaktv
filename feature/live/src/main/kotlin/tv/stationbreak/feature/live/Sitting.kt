@@ -65,8 +65,8 @@ internal class Sitting(
     var flip: FlipTiming? = null,
     /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
     lead: Pending.Retarget? = null,
-    /** Called each time a tune plays, with the scope of the block that showed it (look-ahead, spec 15). */
-    private val onPicture: (CoroutineScope) -> Unit = {},
+    /** Called each time a tune plays or a slate waits, with the scope of the block that showed it (look-ahead). */
+    val onPicture: (CoroutineScope) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -120,7 +120,7 @@ internal class Sitting(
                 when (val airing = onAir.now.airing) {
                     Airing.Slate -> {
                         reportFlipEnded("slate")
-                        holdIdent(onAir, onAir.now.endMs)
+                        holdIdent(this, onAir, onAir.now.endMs)
                     }
 
                     is Airing.Program -> {
@@ -183,7 +183,7 @@ internal class Sitting(
                     is TuneOutcome.Playing -> {
                         when (hold(block.endMs, outcome.end)) {
                             Held.Boundary -> return null
-                            Held.Ended -> return holdIdent(onAir, block.endMs)
+                            Held.Ended -> return holdIdent(scope, onAir, block.endMs)
                             Held.Failed -> ++failures >= 2
                         }
                     }
@@ -218,6 +218,12 @@ internal class Sitting(
     ): TuneOutcome {
         if (snow) state.value = LiveState.Tuning(banner)
         val began = clock.now()
+        flip?.let { timing ->
+            val sent = timing.sentAt
+            if (sent != null && timing.handoverMs == TuneReport.NOT_SEPARATE) {
+                timing.handoverMs = (began - sent).inWholeMilliseconds
+            }
+        }
         val cutSince = cutFrom
         cutFrom = null
         val outcome = tune()
@@ -277,6 +283,7 @@ internal class Sitting(
 
     /** The ident card until [untilMs], with "up next" from [onAir]: a gap, or a show that ended early. Stops first. */
     suspend fun holdIdent(
+        scope: CoroutineScope,
         onAir: ChannelOnAir,
         untilMs: Long,
     ): Exit? {
@@ -284,6 +291,8 @@ internal class Sitting(
         val up = upNext(onAir)
         tuner.stop(session)
         state.value = LiveState.Ident(up, onAir.tag())
+        // A card with no picture also looks ahead, so a flip off it is not a fresh tune (#392).
+        onPicture(scope)
         waitUntil(untilMs)
         cutFrom = clock.now()
         return null

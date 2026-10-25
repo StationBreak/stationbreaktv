@@ -330,10 +330,45 @@ class LiveChannelFlipTest {
         val line = TuneReport.Flip(null, 900, 400, 900, "playing", "transcode", "loadFailed:CODE", "direct").line()
         assertEquals(
             "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 elapsedMs=900 outcome=playing from=direct " +
-                "route=transcode fallback=loadFailed:CODE",
+                "route=transcode fallback=loadFailed:CODE lookupMs=-1 handoverMs=-1",
             line,
         )
+        assertTrue(
+            TuneReport
+                .Flip(null, 900, 400, 900, "playing", "transcode", null, "direct", lookupMs = 120, handoverMs = 310)
+                .line()
+                .endsWith(" lookupMs=120 handoverMs=310"),
+        )
     }
+
+    @Test
+    fun theFlipLineSaysHowLongTheCommitLookedAndHowLongTheHandOverTook() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.onAirDelayMs = 120
+            f.r.lastChannel.saveDelayMs = 300
+            f.up()
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            val flip = f.r.flipReports().single()
+            assertEquals("playing", flip.outcome)
+            assertEquals(120L, flip.lookupMs)
+            assertTrue("the hand-over includes the save: ${flip.handoverMs}", flip.handoverMs >= 300L)
+            assertTrue(flip.line().endsWith("lookupMs=120 handoverMs=${flip.handoverMs}"))
+        }
+
+    @Test
+    fun aFlipThatNeverTunesHasNoHandOver() =
+        runTest {
+            val f = flipping { schedule.channels.getValue(CH9).blocks = listOf(slate(0, 600)) }
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            val flip = f.r.flipReports().single()
+            assertEquals("slate", flip.outcome)
+            assertEquals(-1L, flip.handoverMs)
+            assertTrue(flip.lookupMs >= 0L)
+        }
 
     @Test
     fun aFlipToAChannelThatCannotPlayReportsFailed() =

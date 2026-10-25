@@ -23,6 +23,15 @@ internal class FlipTiming(
 ) {
     private var logged = false
 
+    /** Time spent in the commit's schedule lookups, once it has looked (-1 before). */
+    var lookupMs = TuneReport.NOT_SEPARATE
+
+    /** When the commit was sent to the machine; set by the machine, to time the hand-over. */
+    var sentAt: Instant? = null
+
+    /** From [sentAt] to the new sitting's tune starting (-1 until a tune starts). */
+    var handoverMs = TuneReport.NOT_SEPARATE
+
     /** True the first time only: a flip writes one line, whoever gets to it first. */
     fun claim(): Boolean = !logged.also { logged = true }
 }
@@ -188,11 +197,15 @@ internal class Flipper(
         var candidate: ChannelAiring? = chosen
         var onAir: ChannelOnAir? = null
         var looked = 0
+        var lookupMs = 0L
         while (candidate != null && onAir == null && looked < steps.size) {
-            onAir = schedule.onAir(candidate.id, clock.now(), Sitting.WINDOW)
+            val lookedAt = clock.now()
+            onAir = schedule.onAir(candidate.id, lookedAt, Sitting.WINDOW)
+            lookupMs += (clock.now() - lookedAt).inWholeMilliseconds
             if (onAir == null) candidate = steps.step(candidate.number, direction)
             looked++
         }
+        timing.lookupMs = lookupMs
         land(onAir, chosen, timing)
     }
 
@@ -203,9 +216,10 @@ internal class Flipper(
         val steps = order ?: cached ?: FlipOrder(schedule.airings(now))
         val onAir = steps.byId(wanted)?.let { schedule.onAir(it.id, now, Sitting.WINDOW) }
         if (onAir == null) return
+        val timing = FlipTiming(now, 0).also { it.lookupMs = (clock.now() - now).inWholeMilliseconds }
         settling?.cancelAndJoin()
         // A settle that finished while this looked would have moved the channel on: leave that commit be.
-        if (tuned.previous == wanted) land(onAir, onAir.channel, FlipTiming(now, 0))
+        if (tuned.previous == wanted) land(onAir, onAir.channel, timing)
     }
 
     /**

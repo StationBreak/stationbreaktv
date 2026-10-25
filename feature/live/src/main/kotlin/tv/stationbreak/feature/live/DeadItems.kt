@@ -27,6 +27,7 @@ internal suspend fun Sitting.deadItem(
     val remaining = block.endMs - vnowMs()
     if (remaining <= 0) return null
     state.value = LiveState.TechnicalDifficulties(up, onAir.tag())
+    onPicture(scope)
     delay(timings.slateHold)
     if (remaining <= timings.standInThreshold.inWholeMilliseconds) {
         // Move on: the next show plays from its start, so this sitting now runs ahead of the clock.
@@ -92,5 +93,5 @@ private suspend fun Sitting.fillIn(
         }
     }
     reportFlipEnded("failed")
-    return holdIdent(onAir, block.endMs)
+    return holdIdent(scope, onAir, block.endMs)
 }
