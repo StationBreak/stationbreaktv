@@ -69,7 +69,7 @@ private suspend fun Sitting.fillIn(
             when (outcome) {
                 is TuneOutcome.Playing -> {
                     // A piece that ends at its own end is not a failure: the next piece (or the schedule) follows.
-                    val held = hold(piece.endMs, outcome.end)
+                    val held = hold(piece.endMs, outcome.end, outcome.notes)
                     if (held == Held.Boundary && piece.endMs >= block.endMs) return null
                     held != Held.Boundary
                 }

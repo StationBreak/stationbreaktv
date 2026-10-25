@@ -2,9 +2,11 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.LoadStats
+import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration
 
@@ -48,11 +50,12 @@ data class TuneTimings(
 sealed interface TuneOutcome {
     /**
      * The picture plays. [end] emits how the play ends, or completes empty when it is stopped or replaced. [timings]
-     * is what the controller measured.
+     * is what the controller measured. [notes] are the play's stalls and their ends (diagnostics, numbers only).
      */
     data class Playing(
         val end: Flow<PlaybackEnd>,
         val timings: TuneTimings = TuneTimings(),
+        val notes: Flow<PlayNote> = emptyFlow(),
     ) : TuneOutcome
 
     /** Nothing plays: every route failed. [timedOut] is true when the failure was a timeout (it is not retried). */

@@ -26,6 +26,15 @@ class PlayerFailureTest {
     }
 
     @Test
+    fun theEventCarriesTheTimeAndPositionAndBufferWithoutTheMessage() {
+        val error =
+            PlaybackException("http://server/x?api_key=secret", null, PlaybackException.ERROR_CODE_IO_UNSPECIFIED)
+        val event = playerFailure(error, 3, 9_000, 8_000, 120)
+        assertEquals(PlayerEvent.Failed("ERROR_CODE_IO_UNSPECIFIED", null, 3, 9_000, 8_000, 120), event)
+        assertFalse(event.toString().contains("secret"))
+    }
+
+    @Test
     fun aCauseCycleDoesNotLoopForever() {
         val a = RuntimeException("a")
         val b = RuntimeException("b", a)
