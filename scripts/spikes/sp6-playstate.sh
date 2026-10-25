@@ -116,7 +116,7 @@ stop() { # id positionOrEmpty failed(true|false)
 ud() { api GET "/Items/$1?userId=$UID_" | jq -c '.UserData | {Played,PlaybackPositionTicks,PlayCount,LastPlayedDate}'; }
 inresume() { api GET "/UserItems/Resume?userId=$UID_&MediaTypes=Video" | jq -r '.Items[]?.Id' | grep -qx "$1" && echo yes || echo no; }
 sess() { # our device's session: now playing present, reported position, paused
-  api GET /Sessions | jq -c '[.[] | select(.DeviceId=="sp6")][0] | {np:(.NowPlayingItem != null), pos:.PlayState.PositionTicks, paused:.PlayState.IsPaused}'
+  api GET /Sessions | jq -c --arg d "${DEV:-sp6}" '[.[] | select(.DeviceId==$d)][0] | {np:(.NowPlayingItem != null), pos:.PlayState.PositionTicks, paused:.PlayState.IsPaused}'
 }
 actlog() { api GET "/System/ActivityLog/Entries?limit=200" | jq -c '[.Items[]?.Type] | group_by(.) | map({(.[0]): length}) | add'; }
 report() { rec "$1 userdata after" "$(ud "$2")" "in Resume=$(inresume "$2")"; }
@@ -137,6 +137,7 @@ sequence() { # case id pct : Playing, positionless Progress every 30 s for 120 s
   rec "$c session after Stopped Failed=true (no PositionTicks)" "$(sess)" ""
 }
 
+if [ "${SP6_ONLY:-}" != followup ]; then
 rec "# activity log types at start" "$(actlog)" ""
 
 # ---- a. unwatched episode ---------------------------------------------------------------------------
@@ -204,5 +205,66 @@ if [ "${SP6_IDLE:-1}" = 1 ]; then
 else
   rec "g idle" "skipped by SP6_IDLE=0" ""
 fi
+fi
+# ======================= follow-up round: Playing at PositionTicks=0 ===========================================
+login() { # deviceId -> token (one session per device, so the idle cases can run side by side)
+  curl -sS -X POST "$BASE/Users/AuthenticateByName" \
+    -H "Authorization: MediaBrowser Client=\"sp6\", Device=\"$1\", DeviceId=\"$1\", Version=\"1.0\"" \
+    -H 'Content-Type: application/json' -d "{\"Username\":\"sp6admin\",\"Pw\":\"$PASS\"}" | jq -r .AccessToken
+}
+idlerun() { # name deviceId episodeId mode(idle|full|min): Playing at 0, then 12 minutes with no / full-field / minimal-field positionless check-ins every 30 s
+  local name="$1" dev="$2" id="$3" mode="$4" m line="" i
+  DEV="$dev"; TOK="$(login "$dev")"
+  api POST /Sessions/Playing "{\"ItemId\":\"$id\",\"MediaSourceId\":\"$id\",\"PlaySessionId\":\"ps-$dev\",\"PositionTicks\":0,\"CanSeek\":true,\"PlayMethod\":\"DirectPlay\",\"IsPaused\":false}"
+  for m in $(seq 1 12); do
+    for i in 1 2; do
+      sleep 30
+      case "$mode" in
+        full) prog0 "$id" false ;;
+        min) api POST /Sessions/Playing/Progress "{\"ItemId\":\"$id\",\"MediaSourceId\":\"$id\",\"PlaySessionId\":\"ps-$dev\"}" ;;
+      esac
+    done
+    line="$line m$m:$(sess | jq -c '[.np,.pos,.paused]')/$(ud "$id" | jq -c '[.Played,.PlaybackPositionTicks,.PlayCount]') "
+  done
+  printf '%s' "$line" > "$WORK/out-$name"
+}
+
+if [ "${SP6_FOLLOWUP:-1}" = 1 ]; then
+  rec "# follow-up: Playing at PositionTicks=0" "" ""
+  g2="${E[1]}"; g3="${E[2]}"; g4="${E[3]}"; hh="${E[4]}"; i1="${E[5]}"; i2="${E[6]}"
+  if [ "${SP6_ONLY:-}" != followup ]; then
+    # a full run already used these episodes: pick the ones the first round left alone
+    g2="${E[7]}"; g3="${E[2]}"; g4="${E[3]}"; hh="${E[8]}"; i1="${E[5]}"; i2="${E[6]}"
+  fi
+  play "$g3" 0; sleep 1; stop "$g3" "$(pct 50)" false; sleep 2     # g3 setup: normal stop at 50%
+  api POST "/UserPlayedItems/$g4?userId=$UID_" >/dev/null; sleep 1  # g4 setup: already played
+  rec "g2 before" "$(ud "$g2")" "in Resume=$(inresume "$g2")"
+  rec "g3 before (50% resume point)" "$(ud "$g3")" "in Resume=$(inresume "$g3")"
+  rec "g4 before (played)" "$(ud "$g4")" "in Resume=$(inresume "$g4")"
+  rec "i1 before" "$(ud "$i1")" "in Resume=$(inresume "$i1")"
+  rec "i2 before" "$(ud "$i2")" "in Resume=$(inresume "$i2")"
+  idlerun g2 dev-g2 "$g2" idle & p1=$!
+  idlerun g3 dev-g3 "$g3" idle & p2=$!
+  idlerun g4 dev-g4 "$g4" idle & p3=$!
+  idlerun i1 dev-i1 "$i1" full & p4=$!
+  idlerun i2 dev-i2 "$i2" min & p5=$!
+  # h (main device sp6): normal path with Playing at 0
+  rec "h before" "$(ud "$hh")" "in Resume=$(inresume "$hh")"
+  sequence h "$hh" 0
+  report h "$hh"
+  wait "$p1" "$p2" "$p3" "$p4" "$p5"
+  rec "g2 per-minute samples, Playing at 0, NO check-ins [session [nowPlaying,pos,paused] / userdata [played,posTicks,playCount]]" "$(cat "$WORK/out-g2")" ""
+  rec "g2 userdata after 12 min" "$(ud "$g2")" "in Resume=$(inresume "$g2")"
+  rec "g3 per-minute samples, Playing at 0, NO check-ins" "$(cat "$WORK/out-g3")" ""
+  rec "g3 userdata after 12 min" "$(ud "$g3")" "in Resume=$(inresume "$g3")"
+  rec "g4 per-minute samples, Playing at 0, NO check-ins" "$(cat "$WORK/out-g4")" ""
+  rec "g4 userdata after 12 min" "$(ud "$g4")" "in Resume=$(inresume "$g4")"
+  rec "i1 per-minute samples, positionless Progress (CanSeek, PlayMethod=DirectPlay, IsPaused=false) every 30 s" "$(cat "$WORK/out-i1")" ""
+  rec "i1 userdata after 12 min" "$(ud "$i1")" "in Resume=$(inresume "$i1")"
+  rec "i2 per-minute samples, positionless Progress with only ItemId/MediaSourceId/PlaySessionId every 30 s" "$(cat "$WORK/out-i2")" ""
+  rec "i2 userdata after 12 min" "$(ud "$i2")" "in Resume=$(inresume "$i2")"
+  rec "# activity log types after follow-up" "$(actlog)" ""
+fi
+
 
 echo "# done: image=$IMAGE server=$VER"
