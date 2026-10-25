@@ -208,7 +208,12 @@ class DayBuildEquivalenceTest {
         }
         val before = best { legacy.days(lineup, scheduled, snapshots) }
         val after = best { days.days(lineup, scheduled, snapshots) }
-        println("DayBuildTiming channels=${scheduled.size} items=${items.size} beforeMs=$before afterMs=$after")
+        var evaluations = 0
+        days.days(lineup, scheduled, snapshots, evaluated = { evaluations++ })
+        println(
+            "DayBuildTiming channels=${scheduled.size} items=${items.size} beforeMs=$before afterMs=$after " +
+                "evaluations=$evaluations",
+        )
         assertEquals(
             describe(legacy.days(lineup, scheduled, snapshots)),
             describe(days.days(lineup, scheduled, snapshots)),

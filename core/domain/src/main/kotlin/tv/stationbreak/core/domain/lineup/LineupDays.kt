@@ -23,6 +23,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RatingLadder
+import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.Day
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
@@ -104,13 +105,15 @@ internal class LineupDays(
     /**
      * The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`. [beforeChannel] is
      * called before each channel's day is worked out; a caller that has stopped needing the days throws from it.
+     * [evaluated] is called once per `PoolEvaluator.evaluate` run, to count them.
      */
     fun days(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         snapshots: Map<Long, RuleSnapshot>,
         beforeChannel: () -> Unit = {},
-    ): List<ChannelDay> = Build(lineup, snapshots).days(scheduled, beforeChannel)
+        evaluated: () -> Unit = {},
+    ): List<ChannelDay> = Build(lineup, snapshots, evaluated).days(scheduled, beforeChannel)
 
     /**
      * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no day
@@ -167,8 +170,23 @@ internal class LineupDays(
     private inner class Build(
         private val lineup: Lineup,
         private val snapshots: Map<Long, RuleSnapshot>,
+        private val evaluated: () -> Unit = {},
     ) {
         private val withheldBy = HashMap<Long, Set<CanonicalId>>()
+
+        // A pool depends only on the snapshot, the sources, the exclusions and the ceiling, so rules that agree on
+        // those (a recipe as resolved and as held, a hidden channel that is an unedited starter) are evaluated once.
+        private val evaluations = HashMap<EvaluationKey, Pool>()
+
+        private fun evaluate(
+            rules: ChannelRules,
+            cutoff: Long,
+        ): Pool {
+            val key = EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.maxRating)
+            evaluations[key]?.let { return it }
+            evaluated()
+            return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff)).also { evaluations[key] = it }
+        }
 
         // Leftovers channels that claim in turn: ceilinged first, then by number and ID. Shelved ones claim nothing.
         private val leftovers =
@@ -217,8 +235,7 @@ internal class LineupDays(
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs))
-            return dayOf(s, pool)
+            return dayOf(s, evaluate(rules, s.cutoffMs))
         }
 
         private fun leftoversDay(
@@ -252,9 +269,8 @@ internal class LineupDays(
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */
         fun withheld(cutoff: Long): Set<CanonicalId> =
             withheldBy.getOrPut(cutoff) {
-                val snapshot = snapshots.getValue(cutoff)
                 val rules = optInRules() + hiddenRules()
-                rules.flatMapTo(HashSet()) { r -> PoolEvaluator.evaluate(r, snapshot).items.map { it.id } }
+                rules.flatMapTo(HashSet()) { r -> evaluate(r, cutoff).items.map { it.id } }
             }
 
         /** What the hidden leftovers channels would air from the [cutoff]'s snapshot: held back on purpose too. */
@@ -285,6 +301,14 @@ internal class LineupDays(
             return hidden.mapNotNull(::rulesOf)
         }
     }
+
+    /** What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions and ceiling. */
+    private data class EvaluationKey(
+        val cutoffMs: Long,
+        val sources: List<Source>,
+        val exclusions: List<Source>,
+        val maxRating: String?,
+    )
 
     /**
      * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is

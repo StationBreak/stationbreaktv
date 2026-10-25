@@ -50,7 +50,19 @@ data class RuleItem(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
-)
+) {
+    @Volatile private var foldedGenresCache: List<String>? = null
+
+    @Volatile private var foldedTagsCache: List<String>? = null
+
+    /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept: a rule match reads this. */
+    val foldedGenres: List<String>
+        get() = foldedGenresCache ?: foldNames(genres).also { foldedGenresCache = it }
+
+    /** [tags] folded, as [foldedGenres]. */
+    val foldedTags: List<String>
+        get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
+}
 
 /** A series as held before the cut-off, with the fields a rule reads. [officialRating] is as stored. */
 data class RuleSeries(
@@ -58,7 +70,19 @@ data class RuleSeries(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
-)
+) {
+    @Volatile private var foldedGenresCache: List<String>? = null
+
+    @Volatile private var foldedTagsCache: List<String>? = null
+
+    /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept. */
+    val foldedGenres: List<String>
+        get() = foldedGenresCache ?: foldNames(genres).also { foldedGenresCache = it }
+
+    /** [tags] folded, as [foldedGenres]. */
+    val foldedTags: List<String>
+        get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
+}
 
 /**
  * A collection as held before the cut-off: its members by kind. A member is an ID and may be outside the selected
