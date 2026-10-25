@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -32,6 +33,7 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
@@ -43,7 +45,7 @@ import kotlin.time.Clock
  * Time comes only from [clock] and `delay`, so virtual time drives it in tests. Nothing here logs: titles and IDs are
  * for the screen only. What it measures about each tune goes to [report] as numbers (see [TuneReport]); the host logs.
  */
-@Suppress("LongParameterList") // The machine's ports, one for one.
+@Suppress("LongParameterList", "TooManyFunctions") // The machine's ports, one for one.
 class LiveChannel(
     private val schedule: ScheduleSource,
     private val tuner: TunePort,
@@ -101,12 +103,20 @@ class LiveChannel(
         requests.trySend(SitRequest(null, null))
         try {
             coroutineScope {
-                val flipper = Flipper(schedule, clock, timings, screen, tuned, ::record, this) { send(requests, it) }
+                val flipper =
+                    Flipper(schedule, clock, timings, screen, tuned, ::record, this, ::earlyLineup) {
+                        send(requests, it)
+                    }
                 refresher = flipper::refresh
                 lineup = flipper::lineup
                 launch { flipper.follow(commands) }
-                requests.receiveAsFlow().collectLatest { request ->
-                    if (sit(session, request, neighbours)) throw RunEnded()
+                try {
+                    requests.receiveAsFlow().collectLatest { request ->
+                        if (sit(session, request, neighbours)) throw RunEnded()
+                    }
+                } finally {
+                    // Presses still waiting for a first sitting can never be acted on now.
+                    flipper.abandonEarly()
                 }
             }
         } catch (
@@ -294,6 +304,23 @@ class LiveChannel(
             }
         }
         delay(timings.crashBackoff)
+    }
+
+    /**
+     * The lineup list as the banner can use it before the day is built: the switched-on channels with a number, from
+     * the first list that has any. See [EarlyPresses] for the anchor rule. Waits for an account and a lineup, so it
+     * runs in a job of its own, never on the press collector.
+     */
+    private suspend fun earlyLineup(): EarlyLineup? {
+        val account = library.activeAccount().filterNotNull().first()
+        val on =
+            channels
+                .channels(account)
+                .map { list -> list.filter { it.state == ChannelStatus.On && it.number != null } }
+                .first { it.isNotEmpty() }
+        val airings = on.map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
+        val saved = lastChannel.load(account)
+        return EarlyLineup(FlipOrder(airings), airings.firstOrNull { it.id == saved })
     }
 
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */
