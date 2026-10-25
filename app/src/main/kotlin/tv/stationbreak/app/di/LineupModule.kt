@@ -3,6 +3,7 @@ package tv.stationbreak.app.di
 
 import android.content.Context
 import android.os.Debug
+import android.os.Process
 import android.util.Log
 import dagger.Module
 import dagger.Provides
@@ -19,6 +20,7 @@ import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.LineupRefresher
@@ -91,11 +93,20 @@ internal object LineupModule {
                 Log.i(
                     TAG,
                     "DayBuild day=${it.day} ms=${it.ms} snapshotsMs=${it.snapshotsMs} poolsMs=${it.poolsMs} " +
-                        "channels=${it.channels} snapshotsCpuMs=${it.snapshotsCpuMs} poolsCpuMs=${it.poolsCpuMs}",
+                        "channels=${it.channels} poolsCpuMs=${it.poolsCpuMs} " +
+                        "snapshotsProcCpuMs=${it.snapshotsProcCpuMs} " +
+                        "poolsProcCpuMs=${it.poolsProcCpuMs} gcCount=${it.gcCount} gcBlockMs=${it.gcBlockMs} " +
+                        "snapshot=${it.snapshot}",
                 )
             },
             laidOut = { day, ms -> Log.i(TAG, "DayLayout day=$day ms=$ms") },
-            threadCpuNanos = { Debug.threadCpuTimeNanos() },
+            probes =
+                BuildProbes(
+                    threadCpuNanos = { Debug.threadCpuTimeNanos() },
+                    processCpuMs = { Process.getElapsedCpuTime() },
+                    gcCount = { runtimeStat("art.gc.gc-count") },
+                    gcBlockMs = { runtimeStat("art.gc.blocking-gc-time") },
+                ),
         ) { settings.loadLibraries() }
 
     @Provides
@@ -125,3 +136,6 @@ internal object LineupModule {
             Log.i(TAG, it.name)
         }
 }
+
+/** A number from ART's runtime statistics, or -1 where the runtime does not give it (or not as a number). */
+private fun runtimeStat(name: String): Long = Debug.getRuntimeStat(name)?.toLongOrNull() ?: -1L

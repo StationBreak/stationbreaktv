@@ -133,6 +133,27 @@ class DayBuildEquivalenceTest {
     }
 
     @Test
+    fun leftoversOnDifferentCutoffsClaimPerCutoffAsTheOldBuildDid() {
+        val lineup = variedLineup(extraCustoms = 3)
+        val items = library(1_200)
+        var shift = 0L
+        // Leftovers in different epochs (every other one a day on), so their cut-offs and snapshots differ.
+        val scheduled =
+            days.scheduled(lineup, NOON.toEpochMilliseconds()).map { s ->
+                val onLeftovers = s.channel.source is ChannelSource.Leftovers
+                if (onLeftovers) Scheduled(s.channel, s.settings, s.n + shift++ % 2) else s
+            }
+        val leftoversCutoffs = scheduled.filter { it.channel.source is ChannelSource.Leftovers }.map { it.cutoffMs }
+        assertEquals(2, leftoversCutoffs.distinct().size, "the leftovers sit on two cut-offs")
+        val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
+        val snapshots =
+            cutoffs.withIndex().associate { (index, cutoff) -> cutoff to snapshotOf(items.dropLast(index * 7), cutoff) }
+
+        val expected = describe(legacy.days(lineup, scheduled, snapshots))
+        assertEquals(expected, describe(days.days(lineup, scheduled, snapshots)))
+    }
+
+    @Test
     fun theLeftoversAreWalkedOnceAndStillClaimInOrder() {
         val lineup = variedLineup()
         val (scheduled, snapshots) = snapshotsFor(lineup, NOON.toEpochMilliseconds(), library(600))

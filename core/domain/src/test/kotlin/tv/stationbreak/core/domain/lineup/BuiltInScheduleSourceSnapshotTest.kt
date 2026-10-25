@@ -133,25 +133,94 @@ class BuiltInScheduleSourceSnapshotTest {
         }
 
     @Test
-    fun aBuildReportsTheThreadCpuItWasToldAndMinusOneWhenTheClockCannotTell() {
-        refresh()
-        var now = 0L
-        val ticking = mutableListOf<DayBuild>()
-        val timed =
-            BuiltInScheduleSource(service, library, built = { ticking += it }, threadCpuNanos = {
-                now += 3_000_000L
-                now
-            }) {
-                chosen
-            }
-        runBlocking { timed.channelDays(ACCOUNT, chosen, NOON) }
-        assertEquals(3L, ticking.single().poolsCpuMs, "one pair of readings around the pool work, 3 ms apart")
+    fun aCallerThatJoinedTheStaleBuildAlsoGetsTheCurrentRevisionsDays() =
+        runBlocking {
+            refresh()
+            val gate = CompletableDeferred<Unit>()
+            library.gate = gate
+            val starter = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            val joiner = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            withTimeout(WAIT_MS) { library.entered.await() }
+            assertEquals(1, source.joined.get(), "the second caller joined the revision 1 build")
+            refresh()
+            val current = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            gate.complete(Unit)
 
-        val unknown = mutableListOf<DayBuild>()
-        val none = { -1L }
-        val blind = BuiltInScheduleSource(service, library, built = { unknown += it }, threadCpuNanos = none) { chosen }
+            val expected = withTimeout(WAIT_MS) { current.await() }
+            assertSame(expected, withTimeout(WAIT_MS) { starter.await() })
+            assertSame(expected, withTimeout(WAIT_MS) { joiner.await() })
+            assertEquals(1, builds.size)
+        }
+
+    @Test
+    fun aSyncDuringAReadCancelsItAndTheBuildReadsTheNewState() =
+        runBlocking {
+            refresh()
+            val gate = CompletableDeferred<Unit>()
+            library.gate = gate
+            val old = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            withTimeout(WAIT_MS) { library.entered.await() }
+            // A sync writes: the content generation moves, so the read in flight is for a state that is gone.
+            counting.seed(movie(901, "Comedy", rating = "R"))
+            refresh()
+            val current = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            gate.complete(Unit)
+
+            val expected = withTimeout(WAIT_MS) { current.await() }
+            assertSame(expected, withTimeout(WAIT_MS) { old.await() })
+            assertEquals(2, source.snapshotReads(), "the old read and the new one")
+            assertEquals(1, source.cancelledSnapshotReads(), "and the old one was cancelled, not left to compete")
+            assertEquals(1, builds.size)
+            assertEquals(0, source.inFlightCount())
+        }
+
+    @Test
+    fun aBuildReportsWhereItsTimeWent() {
+        refresh()
+        var thread = 0L
+        var process = 100L
+        var gcs = 7L
+        val told = mutableListOf<DayBuild>()
+        val probes =
+            BuildProbes(
+                threadCpuNanos = { thread.also { thread += 3_000_000L } },
+                processCpuMs = { process.also { process += 5L } },
+                gcCount = { gcs.also { gcs += 2L } },
+                gcBlockMs = { 40L },
+            )
+        val timed = BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { chosen }
+        runBlocking { timed.channelDays(ACCOUNT, chosen, NOON) }
+        val build = told.single()
+
+        assertEquals(3L, build.poolsCpuMs, "one pair of thread readings around the pool work")
+        assertEquals(5L, build.snapshotsProcCpuMs)
+        assertEquals(5L, build.poolsProcCpuMs)
+        assertEquals(4L, build.gcCount, "read at the start, after the snapshots and at the end, 2 apart")
+        assertEquals(0L, build.gcBlockMs)
+        assertEquals("miss", build.snapshot)
+    }
+
+    @Test
+    fun aBuildFromKeptSnapshotsSaysHit() {
+        refresh()
+        days()
+        refresh()
+        days()
+        assertEquals(listOf("miss", "hit"), builds.map { it.snapshot })
+    }
+
+    @Test
+    fun clocksThatCannotTellGiveMinusOne() {
+        refresh()
+        val told = mutableListOf<DayBuild>()
+        val probes = BuildProbes({ -1L })
+        val blind = BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { chosen }
         runBlocking { blind.channelDays(ACCOUNT, chosen, NOON) }
-        assertEquals(listOf(-1L, -1L), unknown.single().let { listOf(it.snapshotsCpuMs, it.poolsCpuMs) })
+        val b = told.single()
+        assertEquals(
+            listOf(-1L, -1L, -1L, -1L, -1L),
+            listOf(b.poolsCpuMs, b.snapshotsProcCpuMs, b.poolsProcCpuMs, b.gcCount, b.gcBlockMs),
+        )
     }
 
     private companion object {
