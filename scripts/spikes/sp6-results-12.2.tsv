@@ -1,0 +1,46 @@
+# image	ghcr.io/jellyfin/jellyfin@sha256:c3efa69a22f2691fc88d6bb035e87a8560e395a6047f062fb381c61c3185e8f5	server=12.2.0
+# setup	runtime=420 s (4200000000 ticks), episodes=8	server resume config={"MinResumePct":5,"MaxResumePct":90,"MinResumeDurationSeconds":300}
+# activity log types at start	{"AuthenticationSucceeded":1,"SessionStarted":1,"UserPasswordChanged":1}	
+a before	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":0,"LastPlayedDate":null}	in Resume=no
+a session right after Playing at 40%	{"np":true,"pos":1690000000,"paused":false}	
+a Sessions samples [nowPlaying,pos,paused] every 10 s; positionless Progress at t=30,60,90,120	 t=10:[true,1790000000,false]  t=20:[true,1890000000,false]  t=30:[true,null,false]  t=40:[true,100000000,false]  t=50:[true,200000000,false]  t=60:[true,null,false]  t=70:[true,100000000,false]  t=80:[true,200000000,false]  t=90:[true,null,false]  t=100:[true,100000000,false]  t=110:[true,200000000,false]  t=120:[true,null,false] 	
+a session after positionless Progress IsPaused=true	{"np":true,"pos":null,"paused":true}	
+a userdata while playing	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:30:11.9889291Z"}	in Resume=no
+a session after Stopped Failed=true (no PositionTicks)	{"np":false,"pos":null,"paused":false}	
+a userdata after	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:30:11.9889291Z"}	in Resume=no
+a activity log types after	{"AuthenticationSucceeded":1,"SessionStarted":1,"UserPasswordChanged":1,"VideoPlayback":1,"VideoPlaybackStopped":1}	
+b before (normal Playing + Stopped at 50%)	{"Played":false,"PlaybackPositionTicks":2100000000,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:32:18.6733352Z"}	in Resume=yes
+b session right after Playing at 20%	{"np":true,"pos":850000000,"paused":false}	
+b Sessions samples [nowPlaying,pos,paused] every 10 s; positionless Progress at t=30,60,90,120	 t=10:[true,950000000,false]  t=20:[true,1050000000,false]  t=30:[true,null,false]  t=40:[true,100000000,false]  t=50:[true,200000000,false]  t=60:[true,null,false]  t=70:[true,100000000,false]  t=80:[true,200000000,false]  t=90:[true,null,false]  t=100:[true,100000000,false]  t=110:[true,200000000,false]  t=120:[true,null,false] 	
+b session after positionless Progress IsPaused=true	{"np":true,"pos":null,"paused":true}	
+b userdata while playing	{"Played":false,"PlaybackPositionTicks":2100000000,"PlayCount":2,"LastPlayedDate":"2026-10-25T20:32:20.7566114Z"}	in Resume=yes
+b session after Stopped Failed=true (no PositionTicks)	{"np":false,"pos":null,"paused":false}	
+b userdata after	{"Played":false,"PlaybackPositionTicks":2100000000,"PlayCount":2,"LastPlayedDate":"2026-10-25T20:32:20.7566114Z"}	in Resume=yes
+c before (marked played)	{"Played":true,"PlaybackPositionTicks":0,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:34:26.3564361Z"}	in Resume=no
+c session right after Playing at 40%	{"np":true,"pos":1690000000,"paused":false}	
+c Sessions samples [nowPlaying,pos,paused] every 10 s; positionless Progress at t=30,60,90,120	 t=10:[true,1790000000,false]  t=20:[true,1890000000,false]  t=30:[true,null,false]  t=40:[true,100000000,false]  t=50:[true,200000000,false]  t=60:[true,null,false]  t=70:[true,100000000,false]  t=80:[true,200000000,false]  t=90:[true,null,false]  t=100:[true,100000000,false]  t=110:[true,200000000,false]  t=120:[true,null,false] 	
+c session after positionless Progress IsPaused=true	{"np":true,"pos":null,"paused":true}	
+c userdata while playing	{"Played":true,"PlaybackPositionTicks":0,"PlayCount":2,"LastPlayedDate":"2026-10-25T20:34:26.3564361Z"}	in Resume=no
+c session after Stopped Failed=true (no PositionTicks)	{"np":false,"pos":null,"paused":false}	
+c userdata after	{"Played":true,"PlaybackPositionTicks":0,"PlayCount":2,"LastPlayedDate":"2026-10-25T20:34:26.3564361Z"}	in Resume=no
+d before (contrast: positioned Progress at 45%, then Stopped Failed=true)	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":0,"LastPlayedDate":null}	in Resume=no
+d session after positioned Progress at 45%	{"np":true,"pos":1910000000,"paused":false}	
+d userdata after positioned Progress + Stopped Failed=true	{"Played":false,"PlaybackPositionTicks":1890000000,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:36:34.0939354Z"}	in Resume=yes
+e before	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":0,"LastPlayedDate":null}	in Resume=no
+e after POST /UserPlayedItems	{"Played":true,"PlaybackPositionTicks":0,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:36:38.2645832Z"}	in Resume=no
+e NextUp episode numbers for the series	5	(E3 and E4 played, E2 has a resume point, E5 contrast data)
+f1 before	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":0,"LastPlayedDate":null}	in Resume=no
+f1 control: Stopped WITHOUT Failed at 40% -> userdata	{"Played":false,"PlaybackPositionTicks":1680000000,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:36:40.5559875Z"}	in Resume=yes
+f2 before	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":0,"LastPlayedDate":null}	in Resume=no
+f2 control: Stopped with no PositionTicks, no Failed -> userdata	{"Played":true,"PlaybackPositionTicks":0,"PlayCount":2,"LastPlayedDate":"2026-10-25T20:36:43.7083624Z"}	in Resume=no
+# activity log types at end of a-f	{"AuthenticationSucceeded":1,"SessionStarted":1,"UserPasswordChanged":1,"VideoPlayback":7,"VideoPlaybackStopped":7}	
+g before	{"Played":false,"PlaybackPositionTicks":0,"PlayCount":0,"LastPlayedDate":null}	in Resume=no
+g per-minute samples, no check-ins [session [nowPlaying,pos,paused] / userdata [played,posTicks,playCount]]	 m1:[true,2280000000,false]/[false,0,1]  m2:[true,2880000000,false]/[false,0,1]  m3:[true,3480000000,false]/[false,0,1]  m4:[true,4080000000,false]/[false,0,1]  m5:[true,4190000000,false]/[false,0,1]  m6:[true,4190000000,false]/[false,0,1]  m7:[true,4190000000,false]/[false,0,1]  m8:[true,4190000000,false]/[false,0,1]  m9:[false,null,false]/[false,1680000000,1]  m10:[false,null,false]/[false,1680000000,1]  m11:[false,null,false]/[false,1680000000,1]  m12:[false,null,false]/[false,1680000000,1] 	
+g userdata after 12 idle minutes	{"Played":false,"PlaybackPositionTicks":1680000000,"PlayCount":1,"LastPlayedDate":"2026-10-25T20:45:12.0229363Z"}	in Resume=yes
+g activity log types after idle	{"AuthenticationSucceeded":1,"SessionStarted":1,"UserPasswordChanged":1,"VideoPlayback":8,"VideoPlaybackStopped":8}	
+g server log	[20:36:39.532] [INF] [26] Emby.Server.Implementations.Session.SessionManager: User sp6admin started playback of 'Test Series' (sp6 1.0)	
+g server log	[20:36:40.552] [INF] [27] Emby.Server.Implementations.Session.SessionManager: User sp6admin stopped playback of 'Test Series' at 168000ms (sp6 1.0)	
+g server log	[20:36:42.686] [INF] [27] Emby.Server.Implementations.Session.SessionManager: User sp6admin started playback of 'Test Series' (sp6 1.0)	
+g server log	[20:36:43.705] [INF] [28] Emby.Server.Implementations.Session.SessionManager: User sp6admin stopped playback of 'Test Series' at unknownms (sp6 1.0)	
+g server log	[20:36:45.852] [INF] [28] Emby.Server.Implementations.Session.SessionManager: User sp6admin started playback of 'Test Series' (sp6 1.0)	
+g server log	[20:45:12.019] [INF] [34] Emby.Server.Implementations.Session.SessionManager: User sp6admin stopped playback of 'Test Series' at 168000ms (sp6 1.0)	

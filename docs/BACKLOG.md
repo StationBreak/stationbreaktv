@@ -267,9 +267,15 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 
 ## F1.5 Playback reporting (M)
 
-**S1.5.1** As a Jellyfin user, I want my viewing reported so that server watch state and "Continue Watching" are accurate.
-- 🧪 `POST /Sessions/Playing`, `/Sessions/Playing/Progress` (every ~10 s and on pause), and `/Sessions/Playing/Stopped` are sent with correct `PositionTicks`.
-- 🧪 Behaviour for marking an item **played** when the viewer tuned in mid-way is configurable (default from Q-JF-5).
+**S1.5.1** As a Jellyfin user, I want my live viewing to show on the server dashboard without cluttering "Continue Watching", and an item I really watched to be marked played.
+
+Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6, Q-JF-5).
+- 🧪 Reporting starts only after the viewer stays on a channel for 30 s (configurable), so flipping adds no play counts or activity-log entries; once settled, the next program on that channel is reported at once. Reporting never delays a tune or a flip.
+- 🧪 `POST /Sessions/Playing` carries `PositionTicks` = the safe position (the item's existing resume position, else 0). `POST /Sessions/Playing/Progress` is sent at the same safe position every 30 s. The real position and a positionless progress are never sent.
+- 🧪 `POST /Sessions/Playing/Stopped` is sent with `Failed=true` and the safe position when the viewer leaves the item (flip, cut, exit). A stop without a position is never sent.
+- 🧪 The app counts the seconds actually watched per item. At 90% or more (configurable, default 90) it calls `POST /UserPlayedItems/{itemId}`. Flipping past never counts.
+- 🧪 `jellyfin-contract` tests on 12.1 and 12.2 pin the safe-position cases: user data unchanged for an unwatched item, an item with a resume point and a played item, after a failed stop and after a server auto-stop; mark-played mid-visit holds.
+- 📺 The dashboard shows the TV as playing throughout a sitting, and Continue Watching is unchanged afterwards.
 
 ## F1.6 Direct-play / transcode fallback (M)
 
