@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration
 
@@ -29,6 +30,7 @@ class NextHandle(
  * @property tracksMs from the play call to Media3's first tracks report (the container parsed), null if unknown.
  * @property skippedFrames video frames decoded and dropped to reach an exact seek position, at the first picture; null
  * if unknown.
+ * @property loads what the media loads before the tracks cost (count, time, bytes, container type), null if unknown.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -39,6 +41,7 @@ data class TuneTimings(
     val from: String? = null,
     val tracksMs: Long? = null,
     val skippedFrames: Long? = null,
+    val loads: LoadStats? = null,
 )
 
 /** How one tune went, as the machine needs it. */

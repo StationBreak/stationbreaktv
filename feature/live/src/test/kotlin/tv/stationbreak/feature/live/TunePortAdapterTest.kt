@@ -44,6 +44,7 @@ import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.StreamUrls
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.VideoCodecSupport
+import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.PlayerEvent
@@ -85,12 +86,13 @@ class TunePortAdapterTest {
         /** When set, an answering play first reports its tracks at this time, and its first frame with [skipped]. */
         var tracksAt: Long? = null
         var skipped: Long? = null
+        var loads: LoadStats? = null
 
         override fun play(source: PlayerSource): Long {
             plays++
             val mine = ++generation
             answerAt?.let {
-                tracksAt?.let { at -> flow.tryEmit(PlayerEvent.TracksReady(at, mine)) }
+                tracksAt?.let { at -> flow.tryEmit(PlayerEvent.TracksReady(at, mine, loads)) }
                 flow.tryEmit(PlayerEvent.FirstFrame(950, mine, skipped))
                 flow.tryEmit(PlayerEvent.Playing(1_000, it, mine))
             }
@@ -223,10 +225,13 @@ class TunePortAdapterTest {
             rig.player.answerAt = 30.seconds
             rig.player.tracksAt = 1_400
             rig.player.skipped = 12
+            val loads = LoadStats(loads = 2, loadMs = 80, maxLoadMs = 60, loadKb = 12, container = "mp4")
+            rig.player.loads = loads
             val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
             // The controller's clock reads 1000 when it calls play.
             assertEquals(400L, playing.timings.tracksMs)
             assertEquals(12L, playing.timings.skippedFrames)
+            assertEquals(loads, playing.timings.loads)
         }
 
     @Test

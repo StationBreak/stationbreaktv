@@ -20,9 +20,12 @@ import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
@@ -74,6 +77,7 @@ class Media3VideoPlayer(
     private var tracksApplied = false
     private var tracksReported = false
     private val skips = SkippedFrames(exo)
+    private val loadCounter = LoadCounter()
     private var hasPlayed = false
     private val audio = AudioSampler()
 
@@ -101,6 +105,7 @@ class Media3VideoPlayer(
             tracksApplied = false
             tracksReported = false
             skips.reset()
+            loadCounter.reset()
             hasPlayed = false
             audio.reset()
             lastPickVerified = null
@@ -208,13 +213,40 @@ class Media3VideoPlayer(
         ) {
             if (!tracksReported && tracks.groups.isNotEmpty()) {
                 tracksReported = true
-                flow.tryEmit(PlayerEvent.TracksReady(clock(), active))
+                flow.tryEmit(PlayerEvent.TracksReady(clock(), active, loadCounter.close(containerMime(tracks))))
             }
             val source = current ?: return
             if (!source.directPlayTracks || tracksApplied || tracks.groups.isEmpty()) return
             tracksApplied = true
             applyPicks(source, tracks)
         }
+
+        override fun onLoadStarted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            retryCount: Int,
+        ) = loadCounter.started()
+
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) = loadCounter.finished(loadEventInfo.loadDurationMs, loadEventInfo.bytesLoaded)
+
+        override fun onLoadCanceled(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) = loadCounter.finished(loadEventInfo.loadDurationMs, loadEventInfo.bytesLoaded)
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: IOException,
+            wasCanceled: Boolean,
+        ) = loadCounter.finished(loadEventInfo.loadDurationMs, loadEventInfo.bytesLoaded)
 
         override fun onRenderedFirstFrame(
             eventTime: AnalyticsListener.EventTime,
@@ -282,6 +314,12 @@ class Media3VideoPlayer(
                 "dts" to MimeTypes.AUDIO_DTS,
             )
     }
+}
+
+/** The container MIME type the extractor put on the first video (else any) track; null when none says. */
+private fun containerMime(tracks: Tracks): String? {
+    val groups = tracks.groups.filter { it.length > 0 }.sortedBy { if (it.type == C.TRACK_TYPE_VIDEO) 0 else 1 }
+    return groups.firstNotNullOfOrNull { it.getTrackFormat(0).containerMimeType }
 }
 
 /**

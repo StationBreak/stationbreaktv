@@ -23,10 +23,14 @@ sealed interface PlayerEvent {
         val skippedFrames: Long? = null,
     ) : PlayerEvent
 
-    /** The container is parsed: Media3 reported the play's tracks for the first time. Sent once per play. */
+    /**
+     * The container is parsed: Media3 reported the play's tracks for the first time. Sent once per play. [loads] is
+     * what the media loads up to now cost (diagnostics only); null when the player cannot say.
+     */
     data class TracksReady(
         val atMs: Long,
         override val generation: Long,
+        val loads: LoadStats? = null,
     ) : PlayerEvent
 
     /** Playback is running at [position] within the stream. */
