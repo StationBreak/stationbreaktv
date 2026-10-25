@@ -442,7 +442,8 @@ class BuiltInScheduleSourceTest {
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
             source.airings(NOON)
-            assertEquals(1, library.snapshotCutoffs.size, "a new revision builds the day again")
+            assertEquals(0, library.snapshotCutoffs.size, "a new revision builds the day from the snapshot it has")
+            assertEquals(1, source.snapshotReads(), "and the snapshot was read once for both revisions")
             assertFalse(events.isNotEmpty())
         }
 }

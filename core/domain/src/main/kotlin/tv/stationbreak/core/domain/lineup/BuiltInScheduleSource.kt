@@ -10,8 +10,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
@@ -43,6 +45,11 @@ import kotlin.time.TimeSource
  * Callers that miss the cache together share one build (single flight, #392): the first starts it in this source's own
  * scope and the rest await it, so a caller that is cancelled (a flip superseded mid-lookup) leaves the build running
  * for the others, and for the cache. A build that fails is not kept; the next caller builds again.
+ *
+ * The snapshots are kept apart from the days ([SnapshotCache]): a new lineup revision builds its days again but reads
+ * the library only if it changed (its content generation or collection pass moved). A build whose revision is no
+ * longer the account's current one stops at its next channel and does not report; the callers that joined it ask again
+ * and get the current revision's days.
  *
  * [timed] is told the build of each following day that [onAir] needed: the day's index and the milliseconds it took
  * (numbers only; no item, title or URL ever reaches it), so a first tune near a day edge can be measured. [built] is
@@ -86,6 +93,20 @@ class BuiltInScheduleSource(
 
     // Builds belong to the source, not to the caller that started one: see the class comment.
     private val buildScope = CoroutineScope(SupervisorJob() + dispatcher)
+
+    // Snapshots outlive the lineup revision they were first read for: see [SnapshotCache].
+    private val snapshots = SnapshotCache(buildScope)
+
+    /** For tests: how many snapshot reads the cache has started. */
+    internal fun snapshotReads(): Int = snapshots.reads
+
+    /** The build of a lineup revision that is no longer the account's current one stops, and its callers go on. */
+    private class StaleBuild : RuntimeException("The lineup moved on while the day build ran")
+
+    private fun isCurrent(
+        account: LibraryAccount,
+        revision: Long,
+    ): Boolean = service.lineup(account).value?.revision == revision
 
     override suspend fun airings(at: Instant): List<ChannelAiring> =
         withContext(dispatcher) {
@@ -242,6 +263,22 @@ class BuiltInScheduleSource(
         libraries: Set<ItemId>,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
+        // A build that finds its revision is no longer current stops, and the callers that joined it start again here,
+        // against the revision that is current now.
+        while (true) {
+            try {
+                return channelDaysOnce(account, libraries, at)
+            } catch (_: StaleBuild) {
+                // Try again against the lineup that replaced it.
+            }
+        }
+    }
+
+    private suspend fun channelDaysOnce(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Pair<List<ChannelDay>, Long?> {
         val held = service.loaded(account) ?: return emptyList<ChannelDay>() to null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
         val key = Key(account, held.revision, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
@@ -293,9 +330,16 @@ class BuiltInScheduleSource(
     ): List<ChannelDay> {
         try {
             val began = TimeSource.Monotonic.markNow()
-            val snapshots = snapshotsOf(library, account, key.libraries, key.cutoffs)
+            val job = currentCoroutineContext().job
+            // A stale build stops at the next of these (a snapshot read goes on for the build that replaces it).
+            val checkpoint = {
+                job.ensureActive()
+                if (!isCurrent(account, key.revision)) throw StaleBuild()
+            }
+            val read = snapshotsFor(account, key, checkpoint)
             val snapshotsMs = began.elapsedNow().inWholeMilliseconds
-            val result = days.days(lineup, scheduled, snapshots)
+            checkpoint()
+            val result = days.days(lineup, scheduled, read, checkpoint)
             val totalMs = began.elapsedNow().inWholeMilliseconds
             synchronized(lock) {
                 kept[key] = result
@@ -308,6 +352,27 @@ class BuiltInScheduleSource(
             // Only this build's own entry: a failed or cancelled build leaves nothing kept, so the next caller builds.
             synchronized(lock) { inFlight.remove(key, self) }
         }
+    }
+
+    /** One snapshot per cut-off of [key], from [snapshots] when the library has not changed since it was read. */
+    private suspend fun snapshotsFor(
+        account: LibraryAccount,
+        key: Key,
+        checkpoint: () -> Unit,
+    ): Map<Long, RuleSnapshot> {
+        // Both numbers are read before any snapshot: see [SnapshotCache].
+        val generation = library.contentGeneration(account)
+        val pass = library.collectionPassCompleted(account).first()
+        val read = HashMap<Long, RuleSnapshot>()
+        for (cutoff in key.cutoffs) {
+            checkpoint()
+            val at = Instant.fromEpochMilliseconds(cutoff)
+            read[cutoff] =
+                snapshots.get(SnapshotCache.Key(account, key.libraries, cutoff, generation, pass)) {
+                    library.ruleSnapshot(account, key.libraries, at)
+                }
+        }
+        return read
     }
 
     internal companion object {

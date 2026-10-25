@@ -101,12 +101,16 @@ internal class LineupDays(
                 settingsOf(channel, lineup)?.let { Scheduled(channel, it, Epochs.epochNumber(it, atMs)) }
             }
 
-    /** The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`. */
+    /**
+     * The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`. [beforeChannel] is
+     * called before each channel's day is worked out; a caller that has stopped needing the days throws from it.
+     */
     fun days(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         snapshots: Map<Long, RuleSnapshot>,
-    ): List<ChannelDay> = Build(lineup, snapshots).days(scheduled)
+        beforeChannel: () -> Unit = {},
+    ): List<ChannelDay> = Build(lineup, snapshots).days(scheduled, beforeChannel)
 
     /**
      * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no day
@@ -172,11 +176,43 @@ internal class LineupDays(
                 .filter { it.source is ChannelSource.Leftovers && it.state != ChannelState.Shelf }
                 .sortedWith(compareBy<LineupChannel> { ceilingOf(it) == null }.then(CHANNEL_ORDER))
 
-        fun days(scheduled: List<Scheduled>): List<ChannelDay> {
-            val ruled = scheduled.filter { it.channel.source !is ChannelSource.Leftovers }.associateWith(::ruledDay)
+        fun days(
+            scheduled: List<Scheduled>,
+            beforeChannel: () -> Unit = {},
+        ): List<ChannelDay> {
+            val ruled = HashMap<Scheduled, ChannelDay>()
+            for (s in scheduled) {
+                if (s.channel.source is ChannelSource.Leftovers) continue
+                beforeChannel()
+                ruled[s] = ruledDay(s)
+            }
             val claimedByOn = ruled.values.flatMapTo(HashSet()) { day -> day.pool.map { it.id } }
             val byId = scheduled.associateBy { it.channel.id }
-            return scheduled.map { ruled[it] ?: leftoversDay(it, claimedByOn, byId) }
+            // The leftovers channels claim in turn, so each one's day is worked out in claim order: the chain of
+            // claims is walked once per cut-off, not again from the start for every channel. The days go back in the
+            // order of [scheduled].
+            val claimOrder = leftovers.withIndex().associate { (index, channel) -> channel.id to index }
+            val chains = HashMap<Long, ClaimChain>()
+            val leftoversDays = HashMap<Scheduled, ChannelDay>()
+            val inClaimOrder =
+                scheduled
+                    .filter { it.channel.source is ChannelSource.Leftovers }
+                    .sortedBy { claimOrder[it.channel.id] ?: leftovers.size }
+            for (s in inClaimOrder) {
+                beforeChannel()
+                val chain = chains.getOrPut(s.cutoffMs) { ClaimChain(s.cutoffMs, claimedByOn) }
+                leftoversDays[s] = leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId)
+            }
+            return scheduled.map { checkNotNull(ruled[it] ?: leftoversDays[it]) }
+        }
+
+        /** What the leftovers channels walked so far have claimed from one cut-off's snapshot, and how far that is. */
+        private inner class ClaimChain(
+            val cutoffMs: Long,
+            claimedByOn: Set<CanonicalId>,
+        ) {
+            val claimed: MutableSet<CanonicalId> = HashSet(claimedByOn).apply { addAll(withheld(cutoffMs)) }
+            var next = 0
         }
 
         private fun ruledDay(s: Scheduled): ChannelDay {
@@ -187,18 +223,20 @@ internal class LineupDays(
 
         private fun leftoversDay(
             s: Scheduled,
-            claimedByOn: Set<CanonicalId>,
+            chain: ClaimChain,
+            position: Int,
             byId: Map<ChannelId, Scheduled>,
         ): ChannelDay {
-            val snapshot = snapshots.getValue(s.cutoffMs)
-            val claimed = HashSet(claimedByOn).apply { addAll(withheld(s.cutoffMs)) }
-            for (before in leftovers.takeWhile { it.id != s.channel.id }) {
-                val pool = leftoversPool(before, snapshot, claimed)
+            val snapshot = snapshots.getValue(chain.cutoffMs)
+            // The channels before this one claim in turn, each against what the ones before it took.
+            while (chain.next < position) {
+                val before = leftovers[chain.next++]
+                val pool = leftoversPool(before, snapshot, chain.claimed)
                 val on = byId[before.id]
                 val items = if (on != null) EpochPool.build(on.settings, pool.items, on.n) else pool.items
-                items.mapTo(claimed) { it.id }
+                items.mapTo(chain.claimed) { it.id }
             }
-            return dayOf(s, leftoversPool(s.channel, snapshot, claimed))
+            return dayOf(s, leftoversPool(s.channel, snapshot, chain.claimed))
         }
 
         private fun dayOf(
