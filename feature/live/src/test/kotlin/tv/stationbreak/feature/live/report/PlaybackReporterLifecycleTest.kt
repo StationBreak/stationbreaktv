@@ -19,25 +19,6 @@ import kotlin.time.Instant
 
 class PlaybackReporterLifecycleTest {
     @Test
-    fun `a leave then a visit to the same airing in the same sitting is one Playing and no Stopped`() =
-        runTest {
-            val rig = Rig(this)
-            rig.reporter.sittingStarted(1)
-            rig.visit(1, "a")
-            rig.at(31_000)
-            rig.reporter.leave()
-            rig.at(32_000)
-            rig.visit(1, "a")
-            rig.at(60_000)
-            assertEquals(listOf("userdata", "start"), rig.kinds().filter { it != "progress" })
-            assertTrue(rig.calls.none { it.kind == "stopped" })
-            rig.reporter.leave()
-            rig.at(63_000)
-            assertEquals(1, rig.calls.count { it.kind == "stopped" })
-            assertEquals(1, rig.calls.count { it.kind == "start" })
-        }
-
-    @Test
     fun `a leave then a visit to another airing sends Stopped for the first then Playing for the second`() =
         runTest {
             val rig = Rig(this)
@@ -54,17 +35,15 @@ class PlaybackReporterLifecycleTest {
         }
 
     @Test
-    fun `an unchallenged leave sends Stopped once the grace has passed`() =
+    fun `a leave sends Stopped at once`() =
         runTest {
             val rig = Rig(this)
             rig.reporter.sittingStarted(1)
             rig.visit(1, "a")
             rig.at(31_000)
             rig.reporter.leave()
-            rig.at(32_999)
-            assertTrue(rig.calls.none { it.kind == "stopped" })
-            rig.at(33_000)
-            assertEquals(Call("stopped", 33_000, "a", 0, failed = true), rig.calls.last())
+            rig.at(31_000)
+            assertEquals(Call("stopped", 31_000, "a", 0, failed = true), rig.calls.last())
         }
 
     @Test

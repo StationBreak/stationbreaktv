@@ -44,10 +44,6 @@ internal sealed interface ReportEvent {
         val at: Instant,
     ) : ReportEvent
 
-    data class Grace(
-        val visitId: Long,
-    ) : ReportEvent
-
     data class Close(
         val at: Instant,
     ) : ReportEvent
@@ -58,10 +54,10 @@ internal sealed interface ReportEvent {
  * state, and talks to the server through [calls]. Touched from one coroutine only. [post] queues a timer's event back
  * onto the same event queue.
  *
- * A leave does not end the visit at once: the Stopped waits `leaveGrace`, so a visit to the same airing in the same
- * sitting (a retry of a failed tune) continues the visit, and anything else (another airing, a new sitting, close)
- * ends it first. A Start that timed out may still have reached the server; the next check-in sends Start again, and if
- * the viewer leaves first no Stopped is sent, so the server ends that session itself at the safe position (ADR-0018).
+ * A visit ends on a leave, on a visit to another airing, on a new sitting and on close; a visit to the airing that is
+ * already open (same sitting) just takes the newest target. A Start that timed out may still have reached the server;
+ * the next check-in sends Start again, and if the viewer leaves first no Stopped is sent, so the server ends that
+ * session itself at the safe position (ADR-0018).
  */
 @Suppress("LongParameterList") // The reporter's collaborators, each used.
 internal class ReportWorker(
@@ -86,8 +82,6 @@ internal class ReportWorker(
         var resume: Duration = Duration.ZERO
         var userPlayed = false
         var started = false
-        var leftAt: Instant? = null
-        var grace: Job? = null
 
         fun report(position: Duration) =
             PlaybackReport(
@@ -96,6 +90,7 @@ internal class ReportWorker(
                 playSessionId = target.playSessionId,
                 position = position,
                 playMethod = target.playMethod,
+                canSeek = false,
             )
 
         /** The item's resume position, or 0 once it is played or the app has marked it played (R7). */
@@ -139,11 +134,7 @@ internal class ReportWorker(
             }
 
             is ReportEvent.Leave -> {
-                onLeave(event)
-            }
-
-            is ReportEvent.Grace -> {
-                visit?.takeIf { it.id == event.visitId }?.leftAt?.let { endVisit(it) }
+                endVisit(event.at)
             }
 
             is ReportEvent.Tick -> {
@@ -160,11 +151,6 @@ internal class ReportWorker(
         val open = visit
         if (open != null && open.key == event.key && open.sittingId == event.sittingId) {
             open.target = event.target
-            if (open.leftAt != null) {
-                open.grace?.cancel()
-                open.leftAt = null
-                ledger.enter(event.key, event.at)
-            }
         } else {
             endVisit(event.at)
             ledger.enter(event.key, event.at)
@@ -186,21 +172,8 @@ internal class ReportWorker(
         }
     }
 
-    private fun onLeave(event: ReportEvent.Leave) {
-        val v = visit
-        if (v != null && v.leftAt == null) {
-            ledger.leave(event.at)
-            v.leftAt = event.at
-            v.grace =
-                scope.launch {
-                    delay(config.leaveGrace)
-                    post(ReportEvent.Grace(v.id))
-                }
-        }
-    }
-
     private suspend fun onTick(event: ReportEvent.Tick) {
-        val v = visit?.takeIf { it.id == event.visitId && it.leftAt == null }
+        val v = visit?.takeIf { it.id == event.visitId }
         if (v != null && calls.halted) {
             v.timer?.cancel()
         } else if (v != null) {
@@ -240,7 +213,7 @@ internal class ReportWorker(
     }
 
     /**
-     * The visit is over as of [at] (or as of when the viewer left, if they did): stop its timers, mark it played if
+     * The visit is over as of [at]: stop its timers, mark it played if
      * due, and send Stopped if it was reported as playing.
      */
     private suspend fun endVisit(at: Instant) {
@@ -248,9 +221,8 @@ internal class ReportWorker(
         if (v != null) {
             visit = null
             v.timer?.cancel()
-            v.grace?.cancel()
-            val end = v.leftAt ?: at.also { ledger.leave(it) }
-            if (!calls.halted) markIfDue(v, end)
+            ledger.leave(at)
+            if (!calls.halted) markIfDue(v, at)
             if (!calls.halted && v.started) {
                 val position = v.safePosition(ledger.isMarked(v.key))
                 val sent = calls.call { server.reportStopped(session, v.report(position), failed = true) }

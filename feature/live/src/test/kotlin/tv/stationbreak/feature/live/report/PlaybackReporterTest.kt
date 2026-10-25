@@ -58,7 +58,7 @@ class PlaybackReporterTest {
             rig.at(91_000)
             rig.reporter.leave()
             rig.at(93_000)
-            assertEquals(Call("stopped", 93_000, "a", 7_000, failed = true), rig.calls.last())
+            assertEquals(Call("stopped", 91_000, "a", 7_000, failed = true), rig.calls.last())
         }
 
     @Test
@@ -185,7 +185,7 @@ class PlaybackReporterTest {
             val reported = rig.calls.filter { it.kind == "start" || it.kind == "progress" }
             assertEquals(listOf(11_000L, 11_000L, 0L), reported.map { it.posMs }.take(3))
             assertEquals(0L, rig.calls.last { it.kind == "progress" }.posMs)
-            assertEquals(Call("stopped", 123_000, "a", 0, failed = true), rig.calls.last())
+            assertEquals(Call("stopped", 121_000, "a", 0, failed = true), rig.calls.last())
         }
 
     @Test
@@ -293,7 +293,7 @@ class PlaybackReporterTest {
             rig.at(80_000)
             // watched = 70 - 10 - 1 = 59 s >= 0.9 x 65.5 s: judged at the events own times
             assertEquals(1, rig.calls.count { it.kind == "played" })
-            assertEquals(Call("stopped", 72_000, "a", 0, failed = true), rig.calls.last())
+            assertEquals(Call("stopped", 70_000, "a", 0, failed = true), rig.calls.last())
         }
 
     @Test

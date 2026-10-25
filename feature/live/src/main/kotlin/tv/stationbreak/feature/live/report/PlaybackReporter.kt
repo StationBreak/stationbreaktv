@@ -48,9 +48,10 @@ data class ReportTarget(
  * - Once watched time reaches `playedThreshold` of the runtime, the airing is marked played, once, whatever the
  *   user-data read did (R5, R6). A 401 stops all reporting for the run (R9).
  *
- * A retry of the same airing in the same sitting continues the visit, even when [leave] came first: Stopped waits
- * `leaveGrace` after a leave, so a retry within it sends no Stopped and no second Playing; the newest target is used
- * from then on. Stall notes beyond the tune controller's cap of 20 per play over-count watched time.
+ * The caller owns what counts as one visit: a retry of a failed play stays inside the open visit (a [visit] of the
+ * open airing takes the newest target, a stall/[resumed] pair marks the gap), and [leave] comes only when the block is
+ * left for good, which sends Stopped. Stall notes beyond the tune controller's cap of 20 per play over-count
+ * watched time.
  *
  * Log lines hold only labels and numbers: `report start|progress|stop|played|error kind=<label>`.
  */
@@ -102,9 +103,8 @@ class PlaybackReporter(
     }
 
     /**
-     * The viewer left the item (boundary, flip, exit, failure, or a failed tune about to be retried). Stopped follows
-     * after `leaveGrace` if it was reported as playing, unless [visit] returns to the same airing in the same sitting
-     * by then, which continues the visit.
+     * The viewer left the item for good (boundary, flip, exit, or a dead item). Stopped follows, queued behind what is
+     * already waiting, if it was reported as playing.
      */
     fun leave() {
         events.trySend(ReportEvent.Leave(clock.now()))

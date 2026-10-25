@@ -14,8 +14,6 @@ import kotlin.time.Duration.Companion.seconds
  * @property callTimeout the longest one server call may take before it is abandoned, so a hung call cannot hold up
  *   the calls queued behind it for long.
  * @property userDataAttempts how many times one visit may try to read the item's user data before it gives up.
- * @property leaveGrace how long a Stopped waits after the viewer leaves an item, so a retry of the same airing
- *   (a failed tune re-tried) continues the visit instead of ending it and starting another.
  * @property markAttempts how many times marking one airing played may be tried before it gives up.
  */
 data class ReportingConfig(
@@ -25,7 +23,6 @@ data class ReportingConfig(
     val callTimeout: Duration = 5.seconds,
     val userDataAttempts: Int = 3,
     val markAttempts: Int = 3,
-    val leaveGrace: Duration = 2.seconds,
 ) {
     init {
         require(startAfter >= Duration.ZERO) { "startAfter must not be negative" }
@@ -36,7 +33,6 @@ data class ReportingConfig(
         // must not come before it, or the server could see Playing(B) then Stopped(A).
         require(startAfter > callTimeout * DRAIN_CALLS) { "startAfter must be longer than three call timeouts" }
         require(userDataAttempts >= 1) { "At least one user-data read must be tried" }
-        require(leaveGrace >= Duration.ZERO) { "leaveGrace must not be negative" }
         require(markAttempts >= 1) { "At least one mark-played must be tried" }
     }
 

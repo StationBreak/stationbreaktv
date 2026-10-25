@@ -41,6 +41,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.feature.live.report.PlaybackReporter
+import tv.stationbreak.feature.live.report.ReportingConfig
 import kotlin.time.Clock
 
 /**
@@ -62,6 +63,7 @@ class LiveChannel(
     private val report: (TuneReport) -> Unit = {},
     /** The server the playback reporter (spec 16) talks to; null turns reporting off. */
     private val server: MediaServer? = null,
+    private val reportingConfig: ReportingConfig = ReportingConfig(),
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val screen = Screen(LiveState.Ident(null))
@@ -109,11 +111,13 @@ class LiveChannel(
         val requests = Channel<SitRequest>(Channel.CONFLATED)
         requests.trySend(SitRequest(null, null))
         // Its own scope and job, so it outlives every sitting (a flip cancels them) and run's own cancel: the final
-        // Stopped is sent in the finally below. Never a child of a sitting (spec 16, R1).
+        // Stopped is drained from that scope after run ends (finishReporting). Never a child of a sitting (R1).
         val reporterScope = CoroutineScope(currentCoroutineContext().minusKey(Job) + SupervisorJob())
         val reporter =
             server?.let {
-                PlaybackReporter(reporterScope, it, session, clock) { line -> report(TuneReport.Reported(line)) }
+                PlaybackReporter(reporterScope, it, session, clock, reportingConfig) { line ->
+                    report(TuneReport.Reported(line))
+                }
             }
         try {
             coroutineScope {
