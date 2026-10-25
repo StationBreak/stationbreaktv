@@ -20,6 +20,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -67,6 +68,9 @@ internal class Sitting(
     var flip: FlipTiming? = null,
     /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
     lead: Pending.Retarget? = null,
+    /** The run's playback reporter (spec 16), null where reporting is off, and this sitting's id in it. */
+    internal val reporter: PlaybackReporter? = null,
+    internal val sittingId: Long = 0,
     /**
      * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
      * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
@@ -186,7 +190,7 @@ internal class Sitting(
             val dead =
                 when (outcome) {
                     is TuneOutcome.Playing -> {
-                        when (hold(block.endMs, outcome.end, outcome.notes)) {
+                        when (holdReporting(block, program, outcome)) {
                             Held.Boundary -> return null
                             Held.Ended -> return holdIdent(scope, onAir, block.endMs)
                             Held.Failed -> ++failures >= 2
@@ -264,12 +268,14 @@ internal class Sitting(
 
     /**
      * Waits for how the play ends, or for [untilMs] (the block's end, which cuts a show that runs long). The play's
-     * stalls in [notes] are reported as they come; a failure is reported with its numbers (#392).
+     * stalls in [notes] are reported as they come (and to the reporter when [reporting]);
+     * a failure is reported with its numbers (#392).
      */
     suspend fun hold(
         untilMs: Long,
         end: Flow<PlaybackEnd>,
         notes: Flow<PlayNote> = emptyFlow(),
+        reporting: Boolean = false,
     ): Held {
         val left = untilMs - vnowMs()
         // An empty flow means the play was stopped under us; it counts as an end.
@@ -277,7 +283,10 @@ internal class Sitting(
             if (left <= 0) {
                 null
             } else {
-                withTimeoutOrNull(left) { watchNotes(notes) { end.firstOrNull() ?: PlaybackEnd.Ended } }
+                val reportTo = reporter.takeIf { reporting }
+                withTimeoutOrNull(left) {
+                    watchNotes(notes, reportTo) { end.firstOrNull() ?: PlaybackEnd.Ended }
+                }
             }
         if (ended is PlaybackEnd.Failed) report(TuneReport.HeldFailed(ended))
         if (ended == null) waitUntil(untilMs)

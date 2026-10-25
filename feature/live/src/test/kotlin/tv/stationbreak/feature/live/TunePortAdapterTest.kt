@@ -31,6 +31,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.MediaStreamInfo
+import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackRequest
@@ -290,6 +291,26 @@ class TunePortAdapterTest {
                 rig.player.answerAt = Duration.ZERO
                 val playing = rig.port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing
                 assertEquals(route, playing.timings.route)
+            }
+        }
+
+    @Test
+    fun aPlayingTuneCarriesWhatTheReporterNeedsFromTheFinalRoute() =
+        kotlinx.coroutines.test.runTest {
+            val cases =
+                listOf(
+                    playable to PlayMethod.DirectPlay,
+                    playable.copy(supportsDirectPlay = false) to PlayMethod.DirectStream,
+                    playable.copy(supportsDirectPlay = false, supportsDirectStream = false) to PlayMethod.Transcode,
+                )
+            for ((source, method) in cases) {
+                val rig = Rig(this)
+                rig.answer(source)
+                rig.player.answerAt = Duration.ZERO
+                val facts = (rig.port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing).report
+                assertEquals(method, facts?.playMethod)
+                assertEquals(MediaSourceId("src1"), facts?.sourceId)
+                assertEquals(90.minutes, facts?.runtime)
             }
         }
 

@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.FallbackCause
 import tv.stationbreak.core.playback.Prepared
@@ -92,9 +93,23 @@ class TunePortAdapter(
 
     private fun TuneResult.toOutcome(): TuneOutcome =
         when (this) {
-            is TuneResult.Played -> TuneOutcome.Playing(end, timings(), notes)
+            is TuneResult.Played -> TuneOutcome.Playing(end, timings(), notes, reportFacts())
             is TuneResult.SessionExpired -> TuneOutcome.Expired
             TuneResult.Superseded, TuneResult.Stopped -> TuneOutcome.Cancelled
             is TuneResult.Failed -> TuneOutcome.Dead(timedOut = reason == TuneFailure.TIMEOUT)
         }
 }
+
+/** The final route's facts (after any fallback) for the reporter: ids and a method, never logged. */
+private fun TuneResult.Played.reportFacts() =
+    ReportFacts(
+        sourceId = resolved.media.id,
+        playSessionId = resolved.playSession,
+        playMethod =
+            when (resolved.route) {
+                Route.DIRECT_PLAY -> PlayMethod.DirectPlay
+                Route.DIRECT_STREAM -> PlayMethod.DirectStream
+                Route.TRANSCODE -> PlayMethod.Transcode
+            },
+        runtime = resolved.media.runtime,
+    )

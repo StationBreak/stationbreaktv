@@ -8,6 +8,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -166,6 +167,13 @@ sealed interface TuneReport {
         override fun line() = "press dropped reason=$reason${count?.let { " n=$it" }.orEmpty()} state=$state"
     }
 
+    /** A line of the playback reporter (spec 16): `report start|progress|stop|played|error kind=<label>`. */
+    data class Reported(
+        val text: String,
+    ) : TuneReport {
+        override fun line() = text
+    }
+
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L
@@ -178,10 +186,21 @@ private val NOTES_DRAIN = 50.milliseconds
 /** Reports [notes] while [body] runs; the notes the play left when it ended are reported too, none after. */
 internal suspend fun <T> Sitting.watchNotes(
     notes: Flow<PlayNote>,
+    reporter: PlaybackReporter?,
     body: suspend () -> T,
 ): T =
     coroutineScope {
-        val job = launch { notes.collect { report(TuneReport.Stalling(it)) } }
+        val job =
+            launch {
+                notes.collect {
+                    report(TuneReport.Stalling(it))
+                    // The one collector of the notes also feeds the reporter (single-consumer channel).
+                    when (it) {
+                        is PlayNote.Stall -> reporter?.stall()
+                        is PlayNote.Resumed -> reporter?.resumed()
+                    }
+                }
+            }
         val result = body()
         // The notes flow completes with the play's end; a play that is not over has nothing to wait for.
         withTimeoutOrNull(NOTES_DRAIN) { job.join() }

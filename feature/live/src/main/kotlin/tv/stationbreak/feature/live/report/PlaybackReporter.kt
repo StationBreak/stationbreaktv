@@ -63,7 +63,7 @@ class PlaybackReporter(
     log: (String) -> Unit,
 ) {
     private val events = Channel<ReportEvent>(Channel.UNLIMITED)
-    private val limitDefault = config.callTimeout * 2
+    private val limitDefault = config.callTimeout * 3
     private val worker: Job
 
     init {

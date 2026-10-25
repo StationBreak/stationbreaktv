@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
@@ -248,6 +249,9 @@ class FakeTune(
     var stopDelayMs = 0L
     var preResolveResult: (ItemId) -> Boolean = { true }
 
+    /** What every play tells the reporter about its route (null: nothing, so nothing is reported). */
+    var reportFacts: ReportFacts? = null
+
     fun script(
         item: ItemId,
         vararg steps: suspend () -> TuneOutcome,
@@ -270,7 +274,14 @@ class FakeTune(
             )
         }
 
-    private suspend fun outcomeFor(item: ItemId): TuneOutcome = scripts[item]?.removeFirstOrNull()?.invoke() ?: plays()
+    private suspend fun outcomeFor(item: ItemId): TuneOutcome {
+        val outcome = scripts[item]?.removeFirstOrNull()?.invoke() ?: plays()
+        return if (outcome is TuneOutcome.Playing && outcome.report == null) {
+            outcome.copy(report = reportFacts)
+        } else {
+            outcome
+        }
+    }
 
     override suspend fun tune(
         session: Session,
@@ -386,6 +397,7 @@ class Rig(
     val scope: TestScope,
     startMin: Long = 10,
     timings: LiveTimings = LiveTimings(),
+    server: MediaServer? = null,
 ) {
     private val startMs = T0 + startMin * MIN
 
@@ -419,7 +431,7 @@ class Rig(
     val reports = mutableListOf<TuneReport>()
 
     val live =
-        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, { reports += it })
+        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, { reports += it }, server)
 
     /** Every state in order, each with how many port calls had been made when it appeared. */
     val states = mutableListOf<Pair<LiveState, Int>>()

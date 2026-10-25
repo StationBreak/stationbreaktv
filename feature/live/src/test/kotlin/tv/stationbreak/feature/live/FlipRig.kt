@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.seconds
 
@@ -32,9 +33,10 @@ internal class Flipping(
 internal suspend fun TestScope.flipping(
     startOn: ChannelId = CH5,
     timings: LiveTimings = LiveTimings(),
+    server: MediaServer? = null,
     setup: Rig.() -> Unit = {},
 ): Flipping {
-    val r = Rig(this, timings = timings)
+    val r = Rig(this, timings = timings, server = server)
     r.schedule.channel(CH2, 2, listOf(program(0, 600, 2)))
     r.schedule.channel(CH5, 5, listOf(program(0, 600, 5)))
     r.schedule.channel(CH9, 9, listOf(program(0, 600, 9)))
