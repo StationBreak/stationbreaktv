@@ -505,6 +505,11 @@ jobs:
               echo "::error::benchmark APK is debuggable (#392): $BENCHMARK_APK"
               exit 1
             fi
+            # Release code is signed with the CI debug key only under the benchmark ID, never the production one.
+            if ! grep -q "^package: name='tv\.stationbreak\.app\.benchmark'" <<<"$badging"; then
+              echo "::error::benchmark APK's package is not tv.stationbreak.app.benchmark (ADR-0011): $BENCHMARK_APK"
+              exit 1
+            fi
           fi
           # ADR-0011 condition 3: a release build is never debuggable. Check every flavor's release APK.
           shopt -s nullglob
@@ -630,7 +635,9 @@ jobs:
           BENCHMARK_APK: ${{ steps.sign.outputs.benchmark-path }}
           DEBUG_CERT_SHA256: ${{ steps.sign.outputs.sha256 }}
         run: |
-          for apk in "$DEBUG_APK" $BENCHMARK_APK; do
+          apks=("$DEBUG_APK")
+          if [ -n "$BENCHMARK_APK" ]; then apks+=("$BENCHMARK_APK"); fi
+          for apk in "${apks[@]}"; do
             certs="$("$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify --print-certs "$apk")"
             echo "$certs"
             signers="$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' <<<"$certs" | sort -u)"
