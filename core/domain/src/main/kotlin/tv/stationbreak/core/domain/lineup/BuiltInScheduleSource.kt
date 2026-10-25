@@ -10,9 +10,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -22,6 +24,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
@@ -73,6 +76,11 @@ class BuiltInScheduleSource(
     // Access-ordered: the set least recently asked for is the one evicted.
     private val kept = LinkedHashMap<Key, List<ChannelDay>>(KEPT, 0.75f, true)
     private val inFlight = HashMap<Key, Deferred<List<ChannelDay>>>()
+
+    /** For tests: how many callers joined a build another caller had started, and how many builds are in flight. */
+    internal val joined = AtomicInteger()
+
+    internal fun inFlightCount(): Int = synchronized(lock) { inFlight.size }
 
     // Builds belong to the source, not to the caller that started one: see the class comment.
     private val buildScope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -204,7 +212,14 @@ class BuiltInScheduleSource(
                 channelDays(account, chosen, Instant.fromEpochMilliseconds(it))
             }
         // The layout of each day is lazy: work it out here, off the caller's path.
-        withContext(dispatcher) { (today + following).forEach { it.day } }
+        withContext(dispatcher) {
+            (today + following).forEach {
+                // So that a cancelled warm stops here and a tune that starts meanwhile gets the thread.
+                yield()
+                ensureActive()
+                it.day
+            }
+        }
         // A day already within the window is next looked at when it ends (the following day is then today's).
         val wake = ends.minOfOrNull { if (it - nowMs > WARM_AHEAD_MS) it - WARM_AHEAD_MS else it }
         return wake?.let { Instant.fromEpochMilliseconds(it) }
@@ -251,6 +266,7 @@ class BuiltInScheduleSource(
             }
         // Started outside the lock, once the entry it removes itself from is in place.
         if (started) flight?.start()
+        if (!started && flight != null) joined.incrementAndGet()
         val days = hit ?: awaited(checkNotNull(flight))
         return days to if (started) began.elapsedNow().inWholeMilliseconds else null
     }

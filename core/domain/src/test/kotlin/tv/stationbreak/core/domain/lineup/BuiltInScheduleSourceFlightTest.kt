@@ -77,6 +77,8 @@ class BuiltInScheduleSourceFlightTest {
                     async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
                 }
             withTimeout(WAIT_MS) { library.entered.await() }
+            assertEquals(1, source.inFlightCount(), "one build in flight")
+            assertEquals(4, source.joined.get(), "the other four callers joined it")
             library.gate.complete(Unit)
             val results = callers.map { it.await() }
 
@@ -90,6 +92,7 @@ class BuiltInScheduleSourceFlightTest {
             val first = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             val second = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             withTimeout(WAIT_MS) { library.entered.await() }
+            assertEquals(1, source.joined.get(), "the second caller joined the first's build")
             first.cancelAndJoin()
             library.gate.complete(Unit)
 

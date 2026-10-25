@@ -76,6 +76,8 @@ class ScheduleWarmer(
                 } catch (_: Exception) {
                     null
                 }
+            // A nudge that came while this warm ran has nothing left to ask for.
+            while (nudges.tryReceive().isSuccess) Unit
             // Nothing to warm yet (no libraries chosen, nothing scheduled) or a failed warm: look again later.
             val wait = wake?.let { (it - clock.now()).inWholeMilliseconds } ?: IDLE_MS
             withTimeoutOrNull(wait.coerceIn(MIN_WAIT_MS, IDLE_MS)) { nudges.receive() }

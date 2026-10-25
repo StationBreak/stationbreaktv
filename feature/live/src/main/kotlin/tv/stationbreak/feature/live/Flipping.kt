@@ -287,6 +287,9 @@ internal class Flipper(
      * wait on it; a number press cancels it. Menu twice in a row is two commits, so each waits for the one before.
      */
     private fun recall() {
+        // Menu is the newer intent: presses still waiting for a lineup are not applied after it.
+        reading?.cancel()
+        queued.clear()
         val before = recalls.lastOrNull()
         lateinit var job: Job
         job =
@@ -312,11 +315,24 @@ internal class Flipper(
     private suspend fun previous() {
         val now = clock.now()
         val wanted = tuned.previous?.takeIf { tuned.playing != null && onScreen } ?: return
-        val steps = order ?: lineup()
+        val timing = FlipTiming(now, 0)
         val lookedAt = clock.now()
-        val onAir = steps.byId(wanted)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+        val onAir =
+            try {
+                val steps = order ?: lineup()
+                steps.byId(wanted)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                close(timing, "failed")
+                throw e
+            }
+        // A lookup that ran on past a newer press must not touch that press's settle or overlay.
+        currentCoroutineContext().ensureActive()
         if (onAir == null) return
-        val timing = FlipTiming(now, 0).also { it.lookupMs = (clock.now() - lookedAt).inWholeMilliseconds }
+        timing.lookupMs = (clock.now() - lookedAt).inWholeMilliseconds
         settling?.cancelAndJoin()
         // A settle that finished while this looked would have moved the channel on: leave that commit be.
         if (tuned.previous == wanted) land(onAir, onAir.channel, timing)

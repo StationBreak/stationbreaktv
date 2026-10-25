@@ -592,13 +592,68 @@ class LiveChannelFlipTest {
             advanceTimeBy(1.seconds)
             f.up()
             assertTrue("the number moves", f.r.state is LiveState.Choosing)
+            // The lookup of the cancelled Menu ends under the newer press: it must not cancel that press's commit.
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertEquals(
+                itemOf(2),
+                f.r.tunes
+                    .last()
+                    .item,
+            )
+            assertEquals(listOf("playing", "playing"), f.r.flipReports().map { it.outcome })
+            assertTrue("the overlay is dropped", f.r.state !is LiveState.Choosing)
+        }
+
+    @Test
+    fun aMenuPressedAfterAQueuedUpIsTheNewerIntent() =
+        runTest {
+            // Reads 2 and 5 fail (the background refreshes); 1 and 3 are the start, 4 the first flip's.
+            val f = flipping { schedule.airingsFailOn = setOf(2, 5) }
+            f.up()
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            assertEquals(
+                itemOf(9),
+                f.r.tunes
+                    .last()
+                    .item,
+            )
+            // No lineup is held now; the read for the next press is slow.
+            f.r.schedule.airingsDelayMs = 5_000
+            f.up()
+            advanceTimeBy(1.seconds)
+            f.send(LiveCommand.Previous)
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertEquals(
+                itemOf(5),
+                f.r.tunes
+                    .last()
+                    .item,
+            )
+            assertTrue("the older Up was not applied", f.r.tunes.none { it.item == itemOf(2) })
+            assertEquals(listOf("playing", "playing"), f.r.flipReports().map { it.outcome })
+        }
+
+    @Test
+    fun aMenuWhoseLookupThrowsWritesAFailedFlipLine() =
+        runTest {
+            val f = flipping()
+            f.up()
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            f.r.schedule.onAirObserver = { error("boom") }
+            f.send(LiveCommand.Previous)
+            runCurrent()
+            assertEquals(listOf("playing", "failed"), f.r.flipReports().map { it.outcome })
         }
 
     @Test
     fun pressesMadeWhileTheLineupIsBeingReadAreAppliedInOrderOnce() =
         runTest {
             // The background refresh after the first tune (read 2) fails: the presses find no lineup to step through.
-            val f = flipping { schedule.airingsFailOn = 2 }
+            val f = flipping { schedule.airingsFailOn = setOf(2) }
             f.r.schedule.airingsDelayMs = 5_000
             val reads = f.r.schedule.airingsCalls
             f.up()

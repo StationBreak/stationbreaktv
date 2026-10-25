@@ -126,6 +126,38 @@ class ScheduleWarmerTest {
         }
 
     @Test
+    fun aNudgeThatArrivesWhileAWarmRunsIsDropped() =
+        runTest {
+            val skew = longArrayOf(0)
+            val noonMs = NOON.toEpochMilliseconds()
+            val timeline =
+                object : Clock {
+                    override fun now(): Instant = Instant.fromEpochMilliseconds(noonMs + skew[0])
+                }
+            lateinit var warmer: ScheduleWarmer
+            var nudged = false
+            val source =
+                BuiltInScheduleSource(
+                    service,
+                    library,
+                    built = { builds += it },
+                    laidOut = { _, _ ->
+                        // In the middle of the first warm: the TV comes to the foreground, and the day is nearly over.
+                        if (!nudged) {
+                            nudged = true
+                            skew[0] = (dayEnd - 30.minutes - NOON).inWholeMilliseconds
+                            warmer.nudge()
+                        }
+                    },
+                    dispatcher = StandardTestDispatcher(testScheduler),
+                ) { LIBRARIES }
+            warmer = ScheduleWarmer(source, service, library, timeline)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "the nudge during the warm did not start another")
+        }
+
+    @Test
     fun theWarmerLooksAgainAtOnceWhenNudgedAndNeverWaitsPastTheCap() =
         runTest {
             val skew = longArrayOf(0)

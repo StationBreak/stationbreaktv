@@ -154,6 +154,8 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   poolsMs channels` and each layout `DayLayout day ms` (numbers only). `NextDayBuild` now rarely appears, since the
   warmer builds ahead; a build that a tune does wait for still logs it. A commit that failed writes a `failed` line, and
   a `superseded` line is written when the older commit unwinds, so it can land after the newer flip's line.
+  Presses made at a cold launch before any lineup is held are queued and applied when it arrives, not lost; the number
+  does not move until then (to be revisited after the device run's DayBuild and DayLayout numbers).
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
   (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
   longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the
