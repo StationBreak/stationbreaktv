@@ -58,9 +58,16 @@ sealed interface TuneReport {
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
                 "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
                 "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
-                "loads=${loads?.loads ?: NOT_SEPARATE} loadMs=${loads?.loadMs ?: NOT_SEPARATE} " +
+                loadFields()
+
+        private fun loadFields(): String =
+            "loads=${loads?.loads ?: NOT_SEPARATE} loadMs=${loads?.loadMs ?: NOT_SEPARATE} " +
                 "maxLoadMs=${loads?.maxLoadMs ?: NOT_SEPARATE} loadKb=${loads?.loadKb ?: NOT_SEPARATE} " +
-                "container=${loads?.container ?: "unknown"} opensKb=${loads?.opensKb ?: NOT_SEPARATE}"
+                "container=${loads?.container ?: "unknown"} opensKb=${loads?.opensKb ?: NOT_SEPARATE} " +
+                "ioMs=${loads?.ioMs ?: NOT_SEPARATE} parseMs=${parseMs() ?: NOT_SEPARATE}"
+
+        /** The tracks time not spent in the media's opens and reads, never negative; null when either is unknown. */
+        private fun parseMs(): Long? = if (tracksMs == null || loads == null) null else maxOf(0, tracksMs - loads.ioMs)
     }
 
     /**

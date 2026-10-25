@@ -26,7 +26,7 @@ class LoadCounterTest {
         counter.read(1, 1_000_000)
         counter.opened(1, position = 1_024, durationMs = 20)
         val stats = counter.close("video/x-matroska")
-        assertEquals(LoadStats(3, 360, 300, 978, "x-matroska", opensKb = "0,4882,1"), stats)
+        assertEquals(LoadStats(3, 360, 300, 978, "x-matroska", opensKb = "0,4882,1", ioMs = 360), stats)
     }
 
     @Test
@@ -61,7 +61,7 @@ class LoadCounterTest {
         counter.read(1, 5_000_000)
         counter.opened(2, 0, 20)
         counter.read(2, 1_024)
-        assertEquals(LoadStats(1, 20, 20, 1, "mp4", "0"), counter.close("video/mp4"))
+        assertEquals(LoadStats(1, 20, 20, 1, "mp4", "0", ioMs = 20), counter.close("video/mp4"))
     }
 
     @Test
@@ -132,6 +132,61 @@ class LoadCounterTest {
     }
 
     @Test
+    fun ioTimeSumsTheOpensAndReadsOfSeveralOpens() {
+        counter.reset(1)
+        val clock = StepClock()
+        val source = CountingDataSource(FakeSource { clock.advance(3 * MS) }, counter, 1, clock = clock)
+        source.timedOpen(0, false) {
+            clock.advance(40 * MS)
+            0
+        }
+        clock.advance(500 * MS) // time outside the data source is not I/O
+        source.read(ByteArray(8), 0, 8)
+        source.timedOpen(4_096, false) {
+            clock.advance(10 * MS)
+            0
+        }
+        source.read(ByteArray(8), 0, 8)
+        assertEquals(40L + 10 + 2 * 3, counter.close("video/mp4")?.ioMs)
+    }
+
+    @Test
+    fun readsAfterTheTracksAreKnownAreNotIoTime() {
+        counter.reset(1)
+        val clock = StepClock()
+        val source = CountingDataSource(FakeSource { clock.advance(300 * MS) }, counter, 1, clock = clock)
+        source.timedOpen(0, false) {
+            clock.advance(5 * MS)
+            0
+        }
+        val first = counter.close("video/mp4")
+        source.read(ByteArray(8), 0, 8)
+        source.timedOpen(9, false) {
+            clock.advance(900 * MS)
+            0
+        }
+        assertEquals(first, counter.close("video/mp4"))
+        assertEquals(5L, first?.ioMs)
+    }
+
+    @Test
+    fun aSidecarOpenAndItsReadsAreNotIoTime() {
+        counter.reset(1)
+        val clock = StepClock()
+        val source = CountingDataSource(FakeSource { clock.advance(300 * MS) }, counter, 1, clock = clock)
+        source.timedOpen(0, sidecar = true) {
+            clock.advance(700 * MS)
+            0
+        }
+        source.read(ByteArray(8), 0, 8)
+        source.timedOpen(0, sidecar = false) {
+            clock.advance(20 * MS)
+            0
+        }
+        assertEquals(20L, counter.close("video/mp4")?.ioMs)
+    }
+
+    @Test
     fun theDelegatesExceptionsPassThroughUnchangedAndAFailedOpenIsCounted() {
         counter.reset(1)
         val failure = IOException("boom")
@@ -181,6 +236,19 @@ class LoadCounterTest {
     }
 }
 
+private const val MS = 1_000_000L
+
+/** A clock that moves only when told. */
+private class StepClock : NanoClock {
+    private var now = 0L
+
+    fun advance(nanos: Long) {
+        now += nanos
+    }
+
+    override fun now(): Long = now
+}
+
 private class ThrowingSink(
     private val failThrows: Boolean = false,
 ) : RequestSink {
@@ -195,6 +263,7 @@ private class ThrowingSink(
     override fun read(
         generation: Long,
         count: Long,
+        ioNanos: Long,
     ): Unit = error("counting fault")
 
     override fun fail() {
@@ -207,6 +276,7 @@ private class ThrowingSink(
 private class FakeSource(
     private val chunk: Int = -1,
     private val readFailure: IOException? = null,
+    private val onRead: () -> Unit = {},
 ) : DataSource {
     var listener: TransferListener? = null
     var closes = 0
@@ -222,7 +292,10 @@ private class FakeSource(
         buffer: ByteArray,
         offset: Int,
         length: Int,
-    ): Int = readFailure?.let { throw it } ?: if (chunk >= 0) chunk else length
+    ): Int {
+        onRead()
+        return readFailure?.let { throw it } ?: if (chunk >= 0) chunk else length
+    }
 
     override fun getUri(): Uri? = null
 
