@@ -106,7 +106,8 @@ sealed interface TuneResult {
      * is ready, but its end is no longer reported. It defaults to an empty flow, for the other constructors of this
      * result. [tracksMs] is the time from the play call to Media3's first tracks report for that play (the container
      * parsed), and [skippedFrames] the video frames the decoder dropped before the first picture, to reach an exact
-     * seek position; both are null when the player could not say (diagnostics only).
+     * seek position; both are null when the player could not say (diagnostics only). [loads] is what the media loads
+     * before the tracks cost (count, time, bytes, container), also diagnostics only.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -117,6 +118,7 @@ sealed interface TuneResult {
         val end: Flow<PlaybackEnd> = emptyFlow(),
         val tracksMs: Long? = null,
         val skippedFrames: Long? = null,
+        val loads: LoadStats? = null,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -386,6 +388,7 @@ class TuneController(
                     attempt.end,
                     attempt.tracksMs,
                     attempt.skippedFrames,
+                    attempt.loads,
                 )
             }
 
@@ -472,6 +475,7 @@ class TuneController(
         val end: Flow<PlaybackEnd>,
         val tracksMs: Long?,
         val skippedFrames: Long?,
+        val loads: LoadStats?,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -588,6 +592,7 @@ class TuneController(
             end = landing.end,
             tracksMs = landing.tracksMs,
             skippedFrames = landing.skippedFrames,
+            loads = landing.loads,
         )
     }
 
@@ -604,6 +609,7 @@ class TuneController(
             val end: Flow<PlaybackEnd>,
             val tracksMs: Long?,
             val skippedFrames: Long?,
+            val loads: LoadStats?,
         ) : Wait
     }
 
@@ -618,6 +624,7 @@ class TuneController(
             val outcome = CompletableDeferred<PlayerEvent>()
             val firstFrame = CompletableDeferred<PlayerEvent.FirstFrame>()
             val tracksAt = AtomicLong(NO_TIME)
+            val loads = AtomicReference<LoadStats?>(null)
             // Before play(), like the listener, so the end of this play cannot be missed.
             val watch = watchEnd(generation)
             // Listening starts before play(), so no event of this play is missed; events wait for its generation.
@@ -626,10 +633,21 @@ class TuneController(
                     player.events.collect { event ->
                         if (event.generation != generation.await()) return@collect
                         when (event) {
-                            is PlayerEvent.FirstFrame -> firstFrame.complete(event)
-                            is PlayerEvent.TracksReady -> tracksAt.compareAndSet(NO_TIME, event.atMs)
-                            is PlayerEvent.Playing, is PlayerEvent.Failed -> outcome.complete(event)
-                            else -> Unit
+                            is PlayerEvent.FirstFrame -> {
+                                firstFrame.complete(event)
+                            }
+
+                            is PlayerEvent.TracksReady -> {
+                                if (tracksAt.compareAndSet(NO_TIME, event.atMs)) loads.set(event.loads)
+                            }
+
+                            is PlayerEvent.Playing, is PlayerEvent.Failed -> {
+                                outcome.complete(event)
+                            }
+
+                            else -> {
+                                Unit
+                            }
                         }
                     }
                 }
@@ -644,7 +662,7 @@ class TuneController(
                             // The tracks come before the picture, so they are known by now or not at all.
                             val tracksMs = tracksAt.get().takeIf { it != NO_TIME }?.minus(playCalledAt)
                             val skipped = frame?.skippedFrames
-                            Wait.Landed(frame?.atMs, event, watch.flow, tracksMs, skipped)
+                            Wait.Landed(frame?.atMs, event, watch.flow, tracksMs, skipped, loads.get())
                         }
 
                         is PlayerEvent.Failed -> {

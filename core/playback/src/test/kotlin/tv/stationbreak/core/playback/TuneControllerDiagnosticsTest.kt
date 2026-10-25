@@ -49,6 +49,22 @@ class TuneControllerDiagnosticsTest {
         }
 
     @Test
+    fun theLoadNumbersOfTheTracksEventAreReported() =
+        runTest {
+            answer()
+            val loads = LoadStats(loads = 3, loadMs = 410, maxLoadMs = 250, loadKb = 96, container = "x-matroska")
+            player.script =
+                listOf(
+                    listOf(
+                        Step { PlayerEvent.TracksReady(1_120, it, loads) },
+                        Step { PlayerEvent.FirstFrame(1_250, it) },
+                        Step { PlayerEvent.Playing(1_300, Duration.ZERO, it) },
+                    ),
+                )
+            assertEquals(loads, played().loads)
+        }
+
+    @Test
     fun anUnknownTracksTimeAndSkippedCountStayNull() =
         runTest {
             answer()
@@ -62,5 +78,6 @@ class TuneControllerDiagnosticsTest {
             val outcome = played()
             assertNull(outcome.tracksMs)
             assertNull(outcome.skippedFrames)
+            assertNull(outcome.loads)
         }
 }

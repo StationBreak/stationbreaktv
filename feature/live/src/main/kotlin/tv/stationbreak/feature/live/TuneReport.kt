@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import tv.stationbreak.core.playback.LoadStats
 import kotlin.time.Duration
 import kotlin.time.Instant
 
@@ -50,12 +51,16 @@ sealed interface TuneReport {
         val from: String? = null,
         val tracksMs: Long? = null,
         val skippedFrames: Long? = null,
+        val loads: LoadStats? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
                 "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
-                "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE}"
+                "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
+                "loads=${loads?.loads ?: NOT_SEPARATE} loadMs=${loads?.loadMs ?: NOT_SEPARATE} " +
+                "maxLoadMs=${loads?.maxLoadMs ?: NOT_SEPARATE} loadKb=${loads?.loadKb ?: NOT_SEPARATE} " +
+                "container=${loads?.container ?: "unknown"}"
     }
 
     /**
@@ -85,7 +90,9 @@ sealed interface TuneReport {
      * [settleMs] wait, so they are what the viewer waited. A null time is logged as [NOT_SEPARATE]. [elapsedMs] is
      * the time from the last press to the [outcome], whatever it is: `playing`, `slate`, `standin`, `failed`, or, for a
      * flip that never resolved, `superseded` (a newer commit replaced it) or `abandoned` (the run stopped first).
-     * [route], [from] and [fallback] are the first tune's, as in [Tune].
+     * [route], [from] and [fallback] are the first tune's, as in [Tune]. [lookupMs] is the commit's own schedule
+     * lookups after the settle, and [handoverMs] the time from the commit being sent to the new sitting's tune
+     * starting; [NOT_SEPARATE] when there was none (diagnostics, #392).
      */
     data class Flip(
         val toFirstFrameMs: Long?,
@@ -96,11 +103,13 @@ sealed interface TuneReport {
         val route: String?,
         val fallback: String?,
         val from: String? = null,
+        val lookupMs: Long = NOT_SEPARATE,
+        val handoverMs: Long = NOT_SEPARATE,
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
                 "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} " +
-                "route=${route ?: "none"} fallback=${fallback ?: "none"}"
+                "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs"
     }
 
     companion object {
@@ -133,6 +142,7 @@ internal fun Sitting.reportTune(
             timings.from,
             timings.tracksMs,
             timings.skippedFrames,
+            timings.loads,
         ),
     )
     if (cutSince != null) {
@@ -162,6 +172,8 @@ internal fun Sitting.reportFlipPlayed(
             timings.route,
             timings.fallback,
             timings.from,
+            timing.lookupMs,
+            timing.handoverMs,
         ),
     )
 }
@@ -178,4 +190,15 @@ internal fun Sitting.reportFlipEnded(outcome: String) {
 internal fun FlipTiming.ended(
     outcome: String,
     now: Instant,
-) = TuneReport.Flip(null, null, settleMs, (now - lastCommandAt).inWholeMilliseconds, outcome, null, null)
+) = TuneReport.Flip(
+    null,
+    null,
+    settleMs,
+    (now - lastCommandAt).inWholeMilliseconds,
+    outcome,
+    null,
+    null,
+    null,
+    lookupMs,
+    handoverMs,
+)

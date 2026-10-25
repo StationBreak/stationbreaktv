@@ -76,6 +76,7 @@ class TunePortAdapter(
             from = (fallback?.from ?: resolved.route).label(),
             tracksMs = tracksMs,
             skippedFrames = skippedFrames,
+            loads = loads,
         )
 
     private fun Route.label() =

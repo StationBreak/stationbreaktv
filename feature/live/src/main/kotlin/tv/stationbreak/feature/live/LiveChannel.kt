@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -67,6 +68,7 @@ class LiveChannel(
     private var refresher: () -> Unit = {}
     private var lineup: suspend () -> FlipOrder = { FlipOrder(emptyList()) }
     private var looking: Job? = null
+    private var lookingAt: ChannelId? = null
     private var flipLog: List<TuneReport.Flip> = emptyList()
 
     val state: StateFlow<LiveState> = screen.flow
@@ -129,6 +131,7 @@ class LiveChannel(
     ) {
         logFlip(unstarted?.flip, "superseded")
         unstarted = request
+        request.flip?.sentAt = clock.now()
         requests.trySend(request)
     }
 
@@ -187,7 +190,12 @@ class LiveChannel(
                     if (exit == Exit.Lost) {
                         // The channel stopped airing: the card, then look again.
                         screen.value = LiveState.Ident(null)
-                        delay(timings.slateHold)
+                        // A flip off the card is as likely as one off a picture: look ahead while it waits.
+                        coroutineScope {
+                            lookAhead(this, neighbours, first.channel)
+                            delay(timings.slateHold)
+                            coroutineContext[Job]?.cancelChildren()
+                        }
                     } else {
                         // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting,
                         // under the snow of its tune. The pause only keeps a tuner that stays stopped from spinning
@@ -215,16 +223,19 @@ class LiveChannel(
     }
 
     /**
-     * Each time a picture plays: resolves the channels above and below beside it, and again as their blocks end. Not
-     * while the viewer is moving the number (the press is about to commit, and a commit ends these anyway); it looks
-     * again when the number is still.
+     * Each time the screen settles on a picture or a card: resolves the channels above and below beside it, and again
+     * as their blocks end. Not while the viewer is moving the number (the press is about to commit, and a commit ends
+     * these anyway); it looks again when the number is still. A look-ahead already running for this channel is kept.
      */
     private fun lookAhead(
         scope: CoroutineScope,
         neighbours: Neighbours,
         playing: ChannelAiring,
     ) {
+        // Already looking ahead from this channel (a picture, then its card): leave it be, it is the same work.
+        if (lookingAt == playing.id && looking?.isActive == true) return
         looking?.cancel()
+        lookingAt = playing.id
         looking =
             scope.launch {
                 try {
