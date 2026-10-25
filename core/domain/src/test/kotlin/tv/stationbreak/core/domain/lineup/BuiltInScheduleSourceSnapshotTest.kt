@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -15,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -153,7 +155,7 @@ class BuiltInScheduleSourceSnapshotTest {
         }
 
     @Test
-    fun aSyncDuringAReadCancelsItAndTheBuildReadsTheNewState() =
+    fun aSyncDuringAReadLeavesItToItsWaitersAndTheNextBuildReadsTheNewState() =
         runBlocking {
             refresh()
             val gate = CompletableDeferred<Unit>()
@@ -169,8 +171,32 @@ class BuiltInScheduleSourceSnapshotTest {
             val expected = withTimeout(WAIT_MS) { current.await() }
             assertSame(expected, withTimeout(WAIT_MS) { old.await() })
             assertEquals(2, source.snapshotReads(), "the old read and the new one")
-            assertEquals(1, source.cancelledSnapshotReads(), "and the old one was cancelled, not left to compete")
+            assertEquals(0, source.cancelledSnapshotReads(), "the old read was left to finish for its waiter")
             assertEquals(1, builds.size)
+            assertEquals(0, source.inFlightCount())
+        }
+
+    @Test
+    fun aRunOfSyncsDuringAReadLeavesNoBuildWaitingOnAnother() =
+        runBlocking {
+            refresh()
+            val gate = CompletableDeferred<Unit>()
+            library.gate = gate
+            val callers = mutableListOf<Deferred<List<ChannelDay>>>()
+            callers += async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            withTimeout(WAIT_MS) { library.entered.await() }
+            repeat(3) { n ->
+                counting.seed(movie(950 + n, "Comedy", rating = "R"))
+                refresh()
+                callers += async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            }
+            gate.complete(Unit)
+
+            val results = callers.map { withTimeout(WAIT_MS) { it.await() } }
+            assertTrue(results.all { it === results.first() }, "every caller got the days of the current revision")
+            val reads = source.snapshotReads()
+            assertTrue(reads in 1..4, "at most one read per state of the library: $reads")
+            assertEquals(0, source.cancelledSnapshotReads())
             assertEquals(0, source.inFlightCount())
         }
 

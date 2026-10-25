@@ -15,7 +15,6 @@ import org.junit.jupiter.api.AfterEach
 import tv.stationbreak.core.model.RuleSnapshot
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertSame
 
 /** The snapshot cache's own rules: who keeps a read alive, which read a newer state replaces, what is kept. */
@@ -81,24 +80,50 @@ class SnapshotCacheTest {
         }
 
     @Test
-    fun aReadOfANewerStateReplacesTheOlderAndItsWaitersAskAgain() =
+    fun readsOfNewerStatesNeverCancelOlderReadsThatStillHaveWaiters() =
+        runBlocking {
+            // A sync bumping the generation under overlapping builds: each build keeps the read it asked for.
+            val reads = (1L..3L).map { Read(snapshot()) }
+            val waiters =
+                reads.mapIndexed { index, read ->
+                    async(start = CoroutineStart.UNDISPATCHED) { cache.get(key(index + 1L)) { read.run() } }
+                }
+            reads.forEach { withTimeout(WAIT_MS) { it.entered.await() } }
+            assertEquals(3, cache.reads)
+            assertEquals(0, cache.cancelledReads)
+
+            reads.forEach { it.release.complete(Unit) }
+
+            waiters.forEachIndexed { index, waiter ->
+                assertSame(reads[index].result, withTimeout(WAIT_MS) { waiter.await() }.snapshot)
+            }
+            assertEquals(3, cache.reads, "no read was started again")
+            assertEquals(0, cache.cancelledReads)
+            val newest = cache.get(key(3)) { error("the newest is kept") }
+            assertEquals(SnapshotCache.Found.Hit, newest.found)
+        }
+
+    @Test
+    fun aReplacedReadTakesNoNewWaitersAndIsCancelledWhenItsLastLeaves() =
         runBlocking {
             val older = Read(snapshot())
             val newer = Read(snapshot())
-            val waiting =
-                async(start = CoroutineStart.UNDISPATCHED) {
-                    runCatching { cache.get(key(1)) { older.run() } }
-                }
+            val first = async(start = CoroutineStart.UNDISPATCHED) { cache.get(key(1)) { older.run() } }
             withTimeout(WAIT_MS) { older.entered.await() }
-
             val current = async(start = CoroutineStart.UNDISPATCHED) { cache.get(key(2)) { newer.run() } }
-            withTimeout(WAIT_MS) { older.cancelled.await() }
-            newer.release.complete(Unit)
+            withTimeout(WAIT_MS) { newer.entered.await() }
 
-            assertIs<SnapshotCache.Superseded>(withTimeout(WAIT_MS) { waiting.await() }.exceptionOrNull())
-            assertSame(newer.result, withTimeout(WAIT_MS) { current.await() }.snapshot)
-            assertEquals(2, cache.reads)
-            assertEquals(1, cache.cancelledReads)
+            // Asking for the old state again does not join the replaced read.
+            val again = Read(snapshot())
+            val late = async(start = CoroutineStart.UNDISPATCHED) { cache.get(key(1)) { again.run() } }
+            withTimeout(WAIT_MS) { again.entered.await() }
+            assertEquals(3, cache.reads)
+
+            first.cancelAndJoin()
+            withTimeout(WAIT_MS) { older.cancelled.await() }
+            assertEquals(1, cache.cancelledReads, "the replaced read stopped with its last waiter")
+            current.cancelAndJoin()
+            late.cancelAndJoin()
         }
 
     @Test

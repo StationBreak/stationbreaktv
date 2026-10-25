@@ -11,6 +11,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import kotlin.time.Instant
 
@@ -93,6 +94,22 @@ class RuleSnapshotKeyContractTest {
                 }
             }
             assertTrue("the states were told apart", states.map { it.generation to it.pass }.distinct().size >= 4)
+        }
+
+    @Test
+    fun anotherChoiceOfLibrariesIsAnotherSnapshotUnderTheSameGenerationAndPass() =
+        runBlocking {
+            val shows = ItemId(hexId(0xB002))
+            repository.select(ALICE, setOf(MOVIES, shows))
+            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, shows, listOf(SyncWorld.item("s", 1)))
+            val cutoff = Instant.fromEpochMilliseconds(rig.clock.nowMs + FAR_MS)
+
+            val movies = repository.ruleSnapshot(ALICE, setOf(MOVIES), cutoff)
+            val other = repository.ruleSnapshot(ALICE, setOf(shows), cutoff)
+
+            assertNotEquals("the libraries are part of the key because they change the output", movies, other)
+            assertNotEquals(movies.libraries, other.libraries)
         }
 
     private companion object {
