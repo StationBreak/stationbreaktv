@@ -221,6 +221,7 @@ idlerun() { # name deviceId episodeId mode(idle|full|min): Playing at 0, then 12
       sleep 30
       n=$((n + 1))
       case "$mode" in
+        pos3) [ "$n" -le 3 ] && progN "$id" "$start" ;;   # 3 positioned check-ins at the safe position, then silence
         three) [ "$n" -le 3 ] && prog0 "$id" false ;;   # 3 positionless check-ins, then silence (the realistic crash)
         full) prog0 "$id" false ;;
         min) api POST /Sessions/Playing/Progress "{\"ItemId\":\"$id\",\"MediaSourceId\":\"$id\",\"PlaySessionId\":\"ps-$dev\"}" ;;
@@ -231,7 +232,7 @@ idlerun() { # name deviceId episodeId mode(idle|full|min): Playing at 0, then 12
   printf '%s' "$line" > "$WORK/out-$name"
 }
 
-if [ "${SP6_FOLLOWUP:-1}" = 1 ] && [ "${SP6_ONLY:-}" != crash ]; then
+if [ "${SP6_FOLLOWUP:-1}" = 1 ] && { [ -z "${SP6_ONLY:-}" ] || [ "${SP6_ONLY:-}" = followup ]; }; then
   rec "# follow-up: Playing at PositionTicks=0" "" ""
   g2="${E[1]}"; g3="${E[2]}"; g4="${E[3]}"; hh="${E[4]}"; i1="${E[5]}"; i2="${E[6]}"
   if [ -z "${SP6_ONLY:-}" ]; then
@@ -293,6 +294,62 @@ if [ "${SP6_ONLY:-}" = crash ]; then
   rec "j4 per-minute samples: Playing at 0, 3 positionless check-ins, silence (episode was played)" "$(cat "$WORK/out-j4")" ""
   rec "j4 userdata after 12 min" "$(ud "$j4")" "in Resume=$(inresume "$j4")"
   rec "# activity log types after crash cases" "$(actlog)" ""
+fi
+
+# ---- k. check in WITH a safe position (existing resume point, else 0) (SP6_ONLY=safe) ----------------------------
+saferun() { # name deviceId episodeId safeTicks : k1 sequence, sampling Sessions every 10 s
+  local name="$1" dev="$2" id="$3" safe="$4" t line=""
+  DEV="$dev"; TOK="$(login "$dev")"
+  play "$id" "$safe"; sleep 1
+  line="t=1:$(sess | jq -c '[.np,.pos,.paused]') "
+  for t in 10 20 30 40 50 60 70 80 90 100 110 120; do
+    sleep 10
+    if [ $((t % 30)) -eq 0 ]; then progN "$id" "$safe"; sleep 1; fi
+    line="$line t=$t:$(sess | jq -c '[.np,.pos,.paused]') "
+  done
+  printf '%s' "$line" > "$WORK/out-$name"
+  stop "$id" "" true; sleep 2
+}
+midplayed() { # name deviceId episodeId : k4, mark played mid-way, keep checking in at 0
+  local name="$1" dev="$2" id="$3" t line=""
+  DEV="$dev"; TOK="$(login "$dev")"
+  play "$id" 0; sleep 1
+  for t in 30 60 90 120; do
+    sleep 29; progN "$id" 0; sleep 1
+    if [ "$t" = 60 ]; then api POST "/UserPlayedItems/$id?userId=$UID_" >/dev/null; line="$line marked-played@60:$(ud "$id" | jq -c '[.Played,.PlaybackPositionTicks,.PlayCount]') "; fi
+    line="$line t=$t:$(sess | jq -c '[.np,.pos]')/$(ud "$id" | jq -c '[.Played,.PlaybackPositionTicks,.PlayCount]') "
+  done
+  stop "$id" "" true; sleep 2
+  printf '%s' "$line" > "$WORK/out-$name"
+}
+
+if [ "${SP6_ONLY:-}" = safe ]; then
+  rec "# safe-position cases: check in with the existing resume position (else 0), never the real position" "" ""
+  H50="$(pct 50)"
+  # k1 episodes 1-3 (unwatched, 50%, played), k2 episodes 4-6 (same), k4 episode 7
+  for e in 2 5; do play "${E[e]}" 0; sleep 1; stop "${E[e]}" "$H50" false; sleep 2; done
+  for e in 3 6; do api POST "/UserPlayedItems/${E[e]}?userId=$UID_" >/dev/null; sleep 1; done
+  names=(x k1-unwatched k1-resume50 k1-played k2-unwatched k2-resume50 k2-played k4-unwatched)
+  for e in 1 2 3 4 5 6 7; do rec "${names[e]} before" "$(ud "${E[e]}")" "in Resume=$(inresume "${E[e]}")"; done
+  saferun k1-unwatched dev-k1a "${E[1]}" 0 & q1=$!
+  saferun k1-resume50 dev-k1b "${E[2]}" "$H50" & q2=$!
+  saferun k1-played dev-k1c "${E[3]}" 0 & q3=$!
+  idlerun k2-unwatched dev-k2a "${E[4]}" pos3 0 & q4=$!
+  idlerun k2-resume50 dev-k2b "${E[5]}" pos3 "$H50" & q5=$!
+  idlerun k2-played dev-k2c "${E[6]}" pos3 0 & q6=$!
+  midplayed k4-unwatched dev-k4 "${E[7]}" & q7=$!
+  wait "$q1" "$q2" "$q3" "$q4" "$q5" "$q6" "$q7"
+  for e in 1 2 3; do
+    rec "${names[e]} dashboard samples [nowPlaying,pos,paused] (Progress at t=30,60,90,120)" "$(cat "$WORK/out-${names[e]}")" ""
+    rec "${names[e]} userdata after Stopped Failed=true" "$(ud "${E[e]}")" "in Resume=$(inresume "${E[e]}")"
+  done
+  for e in 4 5 6; do
+    rec "${names[e]} per-minute samples, 3 positioned check-ins then silence [session / userdata [played,posTicks,playCount]]" "$(cat "$WORK/out-${names[e]}")" ""
+    rec "${names[e]} userdata after 12 min" "$(ud "${E[e]}")" "in Resume=$(inresume "${E[e]}")"
+  done
+  rec "k4 samples (mark played at t=60, keep checking in at 0)" "$(cat "$WORK/out-k4-unwatched")" ""
+  rec "k4 userdata after Stopped Failed=true" "$(ud "${E[7]}")" "in Resume=$(inresume "${E[7]}")"
+  rec "# activity log types after safe cases" "$(actlog)" ""
 fi
 
 
