@@ -12,7 +12,6 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
 import tv.stationbreak.app.BuildConfig
 import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
@@ -26,7 +25,6 @@ import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.data.settings.lineup.FileLineupStore
-import java.util.concurrent.Executors
 import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.time.Clock
@@ -91,18 +89,19 @@ internal object LineupModule {
             built = {
                 Log.i(
                     TAG,
-                    "DayBuild day=${it.day} ms=${it.ms} snapshotsMs=${it.snapshotsMs} layoutMs=${it.layoutMs} " +
+                    "DayBuild day=${it.day} ms=${it.ms} snapshotsMs=${it.snapshotsMs} poolsMs=${it.poolsMs} " +
                         "channels=${it.channels}",
                 )
             },
+            laidOut = { day, ms -> Log.i(TAG, "DayLayout day=$day ms=$ms") },
         ) { settings.loadLibraries() }
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
 
     /**
-     * Builds the schedule's days ahead of the tune that needs them (#392), on one thread of the lowest priority so a
-     * tune that is starting is not slowed by it.
+     * Builds the schedule's days ahead of the tune that needs them (#392). The builds are the source's own, at the
+     * normal priority: a tune that meets one joins it, and must not wait on a slower thread than its own.
      */
     @Provides
     @Singleton
@@ -110,11 +109,7 @@ internal object LineupModule {
         source: BuiltInScheduleSource,
         service: LineupService,
         library: LibraryRepository,
-    ): ScheduleWarmer {
-        val thread =
-            Executors.newSingleThreadExecutor { Thread(it, "schedule-warm").apply { priority = Thread.MIN_PRIORITY } }
-        return ScheduleWarmer(source, service, library, Clock.System, thread.asCoroutineDispatcher())
-    }
+    ): ScheduleWarmer = ScheduleWarmer(source, service, library, Clock.System)
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides

@@ -578,4 +578,56 @@ class LiveChannelFlipTest {
             // The first two commits are superseded; the third is a full wrap back to channel 5 and tunes nothing.
             assertEquals(listOf("superseded", "superseded"), f.r.flipReports().map { it.outcome })
         }
+
+    @Test
+    fun menuDoesNotHoldBackThePressesBehindItsLookup() =
+        runTest {
+            val f = flipping()
+            f.up()
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            f.r.schedule.onAirDelayMs = 5_000
+            f.r.schedule.onAirUncancellable = true
+            f.send(LiveCommand.Previous)
+            advanceTimeBy(1.seconds)
+            f.up()
+            assertTrue("the number moves", f.r.state is LiveState.Choosing)
+        }
+
+    @Test
+    fun pressesMadeWhileTheLineupIsBeingReadAreAppliedInOrderOnce() =
+        runTest {
+            // The background refresh after the first tune (read 2) fails: the presses find no lineup to step through.
+            val f = flipping { schedule.airingsFailOn = 2 }
+            f.r.schedule.airingsDelayMs = 5_000
+            val reads = f.r.schedule.airingsCalls
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            f.up()
+            advanceTimeBy(500.milliseconds)
+            f.down()
+            advanceTimeBy(20.seconds)
+            runCurrent()
+            // Up, up, down from channel 5 is 9, 2, 9: one commit, one line, and one read for all three.
+            assertEquals(
+                itemOf(9),
+                f.r.tunes
+                    .last()
+                    .item,
+            )
+            assertEquals(listOf("playing"), f.r.flipReports().map { it.outcome })
+            assertTrue(f.r.schedule.airingsCalls - reads <= 2)
+        }
+
+    @Test
+    fun aCommitWhoseLookupThrowsWritesAFailedFlipLine() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.onAirObserver = { error("boom") }
+            f.up()
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertEquals(listOf("failed"), f.r.flipReports().map { it.outcome })
+            assertTrue(f.r.reports.any { it is TuneReport.Failed })
+        }
 }

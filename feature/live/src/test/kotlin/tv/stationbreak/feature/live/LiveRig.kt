@@ -174,11 +174,15 @@ class FakeSchedule : ScheduleSource {
     /** How long each [airings] takes on the virtual clock (a slow lineup read). */
     var airingsDelayMs = 0L
 
+    /** The number of the lineup read (counting from 1) that fails; 0 for none. */
+    var airingsFailOn = 0
+
     /** How many lineup reads were made. */
     var airingsCalls = 0
 
     override suspend fun airings(at: Instant): List<ChannelAiring> {
         airingsCalls++
+        check(airingsCalls != airingsFailOn) { "lineup read failed" }
         kotlinx.coroutines.delay(airingsDelayMs)
         return channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
     }

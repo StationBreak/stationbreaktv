@@ -148,8 +148,12 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   (lineup revision, libraries, cut-offs): concurrent misses share one build that runs in the source's own scope, so a
   cancelled caller leaves it running for the others, and a failed build is not kept. `ScheduleWarmer` builds today's
   days in the background on each lineup load or refresh, and the following day within an hour of a channel's day
-  ending, on a minimum-priority thread. Each build logs `DayBuild day ms snapshotsMs layoutMs channels` (numbers only;
-  `layoutMs` is the pools and leftovers claims, since each day's schedule layout is worked out on first use).
+  ending, with each channel's schedule layout, at the normal priority (a tune that meets a build joins it, so a lower
+  priority would only slow that tune); the warmer's waits are capped at five minutes and the app coming to the
+  foreground makes it look again, since a `delay` does not run in standby. Each build logs `DayBuild day ms snapshotsMs
+  poolsMs channels` and each layout `DayLayout day ms` (numbers only). `NextDayBuild` now rarely appears, since the
+  warmer builds ahead; a build that a tune does wait for still logs it. A commit that failed writes a `failed` line, and
+  a `superseded` line is written when the older commit unwinds, so it can land after the newer flip's line.
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
   (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
   longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the

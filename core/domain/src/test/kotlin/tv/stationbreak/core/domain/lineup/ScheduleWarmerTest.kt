@@ -24,14 +24,13 @@ import kotlin.time.Instant
 class ScheduleWarmerTest {
     private val library = CountingLibrary()
     private val store = RecordingStore()
-    private var now = NOON
     private val clock =
         object : Clock {
-            override fun now(): Instant = now
+            override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private val builds = mutableListOf<DayBuild>()
-    private val source = BuiltInScheduleSource(service, library, built = { builds += it }) { LIBRARIES }
+    private val layouts = mutableListOf<Pair<Long, Long>>()
 
     /** The end of the broadcast day that holds [NOON] (24 hours from 06:00 at offset 0). */
     private val dayEnd = Instant.parse("2026-10-20T06:00:00Z")
@@ -43,12 +42,21 @@ class ScheduleWarmerTest {
         runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(laughs))) }
     }
 
-    private fun TestScope.dispatcher() = StandardTestDispatcher(testScheduler)
+    /** A source whose builds run on the test's virtual time, so the tests are deterministic. */
+    private fun TestScope.sourceOn(libraries: Set<tv.stationbreak.core.model.ItemId>? = LIBRARIES) =
+        BuiltInScheduleSource(
+            service,
+            library,
+            built = { builds += it },
+            laidOut = { n, ms -> layouts += n to ms },
+            dispatcher = StandardTestDispatcher(testScheduler),
+        ) { libraries }
 
     @Test
     fun warmBuildsTodayAndLeavesALaterTuneNothingToRead() =
         runTest {
-            val wake = source.warm(NOON, dispatcher())
+            val source = sourceOn()
+            val wake = source.warm(NOON)
             assertNotNull(wake)
             val reads = library.snapshotCutoffs.size
 
@@ -62,12 +70,13 @@ class ScheduleWarmerTest {
     @Test
     fun warmWaitsUntilAnHourBeforeTheDayEndsToBuildTheNextDay() =
         runTest {
-            val first = source.warm(NOON, dispatcher())
+            val source = sourceOn()
+            val first = source.warm(NOON)
             assertEquals(dayEnd - 1.hours, first)
             assertEquals(1, builds.size, "only today's day so far")
 
-            now = dayEnd - 30.minutes
-            val second = source.warm(now, dispatcher())
+            val now = dayEnd - 30.minutes
+            val second = source.warm(now)
             assertEquals(2, builds.size, "the following day is built within the hour")
             assertEquals(dayEnd, second, "then it looks again when the day turns over")
 
@@ -80,19 +89,29 @@ class ScheduleWarmerTest {
     @Test
     fun warmDoesNothingWithoutLibrariesChosen() =
         runTest {
-            val none = BuiltInScheduleSource(service, library) { null }
-            assertNull(none.warm(NOON, dispatcher()))
+            assertNull(sourceOn(null).warm(NOON))
+        }
+
+    @Test
+    fun warmLaysOutEachChannelsDayAheadAndTimesIt() =
+        runTest {
+            val source = sourceOn()
+            source.warm(NOON)
+            assertEquals(1, layouts.size, "the one channel's layout was worked out by the warm")
+
+            source.onAir(source.airings(NOON).single().id, NOON, 2)
+            assertEquals(1, layouts.size, "a tune lays nothing out again")
         }
 
     @Test
     fun theWarmerBuildsAtStartAndAgainBeforeTheDayEnds() =
         runTest {
-            val elapsed = { Instant.fromEpochMilliseconds(NOON.toEpochMilliseconds() + testScheduler.currentTime) }
+            val noonMs = NOON.toEpochMilliseconds()
             val timeline =
                 object : Clock {
-                    override fun now(): Instant = elapsed()
+                    override fun now(): Instant = Instant.fromEpochMilliseconds(noonMs + testScheduler.currentTime)
                 }
-            val warmer = ScheduleWarmer(source, service, library, timeline, dispatcher())
+            val warmer = ScheduleWarmer(sourceOn(), service, library, timeline)
             warmer.start(backgroundScope)
             runCurrent()
             assertEquals(1, builds.size, "today's days are built at start")
@@ -104,5 +123,32 @@ class ScheduleWarmerTest {
             advanceTimeBy(2.hours)
             runCurrent()
             assertEquals(2, builds.size, "the following day is built within the hour of the end")
+        }
+
+    @Test
+    fun theWarmerLooksAgainAtOnceWhenNudgedAndNeverWaitsPastTheCap() =
+        runTest {
+            val skew = longArrayOf(0)
+            val timeline =
+                object : Clock {
+                    override fun now(): Instant =
+                        Instant.fromEpochMilliseconds(NOON.toEpochMilliseconds() + testScheduler.currentTime + skew[0])
+                }
+            val warmer = ScheduleWarmer(sourceOn(), service, library, timeline)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size)
+
+            // The TV sleeps through to 30 minutes before the day ends: the virtual wait did not run, the clock did.
+            skew[0] = (dayEnd - 30.minutes - NOON).inWholeMilliseconds
+            warmer.nudge()
+            runCurrent()
+            assertEquals(2, builds.size, "coming to the foreground warms the following day")
+
+            // Without a nudge, a wait is capped, so a standby that stops the wait cannot hold the warm back long.
+            skew[0] += 24.hours.inWholeMilliseconds
+            advanceTimeBy(6.minutes)
+            runCurrent()
+            assertEquals(3, builds.size, "the capped wait looked again")
         }
 }

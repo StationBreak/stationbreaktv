@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.LibraryAccount
@@ -34,6 +34,8 @@ class BuiltInScheduleSourceFlightTest {
 
         @Volatile var failNext = false
 
+        @Volatile var cancelNext = false
+
         override suspend fun ruleSnapshot(
             account: LibraryAccount,
             libraries: Set<ItemId>,
@@ -43,6 +45,7 @@ class BuiltInScheduleSourceFlightTest {
             entered.complete(Unit)
             gate.await()
             check(!failNext) { "read failed" }
+            if (cancelNext) throw CancellationException("the build was cancelled")
             return inner.ruleSnapshot(account, libraries, cutoff)
         }
     }
@@ -67,10 +70,13 @@ class BuiltInScheduleSourceFlightTest {
     @Test
     fun concurrentCallersShareOneBuild() =
         runBlocking {
-            val callers = (1..5).map { async(Dispatchers.Default) { source.channelDays(ACCOUNT, LIBRARIES, NOON) } }
+            // Undispatched: each caller runs on to its await of the build before the next one starts, so all five
+            // have missed the cache and joined (or started) the build by the time the read is let through.
+            val callers =
+                (1..5).map {
+                    async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+                }
             withTimeout(WAIT_MS) { library.entered.await() }
-            // Every caller has had time to miss the cache and reach the read.
-            delay(300)
             library.gate.complete(Unit)
             val results = callers.map { it.await() }
 
@@ -81,10 +87,9 @@ class BuiltInScheduleSourceFlightTest {
     @Test
     fun aCancelledCallerLeavesTheBuildCompleteForTheOthers() =
         runBlocking {
-            val first = async(Dispatchers.Default) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
-            val second = async(Dispatchers.Default) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            val first = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            val second = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             withTimeout(WAIT_MS) { library.entered.await() }
-            delay(300)
             first.cancelAndJoin()
             library.gate.complete(Unit)
 
@@ -104,6 +109,18 @@ class BuiltInScheduleSourceFlightTest {
             library.failNext = false
             assertEquals(1, source.channelDays(ACCOUNT, LIBRARIES, NOON).size)
             assertEquals(2, library.reads.get(), "the second call built again")
+        }
+
+    @Test
+    fun aBuildCancelledUnderAnActiveCallerIsAFailureNotTheCallersCancellation() =
+        runBlocking {
+            library.cancelNext = true
+            library.gate.complete(Unit)
+            val failure = assertFailsWith<IllegalStateException> { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            assertTrue(failure.cause is CancellationException)
+            // And it is not kept either.
+            library.cancelNext = false
+            assertEquals(1, source.channelDays(ACCOUNT, LIBRARIES, NOON).size)
         }
 
     private companion object {

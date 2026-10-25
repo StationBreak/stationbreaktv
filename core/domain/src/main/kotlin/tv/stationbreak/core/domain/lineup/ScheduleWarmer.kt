@@ -2,14 +2,14 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import kotlin.time.Clock
@@ -20,19 +20,28 @@ import kotlin.time.Clock
  * moment are built in the background whenever the lineup is loaded or refreshed (a new revision), and the day after
  * is built within an hour of a channel's day ending ([BuiltInScheduleSource.warm]).
  *
- * The builds run on [dispatcher], which the app gives a low-priority thread, so they yield to a tune that is starting.
- * A tune that needs a day already being built joins that build rather than starting its own (single flight), so at
- * worst it waits out the rest of it at low priority. Nothing here reports a failure: a build that fails is not kept,
- * and the caller that needs the day builds it again.
+ * The builds are the source's own, at the normal priority: a tune that needs a day already being built joins that
+ * build (single flight) and must not wait on a slower one than it would have run itself. So the warmer decides only
+ * when to start. It does not hold the hour-ahead build back while a tune is starting: the domain has no signal for
+ * that, the build starts an hour before it is needed, and a tune that meets it only waits out what is left of it.
+ * Nothing here reports a failure: a build that fails is not kept, and the caller that needs the day builds it again.
+ *
+ * `delay` stops while the TV is in standby, so no wait is longer than [IDLE_MS], and [nudge] (the app coming to the
+ * foreground) looks again at once. Both also pick up a change of the chosen libraries, which no revision announces.
  */
 class ScheduleWarmer(
     private val source: BuiltInScheduleSource,
     private val service: LineupService,
     private val library: LibraryRepository,
     private val clock: Clock,
-    private val dispatcher: CoroutineDispatcher,
 ) {
     private var started: Job? = null
+    private val nudges = Channel<Unit>(Channel.CONFLATED)
+
+    /** Looks again now, if the warmer is waiting: the app has come to the foreground, perhaps from standby. */
+    fun nudge() {
+        nudges.trySend(Unit)
+    }
 
     /** Starts following the active account in [scope]. A second call does nothing: one-shot, for the app's scope. */
     @Synchronized
@@ -61,7 +70,7 @@ class ScheduleWarmer(
         while (true) {
             val wake =
                 try {
-                    source.warm(clock.now(), dispatcher)
+                    source.warm(clock.now())
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -69,7 +78,7 @@ class ScheduleWarmer(
                 }
             // Nothing to warm yet (no libraries chosen, nothing scheduled) or a failed warm: look again later.
             val wait = wake?.let { (it - clock.now()).inWholeMilliseconds } ?: IDLE_MS
-            delay(wait.coerceAtLeast(MIN_WAIT_MS))
+            withTimeoutOrNull(wait.coerceIn(MIN_WAIT_MS, IDLE_MS)) { nudges.receive() }
         }
     }
 
@@ -77,7 +86,7 @@ class ScheduleWarmer(
         /** Never look again sooner than this, so a wake time already past cannot spin the loop. */
         const val MIN_WAIT_MS = 1_000L
 
-        /** How long to wait before looking again when there was nothing to warm. */
+        /** The longest wait before looking again, and the wait when there was nothing to warm. */
         const val IDLE_MS = 5 * 60 * 1_000L
     }
 }
