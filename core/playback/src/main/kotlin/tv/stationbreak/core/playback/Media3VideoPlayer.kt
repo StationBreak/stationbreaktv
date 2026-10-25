@@ -347,8 +347,11 @@ class Media3VideoPlayer(
     }
 }
 
-/** The container MIME type the extractor put on the first video (else any) track; null when none says. */
+/** Counts a finished, cancelled or failed load from Media3's event info. */
+@UnstableApi
 private fun LoadCounter.finished(info: LoadEventInfo) = finished(info.loadTaskId, info.loadDurationMs, info.bytesLoaded)
+
+/** The container MIME type the extractor put on the first video (else any) track; null when none says. */
 
 private fun containerMime(tracks: Tracks): String? {
     val groups = tracks.groups.filter { it.length > 0 }.sortedBy { if (it.type == C.TRACK_TYPE_VIDEO) 0 else 1 }
