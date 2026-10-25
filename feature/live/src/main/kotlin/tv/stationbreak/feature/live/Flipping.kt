@@ -135,19 +135,23 @@ internal class Flipper(
         anchored()
     }
 
-    /** The first sitting has a channel: presses made before are applied now, as one flip from where it landed. */
+    /**
+     * The first sitting has a channel: presses made before are applied now, as one flip from where it landed. Decided
+     * on the sitting having been given a channel, not on [onScreen]: the screen still shows what it showed before
+     * (the card, or no channels) until the sitting writes its first state.
+     *
+     * The applied flip's timing counts from the cold-launch press, so its settle and time to playing include the wait
+     * for the first sitting.
+     */
     private fun anchored() {
         if (early.isEmpty || tuned.playing == null) return
         earlyRead?.cancel()
         val presses = early.take()
-        if (!onScreen) {
-            writeLines(presses, presses.size, "abandoned")
-            return
-        }
         // Each press the viewer waited out is a commit that the next one absorbed.
         writeLines(presses, presses.size - 1, "superseded")
+        earlyTail = presses.last()
         queued += presses
-        if (reading?.isActive != true) reading = scope.launch { readThenStep() }
+        if (reading?.isActive != true) reading = scope.launch { readThenStep(fromEarly = true) }
     }
 
     /** Writes a line for each of the first [count] [presses] that waited out the settle before the next (or now). */
@@ -166,9 +170,15 @@ internal class Flipper(
 
     /** The run is ending: presses still waiting for a first sitting can never be acted on. */
     fun abandonEarly() {
+        earlyRead?.cancel()
         val presses = early.take()
         writeLines(presses, presses.size, "abandoned")
+        if (earlyShown) screen.drop()
+        earlyShown = false
     }
+
+    /** The last early press, until its settle owns its line (or the read for it failed and wrote one). */
+    private var earlyTail: Press? = null
 
     /** The lineup as of the last refresh, or a fresh read when there is none yet (not kept: a refresh sets it). */
     suspend fun lineup(): FlipOrder {
@@ -233,7 +243,8 @@ internal class Flipper(
 
     /**
      * A press before the first sitting: kept, never dropped. The banner follows it as soon as the lineup list is
-     * loaded, read in a job of its own so the collector never waits for it (nor for the day build).
+     * loaded, read in a job of its own so the collector never waits for it (nor for the day build). With no saved
+     * channel in the lineup there is no banner (see [EarlyPresses]); the press is still kept.
      */
     private fun holdEarly(
         direction: FlipDirection,
@@ -263,13 +274,14 @@ internal class Flipper(
     }
 
     private fun showEarly() {
+        if (early.isEmpty) return
         val next = early.target() ?: return
         earlyShown = true
         screen.choose(LiveState.Choosing(next.tag(), overPicture = false))
     }
 
     /** Reads the lineup for the presses that queued, then applies them in the order they were made. */
-    private suspend fun readThenStep() {
+    private suspend fun readThenStep(fromEarly: Boolean = false) {
         val steps =
             try {
                 lineup()
@@ -279,12 +291,22 @@ internal class Flipper(
                 @Suppress("TooGenericExceptionCaught") e: Exception,
             ) {
                 queued.clear()
+                closeEarlyTail("failed")
                 failed(e)
                 return
             }
         val presses = queued.toList()
         queued.clear()
-        presses.forEach { (direction, at) -> if (onScreen) step(steps, direction, at) }
+        // Early presses were pressed against a screen that has not caught up with the sitting yet.
+        presses.forEach { (direction, at) -> if (fromEarly || onScreen) step(steps, direction, at) }
+        earlyTail = null
+    }
+
+    private fun closeEarlyTail(outcome: String) {
+        val (_, at) = earlyTail ?: return
+        earlyTail = null
+        val now = clock.now()
+        report(FlipTiming(at, timings.flipSettle.inWholeMilliseconds).ended(outcome, now))
     }
 
     /** Moves the number one step from where the last press left it and starts the settle. */

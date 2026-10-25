@@ -320,7 +320,7 @@ class LiveChannel(
                 .first { it.isNotEmpty() }
         val airings = on.map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
         val saved = lastChannel.load(account)
-        return EarlyLineup(FlipOrder(airings), airings.firstOrNull { it.id == saved } ?: airings.minBy { it.number })
+        return EarlyLineup(FlipOrder(airings), airings.firstOrNull { it.id == saved })
     }
 
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */

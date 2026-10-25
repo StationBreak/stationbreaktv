@@ -21,9 +21,15 @@ internal typealias Press = Pair<FlipDirection, Instant>
  * kept, never dropped, and the banner follows them as soon as the lineup list is loaded; when the first sitting lands,
  * the [Flipper] applies the whole run as one flip from the channel the sitting is on.
  *
- * The early anchor rule: the banner counts from the channel saved as last watched, when it is in the lineup list, else
- * from the lowest-numbered channel on. The flip itself always counts from the channel the first sitting actually lands
- * on, so the two agree whenever the saved channel is on the air, and the landing wins when it is not.
+ * The early anchor rule: the banner counts from the channel saved as last watched, when it is in the lineup list. With
+ * no saved channel there (a first run, or it was removed) there is no early banner, because the first sitting's choice
+ * then depends on the day build (ratings, what is on air); the presses are still kept. The flip itself always counts
+ * from the channel the first sitting actually lands on. The banner and the landing agree exactly when the saved
+ * channel is on the air at the first sitting, since that is the channel it chooses first; when the saved channel is
+ * off the air the landing wins and the number can change once more when the flip commits.
+ *
+ * The applied flip's timing counts from the first press, so its settle and time to playing include the wait for the
+ * first sitting.
  *
  * Accepted limit (#299): the lineup list does not know which channels are empty today, so the early banner may step
  * onto one that the built schedule hides. The commit on the built schedule still skips hidden and empty channels, as
