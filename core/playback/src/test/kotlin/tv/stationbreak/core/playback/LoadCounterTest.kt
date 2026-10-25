@@ -170,6 +170,40 @@ class LoadCounterTest {
     }
 
     @Test
+    fun aReadThatEndsTheInputOrThrowsIsStillIoTime() {
+        counter.reset(1)
+        val clock = StepClock()
+        val failure = IOException("reset")
+        var outcome = 0
+        val source =
+            CountingDataSource(
+                FakeSource(endOfInput = true) {
+                    clock.advance(70 * MS)
+                    if (outcome == 1) throw failure
+                },
+                counter,
+                1,
+                clock = clock,
+            )
+        source.timedOpen(0, false) { 0 }
+        outcome = 0
+        source.read(ByteArray(8), 0, 8)
+        outcome = 1
+        assertThrows(IOException::class.java) { source.read(ByteArray(8), 0, 8) }
+        val stats = counter.close("video/mp4")
+        assertEquals(140L, stats?.ioMs)
+        assertEquals(0L, stats?.loadKb)
+    }
+
+    @Test
+    fun aStaleGenerationReadWithRealTimeIsNotIoTime() {
+        counter.reset(2)
+        counter.opened(2, 0, 1)
+        counter.read(1, 4_096, 900 * MS)
+        assertEquals(1L, counter.close("video/mp4")?.ioMs)
+    }
+
+    @Test
     fun aSidecarOpenAndItsReadsAreNotIoTime() {
         counter.reset(1)
         val clock = StepClock()
@@ -258,12 +292,13 @@ private class ThrowingSink(
         generation: Long,
         position: Long,
         durationMs: Long,
+        openNanos: Long,
     ): Unit = error("counting fault")
 
     override fun read(
         generation: Long,
         count: Long,
-        ioNanos: Long,
+        readNanos: Long,
     ): Unit = error("counting fault")
 
     override fun fail() {
@@ -276,6 +311,7 @@ private class ThrowingSink(
 private class FakeSource(
     private val chunk: Int = -1,
     private val readFailure: IOException? = null,
+    private val endOfInput: Boolean = false,
     private val onRead: () -> Unit = {},
 ) : DataSource {
     var listener: TransferListener? = null
@@ -294,7 +330,13 @@ private class FakeSource(
         length: Int,
     ): Int {
         onRead()
-        return readFailure?.let { throw it } ?: if (chunk >= 0) chunk else length
+        return readFailure?.let { throw it } ?: if (endOfInput) {
+            -1
+        } else if (chunk >= 0) {
+            chunk
+        } else {
+            length
+        }
     }
 
     override fun getUri(): Uri? = null

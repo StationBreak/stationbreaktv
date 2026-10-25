@@ -37,18 +37,22 @@ internal const val MAX_OPENS_LISTED = 8
 
 /** Where a [CountingDataSource] reports. Calls come from loader threads. */
 internal interface RequestSink {
-    /** An open of play [generation] at byte [position] ended (returned or threw) after [durationMs]. */
+    /**
+     * An open of play [generation] at byte [position] ended (returned or threw) after [durationMs] whole ms;
+     * [openNanos] is the same time unrounded.
+     */
     fun opened(
         generation: Long,
         position: Long,
         durationMs: Long,
+        openNanos: Long = durationMs * NANOS_PER_MS,
     )
 
-    /** [count] more bytes were read for play [generation], the read taking [ioNanos]. */
+    /** [count] more bytes were read for play [generation]; the read took [readNanos], even if it moved no bytes. */
     fun read(
         generation: Long,
         count: Long,
-        ioNanos: Long = 0,
+        readNanos: Long = 0,
     )
 
     /** The counting failed: drop this play's numbers. */
@@ -98,11 +102,12 @@ internal class LoadCounter : RequestSink {
         generation: Long,
         position: Long,
         durationMs: Long,
+        openNanos: Long,
     ) = synchronized(lock) {
         if (!open || generation != current) return@synchronized
         loads++
         loadMs += durationMs
-        ioNanos += durationMs * NANOS_PER_MS
+        ioNanos += openNanos
         maxLoadMs = maxOf(maxLoadMs, durationMs)
         // One past the cap is kept so a capped list can be told from one that is exactly full.
         if (positions.size <= MAX_OPENS_LISTED) positions += abs(position) / BYTES_PER_KB
@@ -111,11 +116,11 @@ internal class LoadCounter : RequestSink {
     override fun read(
         generation: Long,
         count: Long,
-        ioNanos: Long,
+        readNanos: Long,
     ) = synchronized(lock) {
         if (open && generation == current) {
             bytes += count
-            this.ioNanos += ioNanos
+            ioNanos += readNanos
         }
     }
 
@@ -252,8 +257,8 @@ internal class CountingDataSource(
         try {
             return open()
         } finally {
-            val ms = (clock.now() - start) / NANOS_PER_MS
-            if (counted) guarded(Unit) { sink.opened(generation, position, ms) }
+            val nanos = clock.now() - start
+            if (counted) guarded(Unit) { sink.opened(generation, position, nanos / NANOS_PER_MS, nanos) }
         }
     }
 
@@ -270,7 +275,7 @@ internal class CountingDataSource(
             return count
         } finally {
             val nanos = clock.now() - start
-            if (counted && count > 0) guarded(Unit) { sink.read(generation, count.toLong(), nanos) }
+            if (counted) guarded(Unit) { sink.read(generation, maxOf(count, 0).toLong(), nanos) }
         }
     }
 
