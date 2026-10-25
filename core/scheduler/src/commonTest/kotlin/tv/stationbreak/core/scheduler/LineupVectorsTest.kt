@@ -46,11 +46,8 @@ class LineupVectorsTest {
             orderingMode = OrderingMode.entries.single { it.wireName == obj("ordering").string("mode") },
             seed = Seed(string("seed").toULong()),
             blockLength = timing.getValue("blockLength").jsonPrimitive.int,
-            alignToGrid =
-                timing
-                    .getValue("alignToGrid")
-                    .jsonPrimitive.content
-                    .toBoolean(),
+            // A case may omit alignToGrid: the version 1 default is true.
+            alignToGrid = timing["alignToGrid"]?.jsonPrimitive?.content?.toBoolean() ?: true,
             gridMinutes = timing.getValue("gridMinutes").jsonPrimitive.int,
             epochHours = timing.getValue("epochHours").jsonPrimitive.int,
             utcOffsetMinutes = day.getValue("utcOffsetMinutes").jsonPrimitive.int,

@@ -20,7 +20,7 @@ class SchedulerSettingsFromRulesTest {
         assertEquals(OrderingMode.Shuffle, s.orderingMode)
         assertEquals(Seed(7uL), s.seed)
         assertEquals(1, s.blockLength)
-        assertEquals(false, s.alignToGrid)
+        assertEquals(true, s.alignToGrid)
         assertEquals(30, s.gridMinutes)
         assertEquals(24, s.epochHours)
         assertEquals(-300, s.utcOffsetMinutes)

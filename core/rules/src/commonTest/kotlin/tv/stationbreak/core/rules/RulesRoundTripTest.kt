@@ -6,7 +6,6 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -59,7 +58,7 @@ class RulesRoundTripTest {
         assertEquals(Source.YearRange(from = 1900, to = 1969), rules.exclusions?.get(4))
         assertEquals(OrderingMode.Shuffle, rules.orderingMode)
         assertEquals(1, rules.timing.effectiveBlockLength)
-        assertFalse(rules.timing.effectiveAlignToGrid)
+        assertTrue(rules.timing.effectiveAlignToGrid)
         assertEquals(24, rules.timing.effectiveEpochHours)
         assertEquals("06:00", rules.timing.broadcastDay.effectiveStart)
         assertEquals(6, rules.timing.effectiveGraceHours)

@@ -135,7 +135,7 @@ class EndFillTest {
 
     @Test
     fun withoutTheGridARunStartsWhenThePreviousOneEnds() {
-        // The rules default (alignToGrid unset) is back to back: no slate between runs, only the closing one.
+        // With alignToGrid false (what the app writes for its channels) there is no slate between runs, only the closing one.
         val items = listOf(movie('1', 7), movie('2', 30), movie('3', 20))
         val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = false), items, 0L)
         assertEquals(listOf("0-7:1", "7-37:2", "37-57:3", "57-60:slate"), built.describe())

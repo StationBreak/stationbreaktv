@@ -100,7 +100,7 @@ data class Timing(
         const val DEFAULT_MIN_RUNTIME_SECONDS = 60
 
         private const val DEFAULT_BLOCK_LENGTH = 1
-        private const val DEFAULT_ALIGN_TO_GRID = false
+        private const val DEFAULT_ALIGN_TO_GRID = true
         private const val DEFAULT_EPOCH_HOURS = 24
         private const val DEFAULT_GRACE_HOURS = 6
         private const val DEFAULT_GRID_MINUTES = 30

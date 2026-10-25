@@ -317,6 +317,7 @@ internal object ExampleFiles {
                     }
                   ],
                   "timing": {
+                    "alignToGrid": true,
                     "broadcastDay": {
                       "utcOffsetMinutes": 0
                     }
@@ -370,6 +371,7 @@ internal object ExampleFiles {
                     }
                   ],
                   "timing": {
+                    "alignToGrid": true,
                     "broadcastDay": {
                       "utcOffsetMinutes": 0
                     }

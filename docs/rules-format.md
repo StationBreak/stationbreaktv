@@ -496,10 +496,10 @@ fields are optional.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `blockLength` | `1` | Items per run: the number of consecutive items (for example 2 episodes of one series) that play together, back to back, as one run (see Runs). A whole number from 1 to 100. |
-| `alignToGrid` | `false` | If `true`, runs start on the grid marks (every `gridMinutes`, see that row) of the clock described below, and any gap before the next mark is shown as a station ID slate. If `false` (the default), a run starts when the previous one ends. |
+| `alignToGrid` | `true` | Runs start on the grid marks (every `gridMinutes`, see that row) of the clock described below. If `false`, a run starts when the previous one ends. |
 | `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a whole number of hours that divides 24, so that the day repeats). |
 | `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it (see The pool of an epoch). A whole number from 0 to 48. |
-| `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. It only matters when `alignToGrid` is `true`, but `broadcastDay.start` is still checked against it. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark (see Grid marks). |
+| `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark (see Grid marks). |
 | `minRuntimeSeconds` | `60` | The shortest runtime, in seconds, that counts as a program: an item shorter than this is left out of the epoch's pool (see The pool of an epoch). A whole number from 1 to 3600. |
 | `broadcastDay` | required | When an epoch starts. An object with `utcOffsetMinutes` (required) and `start`. |
 
@@ -1042,6 +1042,8 @@ format defines it and a reader must read it and keep it, but nothing schedules f
 | `every` | A whole number from 1 to 1000. Required when `mode` is `betweenEveryN`: one filler item after every N programs. A reader ignores `every` when the mode is not `betweenEveryN`, and keeps it. |
 | `source` | Where filler comes from: a `library`, a `collection` or a `tag` source, in the same form as in Sources. Required for `padToGrid` and `betweenEveryN`. |
 
+`padToGrid` fills the gap before the next grid mark, so a channel that uses it also sets `timing.alignToGrid` to `true`.
+
 **A reader that does not schedule a filler mode treats the file as unsupported.** In version 1 no reader schedules filler,
 so a version 1 reader treats every file whose filler `mode` is anything other than `none` as **unsupported** (and reports
 "update required"), in the same way as for an unknown kind (see Unknown fields and unsupported kinds). It does not
@@ -1052,7 +1054,7 @@ How a filler mode other than `none` is scheduled is defined by a later `formatVe
 with that version.
 
 - `none`: no filler. `docs/rules-format/examples/filler-none.json`.
-- `padToGrid`: fill the time before the next grid mark. `docs/rules-format/examples/filler-pad-to-grid.json`, with a
+- `padToGrid`: fill the time before the next grid mark. It needs `"alignToGrid": true` in `timing`: with `alignToGrid` false there are no grid marks, runs follow each other directly, so there is no gap before a mark and this mode fills nothing. `docs/rules-format/examples/filler-pad-to-grid.json`, with a
   library as filler source, and `docs/rules-format/examples/filler-tag-source.json`, with a tag.
 - `betweenEveryN`: one filler item after every N programs. `docs/rules-format/examples/filler-between-every-n.json`,
   with a collection as filler source:

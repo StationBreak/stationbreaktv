@@ -23,7 +23,8 @@ object RecipeResolver {
      * The rules for [recipe] on [serverId]. The sources are the recipe's own, then a collection source for every
      * collection in [collections] whose name equals a hint (ASCII case-insensitive, as everywhere in the rules format),
      * in canonical-ID order and once each. A hint that matches nothing adds nothing. The broadcast day starts at
-     * [LineupDefaults.DAY_START] at [utcOffsetMinutes]; every other timing field is left to its default.
+     * [LineupDefaults.DAY_START] at [utcOffsetMinutes]. `alignToGrid` is written as false, so the channel runs back to back
+     * (the format's own default is true); every other timing field is left to its default.
      */
     fun resolve(
         recipe: Recipe,
@@ -45,7 +46,7 @@ object RecipeResolver {
 
     /**
      * The scheduler settings of a leftovers channel: those of a resolved recipe with the same key, no ordering of its
-     * own (shuffle) and the default timing. Its pool is the engine's business, not the rules'.
+     * own (shuffle) and the same back-to-back timing. Its pool is the engine's business, not the rules'.
      */
     fun leftoversSettings(
         recipe: LeftoversRecipe,
@@ -61,7 +62,7 @@ object RecipeResolver {
     private fun timingAt(utcOffsetMinutes: Int) =
         Timing(
             blockLength = null,
-            alignToGrid = null,
+            alignToGrid = false,
             epochHours = null,
             graceHours = null,
             gridMinutes = null,
