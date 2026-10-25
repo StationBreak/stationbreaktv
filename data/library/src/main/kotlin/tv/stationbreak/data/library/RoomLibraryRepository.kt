@@ -239,7 +239,7 @@ class RoomLibraryRepository internal constructor(
             cutoffMs = cutoffMs,
             libraries = libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
             items = items,
-            series = RuleInputs.series(items, rows.series),
+            series = RuleInputs.series(items, rows.series, mapper.folds),
             collections = RuleInputs.collections(rows.collections),
             collectionsSynced = rows.collectionsSynced,
         )

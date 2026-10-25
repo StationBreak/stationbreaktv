@@ -2,6 +2,7 @@
 package tv.stationbreak.data.library
 
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.NameFolds
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
@@ -225,6 +226,9 @@ internal object ScheduleInputs {
 internal class RuleItemMapper {
     private val ids = HashMap<String, CanonicalId?>()
 
+    /** The folded names of the snapshot being mapped: the items' and (given to [RuleInputs.series]) the series'. */
+    val folds = NameFolds()
+
     /** How many items had a season ID that is not canonical. They are kept, with no season (Granny L4). */
     var seasonIdsNotCanonical = 0
         private set
@@ -234,14 +238,17 @@ internal class RuleItemMapper {
         val row = accepted.row
         val library = requireNotNull(id(row.libraryId)) { "The read keeps only items in a library with a canonical ID" }
         val season = row.seasonId
-        return RuleItem(
-            item = accepted.item,
-            libraryId = library,
-            seasonId = season?.let(::seasonOf),
-            officialRating = row.officialRating,
-            genres = row.genres,
-            tags = row.tags,
-        )
+        val mapped =
+            RuleItem(
+                item = accepted.item,
+                libraryId = library,
+                seasonId = season?.let(::seasonOf),
+                officialRating = row.officialRating,
+                genres = row.genres,
+                tags = row.tags,
+            )
+        mapped.primeFolds(folds)
+        return mapped
     }
 
     private fun seasonOf(raw: String): CanonicalId? {
@@ -263,6 +270,7 @@ internal object RuleInputs {
     fun series(
         items: List<RuleItem>,
         held: List<HeldSeries>,
+        folds: NameFolds = NameFolds(),
     ): Map<CanonicalId, RuleSeries> {
         val byId = HashMap<CanonicalId, HeldSeries>()
         for (series in held) {
@@ -280,7 +288,7 @@ internal object RuleInputs {
         val result = LinkedHashMap<CanonicalId, RuleSeries>(wanted.size * 2)
         for (id in wanted) {
             val series = byId.getValue(id)
-            result[id] = RuleSeries(id, series.officialRating, series.genres, series.tags)
+            result[id] = RuleSeries(id, series.officialRating, series.genres, series.tags).also { it.primeFolds(folds) }
         }
         return result
     }
