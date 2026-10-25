@@ -128,6 +128,8 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   new sitting's tune start, -1 with no tune), and the tune line ends with `loads`, `loadMs`, `maxLoadMs`, `loadKb` and
   `container` (the media loads before the tracks are known; numbers and the container type only). Look-ahead now also runs
   while a channel shows a slate or ident card, so a flip off a card is a neighbour tune.
+  `handoverMs` is that of the committed item's own first tune, so on `outcome=standin` it never includes the slate's
+  hold (-1 if the item never tuned). An HLS transcode reports the playlist's container (for example `x-mpegurl`) in `container=`.
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
   (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
   longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the

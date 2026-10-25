@@ -174,7 +174,11 @@ class FakeSchedule : ScheduleSource {
     /** How long each [airings] takes on the virtual clock (a slow lineup read). */
     var airingsDelayMs = 0L
 
+    /** How many lineup reads were made. */
+    var airingsCalls = 0
+
     override suspend fun airings(at: Instant): List<ChannelAiring> {
+        airingsCalls++
         kotlinx.coroutines.delay(airingsDelayMs)
         return channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
     }

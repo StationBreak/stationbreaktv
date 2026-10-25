@@ -17,7 +17,8 @@ data class LoadStats(
 /**
  * Counts the media loads of the play now on the player, from [reset] (the play call) until [close] (its tracks are
  * known). Used on the player's looper only. A load that has not finished when the tracks are known counts as started
- * but adds no time or bytes.
+ * but adds no time or bytes. Only loads started for this play are counted, by task id: the cancels of the previous
+ * play's loads, which arrive after [reset], are not. [fail] drops the play's numbers (a listener fault).
  */
 internal class LoadCounter {
     private var loads = 0
@@ -26,8 +27,12 @@ internal class LoadCounter {
     private var bytes = 0L
     private var closed: LoadStats? = null
     private var open = true
+    private var broken = false
+    private val tasks = HashSet<Long>()
 
     fun reset() {
+        tasks.clear()
+        broken = false
         loads = 0
         loadMs = 0
         maxLoadMs = 0
@@ -36,16 +41,28 @@ internal class LoadCounter {
         open = true
     }
 
-    fun started() {
-        if (open) loads++
+    /** Load [taskId] started; [forThisPlay] is false for a load of some other media item, which is ignored. */
+    fun started(
+        taskId: Long,
+        forThisPlay: Boolean = true,
+    ) {
+        if (!open || !forThisPlay) return
+        tasks += taskId
+        loads++
     }
 
-    /** A load ended, completed or not: [durationMs] and [bytes] are what it took and read. */
+    /** Drops this play's numbers: the listener failed, and a wrong count is worse than none. */
+    fun fail() {
+        broken = true
+    }
+
+    /** Load [taskId] ended, completed or not: [durationMs] and [bytes] are what it took and read. */
     fun finished(
+        taskId: Long,
         durationMs: Long,
         bytes: Long,
     ) {
-        if (!open) return
+        if (!open || taskId !in tasks) return
         loadMs += durationMs
         maxLoadMs = maxOf(maxLoadMs, durationMs)
         this.bytes += bytes
@@ -61,7 +78,7 @@ internal class LoadCounter {
     }
 
     private fun stats(containerMime: String?): LoadStats? =
-        if (loads == 0) {
+        if (loads == 0 || broken) {
             null
         } else {
             LoadStats(loads, loadMs, maxLoadMs, bytes / BYTES_PER_KB, containerSubtype(containerMime))

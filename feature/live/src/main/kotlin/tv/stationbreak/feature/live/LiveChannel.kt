@@ -68,6 +68,7 @@ class LiveChannel(
     private var refresher: () -> Unit = {}
     private var lineup: suspend () -> FlipOrder = { FlipOrder(emptyList()) }
     private var looking: Job? = null
+    private var lookingAt: ChannelId? = null
     private var flipLog: List<TuneReport.Flip> = emptyList()
 
     val state: StateFlow<LiveState> = screen.flow
@@ -222,17 +223,19 @@ class LiveChannel(
     }
 
     /**
-     * Each time a picture plays or a card waits on the screen: resolves the channels above and below beside it, and
-     * again as their blocks end. Not
-     * while the viewer is moving the number (the press is about to commit, and a commit ends these anyway); it looks
-     * again when the number is still.
+     * Each time the screen settles on a picture or a card: resolves the channels above and below beside it, and again
+     * as their blocks end. Not while the viewer is moving the number (the press is about to commit, and a commit ends
+     * these anyway); it looks again when the number is still. A look-ahead already running for this channel is kept.
      */
     private fun lookAhead(
         scope: CoroutineScope,
         neighbours: Neighbours,
         playing: ChannelAiring,
     ) {
+        // Already looking ahead from this channel (a picture, then its card): leave it be, it is the same work.
+        if (lookingAt == playing.id && looking?.isActive == true) return
         looking?.cancel()
+        lookingAt = playing.id
         looking =
             scope.launch {
                 try {

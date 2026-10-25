@@ -65,8 +65,11 @@ internal class Sitting(
     var flip: FlipTiming? = null,
     /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
     lead: Pending.Retarget? = null,
-    /** Called each time a tune plays or a slate waits, with the scope of the block that showed it (look-ahead). */
-    val onPicture: (CoroutineScope) -> Unit = {},
+    /**
+     * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
+     * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
+     */
+    internal val onSettled: (CoroutineScope) -> Unit = {},
 ) {
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
@@ -218,7 +221,8 @@ internal class Sitting(
     ): TuneOutcome {
         if (snow) state.value = LiveState.Tuning(banner)
         val began = clock.now()
-        flip?.let { timing ->
+        // The committed item's own first tune only: a stand-in comes after the slate's hold, which is not hand-over.
+        flip?.takeIf { what.kind != TuneKind.StandIn }?.let { timing ->
             val sent = timing.sentAt
             if (sent != null && timing.handoverMs == TuneReport.NOT_SEPARATE) {
                 timing.handoverMs = (began - sent).inWholeMilliseconds
@@ -235,7 +239,7 @@ internal class Sitting(
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
             showWatching(scope, banner)
-            onPicture(scope)
+            onSettled(scope)
         }
         return outcome
     }
@@ -292,7 +296,7 @@ internal class Sitting(
         tuner.stop(session)
         state.value = LiveState.Ident(up, onAir.tag())
         // A card with no picture also looks ahead, so a flip off it is not a fresh tune (#392).
-        onPicture(scope)
+        onSettled(scope)
         waitUntil(untilMs)
         cutFrom = clock.now()
         return null

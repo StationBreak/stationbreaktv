@@ -358,16 +358,34 @@ class LiveChannelFlipTest {
         }
 
     @Test
+    fun aStandInDoesNotCountTheSlatesHoldAsHandOver() =
+        runTest {
+            val f =
+                flipping {
+                    schedule.channels.getValue(CH9).blocks = listOf(program(0, 600, 9, info = null))
+                    schedule.standInScript = { _, _ -> listOf(standIn(0, 600, 7, 0)) }
+                }
+            f.up()
+            advanceTimeBy(10.seconds)
+            runCurrent()
+            val flip = f.r.flipReports().single()
+            assertEquals("standin", flip.outcome)
+            assertEquals(-1L, flip.handoverMs)
+        }
+
+    @Test
     fun aFlipThatNeverTunesHasNoHandOver() =
         runTest {
             val f = flipping { schedule.channels.getValue(CH9).blocks = listOf(slate(0, 600)) }
+            f.r.schedule.onAirDelayMs = 50
             f.up()
             advanceTimeBy(500.milliseconds)
             runCurrent()
             val flip = f.r.flipReports().single()
             assertEquals("slate", flip.outcome)
             assertEquals(-1L, flip.handoverMs)
-            assertTrue(flip.lookupMs >= 0L)
+            // One lookup, on the test clock.
+            assertEquals(50L, flip.lookupMs)
         }
 
     @Test

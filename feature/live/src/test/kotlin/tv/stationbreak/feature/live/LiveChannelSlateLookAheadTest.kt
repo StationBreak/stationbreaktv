@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -35,8 +36,10 @@ class LiveChannelSlateLookAheadTest {
         onFive: List<AiringBlock>,
         timings: LiveTimings = LiveTimings(),
         nine: List<AiringBlock> = listOf(program(0, 600, 9)),
+        setup: Rig.() -> Unit = {},
     ): Seated {
         val r = Rig(this, timings = timings)
+        r.setup()
         r.schedule.channel(ch2, 2, listOf(program(0, 600, 2)))
         r.schedule.channel(CH5, 5, onFive)
         r.schedule.channel(CH9, 9, nine)
@@ -133,6 +136,49 @@ class LiveChannelSlateLookAheadTest {
                 s.r.tune.calls
                     .any { it is Call.TuneHandle && it.item == itemOf(19) },
             )
+        }
+
+    @Test
+    fun theLineupIsReadOnceWhenTheSlatesLookAheadMeetsTheRefreshInFlight() =
+        runTest {
+            val s = sitting(listOf(slate(0, 600))) { schedule.airingsDelayMs = 500 }
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            // One read to choose the channel, one refresh; the look-ahead waited for the refresh, it did not read.
+            assertEquals(2, s.r.schedule.airingsCalls)
+            assertEquals(
+                setOf(itemOf(9), itemOf(2)),
+                s.r
+                    .preResolves()
+                    .map { it.item }
+                    .toSet(),
+            )
+        }
+
+    @Test
+    fun aShowThatEndsEarlyKeepsItsLookAheadWithoutResolvingAgain() =
+        runTest {
+            val s =
+                sitting(listOf(program(0, 600, 5))) {
+                    tune.script(itemOf(5), tune.playsThenEnds(2.seconds, PlaybackEnd.Ended))
+                }
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertTrue(s.r.state is LiveState.Watching)
+            val resolves = s.r.preResolves().size
+            val neighbourReads =
+                s.r.schedule.onAirCalls
+                    .count { it.first != CH5 }
+            advanceTimeBy(2.seconds)
+            runCurrent()
+            assertTrue(s.r.state is LiveState.Ident)
+            assertEquals(resolves, s.r.preResolves().size)
+            assertEquals(
+                neighbourReads,
+                s.r.schedule.onAirCalls
+                    .count { it.first != CH5 },
+            )
+            assertTrue(s.r.discards().isEmpty())
         }
 
     @Test

@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
@@ -78,6 +79,9 @@ class Media3VideoPlayer(
     private var tracksReported = false
     private val skips = SkippedFrames(exo)
     private val loadCounter = LoadCounter()
+
+    /** The media id of the item the current play set (see [mediaItem]). */
+    private var playId = ""
     private var hasPlayed = false
     private val audio = AudioSampler()
 
@@ -87,6 +91,7 @@ class Media3VideoPlayer(
 
     init {
         exo.addAnalyticsListener(Analytics())
+        exo.addAnalyticsListener(Loads())
     }
 
     /** The Media3 player, for this module's instrumented tests. The app attaches a surface through [attach]. */
@@ -115,7 +120,8 @@ class Media3VideoPlayer(
                     .clearOverrides()
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                     .build()
-            exo.setMediaItem(mediaItem(source), source.playerStart.inWholeMilliseconds)
+            playId = generation.toString()
+            exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
             exo.prepare()
             exo.playWhenReady = true
         }
@@ -143,8 +149,12 @@ class Media3VideoPlayer(
         if (Looper.myLooper() == handler.looper) block() else handler.post(block)
     }
 
-    private fun mediaItem(source: PlayerSource): MediaItem {
-        val builder = MediaItem.Builder().setUri(Uri.parse(source.url))
+    private fun mediaItem(
+        source: PlayerSource,
+        mediaId: String,
+    ): MediaItem {
+        // The media id names the play, so a load event can be told from one of the item before it.
+        val builder = MediaItem.Builder().setMediaId(mediaId).setUri(Uri.parse(source.url))
         if (source.isHls) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         builder.setSubtitleConfigurations(
             source.subtitles.map { subtitle ->
@@ -206,6 +216,54 @@ class Media3VideoPlayer(
         return mime != null && mime == expected
     }
 
+    /** The load numbers of the play (diagnostics only): a separate listener, so a fault here stays here. */
+    private inner class Loads : AnalyticsListener {
+        override fun onLoadStarted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            retryCount: Int,
+        ) = counting { loadCounter.started(loadEventInfo.loadTaskId, eventTime.isForThisPlay()) }
+
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) = counting { loadCounter.finished(loadEventInfo) }
+
+        override fun onLoadCanceled(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) = counting { loadCounter.finished(loadEventInfo) }
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: IOException,
+            wasCanceled: Boolean,
+        ) = counting { loadCounter.finished(loadEventInfo) }
+
+        /** Diagnostics must never reach the play: a fault drops this play's load numbers and says nothing. */
+        private inline fun counting(block: () -> Unit) {
+            try {
+                block()
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                loadCounter.fail()
+            }
+        }
+
+        /** True when the event is of the current play's item; a timeline that cannot say counts as yes. */
+        private fun AnalyticsListener.EventTime.isForThisPlay(): Boolean {
+            val timeline = timeline
+            if (windowIndex < 0 || windowIndex >= timeline.windowCount) return true
+            return timeline.getWindow(windowIndex, Timeline.Window()).mediaItem.mediaId == playId
+        }
+    }
+
     private inner class Analytics : AnalyticsListener {
         override fun onTracksChanged(
             eventTime: AnalyticsListener.EventTime,
@@ -220,33 +278,6 @@ class Media3VideoPlayer(
             tracksApplied = true
             applyPicks(source, tracks)
         }
-
-        override fun onLoadStarted(
-            eventTime: AnalyticsListener.EventTime,
-            loadEventInfo: LoadEventInfo,
-            mediaLoadData: MediaLoadData,
-            retryCount: Int,
-        ) = loadCounter.started()
-
-        override fun onLoadCompleted(
-            eventTime: AnalyticsListener.EventTime,
-            loadEventInfo: LoadEventInfo,
-            mediaLoadData: MediaLoadData,
-        ) = loadCounter.finished(loadEventInfo.loadDurationMs, loadEventInfo.bytesLoaded)
-
-        override fun onLoadCanceled(
-            eventTime: AnalyticsListener.EventTime,
-            loadEventInfo: LoadEventInfo,
-            mediaLoadData: MediaLoadData,
-        ) = loadCounter.finished(loadEventInfo.loadDurationMs, loadEventInfo.bytesLoaded)
-
-        override fun onLoadError(
-            eventTime: AnalyticsListener.EventTime,
-            loadEventInfo: LoadEventInfo,
-            mediaLoadData: MediaLoadData,
-            error: IOException,
-            wasCanceled: Boolean,
-        ) = loadCounter.finished(loadEventInfo.loadDurationMs, loadEventInfo.bytesLoaded)
 
         override fun onRenderedFirstFrame(
             eventTime: AnalyticsListener.EventTime,
@@ -317,6 +348,8 @@ class Media3VideoPlayer(
 }
 
 /** The container MIME type the extractor put on the first video (else any) track; null when none says. */
+private fun LoadCounter.finished(info: LoadEventInfo) = finished(info.loadTaskId, info.loadDurationMs, info.bytesLoaded)
+
 private fun containerMime(tracks: Tracks): String? {
     val groups = tracks.groups.filter { it.length > 0 }.sortedBy { if (it.type == C.TRACK_TYPE_VIDEO) 0 else 1 }
     return groups.firstNotNullOfOrNull { it.getTrackFormat(0).containerMimeType }
