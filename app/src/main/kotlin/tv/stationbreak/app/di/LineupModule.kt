@@ -2,6 +2,7 @@
 package tv.stationbreak.app.di
 
 import android.content.Context
+import android.os.Debug
 import android.util.Log
 import dagger.Module
 import dagger.Provides
@@ -90,10 +91,11 @@ internal object LineupModule {
                 Log.i(
                     TAG,
                     "DayBuild day=${it.day} ms=${it.ms} snapshotsMs=${it.snapshotsMs} poolsMs=${it.poolsMs} " +
-                        "channels=${it.channels}",
+                        "channels=${it.channels} snapshotsCpuMs=${it.snapshotsCpuMs} poolsCpuMs=${it.poolsCpuMs}",
                 )
             },
             laidOut = { day, ms -> Log.i(TAG, "DayLayout day=$day ms=$ms") },
+            threadCpuNanos = { Debug.threadCpuTimeNanos() },
         ) { settings.loadLibraries() }
 
     @Provides

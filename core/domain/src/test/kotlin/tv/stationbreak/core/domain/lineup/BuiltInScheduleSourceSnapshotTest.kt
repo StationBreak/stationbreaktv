@@ -132,6 +132,28 @@ class BuiltInScheduleSourceSnapshotTest {
             assertEquals(0, source.inFlightCount())
         }
 
+    @Test
+    fun aBuildReportsTheThreadCpuItWasToldAndMinusOneWhenTheClockCannotTell() {
+        refresh()
+        var now = 0L
+        val ticking = mutableListOf<DayBuild>()
+        val timed =
+            BuiltInScheduleSource(service, library, built = { ticking += it }, threadCpuNanos = {
+                now += 3_000_000L
+                now
+            }) {
+                chosen
+            }
+        runBlocking { timed.channelDays(ACCOUNT, chosen, NOON) }
+        assertEquals(3L, ticking.single().poolsCpuMs, "one pair of readings around the pool work, 3 ms apart")
+
+        val unknown = mutableListOf<DayBuild>()
+        val none = { -1L }
+        val blind = BuiltInScheduleSource(service, library, built = { unknown += it }, threadCpuNanos = none) { chosen }
+        runBlocking { blind.channelDays(ACCOUNT, chosen, NOON) }
+        assertEquals(listOf(-1L, -1L), unknown.single().let { listOf(it.snapshotsCpuMs, it.poolsCpuMs) })
+    }
+
     private companion object {
         const val WAIT_MS = 10_000L
     }
