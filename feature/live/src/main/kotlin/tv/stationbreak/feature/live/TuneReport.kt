@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.playback.LoadStats
+import tv.stationbreak.core.playback.PlayNote
+import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /** Which way a tune was made, for [TuneReport.Tune]. */
@@ -119,11 +126,56 @@ sealed interface TuneReport {
                 "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs"
     }
 
+    /**
+     * A play that had reached playing failed: [end] holds the reason (a Media3 error code name or `StallTimeout`) and
+     * the numbers. Never a message, a URL, an id or a title (#392).
+     */
+    data class HeldFailed(
+        val end: PlaybackEnd.Failed,
+    ) : TuneReport {
+        override fun line() =
+            "held failed reason=${end.errorCode} afterMs=${end.afterMs} posMs=${end.positionMs} " +
+                "bufferedMs=${end.bufferedMs} http=${end.httpStatus} stalls=${end.stalls}"
+    }
+
+    /** A stall in a play that had reached playing, or the end of one (#392). */
+    data class Stalling(
+        val note: PlayNote,
+    ) : TuneReport {
+        override fun line() =
+            when (note) {
+                is PlayNote.Stall -> {
+                    "stall posMs=${note.positionMs} bufferedMs=${note.bufferedMs} afterMs=${note.afterMs}"
+                }
+
+                is PlayNote.Resumed -> {
+                    "stall resumed ms=${note.ms}"
+                }
+            }
+    }
+
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L
     }
 }
+
+/** How long the notes of a play that has ended may take to arrive. */
+private val NOTES_DRAIN = 50.milliseconds
+
+/** Reports [notes] while [body] runs; the notes the play left when it ended are reported too, none after. */
+internal suspend fun <T> Sitting.watchNotes(
+    notes: Flow<PlayNote>,
+    body: suspend () -> T,
+): T =
+    coroutineScope {
+        val job = launch { notes.collect { report(TuneReport.Stalling(it)) } }
+        val result = body()
+        // The notes flow completes with the play's end; a play that is not over has nothing to wait for.
+        withTimeoutOrNull(NOTES_DRAIN) { job.join() }
+        job.cancel()
+        result
+    }
 
 /** One record of how the tune went (numbers only), and, for the first tune after a boundary, the cut's gap. */
 internal fun Sitting.reportTune(

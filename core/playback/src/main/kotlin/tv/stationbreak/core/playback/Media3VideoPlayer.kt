@@ -247,7 +247,9 @@ class Media3VideoPlayer(
             state: Int,
         ) {
             // A rebuffer: buffering again after playback had begun.
-            if (state == Player.STATE_BUFFERING && hasPlayed) flow.tryEmit(PlayerEvent.Stalled(active))
+            if (state == Player.STATE_BUFFERING && hasPlayed) {
+                flow.tryEmit(PlayerEvent.Stalled(active, clock(), exo.currentPosition, exo.totalBufferedDuration))
+            }
             if (state == Player.STATE_ENDED) flow.tryEmit(PlayerEvent.Ended(active))
         }
 
@@ -270,7 +272,7 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
-            flow.tryEmit(playerFailure(error, active))
+            flow.tryEmit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
         }
     }
 

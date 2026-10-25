@@ -419,4 +419,75 @@ class TuneControllerPreparedTest {
             testScheduler.runCurrent()
             assertTrue(noWatcherIsLeft())
         }
+
+    @Test
+    fun aFailureAfterPlayingCarriesItsNumbers() =
+        runTest {
+            answer(source())
+            val late =
+                Step(afterMs = 12_000) {
+                    PlayerEvent.Failed("ERROR_CODE_IO_UNSPECIFIED", 503, it, 13_300, 11_900, 0)
+                }
+            player.script = listOf(playing(1_300, Duration.ZERO) + late)
+            player.scope = this
+            val outcome = played()
+            assertEquals(
+                listOf<PlaybackEnd>(PlaybackEnd.Failed("ERROR_CODE_IO_UNSPECIFIED", 503, 12_000, 11_900, 0, 0)),
+                outcome.end.toList(),
+            )
+        }
+
+    @Test
+    fun aStallTimeoutCarriesTheStallsNumbers() =
+        runTest {
+            answer(source())
+            val stall = Step(afterMs = 1_000) { PlayerEvent.Stalled(it, 6_300, positionMs = 5_000, bufferedMs = 40) }
+            player.script = listOf(playing(1_300, Duration.ZERO) + stall)
+            player.scope = this
+            val outcome = played()
+            assertEquals(
+                listOf<PlaybackEnd>(PlaybackEnd.Failed("StallTimeout", -1, 25_000, 5_000, 40, 1)),
+                outcome.end.toList(),
+            )
+        }
+
+    @Test
+    fun aStallAndItsResumeAreNoted() =
+        runTest {
+            answer(source())
+            val steps =
+                playing(1_300, Duration.ZERO) +
+                    Step(afterMs = 1_000) { PlayerEvent.Stalled(it, 4_300, positionMs = 3_000, bufferedMs = 10) } +
+                    Step(afterMs = 3_000) { PlayerEvent.Playing(6_800, 3.seconds, it) } +
+                    Step(afterMs = 4_000) { PlayerEvent.Ended(it) }
+            player.script = listOf(steps)
+            player.scope = this
+            val outcome = played()
+            assertEquals(listOf<PlaybackEnd>(PlaybackEnd.Ended), outcome.end.toList())
+            assertEquals(
+                listOf(PlayNote.Stall(3_000, 10, 3_000), PlayNote.Resumed(2_500)),
+                outcome.notes.toList(),
+            )
+        }
+
+    @Test
+    fun onlyTwentyStallsPerPlayAreNoted() =
+        runTest {
+            answer(source())
+            val stalls =
+                (1..25).flatMap { n ->
+                    listOf(
+                        Step(afterMs = 100) { PlayerEvent.Stalled(it, 2_000L + n * 1_000, n * 10L, 0) },
+                        Step(afterMs = 100) { PlayerEvent.Playing(2_500L + n * 1_000, n.seconds, it) },
+                    )
+                }
+            val over = Step(afterMs = 100) { PlayerEvent.Ended(it) }
+            player.script = listOf(playing(1_300, Duration.ZERO) + stalls + over)
+            player.scope = this
+            val outcome = played()
+            outcome.end.toList()
+            val notes = outcome.notes.toList()
+            assertEquals(20, notes.filterIsInstance<PlayNote.Stall>().size)
+            assertEquals(20, notes.filterIsInstance<PlayNote.Resumed>().size)
+        }
 }

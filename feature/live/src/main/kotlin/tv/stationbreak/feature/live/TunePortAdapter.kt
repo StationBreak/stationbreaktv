@@ -92,7 +92,7 @@ class TunePortAdapter(
 
     private fun TuneResult.toOutcome(): TuneOutcome =
         when (this) {
-            is TuneResult.Played -> TuneOutcome.Playing(end, timings())
+            is TuneResult.Played -> TuneOutcome.Playing(end, timings(), notes)
             is TuneResult.SessionExpired -> TuneOutcome.Expired
             TuneResult.Superseded, TuneResult.Stopped -> TuneOutcome.Cancelled
             is TuneResult.Failed -> TuneOutcome.Dead(timedOut = reason == TuneFailure.TIMEOUT)

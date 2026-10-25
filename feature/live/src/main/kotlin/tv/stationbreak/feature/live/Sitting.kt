@@ -7,6 +7,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -17,6 +18,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -184,7 +186,7 @@ internal class Sitting(
             val dead =
                 when (outcome) {
                     is TuneOutcome.Playing -> {
-                        when (hold(block.endMs, outcome.end)) {
+                        when (hold(block.endMs, outcome.end, outcome.notes)) {
                             Held.Boundary -> return null
                             Held.Ended -> return holdIdent(scope, onAir, block.endMs)
                             Held.Failed -> ++failures >= 2
@@ -260,14 +262,24 @@ internal class Sitting(
             }
     }
 
-    /** Waits for how the play ends, or for [untilMs] (the block's end, which cuts a show that runs long). */
+    /**
+     * Waits for how the play ends, or for [untilMs] (the block's end, which cuts a show that runs long). The play's
+     * stalls in [notes] are reported as they come; a failure is reported with its numbers (#392).
+     */
     suspend fun hold(
         untilMs: Long,
         end: Flow<PlaybackEnd>,
+        notes: Flow<PlayNote> = emptyFlow(),
     ): Held {
         val left = untilMs - vnowMs()
         // An empty flow means the play was stopped under us; it counts as an end.
-        val ended = if (left <= 0) null else withTimeoutOrNull(left) { end.firstOrNull() ?: PlaybackEnd.Ended }
+        val ended =
+            if (left <= 0) {
+                null
+            } else {
+                withTimeoutOrNull(left) { watchNotes(notes) { end.firstOrNull() ?: PlaybackEnd.Ended } }
+            }
+        if (ended is PlaybackEnd.Failed) report(TuneReport.HeldFailed(ended))
         if (ended == null) waitUntil(untilMs)
         return when {
             ended == null || vnowMs() >= untilMs -> {

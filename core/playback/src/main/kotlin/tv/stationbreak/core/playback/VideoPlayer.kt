@@ -40,8 +40,15 @@ sealed interface PlayerEvent {
         override val generation: Long,
     ) : PlayerEvent
 
+    /**
+     * Playback stopped to buffer again after it had begun. [atMs], [positionMs] (the player's position) and
+     * [bufferedMs] (how much is buffered ahead) are [NOT_KNOWN] when the player cannot say (diagnostics only).
+     */
     data class Stalled(
         override val generation: Long,
+        val atMs: Long = NOT_KNOWN,
+        val positionMs: Long = NOT_KNOWN,
+        val bufferedMs: Long = NOT_KNOWN,
     ) : PlayerEvent
 
     /** The media played to its end. Sent once, when the player reaches the end of the stream. */
@@ -65,13 +72,22 @@ sealed interface PlayerEvent {
 
     /**
      * [errorCode] is the stable name of the Media3 error code (`ERROR_CODE_...`), never a class name or a message.
-     * [httpStatus] is set when a media load was answered with an HTTP error.
+     * [httpStatus] is set when a media load was answered with an HTTP error. [atMs], [positionMs] and [bufferedMs]
+     * are as for [Stalled] (diagnostics only).
      */
     data class Failed(
         val errorCode: String,
         val httpStatus: Int?,
         override val generation: Long,
+        val atMs: Long = NOT_KNOWN,
+        val positionMs: Long = NOT_KNOWN,
+        val bufferedMs: Long = NOT_KNOWN,
     ) : PlayerEvent
+
+    companion object {
+        /** A number the player could not give. */
+        const val NOT_KNOWN = -1L
+    }
 }
 
 /** One player for the host's lifetime: [play] replaces what is playing, [stop] ends it, [release] ends the player. */

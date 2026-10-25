@@ -16,8 +16,11 @@ private const val MAX_CAUSES = 16
 internal fun playerFailure(
     error: PlaybackException,
     generation: Long,
+    atMs: Long = PlayerEvent.NOT_KNOWN,
+    positionMs: Long = PlayerEvent.NOT_KNOWN,
+    bufferedMs: Long = PlayerEvent.NOT_KNOWN,
 ): PlayerEvent.Failed {
     val chain = generateSequence<Throwable>(error) { it.cause }.take(MAX_CAUSES)
     val status = chain.filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.responseCode
-    return PlayerEvent.Failed(error.errorCodeName, status, generation)
+    return PlayerEvent.Failed(error.errorCodeName, status, generation, atMs, positionMs, bufferedMs)
 }

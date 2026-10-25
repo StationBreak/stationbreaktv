@@ -11,6 +11,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -18,6 +19,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -70,7 +72,30 @@ sealed interface PlaybackEnd {
     /** The play broke after it started, or stalled longer than the playing timeout. [errorCode] is a stable name. */
     data class Failed(
         val errorCode: String,
+        val httpStatus: Int = -1,
+        val afterMs: Long = -1,
+        val positionMs: Long = -1,
+        val bufferedMs: Long = -1,
+        val stalls: Int = 0,
     ) : PlaybackEnd
+}
+
+/**
+ * A stall in a play that had reached playing, and its end: numbers only (diagnostics, #392). Times are milliseconds;
+ * -1 where the player could not say.
+ */
+sealed interface PlayNote {
+    /** Playback stopped to buffer at [positionMs] with [bufferedMs] buffered, [afterMs] after the play began. */
+    data class Stall(
+        val positionMs: Long,
+        val bufferedMs: Long,
+        val afterMs: Long,
+    ) : PlayNote
+
+    /** Playing resumed after a [Stall] that lasted [ms]. */
+    data class Resumed(
+        val ms: Long,
+    ) : PlayNote
 }
 
 /**
@@ -107,7 +132,8 @@ sealed interface TuneResult {
      * result. [tracksMs] is the time from the play call to Media3's first tracks report for that play (the container
      * parsed), and [skippedFrames] the video frames the decoder dropped before the first picture, to reach an exact
      * seek position; both are null when the player could not say (diagnostics only). [loads] is what the media loads
-     * before the tracks cost (count, time, bytes, container), also diagnostics only.
+     * before the tracks cost (count, time, bytes, container), also diagnostics only. [notes] are the play's stalls and
+     * their ends (at most [MAX_STALL_NOTES] stalls), and complete when [end] does; diagnostics only.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -119,6 +145,7 @@ sealed interface TuneResult {
         val tracksMs: Long? = null,
         val skippedFrames: Long? = null,
         val loads: LoadStats? = null,
+        val notes: Flow<PlayNote> = emptyFlow(),
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -389,6 +416,7 @@ class TuneController(
                     attempt.tracksMs,
                     attempt.skippedFrames,
                     attempt.loads,
+                    attempt.notes,
                 )
             }
 
@@ -476,6 +504,7 @@ class TuneController(
         val tracksMs: Long?,
         val skippedFrames: Long?,
         val loads: LoadStats?,
+        val notes: Flow<PlayNote>,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -593,6 +622,7 @@ class TuneController(
             tracksMs = landing.tracksMs,
             skippedFrames = landing.skippedFrames,
             loads = landing.loads,
+            notes = landing.notes,
         )
     }
 
@@ -603,6 +633,7 @@ class TuneController(
             val event: PlayerEvent.Failed,
         ) : Wait
 
+        @Suppress("LongParameterList") // One play's measures, as Landed carries them.
         class Landed(
             val firstFrameAtMs: Long?,
             val playing: PlayerEvent.Playing,
@@ -610,6 +641,7 @@ class TuneController(
             val tracksMs: Long?,
             val skippedFrames: Long?,
             val loads: LoadStats?,
+            val notes: Flow<PlayNote>,
         ) : Wait
     }
 
@@ -662,7 +694,7 @@ class TuneController(
                             // The tracks come before the picture, so they are known by now or not at all.
                             val tracksMs = tracksAt.get().takeIf { it != NO_TIME }?.minus(playCalledAt)
                             val skipped = frame?.skippedFrames
-                            Wait.Landed(frame?.atMs, event, watch.flow, tracksMs, skipped, loads.get())
+                            Wait.Landed(frame?.atMs, event, watch.flow, tracksMs, skipped, loads.get(), watch.notes)
                         }
 
                         is PlayerEvent.Failed -> {
@@ -686,6 +718,7 @@ class TuneController(
     private class Watch(
         val job: Job,
         val flow: Flow<PlaybackEnd>,
+        val notes: Flow<PlayNote>,
     )
 
     /**
@@ -696,17 +729,20 @@ class TuneController(
      */
     private fun watchEnd(generation: CompletableDeferred<Long>): Watch {
         val result = CompletableDeferred<PlaybackEnd?>()
+        val notes = Channel<PlayNote>(Channel.UNLIMITED)
         watching?.cancel()
         val job =
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 val watcher = currentCoroutineContext()[Job]
                 var stall: Job? = null
+                val held = HeldPlay()
                 player.events.collect { event ->
                     if (event.generation != generation.await()) return@collect
+                    held.see(event, notes)
                     val end: PlaybackEnd? =
                         when (event) {
                             is PlayerEvent.Ended -> PlaybackEnd.Ended
-                            is PlayerEvent.Failed -> PlaybackEnd.Failed(event.errorCode)
+                            is PlayerEvent.Failed -> held.failed(event)
                             else -> null
                         }
                     when {
@@ -720,7 +756,7 @@ class TuneController(
                             stall =
                                 launch {
                                     delay(PLAYING_TIMEOUT)
-                                    result.complete(PlaybackEnd.Failed(STALLED))
+                                    result.complete(held.timedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
                                     watcher?.cancel()
                                 }
                         }
@@ -731,9 +767,71 @@ class TuneController(
                     }
                 }
             }
-        job.invokeOnCompletion { result.complete(null) }
+        job.invokeOnCompletion {
+            result.complete(null)
+            notes.close()
+        }
         watching = job
-        return Watch(job, flow { result.await()?.let { emit(it) } })
+        return Watch(job, flow { result.await()?.let { emit(it) } }, notes.receiveAsFlow())
+    }
+
+    /**
+     * What the watcher knows of one play that reached playing, for its stall notes and its failure's numbers: when it
+     * first played, how many times it stalled, and the open stall. Used from the watcher's collector only.
+     */
+    private class HeldPlay {
+        private var playedAt = NO_TIME
+        private var stallAt = NO_TIME
+        private var stalls = 0
+
+        fun see(
+            event: PlayerEvent,
+            notes: Channel<PlayNote>,
+        ) {
+            when (event) {
+                is PlayerEvent.Playing -> {
+                    if (playedAt == NO_TIME) playedAt = event.atMs
+                    if (stallAt != NO_TIME) notes.trySend(PlayNote.Resumed(event.atMs - stallAt))
+                    stallAt = NO_TIME
+                }
+
+                is PlayerEvent.Stalled -> {
+                    if (playedAt != NO_TIME && ++stalls <= MAX_STALL_NOTES) {
+                        stallAt = if (event.atMs < 0) NO_TIME else event.atMs
+                        notes.trySend(PlayNote.Stall(event.positionMs, event.bufferedMs, since(event.atMs)))
+                    }
+                }
+
+                else -> {
+                    Unit
+                }
+            }
+        }
+
+        fun failed(event: PlayerEvent.Failed) =
+            PlaybackEnd.Failed(
+                event.errorCode,
+                event.httpStatus ?: -1,
+                since(event.atMs),
+                event.positionMs,
+                event.bufferedMs,
+                stalls,
+            )
+
+        /** The failure of a stall that [Stalled] began and no Playing ended within [waitedMs]. */
+        fun timedOut(
+            stall: PlayerEvent.Stalled,
+            waitedMs: Long,
+        ) = PlaybackEnd.Failed(
+            STALLED,
+            -1,
+            since(stall.atMs).let { if (it < 0) it else it + waitedMs },
+            stall.positionMs,
+            stall.bufferedMs,
+            stalls,
+        )
+
+        private fun since(atMs: Long) = if (playedAt == NO_TIME || atMs < 0) -1L else atMs - playedAt
     }
 
     /**
@@ -785,6 +883,7 @@ class TuneController(
         val FIRST_FRAME_WAIT = 2.seconds
         const val TIMEOUT = "Timeout"
         const val STALLED = "StallTimeout"
+        const val MAX_STALL_NOTES = 20
         const val UNEXPECTED = "Unexpected"
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
