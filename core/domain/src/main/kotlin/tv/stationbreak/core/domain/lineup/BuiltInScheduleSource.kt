@@ -10,8 +10,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
@@ -44,6 +46,11 @@ import kotlin.time.TimeSource
  * scope and the rest await it, so a caller that is cancelled (a flip superseded mid-lookup) leaves the build running
  * for the others, and for the cache. A build that fails is not kept; the next caller builds again.
  *
+ * The snapshots are kept apart from the days ([SnapshotCache]): a new lineup revision builds its days again but reads
+ * the library only if it changed (its content generation or collection pass moved). A build whose revision is no
+ * longer the account's current one stops at its next channel and does not report; the callers that joined it ask again
+ * and get the current revision's days.
+ *
  * [timed] is told the build of each following day that [onAir] needed: the day's index and the milliseconds it took
  * (numbers only; no item, title or URL ever reaches it), so a first tune near a day edge can be measured. [built] is
  * told every build as it completes, with where its time went ([DayBuild]; numbers only), and [laidOut] each channel
@@ -63,6 +70,7 @@ class BuiltInScheduleSource(
     private val built: (DayBuild) -> Unit = {},
     laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val probes: BuildProbes = BuildProbes(),
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
     private data class Key(
@@ -86,6 +94,23 @@ class BuiltInScheduleSource(
 
     // Builds belong to the source, not to the caller that started one: see the class comment.
     private val buildScope = CoroutineScope(SupervisorJob() + dispatcher)
+
+    // Snapshots outlive the lineup revision they were first read for: see [SnapshotCache].
+    private val snapshots = SnapshotCache(buildScope)
+
+    /** For tests: how many snapshot reads the cache has started. */
+    internal fun snapshotReads(): Int = snapshots.reads
+
+    /** For tests: how many snapshot reads the cache has cancelled. */
+    internal fun cancelledSnapshotReads(): Int = snapshots.cancelledReads
+
+    /** The build of a lineup revision that is no longer the account's current one stops, and its callers go on. */
+    private class StaleBuild : RuntimeException("The lineup moved on while the day build ran")
+
+    private fun isCurrent(
+        account: LibraryAccount,
+        revision: Long,
+    ): Boolean = service.lineup(account).value?.revision == revision
 
     override suspend fun airings(at: Instant): List<ChannelAiring> =
         withContext(dispatcher) {
@@ -242,6 +267,28 @@ class BuiltInScheduleSource(
         libraries: Set<ItemId>,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
+        // A build that finds its lineup revision is no longer current stops, and the callers that joined it start
+        // again here, against the revision that is current now. Only a revision change sends a caller round: a change
+        // to the library does not (the snapshot reads are shared, see SnapshotCache, and a build is given the state it
+        // asked for). The loop is not bounded, and cannot be outrun: a pass round it needs a build to have found a
+        // newer revision, revisions are published only by LineupService.refresh (one at a time under its lock, and
+        // only when the library or the user's edits ask for one, never in a tight cycle), and a build that finishes
+        // while its revision is current is kept, so the next pass is a cache hit. Each await in it is a cancellation
+        // point, so a caller that gives up leaves at once.
+        while (true) {
+            try {
+                return channelDaysOnce(account, libraries, at)
+            } catch (_: StaleBuild) {
+                // Try again against the lineup that replaced it.
+            }
+        }
+    }
+
+    private suspend fun channelDaysOnce(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Pair<List<ChannelDay>, Long?> {
         val held = service.loaded(account) ?: return emptyList<ChannelDay>() to null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
         val key = Key(account, held.revision, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
@@ -293,21 +340,79 @@ class BuiltInScheduleSource(
     ): List<ChannelDay> {
         try {
             val began = TimeSource.Monotonic.markNow()
-            val snapshots = snapshotsOf(library, account, key.libraries, key.cutoffs)
+            val job = currentCoroutineContext().job
+            // A stale build stops at the next of these (a snapshot read goes on for the build that replaces it).
+            val checkpoint = {
+                job.ensureActive()
+                if (!isCurrent(account, key.revision)) throw StaleBuild()
+            }
+            val before = Probed(probes)
+            val outcomes = ArrayList<SnapshotCache.Found>()
+            val read = snapshotsFor(account, key, checkpoint, outcomes)
+            val afterSnapshots = Probed(probes)
             val snapshotsMs = began.elapsedNow().inWholeMilliseconds
-            val result = days.days(lineup, scheduled, snapshots)
+            checkpoint()
+            // days() never suspends, so it runs start to end on this one thread: its CPU time is that thread's.
+            val threadBefore = probes.threadCpuNanos()
+            val result = days.days(lineup, scheduled, read, checkpoint)
+            val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             synchronized(lock) {
                 kept[key] = result
                 while (kept.size > KEPT) kept.remove(kept.keys.first())
             }
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
-            built(DayBuild(scheduled.firstOrNull()?.n ?: -1, totalMs, snapshotsMs, totalMs - snapshotsMs, result.size))
+            val after = Probed(probes)
+            val found =
+                when {
+                    SnapshotCache.Found.Cleared in outcomes -> SnapshotCache.Found.Cleared
+                    SnapshotCache.Found.Miss in outcomes -> SnapshotCache.Found.Miss
+                    else -> SnapshotCache.Found.Hit
+                }
+            built(
+                DayBuild(
+                    scheduled.firstOrNull()?.n ?: -1,
+                    totalMs,
+                    snapshotsMs,
+                    totalMs - snapshotsMs,
+                    result.size,
+                    poolsCpuMs = threadCpuMs(threadBefore, threadAfter),
+                    snapshotsProcCpuMs = afterSnapshots.cpuMs - before.cpuMs,
+                    poolsProcCpuMs = after.cpuMs - afterSnapshots.cpuMs,
+                    gcCount = after.gcCount - before.gcCount,
+                    gcBlockMs = after.gcBlockMs - before.gcBlockMs,
+                    snapshot = found.label,
+                ),
+            )
             return result
         } finally {
             // Only this build's own entry: a failed or cancelled build leaves nothing kept, so the next caller builds.
             synchronized(lock) { inFlight.remove(key, self) }
         }
+    }
+
+    /** One snapshot per cut-off of [key], from [snapshots] when the library has not changed since it was read. */
+    private suspend fun snapshotsFor(
+        account: LibraryAccount,
+        key: Key,
+        checkpoint: () -> Unit,
+        outcomes: MutableList<SnapshotCache.Found>,
+    ): Map<Long, RuleSnapshot> {
+        // Both numbers are read before any snapshot: see [SnapshotCache].
+        val generation = library.contentGeneration(account)
+        val pass = library.collectionPassCompleted(account).first()
+        val read = HashMap<Long, RuleSnapshot>()
+        for (cutoff in key.cutoffs) {
+            checkpoint()
+            val at = Instant.fromEpochMilliseconds(cutoff)
+            val got =
+                snapshots.get(SnapshotCache.Key(account, key.libraries, cutoff, generation, pass)) {
+                    library.ruleSnapshot(account, key.libraries, at)
+                }
+            outcomes += got.found
+            read[cutoff] = got.snapshot
+        }
+        return read
     }
 
     internal companion object {
@@ -320,6 +425,8 @@ class BuiltInScheduleSource(
          * early build per channel day.
          */
         const val WARM_AHEAD_MS = 60 * 60 * 1000L
+
+        const val NANOS_PER_MS = 1_000_000L
     }
 }
 
@@ -328,14 +435,80 @@ class BuiltInScheduleSource(
  * first scheduled channel's epoch number, [snapshotsMs] the `ruleSnapshot` reads, [poolsMs] working out the pools
  * and leftovers claims of every channel's day, and [channels] how many days were built. The schedule layout of each
  * day is not part of it: it is timed on its own ([BuiltInScheduleSource]'s `laidOut`).
+ *
+ * The rest are for telling a slow algorithm from a starved or waiting one, and are all -1 when unknown:
+ * - [poolsCpuMs] is the CPU time of the building thread over the pool work, which never suspends and so stays on one
+ *   thread: far below [poolsMs] means the thread waited or was descheduled.
+ * - [snapshotsProcCpuMs] and [poolsProcCpuMs] are the **process's** CPU time over the snapshot phase and the pool
+ *   phase (`Process.getElapsedCpuTime()` deltas). They include every thread of the app, Room's among them and the
+ *   garbage collector's, so they are an upper bound on the phase's own CPU, not a measure of it.
+ * - [gcCount] and [gcBlockMs] are the collections and the milliseconds the app was blocked by collections across the
+ *   whole build, process-wide.
+ * - [snapshot] is where the snapshots came from: `hit` (all kept), `miss` (some read or joined a read) or `cleared`
+ *   (some were kept but the garbage collector had dropped them), the worst of the cut-offs of the build.
  */
+@Suppress("LongParameterList") // Numbers only, one per fact of the build.
 class DayBuild(
     val day: Long,
     val ms: Long,
     val snapshotsMs: Long,
     val poolsMs: Long,
     val channels: Int,
+    val poolsCpuMs: Long = -1,
+    val snapshotsProcCpuMs: Long = -1,
+    val poolsProcCpuMs: Long = -1,
+    val gcCount: Long = -1,
+    val gcBlockMs: Long = -1,
+    val snapshot: String = "",
 )
+
+/**
+ * The clocks a build reads to report where its time went (numbers only). Each says -1 when it cannot tell. The app
+ * gives Android's: `Debug.threadCpuTimeNanos()`, `Process.getElapsedCpuTime()` and `Debug.getRuntimeStat` for
+ * `art.gc.gc-count` and `art.gc.blocking-gc-time`. The defaults are the JVM's thread CPU time and nothing else.
+ */
+class BuildProbes(
+    val threadCpuNanos: () -> Long = ThreadCpu::nanos,
+    val processCpuMs: () -> Long = { -1L },
+    val gcCount: () -> Long = { -1L },
+    val gcBlockMs: () -> Long = { -1L },
+)
+
+private fun threadCpuMs(
+    before: Long,
+    after: Long,
+): Long = if (before < 0 || after < before) -1 else (after - before) / BuiltInScheduleSource.NANOS_PER_MS
+
+/** The process-wide readings at one moment; the difference of two is -1 if either was unknown. */
+private class Probed(
+    probes: BuildProbes,
+) {
+    val cpuMs = Reading(probes.processCpuMs())
+    val gcCount = Reading(probes.gcCount())
+    val gcBlockMs = Reading(probes.gcBlockMs())
+}
+
+@JvmInline
+private value class Reading(
+    val value: Long,
+) {
+    operator fun minus(earlier: Reading): Long = if (value < 0 || earlier.value < 0) -1 else value - earlier.value
+}
+
+/** The JVM's CPU time of the calling thread, or -1 where that is not available (the app passes Android's own). */
+internal object ThreadCpu {
+    fun nanos(): Long =
+        try {
+            val bean =
+                java.lang.management.ManagementFactory
+                    .getThreadMXBean()
+            if (bean.isCurrentThreadCpuTimeSupported) bean.currentThreadCpuTime else -1L
+        } catch (_: Exception) {
+            -1L
+        } catch (_: LinkageError) {
+            -1L
+        }
+}
 
 private fun ChannelDay.airing() =
     ChannelAiring(

@@ -417,6 +417,8 @@ internal abstract class CacheTransactionDao(
         library.ensureMetaRow(serverId, userId)
         library.setPassState(serverId, userId, failed = 0, running = false)
         val before = collections.syncRow(serverId, userId)
+        // One row: `collectionsSinceMs` (the pass signal) and `lastRelistMs` (`ruleSnapshot`'s collectionsSynced) move
+        // together, which the day build's snapshot cache relies on (RuleSnapshotKeyContractTest). Never split them.
         val relistMs = if (relisted) startedMs else before?.lastRelistMs
         collections.saveSyncRow(CollectionSyncEntity(serverId, userId, startedMs, relistMs))
     }

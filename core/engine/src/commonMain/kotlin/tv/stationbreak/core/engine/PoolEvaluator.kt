@@ -78,7 +78,13 @@ object PoolEvaluator {
         val unresolvedExclusions = unresolvedCollections(rules.effectiveExclusions, snapshot)
         private val excludeAll = unresolvedExclusions.isNotEmpty()
         private val maxRating = rules.maxRating
-        private val seen = HashSet<String>(snapshot.items.size * 2)
+
+        // The IDs seen so far, built only once the items stop being in strictly ascending ID order: a snapshot is
+        // canonical, so for it every ID is new by construction and no hash set is needed (one set per channel before).
+        private val seen = HashSet<String>()
+        private var unordered = false
+        private var previousId: String? = null
+        private var visited = 0
         val matched = IntArray(rules.sources.size)
         val kept = ArrayList<ScheduleItem>()
         var excluded = 0
@@ -87,7 +93,7 @@ object PoolEvaluator {
 
         fun visit(entry: RuleItem) {
             val item = entry.item
-            require(seen.add(item.id.value)) { "Duplicate item ID ${item.id.value}: an item may be given only once" }
+            requireNew(item.id.value)
             val seriesId = item.seriesId
             val series = if (seriesId == null) null else snapshot.series[seriesId]
             if (!sourceMatcher.tally(entry, series, matched)) return
@@ -97,6 +103,24 @@ object PoolEvaluator {
             }
             if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
             if (passesCeiling(entry, series, maxRating)) kept.add(item) else blocked++
+        }
+
+        private fun requireNew(id: String) {
+            val before = previousId
+            previousId = id
+            visited++
+            if (!unordered) {
+                if (before == null || before < id) return
+                // The first step out of order: everything before it was ascending, so unique; start the set from it.
+                unordered = true
+                for (index in 0 until visited - 1) {
+                    seen.add(
+                        snapshot.items[index]
+                            .item.id.value,
+                    )
+                }
+            }
+            require(seen.add(id)) { "Duplicate item ID $id: an item may be given only once" }
         }
     }
 

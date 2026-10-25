@@ -27,11 +27,20 @@ object EpochPool {
         items: List<ScheduleItem>,
         n: Long,
     ): List<ScheduleItem> {
-        requireUniqueIds(items)
+        // Input already in canonical order (every day pool and every snapshot is) is unique by construction: one
+        // pass of comparisons stands in for the hash set and the sort, with the same result.
+        val canonical = isStrictlyAscending(items)
+        if (!canonical) requireUniqueIds(items)
         val cutoff = Epochs.cutoff(settings, n)
-        return items
-            .filter { isInPool(it, cutoff, settings) }
-            .sortedBy { it.id.value }
+        val kept = items.filter { isInPool(it, cutoff, settings) }
+        return if (canonical) kept else kept.sortedBy { it.id.value }
+    }
+
+    private fun isStrictlyAscending(items: List<ScheduleItem>): Boolean {
+        for (index in 1 until items.size) {
+            if (items[index - 1].id.value >= items[index].id.value) return false
+        }
+        return true
     }
 
     private fun isInPool(

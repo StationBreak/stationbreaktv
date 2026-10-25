@@ -201,4 +201,17 @@ class EpochPoolTest {
             EpochPool.build(settings, listOf(zero, zero), 0L)
         }
     }
+
+    @Test
+    fun anInputInCanonicalOrderKeepsItsOrderAndOneOutOfOrderIsSorted() {
+        val ordered = listOf(testItem(idOf('1')), testItem(idOf('2')), testItem(idOf('3')))
+        assertEquals(ordered, EpochPool.build(settings, ordered, 0L))
+        assertEquals(ordered, EpochPool.build(settings, listOf(ordered[2], ordered[0], ordered[1]), 0L))
+    }
+
+    @Test
+    fun aCopyAfterAnAscendingRunIsStillRejected() {
+        val items = listOf(testItem(idOf('1')), testItem(idOf('2')), testItem(idOf('2')))
+        assertFailsWith<IllegalArgumentException> { EpochPool.build(settings, items, 0L) }
+    }
 }

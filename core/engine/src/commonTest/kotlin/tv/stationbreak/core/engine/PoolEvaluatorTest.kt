@@ -456,6 +456,32 @@ class PoolEvaluatorTest {
     }
 
     @Test
+    fun aDuplicateIsFoundWhereverItSitsRelativeToAnAscendingRun() {
+        val unmatched = movie(idOf(5), library = otherLib)
+        val orders =
+            listOf(
+                // Ascending, then the same ID again right after: an adjacent copy.
+                listOf(movie(idOf(1)), unmatched, unmatched.copy(), movie(idOf(9))),
+                // Ascending, then out of order, then a copy of an ID from the ascending run.
+                listOf(movie(idOf(2)), movie(idOf(6)), movie(idOf(3)), movie(idOf(2))),
+                // Out of order from the start, the copy last.
+                listOf(movie(idOf(8)), movie(idOf(4)), movie(idOf(6)), movie(idOf(4))),
+            )
+        val named = listOf(idOf(5), idOf(2), idOf(4))
+        for ((index, items) in orders.withIndex()) {
+            val failure = assertFailsWith<IllegalArgumentException> { eval(libraryRules(), snapshot(items = items)) }
+            assertTrue(failure.message.orEmpty().contains(named[index].value), failure.message)
+        }
+    }
+
+    @Test
+    fun aDescentAfterAnAscendingRunKeepsTheOrderAndTheCounts() {
+        val items = listOf(movie(idOf(1)), movie(idOf(4)), movie(idOf(2)), movie(idOf(3), library = otherLib))
+        val pool = eval(libraryRules(), snapshot(items = items))
+        assertEquals(listOf(items[0].item, items[1].item, items[2].item), pool.items)
+    }
+
+    @Test
     fun theSameInputsGiveTheSamePoolEveryTime() {
         val snap = snapshot(items = listOf(movie(idOf(2), genres = listOf("A")), movie(idOf(1))))
         val r = rules(listOf(Source.Genre("a"), Source.Library(LIB)))

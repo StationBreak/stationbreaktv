@@ -469,6 +469,8 @@ internal abstract class CollectionDao {
         userId: String,
     ): CollectionSyncEntity?
 
+    // Half of the key of a cached rule snapshot (with the content generation): it must move whenever the snapshot's
+    // collectionsSynced can change, which holds as both are written in the one row (RuleSnapshotKeyContractTest).
     // The start of the last whole pass: null with no row. Written only by recordCollectionPass, after a pass succeeded.
     @Query("SELECT collectionsSinceMs FROM collection_sync WHERE serverId = :serverId AND userId = :userId")
     abstract fun observeSyncSince(
