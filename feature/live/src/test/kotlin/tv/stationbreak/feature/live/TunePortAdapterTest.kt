@@ -225,7 +225,7 @@ class TunePortAdapterTest {
             rig.player.answerAt = 30.seconds
             rig.player.tracksAt = 1_400
             rig.player.skipped = 12
-            val loads = LoadStats(loads = 2, loadMs = 80, maxLoadMs = 60, loadKb = 12, container = "mp4")
+            val loads = LoadStats(loads = 2, loadMs = 80, maxLoadMs = 60, loadKb = 12, container = "mp4", opensKb = "0")
             rig.player.loads = loads
             val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
             // The controller's clock reads 1000 when it calls play.

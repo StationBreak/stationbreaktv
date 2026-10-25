@@ -60,7 +60,7 @@ sealed interface TuneReport {
                 "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
                 "loads=${loads?.loads ?: NOT_SEPARATE} loadMs=${loads?.loadMs ?: NOT_SEPARATE} " +
                 "maxLoadMs=${loads?.maxLoadMs ?: NOT_SEPARATE} loadKb=${loads?.loadKb ?: NOT_SEPARATE} " +
-                "container=${loads?.container ?: "unknown"}"
+                "container=${loads?.container ?: "unknown"} opensKb=${loads?.opensKb ?: NOT_SEPARATE}"
     }
 
     /**

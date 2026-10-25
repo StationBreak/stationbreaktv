@@ -52,7 +52,7 @@ class TuneControllerDiagnosticsTest {
     fun theLoadNumbersOfTheTracksEventAreReported() =
         runTest {
             answer()
-            val loads = LoadStats(loads = 3, loadMs = 410, maxLoadMs = 250, loadKb = 96, container = "x-matroska")
+            val loads = LoadStats(3, 410, 250, 96, "mkv", "0")
             player.script =
                 listOf(
                     listOf(

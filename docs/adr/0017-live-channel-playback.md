@@ -130,6 +130,18 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   while a channel shows a slate or ident card, so a flip off a card is a neighbour tune.
   `handoverMs` is that of the committed item's own first tune, so on `outcome=standin` it never includes the slate's
   hold (-1 if the item never tuned). An HLS transcode reports the playlist's container (for example `x-mpegurl`) in `container=`.
+  2026-10-25 (#392, lead C): the tune line's load fields change meaning, replacing the first #392 meaning above (media load
+  events, which read `loads=1-2 loadMs=0 loadKb=0` on direct play because a progressive file is one long load that
+  Media3 reopens inside when the extractor seeks). They now count data source opens (HTTP requests) from the play call
+  until the tracks are known, for the current play only (each source is tied to its media item's id, the play's
+  generation): `loads` is the number of opens, `loadMs` the sum of their time, `maxLoadMs` the longest, `loadKb` the bytes
+  read, `container` as before, and the new last field `opensKb` the start positions of the main media's opens in KB, in
+  order, comma-separated, at most 8 with a trailing `+` when capped (an index read at the far end of the file shows as a
+  large entry after the first). The play's own subtitle files are left out of every count, by the item's subtitle URIs,
+  compared in memory and never kept or logged, so HLS segments (other URIs) still count. Numbers only. A fault in the
+  counting leaves the play alone and logs -1. Limits: the time of an open is connect plus response headers, not the
+  first body byte; failed and interrupted opens count; an open still in flight when the tracks are known is not
+  counted; opens and reads that land just before the tracks event reaches the looper are counted.
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
   (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
   longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the
