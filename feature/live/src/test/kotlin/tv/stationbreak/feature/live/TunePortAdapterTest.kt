@@ -84,7 +84,7 @@ class TunePortAdapterTest {
 
         /** When set, an answering play first reports its tracks at this time, and its first frame with [skipped]. */
         var tracksAt: Long? = null
-        var skipped: Long = -1
+        var skipped: Long? = null
 
         override fun play(source: PlayerSource): Long {
             plays++

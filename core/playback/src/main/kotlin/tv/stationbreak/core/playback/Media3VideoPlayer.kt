@@ -302,9 +302,9 @@ private class SkippedFrames(
         baseCount = count(base)
     }
 
-    /** Frames skipped since [reset]; -1 when the player has no video decoder counters. */
-    fun sincePlay(): Long {
-        val counters = exo.videoDecoderCounters ?: return -1
+    /** Frames skipped since [reset]; null when the player has no video decoder counters. */
+    fun sincePlay(): Long? {
+        val counters = exo.videoDecoderCounters ?: return null
         return count(counters) - if (counters === base) baseCount else 0L
     }
 

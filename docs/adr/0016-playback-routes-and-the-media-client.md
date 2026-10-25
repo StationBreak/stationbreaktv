@@ -227,6 +227,15 @@ cut and a screen has to learn when a play is over.
 
 Decision 5 still holds (every encode we start is stopped), but the `stopEncoding` call no longer holds up the next tune
 (issue #392): a flip away from a transcode waited on the server's round trips under the controller lock. `player.stop()`
-stays synchronous. The server call runs in the background on the controller's scope, outside the caller's cancellation,
-and is tracked. Each encode is still stopped once and a failed stop is still ignored. `close` awaits every stop still
-running, so the order close, then release, keeps its promise: no encode is left running when the screen closes.
+stays synchronous. The server call runs in the background, outside the caller's cancellation, and is tracked. Each
+encode is still stopped once and a failed stop is still ignored.
+
+- Encodes of different items may now overlap briefly on the server during rapid flips: the old stop is in flight while
+  the new resolve or transcode starts. The one exception is the track-override re-tune of a prepared handle, which
+  still waits for the stop of the handle it replaces, so the server never runs two encodes of that item at once.
+- `close` awaits the stops issued before it returns, so the order close, then release, keeps its promise: no encode is
+  left running when the screen closes. A stop issued after `close` returns (a tune called after it) is not awaited, so
+  a host must call `close` only after its tune callers have finished (the live screen's view model closes after the
+  live channel's run ends).
+- The stops run on a separate scope the controller owns. It is never cancelled and borrows only the dispatcher of the
+  watch scope (Dispatchers.Default when the controller makes its own scope).

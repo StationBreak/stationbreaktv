@@ -15,12 +15,12 @@ sealed interface PlayerEvent {
 
     /**
      * The first picture of a play. [skippedFrames] is how many video frames the decoder decoded and dropped since this
-     * play began, to reach an exact seek position; -1 when the player cannot say.
+     * play began, to reach an exact seek position; null when the player cannot say.
      */
     data class FirstFrame(
         val atMs: Long,
         override val generation: Long,
-        val skippedFrames: Long = -1,
+        val skippedFrames: Long? = null,
     ) : PlayerEvent
 
     /** The container is parsed: Media3 reported the play's tracks for the first time. Sent once per play. */

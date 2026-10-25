@@ -5,12 +5,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -54,13 +56,20 @@ class TuneControllerEncodeStopTest {
         }
 
     // Not backgroundScope: advanceUntilIdle does not run a background scope's delayed work.
-    private fun TestScope.controller() =
-        TuneController(
-            PlaybackResolver(numbering) { insigniaLike() },
-            numbering,
-            player,
-            watchScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)),
-        ) { 1_000L }
+    private var watch: CoroutineScope? = null
+
+    @After
+    fun cancelTheWatchScope() {
+        watch?.cancel()
+    }
+
+    private fun TestScope.controller(): TuneController {
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        watch = scope
+        return TuneController(PlaybackResolver(numbering) { insigniaLike() }, numbering, player, watchScope = scope) {
+            1_000L
+        }
+    }
 
     private fun playing() =
         listOf(

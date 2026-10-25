@@ -3,6 +3,7 @@ package tv.stationbreak.core.playback
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -347,6 +348,19 @@ class TuneControllerPreparedTest {
             stopping.await()
             runCurrent()
             assertEquals("the old encode and the prepared one are both stopped", 2, server.stoppedEncodes.size)
+        }
+
+    @Test
+    fun aPreparedTuneCancelledBeforeItTakesTheLockStopsItsEncodeOnce() =
+        runTest {
+            answer(transcode)
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO))
+            // Runs up to the wait for its job, which has not got the lock yet; the cancel comes before it does.
+            val waiting = launch(start = CoroutineStart.UNDISPATCHED) { controller.tune(session, prepared, null) }
+            waiting.cancel()
+            runCurrent()
+            assertEquals("the handle's encode is stopped once", 1, server.stoppedEncodes.size)
+            assertTrue("it never played", player.played.isEmpty())
         }
 
     @Test
