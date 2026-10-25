@@ -190,16 +190,16 @@ private class ThrowingSink(
         generation: Long,
         position: Long,
         durationMs: Long,
-    ): Unit = throw IllegalStateException("counting fault")
+    ): Unit = error("counting fault")
 
     override fun read(
         generation: Long,
         count: Long,
-    ): Unit = throw IllegalStateException("counting fault")
+    ): Unit = error("counting fault")
 
     override fun fail() {
         fails++
-        if (failThrows) throw IllegalStateException("fail fault")
+        if (failThrows) error("fail fault")
     }
 }
 
