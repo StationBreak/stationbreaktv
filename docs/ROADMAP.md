@@ -16,8 +16,9 @@ No calendar estimates are given; this is a solo/evenings project, and gates matt
    exact control mapping is worked out during UX design, not fixed here.
 3. **When unsure, ask what cable did.** Where conventions don't settle how a UI element should look or a
    flow should go, cable TV is the tiebreaker. It has already answered several questions:
-   scrambled-but-visible locked channels, premium content airing late, programs on the :00/:30 grid,
-   and breaks that interrupt every channel at once. Cable never overrides principle 2.
+   scrambled-but-visible locked channels, premium content airing late, and breaks that interrupt every
+   channel at once. (The :00/:30 grid was one too, until 2026-10-25: without filler it left dead air, so
+   the app's channels now start back to back.) Cable never overrides principle 2.
 
 ## Phase overview
 

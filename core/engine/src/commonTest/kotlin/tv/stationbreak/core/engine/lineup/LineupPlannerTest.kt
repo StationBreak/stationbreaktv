@@ -64,6 +64,45 @@ class LineupPlannerTest {
     }
 
     @Test
+    fun aNewStarterIsWrittenBackToBack() {
+        val rules = firstLineup().channels.mapNotNull { (it.source as? ChannelSource.Starter)?.rules }
+        assertTrue(rules.isNotEmpty() && rules.all { it.timing.alignToGrid == false })
+    }
+
+    private fun LineupChannel.unset(): LineupChannel =
+        copy(source = starter.copy(rules = starter.rules.copy(timing = starter.rules.timing.copy(alignToGrid = null))))
+
+    @Test
+    fun anUneditedStarterStoredWithoutAlignToGridBecomesBackToBack() {
+        val old =
+            firstLineup()
+                .withChannel("alpha") { it.unset() }
+                .withChannel("bravo") { it.unset().let { c -> c.copy(source = c.starter.copy(edited = true)) } }
+                .withChannel("charlie") { it.copy(source = ChannelSource.Custom(it.unset().starter.rules)) }
+                .withChannel("echo") { it.unset().copy(state = ChannelState.UserHidden) }
+        // A call without a full collection pass re-resolves nothing, so only the migration can change these.
+        val unsynced = libraryOf(fills(), collectionsSynced = false)
+        val next = planOf(old, unsynced, base, nowMs = 2_000L)
+        val alpha = old.channel("alpha").starter.rules
+        assertEquals(alpha.copy(timing = alpha.timing.copy(alignToGrid = false)), next.channel("alpha").starter.rules)
+        assertEquals(
+            false,
+            next
+                .channel("echo")
+                .starter.rules.timing.alignToGrid,
+            "a hidden starter too",
+        )
+        assertNull(
+            next
+                .channel("bravo")
+                .starter.rules.timing.alignToGrid,
+            "an edited channel is never touched",
+        )
+        assertEquals(old.channel("charlie"), next.channel("charlie"), "a custom channel is never touched")
+        assertEquals(next, planOf(next, unsynced, base, nowMs = 3_000L), "once migrated it stays put")
+    }
+
+    @Test
     fun fewQualifiersLeaveLineupUnfinalised() {
         val short = fills(mapOf("echo" to QUALIFYING_ITEMS - 1, "tots" to 0))
         val lineup = planOf(null, libraryOf(short), base, offset = -300)

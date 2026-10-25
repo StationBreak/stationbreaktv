@@ -37,6 +37,14 @@ class RulesFormatDocTest {
     }
 
     @Test
+    fun theAlignToGridRowStatesTheDefaultTheCodeUses() {
+        val row = doc.lines().single { it.startsWith("| `alignToGrid` |") }
+        val default = row.split("|")[2].trim()
+        val unset = Timing(null, null, null, null, null, null, BroadcastDay(0, null))
+        assertEquals("`${unset.effectiveAlignToGrid}`", default, "alignToGrid: documented default: $row")
+    }
+
+    @Test
     fun theTimingTableHasARowForTheMinimumRuntime() {
         val rows = doc.lines().filter { it.startsWith("| `minRuntimeSeconds` |") }
         assertEquals(1, rows.size, "one Timing table row for minRuntimeSeconds: $rows")

@@ -20,7 +20,9 @@ import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Instant
 
@@ -156,10 +158,16 @@ class LineupRefresher(
             )
     }
 
-    // Not yet finalised, or planned from an older catalog than this app's.
+    // Not yet finalised, planned from an older catalog than this app's, or holding an unedited starter that predates
+    // `alignToGrid: false` (the planner sets it, but only when a plan runs, and a steady library would never run one).
     private fun needsPlan(lineup: Lineup): Boolean {
         val catalog = service.catalog.version
-        return !lineup.finalised || lineup.catalogVersion < catalog
+        return !lineup.finalised || lineup.catalogVersion < catalog || lineup.channels.any(::needsBackToBack)
+    }
+
+    private fun needsBackToBack(channel: LineupChannel): Boolean {
+        val source = channel.source as? ChannelSource.Starter ?: return false
+        return !source.edited && source.rules.timing.alignToGrid == null
     }
 
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.

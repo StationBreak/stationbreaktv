@@ -10,7 +10,7 @@ internal object LineupVectorFile {
     val text: String =
         """
         {
-          "description": "Whole days of the lineup, one case per day. A case has: name; settings, the rules subset the scheduler reads (seed as a decimal string, ordering.mode, and timing with blockLength, alignToGrid, epochHours, graceHours, gridMinutes, minRuntimeSeconds and broadcastDay.utcOffsetMinutes and start; every one given explicitly); items, the pool candidates (id, kind, runtimeMs, createdAtMs, optional deletedAtMs, premiereDate, productionYear, seriesId, season, episode, each omitted when absent); n, the day number; blocks, the whole day in order, each {startMs, endMs, itemId} for a program (media start offset 0) or {startMs, endMs, slate: true}, half-open [startMs, endMs), tiling [epochStart(n), epochStart(n + 1)); and queries, each {t, k, blockIndex, offsetMs, nextIndexes}: the index into blocks of the block containing t, its offset (mediaStartOffset + t - startMs; absent for a slate) and the indexes of the next k blocks of the same day (fewer at the end of the day). A case with errorTimes lists times outside the day, and errorKs lists values of k, for which whatsOn is an error; the vectors assert only that the call fails. A case with inputError: true has settings, items and n but no blocks and no queries: building that day must be rejected as an input error (the scheduler builds nothing), and reason quotes the rule of Building the schedule (Inputs, Numbers and ranges). The input error \"2^26 items or more\" is not given as a case, because the file would need 67,108,864 items; a port tests it with a generated list. Times, runtimes and created/deleted stamps are signed decimal strings of milliseconds since 1970-01-01T00:00:00Z; season, episode and productionYear are JSON numbers.",
+          "description": "Whole days of the lineup, one case per day. A case has: name; settings, the rules subset the scheduler reads (seed as a decimal string, ordering.mode, and timing with blockLength, alignToGrid, epochHours, graceHours, gridMinutes, minRuntimeSeconds and broadcastDay.utcOffsetMinutes and start; every one given explicitly, except alignToGrid, which a case may omit: an omitted alignToGrid means true (the version 1 default), so a strict reader must neither reject such a case nor read it as false); items, the pool candidates (id, kind, runtimeMs, createdAtMs, optional deletedAtMs, premiereDate, productionYear, seriesId, season, episode, each omitted when absent); n, the day number; blocks, the whole day in order, each {startMs, endMs, itemId} for a program (media start offset 0) or {startMs, endMs, slate: true}, half-open [startMs, endMs), tiling [epochStart(n), epochStart(n + 1)); and queries, each {t, k, blockIndex, offsetMs, nextIndexes}: the index into blocks of the block containing t, its offset (mediaStartOffset + t - startMs; absent for a slate) and the indexes of the next k blocks of the same day (fewer at the end of the day). A case with errorTimes lists times outside the day, and errorKs lists values of k, for which whatsOn is an error; the vectors assert only that the call fails. A case with inputError: true has settings, items and n but no blocks and no queries: building that day must be rejected as an input error (the scheduler builds nothing), and reason quotes the rule of Building the schedule (Inputs, Numbers and ranges). The input error \"2^26 items or more\" is not given as a case, because the file would need 67,108,864 items; a port tests it with a generated list. Times, runtimes and created/deleted stamps are signed decimal strings of milliseconds since 1970-01-01T00:00:00Z; season, episode and productionYear are JSON numbers.",
           "source": "Computed with an independent Python reference written from docs/rules-format.md only (the final Building the schedule section, Ordering, Timing and Primitives), without reading any Kotlin. The worked examples of the document are cases here, and the reference reproduces them. Item IDs are synthetic.",
           "cases": [
             {
@@ -815,6 +815,226 @@ internal object LineupVectorFile {
                 "timing": {
                   "blockLength": 1,
                   "alignToGrid": true,
+                  "epochHours": 6,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "00000000000000000000000000000001",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000002",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000003",
+                  "kind": "movie",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000004",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000005",
+                  "kind": "movie",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000000000000000000000006",
+                  "kind": "movie",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "0",
+              "blocks": [
+                {
+                  "startMs": "0",
+                  "endMs": "5700000",
+                  "itemId": "00000000000000000000000000000004"
+                },
+                {
+                  "startMs": "5700000",
+                  "endMs": "7200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "7200000",
+                  "endMs": "8520000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "8520000",
+                  "endMs": "9000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "9000000",
+                  "endMs": "11400000",
+                  "itemId": "00000000000000000000000000000005"
+                },
+                {
+                  "startMs": "11400000",
+                  "endMs": "12600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "12600000",
+                  "endMs": "15600000",
+                  "itemId": "00000000000000000000000000000002"
+                },
+                {
+                  "startMs": "15600000",
+                  "endMs": "16200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "16200000",
+                  "endMs": "17700000",
+                  "itemId": "00000000000000000000000000000001"
+                },
+                {
+                  "startMs": "17700000",
+                  "endMs": "18000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "18000000",
+                  "endMs": "19800000",
+                  "itemId": "00000000000000000000000000000006"
+                },
+                {
+                  "startMs": "19800000",
+                  "endMs": "21120000",
+                  "itemId": "00000000000000000000000000000003"
+                },
+                {
+                  "startMs": "21120000",
+                  "endMs": "21600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "0",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "5699999",
+                  "k": 1,
+                  "blockIndex": 0,
+                  "offsetMs": "5699999",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "5700000",
+                  "k": 2,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3
+                  ]
+                },
+                {
+                  "t": "7199999",
+                  "k": 5,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "7200000",
+                  "k": 0,
+                  "blockIndex": 2,
+                  "offsetMs": "0",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "8519999",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "offsetMs": "1319999",
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "10800000",
+                  "k": 2,
+                  "blockIndex": 4,
+                  "offsetMs": "1800000",
+                  "nextIndexes": [
+                    5,
+                    6
+                  ]
+                },
+                {
+                  "t": "19800000",
+                  "k": 5,
+                  "blockIndex": 11,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    12
+                  ]
+                },
+                {
+                  "t": "21119999",
+                  "k": 0,
+                  "blockIndex": 11,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21120000",
+                  "k": 1,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "21599999",
+                  "k": 2,
+                  "blockIndex": 12,
+                  "nextIndexes": []
+                }
+              ]
+            },
+            {
+              "name": "shuffle, alignToGrid omitted (the version 1 default is true), six movies, 6 h epochs: same blocks as the aligned case",
+              "note": "Derived by hand from the case before it by omitting the default field alignToGrid (it is not an output of the independent reference): a reader must take the omitted field as true and lay out the same blocks.",
+              "settings": {
+                "seed": "8",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "timing": {
+                  "blockLength": 1,
                   "epochHours": 6,
                   "graceHours": 6,
                   "gridMinutes": 30,

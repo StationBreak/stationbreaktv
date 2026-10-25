@@ -1052,8 +1052,9 @@ How a filler mode other than `none` is scheduled is defined by a later `formatVe
 with that version.
 
 - `none`: no filler. `docs/rules-format/examples/filler-none.json`.
-- `padToGrid`: fill the time before the next grid mark. `docs/rules-format/examples/filler-pad-to-grid.json`, with a
-  library as filler source, and `docs/rules-format/examples/filler-tag-source.json`, with a tag.
+- `padToGrid`: fill the time before the next grid mark. Note: padToGrid only has gaps to fill when `alignToGrid` is
+  true (the default). `docs/rules-format/examples/filler-pad-to-grid.json`, with a library as filler source, and
+  `docs/rules-format/examples/filler-tag-source.json`, with a tag.
 - `betweenEveryN`: one filler item after every N programs. `docs/rules-format/examples/filler-between-every-n.json`,
   with a collection as filler source:
 

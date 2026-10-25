@@ -9,6 +9,7 @@
     }
   ],
   "timing": {
+    "alignToGrid": true,
     "broadcastDay": {
       "utcOffsetMinutes": 0
     }

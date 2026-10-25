@@ -14,6 +14,9 @@ import tv.stationbreak.core.rules.ChannelRules
  * the same lineup.
  *
  * Known effects, accepted for now:
+ * - An unedited starter stored without `alignToGrid` is set to false (back to back) once, on the next start or
+ *   refresh after the update (the refresher plans for it even when the library has not changed). What is on now
+ *   changes at once, and each TV switches at its own next start, so two TVs can differ until both have started.
  * - Rules resolved again (on a synced call, or from a newer catalog) take effect at once, so the schedule of that
  *   channel for the day may reshuffle once.
  * - While a newer catalog waits for a full collection pass, a shelved starter that switches on is resolved from the
@@ -111,12 +114,22 @@ object LineupPlanner {
     ): Lineup {
         // A newer catalog waits for a full collection pass, so its hints resolve against every collection.
         val newer = p.catalog.version > current.catalogVersion && p.snapshot.collectionsSynced
-        val refreshed = current.channels.map { refreshed(it, p, newer) }
+        val refreshed = current.channels.map { refreshed(backToBack(it), p, newer) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         return current.copy(
             catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
             channels = ordered(switchedOn(withNew, p)),
         )
+    }
+
+    // Starters stored before the app wrote `alignToGrid: false` have no value, which the format reads as the grid. An
+    // unedited one is set to back to back, once and whatever the catalog version (the refresh below keeps the stored
+    // timing, so it would never get there otherwise). An edited or custom channel is never touched.
+    private fun backToBack(channel: LineupChannel): LineupChannel {
+        val source = channel.source as? ChannelSource.Starter
+        if (source == null || source.edited || source.rules.timing.alignToGrid != null) return channel
+        val rules = source.rules.copy(timing = source.rules.timing.copy(alignToGrid = false))
+        return channel.copy(source = source.copy(rules = rules))
     }
 
     // Catalog updates and the hint pass of every synced call. Edited, custom and unusable channels are never touched.
