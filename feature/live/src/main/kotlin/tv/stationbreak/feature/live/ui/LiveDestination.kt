@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.util.Log
 import android.view.SurfaceView
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -74,7 +75,7 @@ internal fun LiveRoot(
         Modifier
             .fillMaxSize()
             .focusRequester(focus)
-            .onPreviewKeyEvent { event -> handleLiveKey(event, onCommand) }
+            .onPreviewKeyEvent { event -> handleLiveKey(event, onCommand).also { logLiveKey(event, it, state) } }
             .focusable(),
     ) {
         LiveScreen(state) { AndroidView(factory = { surface }) }
@@ -111,6 +112,46 @@ internal fun handleLiveKey(
     if (event.type == KeyEventType.KeyDown) send(command)
     return event.type == KeyEventType.KeyDown || event.type == KeyEventType.KeyUp
 }
+
+private const val LOG_TAG = "SBLIVE"
+
+/**
+ * Writes the key line for a mapped key's down (repeats included); numbers and labels only (#392). [state] is what the
+ * composition last saw, so it may be one frame behind the machine.
+ */
+private fun logLiveKey(
+    event: KeyEvent,
+    handled: Boolean,
+    state: LiveState,
+) {
+    val native = event.nativeKeyEvent
+    keyLogLine(event.type, event.key, native.keyCode, native.repeatCount, handled, state)?.let { Log.i(LOG_TAG, it) }
+}
+
+/** The key line of [key] when it is a mapped key's down, else null: ups and unmapped keys are not logged. */
+@Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
+internal fun keyLogLine(
+    type: KeyEventType,
+    key: Key,
+    code: Int,
+    repeat: Int,
+    handled: Boolean,
+    state: LiveState,
+): String? =
+    if (type == KeyEventType.KeyDown && mappedCommand(key) != null) {
+        liveKeyLine(code, "down", repeat, handled, state)
+    } else {
+        null
+    }
+
+/** The key line: `key code=<keycode> action=<down|up> repeat=<n> handled=<true|false> state=<LiveState class>`. */
+internal fun liveKeyLine(
+    code: Int,
+    action: String,
+    repeat: Int,
+    handled: Boolean,
+    state: LiveState,
+): String = "key code=$code action=$action repeat=$repeat handled=$handled state=${state.javaClass.simpleName}"
 
 /**
  * A TV channel never lets the device sleep while it is on screen (snow, slates and the "No channels" card included):

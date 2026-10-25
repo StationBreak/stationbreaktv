@@ -154,6 +154,18 @@ sealed interface TuneReport {
             }
     }
 
+    /**
+     * A flip or Menu press the live channel did not act on, and why (#392): [reason] is a fixed label, [state] the
+     * simple class name of the [LiveState] on screen. A press that is queued or committed has its own flip line.
+     */
+    data class PressDropped(
+        val reason: String,
+        val state: String,
+        val count: Int? = null,
+    ) : TuneReport {
+        override fun line() = "press dropped reason=$reason${count?.let { " n=$it" }.orEmpty()} state=$state"
+    }
+
     companion object {
         /** Logged for a time that is not known, or not separate from another. */
         const val NOT_SEPARATE = -1L

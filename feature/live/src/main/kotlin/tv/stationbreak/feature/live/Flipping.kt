@@ -217,8 +217,12 @@ internal class Flipper(
         val now = clock.now()
         // Cancelled, not joined: the number must not wait for a commit's lookup to unwind.
         settling?.cancel()
-        recalls.forEach { it.cancel() }
+        recalls.forEach {
+            dropped("menu-superseded")
+            it.cancel()
+        }
         if (!onScreen) {
+            dropped("off-screen")
             abandonEarly()
         } else if (tuned.playing == null) {
             holdEarly(direction, now)
@@ -298,7 +302,9 @@ internal class Flipper(
         val presses = queued.toList()
         queued.clear()
         // Early presses were pressed against a screen that has not caught up with the sitting yet.
-        presses.forEach { (direction, at) -> if (fromEarly || onScreen) step(steps, direction, at) }
+        presses.forEach { (direction, at) ->
+            if (fromEarly || onScreen) step(steps, direction, at) else dropped("off-screen-queued")
+        }
         earlyTail = null
     }
 
@@ -315,12 +321,17 @@ internal class Flipper(
         direction: FlipDirection,
         pressedAt: Instant,
     ) {
-        val playing = tuned.playing ?: return
+        val playing =
+            tuned.playing ?: run {
+                dropped("no-anchor")
+                return
+            }
         settling?.cancel()
         order = steps
         val next = steps.step(target?.number ?: playing.number, direction)
         if (next == null) {
             // Nowhere to go: take down a banner the early presses put up.
+            dropped("nowhere-to-go")
             if (earlyShown) screen.drop()
             earlyShown = false
             return
@@ -411,6 +422,7 @@ internal class Flipper(
         // with no previous channel it does nothing, and must not take a queued press with it.
         if (tuned.previous != null && tuned.playing != null && onScreen) {
             reading?.cancel()
+            repeat(queued.size) { dropped("superseded-by-menu") }
             queued.clear()
         }
         val before = recalls.lastOrNull()
@@ -439,7 +451,17 @@ internal class Flipper(
     /** Nothing happens when there is no previous channel, or it is gone or off the air. */
     private suspend fun previous() {
         val now = clock.now()
-        val wanted = tuned.previous?.takeIf { tuned.playing != null && onScreen } ?: return
+        val wanted = tuned.previous?.takeIf { tuned.playing != null && onScreen }
+        if (wanted == null) {
+            dropped(
+                when {
+                    !onScreen -> "menu-off-screen"
+                    tuned.playing == null -> "menu-no-anchor"
+                    else -> "menu-no-previous"
+                },
+            )
+            return
+        }
         // Menu is a commit: from here it owes a flip line, `superseded` if a newer press replaces it.
         val timing = FlipTiming(now, 0)
         try {
@@ -448,7 +470,10 @@ internal class Flipper(
             val onAir = steps.byId(wanted)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
             // A lookup that ran on past a newer press must not touch that press's settle or overlay.
             currentCoroutineContext().ensureActive()
-            if (onAir == null) return
+            if (onAir == null) {
+                dropped("menu-previous-off-air")
+                return
+            }
             timing.lookupMs = (clock.now() - lookedAt).inWholeMilliseconds
             settling?.cancelAndJoin()
             // A settle that finished while this looked would have moved the channel on: leave that commit be.
@@ -491,6 +516,9 @@ internal class Flipper(
         target = null
         screen.drop()
     }
+
+    /** Writes the line of a press that was not acted on, with the label of why and the state on screen (#392). */
+    private fun dropped(reason: String) = report(TuneReport.PressDropped(reason, screen.value.javaClass.simpleName))
 
     private fun ChannelAiring.tag() = ChannelTag(number, name)
 }
