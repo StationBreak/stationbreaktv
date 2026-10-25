@@ -32,8 +32,16 @@ data class ReportingConfig(
         require(progressEvery > Duration.ZERO) { "progressEvery must be positive" }
         require(playedThreshold > 0.0 && playedThreshold <= 1.0) { "playedThreshold must be in (0, 1]" }
         require(callTimeout > Duration.ZERO) { "callTimeout must be positive" }
+        // An old run's last Stopped drains for up to three call timeouts after the run ends; a new run's first Playing
+        // must not come before it, or the server could see Playing(B) then Stopped(A).
+        require(startAfter > callTimeout * DRAIN_CALLS) { "startAfter must be longer than three call timeouts" }
         require(userDataAttempts >= 1) { "At least one user-data read must be tried" }
         require(leaveGrace >= Duration.ZERO) { "leaveGrace must not be negative" }
         require(markAttempts >= 1) { "At least one mark-played must be tried" }
+    }
+
+    companion object {
+        /** How many call timeouts a closing reporter may take to drain its queue. */
+        const val DRAIN_CALLS = 3
     }
 }

@@ -143,13 +143,12 @@ class LiveChannel(
             unstarted = null
             refresher = {}
             lineup = { FlipOrder(emptyList()) }
-            withContext(NonCancellable) {
-                neighbours.release()
-                // Best effort and bounded: the final Stopped never holds the teardown beyond closeAndJoin's limit.
-                reporter?.closeAndJoin()
+            try {
+                withContext(NonCancellable) { neighbours.release() }
+            } finally {
+                finishReporting(reporter, reporterScope)
+                screen.drop()
             }
-            reporterScope.cancel()
-            screen.drop()
         }
     }
 
@@ -244,6 +243,26 @@ class LiveChannel(
                 sitting?.release()
                 tuner.stop(session)
             }
+        }
+    }
+
+    /**
+     * Ends reporting without waiting for it: the final Stopped is sent from the reporter's own scope, which outlives
+     * this run, so leaving live TV never delays the host's teardown (the player's release, a sign-out). The drain is
+     * bounded by closeAndJoin's limit, and the scope is cancelled after it.
+     */
+    private fun finishReporting(
+        reporter: PlaybackReporter?,
+        reporterScope: CoroutineScope,
+    ) {
+        if (reporter == null) {
+            reporterScope.cancel()
+            return
+        }
+        reporter.close()
+        reporterScope.launch {
+            reporter.closeAndJoin()
+            reporterScope.cancel()
         }
     }
 

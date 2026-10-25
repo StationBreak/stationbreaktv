@@ -63,24 +63,31 @@ class LiveChannelReportingTest {
             val r = Rig(this, startMin = 10, server = server)
             r.ordinaryDay()
             r.reporting()
-            val failure = PlaybackEnd.Failed("Err", afterMs = 1_000, positionMs = 900, bufferedMs = 0, stalls = 0)
+            val failure = PlaybackEnd.Failed("Err", afterMs = 40_000, positionMs = 39_000, bufferedMs = 0, stalls = 0)
             r.tune.script(
                 itemOf(1),
                 {
                     TuneOutcome.Playing(
                         flow {
-                            delay(5_000)
+                            delay(40_000)
                             emit(failure)
                         },
                     )
                 },
+                // The retry takes longer than the leave grace: the visit must not depend on the grace.
+                FakeTune.playsAfter(5.seconds),
             )
             r.start()
-            r.at(60_000)
-            // One tune failed and was retried from the clock: still one Playing for the airing.
+            r.at(41_000)
+            assertEquals(1, server.calls.count { it.kind == "start" })
+            // The failure is at 40 s; the retry plays at about 45 s. Nothing is stopped in between or after.
+            r.at(48_000)
             assertEquals(2, r.tunes.size)
+            assertEquals(0, server.calls.count { it.kind == "stopped" })
+            r.at(100_000)
             assertEquals(1, server.calls.count { it.kind == "start" })
             assertEquals(0, server.calls.count { it.kind == "stopped" })
+            assertTrue(server.calls.any { it.kind == "progress" })
         }
 
     @Test
@@ -111,7 +118,7 @@ class LiveChannelReportingTest {
         }
 
     @Test
-    fun leavingLiveTvSendsTheFinalStoppedWithTheSafePosition() =
+    fun leavingLiveTvEndsAtOnceAndStillSendsTheFinalStoppedWithTheSafePosition() =
         runTest {
             val server = server()
             val r = Rig(this, startMin = 10, server = server)
@@ -120,8 +127,10 @@ class LiveChannelReportingTest {
             val job = r.start()
             r.at(45_000)
             job.cancel()
-            r.at(46_000)
+            r.scope.runCurrent()
+            // The teardown did not wait for the server.
             assertTrue(job.isCompleted)
+            r.at(46_000)
             val stopped = server.calls.last()
             assertEquals("stopped", stopped.kind)
             assertTrue(stopped.failed)
@@ -129,7 +138,7 @@ class LiveChannelReportingTest {
         }
 
     @Test
-    fun aHungFinalStoppedDoesNotBlockTeardownBeyondTheLimit() =
+    fun aHungFinalStoppedNeverHoldsTheTeardownAndIsAbandoned() =
         runTest {
             val server = server()
             server.stopHangs = true
@@ -139,12 +148,13 @@ class LiveChannelReportingTest {
             val job = r.start()
             r.at(45_000)
             job.cancel()
-            r.at(45_000 + 4_000)
-            assertFalse("the Stopped call is still in flight", job.isCompleted)
-            // The call times out at 5 s, well inside the limit of three call timeouts.
-            r.at(45_000 + 15_000)
-            assertTrue(job.isCompleted)
-            assertTrue(server.calls.any { it.kind == "stopped" })
+            r.scope.runCurrent()
+            assertTrue("run() ends at once", job.isCompleted)
+            assertEquals(1, server.calls.count { it.kind == "stopped" })
+            // Abandoned: nothing more is sent however long we wait.
+            val before = server.calls.size
+            r.at(45_000 + 60_000)
+            assertEquals(before, server.calls.size)
         }
 
     @Test
@@ -156,11 +166,38 @@ class LiveChannelReportingTest {
         assertTrue("the hung scenario did send a Stopped", hung.stoppedSent)
     }
 
+    @Test
+    fun aHungStoppedDoesNotMoveTheCutTimingsAtABoundary() {
+        val clean = boundaryTimings(hang = false)
+        val hung = boundaryTimings(hang = true)
+        assertEquals(clean.line, hung.line)
+        assertEquals(clean.tunes, hung.tunes)
+        assertTrue("the cut line was written", clean.line.contains("cut "))
+        assertTrue("the hung scenario did send a Stopped", hung.stoppedSent)
+    }
+
     private class Timings(
         val line: String,
         val tunes: List<Call>,
         val stoppedSent: Boolean,
     )
+
+    /** A show that has been reported for 45 s ends at a boundary; the next one is cut in. */
+    private fun boundaryTimings(hang: Boolean): Timings {
+        var out: Timings? = null
+        runTest {
+            val server = server()
+            server.stopHangs = hang
+            val r = Rig(this, startMin = 10, server = server)
+            r.schedule.channel(CH7, 7, listOf(program(0, 11, 1), program(11, 60, 2)))
+            r.reporting()
+            r.start()
+            r.at(90_000)
+            val lines = r.reports.filter { it !is TuneReport.Reported }.map { it.line() }
+            out = Timings(lines.joinToString("\n"), r.tune.calls.toList(), server.calls.any { it.kind == "stopped" })
+        }
+        return checkNotNull(out)
+    }
 
     private fun flipTimings(hang: Boolean): Timings {
         var out: Timings? = null

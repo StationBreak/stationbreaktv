@@ -133,7 +133,13 @@ internal class Sitting(
                     }
 
                     is Airing.Program -> {
-                        playProgram(this, onAir, airing, handle)
+                        // The reporter's visit spans all the block's tries and ends when the block is left for good.
+                        val visiting = Visiting(reporter)
+                        try {
+                            playProgram(this, onAir, airing, handle, visiting)
+                        } finally {
+                            visiting.leave()
+                        }
                     }
 
                     is Airing.StandIn -> {
@@ -147,12 +153,14 @@ internal class Sitting(
             }
         }
 
-    @Suppress("ReturnCount", "CyclomaticComplexMethod") // One block's steps: each early return is a way it ends.
+    /** One program's block, every try at it. [visiting] is left by the caller when the block is left for good. */
+    @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod") // One block's steps: each return is an ending.
     private suspend fun playProgram(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
         program: Airing.Program,
         handle: Pending?,
+        visiting: Visiting,
     ): Exit? {
         val block = onAir.now
         // A program the library no longer has cannot be tuned: straight to the slate.
@@ -190,10 +198,19 @@ internal class Sitting(
             val dead =
                 when (outcome) {
                     is TuneOutcome.Playing -> {
-                        when (holdReporting(block, program, outcome)) {
-                            Held.Boundary -> return null
-                            Held.Ended -> return holdIdent(scope, onAir, block.endMs)
-                            Held.Failed -> ++failures >= 2
+                        when (holdReporting(block, program, outcome, visiting)) {
+                            Held.Boundary -> {
+                                return null
+                            }
+
+                            Held.Ended -> {
+                                visiting.leave()
+                                return holdIdent(scope, onAir, block.endMs)
+                            }
+
+                            Held.Failed -> {
+                                ++failures >= 2
+                            }
                         }
                     }
 
@@ -210,7 +227,10 @@ internal class Sitting(
                         return Exit.Stopped
                     }
                 }
-            if (dead) return deadItem(scope, onAir, program.itemId)
+            if (dead) {
+                visiting.leave()
+                return deadItem(scope, onAir, program.itemId)
+            }
         }
     }
 
