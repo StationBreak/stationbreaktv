@@ -230,8 +230,10 @@ Decision 5 still holds (every encode we start is stopped), but the `stopEncoding
 stays synchronous. The server call runs in the background, outside the caller's cancellation, and is tracked. Each
 encode is still stopped once and a failed stop is still ignored.
 
-- Encodes of different items may now overlap briefly on the server during rapid flips: the old stop is in flight while
-  the new resolve or transcode starts. The one exception is the track-override re-tune of a prepared handle, which
+- Encodes may now overlap briefly on the server: the old stop is in flight while the new resolve or transcode starts.
+  This happens during rapid flips, and for the same item too (a fallback to a forced transcode, or a flip away and
+  straight back). The server stops encodes by play session id, so the new encode is never the one stopped. The one
+  exception is the track-override re-tune of a prepared handle, which
   still waits for the stop of the handle it replaces, so the server never runs two encodes of that item at once.
 - `close` awaits the stops issued before it returns, so the order close, then release, keeps its promise: no encode is
   left running when the screen closes. A stop issued after `close` returns (a tune called after it) is not awaited, so
