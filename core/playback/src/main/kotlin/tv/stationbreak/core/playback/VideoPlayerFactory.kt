@@ -22,13 +22,17 @@ fun interface VideoPlayerFactory {
     ): VideoPlayer
 }
 
-/** The [VideoPlayerFactory] for Media3: every player it builds reads media through [dataSource]. */
+/**
+ * The [VideoPlayerFactory] for Media3: every player it builds reads media through [dataSource] and buffers as
+ * [buffering] says (the safe defaults if app DI supplies none).
+ */
 @UnstableApi
 class Media3VideoPlayerFactory(
     private val dataSource: DataSource.Factory,
+    private val buffering: PlaybackBuffering = PlaybackBuffering(),
 ) : VideoPlayerFactory {
     override fun create(
         context: Context,
         clock: () -> Long,
-    ): VideoPlayer = Media3VideoPlayer(context, dataSource, clock)
+    ): VideoPlayer = Media3VideoPlayer(context, dataSource, clock, buffering)
 }

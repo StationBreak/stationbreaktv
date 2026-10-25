@@ -29,7 +29,8 @@ import kotlin.time.Duration.Companion.milliseconds
 /**
  * The one Media3 player, built once and reused for every play of its host's lifetime. Create it on the thread whose
  * looper should own the player (the main thread); [play], [stop] and [release] may be called from any thread and run
- * on that looper. Media is read through [dataSource], which the app builds from its credentialed OkHttp client, so
+ * on that looper. [buffering] sets how much media is buffered before a play starts. Media is read through
+ * [dataSource], which the app builds from its credentialed OkHttp client, so
  * this module needs no HTTP client of its own. [clock] stamps the events. No URI or message is ever logged or put in
  * an event: only class names and HTTP status codes.
  *
@@ -46,6 +47,7 @@ class Media3VideoPlayer(
     context: Context,
     dataSource: DataSource.Factory,
     private val clock: () -> Long,
+    buffering: PlaybackBuffering = PlaybackBuffering(),
 ) : VideoPlayer {
     init {
         // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
@@ -56,6 +58,7 @@ class Media3VideoPlayer(
     private val exo: ExoPlayer =
         ExoPlayer
             .Builder(context)
+            .setLoadControl(buffering.toLoadControl())
             .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
             .build()
     private val handler = Handler(exo.applicationLooper)
