@@ -26,6 +26,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.AccessToken
@@ -173,6 +174,42 @@ class LineupRefresherTest {
             settle()
 
             assertEquals(before, refreshes)
+        }
+
+    private fun starterGrids(lineup: Lineup): List<Boolean?> =
+        lineup.channels.mapNotNull { (it.source as? ChannelSource.Starter)?.rules?.timing?.alignToGrid }
+
+    @Test
+    fun aStableLibraryStillMigratesUneditedStartersWithoutAlignToGrid() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val current = savedFile()
+            assertTrue(starterGrids(current.lineup).isNotEmpty(), "the fixture has starters")
+            // The lineup as an older app stored it: starters with no alignToGrid. The library has not changed.
+            val old =
+                current.lineup.copy(
+                    channels =
+                        current.lineup.channels.map {
+                            val source = it.source as? ChannelSource.Starter ?: return@map it
+                            val timing = source.rules.timing.copy(alignToGrid = null)
+                            it.copy(source = source.copy(rules = source.rules.copy(timing = timing)))
+                        },
+                )
+            store.inner.save(ACCOUNT, LineupCodec.encode(old, current.meta))
+            assertTrue(starterGrids(saved()).isEmpty(), "stored without alignToGrid")
+            val before = refreshes
+
+            relaunch().start(scope)
+            until("the migration refresh") { refreshes > before }
+            settle()
+            assertEquals(before + 1, refreshes, "one refresh")
+            assertTrue(starterGrids(saved()).all { it == false })
+            assertEquals(old.channels.size, saved().channels.size)
+
+            job.cancelChildren()
+            relaunch().start(scope)
+            settle()
+            assertEquals(before + 1, refreshes, "the second start has nothing left to do")
         }
 
     // Root cause (#309), as the gate device showed it: after a force-stop the collection-pass signal replays the

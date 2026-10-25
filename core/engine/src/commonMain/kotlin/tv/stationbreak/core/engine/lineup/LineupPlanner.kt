@@ -14,7 +14,9 @@ import tv.stationbreak.core.rules.ChannelRules
  * the same lineup.
  *
  * Known effects, accepted for now:
- * - An unedited starter stored without `alignToGrid` is set to false (back to back) on its next call, once.
+ * - An unedited starter stored without `alignToGrid` is set to false (back to back) once, on the next start or
+ *   refresh after the update (the refresher plans for it even when the library has not changed). What is on now
+ *   changes at once, and each TV switches at its own next start, so two TVs can differ until both have started.
  * - Rules resolved again (on a synced call, or from a newer catalog) take effect at once, so the schedule of that
  *   channel for the day may reshuffle once.
  * - While a newer catalog waits for a full collection pass, a shelved starter that switches on is resolved from the

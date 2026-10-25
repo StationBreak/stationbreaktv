@@ -18,7 +18,7 @@ No calendar estimates are given; this is a solo/evenings project, and gates matt
    flow should go, cable TV is the tiebreaker. It has already answered several questions:
    scrambled-but-visible locked channels, premium content airing late, and breaks that interrupt every
    channel at once. (The :00/:30 grid was one too, until 2026-10-25: without filler it left dead air, so
-   programmes now start back to back by default.) Cable never overrides principle 2.
+   the app's channels now start back to back.) Cable never overrides principle 2.
 
 ## Phase overview
 
