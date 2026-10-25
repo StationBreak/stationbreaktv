@@ -523,4 +523,59 @@ class LiveChannelFlipTest {
             f.up()
             assertEquals(ChannelTag(2, "Test Channel 2"), (f.r.state as LiveState.Choosing).target)
         }
+
+    @Test
+    fun everyCommittedPressWritesALineWhileTheLookupIsBlocked() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.onAirDelayMs = 5_000
+            f.up()
+            // The settle has run out and the commit is inside its lookup.
+            advanceTimeBy(1.seconds)
+            f.up()
+            advanceTimeBy(1.seconds)
+            f.down()
+            advanceTimeBy(20.seconds)
+            runCurrent()
+            assertEquals(listOf("superseded", "superseded", "playing"), f.r.flipReports().map { it.outcome })
+            assertEquals(
+                itemOf(9),
+                f.r.tunes
+                    .last()
+                    .item,
+            )
+        }
+
+    @Test
+    fun aRunEndingInsideACommitsLookupLogsItAbandoned() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.onAirDelayMs = 5_000
+            f.up()
+            advanceTimeBy(1.seconds)
+            f.job.cancel()
+            runCurrent()
+            advanceTimeBy(10.seconds)
+            runCurrent()
+            assertEquals(listOf("abandoned"), f.r.flipReports().map { it.outcome })
+        }
+
+    @Test
+    fun theNumberKeepsMovingWhileACommitsLookupWillNotStop() =
+        runTest {
+            val f = flipping()
+            f.r.schedule.onAirDelayMs = 5_000
+            f.r.schedule.onAirUncancellable = true
+            f.up()
+            advanceTimeBy(1.seconds)
+            f.up()
+            advanceTimeBy(1.seconds)
+            f.up()
+            // Three presses from channel 5: 9, 2, then 5 again; the third must show though the first lookup runs on.
+            assertEquals(ChannelTag(5, "Test Channel 5"), (f.r.state as LiveState.Choosing).target)
+            advanceTimeBy(20.seconds)
+            runCurrent()
+            // The first two commits are superseded; the third is a full wrap back to channel 5 and tunes nothing.
+            assertEquals(listOf("superseded", "superseded"), f.r.flipReports().map { it.outcome })
+        }
 }

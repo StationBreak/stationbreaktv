@@ -6,8 +6,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
@@ -70,8 +73,10 @@ internal class Tuned {
  * It never touches the running sitting: [LiveState.Choosing] is only laid over the screen ([Screen]), so the old
  * channel plays on while the number moves, and the commit is the one place a sitting is replaced (the machine's
  * `collectLatest` cancels the old sitting, which stops the tuner, before the new one starts). Commands are handled one
- * at a time; only the settle runs beside them, and each command ends a pending settle (and waits for it to stop)
- * before it acts, so a commit is either whole or never began.
+ * at a time; only the settle runs beside them, and each command cancels a pending settle before it acts. It does not
+ * wait for the settle to stop: a schedule lookup can run on for seconds (a day being built), and the number must keep
+ * moving meanwhile. A cancelled settle never reaches [land], so a commit is either whole or never began, and the flip
+ * it had begun is logged as superseded.
  */
 @Suppress("LongParameterList") // The machine's ports, one for one.
 internal class Flipper(
@@ -148,23 +153,15 @@ internal class Flipper(
 
     private suspend fun press(direction: FlipDirection) {
         val now = clock.now()
-        // Cancelled, not yet joined: the number must not wait for a commit's lookup to unwind.
-        val pending = settling?.also { it.cancel() }
+        // Cancelled, not joined: the number must not wait for a commit's lookup to unwind.
+        settling?.cancel()
         val playing = tuned.playing
-        if (playing == null || !onScreen) {
-            pending?.join()
-            return
-        }
+        if (playing == null || !onScreen) return
         val steps = order ?: cached ?: FlipOrder(schedule.airings(now))
         order = steps
-        val next = steps.step(target?.number ?: playing.number, direction)
-        if (next == null) {
-            pending?.join()
-            return
-        }
+        val next = steps.step(target?.number ?: playing.number, direction) ?: return
         target = next
         screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
-        pending?.join()
         settling = scope.launch { settle(steps, next, direction, now) }
     }
 
@@ -175,17 +172,29 @@ internal class Flipper(
         direction: FlipDirection,
         pressedAt: Instant,
     ) {
+        var timing: FlipTiming? = null
         try {
             delay(timings.flipSettle)
-            val timing = FlipTiming(pressedAt, (clock.now() - pressedAt).inWholeMilliseconds)
+            timing = FlipTiming(pressedAt, (clock.now() - pressedAt).inWholeMilliseconds)
             commit(steps, chosen, direction, timing)
         } catch (e: CancellationException) {
+            unresolved(timing)
             throw e
         } catch (
             @Suppress("TooGenericExceptionCaught") e: Exception,
         ) {
-            failed(e)
+            // A lookup that failed on its way out of a cancel is that cancel, not a fault of the newer presses.
+            if (currentCoroutineContext().isActive) failed(e) else unresolved(timing)
         }
+    }
+
+    /**
+     * Writes the line of a flip that was committed (the settle ran out) but stopped before it was handed to a sitting:
+     * a newer press replaced it (superseded) or the run ended (abandoned). A flip never sent has no sitting to log it.
+     */
+    private fun unresolved(timing: FlipTiming?) {
+        if (timing == null || timing.sentAt != null || !timing.claim()) return
+        report(timing.ended(if (scope.isActive) "superseded" else "abandoned", clock.now()))
     }
 
     /**
@@ -207,6 +216,8 @@ internal class Flipper(
             val lookedAt = clock.now()
             onAir = schedule.onAir(candidate.id, lookedAt, Sitting.WINDOW)
             lookupMs += (clock.now() - lookedAt).inWholeMilliseconds
+            // A lookup that ran on past a newer press must not land: only the newest press commits.
+            currentCoroutineContext().ensureActive()
             if (onAir == null) candidate = steps.step(candidate.number, direction)
             looked++
         }
