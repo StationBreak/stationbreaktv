@@ -224,6 +224,10 @@ CI signs debug builds with the **CI debug key**, which is kept in the repository
 ([ADR-0011](docs/adr/0011-debug-build-signing.md), amended 2026-10-18). Every CI debug APK has the same signature, so
 each one installs over the previous one on a test device. The key never signs a release build.
 
+A push to `main` also builds the github **benchmark** variant (release code, not debuggable, application ID
+`tv.stationbreak.app.benchmark`) and signs it with the same key. It is uploaded as
+`stationbreak-github-benchmark-main-<shortsha>.apk` (30 days), for device measurements, and is never published.
+
 A debug build on your machine, or in CI for a pull request from a fork, is signed with Android's own per-machine debug
 key instead. It works the same, but it can't install over a CI build: uninstall `tv.stationbreak.app.debug` first.
 
