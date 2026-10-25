@@ -45,6 +45,7 @@ import kotlin.time.Duration.Companion.seconds
  * an item of its own, because the server keeps the state per item and the cases run in any order. Failure messages
  * name the step only: a body or a URL may carry a token.
  */
+@Suppress("TooManyFunctions") // One function per contract case, plus the helpers they share.
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class ReportingContractSuite {
     internal abstract fun startServer(image: String): JellyfinServer
@@ -101,7 +102,13 @@ abstract class ReportingContractSuite {
     private suspend fun visit(itemId: String): Visit {
         val deviceId = "contract-reporting-${UUID.randomUUID()}"
         val adapter =
-            JellyfinMediaServer(OkHttpClient(), identity, DeviceIdProvider { deviceId }, AdapterLog.NONE, AdapterTuning())
+            JellyfinMediaServer(
+                OkHttpClient(),
+                identity,
+                DeviceIdProvider { deviceId },
+                AdapterLog.NONE,
+                AdapterTuning(),
+            )
         val address = server.address
         val acknowledgement = if (address.cleartextNeedsConfirmation) CleartextAcknowledgement(address) else null
         val account = server.viewer
@@ -115,8 +122,9 @@ abstract class ReportingContractSuite {
 
     /** The viewer's resume list, read by the harness's own device. */
     private fun resumeIds(): Set<String> {
-        val token = viewerToken()
-        val reply = server.http.expectOk("read resume list", server.http.get("UserItems/Resume", token, userQuery(token)))
+        val token = viewerToken
+        val resume = server.http.get("UserItems/Resume", token, userQuery(token))
+        val reply = server.http.expectOk("read resume list", resume)
         return reply
             .obj()
             .getValue("Items")
@@ -130,13 +138,13 @@ abstract class ReportingContractSuite {
     }
 
     private fun rawUserData(itemId: String): JsonObject {
-        val token = viewerToken()
+        val token = viewerToken
         return server.http
             .expectOk("read raw user data", server.http.get("UserItems/$itemId/UserData", token, userQuery(token)))
             .obj()
     }
 
-    private fun viewerToken(): String = server.http.signIn(server.viewer.name, server.viewer.rawPassword())
+    private val viewerToken: String by lazy { server.http.signIn(server.viewer.name, server.viewer.rawPassword()) }
 
     private fun userQuery(token: String): List<Pair<String, String>> =
         listOf(
@@ -238,11 +246,23 @@ abstract class ReportingContractSuite {
     @Test
     fun theDashboardShowsTheViewerPlayingTheItem() {
         runBlocking {
-            val itemId = server.seeded.episodeIds[1]
+            val itemId = server.seeded.movieIds[0]
             val v = visit(itemId)
             v.start(Duration.ZERO)
-            v.progress(Duration.ZERO)
+            try {
+                v.progress(Duration.ZERO)
+                assertDashboardShows(v, itemId)
+            } finally {
+                v.stop(Duration.ZERO, failed = true)
+            }
+        }
+    }
 
+    private fun assertDashboardShows(
+        v: Visit,
+        itemId: String,
+    ) {
+        run {
             val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
             val reply = server.http.expectOk("read sessions", server.http.get("Sessions", admin))
             val mine =
@@ -261,8 +281,40 @@ abstract class ReportingContractSuite {
                     .jsonPrimitive.content
                     .plain(),
             )
+        }
+    }
 
-            v.stop(Duration.ZERO, failed = true)
+    /**
+     * Cases a to c keep the safe position, so they would pass even if the server ignored `Failed`. This pair tells the
+     * two apart: the same stop at 40% of the runtime, once failed and once not. [aFailedStopSavesNothing] is the
+     * claim; [aStopThatHasNotFailedSavesTheResumePoint] is the control that proves the server honours the flag.
+     */
+    @Test
+    fun aFailedStopSavesNothing() {
+        runBlocking {
+            val itemId = server.seeded.episodeIds[1]
+            val v = visit(itemId)
+
+            v.start(Duration.ZERO)
+            v.stop(FORTY_PERCENT, failed = true)
+
+            assertEquals(UserItemState(Duration.ZERO, played = false), v.state())
+            assertFalse(itemId.plain() in resumeIds(), "a failed stop left a resume point")
+        }
+    }
+
+    /** The control for [aFailedStopSavesNothing]: the same visit without `Failed` does save the position. */
+    @Test
+    fun aStopThatHasNotFailedSavesTheResumePoint() {
+        runBlocking {
+            val itemId = server.seeded.episodeIds[2]
+            val v = visit(itemId)
+
+            v.start(Duration.ZERO)
+            v.stop(FORTY_PERCENT, failed = false)
+
+            assertEquals(UserItemState(FORTY_PERCENT, played = false), v.state())
+            assertTrue(itemId.plain() in resumeIds(), "the control stop saved no resume point")
         }
     }
 
@@ -285,6 +337,9 @@ abstract class ReportingContractSuite {
     private companion object {
         /** Half of the seeded 330 s items. */
         val RESUME = 165.seconds
+
+        /** 40% of the seeded 330 s items. */
+        val FORTY_PERCENT = 132.seconds
         const val TICKS_PER_SECOND = 10_000_000L
     }
 }
