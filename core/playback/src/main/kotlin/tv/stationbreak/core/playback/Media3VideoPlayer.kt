@@ -16,6 +16,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
+import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -71,6 +72,8 @@ class Media3VideoPlayer(
     @Volatile private var active = 0L
     private var current: PlayerSource? = null
     private var tracksApplied = false
+    private var tracksReported = false
+    private val skips = SkippedFrames(exo)
     private var hasPlayed = false
     private val audio = AudioSampler()
 
@@ -96,6 +99,8 @@ class Media3VideoPlayer(
             active = generation
             current = source
             tracksApplied = false
+            tracksReported = false
+            skips.reset()
             hasPlayed = false
             audio.reset()
             lastPickVerified = null
@@ -201,6 +206,10 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             tracks: Tracks,
         ) {
+            if (!tracksReported && tracks.groups.isNotEmpty()) {
+                tracksReported = true
+                flow.tryEmit(PlayerEvent.TracksReady(clock(), active))
+            }
             val source = current ?: return
             if (!source.directPlayTracks || tracksApplied || tracks.groups.isEmpty()) return
             tracksApplied = true
@@ -212,7 +221,7 @@ class Media3VideoPlayer(
             output: Any,
             renderTimeMs: Long,
         ) {
-            flow.tryEmit(PlayerEvent.FirstFrame(clock(), active))
+            flow.tryEmit(PlayerEvent.FirstFrame(clock(), active, skips.sincePlay()))
         }
 
         override fun onIsPlayingChanged(
@@ -272,5 +281,35 @@ class Media3VideoPlayer(
                 "truehd" to MimeTypes.AUDIO_TRUEHD,
                 "dts" to MimeTypes.AUDIO_DTS,
             )
+    }
+}
+
+/**
+ * The video decoder's count of skipped output buffers (frames decoded and dropped to reach an exact seek position),
+ * taken per play: [reset] notes where the count stood when a play began, and [sincePlay] reads the frames skipped
+ * since. The counters live as long as the decoder, so they may carry an earlier play's count; a new counters object
+ * (the decoder was re-enabled) starts at zero. Used on the player's looper.
+ */
+@UnstableApi
+private class SkippedFrames(
+    private val exo: ExoPlayer,
+) {
+    private var base: DecoderCounters? = null
+    private var baseCount = 0L
+
+    fun reset() {
+        base = exo.videoDecoderCounters
+        baseCount = count(base)
+    }
+
+    /** Frames skipped since [reset]; -1 when the player has no video decoder counters. */
+    fun sincePlay(): Long {
+        val counters = exo.videoDecoderCounters ?: return -1
+        return count(counters) - if (counters === base) baseCount else 0L
+    }
+
+    private fun count(counters: DecoderCounters?): Long {
+        counters?.ensureUpdated()
+        return counters?.skippedOutputBufferCount?.toLong() ?: 0L
     }
 }

@@ -132,8 +132,10 @@ class LiveChannelReportTest {
         val tune = TuneReport.Tune(TuneKind.Fresh, -1, 1_800, 2_000, null, null, 40, "stream", "direct")
         val line =
             "tune kind=fresh resolveMs=-1 firstFrameMs=1800 playingMs=2000 posErrMs=-1 fallback=none lagMs=40 " +
-                "from=direct route=stream"
+                "from=direct route=stream tracksMs=-1 skippedFrames=-1"
         assertEquals(line, tune.line())
+        val measured = tune.copy(tracksMs = 350, skippedFrames = 42)
+        assertEquals("$line".replace("tracksMs=-1 skippedFrames=-1", "tracksMs=350 skippedFrames=42"), measured.line())
         val cut = TuneReport.Cut(gapMs = 300, resolveMs = 0, toFirstFrameMs = null)
         assertEquals("cut gapMs=300 resolveMs=0 toFirstFrameMs=-1", cut.line())
     }

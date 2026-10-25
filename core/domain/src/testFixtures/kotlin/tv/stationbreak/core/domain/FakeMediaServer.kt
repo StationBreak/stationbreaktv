@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import tv.stationbreak.core.model.CleartextAcknowledgement
@@ -22,6 +23,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import kotlin.time.Duration
 import kotlin.time.Instant
 
 /** The arguments of one [MediaServer.libraryItems] call, as the fake recorded it. */
@@ -52,6 +54,9 @@ class FakeMediaServer : MediaServer {
     var collectionMembersResult: ServerResult<CollectionMemberPage> = ServerResult.Failure(MediaServerError.Unknown())
     var playbackInfoResult: ServerResult<PlaybackInfo> = ServerResult.Failure(MediaServerError.Unknown())
     var stopEncodingResult: ServerResult<Unit> = ServerResult.Success(Unit)
+
+    /** How long [stopEncoding] takes before it answers (virtual time in a test); the stop is recorded when it ends. */
+    var stopEncodingDelay: Duration = Duration.ZERO
     var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
@@ -257,6 +262,7 @@ class FakeMediaServer : MediaServer {
         session: Session,
         playSession: PlaySessionId,
     ): ServerResult<Unit> {
+        if (stopEncodingDelay > Duration.ZERO) delay(stopEncodingDelay)
         stoppedEncodes += playSession
         return stopEncodingResult
     }

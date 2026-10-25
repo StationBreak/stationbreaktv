@@ -222,3 +222,11 @@ cut and a screen has to learn when a play is over.
   and Media3 calls from its loader thread.
 - Anything that handles a player URI (the data source, the error mapper, the diagnostics) must treat it as a secret
   until the media client has stripped it.
+
+## Update 2026-10-24: the encode stop is issued in the background
+
+Decision 5 still holds (every encode we start is stopped), but the `stopEncoding` call no longer holds up the next tune
+(issue #392): a flip away from a transcode waited on the server's round trips under the controller lock. `player.stop()`
+stays synchronous. The server call runs in the background on the controller's scope, outside the caller's cancellation,
+and is tracked. Each encode is still stopped once and a failed stop is still ignored. `close` awaits every stop still
+running, so the order close, then release, keeps its promise: no encode is left running when the screen closes.

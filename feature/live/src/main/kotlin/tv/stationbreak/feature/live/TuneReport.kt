@@ -48,11 +48,14 @@ sealed interface TuneReport {
         val lagMs: Long,
         val route: String? = null,
         val from: String? = null,
+        val tracksMs: Long? = null,
+        val skippedFrames: Long? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
-                "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"}"
+                "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
+                "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE}"
     }
 
     /**
@@ -128,6 +131,8 @@ internal fun Sitting.reportTune(
             lagMs,
             timings.route,
             timings.from,
+            timings.tracksMs,
+            timings.skippedFrames,
         ),
     )
     if (cutSince != null) {
