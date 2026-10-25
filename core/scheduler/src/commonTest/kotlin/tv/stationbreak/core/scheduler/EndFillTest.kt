@@ -134,6 +134,21 @@ class EndFillTest {
     }
 
     @Test
+    fun withoutTheGridARunStartsWhenThePreviousOneEnds() {
+        // The rules default (alignToGrid unset) is back to back: no slate between runs, only the closing one.
+        val items = listOf(movie('1', 7), movie('2', 30), movie('3', 20))
+        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = false), items, 0L)
+        assertEquals(listOf("0-7:1", "7-37:2", "37-57:3", "57-60:slate"), built.describe())
+    }
+
+    @Test
+    fun withTheGridOnShortRunsAreStillPaddedToTheGridMarks() {
+        val items = listOf(movie('1', 7), movie('2', 30), movie('3', 20))
+        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = true), items, 0L)
+        assertEquals(listOf("0-7:1", "7-30:slate", "30-60:2"), built.describe())
+    }
+
+    @Test
     fun runsLeftOutOfTheCycleAreNotVisitedByTheFill() {
         // Runs of two: [1 2] = 100 min; [3 4] = 125 min is longer than the 120-minute epoch, so it is left out and its
         // items (M4 is only 10 min) are not visited by the fill.

@@ -496,10 +496,10 @@ fields are optional.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `blockLength` | `1` | Items per run: the number of consecutive items (for example 2 episodes of one series) that play together, back to back, as one run (see Runs). A whole number from 1 to 100. |
-| `alignToGrid` | `true` | Runs start on the grid marks (every `gridMinutes`, see that row) of the clock described below. If `false`, a run starts when the previous one ends. |
+| `alignToGrid` | `false` | If `true`, runs start on the grid marks (every `gridMinutes`, see that row) of the clock described below, and any gap before the next mark is shown as a station ID slate. If `false` (the default), a run starts when the previous one ends. |
 | `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a whole number of hours that divides 24, so that the day repeats). |
 | `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it (see The pool of an epoch). A whole number from 0 to 48. |
-| `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark (see Grid marks). |
+| `gridMinutes` | `30` | The spacing of the grid marks, in minutes: 15, 30 or 60. It only matters when `alignToGrid` is `true`, but `broadcastDay.start` is still checked against it. With `60`, `broadcastDay.start` must be on the hour (`:00`), so that the day starts on a grid mark (see Grid marks). |
 | `minRuntimeSeconds` | `60` | The shortest runtime, in seconds, that counts as a program: an item shorter than this is left out of the epoch's pool (see The pool of an epoch). A whole number from 1 to 3600. |
 | `broadcastDay` | required | When an epoch starts. An object with `utcOffsetMinutes` (required) and `start`. |
 

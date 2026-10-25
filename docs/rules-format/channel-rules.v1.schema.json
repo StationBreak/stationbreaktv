@@ -131,7 +131,7 @@
       "then": { "properties": { "broadcastDay": { "properties": { "start": { "pattern": "^([01][0-9]|2[0-3]):00$" } } } } },
       "properties": {
         "blockLength": { "description": "Items per block. Default 1.", "type": "integer", "minimum": 1, "maximum": 100 },
-        "alignToGrid": { "description": "Start blocks on the grid marks (gridMinutes). Default true.", "type": "boolean" },
+        "alignToGrid": { "description": "Start blocks on the grid marks (gridMinutes). Default false: a run starts when the previous one ends.", "type": "boolean" },
         "epochHours": { "description": "Length of an epoch in hours; must divide 24. Default 24.", "enum": [1, 2, 3, 4, 6, 8, 12, 24] },
         "minRuntimeSeconds": { "description": "The shortest runtime, in seconds, that counts as a program: an item shorter than this is left out of every epoch's pool. Default 60.", "type": "integer", "minimum": 1, "maximum": 3600 },
         "graceHours": { "description": "Grace window G in hours: an item joins epoch n only if it was added before the epoch's start minus G. Default 6.", "type": "integer", "minimum": 0, "maximum": 48 },
