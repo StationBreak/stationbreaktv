@@ -128,6 +128,13 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   new sitting's tune start, -1 with no tune), and the tune line ends with `loads`, `loadMs`, `maxLoadMs`, `loadKb` and
   `container` (the media loads before the tracks are known; numbers and the container type only). Look-ahead now also runs
   while a channel shows a slate or ident card, so a flip off a card is a neighbour tune.
+  2026-10-25 (#392, lead C): the tune line's load fields change meaning, replacing the first #392 meaning above (media load
+  events, which read `loads=1-2 loadMs=0 loadKb=0` on direct play because a progressive file is one long load that
+  Media3 reopens inside when the extractor seeks). They now count data source opens (HTTP requests) from the play call
+  until the tracks are known, for the current play only: `loads` is the number of opens, `loadMs` the sum of their time
+  from the open call to its return (first byte), `maxLoadMs` the longest, `loadKb` the bytes read, `container` as
+  before, and the new last field `seekKb` the largest jump between successive opens' start positions (an index read at
+  the far end of the file). Numbers only. A fault in the counting leaves the play alone and logs -1.
   `handoverMs` is that of the committed item's own first tune, so on `outcome=standin` it never includes the slate's
   hold (-1 if the item never tuned). An HLS transcode reports the playlist's container (for example `x-mpegurl`) in `container=`.
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
