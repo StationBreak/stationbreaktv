@@ -5,8 +5,12 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.model.NameFolds
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -208,12 +212,99 @@ class DayBuildEquivalenceTest {
         }
         val before = best { legacy.days(lineup, scheduled, snapshots) }
         val after = best { days.days(lineup, scheduled, snapshots) }
-        println("DayBuildTiming channels=${scheduled.size} items=${items.size} beforeMs=$before afterMs=$after")
+        var evaluations = 0
+        days.days(lineup, scheduled, snapshots, evaluated = { evaluations++ })
+        val folds = NameFolds()
+        items.forEach { it.primeFolds(folds) }
+        println(
+            "NameFolds itemNames=${items.sumOf { it.genres.size + it.tags.size }} " +
+                "distinctFoldedNames=${folds.distinctNames} distinctFoldedLists=${folds.distinctLists}",
+        )
+        println(
+            "DayBuildTiming channels=${scheduled.size} items=${items.size} beforeMs=$before afterMs=$after " +
+                "evaluations=$evaluations",
+        )
         assertEquals(
             describe(legacy.days(lineup, scheduled, snapshots)),
             describe(days.days(lineup, scheduled, snapshots)),
         )
         assertTrue(after <= before + 60_000, "the new build is not slower than the old one by a minute")
+    }
+
+    @Test
+    fun rulesThatDifferOnlyOutsideThePoolShareOneEvaluationButAKidsCeilingDoesNot() {
+        // 12 is in the Kids band, so it is capped to PG; 401 and 402 have the same sources and no ceiling, so they
+        // share a pool and differ in their days (number, name, seed).
+        val lineup =
+            lineupOf(
+                custom(0, Source.Genre("Comedy")).copy(defaultNumber = 12),
+                custom(1, Source.Genre("Comedy")),
+                custom(2, Source.Genre("Comedy")),
+            )
+        val items = library(600)
+        val (scheduled, snapshots) = snapshotsFor(lineup, NOON.toEpochMilliseconds(), items)
+        var evaluations = 0
+        val actual = days.days(lineup, scheduled, snapshots, evaluated = { evaluations++ })
+        assertEquals(describe(legacy.days(lineup, scheduled, snapshots)), describe(actual))
+        assertEquals(3, scheduled.size)
+        assertEquals(2, evaluations, "the capped channel and the shared pool of the other two")
+        assertTrue(evaluations < scheduled.size)
+        assertTrue(actual[0].pool.size < actual[1].pool.size, "the PG cap removed items")
+        assertEquals(actual[1].pool, actual[2].pool)
+        assertTrue(actual[1].name != actual[2].name)
+    }
+
+    @Test
+    fun capitalisedInheritedNamesMatchThroughTheSharedFolds() {
+        val seriesId = id(9_000)
+        val episodes =
+            (1..4).map { n ->
+                RuleItem(
+                    item =
+                        ScheduleItem(
+                            id(8_000 + n),
+                            ScheduleItemKind.Episode,
+                            1_800_000L,
+                            ADDED_MS,
+                            null,
+                            null,
+                            2000,
+                            seriesId,
+                            1,
+                            n,
+                        ),
+                    libraryId = LIBRARY_ID,
+                    seasonId = null,
+                    officialRating = "PG",
+                    genres = emptyList(),
+                    tags = emptyList(),
+                )
+            }
+        val series = RuleSeries(seriesId, "PG", listOf("Science Fiction"), listOf("LATE"))
+        val folds = NameFolds()
+        (episodes + library(50)).forEach { it.primeFolds(folds) }
+        series.primeFolds(folds)
+        val lineup =
+            lineupOf(
+                custom(1, Source.Genre("sCIENCE fICTION")),
+                custom(2, Source.Tag("Late")),
+            )
+        val snapshot =
+            RuleSnapshot(
+                NOON.toEpochMilliseconds(),
+                setOf(LIBRARY_ID),
+                library(50) + episodes,
+                mapOf(seriesId to series),
+                emptyMap(),
+                collectionsSynced = true,
+            )
+        val scheduled = days.scheduled(lineup, NOON.toEpochMilliseconds())
+        val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshot.copy(cutoffMs = it) }
+        val built = days.days(lineup, scheduled, snapshots)
+        for (day in built) {
+            val expected = episodes.map { it.item.id }.toSet()
+            assertTrue(day.pool.map { it.id }.containsAll(expected), "${day.name} airs the series' episodes")
+        }
     }
 
     private fun best(build: () -> List<ChannelDay>): Long {

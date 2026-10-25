@@ -347,6 +347,7 @@ class BuiltInScheduleSource(
                 if (!isCurrent(account, key.revision)) throw StaleBuild()
             }
             val before = Probed(probes)
+            val allocBefore = Reading(probes.allocatedBytes())
             val outcomes = ArrayList<SnapshotCache.Found>()
             val read = snapshotsFor(account, key, checkpoint, outcomes)
             val afterSnapshots = Probed(probes)
@@ -354,7 +355,8 @@ class BuiltInScheduleSource(
             checkpoint()
             // days() never suspends, so it runs start to end on this one thread: its CPU time is that thread's.
             val threadBefore = probes.threadCpuNanos()
-            val result = days.days(lineup, scheduled, read, checkpoint)
+            var evaluations = 0
+            val result = days.days(lineup, scheduled, read, checkpoint) { evaluations++ }
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             synchronized(lock) {
@@ -363,6 +365,7 @@ class BuiltInScheduleSource(
             }
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
+            val allocated = Reading(probes.allocatedBytes()) - allocBefore
             val found =
                 when {
                     SnapshotCache.Found.Cleared in outcomes -> SnapshotCache.Found.Cleared
@@ -382,6 +385,8 @@ class BuiltInScheduleSource(
                     gcCount = after.gcCount - before.gcCount,
                     gcBlockMs = after.gcBlockMs - before.gcBlockMs,
                     snapshot = found.label,
+                    evaluations = evaluations,
+                    allocKb = if (allocated < 0) -1 else allocated / BYTES_PER_KB,
                 ),
             )
             return result
@@ -427,6 +432,7 @@ class BuiltInScheduleSource(
         const val WARM_AHEAD_MS = 60 * 60 * 1000L
 
         const val NANOS_PER_MS = 1_000_000L
+        const val BYTES_PER_KB = 1024L
     }
 }
 
@@ -446,6 +452,8 @@ class BuiltInScheduleSource(
  *   whole build, process-wide.
  * - [snapshot] is where the snapshots came from: `hit` (all kept), `miss` (some read or joined a read) or `cleared`
  *   (some were kept but the garbage collector had dropped them), the worst of the cut-offs of the build.
+ * - [evaluations] is how many times `PoolEvaluator.evaluate` ran in the build, and [allocKb] the kilobytes the app
+ *   allocated across the build (`art.gc.bytes-allocated`, process-wide), -1 when unknown.
  */
 @Suppress("LongParameterList") // Numbers only, one per fact of the build.
 class DayBuild(
@@ -460,18 +468,22 @@ class DayBuild(
     val gcCount: Long = -1,
     val gcBlockMs: Long = -1,
     val snapshot: String = "",
+    val evaluations: Int = -1,
+    val allocKb: Long = -1,
 )
 
 /**
  * The clocks a build reads to report where its time went (numbers only). Each says -1 when it cannot tell. The app
  * gives Android's: `Debug.threadCpuTimeNanos()`, `Process.getElapsedCpuTime()` and `Debug.getRuntimeStat` for
- * `art.gc.gc-count` and `art.gc.blocking-gc-time`. The defaults are the JVM's thread CPU time and nothing else.
+ * `art.gc.gc-count`, `art.gc.blocking-gc-time` and `art.gc.bytes-allocated`. The defaults are the JVM's thread CPU time
+ * and nothing else.
  */
 class BuildProbes(
     val threadCpuNanos: () -> Long = ThreadCpu::nanos,
     val processCpuMs: () -> Long = { -1L },
     val gcCount: () -> Long = { -1L },
     val gcBlockMs: () -> Long = { -1L },
+    val allocatedBytes: () -> Long = { -1L },
 )
 
 private fun threadCpuMs(

@@ -171,11 +171,11 @@ internal class SourceMatcher(
             any = true
         }
         val inherited = if (isEpisode) series else null
-        if (markNames(genres, item.genres, inherited?.genres, hits)) {
+        if (markNames(genres, item.foldedGenres, inherited?.foldedGenres, hits)) {
             if (hits == null) return true
             any = true
         }
-        if (markNames(tags, item.tags, inherited?.tags, hits)) {
+        if (markNames(tags, item.foldedTags, inherited?.foldedTags, hits)) {
             if (hits == null) return true
             any = true
         }
@@ -209,6 +209,7 @@ internal class SourceMatcher(
         return any
     }
 
+    // [own] and [inherited] are folded names (`RuleItem.foldedGenres`, ...): folded once, not on every pass.
     private fun markNames(
         set: NameSet,
         own: List<String>,
@@ -229,7 +230,7 @@ internal class SourceMatcher(
     ): Boolean {
         var any = false
         for (i in names.indices) {
-            if (mark(set.indicesOf(names[i]), hits)) {
+            if (mark(set.indicesOfFolded(names[i]), hits)) {
                 if (hits == null) return true
                 any = true
             }

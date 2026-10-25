@@ -206,6 +206,7 @@ class BuiltInScheduleSourceSnapshotTest {
         var thread = 0L
         var process = 100L
         var gcs = 7L
+        var allocated = 10L * 1024
         val told = mutableListOf<DayBuild>()
         val probes =
             BuildProbes(
@@ -213,6 +214,7 @@ class BuiltInScheduleSourceSnapshotTest {
                 processCpuMs = { process.also { process += 5L } },
                 gcCount = { gcs.also { gcs += 2L } },
                 gcBlockMs = { 40L },
+                allocatedBytes = { allocated.also { allocated += 3L * 1024 } },
             )
         val timed = BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { chosen }
         runBlocking { timed.channelDays(ACCOUNT, chosen, NOON) }
@@ -224,6 +226,8 @@ class BuiltInScheduleSourceSnapshotTest {
         assertEquals(4L, build.gcCount, "read at the start, after the snapshots and at the end, 2 apart")
         assertEquals(0L, build.gcBlockMs)
         assertEquals("miss", build.snapshot)
+        assertEquals(3L, build.allocKb, "read at the start and the end of the build, 3 KB apart")
+        assertTrue(build.evaluations > 0, "the build says how many pools it evaluated: ${build.evaluations}")
     }
 
     @Test
@@ -244,8 +248,8 @@ class BuiltInScheduleSourceSnapshotTest {
         runBlocking { blind.channelDays(ACCOUNT, chosen, NOON) }
         val b = told.single()
         assertEquals(
-            listOf(-1L, -1L, -1L, -1L, -1L),
-            listOf(b.poolsCpuMs, b.snapshotsProcCpuMs, b.poolsProcCpuMs, b.gcCount, b.gcBlockMs),
+            listOf(-1L, -1L, -1L, -1L, -1L, -1L),
+            listOf(b.poolsCpuMs, b.snapshotsProcCpuMs, b.poolsProcCpuMs, b.gcCount, b.gcBlockMs, b.allocKb),
         )
     }
 

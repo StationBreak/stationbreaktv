@@ -96,7 +96,7 @@ internal object LineupModule {
                         "channels=${it.channels} poolsCpuMs=${it.poolsCpuMs} " +
                         "snapshotsProcCpuMs=${it.snapshotsProcCpuMs} " +
                         "poolsProcCpuMs=${it.poolsProcCpuMs} gcCount=${it.gcCount} gcBlockMs=${it.gcBlockMs} " +
-                        "snapshot=${it.snapshot}",
+                        "snapshot=${it.snapshot} evaluations=${it.evaluations} allocKb=${it.allocKb}",
                 )
             },
             laidOut = { day, ms -> Log.i(TAG, "DayLayout day=$day ms=$ms") },
@@ -106,6 +106,7 @@ internal object LineupModule {
                     processCpuMs = { Process.getElapsedCpuTime() },
                     gcCount = { runtimeStat("art.gc.gc-count") },
                     gcBlockMs = { runtimeStat("art.gc.blocking-gc-time") },
+                    allocatedBytes = { runtimeStat("art.gc.bytes-allocated") },
                 ),
         ) { settings.loadLibraries() }
 

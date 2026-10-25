@@ -2,6 +2,7 @@
 package tv.stationbreak.core.model
 
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import kotlin.concurrent.Volatile
 
 /**
  * The rule engine's whole input for one day, as this TV held its library before a cut-off (spec 10, Unit 3): the items,
@@ -14,8 +15,9 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
  * - [collectionsSynced] lets a reader tell a collection that was deleted from one this TV has not listed yet.
  *
  * It holds no names: series and collection names are not rule inputs, and spec 12 reads them through its own
- * current-state read. Values are kept exactly as stored. It normalises nothing and compares nothing; that is the
- * evaluator's job.
+ * current-state read. Values are kept exactly as stored and nothing is compared here; that is the evaluator's job. It
+ * does carry match-ready derived data: [RuleItem.foldedGenres] and its like are the stored names through the ASCII fold
+ * of docs/rules-format.md, "String matching", shared across the snapshot (see [NameFolds]), so a pass does not fold.
  *
  * @property cutoffMs the cut-off the snapshot was taken at, in milliseconds since 1970-01-01T00:00:00Z: the cut-off
  *   rounded up to a whole millisecond. It is exclusive: a version first seen at `seenFromMs < cutoffMs` is held, and
@@ -50,7 +52,25 @@ data class RuleItem(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
-)
+) {
+    @Volatile private var foldedGenresCache: List<String>? = null
+
+    @Volatile private var foldedTagsCache: List<String>? = null
+
+    /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept: a rule match reads this. */
+    val foldedGenres: List<String>
+        get() = foldedGenresCache ?: foldNames(genres).also { foldedGenresCache = it }
+
+    /** [tags] folded, as [foldedGenres]. */
+    val foldedTags: List<String>
+        get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
+
+    /** Sets [foldedGenres] and [foldedTags] from [folds], shared with the rest of the snapshot. Changes no value. */
+    fun primeFolds(folds: NameFolds) {
+        foldedGenresCache = folds.of(genres)
+        foldedTagsCache = folds.of(tags)
+    }
+}
 
 /** A series as held before the cut-off, with the fields a rule reads. [officialRating] is as stored. */
 data class RuleSeries(
@@ -58,7 +78,25 @@ data class RuleSeries(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
-)
+) {
+    @Volatile private var foldedGenresCache: List<String>? = null
+
+    @Volatile private var foldedTagsCache: List<String>? = null
+
+    /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept. */
+    val foldedGenres: List<String>
+        get() = foldedGenresCache ?: foldNames(genres).also { foldedGenresCache = it }
+
+    /** [tags] folded, as [foldedGenres]. */
+    val foldedTags: List<String>
+        get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
+
+    /** Sets [foldedGenres] and [foldedTags] from [folds], shared with the rest of the snapshot. Changes no value. */
+    fun primeFolds(folds: NameFolds) {
+        foldedGenresCache = folds.of(genres)
+        foldedTagsCache = folds.of(tags)
+    }
+}
 
 /**
  * A collection as held before the cut-off: its members by kind. A member is an ID and may be outside the selected
