@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
@@ -13,14 +9,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.HiddenReason
-import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /** Flipping (spec 15): the number moves at once, the old channel plays on, and the stop commits after the settle. */
 class LiveChannelFlipTest {
-    private val ch2 = ChannelId("ch-2")
-
     private fun Rig.stops() = tune.calls.filterIsInstance<Call.Stop>()
 
     private fun Rig.flipReports() = reports.filterIsInstance<TuneReport.Flip>()
@@ -95,7 +88,7 @@ class LiveChannelFlipTest {
     @Test
     fun downWraps() =
         runTest {
-            val f = flipping(startOn = ch2)
+            val f = flipping(startOn = CH2)
             f.down()
             assertEquals(ChannelTag(9, "Test Channel 9"), (f.r.state as LiveState.Choosing).target)
             advanceTimeBy(500.milliseconds)
@@ -124,7 +117,7 @@ class LiveChannelFlipTest {
             assertEquals(listOf(itemOf(5), itemOf(9), itemOf(2)), f.r.tunes.map { it.item })
             advanceTimeBy(1.seconds)
             assertTrue(f.r.state is LiveState.Watching)
-            assertEquals(ch2, f.r.lastChannel.load(f.r.account))
+            assertEquals(CH2, f.r.lastChannel.load(f.r.account))
             // The 9 tune was cut off, not left to finish and show.
             advanceTimeBy(5.seconds)
             assertTrue(f.r.seen.none { it is LiveState.Watching && it.banner?.number == 9 })
@@ -214,7 +207,7 @@ class LiveChannelFlipTest {
                     .last()
                     .item,
             )
-            assertEquals(ch2, f.r.lastChannel.load(f.r.account))
+            assertEquals(CH2, f.r.lastChannel.load(f.r.account))
         }
 
     @Test

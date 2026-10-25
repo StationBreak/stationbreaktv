@@ -52,13 +52,16 @@ import kotlin.time.TimeSource
  * Main-safe: [airings], [onAir] and [standIns] do their work on [dispatcher] (default: `Dispatchers.Default`), so
  * building a day never runs on, or blocks, the caller's thread.
  */
-@Suppress("TooManyFunctions") // The one source of the days: its reads, builds and warm-up stay together.
+@Suppress(
+    "TooManyFunctions", // The one source of the days: its reads, builds and warm-up stay together.
+    "LongParameterList", // Its three timing hooks are numbers-only and each defaulted.
+)
 class BuiltInScheduleSource(
     private val service: LineupService,
     private val library: LibraryRepository,
     private val timed: (dayIndex: Long, buildMs: Long) -> Unit = { _, _ -> },
     private val built: (DayBuild) -> Unit = {},
-    private val laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
+    laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {

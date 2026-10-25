@@ -10,7 +10,7 @@ import kotlinx.coroutines.test.runCurrent
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.seconds
 
-val CH2 = ChannelId("ch-2")
+internal val CH2 = ChannelId("ch-2")
 
 internal class Flipping(
     val r: Rig,
