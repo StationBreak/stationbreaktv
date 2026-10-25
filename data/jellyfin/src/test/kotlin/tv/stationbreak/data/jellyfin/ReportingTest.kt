@@ -267,7 +267,10 @@ class ReportingTest {
     @Test
     fun markPlayedPostsToUserPlayedItems() {
         runBlocking {
-            jellyfin.on("POST", "/UserPlayedItems/i1") { jellyfin.json("{\"Played\":true}") }
+            // The answer is a user-data body; the adapter ignores it.
+            jellyfin.on("POST", "/UserPlayedItems/i1") {
+                jellyfin.json("{\"Played\":true,\"PlaybackPositionTicks\":0,\"PlayCount\":1}")
+            }
 
             val result = testAdapter().markPlayed(testSession(jellyfin.address), ItemId("i1"))
 
@@ -287,6 +290,28 @@ class ReportingTest {
 
             assertIs<MediaServerError.SessionExpired>(read)
             assertIs<MediaServerError.SessionExpired>(mark)
+        }
+    }
+
+    @Test
+    fun userDataAndMarkPlayedSendNoQueryString() {
+        runBlocking {
+            jellyfin.on("GET", "/UserItems/i1/UserData") { jellyfin.json("{}") }
+            jellyfin.on("POST", "/UserPlayedItems/i1") { jellyfin.json("{}") }
+
+            testAdapter().userData(testSession(jellyfin.address), ItemId("i1"))
+            testAdapter().markPlayed(testSession(jellyfin.address), ItemId("i1"))
+
+            for (path in listOf("/UserItems/i1/UserData", "/UserPlayedItems/i1")) {
+                assertEquals(
+                    null,
+                    jellyfin
+                        .requests(path)
+                        .single()
+                        .url.query,
+                    path,
+                )
+            }
         }
     }
 }

@@ -330,22 +330,17 @@ internal class MediaCalls(
     suspend fun userData(
         session: Session,
         itemId: ItemId,
-    ): ServerResult<UserItemState> {
-        val query = listOf("userId" to session.userId.value)
-        return calls.send(session, Endpoint.get("UserItems/${itemId.value}/UserData", query)).flatMap { text ->
+    ): ServerResult<UserItemState> =
+        calls.send(session, Endpoint.get("UserItems/${itemId.value}/UserData")).flatMap { text ->
             Wire.parse(text, UserDataDto.serializer()).map { dto ->
                 UserItemState(duration(dto.playbackPositionTicks) ?: Duration.ZERO, dto.played)
             }
         }
-    }
 
     suspend fun markPlayed(
         session: Session,
         itemId: ItemId,
-    ): ServerResult<Unit> {
-        val endpoint = Endpoint("POST", "UserPlayedItems/${itemId.value}", listOf("userId" to session.userId.value))
-        return calls.send(session, endpoint).map { }
-    }
+    ): ServerResult<Unit> = calls.send(session, Endpoint.post("UserPlayedItems/${itemId.value}")).map { }
 
     private inline fun <T> convert(build: () -> T): ServerResult<T> =
         try {

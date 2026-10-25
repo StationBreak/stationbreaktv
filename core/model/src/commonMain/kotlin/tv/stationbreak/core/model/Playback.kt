@@ -120,7 +120,7 @@ class PlaybackInfo(
 
 /**
  * One playback progress report. [position] is how far in the player is; the adapter turns it into the server's units.
- * What to report and how often (about every 10 s, the played threshold) is S1.5.1's decision.
+ * What to report and when (the safe position, check-ins every 30 s by default, a failed stop) is ADR-0018's decision.
  */
 data class PlaybackReport(
     val itemId: ItemId,
