@@ -2,7 +2,11 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
@@ -30,8 +34,13 @@ import kotlin.time.TimeSource
  * within the same days reads nothing. [onAir] builds a channel's day once (kept on the cached `ChannelDay`) and reads
  * the names of the blocks it returns with one `programInfo` call; the days themselves stay internal to this class.
  *
+ * Callers that miss the cache together share one build (single flight, #392): the first starts it in this source's own
+ * scope and the rest await it, so a caller that is cancelled (a flip superseded mid-lookup) leaves the build running
+ * for the others, and for the cache. A build that fails is not kept; the next caller builds again.
+ *
  * [timed] is told the build of each following day that [onAir] needed: the day's index and the milliseconds it took
- * (numbers only; no item, title or URL ever reaches it), so a first tune near a day edge can be measured.
+ * (numbers only; no item, title or URL ever reaches it), so a first tune near a day edge can be measured. [built] is
+ * told every build as it completes, with where its time went ([DayBuild]; numbers only).
  *
  * Main-safe: [airings], [onAir] and [standIns] do their work on [dispatcher] (default: `Dispatchers.Default`), so
  * building a day never runs on, or blocks, the caller's thread.
@@ -40,6 +49,7 @@ class BuiltInScheduleSource(
     private val service: LineupService,
     private val library: LibraryRepository,
     private val timed: (dayIndex: Long, buildMs: Long) -> Unit = { _, _ -> },
+    private val built: (DayBuild) -> Unit = {},
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
@@ -51,7 +61,11 @@ class BuiltInScheduleSource(
 
     private val days = LineupDays(service.catalog)
     private val lock = Any()
-    private val built = LinkedHashMap<Key, List<ChannelDay>>()
+    private val kept = LinkedHashMap<Key, List<ChannelDay>>()
+    private val inFlight = HashMap<Key, Deferred<List<ChannelDay>>>()
+
+    // Builds belong to the source, not to the caller that started one: see the class comment.
+    private val buildScope = CoroutineScope(SupervisorJob() + dispatcher)
 
     override suspend fun airings(at: Instant): List<ChannelAiring> =
         withContext(dispatcher) {
@@ -153,13 +167,35 @@ class BuiltInScheduleSource(
             val start = Instant.fromEpochMilliseconds(day.day.endMs)
             val (days, builtInMs) = channelDaysTimed(account, chosen, start)
             day = days.firstOrNull { it.channel.id == from.channel.id } ?: break
-            val built = day.day
+            val layout = day.day
             if (builtInMs != null) timed(day.n, builtInMs)
-            val ahead = built.whatsOn(built.startMs, count - blocks.size - 1)
+            val ahead = layout.whatsOn(layout.startMs, count - blocks.size - 1)
             blocks += ahead.block
             blocks += ahead.next
         }
         return blocks
+    }
+
+    /**
+     * Builds the days that will be asked for soon, so that no tune has to wait for them (#392): the days at [now], and
+     * the days that follow for every channel whose day ends within [WARM_AHEAD_MS]. The builds run on [on] (the
+     * warmer's low-priority dispatcher) when this call starts them; a caller who needs one meanwhile joins it.
+     * Returns when to look again (the soonest of those moments), or null when nothing is scheduled to warm.
+     */
+    internal suspend fun warm(
+        now: Instant,
+        on: CoroutineDispatcher,
+    ): Instant? {
+        val (account, chosen) = signedIn() ?: return null
+        val nowMs = now.toEpochMilliseconds()
+        val today = channelDaysTimed(account, chosen, now, on).first
+        val ends = today.map { it.epochStartMs + it.settings.epochMs }
+        for (end in ends.filter { it - nowMs <= WARM_AHEAD_MS }.distinct()) {
+            channelDaysTimed(account, chosen, Instant.fromEpochMilliseconds(end), on)
+        }
+        // A day already within the window is next looked at when it ends (the following day is then today's).
+        val wake = ends.minOfOrNull { if (it - nowMs > WARM_AHEAD_MS) it - WARM_AHEAD_MS else it }
+        return wake?.let { Instant.fromEpochMilliseconds(it) }
     }
 
     /** The switched-on channels' days at [at], in number order. */
@@ -169,19 +205,37 @@ class BuiltInScheduleSource(
         at: Instant,
     ): List<ChannelDay> = channelDaysTimed(account, libraries, at).first
 
-    /** The days at [at], and how long they took to build in milliseconds (null when they were already built). */
+    /**
+     * The days at [at], and how long this call took to build them in milliseconds: null when they were already built
+     * or another caller's build was joined (that build reports itself to [built]). A build this call starts runs on
+     * [on].
+     */
     private suspend fun channelDaysTimed(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         at: Instant,
+        on: CoroutineDispatcher = dispatcher,
     ): Pair<List<ChannelDay>, Long?> {
         val held = service.loaded(account) ?: return emptyList<ChannelDay>() to null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
         val key = Key(held.revision, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
-        val cached = synchronized(lock) { built[key] }
         val began = TimeSource.Monotonic.markNow()
-        val result = cached ?: build(key, account, held.lineup, scheduled)
-        return result to if (cached == null) began.elapsedNow().inWholeMilliseconds else null
+        var started = false
+        val (hit, flight) =
+            synchronized(lock) {
+                val ready = kept[key]
+                if (ready != null) {
+                    ready to null
+                } else {
+                    null to
+                        inFlight.getOrPut(key) {
+                            started = true
+                            buildScope.async(on) { build(key, account, held.lineup, scheduled) }
+                        }
+                }
+            }
+        val days = hit ?: checkNotNull(flight).await()
+        return days to if (started) began.elapsedNow().inWholeMilliseconds else null
     }
 
     private suspend fun build(
@@ -190,20 +244,51 @@ class BuiltInScheduleSource(
         lineup: Lineup,
         scheduled: List<Scheduled>,
     ): List<ChannelDay> {
-        val snapshots = snapshotsOf(library, account, key.libraries, key.cutoffs)
-        val result = days.days(lineup, scheduled, snapshots)
-        synchronized(lock) {
-            built[key] = result
-            while (built.size > KEPT) built.remove(built.keys.first())
+        try {
+            val began = TimeSource.Monotonic.markNow()
+            val snapshots = snapshotsOf(library, account, key.libraries, key.cutoffs)
+            val snapshotsMs = began.elapsedNow().inWholeMilliseconds
+            val result = days.days(lineup, scheduled, snapshots)
+            val totalMs = began.elapsedNow().inWholeMilliseconds
+            synchronized(lock) {
+                kept[key] = result
+                inFlight.remove(key)
+                while (kept.size > KEPT) kept.remove(kept.keys.first())
+            }
+            // Pools and leftovers claims; the schedule layout of each day is worked out on first use, not here.
+            built(DayBuild(scheduled.firstOrNull()?.n ?: -1, totalMs, snapshotsMs, totalMs - snapshotsMs, result.size))
+            return result
+        } finally {
+            // A build that failed or was cancelled leaves nothing kept; the next caller builds again.
+            synchronized(lock) { inFlight.remove(key) }
         }
-        return result
     }
 
-    private companion object {
+    internal companion object {
         /** How many built sets of days are kept: today and tomorrow for a few revisions. */
         const val KEPT = 8
+
+        /**
+         * How long before a channel's day ends the day after it is built in the background. A build took up to 26 s on
+         * the slowest reference device (#392); an hour leaves room for it however busy the device is, and costs one
+         * early build per channel day.
+         */
+        const val WARM_AHEAD_MS = 60 * 60 * 1000L
     }
 }
+
+/**
+ * Where the time of one build of the days went, in milliseconds (numbers only: no id, name or title). [day] is the
+ * first scheduled channel's epoch number, [snapshotsMs] the `ruleSnapshot` reads, [layoutMs] working out the pools
+ * of every channel's day, and [channels] how many days were built.
+ */
+class DayBuild(
+    val day: Long,
+    val ms: Long,
+    val snapshotsMs: Long,
+    val layoutMs: Long,
+    val channels: Int,
+)
 
 private fun ChannelDay.airing() =
     ChannelAiring(

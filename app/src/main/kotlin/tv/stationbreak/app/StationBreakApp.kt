@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.LineupRefresher
+import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
@@ -42,6 +43,8 @@ class StationBreakApp :
 
         fun lineupRefresher(): LineupRefresher
 
+        fun scheduleWarmer(): ScheduleWarmer
+
         fun deviceCapabilities(): DeviceCapabilitiesCache
     }
 
@@ -68,6 +71,8 @@ class StationBreakApp :
         scope.launch {
             val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
             graph.lineupRefresher().start(lineupScope)
+            // The schedule's days are built ahead, on its own low-priority thread, as the lineup loads and refreshes.
+            graph.scheduleWarmer().start(scope)
         }
         // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main
         // thread, so the first screen that plays finds it done (spec 13). It reports no failure of its own.

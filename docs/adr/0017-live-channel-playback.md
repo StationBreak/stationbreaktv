@@ -142,6 +142,14 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   counting leaves the play alone and logs -1. Limits: the time of an open is connect plus response headers, not the
   first body byte; failed and interrupted opens count; an open still in flight when the tracks are known is not
   counted; opens and reads that land just before the tracks event reaches the looper are counted.
+  2026-10-25 (#392): a press no longer waits for a pending commit's schedule lookup to unwind (a day build can take
+  seconds), so the number keeps moving; a commit cancelled by a newer press writes its line as `superseded` (`abandoned`
+  if the run ended), and one that outlives its cancel cannot land. `BuiltInScheduleSource` is single-flight per key
+  (lineup revision, libraries, cut-offs): concurrent misses share one build that runs in the source's own scope, so a
+  cancelled caller leaves it running for the others, and a failed build is not kept. `ScheduleWarmer` builds today's
+  days in the background on each lineup load or refresh, and the following day within an hour of a channel's day
+  ending, on a minimum-priority thread. Each build logs `DayBuild day ms snapshotsMs layoutMs channels` (numbers only;
+  `layoutMs` is the pools and leftovers claims, since each day's schedule layout is worked out on first use).
 - **AVI is not offered for direct play** (PR #386, ADR-0016's route choice). On both reference devices every AVI
   (MPEG-4 Part 2) direct-play attempt failed slowly and then played fine through the server, so the capability probe no
   longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the
