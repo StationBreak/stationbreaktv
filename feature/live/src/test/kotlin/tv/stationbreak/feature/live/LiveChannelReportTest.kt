@@ -134,19 +134,32 @@ class LiveChannelReportTest {
         val line =
             "tune kind=fresh resolveMs=-1 firstFrameMs=1800 playingMs=2000 posErrMs=-1 fallback=none lagMs=40 " +
                 "from=direct route=stream tracksMs=-1 skippedFrames=-1"
-        val noLoads = " loads=-1 loadMs=-1 maxLoadMs=-1 loadKb=-1 container=unknown opensKb=-1"
+        val noLoads = " loads=-1 loadMs=-1 maxLoadMs=-1 loadKb=-1 container=unknown opensKb=-1 ioMs=-1 parseMs=-1"
         assertEquals(line + noLoads, tune.line())
         val measured = tune.copy(tracksMs = 350, skippedFrames = 42)
         assertEquals(
             line.replace("tracksMs=-1 skippedFrames=-1", "tracksMs=350 skippedFrames=42") + noLoads,
             measured.line(),
         )
-        val stats = LoadStats(loads = 3, loadMs = 410, maxLoadMs = 250, loadKb = 96, container = "mp4", opensKb = "0,7")
+        val stats =
+            LoadStats(
+                loads = 3,
+                loadMs = 410,
+                maxLoadMs = 250,
+                loadKb = 96,
+                container = "mp4",
+                opensKb = "0,7",
+                ioMs = 300,
+            )
         val loaded = tune.copy(loads = stats)
         assertEquals(
-            line + " loads=3 loadMs=410 maxLoadMs=250 loadKb=96 container=mp4 opensKb=0,7",
+            line + " loads=3 loadMs=410 maxLoadMs=250 loadKb=96 container=mp4 opensKb=0,7 ioMs=300 parseMs=-1",
             loaded.line(),
         )
+        val timed = loaded.copy(tracksMs = 350).line()
+        assertTrue(timed, timed.endsWith("ioMs=300 parseMs=50"))
+        val ioHeavy = loaded.copy(tracksMs = 100).line()
+        assertTrue(ioHeavy, ioHeavy.endsWith("ioMs=300 parseMs=0"))
         val cut = TuneReport.Cut(gapMs = 300, resolveMs = 0, toFirstFrameMs = null)
         assertEquals("cut gapMs=300 resolveMs=0 toFirstFrameMs=-1", cut.line())
     }
