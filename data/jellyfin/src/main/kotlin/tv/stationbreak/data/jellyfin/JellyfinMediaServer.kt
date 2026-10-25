@@ -34,6 +34,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import tv.stationbreak.core.model.UserItemState
 import tv.stationbreak.data.jellyfin.trust.PinRegistry
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -270,7 +271,21 @@ class JellyfinMediaServer internal constructor(
     override suspend fun reportStopped(
         session: Session,
         report: PlaybackReport,
-    ): ServerResult<Unit> = media.report(session, "Sessions/Playing/Stopped", report, withPaused = false)
+        failed: Boolean,
+    ): ServerResult<Unit> {
+        val path = "Sessions/Playing/Stopped"
+        return media.report(session, path, report, withPaused = false, failed = failed)
+    }
+
+    override suspend fun userData(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<UserItemState> = media.userData(session, itemId)
+
+    override suspend fun markPlayed(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<Unit> = media.markPlayed(session, itemId)
 }
 
 /** What a test may turn: timeouts, interceptors to watch or fail calls, and the Quick Connect and logout limits. */

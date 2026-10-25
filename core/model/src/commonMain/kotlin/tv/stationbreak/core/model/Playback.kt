@@ -128,4 +128,15 @@ data class PlaybackReport(
     val playSessionId: PlaySessionId?,
     val position: Duration,
     val isPaused: Boolean = false,
+    val playMethod: PlayMethod? = null,
+    val canSeek: Boolean = true,
+)
+
+/** How the server is delivering the stream, as the dashboard shows it. */
+enum class PlayMethod { DirectPlay, DirectStream, Transcode }
+
+/** What the server holds for the user on one item: the resume [position] and whether it counts as [played]. */
+data class UserItemState(
+    val position: Duration,
+    val played: Boolean,
 )

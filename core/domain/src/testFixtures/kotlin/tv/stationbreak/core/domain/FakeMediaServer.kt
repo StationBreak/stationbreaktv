@@ -23,6 +23,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import tv.stationbreak.core.model.UserItemState
 import kotlin.time.Duration
 import kotlin.time.Instant
 
@@ -58,6 +59,10 @@ class FakeMediaServer : MediaServer {
     /** How long [stopEncoding] takes before it answers (virtual time in a test); the stop is recorded when it ends. */
     var stopEncodingDelay: Duration = Duration.ZERO
     var reportResult: ServerResult<Unit> = ServerResult.Success(Unit)
+
+    /** What [userData] answers. */
+    var userDataResult: ServerResult<UserItemState> = ServerResult.Success(UserItemState(Duration.ZERO, false))
+    var markPlayedResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
     var onRevoke: () -> Unit = {}
@@ -103,6 +108,11 @@ class FakeMediaServer : MediaServer {
 
     /** The reports sent, in order, as the call name and the report. */
     val reports = mutableListOf<Pair<String, PlaybackReport>>()
+
+    /** The `failed` flag of each [reportStopped] call, in order. */
+    val stoppedFailed = mutableListOf<Boolean>()
+    val userDataCalls = mutableListOf<ItemId>()
+    val markPlayedCalls = mutableListOf<ItemId>()
     val quickConnectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
 
     /** The addresses and usernames of password sign-ins. Passwords are not kept. */
@@ -280,7 +290,27 @@ class FakeMediaServer : MediaServer {
     override suspend fun reportStopped(
         session: Session,
         report: PlaybackReport,
-    ): ServerResult<Unit> = record("stopped", report)
+        failed: Boolean,
+    ): ServerResult<Unit> {
+        stoppedFailed += failed
+        return record("stopped", report)
+    }
+
+    override suspend fun userData(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<UserItemState> {
+        userDataCalls += itemId
+        return userDataResult
+    }
+
+    override suspend fun markPlayed(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<Unit> {
+        markPlayedCalls += itemId
+        return markPlayedResult
+    }
 
     private fun record(
         name: String,

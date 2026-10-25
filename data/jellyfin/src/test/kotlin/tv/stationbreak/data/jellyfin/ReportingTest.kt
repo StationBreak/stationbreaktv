@@ -13,9 +13,11 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.errorOrNull
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.UserItemState
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -185,6 +187,106 @@ class ReportingTest {
                 assertFalse(token in request.url.toString())
                 assertTrue(request.headers["Authorization"]!!.contains("Token=\"$token\""))
             }
+        }
+    }
+
+    @Test
+    fun stoppedSendsFailedOnlyWhenAskedAndOtherCallsNever() {
+        runBlocking {
+            jellyfin.on("POST", "/Sessions/Playing/Stopped") { jellyfin.status(204) }
+            jellyfin.on("POST", "/Sessions/Playing") { jellyfin.status(204) }
+            jellyfin.on("POST", "/Sessions/Playing/Progress") { jellyfin.status(204) }
+
+            testAdapter().reportStopped(testSession(jellyfin.address), report(), failed = true)
+            assertTrue(body("/Sessions/Playing/Stopped")["Failed"]!!.jsonPrimitive.boolean)
+
+            testAdapter().reportStopped(testSession(jellyfin.address), report())
+            assertFalse("Failed" in body("/Sessions/Playing/Stopped"))
+
+            testAdapter().reportStart(testSession(jellyfin.address), report())
+            testAdapter().reportProgress(testSession(jellyfin.address), report())
+            assertFalse("Failed" in body("/Sessions/Playing"))
+            assertFalse("Failed" in body("/Sessions/Playing/Progress"))
+        }
+    }
+
+    @Test
+    fun startAndProgressCarryPlayMethodAndCanSeekAndStoppedLeavesPlayMethodOut() {
+        runBlocking {
+            val full = report().copy(playMethod = PlayMethod.DirectStream, canSeek = false)
+            for (call in calls.take(2)) {
+                jellyfin.on("POST", call.path) { jellyfin.status(204) }
+                call.send(testAdapter(), testSession(jellyfin.address), full)
+                val sent = body(call.path)
+                assertEquals("DirectStream", sent["PlayMethod"]!!.jsonPrimitive.content, call.name)
+                assertFalse(sent["CanSeek"]!!.jsonPrimitive.boolean, call.name)
+            }
+            for ((method, wire) in listOf(PlayMethod.DirectPlay to "DirectPlay", PlayMethod.Transcode to "Transcode")) {
+                testAdapter().reportStart(testSession(jellyfin.address), report().copy(playMethod = method))
+                assertEquals(wire, body("/Sessions/Playing")["PlayMethod"]!!.jsonPrimitive.content)
+            }
+        }
+    }
+
+    @Test
+    fun aReportWithNoPlayMethodLeavesItOutAndCanSeekDefaultsTrue() {
+        runBlocking {
+            jellyfin.on("POST", "/Sessions/Playing") { jellyfin.status(204) }
+
+            testAdapter().reportStart(testSession(jellyfin.address), report())
+
+            assertFalse("PlayMethod" in body("/Sessions/Playing"))
+            assertTrue(body("/Sessions/Playing")["CanSeek"]!!.jsonPrimitive.boolean)
+        }
+    }
+
+    @Test
+    fun userDataReadsPositionAndPlayed() {
+        runBlocking {
+            jellyfin.on("GET", "/UserItems/i1/UserData") {
+                jellyfin.json("{\"PlaybackPositionTicks\":15000000,\"Played\":true,\"Key\":\"x\"}")
+            }
+
+            val result = testAdapter().userData(testSession(jellyfin.address), ItemId("i1"))
+
+            assertEquals(ServerResult.Success(UserItemState(1500.milliseconds, true)), result)
+        }
+    }
+
+    @Test
+    fun userDataWithNothingSetIsZeroAndNotPlayed() {
+        runBlocking {
+            jellyfin.on("GET", "/UserItems/i1/UserData") { jellyfin.json("{}") }
+
+            val result = testAdapter().userData(testSession(jellyfin.address), ItemId("i1"))
+
+            assertEquals(ServerResult.Success(UserItemState(0.seconds, false)), result)
+        }
+    }
+
+    @Test
+    fun markPlayedPostsToUserPlayedItems() {
+        runBlocking {
+            jellyfin.on("POST", "/UserPlayedItems/i1") { jellyfin.json("{\"Played\":true}") }
+
+            val result = testAdapter().markPlayed(testSession(jellyfin.address), ItemId("i1"))
+
+            assertEquals(ServerResult.Success(Unit), result)
+            assertEquals("POST", jellyfin.requests("/UserPlayedItems/i1").single().method)
+        }
+    }
+
+    @Test
+    fun userDataAndMarkPlayedMapA401ToSessionExpired() {
+        runBlocking {
+            jellyfin.on("GET", "/UserItems/i1/UserData") { jellyfin.status(401) }
+            jellyfin.on("POST", "/UserPlayedItems/i1") { jellyfin.status(401) }
+
+            val read = testAdapter().userData(testSession(jellyfin.address), ItemId("i1")).errorOrNull()
+            val mark = testAdapter().markPlayed(testSession(jellyfin.address), ItemId("i1")).errorOrNull()
+
+            assertIs<MediaServerError.SessionExpired>(read)
+            assertIs<MediaServerError.SessionExpired>(mark)
         }
     }
 }

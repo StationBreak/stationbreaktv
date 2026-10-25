@@ -94,6 +94,8 @@ class CleartextGateTest {
                 // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.
                 SpkiPin::class.java,
                 Int::class.javaPrimitiveType,
+                // reportStopped takes whether the end was a failure: a plain flag, never an acknowledgement.
+                Boolean::class.javaPrimitiveType,
                 kotlin.coroutines.Continuation::class.java,
             )
         for (method in MediaServer::class.java.methods.filterNot { it.isSynthetic }) {

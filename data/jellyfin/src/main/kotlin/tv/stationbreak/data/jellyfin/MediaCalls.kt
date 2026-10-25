@@ -39,6 +39,7 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.SubtitleDelivery
+import tv.stationbreak.core.model.UserItemState
 import java.time.DateTimeException
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -309,6 +310,7 @@ internal class MediaCalls(
         path: String,
         report: PlaybackReport,
         withPaused: Boolean,
+        failed: Boolean = false,
     ): ServerResult<Unit> {
         val body =
             PlaybackReportDto(
@@ -317,8 +319,31 @@ internal class MediaCalls(
                 positionTicks = PlaybackTicks.of(report.position),
                 playSessionId = report.playSessionId?.value,
                 isPaused = if (withPaused) report.isPaused else null,
+                playMethod = if (withPaused) report.playMethod?.name else null,
+                canSeek = if (withPaused) report.canSeek else null,
+                failed = failed.takeIf { it },
             )
         val endpoint = Endpoint.post(path, Wire.encode(PlaybackReportDto.serializer(), body))
+        return calls.send(session, endpoint).map { }
+    }
+
+    suspend fun userData(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<UserItemState> {
+        val query = listOf("userId" to session.userId.value)
+        return calls.send(session, Endpoint.get("UserItems/${itemId.value}/UserData", query)).flatMap { text ->
+            Wire.parse(text, UserDataDto.serializer()).map { dto ->
+                UserItemState(duration(dto.playbackPositionTicks) ?: Duration.ZERO, dto.played)
+            }
+        }
+    }
+
+    suspend fun markPlayed(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<Unit> {
+        val endpoint = Endpoint("POST", "UserPlayedItems/${itemId.value}", listOf("userId" to session.userId.value))
         return calls.send(session, endpoint).map { }
     }
 

@@ -235,7 +235,11 @@ internal class MediaStreamDto(
     @SerialName("BitDepth") val bitDepth: JsonElement? = null,
 )
 
-/** The body of `Sessions/Playing`, `/Progress` and `/Stopped`. `IsPaused` is left out of the last. */
+/**
+ * The body of `Sessions/Playing`, `/Progress` and `/Stopped`. `IsPaused`, `PlayMethod` and `CanSeek` are left out of
+ * the last; `Failed` is sent only by it.
+ */
+@Suppress("LongParameterList") // One property per wire field.
 @Serializable
 internal class PlaybackReportDto(
     @SerialName("ItemId") val itemId: String,
@@ -243,6 +247,16 @@ internal class PlaybackReportDto(
     @SerialName("PositionTicks") val positionTicks: Long,
     @SerialName("PlaySessionId") val playSessionId: String? = null,
     @SerialName("IsPaused") val isPaused: Boolean? = null,
+    @SerialName("PlayMethod") val playMethod: String? = null,
+    @SerialName("CanSeek") val canSeek: Boolean? = null,
+    @SerialName("Failed") val failed: Boolean? = null,
+)
+
+/** The part of `UserItems/{id}/UserData` the app reads. */
+@Serializable
+internal class UserDataDto(
+    @SerialName("PlaybackPositionTicks") val playbackPositionTicks: Long = 0,
+    @SerialName("Played") val played: Boolean = false,
 )
 
 /** The `AuthenticateByName` body, written straight into a byte array so the caller can wipe the password. */
