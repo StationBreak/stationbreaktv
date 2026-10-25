@@ -126,10 +126,9 @@ object LineupPlanner {
     // unedited one is set to back to back, once and whatever the catalog version (the refresh below keeps the stored
     // timing, so it would never get there otherwise). An edited or custom channel is never touched.
     private fun backToBack(channel: LineupChannel): LineupChannel {
-        val source = channel.source as? ChannelSource.Starter ?: return channel
-        val timing = source.rules.timing
-        if (source.edited || timing.alignToGrid != null) return channel
-        val rules = source.rules.copy(timing = timing.copy(alignToGrid = false))
+        val source = channel.source as? ChannelSource.Starter
+        if (source == null || source.edited || source.rules.timing.alignToGrid != null) return channel
+        val rules = source.rules.copy(timing = source.rules.timing.copy(alignToGrid = false))
         return channel.copy(source = source.copy(rules = rules))
     }
 

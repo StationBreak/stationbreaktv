@@ -23,8 +23,8 @@ object RecipeResolver {
      * The rules for [recipe] on [serverId]. The sources are the recipe's own, then a collection source for every
      * collection in [collections] whose name equals a hint (ASCII case-insensitive, as everywhere in the rules format),
      * in canonical-ID order and once each. A hint that matches nothing adds nothing. The broadcast day starts at
-     * [LineupDefaults.DAY_START] at [utcOffsetMinutes]. `alignToGrid` is written as false, so the channel runs back to back
-     * (the format's own default is true); every other timing field is left to its default.
+     * [LineupDefaults.DAY_START] at [utcOffsetMinutes]. `alignToGrid` is written as false, so the channel runs back to
+     * back (the format's own default is true); every other timing field is left to its default.
      */
     fun resolve(
         recipe: Recipe,
