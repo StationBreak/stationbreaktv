@@ -27,6 +27,7 @@ import tv.stationbreak.core.scheduler.Day
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.buildDay
+import kotlin.time.TimeSource
 
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
@@ -42,12 +43,16 @@ internal class ChannelDay(
     val pool: List<ScheduleItem>,
     val hidden: HiddenReason?,
     val ceilingRank: Int?,
+    private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
 ) {
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
 
     /** The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once). */
-    val day: Day by lazy { buildDay(settings, pool, n) }
+    val day: Day by lazy {
+        val began = TimeSource.Monotonic.markNow()
+        buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+    }
 }
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */
@@ -82,6 +87,7 @@ internal class Scheduled(
  */
 internal class LineupDays(
     private val catalog: StarterCatalogView,
+    private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
 ) {
     /** The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. */
     fun scheduled(
@@ -202,7 +208,7 @@ internal class LineupDays(
             val day = EpochPool.build(s.settings, pool.items, s.n)
             val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
             val name = s.channel.displayName(catalog)
-            return ChannelDay(s.channel, name, s.settings, s.n, day, hiddenReason(pool, day), ceilingRank)
+            return ChannelDay(s.channel, name, s.settings, s.n, day, hiddenReason(pool, day), ceilingRank, laidOut)
         }
 
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */

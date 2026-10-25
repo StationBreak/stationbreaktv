@@ -23,6 +23,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.data.settings.lineup.FileLineupStore
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -75,17 +76,40 @@ internal object LineupModule {
 
     @Provides
     @Singleton
-    fun scheduleSource(
+    fun builtInScheduleSource(
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
-    ): ScheduleSource =
-        // The timing is numbers only: the day's index and how long it took to build, never an ID or a title.
+    ): BuiltInScheduleSource =
+        // The timings are numbers only: day index, milliseconds and counts, never an ID or a title.
         BuiltInScheduleSource(
             service,
             library,
             timed = { day, ms -> Log.i(TAG, "NextDayBuild day=$day ms=$ms") },
+            built = {
+                Log.i(
+                    TAG,
+                    "DayBuild day=${it.day} ms=${it.ms} snapshotsMs=${it.snapshotsMs} poolsMs=${it.poolsMs} " +
+                        "channels=${it.channels}",
+                )
+            },
+            laidOut = { day, ms -> Log.i(TAG, "DayLayout day=$day ms=$ms") },
         ) { settings.loadLibraries() }
+
+    @Provides
+    fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
+
+    /**
+     * Builds the schedule's days ahead of the tune that needs them (#392). The builds are the source's own, at the
+     * normal priority: a tune that meets one joins it, and must not wait on a slower thread than its own.
+     */
+    @Provides
+    @Singleton
+    fun scheduleWarmer(
+        source: BuiltInScheduleSource,
+        service: LineupService,
+        library: LibraryRepository,
+    ): ScheduleWarmer = ScheduleWarmer(source, service, library, Clock.System)
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides
