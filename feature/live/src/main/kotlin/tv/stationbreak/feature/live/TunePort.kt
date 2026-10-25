@@ -26,6 +26,9 @@ class NextHandle(
  * @property route the route that played: `direct`, `stream` or `transcode`.
  * @property from the route of the first attempt, the same names: it differs from [route] only after a [fallback]. The
  * flip gate counts direct-play flips by this, so a direct attempt that fell back to a transcode still counts.
+ * @property tracksMs from the play call to Media3's first tracks report (the container parsed), null if unknown.
+ * @property skippedFrames video frames decoded and dropped to reach an exact seek position, at the first picture; null
+ * if unknown.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -34,6 +37,8 @@ data class TuneTimings(
     val fallback: String? = null,
     val route: String? = null,
     val from: String? = null,
+    val tracksMs: Long? = null,
+    val skippedFrames: Long? = null,
 )
 
 /** How one tune went, as the machine needs it. */

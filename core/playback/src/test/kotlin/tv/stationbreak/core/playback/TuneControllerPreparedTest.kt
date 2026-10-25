@@ -3,6 +3,7 @@ package tv.stationbreak.core.playback
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -328,46 +329,53 @@ class TuneControllerPreparedTest {
         }
 
     @Test
-    fun aPreparedTuneStoppedDuringTheOldEncodeStopDoesNotPlay() =
+    fun aPreparedTuneStoppedWhileItsPlayWaitsEndsBothEncodes() =
         runTest {
             answer(transcode)
+            // The old encode's stop is slow, but the tune does not wait for it: the prepared play starts at once.
             val held = Held(server, stopGate = CompletableDeferred())
             val held2 = controllerOver(held)
-            player.script = listOf(playing(1_300, Duration.ZERO))
+            player.script = listOf(playing(1_300, Duration.ZERO), emptyList())
             held2.tune(session, item, Duration.ZERO, null)
             val prepared = checkNotNull(held2.preResolve(session, item, Duration.ZERO))
             val tuning = async { held2.tune(session, prepared, null) }
             runCurrent()
+            assertEquals("the prepared play did not wait for the old stop", 2, player.played.size)
             val stopping = async { held2.stop(session) }
             runCurrent()
+            assertEquals(TuneResult.Stopped, tuning.await())
             checkNotNull(held.stopGate).complete(Unit)
             stopping.await()
-            assertEquals(TuneResult.Stopped, tuning.await())
-            assertEquals("only the first play reached the player", 1, player.played.size)
+            runCurrent()
             assertEquals("the old encode and the prepared one are both stopped", 2, server.stoppedEncodes.size)
         }
 
     @Test
-    fun aPreparedTuneCancelledWhileWaitingForTheLockStopsItsEncode() =
+    fun aPreparedTuneCancelledBeforeItTakesTheLockStopsItsEncodeOnce() =
         runTest {
             answer(transcode)
-            val held = Held(server, stopGate = CompletableDeferred())
-            val held2 = controllerOver(held)
-            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO))
+            // Runs up to the wait for its job, which has not got the lock yet; the cancel comes before it does.
+            val waiting = launch(start = CoroutineStart.UNDISPATCHED) { controller.tune(session, prepared, null) }
+            waiting.cancel()
+            runCurrent()
+            assertEquals("the handle's encode is stopped once", 1, server.stoppedEncodes.size)
+            assertTrue("it never played", player.played.isEmpty())
+        }
+
+    @Test
+    fun aPreparedTuneCancelledWhileItsPlayWaitsStopsItsEncode() =
+        runTest {
+            answer(transcode)
+            val held2 = controllerOver(Held(server))
+            player.script = listOf(playing(1_300, Duration.ZERO), emptyList())
             held2.tune(session, item, Duration.ZERO, null)
             val first = checkNotNull(held2.preResolve(session, item, Duration.ZERO))
-            val second = checkNotNull(held2.preResolve(session, item, Duration.ZERO))
-            // This tune holds the lock while the server is slow to end the old play's encode.
-            val busy = async { held2.tune(session, first, null) }
-            runCurrent()
-            val waiting = launch { held2.tune(session, second, null) }
+            val waiting = launch { held2.tune(session, first, null) }
             runCurrent()
             waiting.cancel()
             runCurrent()
-            assertEquals("the cancelled tune ended its own handle", listOf(PlaySessionId("ps1")), server.stoppedEncodes)
-            checkNotNull(held.stopGate).complete(Unit)
-            busy.join()
-            assertEquals("only the first play reached the player", 1, player.played.size)
+            assertEquals("the old encode and the cancelled tune's own are both stopped", 2, server.stoppedEncodes.size)
         }
 
     @Test

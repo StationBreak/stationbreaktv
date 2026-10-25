@@ -82,11 +82,16 @@ class TunePortAdapterTest {
         /** Plays that answer at once, as a picture at [position]. */
         var answerAt: Duration? = null
 
+        /** When set, an answering play first reports its tracks at this time, and its first frame with [skipped]. */
+        var tracksAt: Long? = null
+        var skipped: Long? = null
+
         override fun play(source: PlayerSource): Long {
             plays++
             val mine = ++generation
             answerAt?.let {
-                flow.tryEmit(PlayerEvent.FirstFrame(950, mine))
+                tracksAt?.let { at -> flow.tryEmit(PlayerEvent.TracksReady(at, mine)) }
+                flow.tryEmit(PlayerEvent.FirstFrame(950, mine, skipped))
                 flow.tryEmit(PlayerEvent.Playing(1_000, it, mine))
             }
             return mine
@@ -208,6 +213,20 @@ class TunePortAdapterTest {
             rig.player.emit(PlayerEvent.Ended(rig.player.generation))
             runCurrent()
             assertEquals(PlaybackEnd.Ended, end.await())
+        }
+
+    @Test
+    fun aPlayingTuneCarriesTheTimeToTracksAndTheSkippedFrames() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer()
+            rig.player.answerAt = 30.seconds
+            rig.player.tracksAt = 1_400
+            rig.player.skipped = 12
+            val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
+            // The controller's clock reads 1000 when it calls play.
+            assertEquals(400L, playing.timings.tracksMs)
+            assertEquals(12L, playing.timings.skippedFrames)
         }
 
     @Test
