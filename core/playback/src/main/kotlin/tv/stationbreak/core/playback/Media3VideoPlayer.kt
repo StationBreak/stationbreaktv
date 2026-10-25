@@ -19,7 +19,6 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -57,7 +56,7 @@ class Media3VideoPlayer(
     private val exo: ExoPlayer =
         ExoPlayer
             .Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource.counting(loadCounter)))
+            .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
             .build()
     private val handler = Handler(exo.applicationLooper)
     private val flow =
