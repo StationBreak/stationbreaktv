@@ -32,6 +32,10 @@ internal class WatchLedger(
     }
 
     private val entries = mutableMapOf<AiringKey, Entry>()
+
+    /** How many airings are remembered. */
+    val size: Int get() = entries.size
+
     private var sittingId: Long? = null
     private var sittingStart: Instant? = null
     private var open: AiringKey? = null
@@ -48,25 +52,30 @@ internal class WatchLedger(
     }
 
     /**
-     * How long to wait before reporting an item that just began in sitting [id] (R4): none once the sitting is older
-     * than `startAfter`, the full `startAfter` for a fresh tune or flip.
+     * How long to wait before reporting an item that just began in sitting [id] (R4): what is left of `startAfter`
+     * since the sitting began, so none once the sitting is that old; the full `startAfter` for any other sitting.
      */
     fun dwell(
         id: Long,
         at: Instant,
     ): Duration {
         val start = sittingStart
-        val settled = sittingId == id && start != null && at - start > config.startAfter
-        return if (settled) Duration.ZERO else config.startAfter
+        val age = if (sittingId == id && start != null) (at - start).coerceAtLeast(Duration.ZERO) else Duration.ZERO
+        return (config.startAfter - age).coerceAtLeast(Duration.ZERO)
     }
 
-    /** Starts counting [key]; any airing still open is closed first. */
+    /**
+     * Starts counting [key]; any airing still open is closed first. Earlier blocks of the same channel are over, so
+     * their entries are dropped; the map is also capped, oldest first, so a long run cannot grow it without bound.
+     */
     fun enter(
         key: AiringKey,
         at: Instant,
     ) {
         leave(at)
+        entries.keys.removeAll { it.channelId == key.channelId && it.blockStartMs < key.blockStartMs }
         entry(key)
+        while (entries.size > MAX_ENTRIES) entries.remove(entries.keys.first { it != key })
         open = key
         since = at
     }
@@ -122,4 +131,9 @@ internal class WatchLedger(
     fun isMarked(key: AiringKey): Boolean = entries[key]?.marked == true
 
     private fun entry(key: AiringKey): Entry = entries.getOrPut(key) { Entry() }
+
+    companion object {
+        /** The most airings remembered: far more than a viewer can flip through, small enough to stay tiny. */
+        const val MAX_ENTRIES = 256
+    }
 }

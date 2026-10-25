@@ -31,116 +31,12 @@ import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.UserItemState
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 class PlaybackReporterTest {
-    private data class Call(
-        val kind: String,
-        val atMs: Long,
-        val item: String,
-        val posMs: Long = -1,
-        val failed: Boolean = false,
-    )
-
-    private class RecordingServer(
-        private val now: () -> Long,
-        private val inner: FakeMediaServer = FakeMediaServer(),
-    ) : MediaServer by inner {
-        val calls = mutableListOf<Call>()
-        val userDataQueue = ArrayDeque<ServerResult<UserItemState>>()
-        var stopHangs = false
-
-        override suspend fun reportStart(
-            session: Session,
-            report: PlaybackReport,
-        ): ServerResult<Unit> {
-            calls += Call("start", now(), report.itemId.value, report.position.inWholeMilliseconds)
-            return ServerResult.Success(Unit)
-        }
-
-        override suspend fun reportProgress(
-            session: Session,
-            report: PlaybackReport,
-        ): ServerResult<Unit> {
-            calls += Call("progress", now(), report.itemId.value, report.position.inWholeMilliseconds)
-            return ServerResult.Success(Unit)
-        }
-
-        override suspend fun reportStopped(
-            session: Session,
-            report: PlaybackReport,
-            failed: Boolean,
-        ): ServerResult<Unit> {
-            calls += Call("stopped", now(), report.itemId.value, report.position.inWholeMilliseconds, failed)
-            if (stopHangs) awaitCancellation()
-            return ServerResult.Success(Unit)
-        }
-
-        override suspend fun userData(
-            session: Session,
-            itemId: ItemId,
-        ): ServerResult<UserItemState> {
-            calls += Call("userdata", now(), itemId.value)
-            return userDataQueue.removeFirstOrNull() ?: inner.userDataResult
-        }
-
-        override suspend fun markPlayed(
-            session: Session,
-            itemId: ItemId,
-        ): ServerResult<Unit> {
-            calls += Call("played", now(), itemId.value)
-            return ServerResult.Success(Unit)
-        }
-
-        fun set(state: UserItemState) {
-            inner.userDataResult = ServerResult.Success(state)
-        }
-    }
-
-    private class Rig(
-        val test: TestScope,
-        config: ReportingConfig = ReportingConfig(),
-    ) {
-        val server = RecordingServer({ test.testScheduler.currentTime })
-        val lines = mutableListOf<String>()
-        val clock =
-            object : Clock {
-                override fun now(): Instant = Instant.fromEpochMilliseconds(test.testScheduler.currentTime)
-            }
-        val reporter = PlaybackReporter(test.backgroundScope, server, SESSION, clock, config) { lines += it }
-
-        val calls get() = server.calls
-
-        fun at(ms: Long) {
-            val delta = ms - test.testScheduler.currentTime
-            if (delta > 0) test.advanceTimeBy(delta)
-            test.runCurrent()
-        }
-
-        fun kinds() = calls.map { it.kind }
-    }
-
-    private fun key(
-        item: String,
-        block: Long = 0,
-        channel: String = "ch1",
-    ) = AiringKey(ChannelId(channel), block, ItemId(item))
-
-    private fun target(
-        item: String,
-        runtime: Duration? = 45.minutes,
-    ) = ReportTarget(ItemId(item), MediaSourceId("src-$item"), PlaySessionId("ps"), PlayMethod.DirectPlay, runtime)
-
-    private fun Rig.visit(
-        sitting: Long,
-        item: String,
-        block: Long = 0,
-        runtime: Duration? = 45.minutes,
-        channel: String = "ch1",
-    ) = reporter.visit(sitting, key(item, block, channel), target(item, runtime))
-
     @Test
     fun `a fresh tune sends nothing before 30 s then userdata and Playing at the safe position and check-ins`() =
         runTest {
@@ -161,8 +57,8 @@ class PlaybackReporterTest {
             )
             rig.at(91_000)
             rig.reporter.leave()
-            rig.at(91_000)
-            assertEquals(Call("stopped", 91_000, "a", 7_000, failed = true), rig.calls.last())
+            rig.at(93_000)
+            assertEquals(Call("stopped", 93_000, "a", 7_000, failed = true), rig.calls.last())
         }
 
     @Test
@@ -236,7 +132,7 @@ class PlaybackReporterTest {
             rig.at(60_000 + 65_000)
             // ticks run at 30 s and 60 s of the second visit; the mark is judged at the next tick or the leave
             rig.reporter.leave()
-            rig.at(60_000 + 65_000)
+            rig.at(60_000 + 67_000)
             assertEquals(1, rig.calls.count { it.kind == "played" })
         }
 
@@ -253,7 +149,7 @@ class PlaybackReporterTest {
             rig.reporter.resumed()
             rig.at(130_000) // watched 20 + 70 = 90 s - exactly at the threshold
             rig.reporter.leave()
-            rig.at(130_000)
+            rig.at(132_000)
             assertEquals(1, rig.calls.count { it.kind == "played" })
         }
 
@@ -267,7 +163,7 @@ class PlaybackReporterTest {
             rig.reporter.stall()
             rig.at(200_000)
             rig.reporter.leave()
-            rig.at(200_000)
+            rig.at(202_000)
             assertTrue(rig.calls.none { it.kind == "played" })
         }
 
@@ -284,12 +180,12 @@ class PlaybackReporterTest {
             rig.at(120_000)
             rig.at(121_000)
             rig.reporter.leave()
-            rig.at(121_000)
+            rig.at(123_000)
             assertEquals(1, rig.calls.count { it.kind == "played" })
             val reported = rig.calls.filter { it.kind == "start" || it.kind == "progress" }
             assertEquals(listOf(11_000L, 11_000L, 0L), reported.map { it.posMs }.take(3))
             assertEquals(0L, rig.calls.last { it.kind == "progress" }.posMs)
-            assertEquals(Call("stopped", 121_000, "a", 0, failed = true), rig.calls.last())
+            assertEquals(Call("stopped", 123_000, "a", 0, failed = true), rig.calls.last())
         }
 
     @Test
@@ -301,7 +197,7 @@ class PlaybackReporterTest {
             rig.visit(1, "a", runtime = 60.seconds)
             rig.at(60_000)
             rig.reporter.leave()
-            rig.at(60_000)
+            rig.at(62_000)
             assertEquals(1, rig.calls.count { it.kind == "played" })
             assertTrue(rig.calls.none { it.kind == "start" })
         }
@@ -314,7 +210,7 @@ class PlaybackReporterTest {
             rig.visit(1, "a", runtime = null)
             rig.at(10 * 60_000)
             rig.reporter.leave()
-            rig.at(10 * 60_000)
+            rig.at(10 * 60_000 + 2_000)
             assertTrue(rig.calls.none { it.kind == "played" })
         }
 
@@ -378,20 +274,52 @@ class PlaybackReporterTest {
         }
 
     @Test
-    fun `the event methods never suspend or wait on a hung call`() =
+    fun `leave stall and resume queued behind a hung call keep their own timestamps`() =
         runTest {
             val rig = Rig(this)
-            rig.server.stopHangs = true
+            rig.server.progressHangs = true
+            rig.reporter.sittingStarted(1)
+            rig.visit(1, "a", runtime = 65_500.milliseconds)
+            rig.at(40_000) // start went out at 30 s
+            rig.reporter.stall()
+            rig.at(50_000)
+            rig.reporter.resumed()
+            rig.at(61_000) // the 60 s progress hangs until 65 s
+            rig.reporter.stall()
+            rig.at(62_000)
+            rig.reporter.resumed()
+            rig.at(70_000)
+            rig.reporter.leave()
+            rig.at(80_000)
+            // watched = 70 - 10 - 1 = 59 s >= 0.9 x 65.5 s: judged at the events own times
+            assertEquals(1, rig.calls.count { it.kind == "played" })
+            assertEquals(Call("stopped", 72_000, "a", 0, failed = true), rig.calls.last())
+        }
+
+    @Test
+    fun `a 401 of the HttpUnauthorized kind halts reporting too`() =
+        runTest {
+            val rig = Rig(this)
+            rig.server.userDataQueue += ServerResult.Failure(MediaServerError.HttpUnauthorized())
             rig.reporter.sittingStarted(1)
             rig.visit(1, "a")
-            rig.at(31_000)
-            val before = currentTime
+            rig.at(300_000)
+            assertEquals(listOf("userdata"), rig.kinds())
+        }
+
+    @Test
+    fun `a 401 after Playing was sent halts check-ins and the final Stopped`() =
+        runTest {
+            val rig = Rig(this)
+            rig.server.progressResult = ServerResult.Failure(MediaServerError.SessionExpired())
+            rig.reporter.sittingStarted(1)
+            rig.visit(1, "a")
+            rig.at(60_000)
             rig.reporter.leave()
-            rig.reporter.stall()
-            rig.reporter.resumed()
-            rig.visit(1, "b", block = 1)
-            rig.reporter.close()
-            assertEquals(before, currentTime)
+            rig.reporter.sittingStarted(2)
+            rig.visit(2, "b")
+            rig.at(300_000)
+            assertEquals(listOf("userdata", "start", "progress"), rig.kinds())
         }
 
     @Test
@@ -406,7 +334,7 @@ class PlaybackReporterTest {
             rig.at(90_000)
             rig.at(120_000)
             rig.reporter.leave()
-            rig.at(121_000)
+            rig.at(123_000)
             val shape = Regex("report (start|progress|stop|played|error)( [a-z]+=[a-z0-9]+)*")
             assertTrue(rig.lines.isNotEmpty())
             rig.lines.forEach { assertTrue(it, shape.matches(it)) }
@@ -428,16 +356,4 @@ class PlaybackReporterTest {
             rig.at(200_000)
             assertEquals(3, rig.calls.size)
         }
-
-    private companion object {
-        val SESSION =
-            Session(
-                UserId("u"),
-                AccessToken("fake-token"),
-                ServerInfo("Home", ServerId("srv1"), ServerVersion(12, 2, 0)),
-                ServerAddress(Scheme.Https, "jellyfin.example", 443),
-                null,
-                false,
-            )
-    }
 }

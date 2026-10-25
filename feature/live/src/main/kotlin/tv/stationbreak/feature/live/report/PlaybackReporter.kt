@@ -2,8 +2,12 @@
 package tv.stationbreak.feature.live.report
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSourceId
@@ -31,7 +35,8 @@ data class ReportTarget(
  * Every method only queues an event and returns: none suspends or waits on the network (R1). One worker, launched in
  * [scope], takes the events one at a time, so a Stopped for one airing always goes out before the Playing for the next.
  * [scope] belongs to the caller and must outlive the sittings (a supervisor scope owned by `LiveChannel.run`); each
- * server call is abandoned after [ReportingConfig.callTimeout].
+ * server call is abandoned after [ReportingConfig.callTimeout]. Callers must [closeAndJoin] before cancelling [scope],
+ * or the final Stopped is lost with the worker.
  *
  * Policy (the numbers are [config]'s):
  * - A visit is one airing ([AiringKey], R3). Watched time lives in a [WatchLedger] for the life of the reporter.
@@ -43,8 +48,9 @@ data class ReportTarget(
  * - Once watched time reaches `playedThreshold` of the runtime, the airing is marked played, once, whatever the
  *   user-data read did (R5, R6). A 401 stops all reporting for the run (R9).
  *
- * A retry of the same airing in the same sitting while the visit is open continues it: one Playing, with the newest
- * target used from then on. Stall notes beyond the tune controller's cap of 20 per play over-count watched time.
+ * A retry of the same airing in the same sitting continues the visit, even when [leave] came first: Stopped waits
+ * `leaveGrace` after a leave, so a retry within it sends no Stopped and no second Playing; the newest target is used
+ * from then on. Stall notes beyond the tune controller's cap of 20 per play over-count watched time.
  *
  * Log lines hold only labels and numbers: `report start|progress|stop|played|error kind=<label>`.
  */
@@ -57,17 +63,19 @@ class PlaybackReporter(
     log: (String) -> Unit,
 ) {
     private val events = Channel<ReportEvent>(Channel.UNLIMITED)
+    private val limitDefault = config.callTimeout * 2
+    private val worker: Job
 
     init {
-        val worker =
-            ReportWorker(scope, server, session, config, log) {
-                events.trySend(ReportEvent.Tick(it, clock.now()))
+        val calls = ReportCalls(config, log)
+        val reportWorker =
+            ReportWorker(scope, server, session, clock, config, calls, log) { events.trySend(it) }
+        worker =
+            scope.launch {
+                for (event in events) {
+                    if (!reportWorker.handle(event)) break
+                }
             }
-        scope.launch {
-            for (event in events) {
-                if (!worker.handle(event)) break
-            }
-        }
     }
 
     /** A new sitting began (a tune or a flip lands). Older than `startAfter`, it reports each item at once. */
@@ -93,7 +101,11 @@ class PlaybackReporter(
         events.trySend(ReportEvent.Resumed(clock.now()))
     }
 
-    /** The viewer left the item (boundary, flip, exit, failure). Sends Stopped if it was reported as playing. */
+    /**
+     * The viewer left the item (boundary, flip, exit, failure, or a failed tune about to be retried). Stopped follows
+     * after `leaveGrace` if it was reported as playing, unless [visit] returns to the same airing in the same sitting
+     * by then, which continues the visit.
+     */
     fun leave() {
         events.trySend(ReportEvent.Leave(clock.now()))
     }
@@ -102,5 +114,18 @@ class PlaybackReporter(
     fun close() {
         events.trySend(ReportEvent.Close(clock.now()))
         events.close()
+    }
+
+    /**
+     * Like [close], then waits for the worker to send the final Stopped and finish, for at most [limit] (a hung call is
+     * cut there), and stops the worker. Safe to call from a `finally` of a cancelled coroutine. Call it before
+     * cancelling the reporter's scope.
+     */
+    suspend fun closeAndJoin(limit: Duration = limitDefault) {
+        withContext(NonCancellable) {
+            close()
+            withTimeoutOrNull(limit) { worker.join() }
+            worker.cancel()
+        }
     }
 }

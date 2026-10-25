@@ -6,12 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.MediaServer
-import tv.stationbreak.core.domain.MediaServerError
-import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.Session
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
 
@@ -46,6 +44,10 @@ internal sealed interface ReportEvent {
         val at: Instant,
     ) : ReportEvent
 
+    data class Grace(
+        val visitId: Long,
+    ) : ReportEvent
+
     data class Close(
         val at: Instant,
     ) : ReportEvent
@@ -53,38 +55,71 @@ internal sealed interface ReportEvent {
 
 /**
  * The I/O half of the reporter: handles one [ReportEvent] at a time (so calls are strictly ordered), keeps the visit
- * state, and talks to the server under a timeout. Touched from one coroutine only. [postTick] queues a tick for a
- * visit back onto the same event queue.
+ * state, and talks to the server through [calls]. Touched from one coroutine only. [post] queues a timer's event back
+ * onto the same event queue.
+ *
+ * A leave does not end the visit at once: the Stopped waits `leaveGrace`, so a visit to the same airing in the same
+ * sitting (a retry of a failed tune) continues the visit, and anything else (another airing, a new sitting, close)
+ * ends it first. A Start that timed out may still have reached the server; the next check-in sends Start again, and if
+ * the viewer leaves first no Stopped is sent, so the server ends that session itself at the safe position (ADR-0018).
  */
+@Suppress("LongParameterList") // The reporter's collaborators, each used.
 internal class ReportWorker(
     private val scope: CoroutineScope,
     private val server: MediaServer,
     private val session: Session,
+    private val clock: Clock,
     private val config: ReportingConfig,
+    private val calls: ReportCalls,
     private val log: (String) -> Unit,
-    private val postTick: (visitId: Long) -> Unit,
+    private val post: (ReportEvent) -> Unit,
 ) {
     private class OpenVisit(
         val id: Long,
         val sittingId: Long,
         val key: AiringKey,
         var target: ReportTarget,
-        val timer: Job,
+        val timer: Job?,
     ) {
         var userDataTries = 0
         var userRead = false
         var resume: Duration = Duration.ZERO
         var userPlayed = false
         var started = false
+        var leftAt: Instant? = null
+        var grace: Job? = null
+
+        fun report(position: Duration) =
+            PlaybackReport(
+                itemId = key.itemId,
+                sourceId = target.sourceId,
+                playSessionId = target.playSessionId,
+                position = position,
+                playMethod = target.playMethod,
+            )
+
+        /** The item's resume position, or 0 once it is played or the app has marked it played (R7). */
+        fun safePosition(marked: Boolean): Duration = if (userPlayed || marked) Duration.ZERO else resume
     }
 
     private val ledger = WatchLedger(config)
     private var visit: OpenVisit? = null
     private var visitCounter = 0L
-    private var halted = false
 
-    /** Returns false once the worker should end. */
+    /** Handles [event], never letting a fault in it end the worker. Returns false once the worker should end. */
+    @Suppress("TooGenericExceptionCaught", "SwallowedException") // One bad event must not silence the run.
     suspend fun handle(event: ReportEvent): Boolean {
+        try {
+            dispatch(event)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log("report error kind=exception")
+        }
+        return event !is ReportEvent.Close
+    }
+
+    private suspend fun dispatch(event: ReportEvent) {
         when (event) {
             is ReportEvent.Sitting -> {
                 endVisit(event.at)
@@ -104,7 +139,11 @@ internal class ReportWorker(
             }
 
             is ReportEvent.Leave -> {
-                endVisit(event.at)
+                onLeave(event)
+            }
+
+            is ReportEvent.Grace -> {
+                visit?.takeIf { it.id == event.visitId }?.leftAt?.let { endVisit(it) }
             }
 
             is ReportEvent.Tick -> {
@@ -115,35 +154,58 @@ internal class ReportWorker(
                 endVisit(event.at)
             }
         }
-        return event !is ReportEvent.Close
     }
 
     private suspend fun onVisit(event: ReportEvent.Visit) {
         val open = visit
         if (open != null && open.key == event.key && open.sittingId == event.sittingId) {
             open.target = event.target
+            if (open.leftAt != null) {
+                open.grace?.cancel()
+                open.leftAt = null
+                ledger.enter(event.key, event.at)
+            }
         } else {
             endVisit(event.at)
             ledger.enter(event.key, event.at)
             val dwell = ledger.dwell(event.sittingId, event.at)
             val id = ++visitCounter
-            val timer =
-                scope.launch {
-                    delay(dwell)
-                    while (true) {
-                        postTick(id)
-                        delay(config.progressEvery)
-                    }
-                }
+            val timer = if (calls.halted) null else scope.launch { tickLoop(id, dwell) }
             visit = OpenVisit(id, event.sittingId, event.key, event.target, timer)
         }
     }
 
+    private suspend fun tickLoop(
+        id: Long,
+        dwell: Duration,
+    ) {
+        delay(dwell)
+        while (true) {
+            post(ReportEvent.Tick(id, clock.now()))
+            delay(config.progressEvery)
+        }
+    }
+
+    private fun onLeave(event: ReportEvent.Leave) {
+        val v = visit
+        if (v != null && v.leftAt == null) {
+            ledger.leave(event.at)
+            v.leftAt = event.at
+            v.grace =
+                scope.launch {
+                    delay(config.leaveGrace)
+                    post(ReportEvent.Grace(v.id))
+                }
+        }
+    }
+
     private suspend fun onTick(event: ReportEvent.Tick) {
-        val v = visit?.takeIf { it.id == event.visitId }
-        if (v != null && !halted) {
+        val v = visit?.takeIf { it.id == event.visitId && it.leftAt == null }
+        if (v != null && calls.halted) {
+            v.timer?.cancel()
+        } else if (v != null) {
             markIfDue(v, event.at)
-            if (!halted && (v.userRead || readUserData(v))) checkIn(v)
+            if (!calls.halted && (v.userRead || readUserData(v))) checkIn(v)
         }
     }
 
@@ -152,7 +214,7 @@ internal class ReportWorker(
         val state =
             if (v.userDataTries < config.userDataAttempts) {
                 v.userDataTries++
-                call { server.userData(session, v.key.itemId) }
+                calls.call { server.userData(session, v.key.itemId) }
             } else {
                 null
             }
@@ -166,29 +228,33 @@ internal class ReportWorker(
 
     /** Playing on the first check-in that gets through, Progress after. Always at the safe position. */
     private suspend fun checkIn(v: OpenVisit) {
-        val position = safePosition(v)
+        val position = v.safePosition(ledger.isMarked(v.key))
         if (v.started) {
-            if (call { server.reportProgress(session, report(v, position)) } != null) {
+            if (calls.call { server.reportProgress(session, v.report(position)) } != null) {
                 log("report progress pos=${position.inWholeMilliseconds}")
             }
-        } else if (call { server.reportStart(session, report(v, position)) } != null) {
+        } else if (calls.call { server.reportStart(session, v.report(position)) } != null) {
             v.started = true
             log("report start pos=${position.inWholeMilliseconds}")
         }
     }
 
+    /**
+     * The visit is over as of [at] (or as of when the viewer left, if they did): stop its timers, mark it played if
+     * due, and send Stopped if it was reported as playing.
+     */
     private suspend fun endVisit(at: Instant) {
         val v = visit
-        visit = null
         if (v != null) {
-            v.timer.cancel()
-            ledger.leave(at)
-            if (!halted) markIfDue(v, at)
-            if (!halted && v.started) {
-                val position = safePosition(v)
-                if (call { server.reportStopped(session, report(v, position), failed = true) } != null) {
-                    log("report stop pos=${position.inWholeMilliseconds}")
-                }
+            visit = null
+            v.timer?.cancel()
+            v.grace?.cancel()
+            val end = v.leftAt ?: at.also { ledger.leave(it) }
+            if (!calls.halted) markIfDue(v, end)
+            if (!calls.halted && v.started) {
+                val position = v.safePosition(ledger.isMarked(v.key))
+                val sent = calls.call { server.reportStopped(session, v.report(position), failed = true) }
+                if (sent != null) log("report stop pos=${position.inWholeMilliseconds}")
             }
         }
     }
@@ -198,57 +264,9 @@ internal class ReportWorker(
         at: Instant,
     ) {
         if (!v.userPlayed && ledger.markDue(v.key, v.target.runtime, at)) {
-            val done = call { server.markPlayed(session, v.key.itemId) } != null
+            val done = calls.call { server.markPlayed(session, v.key.itemId) } != null
             ledger.markResult(v.key, done)
             if (done) log("report played")
         }
-    }
-
-    /** The item's resume position, or 0 once it is played or the app has marked it played (R7). */
-    private fun safePosition(v: OpenVisit): Duration {
-        val played = v.userPlayed || ledger.isMarked(v.key)
-        return if (played) Duration.ZERO else v.resume
-    }
-
-    private fun report(
-        v: OpenVisit,
-        position: Duration,
-    ) = PlaybackReport(
-        itemId = v.key.itemId,
-        sourceId = v.target.sourceId,
-        playSessionId = v.target.playSessionId,
-        position = position,
-        playMethod = v.target.playMethod,
-    )
-
-    /**
-     * Runs one server call under the timeout. Returns the value, or null after logging why not; a 401 halts the run.
-     * Never throws except for cancellation.
-     */
-    @Suppress("TooGenericExceptionCaught", "SwallowedException") // Reporting is best-effort; cancellation still passes.
-    private suspend fun <T> call(block: suspend () -> ServerResult<T>): T? {
-        val result =
-            try {
-                withTimeoutOrNull(config.callTimeout) { block() }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log("report error kind=exception")
-                return null
-            }
-        return when (result) {
-            is ServerResult.Success -> result.value
-            is ServerResult.Failure -> failed(result.error)
-            null -> null.also { log("report error kind=timeout") }
-        }
-    }
-
-    private fun failed(error: MediaServerError): Nothing? {
-        if (error is MediaServerError.HttpUnauthorized || error is MediaServerError.SessionExpired) {
-            halted = true
-            visit?.timer?.cancel()
-        }
-        log("report error kind=${error::class.simpleName.orEmpty().lowercase()}")
-        return null
     }
 }
