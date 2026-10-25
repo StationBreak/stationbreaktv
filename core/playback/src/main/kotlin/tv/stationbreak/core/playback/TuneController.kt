@@ -309,7 +309,7 @@ class TuneController(
      * Gives up [prepared]: ends its server encode if it has one. Idempotent. A handle already passed to [tune] is gone,
      * so this does nothing for it.
      */
-    suspend fun discard(
+    fun discard(
         session: Session,
         prepared: Prepared,
     ) {
@@ -462,6 +462,7 @@ class TuneController(
     }
 
     /** The player reached Playing. [positionError] is set when it landed off the requested start. */
+    @Suppress("LongParameterList") // One play's measures, as Played reports them.
     private class Landed(
         override val resolved: ResolvedPlayback,
         val firstFrameMs: Long?,
