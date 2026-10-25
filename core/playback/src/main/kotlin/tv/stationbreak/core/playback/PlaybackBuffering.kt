@@ -19,7 +19,8 @@ import androidx.media3.exoplayer.DefaultLoadControl
  *
  * Defaults and their Media3 1.11.1 constants: [minBufferMs] 50000 (`DEFAULT_MIN_BUFFER_MS`), [maxBufferMs] 50000
  * (`DEFAULT_MAX_BUFFER_MS`), [bufferForPlaybackAfterRebufferMs] 2000 (`DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS`).
- * Media3 uses lower "local playback" values only for file-like URIs; this app streams over HTTP, so they never apply.
+ * Setting the buffer durations also overrides Media3's separate "local playback" values (used for file, content and
+ * asset URIs), so those take the same numbers; it makes no difference here, because the app only plays over HTTP.
  * Media3 requires the start buffers not to exceed [minBufferMs] and [minBufferMs] not to exceed [maxBufferMs].
  */
 @UnstableApi
