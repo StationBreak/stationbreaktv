@@ -69,7 +69,7 @@ private fun GuideModel.moveVertically(
     focus: GuideFocus,
     candidates: IntProgression,
 ): GuideFocus {
-    val target = candidates.map { rows[it] }.firstOrNull { it.cells.isNotEmpty() }
+    val target = candidates.firstOrNull { rows[it].cells.isNotEmpty() }?.let { rows[it] }
     val anchor = maxOf(focus.anchorMs, originMs)
     val cells = target?.cells.orEmpty()
     val cell =
@@ -85,7 +85,8 @@ private fun GuideModel.moveVertically(
  *
  * - Up and Down keep the time columns steady: the range stays put while the focused cell overlaps it (a long cell that
  *   began before the range still counts). Only when the cell does not overlap is the range moved, by the fewest whole
- *   slots that show the focus's anchor time.
+ *   slots that show the focus's anchor time if the cell holds it, else the cell's nearest edge, so the focused cell is
+ *   always at least partly visible.
  * - Left and Right move the range only when the focused cell is entirely outside it, to the slot that holds the
  *   cell's start.
  */
@@ -102,6 +103,7 @@ fun viewportStartFor(
     val cellStart = maxOf(focus.cellStartMs, origin)
     val cell = model.indexOf(focus)?.let { (r, c) -> model.rows[r].cells[c] }
     val cellEnd = maxOf(cell?.endMs ?: (cellStart + 1), cellStart + 1)
+    val anchor = maxOf(focus.anchorMs, origin)
     return when {
         cellEnd > start && cellStart < start + span -> {
             start
@@ -111,8 +113,17 @@ fun viewportStartFor(
             origin + (cellStart - origin).floorDiv(SLOT_MS) * SLOT_MS
         }
 
+        // Up or Down: the anchor when the cell holds it, else the nearest edge of the cell, so the cell is seen.
+        cellStart <= anchor && anchor < cellEnd -> {
+            revealing(anchor, origin, start, span)
+        }
+
+        cellEnd <= start -> {
+            revealing(maxOf(cellEnd - 1, origin), origin, start, span)
+        }
+
         else -> {
-            revealing(maxOf(focus.anchorMs, origin), origin, start, span)
+            revealing(cellStart, origin, start, span)
         }
     }
 }

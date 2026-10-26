@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -229,7 +230,26 @@ class GuideFocusTest {
     }
 
     @Test
-    fun upDownOntoACellOutsideTheViewportRevealsTheAnchor() {
+    fun upDownOntoACellOutsideTheViewportRevealsTheAnchorWhenTheCellHoldsIt() {
+        val long =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(
+                        row(CH5, 5, program(60, 100, 1), program(100, 500, 2)),
+                        row(CH7, 7, program(60, 350, 4), program(350, 500, 5)),
+                    ),
+                    complete = true,
+                ),
+                now,
+            )
+        val down = long.move(GuideFocus(CH5, min(100), min(400)), GuideDirection.Down)
+        assertEquals(min(350), down.cellStartMs)
+        // The viewport is far from the anchor (400); the cell holds it, so it is shown in whole slots: 330..420.
+        assertEquals(min(330), viewportStartFor(down, long, min(60), GuideDirection.Down))
+    }
+
+    @Test
+    fun upDownOntoAFallbackCellScrollsToTheCellNotTheAnchor() {
         val short =
             buildGuideModel(
                 ScheduleWindow(
@@ -241,8 +261,58 @@ class GuideFocusTest {
         val down = short.move(GuideFocus(CH5, min(60), min(400)), GuideDirection.Down)
         assertEquals(min(60), down.cellStartMs)
         assertEquals(min(400), down.anchorMs)
-        // The short cell is far before the viewport; the anchor (400) is shown, in whole slots: 330..420.
-        assertEquals(min(330), viewportStartFor(down, short, min(180), GuideDirection.Down))
+        val viewport = viewportStartFor(down, short, min(330), GuideDirection.Down)
+        // The short cell (60..100) ends before the viewport: the fewest slots back to show its last moment.
+        assertEquals(min(90), viewport)
+        assertOverlaps(short, down, viewport)
+    }
+
+    private fun assertOverlaps(
+        m: GuideModel,
+        focus: GuideFocus,
+        viewport: Long,
+        span: Long = 90 * MIN,
+    ) {
+        val (r, c) = checkNotNull(m.indexOf(focus))
+        val cell = m.rows[r].cells[c]
+        assertTrue("$cell not in $viewport", cell.endMs > viewport && cell.startMs < viewport + span)
+        assertTrue(viewport >= m.originMs)
+    }
+
+    @Test
+    fun focusedCellAlwaysOverlapsTheViewportAfterAnyMove() {
+        val shapes =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(
+                        row(CH5, 5, program(30, 100, 1), program(100, 110, 2), program(110, 400, 3)),
+                        row(CH7, 7),
+                        row(CH9, 9, program(60, 75, 6), program(75, 150, 7)),
+                        row(ChannelId("ch-4"), 4, program(60, 360, 8)),
+                        row(ChannelId("ch-3"), 3, slate(60, 90), program(90, 95, 9), program(95, 400, 10)),
+                    ),
+                    complete = true,
+                ),
+                now,
+            )
+        val anchors = (60L..390L step 15L).map(::min)
+        val viewports = (60L..360L step 30L).map(::min)
+        val moves =
+            shapes.rows.flatMap { row ->
+                row.cells.flatMap { cell ->
+                    anchors.flatMap { anchor ->
+                        GuideDirection.entries.map { direction ->
+                            direction to shapes.move(GuideFocus(row.channel, cell.startMs, anchor), direction)
+                        }
+                    }
+                }
+            }
+        for ((direction, moved) in moves) {
+            for (viewport in viewports) {
+                assertOverlaps(shapes, moved, viewportStartFor(moved, shapes, viewport, direction))
+            }
+        }
+        assertTrue(moves.size * viewports.size > 1000)
     }
 
     @Test
