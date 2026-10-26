@@ -358,6 +358,8 @@ jobs:
     outputs:
       # The debug APK's file name, for `sign-debug`.
       apk-name: ${{ steps.apk.outputs.name }}
+      # The benchmark APK's file name (main only; empty otherwise), for `sign-debug`.
+      benchmark-apk-name: ${{ steps.apk.outputs.benchmark-name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -400,7 +402,8 @@ jobs:
       # No assembleAmazonDebug: nothing uploads or inspects that APK, and `check` (in `verify`) already compiles,
       # lints and unit-tests the variant. Its dex merge was the slowest task in the old combined job.
       # The release variants are built only on main and for a PR that can change what they contain (see `checks`);
-      # the github debug APK is built every time, for the device tests.
+      # the github debug APK is built every time, for the device tests. On main, the github benchmark APK (release code,
+      # not debuggable) is built too, for device measurements (#392).
       - name: Assemble
         env:
           RELEASE: ${{ needs.checks.outputs.release }}
@@ -409,6 +412,9 @@ jobs:
           # Only an explicit false narrows it; an empty output runs everything.
           if [ "$RELEASE" != false ]; then
             tasks+=(assembleAmazonRelease assembleGithubRelease)
+          fi
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            tasks+=(assembleGithubBenchmark)
           fi
           ./gradlew "${tasks[@]}" --continue
 
@@ -455,12 +461,23 @@ jobs:
             echo "name=${name}"
             echo "path=dist/${name}"
           } >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            benchmark="stationbreak-github-benchmark-main-${shortsha}.apk"
+            mkdir -p dist-benchmark
+            cp app/build/outputs/apk/github/benchmark/app-github-benchmark.apk "dist-benchmark/${benchmark}"
+            {
+              echo "benchmark-name=${benchmark}"
+              echo "benchmark-path=dist-benchmark/${benchmark}"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Inspect APKs
         env:
           # AGP 9.4's default build-tools version.
           BUILD_TOOLS_VERSION: 36.0.0
           DEBUG_APK: ${{ steps.apk.outputs.path }}
+          # Empty except on main.
+          BENCHMARK_APK: ${{ steps.apk.outputs.benchmark-path }}
           # One release APK per flavor (amazon, github). Update when a flavor is added (play, F4.3). None when the
           # release variants weren't built (see `checks`).
           # Strings, not numbers: in an expression the number 0 is falsy, so `&& 0 || 2` would always give 2.
@@ -478,6 +495,22 @@ jobs:
           echo "::group::aapt2 dump badging (github debug)"
           grep -E "$BADGING_FIELDS" <<<"$badging"
           echo "::endgroup::"
+          # The benchmark APK measures what ships: it must not be debuggable.
+          if [ -n "$BENCHMARK_APK" ]; then
+            badging="$("$BUILD_TOOLS/aapt2" dump badging "$BENCHMARK_APK")"
+            echo "::group::aapt2 dump badging (github benchmark)"
+            grep -E "$BADGING_FIELDS" <<<"$badging"
+            echo "::endgroup::"
+            if grep -q "^application-debuggable" <<<"$badging"; then
+              echo "::error::benchmark APK is debuggable (#392): $BENCHMARK_APK"
+              exit 1
+            fi
+            # Release code is signed with the CI debug key only under the benchmark ID, never the production one.
+            if ! grep -q "^package: name='tv\.stationbreak\.app\.benchmark'" <<<"$badging"; then
+              echo "::error::benchmark APK's package is not tv.stationbreak.app.benchmark (ADR-0011): $BENCHMARK_APK"
+              exit 1
+            fi
+          fi
           # ADR-0011 condition 3: a release build is never debuggable. Check every flavor's release APK.
           shopt -s nullglob
           release_apks=(app/build/outputs/apk/*/release/*.apk)
@@ -508,6 +541,16 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # Main only. Handed to `sign-debug` like the debug APK above.
+      - name: Upload the benchmark APK for signing
+        if: steps.apk.outputs.benchmark-path != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: benchmark-apk-runner-key
+          path: ${{ steps.apk.outputs.benchmark-path }}
+          retention-days: 1
+          if-no-files-found: error
+
   # ADR-0011 (amended 2026-10-18): Gradle signs the debug APK with the runner's own key; this job re-signs it with the
   # CI debug key, held in secrets, so each CI debug APK installs over the last on a test device. It is a separate job
   # so the key is only ever decoded on a fresh runner that runs no repository code: no checkout, no Gradle, nothing a
@@ -527,12 +570,21 @@ jobs:
           name: debug-apk-runner-key
           path: ${{ runner.temp }}/in
 
+      - name: Download the benchmark APK
+        if: needs.assemble.outputs.benchmark-apk-name != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: benchmark-apk-runner-key
+          path: ${{ runner.temp }}/in
+
       - name: Sign the debug APK with the CI debug key
         id: sign
         env:
           # The runner image's build-tools, as in `assemble`'s "Inspect APKs".
           BUILD_TOOLS_VERSION: 36.0.0
           APK_NAME: ${{ needs.assemble.outputs.apk-name }}
+          # Main only; empty otherwise. Signed with the same key (#392).
+          BENCHMARK_APK_NAME: ${{ needs.assemble.outputs.benchmark-apk-name }}
           KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
         run: |
@@ -562,6 +614,14 @@ jobs:
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v4-signing-enabled false \
             --out "dist/${APK_NAME}" "$RUNNER_TEMP/in/${APK_NAME}"
+          if [ -n "$BENCHMARK_APK_NAME" ]; then
+            "$BUILD_TOOLS/apksigner" sign \
+              --ks "$store" --ks-type PKCS12 --ks-key-alias stationbreak-debug \
+              --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+              --v4-signing-enabled false \
+              --out "dist/${BENCHMARK_APK_NAME}" "$RUNNER_TEMP/in/${BENCHMARK_APK_NAME}"
+            echo "benchmark-path=dist/${BENCHMARK_APK_NAME}" >> "$GITHUB_OUTPUT"
+          fi
           {
             echo "path=dist/${APK_NAME}"
             echo "sha256=$sha256"
@@ -572,16 +632,21 @@ jobs:
         env:
           BUILD_TOOLS_VERSION: 36.0.0
           DEBUG_APK: ${{ steps.sign.outputs.path }}
+          BENCHMARK_APK: ${{ steps.sign.outputs.benchmark-path }}
           DEBUG_CERT_SHA256: ${{ steps.sign.outputs.sha256 }}
         run: |
-          certs="$("$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify --print-certs "$DEBUG_APK")"
-          echo "$certs"
-          signers="$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' <<<"$certs" | sort -u)"
-          if [ "$signers" != "$DEBUG_CERT_SHA256" ]; then
-            echo "::error::the debug APK is not signed with the CI debug key alone (ADR-0011)"
-            exit 1
-          fi
-          echo "debug APK signed with the CI debug key"
+          apks=("$DEBUG_APK")
+          if [ -n "$BENCHMARK_APK" ]; then apks+=("$BENCHMARK_APK"); fi
+          for apk in "${apks[@]}"; do
+            certs="$("$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify --print-certs "$apk")"
+            echo "$certs"
+            signers="$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' <<<"$certs" | sort -u)"
+            if [ "$signers" != "$DEBUG_CERT_SHA256" ]; then
+              echo "::error::$apk is not signed with the CI debug key alone (ADR-0011)"
+              exit 1
+            fi
+            echo "$apk signed with the CI debug key"
+          done
 
       - name: Upload PR debug APK
         if: github.event_name == 'pull_request'
@@ -599,6 +664,16 @@ jobs:
           path: ${{ steps.sign.outputs.path }}
           archive: false
           # Explicit, so a repo-level default change can't alter it. Main APKs are for device testing only.
+          retention-days: 30
+          if-no-files-found: error
+
+      # Main only (the benchmark APK is not built for PRs). For device measurements; never published (#392).
+      - name: Upload main benchmark APK
+        if: steps.sign.outputs.benchmark-path != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ steps.sign.outputs.benchmark-path }}
+          archive: false
           retention-days: 30
           if-no-files-found: error
 

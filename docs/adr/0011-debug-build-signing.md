@@ -100,3 +100,10 @@ installed signature is checked (`apksigner verify --print-certs` on the pulled A
 **What stays.** Items 2, 3, 5 and 7 stand, and item 4 except that the key is no longer public. Item 7 (a
 low-privilege Jellyfin user for debug builds) is still the right practice; this amendment removes the dependency on
 it, not the advice. The CI debug key is single-purpose (item 4) and is never used for a release. If it leaks, it is replaced the same way: a new key, new secrets, and one uninstall per TV.
+
+## Amendment, 2026-10-25: the benchmark build
+
+On `main`, CI also builds the non-debuggable `benchmark` variant (release code, application ID
+`tv.stationbreak.app.benchmark`) and `sign-debug` signs it with the CI debug key, for device measurement (#392). It is
+never published and never carries the release application ID: CI fails unless its package name is exactly
+`tv.stationbreak.app.benchmark`. Item 7 (a low-privilege Jellyfin user, ADB off when idle) applies to benchmark installs too.

@@ -55,8 +55,9 @@ android {
         // The playback matrix build (spec 13): release code, with the benchmark-only PlaybackTestActivity (src/benchmark)
         // that plays items on a real device and reports JSON lines. Not debuggable, so it measures what ships. It is
         // signed with the per-machine debug key (never a protected one) so it installs with a plain `adb install`; its
-        // own application ID keeps it beside the debug and release builds. Never published: CI and the stores build
-        // debug and release only.
+        // own application ID keeps it beside the debug and release builds. Never published: the stores build release
+        // only. CI builds debug and release, and on main also builds this one and signs it with the CI debug key, for
+        // device measurement (#392).
         // initWith copies release's minify and shrink settings: keep them that way, or it measures code that is not shipped.
         create("benchmark") {
             initWith(getByName("release"))
