@@ -141,11 +141,13 @@ internal fun GuideCellView(
     LocalCellComposed.current?.invoke(channel, cell.startMs)
     val copy = programCopy()
     val title = cellTitle(cell, copy)
-    val onNow by remember(cell, nowOf) {
-        derivedStateOf { nowOf()?.let { cell.startMs <= it && it < cell.endMs } == true }
-    }
-    // The description is put together only when something asks for the semantics (a screen reader, a test), not in
-    // every cell's composition.
+    // Read here, in composition, so the cell whose "on now" flips (and only it) composes again and its semantics with
+    // it; the description itself is put together only when something asks for the semantics (a screen reader, a
+    // test), not in every cell's composition.
+    val onNow =
+        remember(cell, nowOf) {
+            derivedStateOf { nowOf()?.let { cell.startMs <= it && it < cell.endMs } == true }
+        }.value
     val resources = LocalResources.current
     val is24h = is24Hour()
     Box(
