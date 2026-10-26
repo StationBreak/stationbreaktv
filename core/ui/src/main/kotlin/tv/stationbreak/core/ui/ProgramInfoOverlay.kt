@@ -23,12 +23,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 
-private const val OVERSCAN = 0.05f
 private const val OVERVIEW_MAX_LINES = 6
 private const val DETAIL_SEPARATOR = " · "
 private const val PANEL_FRACTION = 0.65f
@@ -59,9 +59,10 @@ fun ProgramInfoOverlay(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val side = maxWidth * OVERSCAN
-        val edge = maxHeight * OVERSCAN
-        val safeWidth = maxWidth - side * 2
+        val safe = GuideLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val side = safe.left
+        val edge = safe.top
+        val safeWidth = safe.right - safe.left
         Column(
             Modifier
                 .align(Alignment.BottomStart)

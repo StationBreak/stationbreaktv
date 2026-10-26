@@ -28,18 +28,38 @@ import java.time.ZoneId
  *
  * [info] is the program info overlay (spec 17), over the picture in place of the banner; the actions banner's buttons
  * send their [LiveCommand] to [onCommand].
+ *
+ * [guide], while the program guide is open (spec 17), is drawn over the picture in place of everything else: the guide
+ * is opaque, so a banner, a slate or animated snow under it would only cost frames. The picture keeps playing.
  */
 @Composable
 internal fun LiveScreen(
     state: LiveState,
     info: LiveInfo? = null,
     onCommand: (LiveCommand) -> Unit = {},
+    guide: (@Composable () -> Unit)? = null,
     surface: @Composable () -> Unit,
 ) {
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
     LaunchedEffect(Unit) { SnowFrames.get() }
     Box(Modifier.fillMaxSize().background(BroadcastColors.Ink)) {
         surface()
+        if (guide != null) {
+            guide()
+        } else {
+            LiveLayers(state, info, onCommand)
+        }
+    }
+}
+
+/** What live TV draws over its picture for [state]: snow, the banners, the slates and the info overlay. */
+@Composable
+private fun LiveLayers(
+    state: LiveState,
+    info: LiveInfo?,
+    onCommand: (LiveCommand) -> Unit,
+) {
+    Box(Modifier.fillMaxSize()) {
         when (state) {
             is LiveState.Tuning -> {
                 Snow()

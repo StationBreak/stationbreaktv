@@ -4,6 +4,7 @@ package tv.stationbreak.core.ui
 import android.content.res.Resources
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -63,6 +64,38 @@ object ProgramText {
         val first = if (sameHalf) plain.format(start) else withMeridiem.format(start)
         return first + SLOT_DASH + withMeridiem.format(end)
     }
+
+    /**
+     * [slot], with the weekday in front when the program starts on another day than [todayMs] in [zone]: "Tue 1:00 –
+     * 1:30 AM". A guide cell can be tomorrow's, and a bare time would read as today's.
+     */
+    @Suppress("LongParameterList") // Primitives only, like slot.
+    fun slotOn(
+        startMs: Long,
+        endMs: Long,
+        todayMs: Long,
+        zone: ZoneId,
+        is24h: Boolean,
+        locale: Locale = Locale.getDefault(),
+    ): String {
+        val slot = slot(startMs, endMs, zone, is24h, locale)
+        val start = Instant.ofEpochMilli(startMs).atZone(zone)
+        val today = Instant.ofEpochMilli(todayMs).atZone(zone)
+        return if (start.toLocalDate() == today.toLocalDate()) slot else weekday(start, locale) + " " + slot
+    }
+
+    /** The weekday and the wall-clock time, for the guide's clock and its day-crossing ticks: "Mon 8:12 PM". */
+    fun dayTime(
+        atMs: Long,
+        zone: ZoneId,
+        is24h: Boolean,
+        locale: Locale = Locale.getDefault(),
+    ): String = weekday(Instant.ofEpochMilli(atMs).atZone(zone), locale) + " " + time(atMs, zone, is24h, locale)
+
+    private fun weekday(
+        at: ZonedDateTime,
+        locale: Locale,
+    ): String = DateTimeFormatter.ofPattern("EEE", locale).format(at)
 
     /** One wall-clock time: "8:30 PM", or "20:30" on a 24-hour clock. */
     fun time(

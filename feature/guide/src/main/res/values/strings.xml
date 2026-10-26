@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The copy for the program guide (spec 17). The program words it shares with the banner (episode lines, "Off air
+  until", countdowns) are in core:ui.
+-->
+<resources>
+    <!-- While the schedule is being built, and when there is nothing to show. -->
+    <string name="guide_loading">Loading the guide…</string>
+    <string name="guide_empty">Nothing on the guide yet</string>
+
+    <!-- The hint row: a key name, then what it does. OK tunes a program on now and opens the info of a later one. -->
+    <string name="guide_key_ok">OK</string>
+    <string name="guide_key_back">Back</string>
+    <string name="guide_hint_watch">Watch</string>
+    <string name="guide_hint_info">Info</string>
+    <string name="guide_hint_exit">Exit live TV</string>
+
+    <!-- The chip in front of the slot of a program on now. -->
+    <string name="guide_now">Now</string>
+
+    <!-- What a screen reader says about a cell: its title and slot, and whether it runs past the visible times. -->
+    <string name="guide_cell_description">%1$s, %2$s</string>
+    <string name="guide_continues_earlier">continues earlier</string>
+    <string name="guide_continues_later">continues later</string>
+</resources>

@@ -14,9 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -30,20 +28,31 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import tv.stationbreak.feature.live.FlipDirection
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+
+/** The program guide as live TV draws it: the channel playing, when it opened, and what to call to tune a channel. */
+typealias GuideSlot = @Composable (current: ChannelId?, openedAtNanos: Long, onTune: (ChannelId) -> Unit) -> Unit
 
 /**
  * The live channel screen (spec 14, F1.3). It owns the player for each STARTED period of its lifecycle, not the
  * ViewModel: when the screen stops (Home, standby) everything is closed and released at once, and when it starts
  * again a new player and a new sitting begin, anchored to the clock. [onSignedOut] is called when the session ended.
+ *
+ * Live TV owns the surface and the keys; the program guide (spec 17) is a slot, [guide], drawn over the picture while
+ * it is open. It gets the channel playing when it opened, when that was (`System.nanoTime`), and what to call when the
+ * viewer picks a channel. The guide is a module of its own, which a feature module may not depend on, so `app` passes
+ * it in.
  */
 @Composable
-fun LiveDestination(onSignedOut: () -> Unit) {
+fun LiveDestination(
+    onSignedOut: () -> Unit,
+    guide: GuideSlot,
+) {
     val viewModel: LiveViewModel = hiltViewModel()
-    LiveRoot(viewModel, onSignedOut)
+    LiveRoot(viewModel, onSignedOut, guide = guide)
 }
 
 /** [LiveDestination] without Hilt, so a test can bring its own ViewModel and tuner. */
@@ -52,10 +61,12 @@ internal fun LiveRoot(
     viewModel: LiveViewModel,
     onSignedOut: () -> Unit,
     onCommand: (LiveCommand) -> Unit = viewModel::send,
+    guide: GuideSlot = { _, _, _ -> },
     tuners: TunerFactory? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val info by viewModel.info.collectAsStateWithLifecycle()
+    val guideOpen by viewModel.guideOpen.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -67,18 +78,37 @@ internal fun LiveRoot(
     }
     KeepScreenOn(owner)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
-    LiveKeysRoot(state, info, onCommand) { AndroidView(factory = { surface }) }
+    LiveKeysRoot(
+        state = state,
+        info = info,
+        onCommand = onCommand,
+        guideOpen = guideOpen,
+        upNow = viewModel::overlayUpNow,
+        onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
+        // Until Select-to-tune comes (spec 17, Task 10), picking the channel on air only closes the guide.
+        guide = { guide(viewModel.guideChannel, viewModel.guideOpenedAtNanos) { viewModel.closeGuide() } },
+    ) { AndroidView(factory = { surface }) }
 }
 
 /**
  * The screen with the remote's keys: [LiveScreen] under the root that takes the keys first. Split from [LiveRoot] so a
  * test can drive the same key path with a state of its own.
+ *
+ * Each key is judged by [upNow], read as the key arrives, when there is one: the composition's view of the overlays can
+ * be a frame behind, and a Back in that frame must not open the guide twice or miss that it is open. [onGuide] opens
+ * (true) or closes (false) the guide; while [guideOpen], [guide] is drawn over the picture and takes the D-pad and
+ * Select, and live's own keys are off.
  */
+@Suppress("LongParameterList") // The screen's state, its two key outlets and the guide's slot.
 @Composable
 internal fun LiveKeysRoot(
     state: LiveState,
     info: LiveInfo?,
     onCommand: (LiveCommand) -> Unit,
+    guideOpen: Boolean = false,
+    upNow: (() -> OverlayUp)? = null,
+    onGuide: (open: Boolean) -> Unit = {},
+    guide: @Composable () -> Unit = {},
     video: @Composable () -> Unit,
 ) {
     val owner = LocalLifecycleOwner.current
@@ -89,149 +119,21 @@ internal fun LiveKeysRoot(
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
     }
     val held = remember { HeldKeys() }
-    val up = OverlayUp(actions = (state as? LiveState.Watching)?.banner?.actions == true, info = info != null)
-    // The actions banner's buttons held the focus; when it goes the root takes it back, or no key would arrive.
-    LaunchedEffect(focus, up.actions) { if (!up.actions) focus.requestFocus() }
+    val composed = overlayUpOf(state, info, guideOpen)
+    // The actions banner's buttons or the guide held the focus; when they go the root takes it back, or no key would
+    // arrive.
+    LaunchedEffect(focus, composed.actions, guideOpen) { if (!composed.actions && !guideOpen) focus.requestFocus() }
     Box(
         Modifier
             .fillMaxSize()
             .focusRequester(focus)
             .onPreviewKeyEvent { event ->
-                handleLiveKey(event, up, held, onCommand).also { logLiveKey(event, it, state, up) }
+                val up = upNow?.invoke() ?: composed
+                handleLiveKey(event, up, held, onGuide, onCommand).also { logLiveKey(event, it, state, up) }
             }.focusable(),
     ) {
-        LiveScreen(state, info, onCommand, video)
+        LiveScreen(state, info, onCommand, guide.takeIf { guideOpen }, video)
     }
-}
-
-/** Which overlay is up, as the screen last saw it: the keys mean something else over it (Select, Back). */
-internal data class OverlayUp(
-    /** The actions banner (Info, Last) shows: Select belongs to its buttons. */
-    val actions: Boolean = false,
-    /** The program info overlay shows. */
-    val info: Boolean = false,
-) {
-    companion object {
-        val None = OverlayUp()
-    }
-}
-
-private fun mappedCommand(
-    key: Key,
-    up: OverlayUp = OverlayUp.None,
-): LiveCommand? =
-    when (key) {
-        Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
-
-        Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
-
-        Key.Menu -> LiveCommand.Previous
-
-        Key.Info -> LiveCommand.ShowInfo
-
-        // Over the actions banner Select clicks its focused button; over the info overlay it does nothing.
-        Key.DirectionCenter, Key.Enter -> LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
-
-        // Back closes an overlay; with none up it is not ours (a later task opens the guide).
-        Key.Back -> LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
-
-        else -> null
-    }
-
-/**
- * What a key does on the live screen (spec 15), or null when it does nothing. Key-down only, auto-repeat included, so
- * holding Up or Down keeps flipping. Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel, Select
- * brings the actions banner and Info the program's info (spec 17). Back is mapped only while [up] says an overlay is
- * open (a plain tune banner never consumes it), nor are the media next/previous keys, kept for pause and skip.
- */
-internal fun liveKeyCommand(
-    event: KeyEvent,
-    up: OverlayUp = OverlayUp.None,
-): LiveCommand? {
-    if (event.type != KeyEventType.KeyDown) return null
-    return mappedCommand(event.key, up)
-}
-
-/**
- * The keys whose press [handleLiveKey] consumed and whose release has not come yet. A press changes the screen before
- * its release arrives (Back closes the overlay, Select brings the actions banner and moves the focus to Info), so the
- * release cannot be judged by the state then: it is remembered per press. A release that reached a button instead
- * would click it, since tv-material buttons click on the release. The same goes for the auto-repeat downs of a key
- * held down: they are part of the press, not new ones.
- */
-internal class HeldKeys {
-    private val consumed = mutableMapOf<Key, LiveCommand>()
-
-    /**
-     * The command of the consumed press that [key]'s down repeats, or null when this is not such a repeat (a first
-     * down, a release, or a repeat of a press that was not consumed). The hold stays until the release.
-     */
-    fun repeatOf(
-        key: Key,
-        type: KeyEventType,
-        repeat: Int,
-    ): LiveCommand? = if (type == KeyEventType.KeyDown && repeat > 0) consumed[key] else null
-
-    /**
-     * True for the release of a press that was consumed. Any other event of [key] that is not a repeat ends the hold,
-     * so a release lost earlier cannot outlive the next press and swallow its release.
-     */
-    fun releases(
-        key: Key,
-        type: KeyEventType,
-    ): Boolean {
-        val held = type == KeyEventType.KeyUp && key in consumed
-        consumed -= key
-        return held
-    }
-
-    /** Marks the press of [key], which sent [command], as consumed, so its repeats and release are consumed too. */
-    fun hold(
-        key: Key,
-        command: LiveCommand,
-    ) {
-        consumed[key] = command
-    }
-}
-
-/**
- * Sends the command of a mapped key and says whether the screen consumed [event]: a mapped key's down (which sends) and
- * its up (which does nothing, but nothing else should see a stray release). Everything else passes. Back is mapped only
- * while an overlay is up, Select only while none is; the auto-repeats and the release of a press that was consumed are
- * consumed too, whatever [up] says by then. A repeat sends again only when the press flipped, so holding Up keeps
- * flipping; a held Select, Info, Back or Menu acts once.
- */
-internal fun handleLiveKey(
-    event: KeyEvent,
-    up: OverlayUp = OverlayUp.None,
-    held: HeldKeys = HeldKeys(),
-    send: (LiveCommand) -> Unit,
-): Boolean = handleLiveKey(event.type, event.key, up, held, event.nativeKeyEvent.repeatCount, send)
-
-@Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
-internal fun handleLiveKey(
-    type: KeyEventType,
-    key: Key,
-    up: OverlayUp,
-    held: HeldKeys,
-    repeat: Int = 0,
-    send: (LiveCommand) -> Unit,
-): Boolean {
-    val repeated = held.repeatOf(key, type, repeat)
-    if (repeated != null) {
-        if (repeated is LiveCommand.Flip) send(repeated)
-        return true
-    }
-    val release = held.releases(key, type)
-    // Left and Right move the focus between the buttons, which is the viewer still at work: keep the banner up.
-    val sideways = key == Key.DirectionLeft || key == Key.DirectionRight
-    if (up.actions && sideways && type == KeyEventType.KeyDown) send(LiveCommand.ShowBanner)
-    val command = mappedCommand(key, up)
-    if (command != null && type == KeyEventType.KeyDown) {
-        send(command)
-        held.hold(key, command)
-    }
-    return release || (command != null && (type == KeyEventType.KeyDown || type == KeyEventType.KeyUp))
 }
 
 private const val LOG_TAG = "SBLIVE"
@@ -250,32 +152,6 @@ private fun logLiveKey(
     val line = keyLogLine(event.type, event.key, native.keyCode, native.repeatCount, handled, state, up)
     line?.let { Log.i(LOG_TAG, it) }
 }
-
-/** The key line of [key] when it is a mapped key's down, else null: ups and unmapped keys are not logged. */
-@Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
-internal fun keyLogLine(
-    type: KeyEventType,
-    key: Key,
-    code: Int,
-    repeat: Int,
-    handled: Boolean,
-    state: LiveState,
-    up: OverlayUp = OverlayUp.None,
-): String? =
-    if (type == KeyEventType.KeyDown && mappedCommand(key, up) != null) {
-        liveKeyLine(code, "down", repeat, handled, state)
-    } else {
-        null
-    }
-
-/** The key line: `key code=<keycode> action=<down|up> repeat=<n> handled=<true|false> state=<LiveState class>`. */
-internal fun liveKeyLine(
-    code: Int,
-    action: String,
-    repeat: Int,
-    handled: Boolean,
-    state: LiveState,
-): String = "key code=$code action=$action repeat=$repeat handled=$handled state=${state.javaClass.simpleName}"
 
 /**
  * A TV channel never lets the device sleep while it is on screen (snow, slates and the "No channels" card included):

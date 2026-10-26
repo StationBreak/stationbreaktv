@@ -54,7 +54,9 @@ stationbreaktv/
 │   │                            canonical in `docs/rules-format/vectors/`; see "Golden vectors" below. `core:testing` keeps
 │   │                            `SyntheticLibrary`.)
 │   │                            (Port fakes live in core:domain testFixtures.)
-│   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers
+│   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers;
+│   │                            the program text and info overlay live TV and the guide share, the guide's geometry and
+│   │                            the one safe area everything lays out in (spec 17)
 │   └── playback/       [Android] Media3 wrapper: tune-at-offset, direct-play vs transcode decision,
 │                                codec capability probe, one reused player (spec 13; see "Playback")
 │
@@ -70,7 +72,7 @@ stationbreaktv/
 └── feature/
     ├── onboarding/     [Android] Server setup, connection test, login, library selection
     ├── live/           [Android] Full-screen player, up/down flipping, channel banner, info overlay, last-channel recall
-    ├── guide/          [Android] Grid guide (>=6h), now/next
+    ├── guide/          [Android] Grid guide (>=6h) drawn over live TV: details panel, clock strip, model-driven focus
     ├── channels/       [Android] Channel list + custom channel builder
     └── settings/       [Android] Settings, diagnostics, about/licenses
 
@@ -93,6 +95,26 @@ cards). It depends on `core:domain`, `core:model`, `core:ui` and `core:playback`
 set: the screen creates its player through `VideoPlayerFactory` and tunes through `TuneController`, both in `core:playback`,
 and never names a Media3 type. It applies the `hilt` convention plugin for `@HiltViewModel`. `app` hosts its route and binds
 what it needs (ADR-0017).
+
+`feature:guide` exists since spec 17. It holds the program guide: `GuideViewModel` (the schedule window, the focus and the
+visible range, the details of the focused program, the clock) and its screen. It depends on `core:domain`, `core:model` and
+`core:ui`, and applies the `hilt` convention plugin. It is not a route of its own: live TV owns the screen, the surface and
+the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
+the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
+guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
+what it shows is the guide's.
+
+The geometry both sides must agree on is in `core:ui`, not in either feature: `GuideLayout.safeArea` (the 5% overscan inset
+the banner, the info overlay and the guide all use) and `GuideLayout.pictureRect` (where the live picture sits beside the
+guide, and so where the guide leaves its hole). `core:ui` has grown from the theme into the shared program UI of spec 17: the
+program text rules (`ProgramText`: slots, times, episode lines), the program info overlay, and that geometry.
+
+The guide departs from ADR-0008's grid, which moved focus with Compose focus search over lazy lists: its focus is a value in
+the ViewModel (`GuideFocus`, by channel and start), moved by pure functions over the model, and published with the grid as
+one snapshot. The screen holds a single focusable node that turns D-pad keys into moves, and each cell reads only whether it
+is the focused one, so a move recomposes the two cells it touched and the details panel. A grid rebuilt by the clock or by a
+longer window can therefore never leave the focus on a cell that is gone, and nothing depends on what Compose would pick as
+the next focus target.
 
 `data:settings` exists since F0.4 and holds `KeystoreSecretStore` (the `SecretStore` implementation) and, since F0.5
 task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configured address and its certificate pin as one

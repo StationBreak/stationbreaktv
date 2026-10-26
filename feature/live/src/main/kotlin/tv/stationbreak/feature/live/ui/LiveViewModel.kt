@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.TuneController
@@ -110,8 +111,40 @@ internal class LiveViewModel
         /** The program info overlay (spec 17), while one is open. */
         val info: StateFlow<LiveInfo?> = shownInfo.asStateFlow()
 
+        private val guide = GuideSwitch()
+
+        /** The program guide (spec 17) is open over the picture. Closed when the screen stops. */
+        val guideOpen: StateFlow<Boolean> = guide.shown
+
+        /** The channel that was playing when the guide last opened: the guide opens with focus on it. */
+        val guideChannel: ChannelId? get() = guide.channel
+
+        /** When the guide last opened, in `System.nanoTime` units, for the guide's open-time measurement. */
+        val guideOpenedAtNanos: Long get() = guide.openedAtNanos
+
+        // The running sitting's machine, while there is one: the guide asks it which channel is playing.
+        @Volatile
+        private var live: LiveChannel? = null
+
         // Here, not in the composition, because the ViewModel outlives it; drained at the start of each sitting.
         private val commands = Channel<LiveCommand>(Channel.UNLIMITED)
+
+        /** Opens the guide over the channel playing now; [atNanos] is when its key arrived (`System.nanoTime`). */
+        fun openGuide(atNanos: Long) {
+            guide.open(atNanos, live?.playingChannel)
+        }
+
+        fun closeGuide() {
+            guide.close()
+        }
+
+        /**
+         * What is up over the picture now, for the key that has just arrived. Read from these flows, not from the last
+         * composition: the guide flag is set by the key that opened it, at once, and the overlays are the machine's
+         * latest. A command still in the queue is not in them yet, which errs towards doing less: a Back right behind
+         * a Back that is closing an overlay closes again (a no-op) rather than opening the guide or leaving.
+         */
+        fun overlayUpNow(): OverlayUp = overlayUpOf(state.value, info.value, guideOpen.value)
 
         /** A key press, in order. Presses made while the screen was stopped are dropped by the next [sit]. */
         fun send(command: LiveCommand) {
@@ -121,12 +154,19 @@ internal class LiveViewModel
         /**
          * One STARTED period: makes the player, shows it on [surface], runs the live channel, and on the way out (a
          * stop, or the session ending) closes the tuner, then detaches and releases the player, in that order
-         * (ADR-0016, 5). Returns when the session ends; otherwise runs until cancelled.
+         * (ADR-0016, 5). Returns when the session ends; otherwise runs until cancelled. The guide closes with it, so
+         * live TV comes back from Home or standby on the picture.
          */
         suspend fun sit(
             context: Context,
             surface: SurfaceView,
             tuners: TunerFactory = controllers,
+        ) = guide.whileSitting { sitting(context, surface, tuners) }
+
+        private suspend fun sitting(
+            context: Context,
+            surface: SurfaceView,
+            tuners: TunerFactory,
         ) {
             val before = shown.value.javaClass.simpleName
             shown.value = LiveState.Ident(null)
@@ -144,7 +184,7 @@ internal class LiveViewModel
                 player.attach(surface)
                 val port = tuners.create(player, session).also { tuner = it }
                 // The measurements are numbers and fixed names only (TuneReport), so they may go to logcat.
-                val live =
+                val machine =
                     LiveChannel(
                         schedule,
                         port,
@@ -156,19 +196,20 @@ internal class LiveViewModel
                         report = { Log.i(LOG_TAG, it.line()) },
                         server = server,
                         details = details,
-                    )
+                    ).also { live = it }
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
-                    val mirror = launch { live.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
-                    val infoMirror = launch { live.info.collect { shownInfo.value = it } }
-                    live.run(commands.receiveAsFlow())
+                    val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
+                    val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
+                    machine.run(commands.receiveAsFlow())
                     // run() returns only when the session ended.
                     mirror.cancel()
                     infoMirror.cancel()
                 }
-                ended = live.state.value == LiveState.SignedOut
-                if (!ended) shown.value = live.state.value
+                ended = machine.state.value == LiveState.SignedOut
+                if (!ended) shown.value = machine.state.value
             } finally {
+                live = null
                 withContext(NonCancellable) {
                     tuner?.close(session)
                     player.attach(null)
