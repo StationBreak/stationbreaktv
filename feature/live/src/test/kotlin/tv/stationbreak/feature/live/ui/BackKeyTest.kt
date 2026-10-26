@@ -40,4 +40,13 @@ class BackKeyTest {
         assertTrue(back(KeyEventType.KeyUp, OverlayUp.None))
         assertFalse("the next, separate release is not ours", back(KeyEventType.KeyUp, OverlayUp.None))
     }
+
+    @Test
+    fun aLostReleaseDoesNotSwallowTheNextRealOne() {
+        // The first press was consumed, but its release never arrived.
+        assertTrue(back(KeyEventType.KeyDown, OverlayUp(info = true)))
+        // The next press finds no overlay: not consumed, and it clears the stale hold.
+        assertFalse(back(KeyEventType.KeyDown, OverlayUp.None))
+        assertFalse(back(KeyEventType.KeyUp, OverlayUp.None))
+    }
 }

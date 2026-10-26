@@ -142,6 +142,20 @@ internal fun liveKeyCommand(
  */
 internal class HeldKeys {
     var backConsumed = false
+
+    /**
+     * True for the release of a Back that was consumed. A Back going down starts a press of its own, so a release
+     * lost earlier cannot outlive it and swallow a later one.
+     */
+    fun releasesBack(
+        key: Key,
+        type: KeyEventType,
+    ): Boolean {
+        if (key != Key.Back) return false
+        val held = backConsumed && type == KeyEventType.KeyUp
+        backConsumed = false
+        return held
+    }
 }
 
 /**
@@ -163,8 +177,7 @@ internal fun handleLiveKey(
     held: HeldKeys,
     send: (LiveCommand) -> Unit,
 ): Boolean {
-    val release = key == Key.Back && type == KeyEventType.KeyUp && held.backConsumed
-    if (release) held.backConsumed = false
+    val release = held.releasesBack(key, type)
     // Left and Right move the focus between the buttons, which is the viewer still at work: keep the banner up.
     val sideways = key == Key.DirectionLeft || key == Key.DirectionRight
     if (up.actions && sideways && type == KeyEventType.KeyDown) send(LiveCommand.ShowBanner)
