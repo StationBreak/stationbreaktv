@@ -342,10 +342,33 @@ class GuideScreenTest {
         assertTrue("the tick rebuilt the model", after !== before)
         assertTrue("the rebuilt frame reached the grid", (composed[BODY] ?: 0) > 0)
         // The rebuilt model and its cells are equal to the old ones, so the grid and its cells skip by equality; only
-        // the two whose on-now state flipped (read from the clock) may compose again.
+        // the two whose on-now state flipped (read from the clock) compose again, and both do.
         val flipped = setOf("${ch2.value}@${min(0)}", "${ch2.value}@${min(66)}")
         val cells = composed.keys.filter { it != BODY }
-        assertTrue("recomposed: $cells", flipped.containsAll(cells))
+        assertEquals(flipped, cells.toSet())
+    }
+
+    @Test
+    fun aFillInThatChangesOneRowRecomposesOnlyThatRowsCells() {
+        // Rows of one long program are the same before and after the fill-in; only channel 7's grows past 3 hours.
+        fake.channel(ch3, 3, listOf(program(0, 600, 400)))
+        fake.channel(CH5, 5, listOf(program(0, 600, 200)))
+        fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
+        fake.channel(CH9, 9, listOf(program(0, 600, 300)))
+        fake.cachedUntilMs = min(180)
+        schedule.gate = CompletableDeferred()
+        show(CH5)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        compose.waitForIdle()
+        composed.clear()
+
+        schedule.gate?.complete(Unit)
+        compose.waitUntil(TIMEOUT_MS) { (vm.snapshot.value.state as GuideState.Ready).model.complete }
+        compose.waitForIdle()
+
+        val cells = composed.keys.filter { it != BODY }
+        assertTrue("the grown row composed its new cells", cells.isNotEmpty())
+        assertTrue("only channel 7's cells: $cells", cells.all { it.startsWith("${CH7.value}@") })
     }
 
     @Test

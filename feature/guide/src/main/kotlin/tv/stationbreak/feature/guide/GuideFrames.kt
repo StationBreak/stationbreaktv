@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
-import javax.inject.Qualifier
-
-/**
- * Marks the `Boolean` that says whether this build writes the guide's measurement line. The app provides it from its
- * build type (debug and benchmark: true), since this library cannot tell a benchmark build from a release one.
- */
-@Qualifier
-@Retention(AnnotationRetention.RUNTIME)
-annotation class GuideMeasured
-
 /** Frame-time percentiles of one guide session, in nanoseconds, nearest rank. */
 internal data class FramePercentiles(
     val frames: Int,
@@ -49,13 +39,15 @@ internal fun missedVsyncs(
 /**
  * One guide session's measurement (spec 17, Task 9): numbers and booleans only, never a title, a channel name or an id,
  * so [line] is safe for logcat. [openMs] is from the open request to the first grid frame and [windowMs] the first
- * schedule call; -1 when the session never got there (no grid, no call).
+ * schedule call; -1 when the session never got there (no grid, no call). [droppedFrames] is what the platform says it
+ * dropped (the sum of each frame report's dropped count), beside the [missedVsyncs] counted from frame times.
  */
 internal data class GuideReport(
     val openMs: Long,
     val windowMs: Long,
     val frames: FramePercentiles,
     val missedVsyncs: Int,
+    val droppedFrames: Int,
     val rows: Int,
     val pip: Boolean,
     val durationMs: Long,
@@ -63,8 +55,8 @@ internal data class GuideReport(
     /** The log line, in the style of the tune lines (`SBLIVE`). */
     fun line() =
         "guide openMs=$openMs windowMs=$windowMs frames=${frames.frames} p50Ms=${ms(frames.p50Ns)} " +
-            "p90Ms=${ms(frames.p90Ns)} p99Ms=${ms(frames.p99Ns)} missedVsyncs=$missedVsyncs rows=$rows pip=$pip " +
-            "durationMs=$durationMs"
+            "p90Ms=${ms(frames.p90Ns)} p99Ms=${ms(frames.p99Ns)} missedVsyncs=$missedVsyncs " +
+            "droppedFrames=$droppedFrames rows=$rows pip=$pip durationMs=$durationMs"
 
     // Milliseconds to one decimal, without a locale.
     private fun ms(ns: Long): String {

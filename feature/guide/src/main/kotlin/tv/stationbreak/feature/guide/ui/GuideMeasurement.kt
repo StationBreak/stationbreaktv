@@ -21,38 +21,73 @@ private const val NANOS_PER_MS = 1_000_000L
 private const val NANOS_PER_SECOND = 1_000_000_000L
 private const val DEFAULT_PERIOD_NS = NANOS_PER_SECOND / 60
 
+/** Where a session's frame reports come from: the window's frame metrics in the app, a test's own in a test. */
+internal interface FrameSource {
+    /** Starts reporting each drawn frame: its total duration and how many frames were dropped since the last report. */
+    fun start(onFrame: (totalDurationNs: Long, dropped: Int) -> Unit)
+
+    /** Stops reporting. */
+    fun stop()
+}
+
 /**
- * One guide session's measurement (spec 17, Task 9). Frame metrics are collected on a thread of its own, so the main
- * thread does only the platform's own bookkeeping; [finish] removes the listener, stops the thread and logs the line
- * through [log]. Frame metrics need API 24, which the app's minSdk covers.
+ * A window's frame metrics, collected on a thread of its own, so the main thread does only the platform's own
+ * bookkeeping. Frame metrics need API 24, which the app's minSdk covers.
+ */
+private class WindowFrames(
+    private val window: Window,
+) : FrameSource {
+    private var thread: HandlerThread? = null
+    private var listener: Window.OnFrameMetricsAvailableListener? = null
+
+    override fun start(onFrame: (totalDurationNs: Long, dropped: Int) -> Unit) {
+        val t = HandlerThread("guide-frames").also { it.start() }
+        thread = t
+        val l =
+            Window.OnFrameMetricsAvailableListener { _, metrics, dropped ->
+                onFrame(metrics.getMetric(FrameMetrics.TOTAL_DURATION), dropped)
+            }
+        listener = l
+        window.addOnFrameMetricsAvailableListener(l, Handler(t.looper))
+    }
+
+    override fun stop() {
+        try {
+            listener?.let(window::removeOnFrameMetricsAvailableListener)
+        } finally {
+            thread?.quitSafely()
+        }
+    }
+}
+
+/**
+ * One guide session's measurement (spec 17, Task 9): frame reports from [frames] while the guide is open, then one line
+ * through [log] when [finish] ends it.
  */
 internal class GuideMeasurement private constructor(
     private val openedAtNanos: Long,
-    private val window: Window?,
+    private val frames: FrameSource?,
     private val periodNs: Long,
     private val log: (String) -> Unit,
     private val nanoTime: () -> Long,
 ) {
     private val durations = LongSeries()
-    private var thread: HandlerThread? = null
+    private var dropped = 0L
     private var openMs = -1L
     private var finished = false
 
-    /** Whether a frame-metrics thread was started; false without a window to listen to. */
-    val threadStarted: Boolean get() = thread != null
-
-    private val listener =
-        Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
-            synchronized(this) {
-                if (!finished) durations.add(metrics.getMetric(FrameMetrics.TOTAL_DURATION))
-            }
-        }
+    /** Whether frames are being reported; false without a window to listen to. */
+    val listening: Boolean get() = frames != null
 
     private fun attach() {
-        val w = window ?: return
-        val t = HandlerThread("guide-frames").also { it.start() }
-        thread = t
-        w.addOnFrameMetricsAvailableListener(listener, Handler(t.looper))
+        frames?.start { durationNs, droppedSince ->
+            synchronized(this) {
+                if (!finished) {
+                    durations.add(durationNs)
+                    dropped += droppedSince
+                }
+            }
+        }
     }
 
     /** The first grid frame was drawn. Only the first call counts. */
@@ -60,62 +95,64 @@ internal class GuideMeasurement private constructor(
         if (openMs < 0) openMs = (nanoTime() - openedAtNanos) / NANOS_PER_MS
     }
 
-    /** Ends the session: stops collecting and logs one line, once. */
+    /**
+     * Ends the session: stops collecting and logs one line, once. A frame listener that will not come off (the window
+     * already gone) does not stop the line, nor the guide's own close after it.
+     */
     fun finish(
         windowMs: Long,
         rows: Int,
         pip: Boolean,
     ) {
         val taken: LongArray
+        val droppedFrames: Long
         synchronized(this) {
             if (finished) return
             finished = true
             taken = durations.toArray()
+            droppedFrames = dropped
         }
-        try {
-            window?.removeOnFrameMetricsAvailableListener(listener)
-        } finally {
-            thread?.quitSafely()
-            val report =
-                GuideReport(
-                    openMs = openMs,
-                    windowMs = windowMs,
-                    frames = percentiles(taken),
-                    missedVsyncs = missedVsyncs(taken, periodNs),
-                    rows = rows,
-                    pip = pip,
-                    durationMs = (nanoTime() - openedAtNanos) / NANOS_PER_MS,
-                )
-            log(report.line())
-        }
+        runCatching { frames?.stop() }
+        val report =
+            GuideReport(
+                openMs = openMs,
+                windowMs = windowMs,
+                frames = percentiles(taken),
+                missedVsyncs = missedVsyncs(taken, periodNs),
+                droppedFrames = droppedFrames.toInt(),
+                rows = rows,
+                pip = pip,
+                durationMs = (nanoTime() - openedAtNanos) / NANOS_PER_MS,
+            )
+        log(report.line())
     }
 
     companion object {
-        /** The measurement for the window [view] is in, logging to logcat like the tune lines do; null when off. */
+        /** The measurement for the window [view] is in, logging to logcat like the tune lines do; see [create]. */
         fun start(
             measure: Boolean,
             view: View,
             openedAtNanos: Long,
             log: (String) -> Unit = { Log.i(LOG_TAG, it) },
         ): GuideMeasurement? {
-            if (!measure) return null
             val rate = view.display?.refreshRate ?: 0f
             val period = if (rate > 0f) (NANOS_PER_SECOND / rate).toLong() else DEFAULT_PERIOD_NS
-            return create(true, openedAtNanos, view.context.activityWindow(), period, log)
+            val frames = view.context.activityWindow()?.let(::WindowFrames)
+            return create(measure, openedAtNanos, frames, period, log)
         }
 
-        /** [measure] off gives null: no thread, no listener, no line. */
+        /** [measure] off gives null: no frames, no thread, no listener, no line. */
         @Suppress("LongParameterList") // The session's facts and two seams (log, clock) a test replaces.
         fun create(
             measure: Boolean,
             openedAtNanos: Long,
-            window: Window?,
+            frames: FrameSource?,
             periodNs: Long,
             log: (String) -> Unit,
             nanoTime: () -> Long = System::nanoTime,
         ): GuideMeasurement? {
             if (!measure) return null
-            return GuideMeasurement(openedAtNanos, window, periodNs, log, nanoTime).also { it.attach() }
+            return GuideMeasurement(openedAtNanos, frames, periodNs, log, nanoTime).also { it.attach() }
         }
     }
 }
