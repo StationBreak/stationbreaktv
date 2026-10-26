@@ -30,6 +30,9 @@ class ItemDetailsCallTest {
             (result as ServerResult.Success).value
         }
 
+    /** A direction control by code point: the formatter turns a `\\u` escape into the raw character. */
+    private fun bidi(code: Int) = code.toChar().toString()
+
     /** A JSON string literal for [text], quotes included. */
     private fun literal(text: String) = JsonPrimitive(text).toString()
 
@@ -55,11 +58,13 @@ class ItemDetailsCallTest {
 
     @Test
     fun stripsControlAndBidiCharacters() {
-        val raw = "a\u0000b\u0007c\u0085d\u009fe‮f‪g⁦h⁩i\nj"
+        val raw =
+            "a\u0000b\u0007c\u0085d\u009fe" + bidi(0x202E) + "f" + bidi(0x202A) + "g" +
+                bidi(0x2066) + "h" + bidi(0x2069) + "i\nj"
         val result = ok("""{"Id":"i1","Overview":${literal(raw)}}""")
 
         assertEquals("abcdefghi\nj", result.overview)
-        assertFalse(result.overview.orEmpty().any { it in '‪'..'‮' || it in '⁦'..'⁩' })
+        assertFalse(result.overview.orEmpty().any { it.code in 0x202A..0x202E || it.code in 0x2066..0x2069 })
     }
 
     @Test

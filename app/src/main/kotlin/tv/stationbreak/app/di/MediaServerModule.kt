@@ -115,10 +115,14 @@ internal interface MediaServerModule {
          */
         @Provides
         @Singleton
+        @Suppress("InjectDispatcher") // The cache's own scope: a root, with nothing to inject a dispatcher into.
         fun programDetails(
             server: MediaServer,
             sessions: SessionRepository,
-        ): ProgramDetailsCache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+        ): ProgramDetailsCache {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            return ProgramDetailsCache(server, sessions, scope)
+        }
 
         @Provides
         @Singleton

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -69,6 +70,9 @@ class FakeMediaServer : MediaServer {
 
     /** When set, [itemDetails] records the call and then waits for it, to hold a request open. */
     var itemDetailsGate: CompletableDeferred<Unit>? = null
+
+    /** How many [itemDetails] calls were cancelled while waiting at the gate. */
+    var itemDetailsCancelled = 0
     var markPlayedResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
@@ -319,7 +323,12 @@ class FakeMediaServer : MediaServer {
         itemId: ItemId,
     ): ServerResult<ItemDetails> {
         itemDetailsCalls += itemId
-        itemDetailsGate?.await()
+        try {
+            itemDetailsGate?.await()
+        } catch (e: CancellationException) {
+            itemDetailsCancelled++
+            throw e
+        }
         return itemDetailsResult
             ?: ServerResult.Success(ItemDetails(itemId, "About it.", 2001, listOf("Drama"), null))
     }

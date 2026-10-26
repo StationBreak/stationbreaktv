@@ -161,4 +161,78 @@ class ProgramDetailsCacheTest {
             assertNull(cache.cached(id(2)))
             assertNotNull(cache.cached(id(3)))
         }
+
+    @Test
+    fun signOutClearsEntriesAndCancelsInFlight() =
+        runTest {
+            val session = sessionOf("u1")
+            sessions.save(session)
+            val cache = cache()
+            cache.details(id(1))
+            val gate = CompletableDeferred<Unit>()
+            server.itemDetailsGate = gate
+            val waiting = async { cache.details(id(2)) }
+            runCurrent()
+
+            sessions.clear()
+            runCurrent()
+
+            assertNull(waiting.await())
+            assertEquals(1, server.itemDetailsCancelled)
+            sessions.save(session)
+            assertNull(cache.cached(id(1)))
+            assertNull(cache.cached(id(2)))
+        }
+
+    @Test
+    fun clearEmptiesEntries() =
+        runTest {
+            sessions.save(sessionOf("u1"))
+            val cache = cache()
+            cache.details(id(1))
+
+            cache.clear()
+
+            assertNull(cache.cached(id(1)))
+        }
+
+    @Test
+    fun lastWaiterLeavingCancelsTheRequest() =
+        runTest {
+            sessions.save(sessionOf("u1"))
+            val cache = cache()
+            val gate = CompletableDeferred<Unit>()
+            server.itemDetailsGate = gate
+
+            val a = async { cache.details(id(1)) }
+            val b = async { cache.details(id(1)) }
+            runCurrent()
+            a.cancelAndJoin()
+            runCurrent()
+            assertEquals(0, server.itemDetailsCancelled)
+            b.cancelAndJoin()
+            runCurrent()
+
+            assertEquals(1, server.itemDetailsCancelled)
+            gate.complete(Unit)
+            assertEquals(details(id(1)), cache.details(id(1)))
+            assertEquals(2, server.itemDetailsCalls.size)
+        }
+
+    @Test
+    fun atMostTwoFetchesRunAtOnce() =
+        runTest {
+            sessions.save(sessionOf("u1"))
+            val cache = cache()
+            val gate = CompletableDeferred<Unit>()
+            server.itemDetailsGate = gate
+
+            val all = (1..5).map { n -> async { cache.details(id(n)) } }
+            runCurrent()
+            assertEquals(2, server.itemDetailsCalls.size)
+
+            gate.complete(Unit)
+            all.forEachIndexed { n, call -> assertEquals(details(id(n + 1)), call.await()) }
+            assertEquals(5, server.itemDetailsCalls.size)
+        }
 }
