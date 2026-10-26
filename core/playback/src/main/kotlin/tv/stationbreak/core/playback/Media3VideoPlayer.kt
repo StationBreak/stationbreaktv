@@ -11,6 +11,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
@@ -19,6 +20,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -82,6 +84,7 @@ class Media3VideoPlayer(
     private var playId = ""
     private var hasPlayed = false
     private val audio = AudioSampler()
+    private val av = AvRecorder()
 
     /** Whether the last direct-play audio pick matched the server's language and codec; null before any pick. */
     @Volatile var lastPickVerified: Boolean? = null
@@ -101,8 +104,10 @@ class Media3VideoPlayer(
 
     override fun play(source: PlayerSource): Long {
         val generation = nextGeneration.incrementAndGet()
+        val calledAt = clock()
         onPlayerThread {
             active = generation
+            av.begin(generation, calledAt)
             current = source
             tracksApplied = false
             tracksReported = false
@@ -242,13 +247,14 @@ class Media3VideoPlayer(
         ) {
             if (!isPlaying) return
             hasPlayed = true
-            flow.tryEmit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active))
+            flow.tryEmit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active, av.finish(active)))
         }
 
         override fun onPlaybackStateChanged(
             eventTime: AnalyticsListener.EventTime,
             state: Int,
         ) {
+            if (state == Player.STATE_READY) av.ready(generationOf(eventTime, active), clock())
             // A rebuffer: buffering again after playback had begun.
             if (state == Player.STATE_BUFFERING && hasPlayed) {
                 flow.tryEmit(PlayerEvent.Stalled(active, clock(), exo.currentPosition, exo.totalBufferedDuration))
@@ -268,8 +274,35 @@ class Media3VideoPlayer(
             playoutStartSystemTimeMs: Long,
         ) {
             audio.advancing()
+            av.audioAdvancing(generationOf(eventTime, active), clock())
             flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
         }
+
+        override fun onVideoDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long,
+        ) = av.videoDecoder(generationOf(eventTime, active), clock(), initializationDurationMs)
+
+        override fun onAudioDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long,
+        ) = av.audioDecoder(generationOf(eventTime, active), clock(), initializationDurationMs)
+
+        override fun onAudioTrackInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            audioTrackConfig: AudioSink.AudioTrackConfig,
+        ) = av.audioTrack(generationOf(eventTime, active), clock())
+
+        override fun onAudioUnderrun(
+            eventTime: AnalyticsListener.EventTime,
+            bufferSize: Int,
+            bufferSizeMs: Long,
+            elapsedSinceLastFeedMs: Long,
+        ) = av.underrun(generationOf(eventTime, active))
 
         override fun onPlayerError(
             eventTime: AnalyticsListener.EventTime,
@@ -333,4 +366,16 @@ private class SkippedFrames(
         counters?.ensureUpdated()
         return counters?.skippedOutputBufferCount?.toLong() ?: 0L
     }
+}
+
+/** The play an event belongs to: the media id names it; an event with no item yet is [active]'s. */
+@UnstableApi
+private fun generationOf(
+    eventTime: AnalyticsListener.EventTime,
+    active: Long,
+): Long {
+    val timeline = eventTime.timeline
+    if (timeline.isEmpty || eventTime.windowIndex >= timeline.windowCount) return active
+    val id = timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem.mediaId
+    return id.toLongOrNull() ?: active
 }

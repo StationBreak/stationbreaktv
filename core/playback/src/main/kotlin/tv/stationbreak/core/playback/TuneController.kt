@@ -134,6 +134,7 @@ sealed interface TuneResult {
      * seek position; both are null when the player could not say (diagnostics only). [loads] is what the media loads
      * before the tracks cost (count, time, bytes, container), also diagnostics only. [notes] are the play's stalls and
      * their ends (at most [MAX_STALL_NOTES] stalls), and complete when [end] does; diagnostics only.
+     * [av] times the audio and video start-up steps (diagnostics only).
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -146,6 +147,7 @@ sealed interface TuneResult {
         val skippedFrames: Long? = null,
         val loads: LoadStats? = null,
         val notes: Flow<PlayNote> = emptyFlow(),
+        val av: AvTimings? = null,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -417,6 +419,7 @@ class TuneController(
                     attempt.skippedFrames,
                     attempt.loads,
                     attempt.notes,
+                    attempt.av,
                 )
             }
 
@@ -505,6 +508,7 @@ class TuneController(
         val skippedFrames: Long?,
         val loads: LoadStats?,
         val notes: Flow<PlayNote>,
+        val av: AvTimings?,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -623,6 +627,7 @@ class TuneController(
             skippedFrames = landing.skippedFrames,
             loads = landing.loads,
             notes = landing.notes,
+            av = landing.playing.av,
         )
     }
 

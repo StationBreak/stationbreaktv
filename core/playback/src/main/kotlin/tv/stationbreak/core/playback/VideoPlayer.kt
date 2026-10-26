@@ -33,11 +33,12 @@ sealed interface PlayerEvent {
         val loads: LoadStats? = null,
     ) : PlayerEvent
 
-    /** Playback is running at [position] within the stream. */
+    /** Playback is running at [position] within the stream. [av] times the audio and video start-up steps, if known. */
     data class Playing(
         val atMs: Long,
         val position: Duration,
         override val generation: Long,
+        val av: AvTimings? = null,
     ) : PlayerEvent
 
     /**
