@@ -10,7 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -26,6 +26,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
@@ -135,7 +136,7 @@ class GuideScreenTest {
                 StationBreakTheme {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
                     // guide left alone would be spent moving the focus back out to the root.
-                    Box(Modifier.fillMaxSize().focusable()) {
+                    Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
                         GuideRoot(vm, current, pictureHole = null, onTune = { tuned += it })
                     }
                 }
@@ -399,6 +400,10 @@ class GuideScreenTest {
     }
 
     private companion object {
+        // A 1080p TV at xhdpi. Cell widths scale with the screen, so a smaller emulator (CI's default profile) would
+        // make the focused cell compact; the screen is hosted at this size whatever the device is.
+        const val HOST_WIDTH_DP = 960
+        const val HOST_HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
         const val BODY = "body"
