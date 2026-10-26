@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import javax.inject.Qualifier
+
+/**
+ * Marks the `Boolean` that says whether this build writes the guide's measurement line. The app provides it from its
+ * build type (debug and benchmark: true), since this library cannot tell a benchmark build from a release one.
+ */
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class GuideMeasured
+
 /** Frame-time percentiles of one guide session, in nanoseconds, nearest rank. */
 data class FramePercentiles(
     val frames: Int,
@@ -19,18 +29,19 @@ fun percentiles(durationsNs: LongArray): FramePercentiles {
 }
 
 /**
- * Vsyncs the display went by without a new frame: for each gap between consecutive [intendedVsyncsNs] (in frame order)
- * the whole periods beyond the first. A zero [periodNs] counts none.
+ * Vsyncs the display went by while frames were being drawn: each frame of [frameDurationsNs] that took longer than one
+ * refresh period misses `ceil(duration / period) - 1` of them. Time between frames (nothing to draw) counts for
+ * nothing. A zero [periodNs] counts none.
  */
 fun missedVsyncs(
-    intendedVsyncsNs: LongArray,
+    frameDurationsNs: LongArray,
     periodNs: Long,
 ): Int {
     if (periodNs <= 0) return 0
     var missed = 0L
-    for (i in 1 until intendedVsyncsNs.size) {
-        val gap = (intendedVsyncsNs[i] - intendedVsyncsNs[i - 1] + periodNs / 2) / periodNs
-        if (gap > 1) missed += gap - 1
+    for (d in frameDurationsNs) {
+        val periods = (d + periodNs - 1) / periodNs
+        if (periods > 1) missed += periods - 1
     }
     return missed.toInt()
 }

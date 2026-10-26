@@ -47,10 +47,13 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
+            buildConfigField("boolean", "GUIDE_MEASURE", "true")
         }
         release {
             // No signing config: release signing comes only from protected secrets (S4.1.1).
             isDebuggable = false
+            // The guide's measurement line (spec 17, Task 9) is for the debug and benchmark builds only.
+            buildConfigField("boolean", "GUIDE_MEASURE", "false")
         }
         // The playback matrix build (spec 13): release code, with the benchmark-only PlaybackTestActivity (src/benchmark)
         // that plays items on a real device and reports JSON lines. Not debuggable, so it measures what ships. It is
@@ -65,6 +68,8 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += "release"
             applicationIdSuffix = ".benchmark"
+            // BuildConfig.DEBUG is false here, so the measurement switch is its own field, set after initWith.
+            buildConfigField("boolean", "GUIDE_MEASURE", "true")
         }
     }
 }

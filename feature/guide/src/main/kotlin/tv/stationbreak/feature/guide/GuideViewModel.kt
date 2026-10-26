@@ -56,13 +56,16 @@ class GuideViewModel
         private val details: ProgramDetailsCache,
         private val clock: Clock,
         private val dispatcher: CoroutineDispatcher,
+        /** Whether this build writes the guide's measurement line (Task 9); the app decides, per build type. */
+        val measure: Boolean = false,
     ) : ViewModel() {
         @Inject
         constructor(
             schedule: ScheduleSource,
             details: ProgramDetailsCache,
             clock: Clock,
-        ) : this(schedule, details, clock, Dispatchers.Default)
+            @GuideMeasured measure: Boolean,
+        ) : this(schedule, details, clock, Dispatchers.Default, measure)
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownPanel = MutableStateFlow<PanelDetails?>(null)
@@ -244,6 +247,7 @@ class GuideViewModel
             onFailure: ScheduleWindow?,
             untilMs: Long = fromMs + WINDOW.inWholeMilliseconds,
         ): ScheduleWindow? {
+            val owner = synchronized(lock) { session }
             val started = System.nanoTime()
             val result =
                 try {
@@ -259,7 +263,10 @@ class GuideViewModel
                     onFailure
                 }
             synchronized(lock) {
-                if (firstWindowMs == NO_MEASURE) firstWindowMs = (System.nanoTime() - started) / NANOS_PER_MS
+                // Only the session that made the call: an ended session's late answer is not the next one's.
+                if (session === owner && firstWindowMs == NO_MEASURE) {
+                    firstWindowMs = (System.nanoTime() - started) / NANOS_PER_MS
+                }
             }
             return result
         }

@@ -57,6 +57,9 @@ private class HookedSchedule(
     var calls = 0
     var onSchedule: (call: Int) -> Unit = {}
 
+    /** Runs after the call has its answer, before it returns it. */
+    var afterSchedule: (call: Int) -> Unit = {}
+
     /** When set, an `AsNeeded` read waits for it (a slow build). */
     var asNeededGate: CompletableDeferred<Unit>? = null
 
@@ -68,7 +71,7 @@ private class HookedSchedule(
         calls++
         onSchedule(calls)
         if (build == ScheduleBuild.AsNeeded) asNeededGate?.await()
-        return inner.schedule(from, until, build)
+        return inner.schedule(from, until, build).also { afterSchedule(calls) }
     }
 }
 
@@ -144,6 +147,17 @@ class GuideViewModelTest {
     private fun GuideViewModel.ready() = snapshot.value.state as GuideState.Ready
 
     private fun GuideViewModel.focused() = checkNotNull(snapshot.value.focus)
+
+    @Test
+    fun aCallThatEndsAfterItsSessionDoesNotSetTheNextSessionsWindowTime() =
+        guideTest { vm ->
+            var seenBySecondCall = Long.MIN_VALUE
+            schedule.afterSchedule = { call -> if (call == 1) vm.open(null) }
+            schedule.onSchedule = { call -> if (call == 2) seenBySecondCall = vm.windowMs }
+            vm.open(null)
+            runCurrent()
+            assertEquals(-1L, seenBySecondCall)
+        }
 
     @Test
     fun opensWithCachedDaysThenFillsIn() =

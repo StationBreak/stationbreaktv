@@ -8,9 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -53,11 +54,11 @@ fun GuideDestination(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureInCorner, onTune, modifier, openedAtNanos)
+    GuideRoot(viewModel, current, pictureInCorner, onTune, modifier, openedAtNanos, viewModel.measure)
 }
 
 /** [GuideDestination] without Hilt, so a test can bring its own ViewModel. */
-@Suppress("LongParameterList") // The destination's own five, and the open time a test leaves at its default.
+@Suppress("LongParameterList") // The destination's own five, and two a test leaves at their defaults.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
@@ -66,28 +67,36 @@ internal fun GuideRoot(
     onTune: (ChannelId) -> Unit,
     modifier: Modifier = Modifier,
     openedAtNanos: Long = System.nanoTime(),
+    measure: Boolean = false,
 ) {
-    // The session's measurement line (Task 9) is written when the session ends, in exactly the builds that write the
-    // tune lines. The rows and the corner picture are read as they stand then.
+    // The session's measurement line (Task 9) is written when the session ends, and only when [measure] says this build
+    // writes it. The rows and the corner picture are read as they stand then.
     val view = LocalView.current
     val pip by rememberUpdatedState(pictureInCorner)
+    // Started with the session, not in `remember`: a composition that is abandoned before it applies must not leak the
+    // frame thread and its listener.
+    var measurement by remember(viewModel) { mutableStateOf<GuideMeasurement?>(null) }
     // One session per showing. The guide's own state starts Closed and may say so for a moment while the open runs: it
     // never closes the guide, which is live TV's to do.
-    val measurement = remember(viewModel) { GuideMeasurement.start(view, openedAtNanos) }
     DisposableEffect(viewModel) {
+        val started = GuideMeasurement.start(measure, view, openedAtNanos)
+        measurement = started
         viewModel.open(current)
         onDispose {
-            val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0
-            measurement.finish(viewModel.windowMs, rows, pip)
-            viewModel.close()
+            try {
+                val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0
+                started?.finish(viewModel.windowMs, rows, pip)
+            } finally {
+                viewModel.close()
+            }
         }
     }
-    // The first grid frame: the frame after the one that composed the grid, so the grid has been drawn.
+    // The first grid frame: openMs lands on the frame that drew the grid or one frame later (about 16 ms).
     LaunchedEffect(viewModel) {
-        snapshotFlow { viewModel.snapshot.value.state is GuideState.Ready }.first { it }
+        viewModel.snapshot.first { it.state is GuideState.Ready }
         withFrameNanos { }
         withFrameNanos { }
-        measurement.gridShown()
+        measurement?.gridShown()
     }
     // A Tune is acted on as it is received, never right after Select: the guide may refuse a Select (info open, focus
     // gone), and a session that ends drops its queued events.
