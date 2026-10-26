@@ -9,9 +9,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import tv.stationbreak.app.net.AndroidSystemTrust
 import tv.stationbreak.app.net.PinSyncingServerSettings
@@ -22,7 +19,6 @@ import tv.stationbreak.core.domain.SecretStore
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredDeviceIdProvider
-import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.BaseHttpClient
@@ -108,21 +104,6 @@ internal interface MediaServerModule {
             server: MediaServer,
             library: AccountCache,
         ): SessionRepository = SessionRepository(store, server, library)
-
-        /**
-         * Program details fetched on demand (spec 17), kept per account in memory. It runs its requests in its own
-         * supervised scope, so a screen that goes away never cancels a request another screen is waiting on.
-         */
-        @Provides
-        @Singleton
-        @Suppress("InjectDispatcher") // The cache's own scope: a root, with nothing to inject a dispatcher into.
-        fun programDetails(
-            server: MediaServer,
-            sessions: SessionRepository,
-        ): ProgramDetailsCache {
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-            return ProgramDetailsCache(server, sessions, scope)
-        }
 
         @Provides
         @Singleton
