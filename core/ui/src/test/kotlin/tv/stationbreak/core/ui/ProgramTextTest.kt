@@ -2,7 +2,9 @@
 package tv.stationbreak.core.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import java.io.File
 import java.time.Instant
@@ -106,6 +108,14 @@ class ProgramTextTest {
         assertEquals("Off air until 6:00 AM", copy.offAirUntil("6:00 AM"))
         assertEquals("Starts in 5 min", copy.startsIn(5))
         assertEquals("12 min left", copy.minutesLeft(12))
+    }
+
+    @Test
+    fun formattersAreMadeOncePerLocaleAndClock() {
+        val us12 = ProgramText.formatter("h:mm a", Locale.US)
+        assertSame(us12, ProgramText.formatter("h:mm a", Locale.US))
+        assertNotSame(us12, ProgramText.formatter("HH:mm", Locale.US))
+        assertNotSame(us12, ProgramText.formatter("h:mm a", Locale.UK))
     }
 
     private companion object {

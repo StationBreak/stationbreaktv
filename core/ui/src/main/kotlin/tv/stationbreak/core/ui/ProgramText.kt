@@ -7,6 +7,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The words of program text that carry numbers, from resources. A plain holder of formatters, so the rules in
@@ -41,6 +42,16 @@ object ProgramText {
     private const val NOON_HOUR = 12
     private const val SLOT_DASH = " – "
 
+    // Every guide cell's description and every clock label formats times: a formatter is made once per pattern (and so
+    // per 12- or 24-hour clock) and locale, not once per call.
+    private val formatters = ConcurrentHashMap<Pair<String, Locale>, DateTimeFormatter>()
+
+    /** The formatter for [pattern] in [locale], made on first use and kept. */
+    internal fun formatter(
+        pattern: String,
+        locale: Locale,
+    ): DateTimeFormatter = formatters.getOrPut(pattern to locale) { DateTimeFormatter.ofPattern(pattern, locale) }
+
     /**
      * The slot in the viewer's wall-clock time, like a cable box: "8:00 – 8:30 PM", "11:30 AM – 12:00 PM", or
      * "20:00 – 20:30" on a 24-hour clock. [zone] is the device zone, so DST is honoured.
@@ -55,11 +66,11 @@ object ProgramText {
         val start = Instant.ofEpochMilli(startMs).atZone(zone)
         val end = Instant.ofEpochMilli(endMs).atZone(zone)
         if (is24h) {
-            val clock = DateTimeFormatter.ofPattern("HH:mm", locale)
+            val clock = formatter("HH:mm", locale)
             return clock.format(start) + SLOT_DASH + clock.format(end)
         }
-        val plain = DateTimeFormatter.ofPattern("h:mm", locale)
-        val withMeridiem = DateTimeFormatter.ofPattern("h:mm a", locale)
+        val plain = formatter("h:mm", locale)
+        val withMeridiem = formatter("h:mm a", locale)
         val sameHalf = (start.hour < NOON_HOUR) == (end.hour < NOON_HOUR)
         val first = if (sameHalf) plain.format(start) else withMeridiem.format(start)
         return first + SLOT_DASH + withMeridiem.format(end)
@@ -95,7 +106,7 @@ object ProgramText {
     private fun weekday(
         at: ZonedDateTime,
         locale: Locale,
-    ): String = DateTimeFormatter.ofPattern("EEE", locale).format(at)
+    ): String = formatter("EEE", locale).format(at)
 
     /** One wall-clock time: "8:30 PM", or "20:30" on a 24-hour clock. */
     fun time(
@@ -105,7 +116,7 @@ object ProgramText {
         locale: Locale = Locale.getDefault(),
     ): String {
         val pattern = if (is24h) "HH:mm" else "h:mm a"
-        return DateTimeFormatter.ofPattern(pattern, locale).format(Instant.ofEpochMilli(atMs).atZone(zone))
+        return formatter(pattern, locale).format(Instant.ofEpochMilli(atMs).atZone(zone))
     }
 
     /**

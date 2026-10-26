@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,8 +26,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -143,7 +144,10 @@ internal fun GuideCellView(
     val onNow by remember(cell, nowOf) {
         derivedStateOf { nowOf()?.let { cell.startMs <= it && it < cell.endMs } == true }
     }
-    val description = cellDescription(cell, title, onNow)
+    // The description is put together only when something asks for the semantics (a screen reader, a test), not in
+    // every cell's composition.
+    val resources = LocalResources.current
+    val is24h = is24Hour()
     Box(
         Modifier
             .offset(x = place.x)
@@ -153,7 +157,7 @@ internal fun GuideCellView(
             .cellLook(cell.kind == CellKind.Slate, place, viewportOf) { focused }
             .semantics {
                 selected = focused
-                contentDescription = description
+                contentDescription = cellDescription(resources, cell, title, onNow, is24h)
             }.testTag(GuideTags.cell(channel, cell.startMs)),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -318,15 +322,16 @@ private fun CompactLabel(
 }
 
 /** "Title, 8:30 – 9:00 PM", and ", on now" for the program airing: what a screen reader says about a cell. */
-@Composable
 private fun cellDescription(
+    resources: Resources,
     cell: GuideCell,
     title: String,
     onNow: Boolean,
+    is24h: Boolean,
 ): String {
-    val slot = ProgramText.slot(cell.startMs, cell.endMs, ZoneId.systemDefault(), is24Hour())
-    val described = stringResource(R.string.guide_cell_description, title, slot)
-    return if (onNow) stringResource(R.string.guide_cell_on_now, described) else described
+    val slot = ProgramText.slot(cell.startMs, cell.endMs, ZoneId.systemDefault(), is24h)
+    val described = resources.getString(R.string.guide_cell_description, title, slot)
+    return if (onNow) resources.getString(R.string.guide_cell_on_now, described) else described
 }
 
 /**

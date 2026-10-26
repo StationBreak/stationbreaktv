@@ -15,6 +15,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -184,6 +185,9 @@ class GuideScreenTest {
         showReady(CH5)
         cell(CH5, 60).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()
+        // What a screen reader hears, put together only when it is asked for.
+        cell(CH5, 60).assertContentDescriptionContains("Test Movie 201, ", substring = true)
+        cell(CH5, 60).assertContentDescriptionContains(", on now", substring = true)
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
     }
 
