@@ -98,9 +98,13 @@ class GuideScreenTest {
     private lateinit var vm: GuideViewModel
 
     // The clock stands at 65 minutes into the test day; the grid starts at the 60-minute half hour.
+    // The clock stands at [clockMs], 65 minutes into the test day unless a test moves it.
+    @Volatile
+    private var clockMs = min(65)
+
     private val clock =
         object : Clock {
-            override fun now() = Instant.fromEpochMilliseconds(min(65))
+            override fun now() = Instant.fromEpochMilliseconds(clockMs)
         }
 
     private fun min(m: Long) = T0 + m * MIN
@@ -281,6 +285,34 @@ class GuideScreenTest {
     }
 
     @Test
+    fun minuteTickRecomposesOnlyChangedCells() {
+        // Ten seconds before 66 minutes, when channel 2's first program ends and its second begins.
+        clockMs = min(65) + 50_000
+        lineup()
+        val ch2 = ChannelId("ch-2")
+        fake.channel(ch2, 2, listOf(program(0, 66, 500), program(66, 600, 501)))
+        show(CH7)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        compose.waitForIdle()
+        val before = (vm.snapshot.value.state as GuideState.Ready).model
+        composed.clear()
+
+        // The tick due at 66 minutes reads the clock past it and rebuilds the model.
+        clockMs = min(66) + 5_000
+        compose.waitUntil(TICK_TIMEOUT_MS) { (vm.snapshot.value.state as GuideState.Ready).nowMs == clockMs }
+        compose.waitForIdle()
+
+        val after = (vm.snapshot.value.state as GuideState.Ready).model
+        assertTrue("the tick rebuilt the model", after !== before)
+        assertTrue("the rebuilt frame reached the grid", (composed[BODY] ?: 0) > 0)
+        // The rebuilt model and its cells are equal to the old ones, so the grid and its cells skip by equality; only
+        // the two whose on-now state flipped (read from the clock) may compose again.
+        val flipped = setOf("${ch2.value}@${min(0)}", "${ch2.value}@${min(66)}")
+        val cells = composed.keys.filter { it != BODY }
+        assertTrue("recomposed: $cells", flipped.containsAll(cells))
+    }
+
+    @Test
     fun loadingAndEmptyStates() {
         // Nothing built yet, and the build held back: the guide says it is loading, with the way out shown.
         fake.nothingCached = true
@@ -311,5 +343,6 @@ class GuideScreenTest {
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
         const val BODY = "body"
+        const val TICK_TIMEOUT_MS = 20_000L
     }
 }

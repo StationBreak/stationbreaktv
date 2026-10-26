@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import androidx.compose.runtime.Immutable
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ProgramInfo
@@ -19,6 +20,7 @@ enum class CellKind { Program, Slate }
  * known series, else the item's own title. It and [info] are null for a slate and for a program no longer in the
  * library; [itemId] is null for a slate. A [compact] cell is too short to hold a title.
  */
+@Immutable
 data class GuideCell(
     val startMs: Long,
     val endMs: Long,
@@ -30,6 +32,7 @@ data class GuideCell(
 )
 
 /** One channel's row, in channel-number order. */
+@Immutable
 data class GuideRow(
     val channel: ChannelId,
     val number: Int,
@@ -41,6 +44,7 @@ data class GuideRow(
  * The grid the guide draws (spec 17): [rows] from [originMs] (the current half hour) to [endMs] (the end of the last
  * cell). [complete] is false when the schedule behind it is not all built yet.
  */
+@Immutable
 data class GuideModel(
     val rows: List<GuideRow>,
     val originMs: Long,
