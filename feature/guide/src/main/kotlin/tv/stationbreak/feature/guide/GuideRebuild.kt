@@ -34,6 +34,24 @@ private fun GuideModel.replacementFor(
     return if (cell == null) initialFocus(old.channel, nowMs) else GuideFocus(old.channel, cell.startMs, anchor)
 }
 
+/**
+ * The focus once the clock has moved from [previousNowMs] to [nowMs]: one on a program that was on air then and has
+ * ended since goes to what is on now in the same row, as the picture moved on; any other focus stays where it is.
+ */
+internal fun GuideModel.followingNow(
+    focus: GuideFocus,
+    previousNowMs: Long?,
+    nowMs: Long,
+): GuideFocus {
+    val (r, c) = indexOf(focus) ?: return focus
+    val row = rows[r]
+    val cell = row.cells[c]
+    val wasOn = previousNowMs != null && cell.startMs <= previousNowMs && previousNowMs < cell.endMs
+    if (!wasOn || cell.endMs > nowMs) return focus
+    val onNow = row.cells.firstOrNull { it.startMs <= nowMs && nowMs < it.endMs } ?: return focus
+    return GuideFocus(row.channel, onNow.startMs, maxOf(onNow.startMs, originMs))
+}
+
 /** The first row to show with [focus] focused, from [firstVisibleRow]; with none on the grid, it only stays valid. */
 internal fun GuideState.Ready.firstRowFor(
     focus: GuideFocus?,

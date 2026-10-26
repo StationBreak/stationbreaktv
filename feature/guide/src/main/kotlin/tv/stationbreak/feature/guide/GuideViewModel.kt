@@ -371,14 +371,18 @@ internal class GuideViewModel
 
         // Publishing
 
-        // Shows [model] at [now], keeping focus on its cell, or on the cell that replaced it. Under the lock.
+        // Shows [model] at [now], keeping focus on its cell, or on the cell that replaced it; a focus on the program
+        // that was on now and has just ended goes to what is on now in its row. Under the lock.
         private fun commit(
             model: GuideModel,
             now: Long,
         ) {
             val current = shownSnapshot.value
             val previous = current.state as? GuideState.Ready
-            val focus = model.focusAfterRebuild(current.focus, currentChannel, now)
+            val focus =
+                model.focusAfterRebuild(current.focus, currentChannel, now)?.let {
+                    model.followingNow(it, previous?.nowMs, now)
+                }
             // The range follows the origin unless the viewer has scrolled it away from there.
             val scrolled = previous != null && previous.viewportStartMs != previous.model.originMs
             val viewport =

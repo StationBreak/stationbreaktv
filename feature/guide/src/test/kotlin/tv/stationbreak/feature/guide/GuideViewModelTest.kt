@@ -704,4 +704,37 @@ class GuideViewModelTest {
             val extensions = fake.scheduleCalls.drop(1)
             assertEquals(extensions.map { it.second }.distinct(), extensions.map { it.second })
         }
+
+    @Test
+    fun focusOnAProgramThatEndsMovesToWhatIsOnNowInItsRow() =
+        guideTest { vm ->
+            // Channel 7's program on now ends at 70 minutes, inside the half hour, so it stays on the grid.
+            fake.channel(CH7, 7, listOf(program(0, 70, 1), program(70, 100, 2)) + halfHours(600, fromMin = 100))
+            vm.open(CH7)
+            runCurrent()
+            assertEquals(min(0), vm.focused().cellStartMs)
+            vm.move(GuideDirection.Down)
+            vm.move(GuideDirection.Up)
+            assertEquals(min(0), vm.focused().cellStartMs)
+
+            after(5 * MIN)
+
+            assertEquals(min(60), vm.ready().model.originMs)
+            assertEquals(GuideFocus(CH7, min(70), min(70)), vm.snapshot.value.focus)
+        }
+
+    @Test
+    fun focusOnALaterProgramStaysWhenTheOneBeforeItEnds() =
+        guideTest { vm ->
+            fake.channel(CH7, 7, listOf(program(0, 70, 1), program(70, 100, 2)) + halfHours(600, fromMin = 100))
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right)
+            assertEquals(min(100), vm.focused().cellStartMs)
+
+            after(5 * MIN)
+
+            assertEquals(min(100), vm.focused().cellStartMs)
+        }
 }
