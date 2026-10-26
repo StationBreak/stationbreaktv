@@ -46,11 +46,18 @@ private const val OVERVIEW_LINES_WITH_EPISODE = 2
 private const val OVERVIEW_LINES = 3
 
 /**
+ * A node of its own, never merged into the panel's live region: for what changes every minute (the countdown, the
+ * progress bar), which a screen reader should not read out again each time. It can still be read on its own.
+ */
+private val OutsideTheLiveRegion = Modifier.semantics(mergeDescendants = true) {}
+
+/**
  * The details of the focused cell: the channel, the title, the episode line, when it airs (with a NOW chip and the
  * time left for a program on now, or how soon it starts), its progress when on now, and the overview once fetched. A
  * block of its own, so something else (a menu) can take its place later. Only it reads [panel]; the clock is read
- * through [nowOf], which changes once a minute. Read out by a screen reader as it changes, since no screen reader can
- * see the guide's own focus.
+ * through [nowOf], which changes once a minute. Read out by a screen reader as it changes (a polite live region: the
+ * channel, the title, the episode and the slot, not the minute countdown), since no screen reader can see the guide's
+ * own focus.
  */
 @Composable
 internal fun DetailsPanel(
@@ -153,12 +160,24 @@ private fun TimeRow(
         when {
             onNow -> {
                 val left = minutesUntil(cell.endMs, nowMs)
-                Text(text = copy.minutesLeft(left), style = mono(16.sp), color = BroadcastColors.Ground, maxLines = 1)
+                Text(
+                    text = copy.minutesLeft(left),
+                    modifier = OutsideTheLiveRegion,
+                    style = mono(16.sp),
+                    color = BroadcastColors.Ground,
+                    maxLines = 1,
+                )
             }
 
             cell.startMs > nowMs -> {
                 val soon = minutesUntil(cell.startMs, nowMs)
-                Text(text = copy.startsIn(soon), style = mono(16.sp), color = BroadcastColors.Cream, maxLines = 1)
+                Text(
+                    text = copy.startsIn(soon),
+                    modifier = OutsideTheLiveRegion,
+                    style = mono(16.sp),
+                    color = BroadcastColors.Cream,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -176,6 +195,7 @@ private fun Progress(
         Modifier
             .fillMaxWidth()
             .height(4.dp)
+            .then(OutsideTheLiveRegion)
             .testTag(GuideTags.PANEL_PROGRESS)
             .drawBehind {
                 drawRect(BroadcastColors.Ground.copy(alpha = PROGRESS_TRACK_ALPHA))

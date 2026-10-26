@@ -20,6 +20,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -189,6 +190,18 @@ class GuideScreenTest {
         cell(CH5, 60).assertContentDescriptionContains("Test Movie 201, ", substring = true)
         cell(CH5, 60).assertContentDescriptionContains(", on now", substring = true)
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
+    }
+
+    @Test
+    fun panelAnnouncesWhatChangedNotTheMinuteCountdown() {
+        showReady(CH5)
+        // The panel is one polite live region: a screen reader reads it again when it changes, so the line and bar
+        // that change every minute are kept out of it, while still being there to read.
+        val panel = compose.onNodeWithTag(GuideTags.PANEL).fetchSemanticsNode().config
+        val announced = panel.getOrElse(SemanticsProperties.Text) { emptyList() }.joinToString(" ") { it.text }
+        assertTrue(announced, announced.contains("Test Movie 201"))
+        assertTrue(announced, !announced.contains("min left"))
+        compose.onNodeWithText("min left", substring = true).assertExists()
     }
 
     @Test
