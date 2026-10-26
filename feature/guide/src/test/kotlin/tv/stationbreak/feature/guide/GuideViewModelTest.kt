@@ -111,9 +111,15 @@ class GuideViewModelTest {
     private fun splitAround90(untilMin: Long = 600): List<AiringBlock> =
         listOf(program(0, 95, 900), program(95, 120, 901)) + halfHours(untilMin, fromMin = 120)
 
+    /** How far behind the scheduler the clock's next read is; the read after it is on time again. */
+    private var lagNextReadMs = 0L
+
     private fun TestScope.clock(startMin: Long) =
         object : Clock {
-            override fun now() = Instant.fromEpochMilliseconds(T0 + startMin * MIN + testScheduler.currentTime)
+            override fun now(): Instant {
+                val lag = lagNextReadMs.also { lagNextReadMs = 0L }
+                return Instant.fromEpochMilliseconds(T0 + startMin * MIN + testScheduler.currentTime - lag)
+            }
         }
 
     private suspend fun TestScope.newGuide(startMin: Long): GuideViewModel {
@@ -637,5 +643,42 @@ class GuideViewModelTest {
 
             vm.select()
             assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH5)), events)
+        }
+
+    // The grid and its "now" line, every time they are published.
+    private fun TestScope.readies(vm: GuideViewModel): List<GuideState.Ready> {
+        val shown = mutableListOf<GuideState.Ready>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.snapshot.collect { (it.state as? GuideState.Ready)?.let(shown::add) }
+        }
+        return shown
+    }
+
+    private fun assertNeverBack(shown: List<GuideState.Ready>) {
+        assertEquals(shown.map { it.nowMs }.sorted(), shown.map { it.nowMs })
+        assertEquals(shown.map { it.model.originMs }.sorted(), shown.map { it.model.originMs })
+    }
+
+    @Test
+    fun aFillInBuiltBeforeATickNeverMovesTheGridBack() =
+        guideTest(startMin = 88) { vm ->
+            // Cached rows open the grid at once; the fill-in is held until a tick has crossed into the next half hour.
+            fake.cachedUntilMs = min(180)
+            val gate = CompletableDeferred<Unit>()
+            schedule.asNeededGate = gate
+            val shown = readies(vm)
+            vm.open(CH7)
+            runCurrent()
+            after(3 * MIN)
+            assertEquals(min(90), vm.ready().model.originMs)
+
+            // The fill-in read the clock before that tick was published: it was built at 89 minutes.
+            schedule.afterSchedule = { call -> if (call == 2) lagNextReadMs = 2 * MIN }
+            gate.complete(Unit)
+            runCurrent()
+
+            assertTrue("the fill-in was shown", vm.ready().model.complete)
+            assertNeverBack(shown)
+            assertEquals(min(90), vm.ready().model.originMs)
         }
 }

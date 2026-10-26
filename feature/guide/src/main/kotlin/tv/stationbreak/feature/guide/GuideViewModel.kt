@@ -262,17 +262,22 @@ internal class GuideViewModel
             return result
         }
 
-        // Makes [fresh] the window. The model is built before the lock is taken. An [extension] that would end before
-        // the grid does (it lost a race with something that read further) is dropped.
+        // Makes [fresh] the window. The model is built before the lock is taken, never at a moment before the one shown.
+        // A tick that publishes a later moment while it is built wins: the model is built again at that moment, under
+        // the lock (rare), so the origin and the "now" line never go back. An [extension] that would end before the
+        // grid does (it lost a race with something that read further) is dropped.
         private fun apply(
             s: CoroutineScope,
             fresh: ScheduleWindow,
             extension: Boolean,
         ) {
-            val now = nowMs()
-            val model = buildGuideModel(fresh, now)
+            val built = maxOf(nowMs(), shownNowMs())
+            val early = buildGuideModel(fresh, built)
             synchronized(lock) {
                 if (session !== s) return
+                val shownNow = shownNowMs()
+                val now = maxOf(built, shownNow)
+                val model = if (now == built) early else buildGuideModel(fresh, now)
                 val endNow = (shownSnapshot.value.state as? GuideState.Ready)?.model?.endMs
                 if (extension && endNow != null && model.endMs < endNow) return
                 window = fresh
@@ -280,6 +285,9 @@ internal class GuideViewModel
                 if (tickJob == null) tickJob = s.launch { tickLoop(s) }
             }
         }
+
+        // The moment the grid shows, or the earliest there is when it shows none.
+        private fun shownNowMs(): Long = (shownSnapshot.value.state as? GuideState.Ready)?.nowMs ?: Long.MIN_VALUE
 
         // Ticks
 
@@ -301,8 +309,8 @@ internal class GuideViewModel
             val now = nowMs()
             val model = buildGuideModel(built, now)
             synchronized(lock) {
-                // A window that was replaced while this one was built has its own newer grid.
-                if (session !== s || window !== built) return
+                // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
+                if (session !== s || window !== built || now < shownNowMs()) return
                 commit(model, now)
                 extendIfNearTheEnd(s, model, now)
             }
