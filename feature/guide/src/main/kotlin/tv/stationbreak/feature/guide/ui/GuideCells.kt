@@ -108,9 +108,6 @@ internal class CellPlace(
     /** The viewport's left edge on the row, from the origin. */
     fun viewportLeft(viewportStartMs: Long): Dp = geometry.widthOf(viewportStartMs - originMs)
 
-    /** How wide the time columns are. */
-    val viewportWidth: Dp = geometry.viewportWidth
-
     /** The viewport's right edge on the row, from the origin. */
     fun viewportRight(viewportStartMs: Long): Dp = viewportLeft(viewportStartMs) + geometry.viewportWidth
 
@@ -240,9 +237,50 @@ private fun numbersOf(info: ProgramInfo): String? {
 }
 
 /**
- * The title of a focused cell too narrow to hold it: one line, Ink on Accent, floating beside the cell (to its right,
- * or to its left when the viewport has no room there) above its neighbours. It takes no space in the row; the side is
- * chosen while laying out, from the viewport, so paging does not compose it again.
+ * The room beside a compact cell for its floating title, in px on the row: from [start] to [end], on the cell's right
+ * or its left. A label no wider than [room] placed at [x] stays inside the viewport and clear of the cell.
+ */
+internal class LabelSpot(
+    private val start: Int,
+    private val end: Int,
+    private val onRight: Boolean,
+    private val viewportLeft: Int,
+    private val viewportRight: Int,
+) {
+    /** How wide the label may be. */
+    val room: Int get() = maxOf(0, end - start)
+
+    /** Where a label [width] wide starts: against the cell's side, then kept inside the viewport. */
+    fun x(width: Int): Int =
+        (if (onRight) start else end - width).coerceIn(viewportLeft, maxOf(viewportLeft, viewportRight - width))
+}
+
+/**
+ * Where the title of a compact cell from [cellLeft] to [cellRight] floats, in px on the row: [gap] beside the cell on
+ * the side where the viewport (from [viewportLeft] to [viewportRight]) has more room, so it never covers the cell or
+ * its focus ring, drawn inside the cell.
+ */
+internal fun compactLabelSpot(
+    cellLeft: Int,
+    cellRight: Int,
+    viewportLeft: Int,
+    viewportRight: Int,
+    gap: Int,
+): LabelSpot {
+    val rightStart = cellRight + gap
+    val leftEnd = cellLeft - gap
+    return if (viewportRight - rightStart >= leftEnd - viewportLeft) {
+        LabelSpot(rightStart, viewportRight, onRight = true, viewportLeft, viewportRight)
+    } else {
+        LabelSpot(viewportLeft, leftEnd, onRight = false, viewportLeft, viewportRight)
+    }
+}
+
+/**
+ * The title of a focused cell too narrow to hold it: one line, Ink on Accent, floating beside the cell above its
+ * neighbours, on the side with more room and never wider than that room, so a long title ends in its ellipsis rather
+ * than over the cell. It takes no space in the row; the side is chosen while laying out, from the viewport, so paging
+ * does not compose it again.
  */
 @Composable
 private fun CompactLabel(
@@ -256,17 +294,18 @@ private fun CompactLabel(
             Modifier
                 .zIndex(1f)
                 .layout { measurable, constraints ->
-                    // Never wider than the time columns, so a long title ends in its ellipsis, not at the clip.
-                    val label = measurable.measure(Constraints(maxWidth = place.viewportWidth.roundToPx()))
-                    layout(0, 0) {
-                        val viewport = viewportOf()
-                        val first = place.viewportLeft(viewport).roundToPx()
-                        val last = place.viewportRight(viewport).roundToPx() - label.width
-                        val right = (place.x + place.width + LabelGap).roundToPx()
-                        val left = (place.x - LabelGap).roundToPx() - label.width
-                        val x = (if (right <= last) right else left).coerceIn(first, maxOf(first, last))
-                        label.placeRelative(x, (constraints.maxHeight - label.height) / 2)
-                    }
+                    val viewport = viewportOf()
+                    val spot =
+                        compactLabelSpot(
+                            cellLeft = place.x.roundToPx(),
+                            cellRight = (place.x + place.width).roundToPx(),
+                            viewportLeft = place.viewportLeft(viewport).roundToPx(),
+                            viewportRight = place.viewportRight(viewport).roundToPx(),
+                            gap = LabelGap.roundToPx(),
+                        )
+                    val label = measurable.measure(Constraints(maxWidth = spot.room))
+                    val y = (constraints.maxHeight - label.height) / 2
+                    layout(0, 0) { label.placeRelative(spot.x(label.width), y) }
                 }.background(BroadcastColors.Accent)
                 .padding(horizontal = 6.dp, vertical = 3.dp)
                 .testTag(GuideTags.COMPACT_LABEL),

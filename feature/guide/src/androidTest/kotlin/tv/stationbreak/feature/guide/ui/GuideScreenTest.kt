@@ -212,6 +212,10 @@ class GuideScreenTest {
         cell(ch3, 70).assertIsSelected()
         assertEquals("Test Movie 401", text(GuideTags.COMPACT_LABEL))
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
+        // Beside the cell, never over it or its focus ring.
+        val label = compose.onNodeWithTag(GuideTags.COMPACT_LABEL).fetchSemanticsNode().boundsInRoot
+        val box = cell(ch3, 70).fetchSemanticsNode().boundsInRoot
+        assertTrue("$label over $box", label.right <= box.left || label.left >= box.right)
         press(Key.DirectionRight)
         compose.onNodeWithTag(GuideTags.COMPACT_LABEL).assertDoesNotExist()
     }
