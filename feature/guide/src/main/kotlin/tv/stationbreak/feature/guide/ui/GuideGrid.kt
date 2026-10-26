@@ -124,8 +124,9 @@ private fun GuideRowCells(
 }
 
 /**
- * The channel column: the number in Accent, then the name. A bar at the left edge marks the channel playing; there is
- * no focused-row highlight, which would recompose a whole row on every move.
+ * The channel column: the number in Accent, then the name, each cut with an ellipsis when it does not fit. A bar at
+ * the left edge marks the channel playing; there is no focused-row highlight, which would recompose a whole row on
+ * every move.
  */
 @Composable
 private fun ChannelCell(
@@ -155,6 +156,8 @@ private fun ChannelCell(
             style = mono(16.sp),
             color = BroadcastColors.Accent,
             maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = name,

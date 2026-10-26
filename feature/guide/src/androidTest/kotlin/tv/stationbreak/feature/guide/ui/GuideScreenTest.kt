@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsNotSelected
@@ -24,6 +25,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
@@ -300,9 +302,22 @@ class GuideScreenTest {
         assertEquals(min(150), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
         cell(CH7, 150).assertIsSelected()
         // Only the two cells whose focus changed; every other cell of every row kept its composition, and none was
-        // brought into it: the page moved the rows in the layout phase.
-        val cells = composed.filterKeys { it != BODY }
-        assertEquals(mapOf("${CH7.value}@${min(120)}" to 1, "${CH7.value}@${min(150)}" to 1), cells)
+        // brought into it: the page moved the rows in the layout phase. Not the grid's body either: a page is the same
+        // grid frame.
+        assertEquals(mapOf("${CH7.value}@${min(120)}" to 1, "${CH7.value}@${min(150)}" to 1), composed.toMap())
+    }
+
+    @Test
+    fun aLongChannelNumberEndsInAnEllipsis() {
+        lineup()
+        fake.channel(ChannelId("ch-1234"), 1234, (0L until 600L step 30).map { program(it, it + 30, 600) })
+        show(CH7)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        compose.waitForIdle()
+        val number = compose.onNodeWithText("1234").fetchSemanticsNode()
+        val layouts = mutableListOf<TextLayoutResult>()
+        number.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        assertTrue("the number is cut with an ellipsis, not clipped", layouts.single().isLineEllipsized(0))
     }
 
     @Test

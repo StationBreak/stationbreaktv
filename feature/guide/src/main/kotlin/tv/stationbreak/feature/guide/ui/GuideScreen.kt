@@ -154,8 +154,9 @@ private class GridReaders(
 )
 
 /**
- * The same grid frame: the same model (by identity, never a deep compare), viewport, first row and clock. A focus move
- * publishes a new Ready that is the same frame, so the body is not recomposed for it.
+ * The same grid frame: the same model (by identity, never a deep compare), first row and clock. A focus move and a
+ * horizontal page publish a new Ready that is the same frame, so the body is not recomposed for them: the viewport is
+ * read on its own, in the layout and draw phases.
  */
 private object SameGridFrame : SnapshotMutationPolicy<GuideState> {
     override fun equivalent(
@@ -164,7 +165,6 @@ private object SameGridFrame : SnapshotMutationPolicy<GuideState> {
     ): Boolean =
         if (a is GuideState.Ready && b is GuideState.Ready) {
             a.model === b.model &&
-                a.viewportStartMs == b.viewportStartMs &&
                 a.firstVisibleRow == b.firstVisibleRow &&
                 a.nowMs == b.nowMs
         } else {
