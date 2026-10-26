@@ -627,7 +627,7 @@ class TuneController(
             skippedFrames = landing.skippedFrames,
             loads = landing.loads,
             notes = landing.notes,
-            av = landing.playing.av,
+            av = landing.playing.av?.copy(playCallMs = landing.playCalledAt - began),
         )
     }
 
@@ -647,6 +647,7 @@ class TuneController(
             val skippedFrames: Long?,
             val loads: LoadStats?,
             val notes: Flow<PlayNote>,
+            val playCalledAt: Long,
         ) : Wait
     }
 
@@ -655,6 +656,7 @@ class TuneController(
      * a late event of an earlier play cannot answer for it. [Wait.TimedOut] when neither happens in
      * [PLAYING_TIMEOUT]. Once playing, it waits up to [FIRST_FRAME_WAIT] more for the first frame.
      */
+    @Suppress("LongMethod") // One play's listener and its measures, kept together.
     private suspend fun playAndWait(source: PlayerSource): Wait =
         coroutineScope {
             val generation = CompletableDeferred<Long>()
@@ -699,7 +701,16 @@ class TuneController(
                             // The tracks come before the picture, so they are known by now or not at all.
                             val tracksMs = tracksAt.get().takeIf { it != NO_TIME }?.minus(playCalledAt)
                             val skipped = frame?.skippedFrames
-                            Wait.Landed(frame?.atMs, event, watch.flow, tracksMs, skipped, loads.get(), watch.notes)
+                            Wait.Landed(
+                                frame?.atMs,
+                                event,
+                                watch.flow,
+                                tracksMs,
+                                skipped,
+                                loads.get(),
+                                watch.notes,
+                                playCalledAt,
+                            )
                         }
 
                         is PlayerEvent.Failed -> {

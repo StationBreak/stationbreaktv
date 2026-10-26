@@ -247,14 +247,15 @@ class Media3VideoPlayer(
         ) {
             if (!isPlaying) return
             hasPlayed = true
-            flow.tryEmit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active, av.finish(active)))
+            val timings = av.finish(eventGeneration(eventTime, active))
+            flow.tryEmit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active, timings))
         }
 
         override fun onPlaybackStateChanged(
             eventTime: AnalyticsListener.EventTime,
             state: Int,
         ) {
-            if (state == Player.STATE_READY) av.ready(generationOf(eventTime, active), clock())
+            if (state == Player.STATE_READY) av.ready(eventGeneration(eventTime, active), clock())
             // A rebuffer: buffering again after playback had begun.
             if (state == Player.STATE_BUFFERING && hasPlayed) {
                 flow.tryEmit(PlayerEvent.Stalled(active, clock(), exo.currentPosition, exo.totalBufferedDuration))
@@ -274,7 +275,7 @@ class Media3VideoPlayer(
             playoutStartSystemTimeMs: Long,
         ) {
             audio.advancing()
-            av.audioAdvancing(generationOf(eventTime, active), clock())
+            av.audioAdvancing(eventGeneration(eventTime, active), clock())
             flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
         }
 
@@ -283,26 +284,26 @@ class Media3VideoPlayer(
             decoderName: String,
             initializedTimestampMs: Long,
             initializationDurationMs: Long,
-        ) = av.videoDecoder(generationOf(eventTime, active), clock(), initializationDurationMs)
+        ) = av.videoDecoder(eventGeneration(eventTime, active), clock(), initializationDurationMs)
 
         override fun onAudioDecoderInitialized(
             eventTime: AnalyticsListener.EventTime,
             decoderName: String,
             initializedTimestampMs: Long,
             initializationDurationMs: Long,
-        ) = av.audioDecoder(generationOf(eventTime, active), clock(), initializationDurationMs)
+        ) = av.audioDecoder(eventGeneration(eventTime, active), clock(), initializationDurationMs)
 
         override fun onAudioTrackInitialized(
             eventTime: AnalyticsListener.EventTime,
             audioTrackConfig: AudioSink.AudioTrackConfig,
-        ) = av.audioTrack(generationOf(eventTime, active), clock())
+        ) = av.audioTrack(eventGeneration(eventTime, active), clock())
 
         override fun onAudioUnderrun(
             eventTime: AnalyticsListener.EventTime,
             bufferSize: Int,
             bufferSizeMs: Long,
             elapsedSinceLastFeedMs: Long,
-        ) = av.underrun(generationOf(eventTime, active))
+        ) = av.underrun(eventGeneration(eventTime, active))
 
         override fun onPlayerError(
             eventTime: AnalyticsListener.EventTime,
@@ -370,7 +371,7 @@ private class SkippedFrames(
 
 /** The play an event belongs to: the media id names it; an event with no item yet is [active]'s. */
 @UnstableApi
-private fun generationOf(
+private fun eventGeneration(
     eventTime: AnalyticsListener.EventTime,
     active: Long,
 ): Long {

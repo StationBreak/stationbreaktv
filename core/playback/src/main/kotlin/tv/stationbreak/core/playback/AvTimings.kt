@@ -3,10 +3,14 @@ package tv.stationbreak.core.playback
 
 /**
  * When the audio and video start-up steps of one play happened, in ms since the play call, each [UNKNOWN] when it did
- * not happen before the play reached Playing (diagnostics only, #392). Numbers only. The decoder `Dur` fields are the
+ * not happen before the play reached Playing (diagnostics only, #392). Numbers only. A -1 may also mean the decoder or
+ * AudioTrack was reused, so no init event came, not that the step was slow. [playCallMs] is the play call's offset
+ * from the tune's start, set by the tune controller: add it to a step to compare with the tune's first frame and
+ * playing times, which run from the tune's start. The decoder `Dur` fields are the
  * time the decoder took to initialise. [audioUnderruns] counts the audio underruns before Playing.
  */
 data class AvTimings(
+    val playCallMs: Long = UNKNOWN,
     val videoDecInitMs: Long = UNKNOWN,
     val videoDecInitDurMs: Long = UNKNOWN,
     val audioDecInitMs: Long = UNKNOWN,
