@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
+import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 
 /**
@@ -66,6 +67,21 @@ internal fun LiveRoot(
     }
     KeepScreenOn(owner)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
+    LiveKeysRoot(state, info, onCommand) { AndroidView(factory = { surface }) }
+}
+
+/**
+ * The screen with the remote's keys: [LiveScreen] under the root that takes the keys first. Split from [LiveRoot] so a
+ * test can drive the same key path with a state of its own.
+ */
+@Composable
+internal fun LiveKeysRoot(
+    state: LiveState,
+    info: LiveInfo?,
+    onCommand: (LiveCommand) -> Unit,
+    video: @Composable () -> Unit,
+) {
+    val owner = LocalLifecycleOwner.current
     // The root holds focus so the remote's keys reach it; its preview handler sees them before anything below does.
     val focus = remember { FocusRequester() }
     // Asked again at every start: coming back from Home must not leave the keys without a target.
@@ -84,7 +100,7 @@ internal fun LiveRoot(
                 handleLiveKey(event, up, held, onCommand).also { logLiveKey(event, it, state, up) }
             }.focusable(),
     ) {
-        LiveScreen(state, info, onCommand) { AndroidView(factory = { surface }) }
+        LiveScreen(state, info, onCommand, video)
     }
 }
 

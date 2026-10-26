@@ -2,11 +2,17 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performKeyInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -114,17 +120,69 @@ class LiveBannerActionsTest {
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_LAST).assertDoesNotExist()
     }
 
+    /**
+     * The app's own key path: [LiveKeysRoot] takes the keys first, as on the TV. Select asks for the actions banner,
+     * which this stand-in machine then shows, so the buttons appear the way they do after a real press.
+     */
+    private fun showKeysRoot() {
+        compose.setContent {
+            var state by remember { mutableStateOf<LiveState>(LiveState.Watching(banner())) }
+            val machine = { command: LiveCommand ->
+                sent += command
+                if (command == LiveCommand.ShowBanner) {
+                    state = LiveState.Watching(banner(actions = true, hasLast = true))
+                }
+            }
+            StationBreakTheme { LiveKeysRoot(state, null, machine) {} }
+        }
+        compose.waitForIdle()
+    }
+
+    /** One remote press: down, a frame or more, then up, as a viewer's thumb does. */
+    private fun press(key: Key) {
+        compose.onRoot().performKeyInput { keyDown(key) }
+        compose.waitForIdle()
+        compose.onRoot().performKeyInput { keyUp(key) }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun selectWithNoBannerOpensTheActionsBannerOnInfoAndNothingMore() {
+        showKeysRoot()
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        // The release of that same press must not reach the Info button it moved the focus to.
+        assertEquals(listOf<LiveCommand>(LiveCommand.ShowBanner), sent.toList())
+    }
+
     @Test
     fun lastActionTunesPreviousChannel() {
-        show(banner(actions = true, hasLast = true))
-        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LAST).performClick()
+        showKeysRoot()
+        press(Key.DirectionCenter)
+        press(Key.DirectionRight)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LAST).assertIsFocused()
+        sent.clear()
+        press(Key.DirectionCenter)
         assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent.toList())
     }
 
     @Test
     fun infoActionOpensTheOverlay() {
-        show(banner(actions = true, hasLast = true))
-        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).performClick()
+        showKeysRoot()
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        sent.clear()
+        press(Key.DirectionCenter)
+        assertEquals(listOf<LiveCommand>(LiveCommand.ShowInfo), sent.toList())
+    }
+
+    @Test
+    fun enterWorksLikeSelectOnAButton() {
+        showKeysRoot()
+        press(Key.Enter)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        sent.clear()
+        press(Key.Enter)
         assertEquals(listOf<LiveCommand>(LiveCommand.ShowInfo), sent.toList())
     }
 
