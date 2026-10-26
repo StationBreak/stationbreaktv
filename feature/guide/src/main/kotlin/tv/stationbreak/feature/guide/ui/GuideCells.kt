@@ -255,8 +255,10 @@ internal class LabelSpot(
     val room: Int get() = maxOf(0, end - start)
 
     /** Where a label [width] wide starts: against the cell's side, then kept inside the viewport. */
-    fun x(width: Int): Int =
-        (if (onRight) start else end - width).coerceIn(viewportLeft, maxOf(viewportLeft, viewportRight - width))
+    fun x(width: Int): Int {
+        val beside = if (onRight) start else end - width
+        return beside.coerceIn(viewportLeft, maxOf(viewportLeft, viewportRight - width))
+    }
 }
 
 /**

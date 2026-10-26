@@ -61,8 +61,8 @@ class GuideMeasurementTest {
         m.finish(windowMs = -1, rows = 0, pip = false)
         assertEquals(1, lines.size)
         assertEquals(
-            "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 rows=0 " +
-                "pip=false durationMs=5000",
+            "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
+                "rows=0 pip=false durationMs=5000",
             lines.single(),
         )
     }

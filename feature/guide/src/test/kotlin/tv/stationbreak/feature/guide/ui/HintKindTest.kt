@@ -27,7 +27,8 @@ class HintKindTest {
         focusMin: Long,
     ): GuideSnapshot {
         val blocks = listOf(program(0, 150, 1), slate(150, 210), program(210, 600, 2))
-        val row = ChannelRow(ChannelAiring(CH9, 9, "Test Channel 9", Instant.fromEpochMilliseconds(T0), null), blocks, min(600))
+        val channel = ChannelAiring(CH9, 9, "Test Channel 9", Instant.fromEpochMilliseconds(T0), null)
+        val row = ChannelRow(channel, blocks, min(600))
         val model = buildGuideModel(ScheduleWindow(listOf(row), complete = true), min(nowMin))
         val ready = GuideState.Ready(model, model.originMs, 0, min(nowMin))
         return GuideSnapshot(ready, GuideFocus(CH9, min(focusMin), min(focusMin)))

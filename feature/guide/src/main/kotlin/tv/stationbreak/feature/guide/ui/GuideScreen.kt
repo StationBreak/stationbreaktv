@@ -248,10 +248,10 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
 }
 
 /**
- * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to its
- * channel), "OK Info" on a later program, nothing for OK on a later slate, and always "Back Exit live TV", since leaving
- * from the guide is the one thing no one would guess. Key names in Cream, what they do in Ground. Recomposes only
- * when the kind of the focused cell changes.
+ * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to
+ * its channel), "OK Info" on a later program, nothing for OK on a later slate, and always "Back Exit live TV", since
+ * leaving from the guide is the one thing no one would guess. Key names in Cream, what they do in Ground. Recomposes
+ * only when the kind of the focused cell changes.
  */
 @Composable
 private fun HintRow(snapshotOf: () -> GuideSnapshot) {

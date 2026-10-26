@@ -2,31 +2,20 @@
 package tv.stationbreak.feature.guide
 
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tv.stationbreak.core.domain.FakeMediaServer
-import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
-import tv.stationbreak.core.domain.SessionRepository
-import tv.stationbreak.core.domain.details.ProgramDetailsCache
-import tv.stationbreak.core.domain.lineup.AiringBlock
-import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
@@ -34,138 +23,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
-import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
-import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
-import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
-import tv.stationbreak.core.domain.lineup.ScheduleSource
-import tv.stationbreak.core.domain.lineup.ScheduleWindow
-import tv.stationbreak.core.model.AccessToken
-import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
-import tv.stationbreak.core.model.Scheme
-import tv.stationbreak.core.model.SecretAccess
-import tv.stationbreak.core.model.ServerAddress
-import tv.stationbreak.core.model.ServerId
-import tv.stationbreak.core.model.ServerInfo
-import tv.stationbreak.core.model.ServerVersion
-import tv.stationbreak.core.model.Session
-import tv.stationbreak.core.model.UserId
-import kotlin.time.Clock
-import kotlin.time.Instant
 
-/** A schedule that lets a test change the lineup as the guide asks for it. */
-private class HookedSchedule(
-    val inner: FakeSchedule,
-) : ScheduleSource by inner {
-    var calls = 0
-    var onSchedule: (call: Int) -> Unit = {}
-
-    /** Runs after the call has its answer, before it returns it. */
-    var afterSchedule: (call: Int) -> Unit = {}
-
-    /** When set, an `AsNeeded` read waits for it (a slow build). */
-    var asNeededGate: CompletableDeferred<Unit>? = null
-
-    /** When set, a `CachedOnly` read waits for it (a slow read of what is built). */
-    var cachedGate: CompletableDeferred<Unit>? = null
-
-    override suspend fun schedule(
-        from: Instant,
-        until: Instant,
-        build: ScheduleBuild,
-    ): ScheduleWindow? {
-        calls++
-        onSchedule(calls)
-        if (build == ScheduleBuild.AsNeeded) asNeededGate?.await()
-        if (build == ScheduleBuild.CachedOnly) cachedGate?.await()
-        return inner.schedule(from, until, build).also { afterSchedule(calls) }
-    }
-}
-
-@OptIn(SecretAccess::class)
-class GuideViewModelTest {
-    private val fake = FakeSchedule()
-    private val schedule = HookedSchedule(fake)
-    private val server = FakeMediaServer()
-    private val sessions = SessionRepository(InMemorySecretStore(), server)
-
-    // Channel 7 airs half-hour programs, channel 5 hour-long ones, channel 9 a long program, a slate, then more.
-    private fun lineup(
-        untilMin: Long = 600,
-        stopCh7AtMin: Long = untilMin,
-    ) {
-        fake.channels.clear()
-        fake.channel(CH7, 7, halfHours(stopCh7AtMin))
-        fake.channel(CH5, 5, (0 until untilMin step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) })
-        fake.channel(
-            CH9,
-            9,
-            (
-                listOf(program(0, 150, 300), slate(150, 210)) +
-                    (210 until untilMin step 60).map { program(it, it + 60, 301 + (it / 60).toInt()) }
-            ).filter { it.startMs < T0 + untilMin * MIN },
-        )
-    }
-
-    private fun halfHours(
-        untilMin: Long,
-        fromMin: Long = 0,
-    ): List<AiringBlock> = (fromMin until untilMin step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) }
-
-    /** Channel 7 with no cell starting at 90: one runs 0 to 95 and the next 95 to 120. */
-    private fun splitAround90(untilMin: Long = 600): List<AiringBlock> =
-        listOf(program(0, 95, 900), program(95, 120, 901)) + halfHours(untilMin, fromMin = 120)
-
-    /** How far behind the scheduler the clock's next read is; the read after it is on time again. */
-    private var lagNextReadMs = 0L
-
-    private fun TestScope.clock(startMin: Long) =
-        object : Clock {
-            override fun now(): Instant {
-                val lag = lagNextReadMs.also { lagNextReadMs = 0L }
-                return Instant.fromEpochMilliseconds(T0 + startMin * MIN + testScheduler.currentTime - lag)
-            }
-        }
-
-    private suspend fun TestScope.newGuide(startMin: Long): GuideViewModel {
-        val address = ServerAddress(Scheme.Https, "jellyfin.example", 443)
-        val info = ServerInfo("Home", ServerId("srv1"), ServerVersion(12, 2, 0))
-        sessions.save(Session(UserId("u1"), AccessToken("fake-token-0123"), info, address, null, true))
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob() + dispatcher))
-        return GuideViewModel(schedule, cache, clock(startMin), dispatcher)
-    }
-
-    /** Runs [body] with a guide whose clock reads [startMin] minutes into the test day, and stops it after. */
-    private fun guideTest(
-        startMin: Long = 65,
-        body: suspend TestScope.(GuideViewModel) -> Unit,
-    ) = runTest {
-        lineup()
-        val vm = newGuide(startMin)
-        try {
-            body(vm)
-        } finally {
-            vm.close()
-        }
-    }
-
-    private fun TestScope.after(ms: Long) {
-        testScheduler.advanceTimeBy(ms)
-        testScheduler.runCurrent()
-    }
-
-    private fun min(m: Long) = T0 + m * MIN
-
-    private fun GuideViewModel.ready() = snapshot.value.state as GuideState.Ready
-
-    private fun GuideViewModel.focused() = checkNotNull(snapshot.value.focus)
-
-    // The two halves of the snapshot, each as it changes.
-    private fun GuideViewModel.states() = snapshot.map { it.state }.distinctUntilChanged()
-
-    private fun GuideViewModel.focuses() = snapshot.map { it.focus }.distinctUntilChanged()
-
+class GuideViewModelTest : GuideRig() {
     @Test
     fun aCallThatEndsAfterItsSessionDoesNotSetTheNextSessionsWindowTime() =
         guideTest { vm ->
@@ -648,191 +508,5 @@ class GuideViewModelTest {
 
             vm.select()
             assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH5)), events)
-        }
-
-    // The grid and its "now" line, every time they are published.
-    private fun TestScope.readies(vm: GuideViewModel): List<GuideState.Ready> {
-        val shown = mutableListOf<GuideState.Ready>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            vm.snapshot.collect { (it.state as? GuideState.Ready)?.let(shown::add) }
-        }
-        return shown
-    }
-
-    private fun assertNeverBack(shown: List<GuideState.Ready>) {
-        assertEquals(shown.map { it.nowMs }.sorted(), shown.map { it.nowMs })
-        assertEquals(shown.map { it.model.originMs }.sorted(), shown.map { it.model.originMs })
-    }
-
-    @Test
-    fun aFillInBuiltBeforeATickNeverMovesTheGridBack() =
-        guideTest(startMin = 88) { vm ->
-            // Cached rows open the grid at once; the fill-in is held until a tick has crossed into the next half hour.
-            fake.cachedUntilMs = min(180)
-            val gate = CompletableDeferred<Unit>()
-            schedule.asNeededGate = gate
-            val shown = readies(vm)
-            vm.open(CH7)
-            runCurrent()
-            after(3 * MIN)
-            assertEquals(min(90), vm.ready().model.originMs)
-
-            // The fill-in read the clock before that tick was published: it was built at 89 minutes.
-            schedule.afterSchedule = { call -> if (call == 2) lagNextReadMs = 2 * MIN }
-            gate.complete(Unit)
-            runCurrent()
-
-            assertTrue("the fill-in was shown", vm.ready().model.complete)
-            assertNeverBack(shown)
-            assertEquals(min(90), vm.ready().model.originMs)
-        }
-
-    @Test
-    fun scrollingRightPastTheFirstSixHoursKeepsGoing() =
-        guideTest { vm ->
-            // Twelve hours are built; the guide opens on six of them and must reach the rest by scrolling alone.
-            lineup(untilMin = 780)
-            vm.open(CH7)
-            runCurrent()
-            assertTrue("opened on about six hours", vm.ready().model.endMs < min(660))
-
-            repeat(20) {
-                vm.move(GuideDirection.Right)
-                runCurrent()
-            }
-
-            // Half-hour cells from 60: twenty steps right is the cell at 660, past the six hours opened with.
-            assertEquals(min(660), vm.focused().cellStartMs)
-            assertTrue(vm.ready().model.endMs > min(660))
-            assertTrue(fake.scheduleCalls.none { it.third == ScheduleBuild.AsNeeded })
-            // Asked once per new end, not once per key.
-            val extensions = fake.scheduleCalls.drop(1)
-            assertEquals(extensions.map { it.second }.distinct(), extensions.map { it.second })
-        }
-
-    @Test
-    fun focusOnAProgramThatEndsMovesToWhatIsOnNowInItsRow() =
-        guideTest { vm ->
-            // Channel 7's program on now ends at 70 minutes, inside the half hour, so it stays on the grid.
-            fake.channel(CH7, 7, listOf(program(0, 70, 1), program(70, 100, 2)) + halfHours(600, fromMin = 100))
-            vm.open(CH7)
-            runCurrent()
-            assertEquals(min(0), vm.focused().cellStartMs)
-            vm.move(GuideDirection.Down)
-            vm.move(GuideDirection.Up)
-            assertEquals(min(0), vm.focused().cellStartMs)
-
-            after(5 * MIN)
-
-            assertEquals(min(60), vm.ready().model.originMs)
-            assertEquals(GuideFocus(CH7, min(70), min(70)), vm.snapshot.value.focus)
-        }
-
-    @Test
-    fun focusOnALaterProgramStaysWhenTheOneBeforeItEnds() =
-        guideTest { vm ->
-            fake.channel(CH7, 7, listOf(program(0, 70, 1), program(70, 100, 2)) + halfHours(600, fromMin = 100))
-            vm.open(CH7)
-            runCurrent()
-            vm.move(GuideDirection.Right)
-            vm.move(GuideDirection.Right)
-            assertEquals(min(100), vm.focused().cellStartMs)
-
-            after(5 * MIN)
-
-            assertEquals(min(100), vm.focused().cellStartMs)
-        }
-
-    @Test
-    fun aSlowFirstReadShowsLoadingAfterFourHundredMilliseconds() =
-        guideTest { vm ->
-            val gate = CompletableDeferred<Unit>()
-            schedule.cachedGate = gate
-            vm.open(CH7)
-            runCurrent()
-            // A quick read never flashes a loading line: nothing yet.
-            after(399)
-            assertEquals(GuideState.Closed, vm.snapshot.value.state)
-
-            after(1)
-            assertEquals(GuideState.Loading, vm.snapshot.value.state)
-
-            gate.complete(Unit)
-            runCurrent()
-            assertTrue(vm.snapshot.value.state is GuideState.Ready)
-        }
-
-    @Test
-    fun aQuickFirstReadNeverShowsLoading() =
-        guideTest { vm ->
-            val states = mutableListOf<GuideState>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.states().toList(states) }
-            val gate = CompletableDeferred<Unit>()
-            schedule.cachedGate = gate
-            vm.open(CH7)
-            runCurrent()
-            after(300)
-            gate.complete(Unit)
-            runCurrent()
-            after(1000)
-            assertEquals(listOf("Closed", "Ready"), states.map { it::class.simpleName })
-        }
-
-    // Ten rows: 5, 7 and 9, then 11 to 17.
-    private fun tenRows(): List<ChannelId> =
-        (11..17).map { n -> ChannelId("ch-$n").also { fake.channel(it, n, halfHours(600)) } }
-
-    @Test
-    fun theGuideOpensWithThePlayingRowAtTheTop() =
-        guideTest { vm ->
-            val more = tenRows()
-            vm.open(more[1]) // channel 12, the fifth row
-            runCurrent()
-            assertEquals(4, vm.ready().firstVisibleRow)
-
-            // A later move keeps the rows where they are while the focus stays in view.
-            vm.move(GuideDirection.Down)
-            assertEquals(4, vm.ready().firstVisibleRow)
-        }
-
-    @Test
-    fun theGuideOpensOnAFullLastPage() =
-        guideTest { vm ->
-            val more = tenRows()
-            vm.open(more[5]) // channel 16, the ninth row of ten: the last six rows show
-            runCurrent()
-            assertEquals(4, vm.ready().firstVisibleRow)
-        }
-
-    @Test
-    fun selectOnASlateOnNowTunesLikeAnyCellOnNow() =
-        guideTest(startMin = 160) { vm ->
-            val events = mutableListOf<GuideEvent>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
-            vm.open(CH9)
-            runCurrent()
-            assertEquals(min(150), vm.focused().cellStartMs)
-
-            vm.select()
-
-            assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH9)), events)
-            assertNull(vm.info.value)
-        }
-
-    @Test
-    fun selectOnALaterSlateDoesNothing() =
-        guideTest { vm ->
-            val events = mutableListOf<GuideEvent>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
-            vm.open(CH9)
-            runCurrent()
-            vm.move(GuideDirection.Right)
-            assertEquals(min(150), vm.focused().cellStartMs)
-
-            vm.select()
-            runCurrent()
-
-            assertNull(vm.info.value)
-            assertTrue(events.isEmpty())
         }
 }

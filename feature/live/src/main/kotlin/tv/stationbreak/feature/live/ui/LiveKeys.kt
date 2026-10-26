@@ -117,15 +117,8 @@ internal class HeldKeys {
     private val consumed = mutableMapOf<Key, KeyAction>()
     private val passed = mutableSetOf<Key>()
 
-    /**
-     * What the consumed press that [key]'s down repeats did, or null when this is not such a repeat (a first down, a
-     * release, or a repeat of a press that was not consumed). The hold stays until the release.
-     */
-    fun repeatOf(
-        key: Key,
-        type: KeyEventType,
-        repeat: Int,
-    ): KeyAction? = if (type == KeyEventType.KeyDown && repeat > 0) consumed[key] else null
+    /** What the consumed press of [key], now being held, did; null when [key] is not held after a consumed press. */
+    fun consumedPress(key: Key): KeyAction? = consumed[key]
 
     /** True when [key]'s press, now being held, began with a first down that came here and passed through. */
     fun passedThrough(key: Key): Boolean = key in passed
@@ -186,12 +179,7 @@ internal fun handleLiveKey(
     guide: (open: Boolean) -> Unit = {},
     send: (LiveCommand) -> Unit,
 ): Boolean {
-    val repeated = held.repeatOf(key, type, repeat)
-    if (repeated != null) {
-        if (repeated is KeyAction.Send && repeated.command is LiveCommand.Flip) send(repeated.command)
-        return true
-    }
-    if (type == KeyEventType.KeyDown && repeat > 0) return !held.passedThrough(key)
+    if (type == KeyEventType.KeyDown && repeat > 0) return handleRepeat(key, held, send)
     val release = held.releases(key, type)
     if (type == KeyEventType.KeyDown && movesBetweenButtons(key, up)) send(LiveCommand.ShowBanner)
     val action = keyAction(key, up)
@@ -205,6 +193,21 @@ internal fun handleLiveKey(
         held.pass(key)
     }
     return release || (action != null && (type == KeyEventType.KeyDown || type == KeyEventType.KeyUp))
+}
+
+/**
+ * An auto-repeat down of [key]: part of a press already judged, never a new one. The repeats of a consumed press are
+ * consumed and send again only when it flipped; those of a press that passed through pass too; and those of a press
+ * whose first down never came here are consumed and do nothing.
+ */
+private fun handleRepeat(
+    key: Key,
+    held: HeldKeys,
+    send: (LiveCommand) -> Unit,
+): Boolean {
+    val press = held.consumedPress(key)
+    if (press is KeyAction.Send && press.command is LiveCommand.Flip) send(press.command)
+    return press != null || !held.passedThrough(key)
 }
 
 /** Left and Right over the actions banner move the focus between its buttons: the viewer is still at work there. */

@@ -43,13 +43,17 @@ internal fun GuideModel.followingNow(
     previousNowMs: Long?,
     nowMs: Long,
 ): GuideFocus {
-    val (r, c) = indexOf(focus) ?: return focus
-    val row = rows[r]
-    val cell = row.cells[c]
-    val wasOn = previousNowMs != null && cell.startMs <= previousNowMs && previousNowMs < cell.endMs
-    if (!wasOn || cell.endMs > nowMs) return focus
-    val onNow = row.cells.firstOrNull { it.startMs <= nowMs && nowMs < it.endMs } ?: return focus
-    return GuideFocus(row.channel, onNow.startMs, maxOf(onNow.startMs, originMs))
+    val located = indexOf(focus)
+    val row = located?.let { rows[it.first] }
+    val cell = located?.let { rows[it.first].cells[it.second] }
+    val wasOn = cell != null && previousNowMs != null && previousNowMs in cell.startMs until cell.endMs
+    val endedSince = wasOn && cell != null && cell.endMs <= nowMs
+    val onNow = if (endedSince) row?.cells?.firstOrNull { nowMs in it.startMs until it.endMs } else null
+    return if (row == null || onNow == null) {
+        focus
+    } else {
+        GuideFocus(row.channel, onNow.startMs, maxOf(onNow.startMs, originMs))
+    }
 }
 
 /**

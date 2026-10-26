@@ -32,8 +32,8 @@ class GuideFramesTest {
     fun emptySessionLogsZeroFrames() {
         val line = GuideReport(-1, -1, percentiles(LongArray(0)), 0, 0, 0, false, 0).line()
         assertEquals(
-            "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 rows=0 " +
-                "pip=false durationMs=0",
+            "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
+                "rows=0 pip=false durationMs=0",
             line,
         )
     }
