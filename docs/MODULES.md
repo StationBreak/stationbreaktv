@@ -102,12 +102,14 @@ visible range, the details of the focused program, the clock) and its screen. It
 the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
 the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
 guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
-what it shows is the guide's.
+what it shows is the guide's. Where the picture is while the guide is open is live's too: the slot carries the hole live
+laid its picture in (null while it is full screen), and the guide leaves exactly that clear. Everything in `feature:guide`
+is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for `app`'s tests.
 
-The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan inset
-the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where the live picture sits beside the
-guide, and so where the guide leaves its hole). `core:ui` has grown from the theme into the shared program UI of spec 17: the
-program text rules (`ProgramText`: slots, times, episode lines), the program info overlay, and that geometry.
+The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
+inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where the corner picture goes
+beside the guide's details panel). `core:ui` has grown from the theme into the shared program UI of spec 17: the program
+text rules (`ProgramText`: slots, times, episode lines), the program info overlay, and that geometry.
 
 The guide departs from ADR-0008's grid, which moved focus with Compose focus search over lazy lists: its focus is a value in
 the ViewModel (`GuideFocus`, by channel and start), moved by pure functions over the model, and published with the grid as
@@ -120,8 +122,10 @@ It keeps ADR-0008's horizontal structure: every row's cells are laid out by time
 viewport, and all rows move by one shared horizontal offset (the viewport's distance from the origin) that is read in the
 layout phase, when each row is placed, and clipped to the time columns. A Left/Right page therefore recomposes no cell;
 the sticky titles and the "continues" chevrons follow the viewport in the layout and draw phases too. Vertically the
-grid is a window of six rows that the model chooses (`firstVisibleRow`) in a plain column: the app-owned vertical
-scroll that ADR-0008 allows, in place of a lazy list scrolled by focus.
+grid is a window of six rows that the model chooses (`firstVisibleRow`) in a plain column, in place of a lazy list
+scrolled by focus. This departs from ADR-0008 decision 1, which chose standard Compose lists (a `LazyColumn` of
+`LazyRow`s): the guide uses neither, and the model moves the focus rather than Compose focus search. An ADR-0008
+addendum records the departure after device check 1 has measured it.
 
 `data:settings` exists since F0.4 and holds `KeystoreSecretStore` (the `SecretStore` implementation) and, since F0.5
 task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configured address and its certificate pin as one
