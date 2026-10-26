@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -281,13 +282,29 @@ class Rig(
             null,
             false,
         )
-    val sessions = SessionRepository(InMemorySecretStore(), FakeMediaServer())
+    val media = FakeMediaServer()
+    val sessions = SessionRepository(InMemorySecretStore(), media)
+
+    /** The details the info overlay fetches: asks [media], which a test scripts with `itemDetailsResult`. */
+    val details = ProgramDetailsCache(media, sessions, scope.backgroundScope)
 
     /** Every report the machine made, in order. */
     val reports = mutableListOf<TuneReport>()
 
     val live =
-        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, { reports += it }, server)
+        LiveChannel(
+            schedule,
+            tune,
+            lastChannel,
+            sessions,
+            library,
+            channels,
+            clock,
+            timings,
+            { reports += it },
+            server,
+            details = details,
+        )
 
     /** Every state in order, each with how many port calls had been made when it appeared. */
     val states = mutableListOf<Pair<LiveState, Int>>()

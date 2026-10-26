@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ProgramInfo
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.time.Instant
 
@@ -15,12 +16,14 @@ import kotlin.time.Instant
  * the start and for "up next"). [driftMs] is how far the sitting runs ahead of the clock: the block's times move back
  * by it, so the slot is the one the clock shows (design goal 6: the banner shows what is actually on).
  */
+@Suppress("LongParameterList") // The channel, the block, how it is shown and what follows it.
 internal fun bannerFor(
     channel: ChannelAiring,
     block: AiringBlock,
     label: BannerLabel,
     joinedMs: Long?,
     driftMs: Long = 0,
+    next: AiringBlock? = null,
 ): Banner {
     val info =
         when (val airing = block.airing) {
@@ -29,8 +32,27 @@ internal fun bannerFor(
             Airing.Slate -> null
         }
     val start = block.startMs - driftMs
-    return Banner(channel.number, channel.name, label, titleOf(info), info, start, block.endMs - driftMs, joinedMs)
+    val after = next?.let { nextOf(it, driftMs) }
+    val end = block.endMs - driftMs
+    return Banner(channel.number, channel.name, label, titleOf(info), info, start, end, joinedMs, after)
 }
+
+/** [block] as the banner's "Next" line, titled as [bannerFor] titles it; null for a block with no name to show. */
+private fun nextOf(
+    block: AiringBlock,
+    driftMs: Long,
+): NextProgram? {
+    val info = (block.airing as? Airing.Program)?.info
+    return titleOf(info)?.let { NextProgram(it, block.startMs - driftMs) }
+}
+
+/** The item a block plays, for the details lookup; null for a slate. */
+internal fun Airing.itemId(): CanonicalId? =
+    when (this) {
+        is Airing.Program -> itemId
+        is Airing.StandIn -> itemId
+        Airing.Slate -> null
+    }
 
 /**
  * A movie shows its title. An episode of a known series shows the series name; its "S2 E5 · episode title" line is made
@@ -63,6 +85,12 @@ internal suspend fun Sitting.upNext(onAir: ChannelOnAir): Banner? {
         }
     return (near ?: wider)?.let { bannerFor(onAir.channel, it, BannerLabel.UpNext, null, driftMs) }
 }
+
+/**
+ * The program after [ChannelOnAir.now] among the blocks already read, for the banner's "Next" line. It never reads the
+ * schedule again: the tune must not wait for a line of text, so a channel whose next blocks are all slates shows none.
+ */
+internal fun ChannelOnAir.nextProgram(): AiringBlock? = next.firstProgramBefore(builtUntilMs)
 
 private fun List<AiringBlock>.firstProgramBefore(limitMs: Long): AiringBlock? =
     firstOrNull { it.airing is Airing.Program && it.startMs < limitMs }

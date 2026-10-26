@@ -19,4 +19,6 @@
     <!-- The info overlay's detail line (year, genres, runtime) and its loading indicator's description. -->
     <string name="program_runtime_minutes">%1$d min</string>
     <string name="program_details_loading">Loading details</string>
+    <!-- The overlay's last line: it holds no focus, so this is how the viewer learns to close it. -->
+    <string name="program_back_to_close">Back to close</string>
 </resources>

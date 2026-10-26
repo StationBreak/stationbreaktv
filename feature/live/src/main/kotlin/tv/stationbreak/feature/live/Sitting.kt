@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
@@ -174,7 +175,7 @@ internal class Sitting(
             val joins = cut !is Pending.AtBoundary
             val label = if (joins) BannerLabel.TuningIn else BannerLabel.Now
             val joined = if (joins) position.inWholeMilliseconds else null
-            val banner = bannerFor(onAir.channel, block, label, joined, driftMs)
+            val banner = bannerFor(onAir.channel, block, label, joined, driftMs, onAir.nextProgram())
             val use = cut
             cut = null
             val kind =
@@ -264,7 +265,7 @@ internal class Sitting(
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
-            showWatching(scope, banner)
+            showWatching(scope, banner, what.block.airing.itemId())
             onSettled(scope)
         }
         return outcome
@@ -273,12 +274,14 @@ internal class Sitting(
     private fun showWatching(
         scope: CoroutineScope,
         banner: Banner,
+        itemId: CanonicalId?,
     ) {
         lingering?.cancel()
         // Once the picture plays, "Tuning in" becomes "Now" (R22); the joining line stays. Filling in stays as it is.
         val label = if (banner.label == BannerLabel.TuningIn) BannerLabel.Now else banner.label
-        val shown = LiveState.Watching(banner.copy(label = label))
-        state.value = shown
+        val playing = banner.copy(label = label)
+        val shown = LiveState.Watching(playing)
+        state.watching(shown, Playing(playing, itemId))
         lingering =
             scope.launch {
                 delay(timings.bannerLinger)

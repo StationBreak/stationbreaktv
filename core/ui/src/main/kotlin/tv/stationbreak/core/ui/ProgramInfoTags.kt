@@ -9,4 +9,5 @@ object ProgramInfoTags {
     const val OVERVIEW = "program_info_overview"
     const val DETAILS = "program_info_details"
     const val LOADING = "program_info_loading"
+    const val CLOSE_HINT = "program_info_close_hint"
 }

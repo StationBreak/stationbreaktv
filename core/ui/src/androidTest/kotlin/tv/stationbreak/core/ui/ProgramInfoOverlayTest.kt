@@ -22,12 +22,13 @@ class ProgramInfoOverlayTest {
         genres: List<String> = emptyList(),
         runtimeMinutes: Int? = null,
         loading: Boolean = false,
+        episodeLine: String? = "S1 E2 · Episode One",
     ) = compose.setContent {
         StationBreakTheme {
             ProgramInfoOverlay(
                 channel = "07 Test Channel",
                 title = "Test Show",
-                episodeLine = "S1 E2 · Episode One",
+                episodeLine = episodeLine,
                 slot = "8:00 – 8:30 PM",
                 overview = overview,
                 year = year,
@@ -38,29 +39,58 @@ class ProgramInfoOverlayTest {
         }
     }
 
+    // The panel is one merged unit for a screen reader, so its parts are found in the unmerged tree.
+    private fun tag(tag: String) = compose.onNodeWithTag(tag, useUnmergedTree = true)
+
+    private fun text(text: String) = compose.onNodeWithText(text, useUnmergedTree = true)
+
     @Test
     fun showsFallbackWithoutDetails() {
         show()
-        compose.onNodeWithTag(ProgramInfoTags.TITLE).assertIsDisplayed()
-        compose.onNodeWithText("S1 E2 · Episode One").assertIsDisplayed()
-        compose.onNodeWithText("8:00 – 8:30 PM").assertIsDisplayed()
-        compose.onNodeWithTag(ProgramInfoTags.OVERVIEW).assertDoesNotExist()
-        compose.onNodeWithTag(ProgramInfoTags.LOADING).assertDoesNotExist()
+        tag(ProgramInfoTags.TITLE).assertIsDisplayed()
+        text("S1 E2 · Episode One").assertIsDisplayed()
+        text("8:00 – 8:30 PM").assertIsDisplayed()
+        tag(ProgramInfoTags.OVERVIEW).assertDoesNotExist()
+        tag(ProgramInfoTags.DETAILS).assertDoesNotExist()
+        tag(ProgramInfoTags.LOADING).assertDoesNotExist()
+    }
+
+    @Test
+    fun noEpisodeLineForAMovie() {
+        show(episodeLine = null)
+        tag(ProgramInfoTags.TITLE).assertIsDisplayed()
+        tag(ProgramInfoTags.EPISODE).assertDoesNotExist()
+        tag(ProgramInfoTags.SLOT).assertIsDisplayed()
     }
 
     @Test
     fun showsLoading() {
         show(loading = true)
-        compose.onNodeWithTag(ProgramInfoTags.LOADING).assertIsDisplayed()
-        compose.onNodeWithTag(ProgramInfoTags.TITLE).assertIsDisplayed()
+        tag(ProgramInfoTags.LOADING).assertIsDisplayed()
+        tag(ProgramInfoTags.TITLE).assertIsDisplayed()
+        tag(ProgramInfoTags.OVERVIEW).assertDoesNotExist()
     }
 
     @Test
     fun showsAllDetails() {
         show(overview = "A test overview.", year = 1999, genres = listOf("Drama", "Comedy"), runtimeMinutes = 45)
-        compose.onNodeWithTag(ProgramInfoTags.OVERVIEW).assertIsDisplayed()
-        compose.onNodeWithText("A test overview.").assertIsDisplayed()
-        compose.onNodeWithTag(ProgramInfoTags.DETAILS).assertIsDisplayed()
-        compose.onNodeWithText("1999 · Drama, Comedy · 45 min").assertIsDisplayed()
+        tag(ProgramInfoTags.OVERVIEW).assertIsDisplayed()
+        text("A test overview.").assertIsDisplayed()
+        tag(ProgramInfoTags.DETAILS).assertIsDisplayed()
+        text("1999 · Drama, Comedy · 45 min").assertIsDisplayed()
+        tag(ProgramInfoTags.LOADING).assertDoesNotExist()
+    }
+
+    @Test
+    fun saysHowToCloseIt() {
+        show()
+        tag(ProgramInfoTags.CLOSE_HINT).assertIsDisplayed()
+        text("Back to close").assertIsDisplayed()
+    }
+
+    @Test
+    fun aLongOverviewStillLeavesRoomForTheCloseHint() {
+        show(overview = "A test overview. ".repeat(40), year = 1999, genres = listOf("Drama"), runtimeMinutes = 45)
+        tag(ProgramInfoTags.CLOSE_HINT).assertIsDisplayed()
     }
 }

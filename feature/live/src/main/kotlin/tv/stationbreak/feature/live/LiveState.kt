@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live
 
 import tv.stationbreak.core.domain.lineup.ProgramInfo
+import tv.stationbreak.core.model.ItemDetails
 
 /** What the live screen shows (spec 14). The screen draws it; the machine in [LiveChannel] decides it. */
 sealed interface LiveState {
@@ -74,7 +75,9 @@ enum class BannerLabel {
  * The cable-box banner: all values are the schedule's own answer for the moment it was made (design goal 7). Times are
  * UTC milliseconds; the screen converts them to wall-clock time. [title] is the movie's or the series' name; [info]
  * holds the rest of the show's names (the episode line is made from it on the screen, from resources). [joinedMs] is
- * how far into the media the viewer joined (null when the show cut in at its start, and for "up next").
+ * how far into the media the viewer joined (null when the show cut in at its start, and for "up next"). [next] is the
+ * program that follows, when one does. [actions] is true for the banner the viewer asked for (Select or Info), which
+ * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go).
  */
 data class Banner(
     val number: Int,
@@ -85,4 +88,24 @@ data class Banner(
     val slotStartMs: Long,
     val slotEndMs: Long,
     val joinedMs: Long?,
+    val next: NextProgram? = null,
+    val actions: Boolean = false,
+    val hasLast: Boolean = false,
+)
+
+/** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */
+data class NextProgram(
+    val title: String,
+    val startMs: Long,
+)
+
+/**
+ * The program info overlay (spec 17): [banner] names the program; [details] are the server's extras, null until they
+ * arrive and when they never do. While [loading] the overlay shows placeholders; when the fetch fails it simply drops
+ * them, with no error text.
+ */
+data class LiveInfo(
+    val banner: Banner,
+    val details: ItemDetails?,
+    val loading: Boolean,
 )

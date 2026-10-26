@@ -11,6 +11,8 @@ import kotlin.time.Duration.Companion.seconds
  * defaults).
  *
  * @property bannerLinger how long the banner stays over the picture once it plays.
+ * @property actionsLinger how long the actions banner (Info, Last) stays after the last key; the viewer's own
+ *   banner, so it can need more than the tune banner does.
  * @property minSnow the least time the snow shows, even when the picture is ready sooner, so tuning always reads as
  *   tuning.
  * @property slateHold how long the "Technical difficulties" slate holds before the channel moves on.
@@ -26,6 +28,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 data class LiveTimings(
     val bannerLinger: Duration = 4.seconds,
+    val actionsLinger: Duration = 4.seconds,
     val minSnow: Duration = 500.milliseconds,
     val slateHold: Duration = 3.seconds,
     val standInThreshold: Duration = 30.minutes,

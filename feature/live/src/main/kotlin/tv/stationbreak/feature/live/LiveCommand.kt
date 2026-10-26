@@ -10,4 +10,16 @@ sealed interface LiveCommand {
 
     /** The Menu key: back to the channel before this one, at once. Pressed again, it toggles back. */
     data object Previous : LiveCommand
+
+    /**
+     * Select with no banner, or the Info key with none: shows the actions banner (Info, Last) for the program on, and
+     * keeps it up while it is pressed again. Does nothing unless the picture plays.
+     */
+    data object ShowBanner : LiveCommand
+
+    /** Opens the program info overlay when a banner shows; with none, shows the actions banner like [ShowBanner]. */
+    data object ShowInfo : LiveCommand
+
+    /** Back: closes the info overlay (the actions banner comes back), else the actions banner; else nothing. */
+    data object DismissOverlay : LiveCommand
 }

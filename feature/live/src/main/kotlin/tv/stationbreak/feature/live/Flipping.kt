@@ -190,25 +190,30 @@ internal class Flipper(
 
     /**
      * Handles [commands] until the flow ends; a settle still pending carries on in the run's scope. A command that
-     * fails is dropped, not fatal.
+     * fails is dropped, not fatal. [overlay] sees every command first: the overlays' commands are its alone, and a
+     * flip's key also keeps the actions banner up.
      */
-    suspend fun follow(commands: Flow<LiveCommand>) =
-        coroutineScope {
-            commands.collect { command ->
-                try {
-                    when (command) {
-                        is LiveCommand.Flip -> press(command.direction)
-                        LiveCommand.Previous -> recall()
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (
-                    @Suppress("TooGenericExceptionCaught") e: Exception,
-                ) {
-                    failed(e)
+    suspend fun follow(
+        commands: Flow<LiveCommand>,
+        overlay: (LiveCommand) -> Unit = {},
+    ) = coroutineScope {
+        commands.collect { command ->
+            try {
+                overlay(command)
+                when (command) {
+                    is LiveCommand.Flip -> press(command.direction)
+                    LiveCommand.Previous -> recall()
+                    LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                failed(e)
             }
         }
+    }
 
     private val onScreen: Boolean
         get() = screen.value.let { it != LiveState.NoChannels && it != LiveState.SignedOut }
