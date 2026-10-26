@@ -10,12 +10,15 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -150,6 +153,56 @@ class BannerNextTest {
             // The reads on the tune path are the usual ones; the wide scan is one more, after the picture.
             assertEquals(usual.filter { it != WIDE }, asked.filter { it != WIDE })
             assertEquals(1, asked.count { it == WIDE })
+        }
+
+    @Test
+    fun anUntitledProgramDoesNotHideTheTitledOneAfterIt() =
+        runTest {
+            val f =
+                flipping {
+                    schedule.channel(
+                        CH5,
+                        5,
+                        listOf(program(0, 30, 5), program(30, 60, 6, info = null), program(60, 90, 7)),
+                    )
+                }
+            runCurrent()
+            assertEquals(NextProgram("Test Movie 7", T0 + 60 * MIN), checkNotNull(f.watching().banner).next)
+        }
+
+    /** Program 1 on channel 7 is dead, so stand-ins fill its block; [after] follows it. */
+    private suspend fun TestScope.standInOnSeven(after: List<AiringBlock>): Rig {
+        val r = Rig(this, startMin = 10)
+        r.schedule.channel(CH7, 7, listOf(program(0, 60, 1)) + after)
+        r.schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 8, 0)) }
+        r.tune.script(itemOf(1), FakeTune.dead(), FakeTune.dead())
+        r.start()
+        // Past the slate's hold and the snow: the stand-in is on screen.
+        r.at(10_000)
+        return r
+    }
+
+    /** The stand-in's banner as last shown over its picture (it has timed out by now). */
+    private fun Rig.standInBanner(): Banner =
+        seen
+            .filterIsInstance<LiveState.Watching>()
+            .mapNotNull { it.banner }
+            .last { it.label == BannerLabel.FillingIn }
+
+    @Test
+    fun aStandInsBannerSaysWhatComesNext() =
+        runTest {
+            val r = standInOnSeven(listOf(program(60, 120, 2)))
+            assertEquals(NextProgram("Test Movie 2", T0 + 60 * MIN), r.standInBanner().next)
+        }
+
+    @Test
+    fun aStandInsBannerLooksWiderWhenTheReadBlocksAreAllSlates() =
+        runTest {
+            val slates = listOf(slate(60, 90), slate(90, 120), slate(120, 150), slate(150, 180))
+            val r = standInOnSeven(slates + program(180, 240, 3))
+            runCurrent()
+            assertEquals(NextProgram("Test Movie 3", T0 + 180 * MIN), r.standInBanner().next)
         }
 
     private companion object {

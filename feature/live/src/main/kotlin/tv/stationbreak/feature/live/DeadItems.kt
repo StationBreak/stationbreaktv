@@ -60,9 +60,12 @@ private suspend fun Sitting.fillIn(
         val piece = pieces.firstOrNull { at >= it.startMs && at < it.endMs } ?: break
         val standIn = piece.airing as Airing.StandIn
         val position = checkNotNull(piece.positionAt(at))
-        val banner = bannerFor(onAir.channel, piece, BannerLabel.FillingIn, position.inWholeMilliseconds, driftMs)
+        // The "Next" line names what follows the dead block, as the block's own banner would have.
+        val joined = position.inWholeMilliseconds
+        val banner = bannerFor(onAir.channel, piece, BannerLabel.FillingIn, joined, driftMs, onAir.nextProgram())
+        val what = TuneWhat(TuneKind.StandIn, piece, position)
         val outcome =
-            tuneAndShow(scope, banner, snow = true, what = TuneWhat(TuneKind.StandIn, piece, position)) {
+            tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir) {
                 tuner.tune(session, ItemId(standIn.itemId.value), position)
             }
         val failed =

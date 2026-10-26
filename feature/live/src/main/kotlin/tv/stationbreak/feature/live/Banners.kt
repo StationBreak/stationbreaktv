@@ -101,8 +101,9 @@ internal suspend fun Sitting.upNextBlock(onAir: ChannelOnAir): AiringBlock? {
  */
 internal fun ChannelOnAir.nextProgram(): AiringBlock? = next.firstProgramBefore(builtUntilMs)
 
+/** The first program with a name to show: one the library no longer has (no info) would hide the one after it. */
 private fun List<AiringBlock>.firstProgramBefore(limitMs: Long): AiringBlock? =
-    firstOrNull { it.airing is Airing.Program && it.startMs < limitMs }
+    firstOrNull { (it.airing as? Airing.Program)?.info != null && it.startMs < limitMs }
 
 /** What a card without an "up next" says: the channel's number and name. */
 internal fun ChannelOnAir.tag() = ChannelTag(channel.number, channel.name)
