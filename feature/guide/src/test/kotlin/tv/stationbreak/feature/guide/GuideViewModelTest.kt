@@ -681,4 +681,27 @@ class GuideViewModelTest {
             assertNeverBack(shown)
             assertEquals(min(90), vm.ready().model.originMs)
         }
+
+    @Test
+    fun scrollingRightPastTheFirstSixHoursKeepsGoing() =
+        guideTest { vm ->
+            // Twelve hours are built; the guide opens on six of them and must reach the rest by scrolling alone.
+            lineup(untilMin = 780)
+            vm.open(CH7)
+            runCurrent()
+            assertTrue("opened on about six hours", vm.ready().model.endMs < min(660))
+
+            repeat(20) {
+                vm.move(GuideDirection.Right)
+                runCurrent()
+            }
+
+            // Half-hour cells from 60: twenty steps right is the cell at 660, past the six hours opened with.
+            assertEquals(min(660), vm.focused().cellStartMs)
+            assertTrue(vm.ready().model.endMs > min(660))
+            assertTrue(fake.scheduleCalls.none { it.third == ScheduleBuild.AsNeeded })
+            // Asked once per new end, not once per key.
+            val extensions = fake.scheduleCalls.drop(1)
+            assertEquals(extensions.map { it.second }.distinct(), extensions.map { it.second })
+        }
 }

@@ -95,6 +95,7 @@ internal class GuideViewModel
         private var infoOf: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
+        private var extendedUntil = NEVER
         private var firstWindowMs = NO_MEASURE
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
@@ -116,7 +117,10 @@ internal class GuideViewModel
             synchronized(lock) { endSession() }
         }
 
-        /** One step of focus. Ignored while the info overlay is open, which owns the keys. */
+        /**
+         * One step of focus. Ignored while the info overlay is open, which owns the keys. Scrolling toward the end of
+         * what is loaded asks for more of what is already built, as the clock does.
+         */
         fun move(direction: GuideDirection) {
             synchronized(lock) {
                 val current = shownSnapshot.value
@@ -127,7 +131,9 @@ internal class GuideViewModel
                 if (to == from) return
                 val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
                 val row = ready.firstRowFor(to, ready.firstVisibleRow)
-                publish(ready.copy(viewportStartMs = viewport, firstVisibleRow = row), to)
+                val moved = ready.copy(viewportStartMs = viewport, firstVisibleRow = row)
+                publish(moved, to)
+                session?.let { extendIfScrolledNearTheEnd(it, moved, to) }
             }
         }
 
@@ -181,6 +187,7 @@ internal class GuideViewModel
             infoOf = null
             extensionJob = null
             extendedFrom = NEVER
+            extendedUntil = NEVER
             firstWindowMs = NO_MEASURE
             while (eventChannel.tryReceive().isSuccess) {
                 // Dropped: a Tune from this session must not fire in the next.
@@ -316,17 +323,39 @@ internal class GuideViewModel
             }
         }
 
-        // Extensions only ever read what is already built (never `AsNeeded`), at most once per half hour, and never
-        // while the open's own load (and its fill-in) is still running.
+        // The clock asks for more when the end of the grid comes within reach of now, at most once per half hour.
         private fun extendIfNearTheEnd(
             s: CoroutineScope,
             model: GuideModel,
             now: Long,
         ) {
             val near = model.endMs - now < EXTEND_WITHIN.inWholeMilliseconds
-            val busy = extendedFrom == model.originMs || extensionJob?.isActive == true
-            if (!loaded || !near || busy) return
+            if (near && extendedFrom != model.originMs) extend(s, model)
+        }
+
+        // Scrolling asks for more when the visible range or the focused cell comes within reach of the end of the grid,
+        // at most once for each end the grid reaches. Under the lock.
+        private fun extendIfScrolledNearTheEnd(
+            s: CoroutineScope,
+            ready: GuideState.Ready,
+            focus: GuideFocus,
+        ) {
+            val model = ready.model
+            val cellEnd = model.indexOf(focus)?.let { (r, c) -> model.rows[r].cells[c].endMs } ?: focus.cellStartMs
+            val reach = maxOf(ready.viewportStartMs + GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, cellEnd)
+            val near = model.endMs - reach < EXTEND_WITHIN.inWholeMilliseconds
+            if (near && extendedUntil != model.endMs) extend(s, model)
+        }
+
+        // Extensions only ever read what is already built (never `AsNeeded`), one at a time, and never while the
+        // open's own load (and its fill-in) is still running. Under the lock.
+        private fun extend(
+            s: CoroutineScope,
+            model: GuideModel,
+        ) {
+            if (!loaded || extensionJob?.isActive == true) return
             extendedFrom = model.originMs
+            extendedUntil = model.endMs
             extensionJob =
                 s.launch {
                     val longer =
