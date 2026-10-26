@@ -97,6 +97,7 @@ internal class LiveViewModel
         private val clock: Clock,
         private val controllers: ControllerTunerFactory,
         private val players: VideoPlayerFactory,
+        private val server: MediaServer,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
@@ -144,6 +145,7 @@ internal class LiveViewModel
                         channels,
                         clock,
                         report = { Log.i(LOG_TAG, it.line()) },
+                        server = server,
                     )
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.

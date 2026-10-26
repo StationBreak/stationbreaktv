@@ -106,6 +106,8 @@ class SubpathTest {
                 "Sessions/Playing",
                 "Sessions/Playing/Progress",
                 "Sessions/Playing/Stopped",
+                "UserItems/i1/UserData",
+                "UserPlayedItems/i1",
             )
         for (subpath in listOf("", "/jellyfin", "/a/b/c", "/with%20space")) {
             FakeJellyfin().use { jellyfin ->
@@ -115,6 +117,8 @@ class SubpathTest {
                 for (path in listOf("/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped")) {
                     jellyfin.on("POST", path) { jellyfin.status(204) }
                 }
+                jellyfin.on("GET", "/UserData") { jellyfin.json("{\"PlaybackPositionTicks\":0,\"Played\":false}") }
+                jellyfin.on("POST", "/UserPlayedItems/i1") { jellyfin.json("{}") }
                 val session = testSession(jellyfin.address.copy(subpath = subpath))
                 val adapter = testAdapter()
                 val library = Library(ItemId("lib"), "Films", LibraryKind.Movies)
@@ -125,7 +129,9 @@ class SubpathTest {
                     adapter.playbackInfo(session, ItemId("i1"))
                     adapter.reportStart(session, report)
                     adapter.reportProgress(session, report)
-                    adapter.reportStopped(session, report)
+                    adapter.reportStopped(session, report, failed = true)
+                    adapter.userData(session, ItemId("i1"))
+                    adapter.markPlayed(session, ItemId("i1"))
                 }
                 // The first request is the once-per-session binding probe, which keeps the subpath too.
                 val paths = jellyfin.log.map { it.url.encodedPath }

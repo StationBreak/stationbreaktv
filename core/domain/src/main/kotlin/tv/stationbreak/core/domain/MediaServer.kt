@@ -21,6 +21,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.model.StoredSession
+import tv.stationbreak.core.model.UserItemState
 import kotlin.time.Instant
 
 /**
@@ -259,11 +260,24 @@ interface MediaServer {
 
     /**
      * Tells the server playback ended at [report]'s position (`POST /Sessions/Playing/Stopped`), which is what stores a
-     * resume point.
+     * resume point. [failed] marks an end caused by an error; it is sent on this call only.
      */
     suspend fun reportStopped(
         session: Session,
         report: PlaybackReport,
+        failed: Boolean = false,
+    ): ServerResult<Unit>
+
+    /** The signed-in user's resume position and played flag for [itemId] (`GET /UserItems/{itemId}/UserData`). */
+    suspend fun userData(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<UserItemState>
+
+    /** Marks [itemId] played for the signed-in user (`POST /UserPlayedItems/{itemId}`). */
+    suspend fun markPlayed(
+        session: Session,
+        itemId: ItemId,
     ): ServerResult<Unit>
 
     companion object {

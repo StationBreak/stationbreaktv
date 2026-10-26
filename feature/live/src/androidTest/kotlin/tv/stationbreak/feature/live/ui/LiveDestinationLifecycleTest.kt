@@ -166,6 +166,7 @@ class LiveDestinationLifecycleTest {
             Clock.System,
             ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server),
             VideoPlayerFactory { _, _ -> RecordingPlayer(++created).also { log += "create#$created" } },
+            server,
         )
     }
 

@@ -4,6 +4,9 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.PlayMethod
+import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
@@ -46,16 +49,30 @@ data class TuneTimings(
     val loads: LoadStats? = null,
 )
 
+/**
+ * What the reporter needs from the route that played, as the adapter learned it: the final media source, play session
+ * and delivery method after any fallback, and the runtime (null when the server did not say). The item is the
+ * sitting's own, so it is not here. Ids stay out of logs.
+ */
+data class ReportFacts(
+    val sourceId: MediaSourceId,
+    val playSessionId: PlaySessionId?,
+    val playMethod: PlayMethod,
+    val runtime: Duration?,
+)
+
 /** How one tune went, as the machine needs it. */
 sealed interface TuneOutcome {
     /**
      * The picture plays. [end] emits how the play ends, or completes empty when it is stopped or replaced. [timings]
      * is what the controller measured. [notes] are the play's stalls and their ends (diagnostics, numbers only).
+     * [report] is what the server should be told about the play (spec 16), null when the adapter had nothing.
      */
     data class Playing(
         val end: Flow<PlaybackEnd>,
         val timings: TuneTimings = TuneTimings(),
         val notes: Flow<PlayNote> = emptyFlow(),
+        val report: ReportFacts? = null,
     ) : TuneOutcome
 
     /** Nothing plays: every route failed. [timedOut] is true when the failure was a timeout (it is not retried). */

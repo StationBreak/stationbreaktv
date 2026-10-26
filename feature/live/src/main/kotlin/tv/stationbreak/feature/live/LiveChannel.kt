@@ -6,6 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -27,6 +29,7 @@ import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
@@ -37,6 +40,8 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.feature.live.report.PlaybackReporter
+import tv.stationbreak.feature.live.report.ReportingConfig
 import kotlin.time.Clock
 
 /**
@@ -56,6 +61,9 @@ class LiveChannel(
     private val clock: Clock,
     private val timings: LiveTimings = LiveTimings(),
     private val report: (TuneReport) -> Unit = {},
+    /** The server the playback reporter (spec 16) talks to; null turns reporting off. */
+    private val server: MediaServer? = null,
+    private val reportingConfig: ReportingConfig = ReportingConfig(),
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val screen = Screen(LiveState.Ident(null))
@@ -72,6 +80,7 @@ class LiveChannel(
     private var looking: Job? = null
     private var lookingAt: ChannelId? = null
     private var flipLog: List<TuneReport.Flip> = emptyList()
+    private var sittings = 0L
 
     val state: StateFlow<LiveState> = screen.flow
 
@@ -101,6 +110,15 @@ class LiveChannel(
         val neighbours = Neighbours(session, tuner, schedule, clock)
         val requests = Channel<SitRequest>(Channel.CONFLATED)
         requests.trySend(SitRequest(null, null))
+        // Its own scope and job, so it outlives every sitting (a flip cancels them) and run's own cancel: the final
+        // Stopped is drained from that scope after run ends (finishReporting). Never a child of a sitting (R1).
+        val reporterScope = CoroutineScope(currentCoroutineContext().minusKey(Job) + SupervisorJob())
+        val reporter =
+            server?.let {
+                PlaybackReporter(reporterScope, it, session, clock, reportingConfig) { line ->
+                    report(TuneReport.Reported(line))
+                }
+            }
         try {
             coroutineScope {
                 val flipper =
@@ -112,7 +130,7 @@ class LiveChannel(
                 launch { flipper.follow(commands) }
                 try {
                     requests.receiveAsFlow().collectLatest { request ->
-                        if (sit(session, request, neighbours)) throw RunEnded()
+                        if (sit(session, request, neighbours, reporter)) throw RunEnded()
                     }
                 } finally {
                     // Presses still waiting for a first sitting can never be acted on now.
@@ -129,8 +147,12 @@ class LiveChannel(
             unstarted = null
             refresher = {}
             lineup = { FlipOrder(emptyList()) }
-            withContext(NonCancellable) { neighbours.release() }
-            screen.drop()
+            try {
+                withContext(NonCancellable) { neighbours.release() }
+            } finally {
+                finishReporting(reporter, reporterScope)
+                screen.drop()
+            }
         }
     }
 
@@ -161,6 +183,7 @@ class LiveChannel(
         session: Session,
         request: SitRequest,
         neighbours: Neighbours,
+        reporter: PlaybackReporter?,
     ): Boolean {
         if (unstarted === request) unstarted = null
         if (request.flip != null) screen.handOver()
@@ -182,12 +205,7 @@ class LiveChannel(
                     // is a synced file write that must not sit in the cut).
                     if (id != saved) lastChannel.save(acct, id)
                     saved = id
-                    // The look-ahead's handle for this channel, if it is still for what is on: the sitting plays it.
-                    val lead = neighbours.take(id, first)?.let { leadOf(it, first.now) }
-                    val next =
-                        Sitting(session, id, schedule, tuner, clock, timings, screen, ::record, flip, lead) { scope ->
-                            lookAhead(scope, neighbours, first.channel)
-                        }
+                    val next = newSitting(session, first, flip, neighbours, reporter)
                     flip = null
                     sitting = next
                     val exit = next.follow(first)
@@ -229,6 +247,56 @@ class LiveChannel(
                 sitting?.release()
                 tuner.stop(session)
             }
+        }
+    }
+
+    /**
+     * Ends reporting without waiting for it: the final Stopped is sent from the reporter's own scope, which outlives
+     * this run, so leaving live TV never delays the host's teardown (the player's release, a sign-out). The drain is
+     * bounded by closeAndJoin's limit, and the scope is cancelled after it.
+     */
+    private fun finishReporting(
+        reporter: PlaybackReporter?,
+        reporterScope: CoroutineScope,
+    ) {
+        if (reporter == null) {
+            reporterScope.cancel()
+            return
+        }
+        reporter.close()
+        reporterScope.launch {
+            reporter.closeAndJoin()
+            reporterScope.cancel()
+        }
+    }
+
+    /** The sitting on [first]'s channel, playing the look-ahead's handle if it is still for what is on. */
+    private suspend fun newSitting(
+        session: Session,
+        first: ChannelOnAir,
+        flip: FlipTiming?,
+        neighbours: Neighbours,
+        reporter: PlaybackReporter?,
+    ): Sitting {
+        val id = first.channel.id
+        val lead = neighbours.take(id, first)?.let { leadOf(it, first.now) }
+        val sittingId = ++sittings
+        reporter?.sittingStarted(sittingId)
+        return Sitting(
+            session,
+            id,
+            schedule,
+            tuner,
+            clock,
+            timings,
+            screen,
+            ::record,
+            flip,
+            lead,
+            reporter,
+            sittingId,
+        ) { scope ->
+            lookAhead(scope, neighbours, first.channel)
         }
     }
 

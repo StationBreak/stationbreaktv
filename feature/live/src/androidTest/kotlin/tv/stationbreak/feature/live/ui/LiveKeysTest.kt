@@ -129,6 +129,7 @@ class LiveKeysTest {
             Clock.System,
             ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server),
             VideoPlayerFactory { _, _ -> error("no session, so no player") },
+            server,
         )
     }
 
