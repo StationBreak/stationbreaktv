@@ -95,9 +95,9 @@ internal fun AppNavGraph(
             LiveDestination(
                 onSignedOut = { navController.replaceAll(LaunchRoute) },
                 // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so the
-                // graph hands it over. The picture moves to the corner in a later step; until then it plays behind.
-                guide = { current, openedAtNanos, onTune ->
-                    GuideDestination(current, openedAtNanos, pictureInCorner = false, onTune = onTune)
+                // graph hands it over. Live says where its picture is; the guide leaves that hole clear.
+                guide = { current, openedAtNanos, pictureHole, onTune ->
+                    GuideDestination(current, openedAtNanos, pictureHole, onTune)
                 },
             )
         }

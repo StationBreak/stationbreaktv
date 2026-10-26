@@ -65,17 +65,18 @@ private val PanelGap = 16.dp
 private const val HINT_SPACE = "   "
 
 /**
- * Where the guide's parts go on a screen, from the shared safe area so the picture's hole can never drift from the
- * picture. Times become widths at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen.
+ * Where the guide's parts go on a screen, from the shared safe area: the panel takes the band beside the place the
+ * corner picture has (`ScreenLayout.pictureRect`), whether or not live has put its picture there. Times become widths
+ * at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen.
  */
 @Immutable
 internal class GuideGeometry(
     screen: DpSize,
 ) {
     val safe: DpRect = ScreenLayout.safeArea(screen)
-    val picture: DpRect = ScreenLayout.pictureRect(safe)
-    val panelWidth: Dp = picture.left - safe.left - PanelGap
-    val topHeight: Dp = picture.bottom - picture.top
+    private val corner: DpRect = ScreenLayout.pictureRect(safe)
+    val panelWidth: Dp = corner.left - safe.left - PanelGap
+    val topHeight: Dp = corner.bottom - corner.top
     val viewportWidth: Dp = safe.right - safe.left - ChannelColumnWidth
     val spanMs: Long = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
@@ -89,14 +90,14 @@ internal class GuideGeometry(
  * different moments are never drawn together; each cell reads only whether it is the focused one, so a move recomposes
  * the two cells it touched and the panel. [info] is the overlay Select opened on a later program.
  */
-@Suppress("LongParameterList") // The guide's flows, the overlay, the channel playing and the picture's place.
+@Suppress("LongParameterList") // The guide's flows, the overlay, the channel playing and the picture's hole.
 @Composable
 internal fun GuideScreen(
     snapshot: StateFlow<GuideSnapshot>,
     panel: StateFlow<CellDetails?>,
     info: CellDetails?,
     current: ChannelId?,
-    pictureInCorner: Boolean,
+    pictureHole: DpRect?,
     modifier: Modifier = Modifier,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
@@ -112,7 +113,7 @@ internal fun GuideScreen(
     val snapshotOf: () -> GuideSnapshot = remember(shown) { { shown.value } }
     BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
         val geometry = remember(maxWidth, maxHeight) { GuideGeometry(DpSize(maxWidth, maxHeight)) }
-        Box(Modifier.fillMaxSize().drawBehind { ground(geometry.picture.takeIf { pictureInCorner }) })
+        Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole) })
         Column(
             Modifier
                 .offset(geometry.safe.left, geometry.safe.top)
@@ -128,7 +129,7 @@ internal fun GuideScreen(
     }
 }
 
-/** The ground of the guide: Ink everywhere, except a [hole] for the picture when it is in the corner. */
+/** The ground of the guide: Ink everywhere, except the [hole] live TV laid its picture in, when it gave one. */
 private fun DrawScope.ground(hole: DpRect?) {
     if (hole == null) {
         drawRect(BroadcastColors.Ink)

@@ -132,7 +132,7 @@ class GuideScreenTest {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
                     // guide left alone would be spent moving the focus back out to the root.
                     Box(Modifier.fillMaxSize().focusable()) {
-                        GuideRoot(vm, current, pictureInCorner = false, onTune = { tuned += it })
+                        GuideRoot(vm, current, pictureHole = null, onTune = { tuned += it })
                     }
                 }
             }

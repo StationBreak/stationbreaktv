@@ -23,6 +23,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
@@ -38,9 +39,10 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * now, and it closes when the guide goes. [onTune] is called when the viewer picks the program on air on a channel;
  * live TV closes the guide then.
  *
- * With [pictureInCorner] false the guide is opaque over the whole picture, which plays on behind it; true leaves a
- * hole at the top right for the picture (`ScreenLayout.pictureRect`). [openedAtNanos] is when the key that opened the
- * guide arrived (`System.nanoTime`), for the guide's open-time measurement.
+ * [pictureHole] is where live TV laid its picture while the guide is open, in screen dp: the guide leaves that
+ * rectangle clear. Null means live left the picture full screen, and the guide is opaque over it while it plays on
+ * behind. [openedAtNanos] is when the key that opened the guide arrived (`System.nanoTime`), for the guide's open-time
+ * measurement.
  *
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes
  * the info overlay when one is open and is otherwise left to the activity, which leaves live TV.
@@ -49,12 +51,12 @@ import tv.stationbreak.feature.guide.GuideViewModel
 fun GuideDestination(
     current: ChannelId?,
     openedAtNanos: Long,
-    pictureInCorner: Boolean,
+    pictureHole: DpRect?,
     onTune: (ChannelId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureInCorner, onTune, modifier, openedAtNanos, viewModel.measure)
+    GuideRoot(viewModel, current, pictureHole, onTune, modifier, openedAtNanos, viewModel.measure)
 }
 
 /** [GuideDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -63,7 +65,7 @@ fun GuideDestination(
 internal fun GuideRoot(
     viewModel: GuideViewModel,
     current: ChannelId?,
-    pictureInCorner: Boolean,
+    pictureHole: DpRect?,
     onTune: (ChannelId) -> Unit,
     modifier: Modifier = Modifier,
     openedAtNanos: Long = System.nanoTime(),
@@ -72,7 +74,7 @@ internal fun GuideRoot(
     // The session's measurement line (Task 9) is written when the session ends, and only when [measure] says this build
     // writes it. The rows and the corner picture are read as they stand then.
     val view = LocalView.current
-    val pip by rememberUpdatedState(pictureInCorner)
+    val pip by rememberUpdatedState(pictureHole != null)
     // Started with the session, not in `remember`: a composition that is abandoned before it applies must not leak the
     // frame thread and its listener.
     var measurement by remember(viewModel) { mutableStateOf<GuideMeasurement?>(null) }
@@ -119,7 +121,7 @@ internal fun GuideRoot(
         panel = viewModel.panel,
         info = info,
         current = current,
-        pictureInCorner = pictureInCorner,
+        pictureHole = pictureHole,
         modifier =
             modifier
                 .focusRequester(keys)

@@ -20,6 +20,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -33,8 +34,22 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 
-/** The program guide as live TV draws it: the channel playing, when it opened, and what to call to tune a channel. */
-typealias GuideSlot = @Composable (current: ChannelId?, openedAtNanos: Long, onTune: (ChannelId) -> Unit) -> Unit
+/**
+ * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
+ * dp; null while the picture is full screen) and what to call to tune a channel.
+ */
+typealias GuideSlot = @Composable (
+    current: ChannelId?,
+    openedAtNanos: Long,
+    pictureHole: DpRect?,
+    onTune: (ChannelId) -> Unit,
+) -> Unit
+
+/**
+ * Where live TV lays its picture while the guide is open. Until the corner picture comes (spec 17, Task 10) it stays
+ * full screen, so the guide gets no hole.
+ */
+internal val GuidePictureHole: DpRect? = null
 
 /**
  * The live channel screen (spec 14, F1.3). It owns the player for each STARTED period of its lifecycle, not the
@@ -61,7 +76,7 @@ internal fun LiveRoot(
     viewModel: LiveViewModel,
     onSignedOut: () -> Unit,
     onCommand: (LiveCommand) -> Unit = viewModel::send,
-    guide: GuideSlot = { _, _, _ -> },
+    guide: GuideSlot = { _, _, _, _ -> },
     tuners: TunerFactory? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -86,7 +101,9 @@ internal fun LiveRoot(
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         // Until Select-to-tune comes (spec 17, Task 10), picking the channel on air only closes the guide.
-        guide = { guide(viewModel.guideChannel, viewModel.guideOpenedAtNanos) { viewModel.closeGuide() } },
+        guide = {
+            guide(viewModel.guideChannel, viewModel.guideOpenedAtNanos, GuidePictureHole) { viewModel.closeGuide() }
+        },
     ) { AndroidView(factory = { surface }) }
 }
 
