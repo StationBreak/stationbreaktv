@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -20,7 +21,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -57,6 +60,7 @@ private val CompactBelow = 80.dp
 private val EpisodeFrom = 160.dp
 private val RingWidth = 3.dp
 private val TextStart = 10.dp
+private val TextEnd = 4.dp
 private val ChevronInset = 6.dp
 private val ChevronSize = 5.dp
 private val ChevronRoom = 14.dp
@@ -73,81 +77,135 @@ private const val COMPACT_TICK_FRACTION = 0.4f
 internal val LocalCellComposed = staticCompositionLocalOf<((ChannelId, Long) -> Unit)?> { null }
 
 /**
- * One cell, cut to the visible range from [viewportStartMs], so a program that began before it is titled from the
- * visible left edge. It reads only whether it is the focused cell (derived from [focusOf] by identity: channel and
- * start), so a focus move recomposes the cell it left and the one it reached, and no other. Fill, focus ring, slate
- * dashes, chevrons and the compact tick are drawn, not composed; nothing animates and nothing scales.
+ * Where a cell sits on its row: by time from the grid's [originMs], never from the viewport, so paging the viewport
+ * moves the row (one shared offset, in the layout phase) and leaves the cell's composition alone. A cell that began
+ * before the origin starts at it.
  */
-@Suppress("LongParameterList", "LongMethod") // One cell's identity, range and layout; its parts are plain draw calls.
+@Immutable
+internal class CellPlace(
+    private val startMs: Long,
+    private val endMs: Long,
+    private val originMs: Long,
+    private val geometry: GuideGeometry,
+) {
+    private val fromMs = maxOf(startMs, originMs)
+
+    /** The cell's left edge from the origin. */
+    val x: Dp = geometry.widthOf(fromMs - originMs)
+
+    /** The cell's width: its length from the origin, at least [MinCellWidth] so a 3-minute cell can be seen. */
+    val width: Dp = maxOf(geometry.widthOf(endMs - fromMs), MinCellWidth)
+
+    /** Too narrow for a title: the tick, and a floating label when focused. */
+    val compact: Boolean = width < CompactBelow
+
+    /** The viewport's left edge from the cell's, clamped to the cell: where its title starts (sticky title). */
+    fun visibleLeft(viewportStartMs: Long): Dp = (viewportLeft(viewportStartMs) - x).coerceIn(0.dp, width)
+
+    /** The viewport's right edge from the cell's, clamped to the cell. */
+    fun visibleRight(viewportStartMs: Long): Dp = (viewportRight(viewportStartMs) - x).coerceIn(0.dp, width)
+
+    /** The viewport's left edge on the row, from the origin. */
+    private fun viewportLeft(viewportStartMs: Long): Dp = geometry.widthOf(viewportStartMs - originMs)
+
+    /** The viewport's right edge on the row, from the origin. */
+    fun viewportRight(viewportStartMs: Long): Dp = viewportLeft(viewportStartMs) + geometry.viewportWidth
+
+    /** "‹": the cell runs on before the viewport, and that earlier time can be scrolled to (not at the origin). */
+    fun continuesEarlier(viewportStartMs: Long): Boolean = viewportStartMs > originMs && startMs < viewportStartMs
+
+    /** "›": the cell runs on after the viewport. */
+    fun continuesLater(viewportStartMs: Long): Boolean = endMs > viewportStartMs + geometry.spanMs
+}
+
+/**
+ * One cell, placed by time from the origin. It reads only whether it is the focused cell (derived from [focusOf] by
+ * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
+ * page recomposes none: [viewportOf] is read only while laying out (the sticky title, the compact label) and drawing
+ * (the chevrons). Fill, ring, slate dashes, chevrons and the compact tick are drawn; nothing animates or scales.
+ */
+@Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
 @Composable
 internal fun GuideCellView(
     channel: ChannelId,
     cell: GuideCell,
-    viewportStartMs: Long,
-    originMs: Long,
-    geometry: GuideGeometry,
+    place: CellPlace,
     focusOf: () -> GuideFocus?,
+    viewportOf: () -> Long,
+    nowOf: () -> Long?,
 ) {
     val focused by remember(channel, cell.startMs, focusOf) {
         derivedStateOf { focusOf()?.let { it.channel == channel && it.cellStartMs == cell.startMs } == true }
     }
     LocalCellComposed.current?.invoke(channel, cell.startMs)
-    val viewportEnd = viewportStartMs + geometry.spanMs
-    val from = maxOf(cell.startMs, viewportStartMs)
-    val to = minOf(cell.endMs, viewportEnd)
-    val width = maxOf(geometry.widthOf(to - from), MinCellWidth)
-    val x = minOf(geometry.widthOf(from - viewportStartMs), geometry.viewportWidth - width)
-    val compact = width < CompactBelow
-    // "‹" only where earlier time can be scrolled to: at the first half hour the past is not on the grid.
-    val earlier = cell.startMs < viewportStartMs && viewportStartMs > originMs
-    val later = cell.endMs > viewportEnd
     val copy = programCopy()
     val title = cellTitle(cell, copy)
-    val description = cellDescription(cell, title, earlier, later)
+    val onNow by remember(cell, nowOf) {
+        derivedStateOf { nowOf()?.let { cell.startMs <= it && it < cell.endMs } == true }
+    }
+    val description = cellDescription(cell, title, onNow)
     Box(
         Modifier
-            .offset(x = x)
-            .width(width)
+            .offset(x = place.x)
+            .width(place.width)
             .fillMaxHeight()
             .padding(CellInset)
-            .cellLook(cell.kind == CellKind.Slate, compact, earlier, later) { focused }
+            .cellLook(cell.kind == CellKind.Slate, place, viewportOf) { focused }
             .semantics {
                 selected = focused
                 contentDescription = description
             }.testTag(GuideTags.cell(channel, cell.startMs)),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (!compact && title.isNotEmpty()) {
+        if (!place.compact && title.isNotEmpty()) {
             val tag = Modifier.testTag(GuideTags.cellText(channel, cell.startMs))
-            CellText(cell, title, width, focused, tag, earlier, later)
+            CellText(cell, title, place, focused, tag.stickyText(place, viewportOf))
         }
     }
-    if (compact && focused && title.isNotEmpty()) CompactLabel(title, x, width, geometry.viewportWidth)
+    if (place.compact && focused && title.isNotEmpty()) CompactLabel(title, place, viewportOf)
 }
 
+/**
+ * Lays the title out inside the visible part of the cell: from the viewport's left edge for a cell that began before
+ * it, and short of its right edge for one that runs past it, leaving room for the chevrons. The viewport is read here,
+ * in the measure pass, so paging moves the title without composing anything.
+ */
+private fun Modifier.stickyText(
+    place: CellPlace,
+    viewportOf: () -> Long,
+): Modifier =
+    layout { measurable, constraints ->
+        val viewport = viewportOf()
+        val inset = CellInset.roundToPx()
+        val start =
+            (place.visibleLeft(viewport).roundToPx() - inset).coerceAtLeast(0) +
+                (TextStart + if (place.continuesEarlier(viewport)) ChevronRoom else 0.dp).roundToPx()
+        val end =
+            (place.visibleRight(viewport).roundToPx() - inset).coerceAtMost(constraints.maxWidth) -
+                (if (place.continuesLater(viewport)) ChevronRoom else TextEnd).roundToPx()
+        val text = measurable.measure(Constraints(maxWidth = (end - start).coerceAtLeast(0)))
+        layout(constraints.maxWidth, text.height) { text.placeRelative(start, 0) }
+    }
+
 /** The cell's title (and "S2 E5" when it is 20 minutes or more wide), or a slate's "Off air until". */
-@Suppress("LongParameterList") // The cell, its words, its width and where its chevrons leave room.
 @Composable
 private fun CellText(
     cell: GuideCell,
     title: String,
-    width: Dp,
+    place: CellPlace,
     focused: Boolean,
     modifier: Modifier,
-    earlier: Boolean,
-    later: Boolean,
 ) {
     val slate = cell.kind == CellKind.Slate
     val main =
-        if (focused) {
-            BroadcastColors.Ink
-        } else if (slate) {
-            BroadcastColors.Ground
-        } else {
-            BroadcastColors.Cream
+        when {
+            focused -> BroadcastColors.Ink
+            slate -> BroadcastColors.Ground
+            else -> BroadcastColors.Cream
         }
     val minor = if (focused) BroadcastColors.Ink else BroadcastColors.Ground
-    val numbers = cell.info?.takeIf { it.kind == ScheduleItemKind.Episode && width >= EpisodeFrom }?.let(::numbersOf)
+    val numbers =
+        cell.info?.takeIf { it.kind == ScheduleItemKind.Episode && place.width >= EpisodeFrom }?.let(::numbersOf)
     val text =
         buildAnnotatedString {
             withStyle(SpanStyle(color = main)) { append(title) }
@@ -155,11 +213,7 @@ private fun CellText(
         }
     Text(
         text = text,
-        modifier =
-            modifier.padding(
-                start = TextStart + if (earlier) ChevronRoom else 0.dp,
-                end = if (later) ChevronRoom else 4.dp,
-            ),
+        modifier = modifier,
         style =
             if (slate) {
                 TextStyle(fontSize = 16.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal)
@@ -184,14 +238,14 @@ private fun numbersOf(info: ProgramInfo): String? {
 
 /**
  * The title of a focused cell too narrow to hold it: one line, Ink on Accent, floating beside the cell (to its right,
- * or to its left when there is no room) above its neighbours. It takes no space in the row.
+ * or to its left when the viewport has no room there) above its neighbours. It takes no space in the row; the side is
+ * chosen while laying out, from the viewport, so paging does not compose it again.
  */
 @Composable
 private fun CompactLabel(
     title: String,
-    cellX: Dp,
-    cellWidth: Dp,
-    viewportWidth: Dp,
+    place: CellPlace,
+    viewportOf: () -> Long,
 ) {
     Text(
         text = title,
@@ -199,15 +253,12 @@ private fun CompactLabel(
             Modifier
                 .zIndex(1f)
                 .layout { measurable, constraints ->
-                    val label = measurable.measure(Constraints(maxWidth = viewportWidth.roundToPx()))
+                    val label = measurable.measure(Constraints())
                     layout(0, 0) {
-                        val right = (cellX + cellWidth + LabelGap).roundToPx()
-                        val x =
-                            if (right + label.width <= viewportWidth.roundToPx()) {
-                                right
-                            } else {
-                                maxOf(0, (cellX - LabelGap).roundToPx() - label.width)
-                            }
+                        val right = (place.x + place.width + LabelGap).roundToPx()
+                        val edge = place.viewportRight(viewportOf()).roundToPx()
+                        val left = (place.x - LabelGap).roundToPx() - label.width
+                        val x = if (right + label.width <= edge) right else left
                         label.placeRelative(x, (constraints.maxHeight - label.height) / 2)
                     }
                 }.background(BroadcastColors.Accent)
@@ -220,59 +271,50 @@ private fun CompactLabel(
     )
 }
 
-/** "Title, 8:30 – 9:00 PM", and whether it continues past the visible times: what a screen reader says. */
+/** "Title, 8:30 – 9:00 PM", and ", on now" for the program airing: what a screen reader says about a cell. */
 @Composable
 private fun cellDescription(
     cell: GuideCell,
     title: String,
-    earlier: Boolean,
-    later: Boolean,
+    onNow: Boolean,
 ): String {
     val slot = ProgramText.slot(cell.startMs, cell.endMs, ZoneId.systemDefault(), is24Hour())
-    val parts =
-        listOfNotNull(
-            stringResource(R.string.guide_cell_description, title, slot),
-            if (earlier) stringResource(R.string.guide_continues_earlier) else null,
-            if (later) stringResource(R.string.guide_continues_later) else null,
-        )
-    return parts.joinToString(", ")
+    val described = stringResource(R.string.guide_cell_description, title, slot)
+    return if (onNow) stringResource(R.string.guide_cell_on_now, described) else described
 }
 
 /**
  * The cell's look, drawn: Cream at 8% (a slate: a dashed Ground border instead), or when [focused] Accent with a 3 dp
  * White ring inside the bounds, so the row's clip can never cut it. Chevrons mark a program running on past either
- * edge; a compact cell has a small tick in its centre. [focused] is read while drawing.
+ * edge of the viewport, at that edge; they read [viewportOf] while drawing. A compact cell has a small centre tick.
  */
 private fun Modifier.cellLook(
     slate: Boolean,
-    compact: Boolean,
-    earlier: Boolean,
-    later: Boolean,
+    place: CellPlace,
+    viewportOf: () -> Long,
     focused: () -> Boolean,
 ): Modifier =
     drawWithCache {
         val ring = RingWidth.toPx()
         val dashWidth = 1.5.dp.toPx()
-        val dash =
-            Stroke(
-                width = dashWidth,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
-            )
+        val dash = Stroke(dashWidth, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())))
         val chevron = Stroke(width = 2.dp.toPx())
-        val inset = ChevronInset.toPx()
+        val edge = ChevronInset.toPx()
+        val inset = CellInset.toPx()
         val half = ChevronSize.toPx()
         val middle = size.height / 2
+        // Drawn at x = 0 and moved to the viewport's edge as it is drawn.
         val left =
             Path().apply {
-                moveTo(inset + half, middle - half)
-                lineTo(inset, middle)
-                lineTo(inset + half, middle + half)
+                moveTo(edge + half, middle - half)
+                lineTo(edge, middle)
+                lineTo(edge + half, middle + half)
             }
         val right =
             Path().apply {
-                moveTo(size.width - inset - half, middle - half)
-                lineTo(size.width - inset, middle)
-                lineTo(size.width - inset - half, middle + half)
+                moveTo(-edge - half, middle - half)
+                lineTo(-edge, middle)
+                lineTo(-edge - half, middle + half)
             }
         onDrawBehind {
             val isFocused = focused()
@@ -300,13 +342,22 @@ private fun Modifier.cellLook(
                     drawRect(BroadcastColors.Cream.copy(alpha = TINT_ALPHA))
                 }
             }
-            if (compact && !isFocused) {
-                val tick = CompactTick.toPx()
-                val tall = size.height * COMPACT_TICK_FRACTION
-                drawRect(BroadcastColors.Ground, Offset(size.width / 2 - tick / 2, middle - tall / 2), Size(tick, tall))
+            if (place.compact) {
+                if (!isFocused) compactTick(middle)
+            } else {
+                val mark = if (isFocused) BroadcastColors.Ink else BroadcastColors.Cream
+                val at = viewportOf()
+                val from = place.visibleLeft(at).toPx() - inset
+                val to = place.visibleRight(at).toPx() - inset
+                if (place.continuesEarlier(at)) translate(left = from) { drawPath(left, mark, style = chevron) }
+                if (place.continuesLater(at)) translate(left = to) { drawPath(right, mark, style = chevron) }
             }
-            val mark = if (isFocused) BroadcastColors.Ink else BroadcastColors.Cream
-            if (earlier && !compact) drawPath(left, mark, style = chevron)
-            if (later && !compact) drawPath(right, mark, style = chevron)
         }
     }
+
+/** The small Ground tick in the centre of a compact cell that is not focused. */
+private fun DrawScope.compactTick(middle: Float) {
+    val tick = CompactTick.toPx()
+    val tall = size.height * COMPACT_TICK_FRACTION
+    drawRect(BroadcastColors.Ground, Offset(size.width / 2 - tick / 2, middle - tall / 2), Size(tick, tall))
+}

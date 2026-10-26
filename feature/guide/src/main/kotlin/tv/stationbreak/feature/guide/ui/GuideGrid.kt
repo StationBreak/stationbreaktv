@@ -16,14 +16,17 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,56 +50,75 @@ private val NumberWidth = 36.dp
 private val LabelGap = 6.dp
 
 /**
- * The clock strip over [GUIDE_VISIBLE_ROWS] rows from [firstVisibleRow], the time columns from [viewportStartMs], and
- * the "now" line at [nowMs]. Skipped on a focus move: none of its inputs change, only the snapshot that holds them.
+ * The clock strip over [GUIDE_VISIBLE_ROWS] rows from [firstVisibleRow] (the vertical window the model chooses),
+ * and the "now" line. Horizontally every row is laid out by time from the origin and moved by the one viewport offset
+ * read from [viewportOf] while placing, so a Left/Right page recomposes no cell. Skipped on a focus move and on a
+ * page: none of its inputs change.
  */
-@Suppress("LongParameterList") // The parts of the Ready state the grid draws, the playing channel and the layout.
+@Suppress("LongParameterList") // The model and its row window, the playing channel, the layout and three readers.
 @Composable
 internal fun GuideGrid(
     model: GuideModel,
-    viewportStartMs: Long,
     firstVisibleRow: Int,
-    nowMs: Long,
     current: ChannelId?,
     geometry: GuideGeometry,
     focusOf: () -> GuideFocus?,
+    viewportOf: () -> Long,
+    nowOf: () -> Long?,
     modifier: Modifier = Modifier,
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
     Box(modifier.testTag(GuideTags.GRID)) {
         Column {
-            ClockStrip(nowMs, viewportStartMs, geometry)
+            ClockStrip(nowOf, viewportOf, geometry)
             for (index in firstVisibleRow until last) {
                 val row = model.rows[index]
                 key(row.channel) {
                     Row(Modifier.height(RowHeight)) {
                         ChannelCell(row.number, row.name, playing = row.channel == current)
-                        GuideRowCells(row.channel, row.cells, viewportStartMs, model.originMs, geometry, focusOf)
+                        GuideRowCells(row.channel, row.cells, model.originMs, geometry, focusOf, viewportOf, nowOf)
                     }
                 }
             }
         }
-        NowLine(nowMs, viewportStartMs, geometry, rows = last - firstVisibleRow)
+        NowLine(nowOf, viewportOf, geometry, rows = last - firstVisibleRow)
     }
 }
 
-/** The cells of one row that show in the time range from [viewportStartMs]. */
-@Suppress("LongParameterList") // One row's identity and cells, the visible range and the layout.
+/**
+ * All the cells of one row, at their times from [originMs], clipped to the time columns. The row is moved left by the
+ * viewport's distance from the origin when it is placed (the shared horizontal offset of ADR-0008), which reads
+ * [viewportOf] in the layout phase only. Every cell of the row is composed, so a page brings none into composition
+ * either; the model holds a few hours, a few dozen cells a row at most.
+ */
+@Suppress("LongParameterList") // One row's identity and cells, the origin, the layout and three readers.
 @Composable
 private fun GuideRowCells(
     channel: ChannelId,
     cells: List<GuideCell>,
-    viewportStartMs: Long,
     originMs: Long,
     geometry: GuideGeometry,
     focusOf: () -> GuideFocus?,
+    viewportOf: () -> Long,
+    nowOf: () -> Long?,
 ) {
-    val end = viewportStartMs + geometry.spanMs
-    Box(Modifier.width(geometry.viewportWidth).fillMaxHeight()) {
-        for (cell in cells) {
-            if (cell.endMs > viewportStartMs && cell.startMs < end) {
-                key(cell.startMs) { GuideCellView(channel, cell, viewportStartMs, originMs, geometry, focusOf) }
+    Layout(
+        content = {
+            for (cell in cells) {
+                key(cell.startMs) {
+                    val place =
+                        remember(cell, originMs, geometry) { CellPlace(cell.startMs, cell.endMs, originMs, geometry) }
+                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf)
+                }
             }
+        },
+        modifier = Modifier.width(geometry.viewportWidth).fillMaxHeight().clipToBounds(),
+    ) { measurables, constraints ->
+        val free = Constraints(maxHeight = constraints.maxHeight)
+        val placeables = measurables.map { it.measure(free) }
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            val shift = geometry.widthOf(viewportOf() - originMs).roundToPx()
+            placeables.forEach { it.placeRelative(-shift, 0) }
         }
     }
 }
@@ -150,10 +172,13 @@ private fun ChannelCell(
  */
 @Composable
 private fun ClockStrip(
-    nowMs: Long,
-    viewportStartMs: Long,
+    nowOf: () -> Long?,
+    viewportOf: () -> Long,
     geometry: GuideGeometry,
 ) {
+    // Read here, so a page or the minute recomposes the strip and nothing else.
+    val viewportStartMs = viewportOf()
+    val nowMs = nowOf() ?: viewportStartMs
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
     Row(Modifier.height(ClockHeight).testTag(GuideTags.CLOCK), verticalAlignment = Alignment.CenterVertically) {
@@ -203,25 +228,27 @@ private fun dayOf(
 ) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
 
 /**
- * The "now" line: 2 dp of Cream down the grid with an Accent mark in the clock strip, one for the whole grid and only
- * while now is in the visible time range. Its place is read in the layout phase.
+ * The "now" line: 2 dp of Cream down the grid with an Accent mark in the clock strip, one for the whole grid. The time
+ * and the viewport are read in its offset (layout phase) and its drawing, so the minute and a page move it without
+ * composing it; it is not drawn while now is outside the visible time range.
  */
 @Composable
 private fun NowLine(
-    nowMs: Long,
-    viewportStartMs: Long,
+    nowOf: () -> Long?,
+    viewportOf: () -> Long,
     geometry: GuideGeometry,
     rows: Int,
 ) {
-    val from = nowMs - viewportStartMs
-    if (from < 0 || from >= geometry.spanMs) return
-    val x = ChannelColumnWidth + geometry.widthOf(from) - NowMarkWidth / 2
+    fun from(): Long? = nowOf()?.let { it - viewportOf() }?.takeIf { it >= 0 && it < geometry.spanMs }
     Box(
         Modifier
-            .offset { IntOffset(x.roundToPx(), 0) }
-            .size(NowMarkWidth, ClockHeight + RowHeight * rows)
+            .offset {
+                val x = ChannelColumnWidth + geometry.widthOf(from() ?: 0L) - NowMarkWidth / 2
+                IntOffset(x.roundToPx(), 0)
+            }.size(NowMarkWidth, ClockHeight + RowHeight * rows)
             .testTag(GuideTags.NOW_LINE)
             .drawBehind {
+                if (from() == null) return@drawBehind
                 val centre = size.width / 2
                 val line = NowLineWidth.toPx()
                 drawRect(BroadcastColors.Cream, Offset(centre - line / 2, 0f), Size(line, size.height))

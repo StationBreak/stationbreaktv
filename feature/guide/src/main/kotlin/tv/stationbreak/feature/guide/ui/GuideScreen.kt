@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -101,7 +103,12 @@ internal fun GuideScreen(
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
     val focusOf: () -> GuideFocus? = remember(shown) { { shown.value.focus } }
-    val nowOf: () -> Long? = remember(shown) { { (shown.value.state as? GuideState.Ready)?.nowMs } }
+    // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
+    val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
+    val viewport =
+        remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.viewportStartMs ?: 0L } }
+    val nowOf: () -> Long? = remember(now) { { now.value } }
+    val viewportOf: () -> Long = remember(viewport) { { viewport.value } }
     val stateOf: () -> GuideState = remember(shown) { { shown.value.state } }
     val snapshotOf: () -> GuideSnapshot = remember(shown) { { shown.value } }
     BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
@@ -114,7 +121,7 @@ internal fun GuideScreen(
         ) {
             DetailsPanel(panel, nowOf, Modifier.size(geometry.panelWidth, geometry.topHeight))
             Spacer(Modifier.height(TopGap))
-            GuideBody(stateOf, current, geometry, focusOf)
+            GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
             Spacer(Modifier.height(HintGap))
             HintRow(snapshotOf)
         }
@@ -138,16 +145,48 @@ private fun DrawScope.ground(hole: DpRect?) {
     drawRect(BroadcastColors.Ink, Offset(right, top), Size(size.width - right, bottom - top))
 }
 
+/** What the grid reads from the snapshot on its own, outside composition where it can. */
+@Immutable
+private class GridReaders(
+    val focusOf: () -> GuideFocus?,
+    val viewportOf: () -> Long,
+    val nowOf: () -> Long?,
+)
+
+/**
+ * The same grid frame: the same model (by identity, never a deep compare), viewport, first row and clock. A focus move
+ * publishes a new Ready that is the same frame, so the body is not recomposed for it.
+ */
+private object SameGridFrame : SnapshotMutationPolicy<GuideState> {
+    override fun equivalent(
+        a: GuideState,
+        b: GuideState,
+    ): Boolean =
+        if (a is GuideState.Ready && b is GuideState.Ready) {
+            a.model === b.model &&
+                a.viewportStartMs == b.viewportStartMs &&
+                a.firstVisibleRow == b.firstVisibleRow &&
+                a.nowMs == b.nowMs
+        } else {
+            a == b
+        }
+}
+
+/** Called each time the grid's body composes. Tests count compositions with it; null (the default) in the app. */
+internal val LocalBodyComposed = staticCompositionLocalOf<(() -> Unit)?> { null }
+
 /** The clock strip and the grid, or what stands in for them while there is no grid. Reads the state itself. */
 @Composable
 private fun GuideBody(
     stateOf: () -> GuideState,
     current: ChannelId?,
     geometry: GuideGeometry,
-    focusOf: () -> GuideFocus?,
+    readers: GridReaders,
 ) {
+    val frame by remember(stateOf) { derivedStateOf(SameGridFrame, stateOf) }
+    LocalBodyComposed.current?.invoke()
     val height = ClockHeight + RowHeight * GUIDE_VISIBLE_ROWS
-    when (val state = stateOf()) {
+    when (val state = frame) {
         // An open on its way: nothing yet, so a cached guide never flashes a loading line.
         GuideState.Closed -> {
             Spacer(Modifier.height(height))
@@ -164,12 +203,12 @@ private fun GuideBody(
         is GuideState.Ready -> {
             GuideGrid(
                 state.model,
-                state.viewportStartMs,
                 state.firstVisibleRow,
-                state.nowMs,
                 current,
                 geometry,
-                focusOf,
+                readers.focusOf,
+                readers.viewportOf,
+                readers.nowOf,
                 Modifier.height(height),
             )
         }
@@ -252,7 +291,8 @@ private fun GuideInfoOverlay(
     val cell = info.cell
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
-    val today = nowOf() ?: cell.startMs
+    val now by remember(nowOf) { derivedStateOf(nowOf) }
+    val today = now ?: cell.startMs
     val item = info.item
     ProgramInfoOverlay(
         channel = channelLine(info.channelNumber, info.channelName),

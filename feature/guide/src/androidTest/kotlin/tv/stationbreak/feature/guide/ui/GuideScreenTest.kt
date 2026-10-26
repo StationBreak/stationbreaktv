@@ -120,7 +120,10 @@ class GuideScreenTest {
             // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
             BackHandler { exits++ }
             val count = { channel: ChannelId, start: Long -> composed.merge("${channel.value}@$start", 1, Int::plus) }
-            CompositionLocalProvider(LocalCellComposed provides { channel, start -> count(channel, start) }) {
+            CompositionLocalProvider(
+                LocalCellComposed provides { channel, start -> count(channel, start) },
+                LocalBodyComposed provides { composed.merge(BODY, 1, Int::plus) },
+            ) {
                 StationBreakTheme {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
                     // guide left alone would be spent moving the focus back out to the root.
@@ -252,8 +255,29 @@ class GuideScreenTest {
         composed.clear()
         press(Key.DirectionRight)
         cell(CH7, 90).assertIsSelected()
+        // Not the grid's body either (BODY would be in the map): the move changed the focus, not the frame.
         // The cell that lost the focus and the one that took it; no row and no other cell.
         assertEquals(mapOf("${CH7.value}@${min(60)}" to 1, "${CH7.value}@${min(90)}" to 1), composed.toMap())
+    }
+
+    @Test
+    fun horizontalPageRecomposesNoCells() {
+        showReady(CH7)
+        // 60 -> 90 -> 120 stay in the first 90 minutes; the cell at 150 starts past them, so that move pages.
+        press(Key.DirectionRight)
+        press(Key.DirectionRight)
+        cell(CH7, 120).assertIsSelected()
+        assertEquals(min(60), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+        composed.clear()
+
+        press(Key.DirectionRight)
+
+        assertEquals(min(150), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+        cell(CH7, 150).assertIsSelected()
+        // Only the two cells whose focus changed; every other cell of every row kept its composition, and none was
+        // brought into it: the page moved the rows in the layout phase.
+        val cells = composed.filterKeys { it != BODY }
+        assertEquals(mapOf("${CH7.value}@${min(120)}" to 1, "${CH7.value}@${min(150)}" to 1), cells)
     }
 
     @Test
@@ -286,5 +310,6 @@ class GuideScreenTest {
     private companion object {
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
+        const val BODY = "body"
     }
 }

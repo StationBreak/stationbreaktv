@@ -123,8 +123,15 @@ internal fun guideKey(
         }
     when {
         !handled -> Unit
+
+        // Any release, even one whose down the guide never saw. The Back that opened the guide never reaches here
+        // (live's root holds that press to its release), so a release here is always a later press. A fast double
+        // Back is such a press: its down can arrive in the frame before the guide has the focus, going to live's root,
+        // which passes it, and only the release lands here. Waiting for a down the guide saw would swallow that press.
         event.key == Key.Back -> if (event.type == KeyEventType.KeyUp) back?.invoke()
+
         direction != null -> if (down) move(direction)
+
         down && event.nativeKeyEvent.repeatCount == 0 -> select()
     }
     return handled

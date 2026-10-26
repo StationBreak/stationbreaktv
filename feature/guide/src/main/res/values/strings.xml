@@ -20,8 +20,7 @@
     <!-- The chip in front of the slot of a program on now. -->
     <string name="guide_now">Now</string>
 
-    <!-- What a screen reader says about a cell: its title and slot, and whether it runs past the visible times. -->
+    <!-- What a screen reader says about a cell: its title and slot, then "on now" for the program airing. -->
     <string name="guide_cell_description">%1$s, %2$s</string>
-    <string name="guide_continues_earlier">continues earlier</string>
-    <string name="guide_continues_later">continues later</string>
+    <string name="guide_cell_on_now">%1$s, on now</string>
 </resources>

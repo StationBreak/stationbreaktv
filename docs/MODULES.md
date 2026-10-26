@@ -116,6 +116,13 @@ is the focused one, so a move recomposes the two cells it touched and the detail
 longer window can therefore never leave the focus on a cell that is gone, and nothing depends on what Compose would pick as
 the next focus target.
 
+It keeps ADR-0008's horizontal structure: every row's cells are laid out by time from the grid's origin, never from the
+viewport, and all rows move by one shared horizontal offset (the viewport's distance from the origin) that is read in the
+layout phase, when each row is placed, and clipped to the time columns. A Left/Right page therefore recomposes no cell;
+the sticky titles and the "continues" chevrons follow the viewport in the layout and draw phases too. Vertically the
+grid is a window of six rows that the model chooses (`firstVisibleRow`) in a plain column: the app-owned vertical
+scroll that ADR-0008 allows, in place of a lazy list scrolled by focus.
+
 `data:settings` exists since F0.4 and holds `KeystoreSecretStore` (the `SecretStore` implementation) and, since F0.5
 task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configured address and its certificate pin as one
 atomically replaced file in `noBackupFilesDir`). `app` binds both in `MediaServerModule`. The DataStore settings arrive with
