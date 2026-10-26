@@ -232,25 +232,26 @@ private fun Message(
     }
 }
 
-/** Which hint the focused cell calls for. */
-private enum class HintKind { Watch, Info, BackOnly }
+/** Which hint the focused cell calls for: what OK does on it, as `GuideViewModel.select` does it. */
+internal enum class HintKind { Watch, Info, BackOnly }
 
-private fun hintKindOf(snapshot: GuideSnapshot): HintKind {
+internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
     val ready = snapshot.state as? GuideState.Ready
     val located = snapshot.focus?.let { ready?.model?.indexOf(it) }
     if (ready == null || located == null) return HintKind.BackOnly
     val cell = ready.model.rows[located.first].cells[located.second]
     return when {
-        cell.kind == CellKind.Slate -> HintKind.BackOnly
         cell.startMs <= ready.nowMs && ready.nowMs < cell.endMs -> HintKind.Watch
+        cell.kind == CellKind.Slate -> HintKind.BackOnly
         else -> HintKind.Info
     }
 }
 
 /**
- * The keys that matter here, short and following the focus: "OK Watch" on a program on now, "OK Info" on a later one,
- * and always "Back Exit live TV", since leaving from the guide is the one thing no one would guess. Key names in Cream,
- * what they do in Ground. Recomposes only when the kind of the focused cell changes.
+ * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to its
+ * channel), "OK Info" on a later program, nothing for OK on a later slate, and always "Back Exit live TV", since leaving
+ * from the guide is the one thing no one would guess. Key names in Cream, what they do in Ground. Recomposes only
+ * when the kind of the focused cell changes.
  */
 @Composable
 private fun HintRow(snapshotOf: () -> GuideSnapshot) {

@@ -10,7 +10,7 @@
     <string name="guide_loading">Loading the guide…</string>
     <string name="guide_empty">Nothing on the guide yet</string>
 
-    <!-- The hint row: a key name, then what it does. OK tunes a program on now and opens the info of a later one. -->
+    <!-- The hint row: a key name, then what it does. OK tunes what is on now and opens the info of a later program. -->
     <string name="guide_key_ok">OK</string>
     <string name="guide_key_back">Back</string>
     <string name="guide_hint_watch">Watch</string>

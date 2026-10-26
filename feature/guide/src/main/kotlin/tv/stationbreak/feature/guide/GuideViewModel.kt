@@ -138,8 +138,9 @@ internal class GuideViewModel
         }
 
         /**
-         * Select on the focused cell: tunes its channel when it is on air now, otherwise opens the info overlay for it
-         * (also for a cell that has already ended but is still on the grid), fetching the details at once.
+         * Select on the focused cell: tunes its channel when it is on air now (a slate too: that is changing channel),
+         * otherwise opens the info overlay for a program (also one that has already ended but is still on the grid),
+         * fetching the details at once. A later slate has nothing to tell, so Select does nothing there.
          */
         fun select() {
             synchronized(lock) {
@@ -150,10 +151,10 @@ internal class GuideViewModel
                 val row = ready.model.rows[located.first]
                 val cell = row.cells[located.second]
                 val now = nowMs()
-                if (cell.startMs <= now && now < cell.endMs) {
-                    eventChannel.trySend(GuideEvent.Tune(row.channel))
-                } else {
-                    openInfo(row, cell)
+                when {
+                    cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
+                    cell.kind == CellKind.Slate -> Unit
+                    else -> openInfo(row, cell)
                 }
             }
         }

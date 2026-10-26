@@ -803,4 +803,36 @@ class GuideViewModelTest {
             runCurrent()
             assertEquals(4, vm.ready().firstVisibleRow)
         }
+
+    @Test
+    fun selectOnASlateOnNowTunesLikeAnyCellOnNow() =
+        guideTest(startMin = 160) { vm ->
+            val events = mutableListOf<GuideEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
+            vm.open(CH9)
+            runCurrent()
+            assertEquals(min(150), vm.focused().cellStartMs)
+
+            vm.select()
+
+            assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH9)), events)
+            assertNull(vm.info.value)
+        }
+
+    @Test
+    fun selectOnALaterSlateDoesNothing() =
+        guideTest { vm ->
+            val events = mutableListOf<GuideEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
+            vm.open(CH9)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            assertEquals(min(150), vm.focused().cellStartMs)
+
+            vm.select()
+            runCurrent()
+
+            assertNull(vm.info.value)
+            assertTrue(events.isEmpty())
+        }
 }
