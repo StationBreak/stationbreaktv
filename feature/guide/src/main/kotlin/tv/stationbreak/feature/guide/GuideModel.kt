@@ -7,6 +7,7 @@ import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.time.Duration.Companion.minutes
 
 /** What a guide cell shows: a program (or a stand-in for one), or a slate (nothing to play). */
@@ -14,8 +15,9 @@ enum class CellKind { Program, Slate }
 
 /**
  * One cell of a guide row, half-open `[startMs, endMs)` in milliseconds since 1970. The first cell of a row may start
- * before [GuideModel.originMs]. [title] and [info] are null for a slate, and for a program no longer in the library;
- * [itemId] is null for a slate. A [compact] cell is too short to hold a title.
+ * before [GuideModel.originMs]. [title] is derived from [info], the display title: the series name for an episode of a
+ * known series, else the item's own title. It and [info] are null for a slate and for a program no longer in the
+ * library; [itemId] is null for a slate. A [compact] cell is too short to hold a title.
  */
 data class GuideCell(
     val startMs: Long,
@@ -72,7 +74,10 @@ fun buildGuideModel(
  * Joins a program that carries on into the next block. The window does not say where a broadcast day ends, so a
  * continuation is recognised by what it is: the next block starts exactly where this one ends, airs the same item, and
  * picks the media up where this one left off (`mediaStartMs` plus the block's length). A repeat restarts the item at
- * its own start offset, so it never matches and stays a cell of its own.
+ * its own start offset, so it never matches and stays a cell of its own; neither does a block after a gap.
+ *
+ * The v1 built-in scheduler never produces split blocks (`mediaStartOffsetMs` is always 0 and days are never split), so
+ * this only covers future sources that do.
  */
 private fun mergeContinuations(blocks: List<AiringBlock>): List<AiringBlock> {
     val merged = ArrayList<AiringBlock>(blocks.size)
@@ -108,5 +113,10 @@ private fun cellOf(block: AiringBlock): GuideCell {
             is Airing.StandIn -> Triple(CellKind.Program, airing.info, airing.itemId)
             Airing.Slate -> Triple(CellKind.Slate, null, null)
         }
-    return GuideCell(block.startMs, block.endMs, kind, info?.title, info, itemId, compact)
+    return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId, compact)
+}
+
+private fun displayTitle(info: ProgramInfo): String {
+    val series = info.seriesName
+    return if (info.kind == ScheduleItemKind.Episode && series != null) series else info.title
 }

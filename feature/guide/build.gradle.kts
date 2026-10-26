@@ -23,6 +23,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
 
     testImplementation(testFixtures(project(":core:domain")))
+    testImplementation(libs.kotlinx.coroutines.test)
 
     // The screen's instrumented tests (spec 17) use these; they also pin the androidx.test versions that Hilt's test
     // artifact would otherwise resolve to an older one.

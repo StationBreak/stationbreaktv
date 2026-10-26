@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRow
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.episodeInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.id
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
@@ -56,7 +57,7 @@ class GuideModelTest {
     }
 
     @Test
-    fun programContinuingAcrossDayBoundaryIsOneCell() {
+    fun continuingBlocksAreOneCell() {
         val first = program(0, 60, 1, mediaStartMs = 0)
         val second = program(60, 120, 1, mediaStartMs = 60 * MIN)
         val result = cells(window(first, second), nowMin = 0)
@@ -64,6 +65,20 @@ class GuideModelTest {
         assertEquals(T0, result.single().startMs)
         assertEquals(T0 + 120 * MIN, result.single().endMs)
         assertEquals(id(1), result.single().itemId)
+    }
+
+    @Test
+    fun sameItemNotBackToBackIsTwoCells() {
+        // The offset continues, but a gap separates the blocks.
+        val first = program(0, 60, 1, mediaStartMs = 0)
+        val second = program(70, 120, 1, mediaStartMs = 60 * MIN)
+        assertEquals(2, cells(window(first, second), nowMin = 0).size)
+    }
+
+    @Test
+    fun episodeCellTitleIsTheSeriesName() {
+        val episode = program(0, 30, 3, info = episodeInfo(3, "Test Series", 1, 2))
+        assertEquals("Test Series", cells(window(episode), nowMin = 0).single().title)
     }
 
     @Test

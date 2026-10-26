@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -57,21 +58,21 @@ class GuideFocusTest {
 
     @Test
     fun initialFocusIsCurrentChannelNowCell() {
-        val focus = model.initialFocus(CH7, now)
+        val focus = checkNotNull(model.initialFocus(CH7, now))
         assertEquals(CH7, focus.channel)
         assertEquals(min(60), focus.cellStartMs)
         assertEquals(1 to 0, model.indexOf(focus))
         // Channel 5's cell holding "now" started before the origin, and is still the one focused.
-        val first = model.initialFocus(CH5, now)
+        val first = checkNotNull(model.initialFocus(CH5, now))
         assertEquals(min(30), first.cellStartMs)
         assertEquals(min(60), first.anchorMs)
     }
 
     @Test
     fun unknownCurrentChannelFocusesFirstRow() {
-        assertEquals(CH5, model.initialFocus(null, now).channel)
-        assertEquals(CH5, model.initialFocus(ChannelId("gone"), now).channel)
-        assertEquals(0 to 0, model.indexOf(model.initialFocus(null, now)))
+        assertEquals(CH5, model.initialFocus(null, now)?.channel)
+        assertEquals(CH5, model.initialFocus(ChannelId("gone"), now)?.channel)
+        assertEquals(0 to 0, model.indexOf(checkNotNull(model.initialFocus(null, now))))
     }
 
     @Test
@@ -156,17 +157,132 @@ class GuideFocusTest {
     @Test
     fun viewportShiftsBySlotAndNeverBeforeOrigin() {
         val origin = model.originMs
-        val span = 90.minutes
+        val right = GuideDirection.Right
         // Visible already (the viewport covers 60..150): no change.
-        assertEquals(origin, viewportStartFor(focusAt(0, 0), model, origin, span))
-        assertEquals(origin, viewportStartFor(focusAt(1, 2), model, origin, span))
-        // A cell starting at 160 needs whole-slot shifts: a viewport from 90 holds it.
-        assertEquals(min(90), viewportStartFor(GuideFocus(CH5, min(160), min(160)), model, origin, span))
-        // The cell starts before the viewport: it moves back to the cell's slot.
-        assertEquals(min(120), viewportStartFor(GuideFocus(CH5, min(120), min(120)), model, min(150), span))
-        assertEquals(min(90), viewportStartFor(GuideFocus(CH5, min(100), min(100)), model, min(150), span))
+        assertEquals(origin, viewportStartFor(focusAt(0, 0), model, origin, right, 90.minutes))
+        assertEquals(origin, viewportStartFor(focusAt(1, 2), model, origin, right, 90.minutes))
+        // Left onto a cell entirely before the viewport: the viewport goes back to the cell's slot.
+        val left = GuideDirection.Left
+        assertEquals(min(120), viewportStartFor(GuideFocus(CH5, min(120), min(120)), model, min(180), left, 90.minutes))
+        assertEquals(min(90), viewportStartFor(GuideFocus(CH5, min(100), min(100)), model, min(180), left, 90.minutes))
         // A cell before the origin never pulls the viewport before it.
-        assertEquals(origin, viewportStartFor(GuideFocus(CH5, min(30), origin), model, min(90), span))
+        assertEquals(origin, viewportStartFor(focusAt(0, 0), model, min(90), left, 90.minutes))
+    }
+
+    @Test
+    fun rightOntoACellBeyondTheEdgeSnapsToItsSlot() {
+        val wide =
+            buildGuideModel(
+                ScheduleWindow(listOf(row(CH5, 5, program(60, 170, 1), program(170, 200, 2))), complete = true),
+                now,
+            )
+        val onto = wide.move(checkNotNull(wide.initialFocus(CH5, now)), GuideDirection.Right)
+        assertEquals(min(170), onto.cellStartMs)
+        // The viewport covers 60..150: the new cell is entirely outside, so it snaps to the 150 slot.
+        assertEquals(min(150), viewportStartFor(onto, wide, min(60), GuideDirection.Right))
+        // Partly visible: unchanged.
+        assertEquals(min(120), viewportStartFor(onto, wide, min(120), GuideDirection.Right))
+    }
+
+    @Test
+    fun downAcrossALongCellKeepsTheViewport() {
+        val long =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(
+                        row(CH5, 5, program(60, 180, 1), program(180, 270, 2)),
+                        row(CH7, 7, program(60, 300, 4)),
+                    ),
+                    complete = true,
+                ),
+                now,
+            )
+        val from = GuideFocus(CH5, min(180), min(180))
+        val down = long.move(from, GuideDirection.Down)
+        assertEquals(min(60), down.cellStartMs) // the 4 hour cell began at the origin
+        assertEquals(min(180), viewportStartFor(down, long, min(180), GuideDirection.Down))
+    }
+
+    @Test
+    fun upDownKeepsTimeColumnsSteady() {
+        val rows =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(
+                        row(CH5, 5, program(60, 130, 1), program(130, 250, 2)),
+                        row(CH7, 7, program(60, 240, 4)),
+                        row(CH9, 9, program(60, 100, 6), program(100, 150, 7), program(150, 260, 8)),
+                    ),
+                    complete = true,
+                ),
+                now,
+            )
+        var focus = GuideFocus(CH5, min(130), min(135))
+        repeat(2) {
+            focus = rows.move(focus, GuideDirection.Down)
+            assertEquals(min(120), viewportStartFor(focus, rows, min(120), GuideDirection.Down))
+        }
+        repeat(2) {
+            focus = rows.move(focus, GuideDirection.Up)
+            assertEquals(min(120), viewportStartFor(focus, rows, min(120), GuideDirection.Up))
+        }
+    }
+
+    @Test
+    fun upDownOntoACellOutsideTheViewportRevealsTheAnchor() {
+        val short =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(row(CH5, 5, program(60, 500, 1)), row(CH7, 7, program(60, 100, 4))),
+                    complete = true,
+                ),
+                now,
+            )
+        val down = short.move(GuideFocus(CH5, min(60), min(400)), GuideDirection.Down)
+        assertEquals(min(60), down.cellStartMs)
+        assertEquals(min(400), down.anchorMs)
+        // The short cell is far before the viewport; the anchor (400) is shown, in whole slots: 330..420.
+        assertEquals(min(330), viewportStartFor(down, short, min(180), GuideDirection.Down))
+    }
+
+    @Test
+    fun emptyModelHasNoFocus() {
+        val empty = buildGuideModel(ScheduleWindow(emptyList(), complete = true), now)
+        assertNull(empty.initialFocus(CH5, now))
+        val noCells = buildGuideModel(ScheduleWindow(listOf(row(CH5, 5)), complete = true), now)
+        assertNull(noCells.initialFocus(CH5, now))
+    }
+
+    @Test
+    fun currentChannelWithNoCellsFallsBackToFirstRowWithCells() {
+        val m =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(row(CH5, 5), row(CH7, 7, program(60, 100, 4)), row(CH9, 9, program(60, 90, 6))),
+                    complete = true,
+                ),
+                now,
+            )
+        assertEquals(CH7, m.initialFocus(CH5, now)?.channel)
+        assertEquals(CH9, m.initialFocus(CH9, now)?.channel)
+    }
+
+    @Test
+    fun upDownSkipsRowsWithNoCells() {
+        val m =
+            buildGuideModel(
+                ScheduleWindow(
+                    listOf(row(CH5, 5, program(60, 100, 1)), row(CH7, 7), row(CH9, 9, program(60, 90, 6))),
+                    complete = true,
+                ),
+                now,
+            )
+        val top = GuideFocus(CH5, min(60), min(60))
+        val down = m.move(top, GuideDirection.Down)
+        assertEquals(CH9, down.channel)
+        assertEquals(top, m.move(down, GuideDirection.Up))
+        // Nothing with cells beyond: the focus stays.
+        assertEquals(down, m.move(down, GuideDirection.Down))
     }
 
     @Test
@@ -177,5 +293,10 @@ class GuideFocusTest {
         assertEquals(4, firstVisibleRowFor(6, 4, 5, 20))
         assertEquals(0, firstVisibleRowFor(1, 0, 5, 3))
         assertEquals(15, firstVisibleRowFor(19, 15, 5, 20))
+    }
+
+    @Test
+    fun firstVisibleRowNeedsAtLeastOneVisibleRow() {
+        assertThrows(IllegalArgumentException::class.java) { firstVisibleRowFor(0, 0, 0, 5) }
     }
 }

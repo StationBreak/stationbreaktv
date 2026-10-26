@@ -32,24 +32,25 @@ private fun GuideModel.focusOn(
 ) = GuideFocus(row.channel, cell.startMs, maxOf(anchorMs, originMs))
 
 /**
- * Where the guide opens: the cell on air now on the [current] channel, or on the first row when that channel is not
- * in the model. An empty model gives a focus that names nothing.
+ * Where the guide opens: the cell on air now on the [current] channel's row, or, when that channel is not in the model
+ * or has no cells, on the first row that has cells. Null when no row has a cell, since there is nothing to focus.
  */
 fun GuideModel.initialFocus(
     current: ChannelId?,
     nowMs: Long,
-): GuideFocus {
-    val row = rows.firstOrNull { it.channel == current } ?: rows.firstOrNull()
+): GuideFocus? {
+    val row =
+        rows.firstOrNull { it.channel == current && it.cells.isNotEmpty() }
+            ?: rows.firstOrNull { it.cells.isNotEmpty() }
     val cells = row?.cells.orEmpty()
     val cell = cells.firstOrNull { it.startMs <= nowMs && nowMs < it.endMs } ?: cells.firstOrNull()
-    return if (row == null || cell == null) {
-        GuideFocus(current ?: ChannelId("none"), originMs, originMs)
-    } else {
-        focusOn(row, cell, cell.startMs)
-    }
+    return if (row == null || cell == null) null else focusOn(row, cell, cell.startMs)
 }
 
-/** One step of [direction] from [focus]; at an edge, or when the focused cell is gone, the focus stays. */
+/**
+ * One step of [direction] from [focus]; at an edge, or when the focused cell is gone, the focus stays. Up and Down skip
+ * rows that have no cells, and stay put when no row in that direction has any.
+ */
 fun GuideModel.move(
     focus: GuideFocus,
     direction: GuideDirection,
@@ -59,46 +60,75 @@ fun GuideModel.move(
     return when (direction) {
         GuideDirection.Left -> row.cells.getOrNull(cellIndex - 1)?.let { focusOn(row, it, it.startMs) } ?: focus
         GuideDirection.Right -> row.cells.getOrNull(cellIndex + 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        GuideDirection.Up -> moveVertically(focus, rowIndex - 1)
-        GuideDirection.Down -> moveVertically(focus, rowIndex + 1)
+        GuideDirection.Up -> moveVertically(focus, rowIndex - 1 downTo 0)
+        GuideDirection.Down -> moveVertically(focus, rowIndex + 1 until rows.size)
     }
 }
 
 private fun GuideModel.moveVertically(
     focus: GuideFocus,
-    targetIndex: Int,
+    candidates: IntProgression,
 ): GuideFocus {
-    val target = rows.getOrNull(targetIndex)
+    val target = candidates.map { rows[it] }.firstOrNull { it.cells.isNotEmpty() }
     val anchor = maxOf(focus.anchorMs, originMs)
+    val cells = target?.cells.orEmpty()
     val cell =
-        target?.cells?.let { cells ->
-            cells.firstOrNull { anchor >= it.startMs && anchor < it.endMs }
-                ?: cells.lastOrNull { it.startMs <= anchor }
-                ?: cells.lastOrNull()
-        }
+        cells.firstOrNull { anchor >= it.startMs && anchor < it.endMs }
+            ?: cells.lastOrNull { it.startMs <= anchor }
+            ?: cells.lastOrNull()
     return if (target == null || cell == null) focus else focusOn(target, cell, anchor)
 }
 
 /**
- * The start of the visible time range after focus moves: whole half-hour steps from the origin, just enough to keep
- * the focused cell's start inside `[viewport, viewport + span)`, and never before the origin.
+ * The start of the visible time range after focus moves in [direction], always a whole number of half hours from the
+ * origin and never before it. [viewportStartMs] is where the range starts now, [viewportSpan] how long it is.
+ *
+ * - Up and Down keep the time columns steady: the range stays put while the focused cell overlaps it (a long cell that
+ *   began before the range still counts). Only when the cell does not overlap is the range moved, by the fewest whole
+ *   slots that show the focus's anchor time.
+ * - Left and Right move the range only when the focused cell is entirely outside it, to the slot that holds the
+ *   cell's start.
  */
 fun viewportStartFor(
     focus: GuideFocus,
     model: GuideModel,
     viewportStartMs: Long,
-    viewportSpanMs: Duration = 90.minutes,
+    direction: GuideDirection,
+    viewportSpan: Duration = 90.minutes,
 ): Long {
     val origin = model.originMs
-    val span = viewportSpanMs.inWholeMilliseconds
-    val cellStart = maxOf(focus.cellStartMs, origin)
+    val span = viewportSpan.inWholeMilliseconds
     val start = maxOf(viewportStartMs, origin)
+    val cellStart = maxOf(focus.cellStartMs, origin)
+    val cell = model.indexOf(focus)?.let { (r, c) -> model.rows[r].cells[c] }
+    val cellEnd = maxOf(cell?.endMs ?: (cellStart + 1), cellStart + 1)
     return when {
-        cellStart < start -> origin + (cellStart - origin).floorDiv(SLOT_MS) * SLOT_MS
-        cellStart >= start + span -> start + ((cellStart - span - start).floorDiv(SLOT_MS) + 1) * SLOT_MS
-        else -> start
+        cellEnd > start && cellStart < start + span -> {
+            start
+        }
+
+        direction == GuideDirection.Left || direction == GuideDirection.Right -> {
+            origin + (cellStart - origin).floorDiv(SLOT_MS) * SLOT_MS
+        }
+
+        else -> {
+            revealing(maxOf(focus.anchorMs, origin), origin, start, span)
+        }
     }
 }
+
+/** The fewest whole slots from [origin] to move [start] so that [timeMs] falls inside `[start, start + span)`. */
+private fun revealing(
+    timeMs: Long,
+    origin: Long,
+    start: Long,
+    span: Long,
+): Long =
+    when {
+        timeMs < start -> origin + (timeMs - origin).floorDiv(SLOT_MS) * SLOT_MS
+        timeMs >= start + span -> start + ((timeMs - span - start).floorDiv(SLOT_MS) + 1) * SLOT_MS
+        else -> start
+    }
 
 /** The first row to show once [focusRow] is focused: it stays visible, scrolling a row at a time at the edges. */
 fun firstVisibleRowFor(
@@ -107,6 +137,7 @@ fun firstVisibleRowFor(
     visibleRows: Int,
     rowCount: Int,
 ): Int {
+    require(visibleRows > 0) { "At least one row must be visible" }
     val last = maxOf(0, rowCount - visibleRows)
     val first =
         when {
