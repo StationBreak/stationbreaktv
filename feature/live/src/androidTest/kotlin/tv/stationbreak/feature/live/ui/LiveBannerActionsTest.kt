@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.os.SystemClock
+import android.view.KeyEvent
+import android.view.KeyEvent.ACTION_DOWN
+import android.view.KeyEvent.ACTION_UP
+import android.view.KeyEvent.KEYCODE_DPAD_CENTER
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -156,6 +162,25 @@ class LiveBannerActionsTest {
     }
 
     @Test
+    fun aHeldSelectOpensTheActionsBannerAndNeverClicksInfo() {
+        showKeysRoot()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val downAt = SystemClock.uptimeMillis()
+        // A held key: the first down, auto-repeats with a rising count, then one release, through the real input path.
+        for (repeat in 0..2) {
+            val down = KeyEvent(downAt, downAt + repeat * REPEAT_MS, ACTION_DOWN, KEYCODE_DPAD_CENTER, repeat)
+            instrumentation.sendKeySync(down)
+            compose.waitForIdle()
+        }
+        val release = KeyEvent(downAt, downAt + 3 * REPEAT_MS, ACTION_UP, KEYCODE_DPAD_CENTER, 0)
+        instrumentation.sendKeySync(release)
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        // Neither a repeat nor the release reached the Info button the first down moved the focus to.
+        assertEquals(listOf<LiveCommand>(LiveCommand.ShowBanner), sent.toList())
+    }
+
+    @Test
     fun lastActionTunesPreviousChannel() {
         showKeysRoot()
         press(Key.DirectionCenter)
@@ -197,5 +222,6 @@ class LiveBannerActionsTest {
     private companion object {
         const val MINUTE = 60_000L
         const val START = 1_800_000_000_000L
+        const val REPEAT_MS = 50L
     }
 }

@@ -156,14 +156,25 @@ internal fun liveKeyCommand(
  * The keys whose press [handleLiveKey] consumed and whose release has not come yet. A press changes the screen before
  * its release arrives (Back closes the overlay, Select brings the actions banner and moves the focus to Info), so the
  * release cannot be judged by the state then: it is remembered per press. A release that reached a button instead
- * would click it, since tv-material buttons click on the release.
+ * would click it, since tv-material buttons click on the release. The same goes for the auto-repeat downs of a key
+ * held down: they are part of the press, not new ones.
  */
 internal class HeldKeys {
-    private val consumed = mutableSetOf<Key>()
+    private val consumed = mutableMapOf<Key, LiveCommand>()
 
     /**
-     * True for the release of a press that was consumed. Any event of [key] ends the hold, so a release lost earlier
-     * cannot outlive the next press and swallow its release.
+     * The command of the consumed press that [key]'s down repeats, or null when this is not such a repeat (a first
+     * down, a release, or a repeat of a press that was not consumed). The hold stays until the release.
+     */
+    fun repeatOf(
+        key: Key,
+        type: KeyEventType,
+        repeat: Int,
+    ): LiveCommand? = if (type == KeyEventType.KeyDown && repeat > 0) consumed[key] else null
+
+    /**
+     * True for the release of a press that was consumed. Any other event of [key] that is not a repeat ends the hold,
+     * so a release lost earlier cannot outlive the next press and swallow its release.
      */
     fun releases(
         key: Key,
@@ -174,32 +185,43 @@ internal class HeldKeys {
         return held
     }
 
-    /** Marks the press of [key] as consumed, so its release is consumed too. */
-    fun hold(key: Key) {
-        consumed += key
+    /** Marks the press of [key], which sent [command], as consumed, so its repeats and release are consumed too. */
+    fun hold(
+        key: Key,
+        command: LiveCommand,
+    ) {
+        consumed[key] = command
     }
 }
 
 /**
  * Sends the command of a mapped key and says whether the screen consumed [event]: a mapped key's down (which sends) and
  * its up (which does nothing, but nothing else should see a stray release). Everything else passes. Back is mapped only
- * while an overlay is up, Select only while none is; the release of a press that was consumed is consumed too, whatever
- * [up] says by then.
+ * while an overlay is up, Select only while none is; the auto-repeats and the release of a press that was consumed are
+ * consumed too, whatever [up] says by then. A repeat sends again only when the press flipped, so holding Up keeps
+ * flipping; a held Select, Info, Back or Menu acts once.
  */
 internal fun handleLiveKey(
     event: KeyEvent,
     up: OverlayUp = OverlayUp.None,
     held: HeldKeys = HeldKeys(),
     send: (LiveCommand) -> Unit,
-): Boolean = handleLiveKey(event.type, event.key, up, held, send)
+): Boolean = handleLiveKey(event.type, event.key, up, held, event.nativeKeyEvent.repeatCount, send)
 
+@Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
 internal fun handleLiveKey(
     type: KeyEventType,
     key: Key,
     up: OverlayUp,
     held: HeldKeys,
+    repeat: Int = 0,
     send: (LiveCommand) -> Unit,
 ): Boolean {
+    val repeated = held.repeatOf(key, type, repeat)
+    if (repeated != null) {
+        if (repeated is LiveCommand.Flip) send(repeated)
+        return true
+    }
     val release = held.releases(key, type)
     // Left and Right move the focus between the buttons, which is the viewer still at work: keep the banner up.
     val sideways = key == Key.DirectionLeft || key == Key.DirectionRight
@@ -207,7 +229,7 @@ internal fun handleLiveKey(
     val command = mappedCommand(key, up)
     if (command != null && type == KeyEventType.KeyDown) {
         send(command)
-        held.hold(key)
+        held.hold(key, command)
     }
     return release || (command != null && (type == KeyEventType.KeyDown || type == KeyEventType.KeyUp))
 }
