@@ -31,6 +31,21 @@ sealed interface GuideState {
 }
 
 /**
+ * What the grid draws, as one value: the [state] and the [focus] in it, replaced together so they always belong to the
+ * same moment. A [focus] that does not resolve with `indexOf` in the model of a [GuideState.Ready] [state] must be
+ * treated as no focus (it is null when the guide is not showing a grid, or no row has a cell).
+ */
+data class GuideSnapshot(
+    val state: GuideState,
+    val focus: GuideFocus?,
+) {
+    companion object {
+        /** The guide closed: nothing shown, nothing focused. */
+        val Closed = GuideSnapshot(GuideState.Closed, null)
+    }
+}
+
+/**
  * The panel under the grid: the focused [cell] and what the server says about its item. [loading] is true from the
  * focus landing until the details arrive; if they never do, [item] stays null and [loading] goes false.
  */

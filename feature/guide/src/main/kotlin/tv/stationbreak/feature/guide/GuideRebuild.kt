@@ -5,7 +5,7 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.minutes
 
 private val MINUTE_MS = 1.minutes.inWholeMilliseconds
-private val VIEWPORT_SPAN_MS = 90.minutes.inWholeMilliseconds
+private val VIEWPORT_SPAN_MS = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
 /**
  * Where focus goes when this model replaces the one [old] was in. The focus itself if its cell is still there; else

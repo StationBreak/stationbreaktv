@@ -5,6 +5,9 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
+/** How much time the grid shows at once: the one span that scrolling and the clock tick both go by. */
+val GUIDE_VIEWPORT_SPAN: Duration = 90.minutes
+
 enum class GuideDirection { Up, Down, Left, Right }
 
 /**
@@ -95,7 +98,7 @@ fun viewportStartFor(
     model: GuideModel,
     viewportStartMs: Long,
     direction: GuideDirection,
-    viewportSpan: Duration = 90.minutes,
+    viewportSpan: Duration = GUIDE_VIEWPORT_SPAN,
 ): Long {
     val origin = model.originMs
     val span = viewportSpan.inWholeMilliseconds

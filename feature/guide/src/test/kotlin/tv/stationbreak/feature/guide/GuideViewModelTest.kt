@@ -57,6 +57,9 @@ private class HookedSchedule(
     var calls = 0
     var onSchedule: (call: Int) -> Unit = {}
 
+    /** When set, an `AsNeeded` read waits for it (a slow build). */
+    var asNeededGate: CompletableDeferred<Unit>? = null
+
     override suspend fun schedule(
         from: Instant,
         until: Instant,
@@ -64,6 +67,7 @@ private class HookedSchedule(
     ): ScheduleWindow? {
         calls++
         onSchedule(calls)
+        if (build == ScheduleBuild.AsNeeded) asNeededGate?.await()
         return inner.schedule(from, until, build)
     }
 }
@@ -137,9 +141,9 @@ class GuideViewModelTest {
 
     private fun min(m: Long) = T0 + m * MIN
 
-    private fun GuideViewModel.ready() = state.value as GuideState.Ready
+    private fun GuideViewModel.ready() = snapshot.value.state as GuideState.Ready
 
-    private fun GuideViewModel.focused() = checkNotNull(focus.value)
+    private fun GuideViewModel.focused() = checkNotNull(snapshot.value.focus)
 
     @Test
     fun opensWithCachedDaysThenFillsIn() =
@@ -185,8 +189,8 @@ class GuideViewModelTest {
             fake.signedOut = true
             vm.open(CH7)
             runCurrent()
-            assertEquals(GuideState.Empty, vm.state.value)
-            assertNull(vm.focus.value)
+            assertEquals(GuideState.Empty, vm.snapshot.value.state)
+            assertNull(vm.snapshot.value.focus)
         }
 
     @Test
@@ -322,7 +326,7 @@ class GuideViewModelTest {
                     .all { it.endMs > min(90) },
             )
             // The focused cell (60 to 90) ended: focus is on the cell now holding the anchor, in the same row.
-            assertEquals(GuideFocus(CH7, min(90), min(90)), vm.focus.value)
+            assertEquals(GuideFocus(CH7, min(90), min(90)), vm.snapshot.value.focus)
         }
 
     @Test
@@ -337,7 +341,7 @@ class GuideViewModelTest {
         }
 
     @Test
-    fun tickKeepsOriginWhenScrolledRight() =
+    fun tickKeepsViewportWhenScrolledRight() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
@@ -366,7 +370,7 @@ class GuideViewModelTest {
             after(MIN)
 
             // No cell starts at 90 now; the one holding the anchor (90) is the one that began at 0.
-            assertEquals(GuideFocus(CH7, min(0), min(90)), vm.focus.value)
+            assertEquals(GuideFocus(CH7, min(0), min(90)), vm.snapshot.value.focus)
             assertTrue(vm.ready().model.indexOf(vm.focused()) != null)
         }
 
@@ -452,8 +456,8 @@ class GuideViewModelTest {
 
             after(2 * HOUR)
 
-            assertEquals(GuideState.Closed, vm.state.value)
-            assertNull(vm.focus.value)
+            assertEquals(GuideState.Closed, vm.snapshot.value.state)
+            assertNull(vm.snapshot.value.focus)
             assertNull(vm.panel.value)
             assertEquals(0, server.itemDetailsCalls.size)
             assertEquals(calls, fake.scheduleCalls.size)
@@ -502,45 +506,115 @@ class GuideViewModelTest {
             assertEquals(0, vm.ready().firstVisibleRow)
         }
 
+    // The focus resolves in the model it is read with, or there is no grid (or no cell) for it to be in.
+    private fun consistencyProblem(snap: GuideSnapshot): String? {
+        val ready = snap.state as? GuideState.Ready
+        val focus = snap.focus
+        val hasCells = ready != null && ready.model.rows.any { it.cells.isNotEmpty() }
+        return when {
+            focus == null -> if (hasCells) "no focus on a grid with cells" else null
+            ready == null -> "focus $focus beside ${snap.state}"
+            ready.model.indexOf(focus) == null -> "focus $focus not in the model"
+            else -> null
+        }
+    }
+
+    private fun TestScope.runThroughFillInAndLineupChange(
+        vm: GuideViewModel,
+        look: () -> Unit,
+    ) {
+        lineup(untilMin = 300)
+        fake.cachedUntilMs = min(180)
+        vm.open(CH7)
+        runCurrent()
+        look()
+        vm.move(GuideDirection.Right)
+        // A lineup change that drops the focused cell, and cells ending under the focus.
+        schedule.onSchedule = { fake.channels.getValue(CH7).blocks = splitAround90(300) }
+        repeat(400) {
+            after(MIN / 2)
+            look()
+            if (it % 40 == 0) vm.move(GuideDirection.Right)
+        }
+        assertTrue("the window was replaced during the run", fake.scheduleCalls.size >= 3)
+    }
+
     @Test
     fun tickNeverPublishesFocusOutsideTheModel() =
         guideTest { vm ->
-            lineup(untilMin = 300)
-            fake.cachedUntilMs = min(180)
-            var state: GuideState = GuideState.Closed
-            var focus: GuideFocus? = null
-            val violations = mutableListOf<String>()
-
-            fun check(what: String) {
-                val f = focus ?: return
-                val model = (state as? GuideState.Ready)?.model
-                if (model == null || model.indexOf(f) == null) violations += "$what: $f not in the model"
-            }
+            val problems = mutableListOf<String>()
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-                vm.state.collect {
-                    state = it
-                    check("state")
-                }
+                vm.snapshot.collect { snap -> consistencyProblem(snap)?.let { problems += it } }
             }
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-                vm.focus.collect {
-                    focus = it
-                    check("focus")
-                }
-            }
+            runThroughFillInAndLineupChange(vm) {}
+            assertEquals(emptyList<String>(), problems)
+        }
 
+    @Test
+    fun conflatingObserverNeverSeesAMismatchedPair() =
+        guideTest { vm ->
+            // Reads only the latest snapshot, at arbitrary points, like a frame that skipped the ones in between.
+            val problems = mutableListOf<String>()
+            runThroughFillInAndLineupChange(vm) { consistencyProblem(vm.snapshot.value)?.let { problems += it } }
+            assertEquals(emptyList<String>(), problems)
+        }
+
+    @Test
+    fun cachedRowsOpenStraightToReady() =
+        guideTest { vm ->
+            val states = mutableListOf<GuideState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.toList(states) }
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
-            // Across the fill-in, a lineup change that drops the focused cell, and cells ending under the focus.
-            schedule.onSchedule = { fake.channels.getValue(CH7).blocks = splitAround90(300) }
-            repeat(200) {
-                after(MIN)
-                if (it % 20 == 0) vm.move(GuideDirection.Right)
-            }
-            vm.close()
+            assertEquals(listOf("Closed", "Ready"), states.map { it::class.simpleName })
+        }
 
-            assertEquals(emptyList<String>(), violations)
-            assertTrue("the window was replaced during the run", fake.scheduleCalls.size >= 3)
+    @Test
+    fun extensionDuringFillInNeverShrinksTheWindow() =
+        guideTest { vm ->
+            // The window ends at 2 h 30 min, so ticks want an extension, but the fill-in is still running.
+            lineup(untilMin = 120)
+            val gate = CompletableDeferred<Unit>()
+            schedule.asNeededGate = gate
+            val ends = mutableListOf<Long>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.state.collect { (it as? GuideState.Ready)?.let { ready -> ends += ready.model.endMs } }
+            }
+            vm.open(CH7)
+            runCurrent()
+            after(3 * MIN)
+            assertEquals(1, fake.scheduleCalls.size)
+
+            // Anything that reads later is shorter than the grid: it must not replace it.
+            schedule.onSchedule = { call ->
+                if (call == 3) fake.channels.values.forEach { e -> e.blocks = e.blocks.filter { it.endMs <= min(120) } }
+            }
+            gate.complete(Unit)
+            runCurrent()
+            after(MIN)
+
+            assertEquals(
+                listOf(ScheduleBuild.CachedOnly, ScheduleBuild.AsNeeded, ScheduleBuild.CachedOnly),
+                fake.scheduleCalls.map { it.third },
+            )
+            assertEquals(ends.sorted(), ends)
+            assertEquals(min(150), vm.ready().model.endMs)
+        }
+
+    @Test
+    fun staleTuneDoesNotSurviveReopen() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            vm.select()
+            vm.open(CH5)
+            runCurrent()
+            val events = mutableListOf<GuideEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
+            runCurrent()
+            assertEquals(emptyList<GuideEvent>(), events)
+
+            vm.select()
+            assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH5)), events)
         }
 }
