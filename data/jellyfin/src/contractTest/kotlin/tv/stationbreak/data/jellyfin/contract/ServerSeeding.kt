@@ -52,6 +52,11 @@ internal object ServerSeeding {
     val SERIES_GENRES = listOf("Contract Drama", "Contract Mystery")
     val SERIES_TAGS = listOf("contract slow burn")
     const val SERIES_RATING = "TV-14"
+
+    /** The metadata every seeded movie is given (spec 17, item details). Synthetic. */
+    const val MOVIE_OVERVIEW = "A contract-test lighthouse keeper charts a very quiet sea."
+    const val MOVIE_YEAR = 2002
+    val MOVIE_GENRES = listOf("Contract Adventure", "Contract Comedy")
     private const val BOX_SET_NAME = "Contract Box"
     private const val BOX_SET_MEMBERS = 2
     private val SCAN_TIMEOUT: Duration = Duration.ofMinutes(4)
@@ -74,6 +79,7 @@ internal object ServerSeeding {
         enableGroupingIntoCollections(http, token)
         val (movies, episodes) = waitForScan(http, token, libraries.getValue("movies"))
         val premieres = seedPremiereDates(http, token, episodes)
+        seedMovieMetadata(http, token, movies)
         val seriesId = seedSeriesMetadata(http, token, libraries.getValue("tv"))
         val boxSetMembers = movies.take(BOX_SET_MEMBERS)
         val looseEpisode = findLooseEpisode(http, token)
@@ -233,6 +239,28 @@ internal object ServerSeeding {
             )
         http.expectOk("set series metadata", http.post("Items/$id", edited.toString(), token))
         return id
+    }
+
+    /** Gives each movie an overview, a year and genres (spec 17), which the item-details contract reads back. */
+    private fun seedMovieMetadata(
+        http: Harness,
+        token: String,
+        movies: List<String>,
+    ) {
+        val adminId = adminId(http, token)
+        for (id in movies) {
+            val dto = http.expectOk("read movie", http.get("Users/$adminId/Items/$id", token)).obj()
+            val edited =
+                JsonObject(
+                    dto +
+                        mapOf(
+                            "Overview" to JsonPrimitive(MOVIE_OVERVIEW),
+                            "ProductionYear" to JsonPrimitive(MOVIE_YEAR),
+                            "Genres" to JsonArray(MOVIE_GENRES.map(::JsonPrimitive)),
+                        ),
+                )
+            http.expectOk("set movie metadata", http.post("Items/$id", edited.toString(), token))
+        }
     }
 
     /** The episode whose file is in the series folder, not under `Season 01`. */
