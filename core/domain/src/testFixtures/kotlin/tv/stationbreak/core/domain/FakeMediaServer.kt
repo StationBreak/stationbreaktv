@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asFlow
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.CollectionMemberPage
 import tv.stationbreak.core.model.CollectionPage
+import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
@@ -62,6 +63,12 @@ class FakeMediaServer : MediaServer {
 
     /** What [userData] answers. */
     var userDataResult: ServerResult<UserItemState> = ServerResult.Success(UserItemState(Duration.ZERO, false))
+
+    /** What [itemDetails] answers; null answers a plain success carrying the asked-for ID. */
+    var itemDetailsResult: ServerResult<ItemDetails>? = null
+
+    /** When set, [itemDetails] records the call and then waits for it, to hold a request open. */
+    var itemDetailsGate: CompletableDeferred<Unit>? = null
     var markPlayedResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
@@ -112,6 +119,9 @@ class FakeMediaServer : MediaServer {
     /** The `failed` flag of each [reportStopped] call, in order. */
     val stoppedFailed = mutableListOf<Boolean>()
     val userDataCalls = mutableListOf<ItemId>()
+
+    /** Every [itemDetails] call's item, in order. */
+    val itemDetailsCalls = mutableListOf<ItemId>()
     val markPlayedCalls = mutableListOf<ItemId>()
     val quickConnectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
 
@@ -302,6 +312,16 @@ class FakeMediaServer : MediaServer {
     ): ServerResult<UserItemState> {
         userDataCalls += itemId
         return userDataResult
+    }
+
+    override suspend fun itemDetails(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<ItemDetails> {
+        itemDetailsCalls += itemId
+        itemDetailsGate?.await()
+        return itemDetailsResult
+            ?: ServerResult.Success(ItemDetails(itemId, "About it.", 2001, listOf("Drama"), null))
     }
 
     override suspend fun markPlayed(

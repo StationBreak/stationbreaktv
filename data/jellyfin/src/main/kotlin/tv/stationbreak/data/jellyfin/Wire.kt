@@ -124,6 +124,15 @@ internal class ItemDto(
     @SerialName("IndexNumber") val episodeNumber: Int? = null,
 )
 
+/** The fields the details call reads; nothing else can fail it. */
+@Serializable
+internal class ItemDetailsDto(
+    @SerialName("Overview") val overview: String? = null,
+    @SerialName("ProductionYear") val productionYear: Int? = null,
+    @SerialName("Genres") val genres: List<String>? = null,
+    @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
+)
+
 /** A page of series: only what `SeriesInfo` holds is read, so no other field can fail the page. */
 @Serializable
 internal class SeriesItemsDto(
