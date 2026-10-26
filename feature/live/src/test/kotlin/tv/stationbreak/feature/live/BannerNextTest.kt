@@ -13,6 +13,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import kotlin.time.Duration.Companion.milliseconds
@@ -94,4 +95,64 @@ class BannerNextTest {
             assertEquals(before, f.r.state)
             assertNull(f.r.live.info.value)
         }
+
+    /** Program 5, then four slates (more than the blocks read with the tune), then program 7. */
+    private fun Rig.slatesThenSeven() {
+        schedule.channel(
+            CH5,
+            5,
+            listOf(
+                program(0, 30, 5),
+                slate(30, 60),
+                slate(60, 90),
+                slate(90, 120),
+                slate(120, 150),
+                program(150, 180, 7),
+            ),
+        )
+    }
+
+    @Test
+    fun nextFallsBackToAWiderScanWhenTheReadBlocksAreAllSlates() =
+        runTest {
+            val f = flipping { slatesThenSeven() }
+            val banner = checkNotNull(f.watching().banner)
+            assertEquals(NextProgram("Test Movie 7", T0 + 150 * MIN), banner.next)
+        }
+
+    @Test
+    fun widerNextScanDoesNotDelayTheTune() =
+        runTest {
+            val usual = mutableListOf<Int>()
+            flipping { schedule.onAirObserver = { usual += it } }
+            val events = mutableListOf<String>()
+            val asked = mutableListOf<Int>()
+            val f =
+                flipping {
+                    slatesThenSeven()
+                    schedule.onAirObserver = {
+                        asked += it
+                        if (it == WIDE) events += "wide"
+                    }
+                    tune.script(itemOf(5), {
+                        events += "tune"
+                        FakeTune.plays()
+                    })
+                }
+            // The tune comes first, and the picture shows its banner without the line, which fills in after.
+            assertEquals(listOf("tune", "wide"), events)
+            val shown =
+                f.r.seen
+                    .filterIsInstance<LiveState.Watching>()
+                    .mapNotNull { it.banner }
+            assertNull(shown.first().next)
+            assertEquals("Test Movie 7", shown.last().next?.title)
+            // The reads on the tune path are the usual ones; the wide scan is one more, after the picture.
+            assertEquals(usual.filter { it != WIDE }, asked.filter { it != WIDE })
+            assertEquals(1, asked.count { it == WIDE })
+        }
+
+    private companion object {
+        const val WIDE = 48
+    }
 }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -38,7 +41,7 @@ internal fun bannerFor(
 }
 
 /** [block] as the banner's "Next" line, titled as [bannerFor] titles it; null for a block with no name to show. */
-private fun nextOf(
+internal fun nextOf(
     block: AiringBlock,
     driftMs: Long,
 ): NextProgram? {
@@ -73,8 +76,13 @@ private const val UP_NEXT_WINDOW = 48
  * already holds are all slates. It looks no further than the end of the next day ([ChannelOnAir.builtUntilMs]); null
  * if no program starts before that (the card then shows the channel only).
  */
-internal suspend fun Sitting.upNext(onAir: ChannelOnAir): Banner? {
+internal suspend fun Sitting.upNext(onAir: ChannelOnAir): Banner? =
+    upNextBlock(onAir)?.let { bannerFor(onAir.channel, it, BannerLabel.UpNext, null, driftMs) }
+
+/** The block [upNext] names: the first program after [onAir]'s, within [UP_NEXT_WINDOW] blocks; null if none. */
+internal suspend fun Sitting.upNextBlock(onAir: ChannelOnAir): AiringBlock? {
     val near = onAir.next.firstProgramBefore(onAir.builtUntilMs)
+    if (near == null) widenedNext?.takeIf { it.first == onAir.now.startMs }?.let { return it.second }
     val reached = (onAir.next.lastOrNull() ?: onAir.now).endMs
     val wider =
         if (near == null && onAir.next.size < UP_NEXT_WINDOW && reached < onAir.builtUntilMs) {
@@ -83,7 +91,8 @@ internal suspend fun Sitting.upNext(onAir: ChannelOnAir): Banner? {
         } else {
             null
         }
-    return (near ?: wider)?.let { bannerFor(onAir.channel, it, BannerLabel.UpNext, null, driftMs) }
+    if (near == null && wider != null) widenedNext = onAir.now.startMs to wider
+    return near ?: wider
 }
 
 /**
@@ -97,3 +106,28 @@ private fun List<AiringBlock>.firstProgramBefore(limitMs: Long): AiringBlock? =
 
 /** What a card without an "up next" says: the channel's number and name. */
 internal fun ChannelOnAir.tag() = ChannelTag(channel.number, channel.name)
+
+/**
+ * The wider look for the banner's "Next" ([upNextBlock]), made once the picture is up. It fills the line in only if
+ * [playing] is still what is on, so a result that arrives after a tune, a cut or a flip is dropped. A failed read
+ * leaves the line out.
+ */
+internal fun Sitting.widenNext(
+    scope: CoroutineScope,
+    onAir: ChannelOnAir,
+    playing: Playing,
+) {
+    scope.launch {
+        val block =
+            try {
+                upNextBlock(onAir)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                null
+            }
+        block?.let { nextOf(it, driftMs) }?.let { state.widenNext(playing, it) }
+    }
+}

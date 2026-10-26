@@ -72,6 +72,7 @@ internal fun LiveRoot(
     LaunchedEffect(focus, owner) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
     }
+    val held = remember { HeldKeys() }
     val up = OverlayUp(actions = (state as? LiveState.Watching)?.banner?.actions == true, info = info != null)
     // The actions banner's buttons held the focus; when it goes the root takes it back, or no key would arrive.
     LaunchedEffect(focus, up.actions) { if (!up.actions) focus.requestFocus() }
@@ -80,7 +81,7 @@ internal fun LiveRoot(
             .fillMaxSize()
             .focusRequester(focus)
             .onPreviewKeyEvent { event ->
-                handleLiveKey(event, up, onCommand).also { logLiveKey(event, it, state, up) }
+                handleLiveKey(event, up, held, onCommand).also { logLiveKey(event, it, state, up) }
             }.focusable(),
     ) {
         LiveScreen(state, info, onCommand) { AndroidView(factory = { surface }) }
@@ -136,20 +137,43 @@ internal fun liveKeyCommand(
 }
 
 /**
+ * Whether a Back press that [handleLiveKey] consumed is still waiting for its release. The overlay a Back closes is
+ * gone by the time the release arrives, so the release cannot be judged by the state then: it is remembered per press.
+ */
+internal class HeldKeys {
+    var backConsumed = false
+}
+
+/**
  * Sends the command of a mapped key and says whether the screen consumed [event]: a mapped key's down (which sends) and
- * its up (which does nothing, but nothing else should see a stray release). Everything else, Back included, passes.
+ * its up (which does nothing, but nothing else should see a stray release). Everything else passes. Back is mapped only
+ * while an overlay is up; the release of a Back that was consumed is consumed too, whatever [up] says by then.
  */
 internal fun handleLiveKey(
     event: KeyEvent,
     up: OverlayUp = OverlayUp.None,
+    held: HeldKeys = HeldKeys(),
+    send: (LiveCommand) -> Unit,
+): Boolean = handleLiveKey(event.type, event.key, up, held, send)
+
+internal fun handleLiveKey(
+    type: KeyEventType,
+    key: Key,
+    up: OverlayUp,
+    held: HeldKeys,
     send: (LiveCommand) -> Unit,
 ): Boolean {
+    val release = key == Key.Back && type == KeyEventType.KeyUp && held.backConsumed
+    if (release) held.backConsumed = false
     // Left and Right move the focus between the buttons, which is the viewer still at work: keep the banner up.
-    val sideways = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
-    if (up.actions && sideways && event.type == KeyEventType.KeyDown) send(LiveCommand.ShowBanner)
-    val command = mappedCommand(event.key, up) ?: return false
-    if (event.type == KeyEventType.KeyDown) send(command)
-    return event.type == KeyEventType.KeyDown || event.type == KeyEventType.KeyUp
+    val sideways = key == Key.DirectionLeft || key == Key.DirectionRight
+    if (up.actions && sideways && type == KeyEventType.KeyDown) send(LiveCommand.ShowBanner)
+    val command = mappedCommand(key, up)
+    if (command != null && type == KeyEventType.KeyDown) {
+        send(command)
+        if (key == Key.Back) held.backConsumed = true
+    }
+    return release || (command != null && (type == KeyEventType.KeyDown || type == KeyEventType.KeyUp))
 }
 
 private const val LOG_TAG = "SBLIVE"

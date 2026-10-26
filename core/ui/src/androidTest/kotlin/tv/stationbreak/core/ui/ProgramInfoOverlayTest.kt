@@ -2,11 +2,16 @@
 package tv.stationbreak.core.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -92,5 +97,17 @@ class ProgramInfoOverlayTest {
     fun aLongOverviewStillLeavesRoomForTheCloseHint() {
         show(overview = "A test overview. ".repeat(40), year = 1999, genres = listOf("Drama"), runtimeMinutes = 45)
         tag(ProgramInfoTags.CLOSE_HINT).assertIsDisplayed()
+    }
+
+    @Test
+    fun theWholePanelIsOneNodeForAScreenReader() {
+        show(overview = "A test overview.")
+        // In the merged tree (the default) the title and the slot are read from the same node.
+        val title = compose.onNodeWithText("Test Show").fetchSemanticsNode()
+        val slot = compose.onNodeWithText("8:00 – 8:30 PM").fetchSemanticsNode()
+        assertEquals(title.id, slot.id)
+        val texts = title.config[SemanticsProperties.Text].map { it.text }
+        assertTrue(texts.toString(), "Test Show" in texts && "8:00 – 8:30 PM" in texts)
+        compose.onAllNodesWithText("A test overview.").assertCountEquals(1)
     }
 }

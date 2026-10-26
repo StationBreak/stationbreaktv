@@ -10,6 +10,8 @@ import tv.stationbreak.core.model.CanonicalId
 internal class Playing(
     val banner: Banner,
     val itemId: CanonicalId?,
+    /** Names this showing of the program: it survives [Screen.widenNext], and a new tune makes a new one. */
+    val token: Any = Any(),
 )
 
 /**
@@ -66,6 +68,36 @@ internal class Screen(
     ) = synchronized(this) {
         value = next
         playing = what
+    }
+
+    /** Hides the plain tune banner of the showing [token] (the linger ran out). */
+    fun hideBanner(token: Any) =
+        synchronized(this) {
+            val now = shown
+            if (playing?.token === token && now is LiveState.Watching && now.banner?.actions == false) {
+                value = LiveState.Watching(null)
+            }
+        }
+
+    /**
+     * Fills in the "Next" of what [expect] showed, if it is still what is on (else the answer is dropped). The plain
+     * tune banner changes in place; the actions banner keeps its own state, which its timer holds, and gets the line
+     * the next time it is opened.
+     */
+    fun widenNext(
+        expect: Playing,
+        next: NextProgram,
+    ) = synchronized(this) {
+        val now = playing
+        if (now?.token === expect.token) {
+            playing = Playing(now.banner.copy(next = next), now.itemId, now.token)
+            val state = shown
+            val banner = (state as? LiveState.Watching)?.banner
+            if (banner != null && !banner.actions) {
+                shown = LiveState.Watching(banner.copy(next = next))
+                if (choosing == null) out.value = shown
+            }
+        }
     }
 
     /** An overlay's write over the playing picture: published like [value], but the info overlay stays. */

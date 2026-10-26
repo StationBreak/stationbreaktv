@@ -87,6 +87,9 @@ internal class Sitting(
     private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
 
+    /** The wide look for the banner's "Next", kept for the block it was made in: the ident card reuses it. */
+    internal var widenedNext: Pair<Long, AiringBlock>? = null
+
     /** When the last play was cut off at a boundary (or an ident card ended): the start of the next tune's gap. */
     private var cutFrom: Instant? = null
 
@@ -187,8 +190,9 @@ internal class Sitting(
                 }
             val asked = if (use is Pending.AtBoundary) use.start else position
             // Only a cut at a block boundary has no snow: a flip shows it on every route (one decode at a time).
+            val snow = use !is Pending.AtBoundary
             val outcome =
-                tuneAndShow(scope, banner, snow = use !is Pending.AtBoundary, what = TuneWhat(kind, block, asked)) {
+                tuneAndShow(scope, banner, snow = snow, what = TuneWhat(kind, block, asked), onAir = onAir) {
                     use?.consumed = true
                     when (use) {
                         is Pending.AtBoundary -> tuner.tune(session, use.handle)
@@ -244,6 +248,7 @@ internal class Sitting(
         banner: Banner,
         snow: Boolean,
         what: TuneWhat,
+        onAir: ChannelOnAir? = null,
         tune: suspend () -> TuneOutcome,
     ): TuneOutcome {
         if (snow) state.value = LiveState.Tuning(banner)
@@ -265,7 +270,10 @@ internal class Sitting(
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
-            showWatching(scope, banner, what.block.airing.itemId())
+            val playing = showWatching(scope, banner, what.block.airing.itemId())
+            // The banner's "Next" came from the blocks already read; with no program among them, look wider, now that
+            // the picture is up and the tune no longer waits for it.
+            if (onAir != null && playing.banner.next == null) widenNext(scope, onAir, playing)
             onSettled(scope)
         }
         return outcome
@@ -275,18 +283,19 @@ internal class Sitting(
         scope: CoroutineScope,
         banner: Banner,
         itemId: CanonicalId?,
-    ) {
+    ): Playing {
         lingering?.cancel()
         // Once the picture plays, "Tuning in" becomes "Now" (R22); the joining line stays. Filling in stays as it is.
         val label = if (banner.label == BannerLabel.TuningIn) BannerLabel.Now else banner.label
-        val playing = banner.copy(label = label)
-        val shown = LiveState.Watching(playing)
-        state.watching(shown, Playing(playing, itemId))
+        val shown = banner.copy(label = label)
+        val playing = Playing(shown, itemId)
+        state.watching(LiveState.Watching(shown), playing)
         lingering =
             scope.launch {
                 delay(timings.bannerLinger)
-                state.compareAndSet(shown, LiveState.Watching(null))
+                state.hideBanner(playing.token)
             }
+        return playing
     }
 
     /**
