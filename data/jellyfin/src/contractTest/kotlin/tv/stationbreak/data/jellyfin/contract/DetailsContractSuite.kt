@@ -2,12 +2,14 @@
 package tv.stationbreak.data.jellyfin.contract
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import tv.stationbreak.core.domain.DeviceIdProvider
+import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
@@ -24,11 +26,12 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Spec 17: the item-details call (`GET Items/{id}?userId=..&fields=Overview,Genres`) returns the overview, year, genres
- * and runtime on the real server, through the adapter's own `itemDetails()`. The movies carry the metadata
- * [ServerSeeding] gives them. Failure messages name the step only: a body or a URL may carry a token.
+ * Spec 17: the item-details call (`GET Items/{id}?userId=<signed-in user>&fields=Overview,Genres`) returns the
+ * overview, year, genres and runtime on the real server, through the adapter's own `itemDetails()`. The movies carry
+ * the metadata [ServerSeeding] gives them. Failure messages name the step only: a body or a URL may carry a token.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class DetailsContractSuite {
@@ -66,6 +69,22 @@ abstract class DetailsContractSuite {
         return adapter to result.value
     }
 
+    /** `RunTimeTicks` of [itemId] as the server holds it, read by the harness's own admin device. */
+    private fun rawRunTimeTicks(itemId: String): Long {
+        val token = server.http.signIn(server.admin.name, server.admin.rawPassword())
+        val adminId =
+            server.http
+                .get("Users/Me", token)
+                .obj()
+                .getValue("Id")
+                .jsonPrimitive.content
+        val raw = server.http.expectOk("read item", server.http.get("Users/$adminId/Items/$itemId", token)).obj()
+        return raw
+            .getValue("RunTimeTicks")
+            .jsonPrimitive.content
+            .toLong()
+    }
+
     @Test
     fun itemDetailsReturnsTheSeededMetadata() {
         runBlocking {
@@ -82,6 +101,9 @@ abstract class DetailsContractSuite {
             assertEquals(ServerSeeding.MOVIE_GENRES, details.genres)
             val runtime = assertNotNull(details.runtime, "the default response carries no RunTimeTicks")
             assertTrue(runtime > Duration.ZERO, "the runtime should be positive")
+            // The server's own figure, read raw with the harness's device: the adapter converts ticks to milliseconds.
+            val ticks = rawRunTimeTicks(item.value)
+            assertEquals((ticks / TICKS_PER_MS).milliseconds, runtime, "runtime against the raw RunTimeTicks")
         }
     }
 
@@ -93,12 +115,14 @@ abstract class DetailsContractSuite {
             val result = adapter.itemDetails(session, ItemId(UNKNOWN_ITEM))
 
             assertIs<ServerResult.Failure>(result, "an unknown item should be a failure")
+            assertIs<MediaServerError.NotFound>(result.error, "an unknown item should read as not found")
         }
     }
 
     private companion object {
         /** A well-formed item ID no server has. */
         const val UNKNOWN_ITEM = "0badc0de0badc0de0badc0de0badc0de"
+        const val TICKS_PER_MS = 10_000L
     }
 }
 
