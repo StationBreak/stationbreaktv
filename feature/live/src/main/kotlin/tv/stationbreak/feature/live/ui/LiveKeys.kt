@@ -110,10 +110,12 @@ internal fun liveKeyCommand(
  * focus to Info), so the release cannot be judged by the state then: it is remembered per press. A release that
  * reached a button instead would click it, since tv-material buttons click on the release, and a Back release that
  * reached the activity would leave live TV. The same goes for the auto-repeat downs of a key held down: they are part
- * of the press, not new ones.
+ * of the press, not new ones. It also keeps the presses whose first down passed through untaken, so their repeats keep
+ * going where that down went; a repeat of a press whose first down never came here at all is no press of live TV's.
  */
 internal class HeldKeys {
     private val consumed = mutableMapOf<Key, KeyAction>()
+    private val passed = mutableSetOf<Key>()
 
     /**
      * What the consumed press that [key]'s down repeats did, or null when this is not such a repeat (a first down, a
@@ -125,6 +127,9 @@ internal class HeldKeys {
         repeat: Int,
     ): KeyAction? = if (type == KeyEventType.KeyDown && repeat > 0) consumed[key] else null
 
+    /** True when [key]'s press, now being held, began with a first down that came here and passed through. */
+    fun passedThrough(key: Key): Boolean = key in passed
+
     /**
      * True for the release of a press that was consumed. Any other event of [key] that is not a repeat ends the hold,
      * so a release lost earlier cannot outlive the next press and swallow its release.
@@ -135,7 +140,13 @@ internal class HeldKeys {
     ): Boolean {
         val held = type == KeyEventType.KeyUp && key in consumed
         consumed -= key
+        passed -= key
         return held
+    }
+
+    /** Marks the first down of [key] as seen and left to whatever has the focus. */
+    fun pass(key: Key) {
+        passed += key
     }
 
     /** Marks the press of [key], which did [action], as consumed, so its repeats and release are consumed too. */
@@ -154,7 +165,8 @@ internal class HeldKeys {
  * Select only while no overlay is. The auto-repeats and the release of a press that was consumed are consumed too,
  * whatever [up] says by then. A repeat sends again only when the press flipped, so holding Up keeps flipping; a held
  * Select, Info, Back, Guide or Menu acts once, so a held Back never runs on from the info to the banner to the guide
- * and out of live TV.
+ * and out of live TV. A repeat never starts anything: one of a press that passed through passes too, and one of a
+ * press whose first down never came here (a long OK the guide took and closed on) is consumed, doing nothing.
  */
 internal fun handleLiveKey(
     event: KeyEvent,
@@ -179,6 +191,7 @@ internal fun handleLiveKey(
         if (repeated is KeyAction.Send && repeated.command is LiveCommand.Flip) send(repeated.command)
         return true
     }
+    if (type == KeyEventType.KeyDown && repeat > 0) return !held.passedThrough(key)
     val release = held.releases(key, type)
     if (type == KeyEventType.KeyDown && movesBetweenButtons(key, up)) send(LiveCommand.ShowBanner)
     val action = keyAction(key, up)
@@ -188,6 +201,8 @@ internal fun handleLiveKey(
             is KeyAction.Guide -> guide(action.open)
         }
         held.hold(key, action)
+    } else if (type == KeyEventType.KeyDown) {
+        held.pass(key)
     }
     return release || (action != null && (type == KeyEventType.KeyDown || type == KeyEventType.KeyUp))
 }

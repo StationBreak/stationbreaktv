@@ -111,4 +111,34 @@ class HeldKeyRepeatTest {
         assertFalse(release(Key.DirectionCenter, actions))
         assertEquals(listOf<LiveCommand>(LiveCommand.ShowBanner), sent)
     }
+
+    @Test
+    fun aSelectRepeatStreamWithNoFirstDownSendsNothing() {
+        // A long OK that began somewhere else (the guide took its press and closed): only its repeats reach live TV.
+        assertTrue(down(Key.DirectionCenter, 1, OverlayUp.None))
+        assertTrue(down(Key.DirectionCenter, 2, OverlayUp.None))
+        assertTrue(down(Key.DirectionCenter, 3, OverlayUp.None))
+        assertEquals(emptyList<LiveCommand>(), sent)
+        // Its release closes it, and the next press is a press again.
+        release(Key.DirectionCenter, OverlayUp.None)
+        assertTrue(down(Key.DirectionCenter, 0, OverlayUp.None))
+        assertEquals(listOf<LiveCommand>(LiveCommand.ShowBanner), sent)
+    }
+
+    @Test
+    fun aLongSelectThatClosedTheGuideNeverReachesTheBanner() {
+        // The first down passed through to the guide, which closed on it; the repeats arrive with the guide gone.
+        val guide = OverlayUp(guide = true)
+        assertFalse(down(Key.DirectionCenter, 0, guide))
+        down(Key.DirectionCenter, 1, OverlayUp.None)
+        down(Key.DirectionCenter, 2, OverlayUp.None)
+        release(Key.DirectionCenter, OverlayUp.None)
+        assertEquals(emptyList<LiveCommand>(), sent)
+    }
+
+    @Test
+    fun aRepeatStreamOfAnUnseenUpNeverFlips() {
+        assertTrue(down(Key.DirectionUp, 4, OverlayUp.None))
+        assertEquals(emptyList<LiveCommand>(), sent)
+    }
 }
