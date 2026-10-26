@@ -52,6 +52,15 @@ internal fun GuideModel.followingNow(
     return GuideFocus(row.channel, onNow.startMs, maxOf(onNow.startMs, originMs))
 }
 
+/**
+ * The first row to show when the guide opens on [focus]: its row at the top, moved up only as far as it takes to fill
+ * the last page. The first row with no focus.
+ */
+internal fun GuideState.Ready.openingRowFor(focus: GuideFocus?): Int {
+    val row = focus?.let { model.indexOf(it)?.first } ?: 0
+    return row.coerceIn(0, maxOf(0, model.rows.size - GUIDE_VISIBLE_ROWS))
+}
+
 /** The first row to show with [focus] focused, from [firstVisibleRow]; with none on the grid, it only stays valid. */
 internal fun GuideState.Ready.firstRowFor(
     focus: GuideFocus?,

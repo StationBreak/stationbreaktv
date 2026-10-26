@@ -40,6 +40,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.SecretAccess
@@ -775,5 +776,31 @@ class GuideViewModelTest {
             runCurrent()
             after(1000)
             assertEquals(listOf("Closed", "Ready"), states.map { it::class.simpleName })
+        }
+
+    // Ten rows: 5, 7 and 9, then 11 to 17.
+    private fun tenRows(): List<ChannelId> =
+        (11..17).map { n -> ChannelId("ch-$n").also { fake.channel(it, n, halfHours(600)) } }
+
+    @Test
+    fun theGuideOpensWithThePlayingRowAtTheTop() =
+        guideTest { vm ->
+            val more = tenRows()
+            vm.open(more[1]) // channel 12, the fifth row
+            runCurrent()
+            assertEquals(4, vm.ready().firstVisibleRow)
+
+            // A later move keeps the rows where they are while the focus stays in view.
+            vm.move(GuideDirection.Down)
+            assertEquals(4, vm.ready().firstVisibleRow)
+        }
+
+    @Test
+    fun theGuideOpensOnAFullLastPage() =
+        guideTest { vm ->
+            val more = tenRows()
+            vm.open(more[5]) // channel 16, the ninth row of ten: the last six rows show
+            runCurrent()
+            assertEquals(4, vm.ready().firstVisibleRow)
         }
 }

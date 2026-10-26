@@ -204,8 +204,8 @@ internal class GuideViewModel
             synchronized(lock) { if (session === s) shownSnapshot.value = GuideSnapshot(state, null) }
         }
 
-        // A first read that is quick shows nothing until the grid; one still out after [LOADING_AFTER_MS] says the guide
-        // is loading, so a blank guide does not invite a second Back (which leaves live TV).
+        // A first read that is quick shows nothing until the grid; one still out after [LOADING_AFTER_MS] says the
+        // guide is loading, so a blank guide does not invite a second Back (which leaves live TV).
         private suspend fun load(s: CoroutineScope) {
             val slow =
                 s.launch {
@@ -282,10 +282,10 @@ internal class GuideViewModel
             return result
         }
 
-        // Makes [fresh] the window. The model is built before the lock is taken, never at a moment before the one shown.
-        // A tick that publishes a later moment while it is built wins: the model is built again at that moment, under
-        // the lock (rare), so the origin and the "now" line never go back. An [extension] that would end before the
-        // grid does (it lost a race with something that read further) is dropped.
+        // Makes [fresh] the window. The model is built before the lock is taken, never at a moment before the one
+        // shown. A tick that publishes a later moment while it is built wins: the model is built again at that moment,
+        // under the lock (rare), so the origin and the "now" line never go back. An [extension] that would end before
+        // the grid does (it lost a race with something that read further) is dropped.
         private fun apply(
             s: CoroutineScope,
             fresh: ScheduleWindow,
@@ -402,7 +402,11 @@ internal class GuideViewModel
                 if (previous != null && scrolled) maxOf(previous.viewportStartMs, model.originMs) else model.originMs
             val shown = focus?.let { viewportStartFor(it, model, viewport, direction = null) } ?: viewport
             val ready = GuideState.Ready(model, shown, 0, now)
-            publish(ready.copy(firstVisibleRow = ready.firstRowFor(focus, previous?.firstVisibleRow ?: 0)), focus)
+            // The first grid of a session opens with the focused row at the top, as a cable guide does; later ones
+            // keep the rows still while the focus is in view.
+            val rows =
+                if (previous == null) ready.openingRowFor(focus) else ready.firstRowFor(focus, previous.firstVisibleRow)
+            publish(ready.copy(firstVisibleRow = rows), focus)
         }
 
         // One assignment, so the grid and its focus change together; then the panel follows the focus. A focus that
