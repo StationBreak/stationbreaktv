@@ -94,6 +94,24 @@ class LiveInfoTest {
         }
 
     @Test
+    fun detailsArrivingAfterAFlipDoNotReopenInfo() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val f =
+                watching {
+                    media.itemDetailsResult = ServerResult.Success(about)
+                    media.itemDetailsGate = gate
+                }
+            f.send(LiveCommand.ShowInfo)
+            assertNotNull(f.info())
+            f.up()
+            // The fetch for the channel the viewer left ends late: it must not bring the overlay back.
+            gate.complete(Unit)
+            runCurrent()
+            assertNull(f.info())
+        }
+
+    @Test
     fun theNextTuneClosesInfo() =
         runTest {
             val f = watching()

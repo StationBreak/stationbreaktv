@@ -245,10 +245,11 @@ class LiveKeysTest {
     }
 
     @Test
-    fun infoKeyTwiceOpensInfo() {
+    fun infoKeyTwiceSendsShowInfoTwice() {
         show()
         press(listOf(Key.Info, Key.Info))
-        // The first asks for the banner when there is none, the second opens the overlay: the machine decides which.
+        // The keys only send; the machine decides that the first brings the banner and the second opens the overlay.
+        // That part is LiveInfoTest.infoWithNoBannerShowsTheActionsBannerFirst.
         assertEquals(List(2) { LiveCommand.ShowInfo }, sent.toList())
     }
 
