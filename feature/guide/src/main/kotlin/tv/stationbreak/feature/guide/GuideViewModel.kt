@@ -204,11 +204,23 @@ internal class GuideViewModel
             synchronized(lock) { if (session === s) shownSnapshot.value = GuideSnapshot(state, null) }
         }
 
+        // A first read that is quick shows nothing until the grid; one still out after [LOADING_AFTER_MS] says the guide
+        // is loading, so a blank guide does not invite a second Back (which leaves live TV).
         private suspend fun load(s: CoroutineScope) {
+            val slow =
+                s.launch {
+                    delay(LOADING_AFTER_MS.milliseconds)
+                    synchronized(lock) {
+                        if (session === s && shownSnapshot.value.state == GuideState.Closed) {
+                            shownSnapshot.value = GuideSnapshot(GuideState.Loading, null)
+                        }
+                    }
+                }
             try {
                 val origin = originMs()
                 val nothing = ScheduleWindow(emptyList(), complete = false)
                 val cached = windowOrNull(origin, ScheduleBuild.CachedOnly, onFailure = nothing)
+                slow.cancel()
                 val nothingToShow = cached == null || (cached.rows.isEmpty() && cached.complete)
                 when {
                     nothingToShow -> publishIfCurrent(s, GuideState.Empty)
@@ -217,6 +229,7 @@ internal class GuideViewModel
                 }
                 if (cached != null && !cached.complete) fillIn(s, origin)
             } finally {
+                slow.cancel()
                 synchronized(lock) { if (session === s) loaded = true }
             }
         }
@@ -491,6 +504,7 @@ internal class GuideViewModel
 
         private companion object {
             const val DWELL_MS = 500L
+            const val LOADING_AFTER_MS = 400L
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L

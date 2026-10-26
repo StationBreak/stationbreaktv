@@ -65,6 +65,9 @@ private class HookedSchedule(
     /** When set, an `AsNeeded` read waits for it (a slow build). */
     var asNeededGate: CompletableDeferred<Unit>? = null
 
+    /** When set, a `CachedOnly` read waits for it (a slow read of what is built). */
+    var cachedGate: CompletableDeferred<Unit>? = null
+
     override suspend fun schedule(
         from: Instant,
         until: Instant,
@@ -73,6 +76,7 @@ private class HookedSchedule(
         calls++
         onSchedule(calls)
         if (build == ScheduleBuild.AsNeeded) asNeededGate?.await()
+        if (build == ScheduleBuild.CachedOnly) cachedGate?.await()
         return inner.schedule(from, until, build).also { afterSchedule(calls) }
     }
 }
@@ -736,5 +740,40 @@ class GuideViewModelTest {
             after(5 * MIN)
 
             assertEquals(min(100), vm.focused().cellStartMs)
+        }
+
+    @Test
+    fun aSlowFirstReadShowsLoadingAfterFourHundredMilliseconds() =
+        guideTest { vm ->
+            val gate = CompletableDeferred<Unit>()
+            schedule.cachedGate = gate
+            vm.open(CH7)
+            runCurrent()
+            // A quick read never flashes a loading line: nothing yet.
+            after(399)
+            assertEquals(GuideState.Closed, vm.snapshot.value.state)
+
+            after(1)
+            assertEquals(GuideState.Loading, vm.snapshot.value.state)
+
+            gate.complete(Unit)
+            runCurrent()
+            assertTrue(vm.snapshot.value.state is GuideState.Ready)
+        }
+
+    @Test
+    fun aQuickFirstReadNeverShowsLoading() =
+        guideTest { vm ->
+            val states = mutableListOf<GuideState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.states().toList(states) }
+            val gate = CompletableDeferred<Unit>()
+            schedule.cachedGate = gate
+            vm.open(CH7)
+            runCurrent()
+            after(300)
+            gate.complete(Unit)
+            runCurrent()
+            after(1000)
+            assertEquals(listOf("Closed", "Ready"), states.map { it::class.simpleName })
         }
 }

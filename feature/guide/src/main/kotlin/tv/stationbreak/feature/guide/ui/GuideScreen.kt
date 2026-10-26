@@ -187,7 +187,7 @@ private fun GuideBody(
     LocalBodyComposed.current?.invoke()
     val height = ClockHeight + RowHeight * GUIDE_VISIBLE_ROWS
     when (val state = frame) {
-        // An open on its way: nothing yet, so a cached guide never flashes a loading line.
+        // An open on its way: nothing yet, so a quick open never flashes a loading line (a slow one says Loading).
         GuideState.Closed -> {
             Spacer(Modifier.height(height))
         }
