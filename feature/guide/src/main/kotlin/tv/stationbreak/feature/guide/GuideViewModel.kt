@@ -101,6 +101,7 @@ class GuideViewModel
         private var infoOf: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
+        private var firstWindowMs = NO_MEASURE
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
         fun open(current: ChannelId?) {
@@ -112,6 +113,9 @@ class GuideViewModel
                 }
             started.launch { load(started) }
         }
+
+        /** How long the session's first schedule call took, in milliseconds, or -1 before it has returned (Task 9). */
+        val windowMs: Long get() = synchronized(lock) { firstWindowMs }
 
         /** Closes the guide and stops everything its session was doing. */
         fun close() {
@@ -183,6 +187,7 @@ class GuideViewModel
             infoOf = null
             extensionJob = null
             extendedFrom = NEVER
+            firstWindowMs = NO_MEASURE
             while (eventChannel.tryReceive().isSuccess) {
                 // Dropped: a Tune from this session must not fire in the next.
             }
@@ -238,15 +243,26 @@ class GuideViewModel
             build: ScheduleBuild,
             onFailure: ScheduleWindow?,
             untilMs: Long = fromMs + WINDOW.inWholeMilliseconds,
-        ): ScheduleWindow? =
-            try {
-                schedule.schedule(Instant.fromEpochMilliseconds(fromMs), Instant.fromEpochMilliseconds(untilMs), build)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // The port reports a lineup that cannot be read as null; anything else is the same to the guide.
-                onFailure
+        ): ScheduleWindow? {
+            val started = System.nanoTime()
+            val result =
+                try {
+                    schedule.schedule(
+                        Instant.fromEpochMilliseconds(fromMs),
+                        Instant.fromEpochMilliseconds(untilMs),
+                        build,
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // The port reports a lineup that cannot be read as null; anything else is the same to the guide.
+                    onFailure
+                }
+            synchronized(lock) {
+                if (firstWindowMs == NO_MEASURE) firstWindowMs = (System.nanoTime() - started) / NANOS_PER_MS
             }
+            return result
+        }
 
         // Makes [fresh] the window. The model is built before the lock is taken. An [extension] that would end before
         // the grid does (it lost a race with something that read further) is dropped.
@@ -434,6 +450,8 @@ class GuideViewModel
         private companion object {
             const val DWELL_MS = 500L
             const val NEVER = Long.MIN_VALUE
+            const val NO_MEASURE = -1L
+            const val NANOS_PER_MS = 1_000_000L
             val WINDOW = 6.hours
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours

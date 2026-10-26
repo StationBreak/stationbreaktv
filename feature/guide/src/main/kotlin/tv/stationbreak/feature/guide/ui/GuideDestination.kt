@@ -10,6 +10,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -19,11 +21,14 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
+import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
 
 /**
@@ -39,7 +44,6 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes
  * the info overlay when one is open and is otherwise left to the activity, which leaves live TV.
  */
-@Suppress("UnusedParameter") // openedAtNanos: the open-time line of the guide's measurement (spec 17, Task 9).
 @Composable
 fun GuideDestination(
     current: ChannelId?,
@@ -49,10 +53,11 @@ fun GuideDestination(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureInCorner, onTune, modifier)
+    GuideRoot(viewModel, current, pictureInCorner, onTune, modifier, openedAtNanos)
 }
 
 /** [GuideDestination] without Hilt, so a test can bring its own ViewModel. */
+@Suppress("LongParameterList") // The destination's own five, and the open time a test leaves at its default.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
@@ -60,12 +65,29 @@ internal fun GuideRoot(
     pictureInCorner: Boolean,
     onTune: (ChannelId) -> Unit,
     modifier: Modifier = Modifier,
+    openedAtNanos: Long = System.nanoTime(),
 ) {
+    // The session's measurement line (Task 9) is written when the session ends, in exactly the builds that write the
+    // tune lines. The rows and the corner picture are read as they stand then.
+    val view = LocalView.current
+    val pip by rememberUpdatedState(pictureInCorner)
     // One session per showing. The guide's own state starts Closed and may say so for a moment while the open runs: it
     // never closes the guide, which is live TV's to do.
+    val measurement = remember(viewModel) { GuideMeasurement.start(view, openedAtNanos) }
     DisposableEffect(viewModel) {
         viewModel.open(current)
-        onDispose { viewModel.close() }
+        onDispose {
+            val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0
+            measurement.finish(viewModel.windowMs, rows, pip)
+            viewModel.close()
+        }
+    }
+    // The first grid frame: the frame after the one that composed the grid, so the grid has been drawn.
+    LaunchedEffect(viewModel) {
+        snapshotFlow { viewModel.snapshot.value.state is GuideState.Ready }.first { it }
+        withFrameNanos { }
+        withFrameNanos { }
+        measurement.gridShown()
     }
     // A Tune is acted on as it is received, never right after Select: the guide may refuse a Select (info open, focus
     // gone), and a session that ends drops its queued events.
