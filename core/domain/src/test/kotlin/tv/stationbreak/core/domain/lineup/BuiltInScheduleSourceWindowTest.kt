@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -53,7 +54,13 @@ class BuiltInScheduleSourceWindowTest {
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private var chosen: Set<ItemId>? = LIBRARIES
     private val builds = mutableListOf<DayBuild>()
-    private val source = BuiltInScheduleSource(service, library, built = { builds += it }) { chosen }
+    private val timings = mutableListOf<Pair<Long, Long>>()
+    private var onBuilt: () -> Unit = {}
+    private val source =
+        BuiltInScheduleSource(service, library, { day, ms -> timings += day to ms }, built = {
+            builds += it
+            onBuilt()
+        }) { chosen }
 
     private val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
     private val crimes = starter("crimes", 120, ChannelState.On, rules("Crimes", Source.Genre("Crime")))
@@ -72,7 +79,7 @@ class BuiltInScheduleSourceWindowTest {
     private fun schedule(
         from: Instant = NOON,
         until: Instant = NOON + 6.hours,
-        build: Build = Build.AsNeeded,
+        build: ScheduleBuild = ScheduleBuild.AsNeeded,
     ) = runBlocking { source.schedule(from, until, build) }
 
     @Test
@@ -125,7 +132,7 @@ class BuiltInScheduleSourceWindowTest {
         val builtBefore = builds.size
         val readsBefore = counting.snapshotCutoffs.size
 
-        val window = checkNotNull(schedule(at, until, Build.CachedOnly))
+        val window = checkNotNull(schedule(at, until, ScheduleBuild.CachedOnly))
 
         assertFalse(window.complete)
         assertEquals(2, window.rows.size)
@@ -139,12 +146,66 @@ class BuiltInScheduleSourceWindowTest {
         val at = Instant.parse("2026-10-20T05:00:00Z")
         val until = Instant.parse("2026-10-20T11:00:00Z")
         runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
-        runBlocking { source.channelDays(ACCOUNT, LIBRARIES, until) }
+        runBlocking { source.channelDays(ACCOUNT, LIBRARIES, until) }.forEach { it.day }
 
-        val window = checkNotNull(schedule(at, until, Build.CachedOnly))
+        val window = checkNotNull(schedule(at, until, ScheduleBuild.CachedOnly))
 
         assertTrue(window.complete)
         assertTrue(window.rows.all { it.blocks.last().endMs >= until.toEpochMilliseconds() })
+    }
+
+    @Test
+    fun cachedOnlyTreatsAFollowingDayStillBeingLaidOutAsNotCached() {
+        val at = Instant.parse("2026-10-20T05:00:00Z")
+        val until = Instant.parse("2026-10-20T11:00:00Z")
+        val boundary = Instant.parse("2026-10-20T06:00:00Z").toEpochMilliseconds()
+        runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
+        val next = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, until) }
+        assertTrue(next.none { it.isLaidOut }, "day n + 1 is kept but not laid out")
+
+        val window = checkNotNull(schedule(at, until, ScheduleBuild.CachedOnly))
+
+        assertFalse(window.complete)
+        assertTrue(window.rows.all { it.blocks.last().endMs == boundary }, "rows end where the laid-out days do")
+        assertTrue(next.none { it.isLaidOut }, "and the call did not lay it out")
+
+        next.forEach { it.day }
+        assertTrue(checkNotNull(schedule(at, until, ScheduleBuild.CachedOnly)).complete)
+    }
+
+    @Test
+    fun revisionChangeBetweenDaysMakesTheWindowIncomplete() {
+        val at = Instant.parse("2026-10-20T05:00:00Z")
+        val until = Instant.parse("2026-10-20T11:00:00Z")
+        runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
+        // The lineup is replaced as day n + 1 finishes building, between the window's two days.
+        onBuilt = { runBlocking { service.refresh(ACCOUNT, LIBRARIES) } }
+
+        val window = checkNotNull(schedule(at, until, ScheduleBuild.AsNeeded))
+
+        assertFalse(window.complete)
+    }
+
+    @Test
+    fun aWindowThatDoesNotEndAfterItStartsIsRejected() {
+        assertFailsWith<IllegalArgumentException> { schedule(NOON, NOON) }
+        assertFailsWith<IllegalArgumentException> { schedule(NOON, NOON - 1.hours, ScheduleBuild.CachedOnly) }
+    }
+
+    @Test
+    fun withNoLineupAsNeededIsEmptyAndCompleteAndCachedOnlyIsEmptyAndIncomplete() {
+        val empty = LineupService(RecordingStore(), library, clock, { 0 }, {}, TestCatalog)
+        val none = BuiltInScheduleSource(empty, library) { LIBRARIES }
+        val hour = NOON + 1.hours
+
+        assertEquals(
+            ScheduleWindow(emptyList(), true),
+            runBlocking { none.schedule(NOON, hour, ScheduleBuild.AsNeeded) },
+        )
+        assertEquals(
+            ScheduleWindow(emptyList(), false),
+            runBlocking { none.schedule(NOON, hour, ScheduleBuild.CachedOnly) },
+        )
     }
 
     @Test
@@ -155,10 +216,11 @@ class BuiltInScheduleSourceWindowTest {
         runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
         val builtBefore = builds.size
 
-        val window = checkNotNull(schedule(at, until, Build.AsNeeded))
+        val window = checkNotNull(schedule(at, until, ScheduleBuild.AsNeeded))
 
         assertTrue(window.complete)
         assertEquals(builtBefore + 1, builds.size, "day n + 1 was built")
+        assertTrue(timings.isEmpty(), "and is not reported as a tune's day build")
         assertTrue(window.rows.all { row -> row.blocks.any { it.startMs >= boundary } }, "blocks run past 06:00")
         assertTrue(window.rows.all { it.blocks.last().endMs >= until.toEpochMilliseconds() })
     }
@@ -175,7 +237,7 @@ class BuiltInScheduleSourceWindowTest {
 
     @Test
     fun windowWithNothingCachedIsEmptyAndIncomplete() {
-        val window = checkNotNull(schedule(build = Build.CachedOnly))
+        val window = checkNotNull(schedule(build = ScheduleBuild.CachedOnly))
 
         assertEquals(emptyList(), window.rows)
         assertFalse(window.complete)
@@ -194,7 +256,7 @@ class BuiltInScheduleSourceWindowTest {
             withTimeout(WAIT_MS) { gated.entered.await() }
             assertEquals(1, gatedSource.inFlightCount())
 
-            val window = withTimeout(WAIT_MS) { gatedSource.schedule(NOON, NOON + 6.hours, Build.CachedOnly) }
+            val window = withTimeout(WAIT_MS) { gatedSource.schedule(NOON, NOON + 6.hours, ScheduleBuild.CachedOnly) }
 
             assertEquals(ScheduleWindow(emptyList(), complete = false), window)
             assertEquals(0, gatedSource.joined.get(), "the build in flight was not joined")
@@ -207,7 +269,7 @@ class BuiltInScheduleSourceWindowTest {
     fun cachedOnlyOfAKeptDayServesIt() {
         runBlocking { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
 
-        val window = checkNotNull(schedule(build = Build.CachedOnly))
+        val window = checkNotNull(schedule(build = ScheduleBuild.CachedOnly))
 
         assertTrue(window.complete)
         assertEquals(2, window.rows.size)
@@ -218,7 +280,7 @@ class BuiltInScheduleSourceWindowTest {
         chosen = null
 
         assertNull(schedule())
-        assertNull(schedule(build = Build.CachedOnly))
+        assertNull(schedule(build = ScheduleBuild.CachedOnly))
     }
 
     private companion object {

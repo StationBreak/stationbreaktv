@@ -56,9 +56,11 @@ import kotlin.time.TimeSource
  * told every build as it completes, with where its time went ([DayBuild]; numbers only), and [laidOut] each channel
  * day's schedule layout (worked out once, on first use; [warm] does it ahead).
  *
- * [schedule] gives one window of every visible channel's airings. With [Build.CachedOnly] it reads only the kept days:
- * it never builds, never joins a build in flight and never reads a snapshot (a layout not yet worked out is still
- * done lazily).
+ * [schedule] gives one window of every visible channel's airings. With [ScheduleBuild.CachedOnly] it reads only kept
+ * days: it never builds, never joins a build in flight (a warmer's reads as not built) and never reads a snapshot.
+ * What it can still wait for is the store, on a cold lineup (`LineupService.loaded`), and the layout of the day that
+ * holds the start, which it works out if needed. A following day whose layout is not yet worked out counts as not
+ * cached, so the window comes back incomplete rather than slow.
  *
  * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
  * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
@@ -144,26 +146,53 @@ class BuiltInScheduleSource(
     override suspend fun schedule(
         from: Instant,
         until: Instant,
-        build: Build,
-    ): ScheduleWindow? =
-        withContext(dispatcher) {
+        build: ScheduleBuild,
+    ): ScheduleWindow? {
+        require(until > from) { "The window must end after it starts" }
+        return withContext(dispatcher) {
             val (account, chosen) = signedIn() ?: return@withContext null
+            // Pinned to the lineup revision of this first lookup: every day of the window must be of that revision.
+            val first = lookup(account, chosen, from)
             val days =
-                if (build == Build.CachedOnly) cachedDays(account, chosen, from) else channelDays(account, chosen, from)
-            if (days == null) {
-                ScheduleWindow(emptyList(), complete = false)
-            } else {
-                windowOf(account, chosen, days.filter { it.hidden == null }, from, until, build)
+                when {
+                    first == null -> null
+                    build == ScheduleBuild.CachedOnly -> synchronized(lock) { kept[first.key] }
+                    else -> channelDays(account, chosen, from)
+                }
+            when {
+                // No lineup: nothing to build, so AsNeeded is complete and empty; CachedOnly lacks the day.
+                first == null -> {
+                    ScheduleWindow(emptyList(), complete = build == ScheduleBuild.AsNeeded)
+                }
+
+                days == null -> {
+                    ScheduleWindow(emptyList(), complete = false)
+                }
+
+                else -> {
+                    val reading = Reading(account, chosen, build, first.held.revision)
+                    windowOf(reading, days.filter { it.hidden == null }, from, until)
+                }
             }
         }
+    }
+
+    /** What one [schedule] call reads: the following days it resolved (by start) and whether the lineup stayed put. */
+    private class Reading(
+        val account: LibraryAccount,
+        val chosen: Set<ItemId>,
+        val build: ScheduleBuild,
+        val revision: Long,
+    ) {
+        val following = HashMap<Long, List<ChannelDay>?>()
+        var consistent = true
+    }
 
     private suspend fun windowOf(
-        account: LibraryAccount,
-        chosen: Set<ItemId>,
+        reading: Reading,
         visible: List<ChannelDay>,
         from: Instant,
         until: Instant,
-        build: Build,
     ): ScheduleWindow {
         val fromMs = from.toEpochMilliseconds()
         val untilMs = until.toEpochMilliseconds()
@@ -173,17 +202,19 @@ class BuiltInScheduleSource(
                 val builtUntilMs = today.epochStartMs + 2 * today.settings.epochMs
                 val limit = minOf(untilMs, builtUntilMs)
                 val own = today.day.blocks.filter { it.endMs > fromMs && it.startMs < limit }
-                Triple(today, builtUntilMs, own + blocksUntil(account, chosen, today, limit, build))
+                Triple(today, builtUntilMs, own + blocksUntil(reading, today, limit))
             }
         val ids =
             laid.flatMapTo(HashSet()) { (_, _, blocks) ->
                 blocks.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
             }
-        val info = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids)
-        var complete = true
+        val info = if (ids.isEmpty()) emptyMap() else library.programInfo(reading.account, ids)
+        // A lineup that moved on while the window was read may have given days of two revisions.
+        if (!isCurrent(reading.account, reading.revision)) reading.consistent = false
+        var complete = reading.consistent
         val rows =
             laid.map { (today, builtUntilMs, blocks) ->
-                // A row that stops short of the window (or of what is built) lacks a day: it was not built or not kept.
+                // A row that stops short of the window (or of what is built) lacks a day: not built, kept or laid out.
                 if ((blocks.lastOrNull()?.endMs ?: fromMs) < minOf(untilMs, builtUntilMs)) complete = false
                 ChannelRow(today.airing(), blocks.map { it.toAiring(info) }, builtUntilMs)
             }
@@ -192,31 +223,55 @@ class BuiltInScheduleSource(
 
     /**
      * The blocks of the days that follow [from]'s day, up to [limitMs] (the blocks that start before it). With
-     * [Build.CachedOnly] only kept days are read, and the blocks stop at the first that is not; otherwise each is
-     * built as [followingBlocks] builds it. Fewer if the channel stops airing.
+     * [ScheduleBuild.CachedOnly] only kept days whose layout is already worked out are read, and the blocks stop at the
+     * first that is not; otherwise each day is built as [followingBlocks] builds it. Fewer if the channel stops airing.
+     * It does not report to `timed`: that line counts only the builds a tune waited for.
      */
     private suspend fun blocksUntil(
-        account: LibraryAccount,
-        chosen: Set<ItemId>,
+        reading: Reading,
         from: ChannelDay,
         limitMs: Long,
-        build: Build,
     ): List<ScheduleBlock> {
         val blocks = ArrayList<ScheduleBlock>()
         var day = from
         while (day.day.endMs < limitMs) {
-            val start = Instant.fromEpochMilliseconds(day.day.endMs)
-            val (days, builtInMs) =
-                if (build == Build.CachedOnly) {
-                    cachedDays(account, chosen, start) to null
-                } else {
-                    channelDaysTimed(account, chosen, start)
-                }
-            day = days?.firstOrNull { it.channel.id == from.channel.id } ?: break
-            if (builtInMs != null) timed(day.n, builtInMs)
+            day = followingDay(reading, from.channel.id, day.day.endMs) ?: break
             blocks += day.day.blocks.filter { it.startMs < limitMs }
         }
         return blocks
+    }
+
+    /** The day of [channel] that starts at [startMs], or null if there is none to read (see [blocksUntil]). */
+    private suspend fun followingDay(
+        reading: Reading,
+        channel: ChannelId,
+        startMs: Long,
+    ): ChannelDay? {
+        val day = followingDays(reading, startMs)?.firstOrNull { it.channel.id == channel }
+        // A kept day still being laid out would make this call do that work: it counts as not cached.
+        return day?.takeUnless { reading.build == ScheduleBuild.CachedOnly && !it.isLaidOut }
+    }
+
+    /**
+     * The days that start at [startMs], once per call however many rows ask, of the revision the call began with: a
+     * newer revision marks the reading inconsistent and gives nothing.
+     */
+    private suspend fun followingDays(
+        reading: Reading,
+        startMs: Long,
+    ): List<ChannelDay>? {
+        if (reading.following.containsKey(startMs)) return reading.following[startMs]
+        val start = Instant.fromEpochMilliseconds(startMs)
+        val found = lookup(reading.account, reading.chosen, start)
+        val days =
+            when {
+                found == null -> null
+                found.held.revision != reading.revision -> null.also { reading.consistent = false }
+                reading.build == ScheduleBuild.CachedOnly -> synchronized(lock) { kept[found.key] }
+                else -> channelDays(reading.account, reading.chosen, start)
+            }
+        reading.following[startMs] = days
+        return days
     }
 
     override suspend fun standIns(
@@ -373,6 +428,10 @@ class BuiltInScheduleSource(
         val key: Key,
     )
 
+    /**
+     * Works out which days [at] needs without reading any: null if there is no lineup. The one thing that can wait is
+     * `LineupService.loaded`, which reads the store when the entry is cold.
+     */
     private suspend fun lookup(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -382,20 +441,6 @@ class BuiltInScheduleSource(
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
         val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
         return Lookup(held, scheduled, Key(account, held.revision, libraries, cutoffs))
-    }
-
-    /**
-     * The days at [at] only if they are already kept: null otherwise. It never starts a build, joins one in flight
-     * (a warmer's, say: that reads as not built), reads a snapshot or retries a stale build, so it takes no longer than
-     * the lock.
-     */
-    private suspend fun cachedDays(
-        account: LibraryAccount,
-        libraries: Set<ItemId>,
-        at: Instant,
-    ): List<ChannelDay>? {
-        val key = lookup(account, libraries, at)?.key ?: return null
-        return synchronized(lock) { kept[key] }
     }
 
     private suspend fun channelDaysOnce(

@@ -35,11 +35,11 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.lineup.AiringBlock
-import tv.stationbreak.core.domain.lineup.Build
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
@@ -120,7 +120,7 @@ class LiveKeysTest {
                 override suspend fun schedule(
                     from: Instant,
                     until: Instant,
-                    build: Build,
+                    build: ScheduleBuild,
                 ): ScheduleWindow? = null
             }
         val noLineup =

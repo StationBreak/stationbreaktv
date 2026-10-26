@@ -81,7 +81,7 @@ class FakeSchedule : ScheduleSource {
     val onAirCalls = mutableListOf<Pair<ChannelId, Long>>()
 
     /** The windows asked for through [schedule], in order. */
-    val scheduleCalls = mutableListOf<Triple<Instant, Instant, Build>>()
+    val scheduleCalls = mutableListOf<Triple<Instant, Instant, ScheduleBuild>>()
 
     /** Told how many following blocks each [onAir] asks for, as it is asked; may throw to fail the call. */
     var onAirObserver: (next: Int) -> Unit = {}
@@ -95,11 +95,14 @@ class FakeSchedule : ScheduleSource {
     /** When set, the [onAirDelayMs] wait ignores cancellation (a read that unwinds slowly). */
     var onAirUncancellable = false
 
-    /** For [Build.CachedOnly]: blocks starting at or after this are not cached (null: everything is). */
+    /** For [ScheduleBuild.CachedOnly]: blocks starting at or after this are not cached (null: everything is). */
     var cachedUntilMs: Long? = null
 
-    /** For [Build.CachedOnly]: nothing is cached at all. */
+    /** For [ScheduleBuild.CachedOnly]: nothing is cached at all. */
     var nothingCached = false
+
+    /** Nobody is signed in: [onAir] and [schedule] give null, and [airings] nothing. */
+    var signedOut = false
 
     fun channel(
         id: ChannelId,
@@ -127,6 +130,7 @@ class FakeSchedule : ScheduleSource {
         val ms = at.toEpochMilliseconds()
         onAirCalls += channel to ms
         onAirObserver(next)
+        if (signedOut) return null
         if (onAirUncancellable) {
             withContext(NonCancellable) { delay(onAirDelayMs) }
         } else {
@@ -161,6 +165,7 @@ class FakeSchedule : ScheduleSource {
 
     override suspend fun airings(at: Instant): List<ChannelAiring> {
         airingsCalls++
+        if (signedOut) return emptyList()
         check(airingsCalls !in airingsFailOn) { "lineup read failed" }
         delay(airingsDelayMs)
         return channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
@@ -169,13 +174,19 @@ class FakeSchedule : ScheduleSource {
     override suspend fun schedule(
         from: Instant,
         until: Instant,
-        build: Build,
+        build: ScheduleBuild,
     ): ScheduleWindow? {
+        require(until > from) { "The window must end after it starts" }
         scheduleCalls += Triple(from, until, build)
-        if (build == Build.CachedOnly && nothingCached) return ScheduleWindow(emptyList(), complete = false)
+        if (signedOut) return null
+        if (build == ScheduleBuild.CachedOnly && nothingCached) return ScheduleWindow(emptyList(), complete = false)
         val fromMs = from.toEpochMilliseconds()
         val untilMs = until.toEpochMilliseconds()
-        val cachedUntil = cachedUntilMs.takeIf { build == Build.CachedOnly }
+        val cachedUntil = cachedUntilMs.takeIf { build == ScheduleBuild.CachedOnly }
+        // Nothing of the day that holds the start is cached: the same as nothing cached at all.
+        if (cachedUntil != null && channels.values.any { cachedUntil <= dayStart(it, fromMs) }) {
+            return ScheduleWindow(emptyList(), complete = false)
+        }
         val rows =
             channels.entries
                 .filter { it.value.hidden == null }

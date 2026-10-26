@@ -44,16 +44,22 @@ internal class ChannelDay(
     val pool: List<ScheduleItem>,
     val hidden: HiddenReason?,
     val ceilingRank: Int?,
-    private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
+    laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
 ) {
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
 
     /** The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once). */
-    val day: Day by lazy {
-        val began = TimeSource.Monotonic.markNow()
-        buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
-    }
+    private val layout =
+        lazy {
+            val began = TimeSource.Monotonic.markNow()
+            buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+        }
+
+    val day: Day get() = layout.value
+
+    /** Whether the layout of the day has been worked out (reading [day] before then does that work). */
+    val isLaidOut: Boolean get() = layout.isInitialized()
 }
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */
