@@ -21,28 +21,32 @@ class ProgramInfoOverlayTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private fun show(
-        overview: String? = null,
-        year: Int? = null,
-        genres: List<String> = emptyList(),
-        runtimeMinutes: Int? = null,
-        loading: Boolean = false,
-        episodeLine: String? = "S1 E2 · Episode One",
-    ) = compose.setContent {
-        StationBreakTheme {
-            ProgramInfoOverlay(
-                channel = "07 Test Channel",
-                title = "Test Show",
-                episodeLine = episodeLine,
-                slot = "8:00 – 8:30 PM",
-                overview = overview,
-                year = year,
-                genres = genres,
-                runtimeMinutes = runtimeMinutes,
-                loading = loading,
-            )
+    /** What a test varies on the panel; everything else stays at the fallback. */
+    private data class Details(
+        val overview: String? = null,
+        val year: Int? = null,
+        val genres: List<String> = emptyList(),
+        val runtimeMinutes: Int? = null,
+        val loading: Boolean = false,
+        val episodeLine: String? = "S1 E2 · Episode One",
+    )
+
+    private fun show(details: Details = Details()) =
+        compose.setContent {
+            StationBreakTheme {
+                ProgramInfoOverlay(
+                    channel = "07 Test Channel",
+                    title = "Test Show",
+                    episodeLine = details.episodeLine,
+                    slot = "8:00 – 8:30 PM",
+                    overview = details.overview,
+                    year = details.year,
+                    genres = details.genres,
+                    runtimeMinutes = details.runtimeMinutes,
+                    loading = details.loading,
+                )
+            }
         }
-    }
 
     // The panel is one merged unit for a screen reader, so its parts are found in the unmerged tree.
     private fun tag(tag: String) = compose.onNodeWithTag(tag, useUnmergedTree = true)
@@ -62,7 +66,7 @@ class ProgramInfoOverlayTest {
 
     @Test
     fun noEpisodeLineForAMovie() {
-        show(episodeLine = null)
+        show(Details(episodeLine = null))
         tag(ProgramInfoTags.TITLE).assertIsDisplayed()
         tag(ProgramInfoTags.EPISODE).assertDoesNotExist()
         tag(ProgramInfoTags.SLOT).assertIsDisplayed()
@@ -70,7 +74,7 @@ class ProgramInfoOverlayTest {
 
     @Test
     fun showsLoading() {
-        show(loading = true)
+        show(Details(loading = true))
         tag(ProgramInfoTags.LOADING).assertIsDisplayed()
         tag(ProgramInfoTags.TITLE).assertIsDisplayed()
         tag(ProgramInfoTags.OVERVIEW).assertDoesNotExist()
@@ -78,7 +82,14 @@ class ProgramInfoOverlayTest {
 
     @Test
     fun showsAllDetails() {
-        show(overview = "A test overview.", year = 1999, genres = listOf("Drama", "Comedy"), runtimeMinutes = 45)
+        show(
+            Details(
+                overview = "A test overview.",
+                year = 1999,
+                genres = listOf("Drama", "Comedy"),
+                runtimeMinutes = 45,
+            ),
+        )
         tag(ProgramInfoTags.OVERVIEW).assertIsDisplayed()
         text("A test overview.").assertIsDisplayed()
         tag(ProgramInfoTags.DETAILS).assertIsDisplayed()
@@ -95,13 +106,20 @@ class ProgramInfoOverlayTest {
 
     @Test
     fun aLongOverviewStillLeavesRoomForTheCloseHint() {
-        show(overview = "A test overview. ".repeat(40), year = 1999, genres = listOf("Drama"), runtimeMinutes = 45)
+        show(
+            Details(
+                overview = "A test overview. ".repeat(40),
+                year = 1999,
+                genres = listOf("Drama"),
+                runtimeMinutes = 45,
+            ),
+        )
         tag(ProgramInfoTags.CLOSE_HINT).assertIsDisplayed()
     }
 
     @Test
     fun theWholePanelIsOneNodeForAScreenReader() {
-        show(overview = "A test overview.")
+        show(Details(overview = "A test overview."))
         // In the merged tree (the default) the title and the slot are read from the same node.
         val title = compose.onNodeWithText("Test Show").fetchSemanticsNode()
         val slot = compose.onNodeWithText("8:00 – 8:30 PM").fetchSemanticsNode()
