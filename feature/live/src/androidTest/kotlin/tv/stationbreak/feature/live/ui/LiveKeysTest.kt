@@ -6,6 +6,8 @@ import android.view.KeyEvent.ACTION_UP
 import android.view.KeyEvent.KEYCODE_BACK
 import android.view.KeyEvent.KEYCODE_DPAD_CENTER
 import android.view.KeyEvent.KEYCODE_DPAD_DOWN
+import android.view.KeyEvent.KEYCODE_DPAD_LEFT
+import android.view.KeyEvent.KEYCODE_DPAD_RIGHT
 import android.view.KeyEvent.KEYCODE_DPAD_UP
 import android.view.KeyEvent.KEYCODE_MEDIA_NEXT
 import android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
@@ -19,6 +21,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
@@ -34,6 +38,7 @@ import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
@@ -128,16 +133,18 @@ class LiveKeysTest {
                 override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = emptyFlow()
             }
         val capabilities = DeviceCapabilities(setOf(Codecs.MP4), emptyList(), setOf(Codecs.AAC), emptySet(), 2)
+        val sessions = SessionRepository(InMemorySecretStore(), server)
         return LiveViewModel(
             nothing,
             InMemoryLastChannelStore(),
-            SessionRepository(InMemorySecretStore(), server),
+            sessions,
             InMemoryLibraryRepository(),
             noLineup,
             Clock.System,
             ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server),
             VideoPlayerFactory { _, _ -> error("no session, so no player") },
             server,
+            ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
         )
     }
 
@@ -221,12 +228,60 @@ class LiveKeysTest {
     }
 
     @Test
-    fun backAndTheOtherKeysAreNotConsumed() {
+    fun backAndTheMediaKeysAreNotConsumed() {
         show()
-        for (code in listOf(KEYCODE_BACK, KEYCODE_DPAD_CENTER, KEYCODE_MEDIA_NEXT, KEYCODE_MEDIA_PREVIOUS)) {
+        for (code in listOf(KEYCODE_BACK, KEYCODE_MEDIA_NEXT, KEYCODE_MEDIA_PREVIOUS)) {
             assertNull("$code", liveKeyCommand(key(ACTION_DOWN, code)))
         }
-        press(listOf(Key.DirectionCenter, Key.MediaNext, Key.MediaPrevious))
+        press(listOf(Key.MediaNext, Key.MediaPrevious))
         assertEquals(emptyList<LiveCommand>(), sent.toList())
+    }
+
+    @Test
+    fun selectWithNoOverlayAsksForTheActionsBanner() {
+        show()
+        press(listOf(Key.DirectionCenter))
+        assertEquals(listOf<LiveCommand>(LiveCommand.ShowBanner), sent.toList())
+    }
+
+    @Test
+    fun infoKeyTwiceSendsShowInfoTwice() {
+        show()
+        press(listOf(Key.Info, Key.Info))
+        // The keys only send; the machine decides that the first brings the banner and the second opens the overlay.
+        // That part is LiveInfoTest.infoWithNoBannerShowsTheActionsBannerFirst.
+        assertEquals(List(2) { LiveCommand.ShowInfo }, sent.toList())
+    }
+
+    @Test
+    fun selectBelongsToTheButtonsWhileTheActionsBannerShows() {
+        val got = mutableListOf<LiveCommand>()
+        val actions = OverlayUp(actions = true)
+        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_DPAD_CENTER), actions) { got += it })
+        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_DPAD_CENTER), OverlayUp(info = true)) { got += it })
+        assertEquals(emptyList<LiveCommand>(), got)
+    }
+
+    @Test
+    fun sidewaysKeysKeepTheActionsBannerUpAndStillMoveTheFocus() {
+        val got = mutableListOf<LiveCommand>()
+        val actions = OverlayUp(actions = true)
+        for (code in listOf(KEYCODE_DPAD_LEFT, KEYCODE_DPAD_RIGHT)) {
+            assertFalse(handleLiveKey(key(ACTION_DOWN, code), actions) { got += it })
+        }
+        assertEquals(List(2) { LiveCommand.ShowBanner }, got)
+        got.clear()
+        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_DPAD_LEFT)) { got += it })
+        assertEquals(emptyList<LiveCommand>(), got)
+    }
+
+    @Test
+    fun backClosesAnOverlayButNeverATuneBanner() {
+        val got = mutableListOf<LiveCommand>()
+        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK)) { got += it })
+        assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), OverlayUp(info = true)) { got += it })
+        assertTrue(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), OverlayUp(info = true)) { got += it })
+        assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), OverlayUp(actions = true)) { got += it })
+        assertEquals(listOf(LiveCommand.DismissOverlay, LiveCommand.DismissOverlay), got)
     }
 }

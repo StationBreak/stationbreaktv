@@ -11,6 +11,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -27,6 +29,7 @@ import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
@@ -175,6 +178,7 @@ class LiveDestinationLifecycleTest {
             ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server),
             VideoPlayerFactory { _, _ -> RecordingPlayer(++created).also { log += "create#$created" } },
             server,
+            ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
         )
     }
 

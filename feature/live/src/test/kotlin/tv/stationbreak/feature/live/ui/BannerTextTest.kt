@@ -8,7 +8,9 @@ import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.ProgramCopy
+import tv.stationbreak.feature.live.NextProgram
 import java.io.File
+import java.time.ZoneOffset
 import java.util.Locale
 
 /**
@@ -63,6 +65,37 @@ class BannerTextTest {
         val movie = ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null)
         assertNull(BannerText.episodeLine(movie, copy))
         assertNull(BannerText.episodeLine(null, copy))
+    }
+
+    @Test
+    fun progressIsTheShareOfTheSlotGoneByAndNeverLeavesZeroToOne() {
+        assertEquals(0.25f, BannerText.progress(1_000, 5_000, 2_000), 0f)
+        assertEquals(0f, BannerText.progress(1_000, 5_000, 500), 0f)
+        assertEquals(1f, BannerText.progress(1_000, 5_000, 9_000), 0f)
+        assertEquals(0f, BannerText.progress(1_000, 1_000, 1_000), 0f)
+    }
+
+    @Test
+    fun minutesLeftRoundsUpAndStopsAtZero() {
+        assertEquals(30, BannerText.minutesLeft(0, 30 * 60_000L, 1_000))
+        assertEquals(1, BannerText.minutesLeft(0, 60_000L, 59_999))
+        assertEquals(0, BannerText.minutesLeft(0, 60_000L, 90_000))
+    }
+
+    @Test
+    fun nextLineNamesTheProgramAndWhenItStarts() {
+        val next = NextProgram("Test Movie B", 21 * 3_600_000L)
+        val line = BannerText.nextLine(next, copy, ZoneOffset.UTC, false, Locale.US)
+        assertEquals("Next: Test Movie B at 9:00 PM", line)
+    }
+
+    @Test
+    fun aLongNextTitleIsCutBeforeTheLineIsMadeSoTheTimeStaysInView() {
+        val title = "A Very Long Synthetic Name ".repeat(5).trim()
+        val line = BannerText.nextLine(NextProgram(title, 21 * 3_600_000L), copy, ZoneOffset.UTC, true, Locale.US)
+        assertEquals("Next: ${title.take(39)}\u2026 at 21:00", line)
+        assertEquals(40, BannerText.capTitle(title).length)
+        assertEquals("Test Movie B", BannerText.capTitle("Test Movie B"))
     }
 }
 

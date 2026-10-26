@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -64,10 +65,13 @@ class LiveChannel(
     /** The server the playback reporter (spec 16) talks to; null turns reporting off. */
     private val server: MediaServer? = null,
     private val reportingConfig: ReportingConfig = ReportingConfig(),
+    /** Fetches what the program info overlay shows beyond the banner; null leaves the overlay with the banner only. */
+    details: ProgramDetailsCache? = null,
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val screen = Screen(LiveState.Ident(null))
     private val tuned = Tuned()
+    private val overlays = Overlays(screen, timings, tuned, details)
 
     // The channel last saved as the last channel, and the account it is saved for: shared by the sittings of one run.
     private var saved: ChannelId? = null
@@ -83,6 +87,9 @@ class LiveChannel(
     private var sittings = 0L
 
     val state: StateFlow<LiveState> = screen.flow
+
+    /** The program info overlay (spec 17) while one is open: closed by a tune, a boundary or a flip. */
+    val info: StateFlow<LiveInfo?> = screen.info
 
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog
@@ -127,7 +134,7 @@ class LiveChannel(
                     }
                 refresher = flipper::refresh
                 lineup = flipper::lineup
-                launch { flipper.follow(commands) }
+                launch { flipper.follow(commands) { overlays.handle(it, this@coroutineScope) } }
                 try {
                     requests.receiveAsFlow().collectLatest { request ->
                         if (sit(session, request, neighbours, reporter)) throw RunEnded()

@@ -21,6 +21,10 @@
     <string name="live_label_up_next">Up next</string>
     <string name="live_label_filling_in">Filling in</string>
 
+    <!-- The actions banner's buttons (Select on the picture): the program's info, and the channel before this one. -->
+    <string name="live_action_info">Info</string>
+    <string name="live_action_last">Last</string>
+
     <!-- How far in the viewer joined; "Just started" under a minute. -->
     <string name="live_just_started">Just started</string>
     <string name="live_joining">joining %1$d min in</string>

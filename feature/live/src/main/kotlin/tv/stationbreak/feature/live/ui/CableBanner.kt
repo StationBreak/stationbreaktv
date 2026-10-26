@@ -58,8 +58,9 @@ private const val TINT_ALPHA = 0.08f
 private val CornerSize = 72.sp
 private val NumberSize = 36.sp
 private val TitleSize = 26.sp
-private val LabelSize = 13.sp
-private val DetailSize = 14.sp
+private val LabelSize = 14.sp
+private val NameSize = 14.sp
+private val DetailSize = 16.sp
 private val ShadowOffset = Offset(3f, 3f)
 private val BAR_HEIGHTS = listOf(5, 8, 12, 16)
 private const val BAR_PULSE_MS = 600
@@ -69,13 +70,19 @@ private const val BAR_LOW_ALPHA = 0.25f
 /**
  * The cable-box banner (design: board D's layout in board E2's brand styling): the channel number large in the corner
  * (when [cornerNumber]), and a bottom strip with the number and name, the signal bars and label, the title, the
- * episode line when there is one, and the slot with how far in the viewer joined. Inside a 5% safe area.
+ * episode line when there is one, and the slot with how far in the viewer joined. Under the title a progress bar,
+ * redrawn once a minute from [clock] without recomposing, and the "Next" line. The banner the viewer asked for
+ * ([Banner.actions]) adds an Info and a Last button, which call [onInfo] and [onLast]. Inside a 5% safe area.
  */
+@Suppress("LongParameterList") // The banner, its two actions and a clock a test can set.
 @Composable
 internal fun CableBanner(
     banner: Banner,
     modifier: Modifier = Modifier,
     cornerNumber: Boolean = true,
+    onInfo: () -> Unit = {},
+    onLast: () -> Unit = {},
+    clock: () -> Long = System::currentTimeMillis,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val side = maxWidth * OVERSCAN
@@ -93,7 +100,12 @@ internal fun CableBanner(
                     ),
             )
         }
-        BannerStrip(banner, Modifier.align(Alignment.BottomCenter).padding(start = side, end = side, bottom = edge))
+        BannerStrip(
+            banner,
+            Modifier.align(Alignment.BottomCenter).padding(start = side, end = side, bottom = edge),
+            Actions(onInfo, onLast),
+            clock,
+        )
     }
 }
 
@@ -125,10 +137,18 @@ internal fun ChannelBanner(
 
 private fun channelNumber(number: Int) = String.format(Locale.ROOT, "%02d", number)
 
+/** The overlay's channel line: the number as the banner writes it, a dot, then the name. */
+internal fun channelLine(
+    number: Int,
+    name: String,
+) = channelNumber(number) + " \u00B7 " + name
+
 @Composable
 private fun BannerStrip(
     banner: Banner,
     modifier: Modifier,
+    actions: Actions,
+    clock: () -> Long,
 ) {
     val context = LocalContext.current
     val copy = remember(context) { BannerCopy.from(context.resources) }
@@ -140,6 +160,10 @@ private fun BannerStrip(
         }
     val joined = remember(banner) { BannerText.joined(banner.joinedMs, copy) }
     val episode = remember(banner) { BannerText.episodeLine(banner.info, programCopy) }
+    val next =
+        remember(banner, is24h) {
+            banner.next?.let { BannerText.nextLine(it, programCopy, ZoneId.systemDefault(), is24h) }
+        }
     Column(
         modifier
             .fillMaxWidth()
@@ -153,7 +177,16 @@ private fun BannerStrip(
                 Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
             ) {
-                LabelLine(banner.label)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LabelLine(banner.label)
+                    Row(Modifier.weight(1f).padding(start = 16.dp), horizontalArrangement = Arrangement.End) {
+                        Detail(slot, LiveTags.BANNER_SLOT, Modifier.weight(1f, fill = false))
+                        joined?.let {
+                            Detail(SEPARATOR, null)
+                            Detail(it, LiveTags.BANNER_JOINED, Modifier.weight(1f, fill = false))
+                        }
+                    }
+                }
                 banner.title?.let {
                     Text(
                         text = it,
@@ -165,13 +198,11 @@ private fun BannerStrip(
                     )
                 }
                 episode?.let { Detail(it, LiveTags.BANNER_SUBTITLE, Modifier.fillMaxWidth()) }
-                Row(Modifier.fillMaxWidth()) {
-                    Detail(slot, LiveTags.BANNER_SLOT, Modifier.weight(1f, fill = false))
-                    joined?.let {
-                        Detail(SEPARATOR, null)
-                        Detail(it, LiveTags.BANNER_JOINED, Modifier.weight(1f, fill = false))
-                    }
+                if (banner.label != BannerLabel.UpNext) {
+                    ProgressBar(banner.slotStartMs, banner.slotEndMs, programCopy, clock)
                 }
+                next?.let { Detail(it, LiveTags.BANNER_NEXT, Modifier.fillMaxWidth()) }
+                if (banner.actions) ActionsRow(banner.hasLast, actions)
             }
         }
     }
@@ -201,7 +232,7 @@ private fun NumberBlock(
         Text(
             text = name.uppercase(),
             modifier = Modifier.testTag(LiveTags.BANNER_CHANNEL),
-            style = mono(LabelSize, letterSpacing = 1.5.sp),
+            style = mono(NameSize, letterSpacing = 1.5.sp),
             color = BroadcastColors.Ground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

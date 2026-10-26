@@ -21,6 +21,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.Session
@@ -30,6 +31,7 @@ import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.feature.live.LiveChannel
 import tv.stationbreak.feature.live.LiveCommand
+import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
@@ -98,9 +100,15 @@ internal class LiveViewModel
         private val controllers: ControllerTunerFactory,
         private val players: VideoPlayerFactory,
         private val server: MediaServer,
+        private val details: ProgramDetailsCache,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
+
+        private val shownInfo = MutableStateFlow<LiveInfo?>(null)
+
+        /** The program info overlay (spec 17), while one is open. */
+        val info: StateFlow<LiveInfo?> = shownInfo.asStateFlow()
 
         // Here, not in the composition, because the ViewModel outlives it; drained at the start of each sitting.
         private val commands = Channel<LiveCommand>(Channel.UNLIMITED)
@@ -122,6 +130,7 @@ internal class LiveViewModel
         ) {
             val before = shown.value.javaClass.simpleName
             shown.value = LiveState.Ident(null)
+            shownInfo.value = null
             val session = sessions.current.value
             drainStalePresses(commands, before, session == null) { Log.i(LOG_TAG, it) }
             if (session == null) {
@@ -146,13 +155,16 @@ internal class LiveViewModel
                         clock,
                         report = { Log.i(LOG_TAG, it.line()) },
                         server = server,
+                        details = details,
                     )
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { live.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
+                    val infoMirror = launch { live.info.collect { shownInfo.value = it } }
                     live.run(commands.receiveAsFlow())
                     // run() returns only when the session ended.
                     mirror.cancel()
+                    infoMirror.cancel()
                 }
                 ended = live.state.value == LiveState.SignedOut
                 if (!ended) shown.value = live.state.value

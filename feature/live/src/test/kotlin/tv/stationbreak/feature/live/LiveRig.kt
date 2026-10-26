@@ -22,22 +22,15 @@ import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
-import tv.stationbreak.core.domain.lineup.Airing
-import tv.stationbreak.core.domain.lineup.AiringBlock
-import tv.stationbreak.core.domain.lineup.ChannelAiring
+import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelKind
-import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
-import tv.stationbreak.core.domain.lineup.HiddenReason
-import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
-import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.AccessToken
-import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
@@ -47,7 +40,6 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
-import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -281,13 +273,29 @@ class Rig(
             null,
             false,
         )
-    val sessions = SessionRepository(InMemorySecretStore(), FakeMediaServer())
+    val media = FakeMediaServer()
+    val sessions = SessionRepository(InMemorySecretStore(), media)
+
+    /** The details the info overlay fetches: asks [media], which a test scripts with `itemDetailsResult`. */
+    val details = ProgramDetailsCache(media, sessions, scope.backgroundScope)
 
     /** Every report the machine made, in order. */
     val reports = mutableListOf<TuneReport>()
 
     val live =
-        LiveChannel(schedule, tune, lastChannel, sessions, library, channels, clock, timings, { reports += it }, server)
+        LiveChannel(
+            schedule,
+            tune,
+            lastChannel,
+            sessions,
+            library,
+            channels,
+            clock,
+            timings,
+            { reports += it },
+            server,
+            details = details,
+        )
 
     /** Every state in order, each with how many port calls had been made when it appeared. */
     val states = mutableListOf<Pair<LiveState, Int>>()
