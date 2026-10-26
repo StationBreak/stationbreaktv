@@ -8,6 +8,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.seconds
 

@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 

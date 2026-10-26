@@ -13,6 +13,11 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes

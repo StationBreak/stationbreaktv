@@ -6,6 +6,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration.Companion.minutes
 

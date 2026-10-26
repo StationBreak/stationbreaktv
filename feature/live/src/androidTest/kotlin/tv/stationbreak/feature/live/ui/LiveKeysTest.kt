@@ -35,11 +35,13 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.Build
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Codecs
@@ -114,6 +116,12 @@ class LiveKeysTest {
                 ): List<AiringBlock> = emptyList()
 
                 override suspend fun airings(at: Instant): List<ChannelAiring> = emptyList()
+
+                override suspend fun schedule(
+                    from: Instant,
+                    until: Instant,
+                    build: Build,
+                ): ScheduleWindow? = null
             }
         val noLineup =
             object : ChannelRepository {

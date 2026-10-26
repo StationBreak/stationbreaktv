@@ -56,8 +56,12 @@ import kotlin.time.TimeSource
  * told every build as it completes, with where its time went ([DayBuild]; numbers only), and [laidOut] each channel
  * day's schedule layout (worked out once, on first use; [warm] does it ahead).
  *
- * Main-safe: [airings], [onAir] and [standIns] do their work on [dispatcher] (default: `Dispatchers.Default`), so
- * building a day never runs on, or blocks, the caller's thread.
+ * [schedule] gives one window of every visible channel's airings. With [Build.CachedOnly] it reads only the kept days:
+ * it never builds, never joins a build in flight and never reads a snapshot (a layout not yet worked out is still
+ * done lazily).
+ *
+ * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
+ * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
  */
 @Suppress(
     "TooManyFunctions", // The one source of the days: its reads, builds and warm-up stay together.
@@ -135,6 +139,84 @@ class BuiltInScheduleSource(
             val today = channelDays(account, chosen, at).firstOrNull { it.channel.id == channel && it.hidden == null }
             today?.let { onAirOf(account, chosen, it, at, next) }
         }
+    }
+
+    override suspend fun schedule(
+        from: Instant,
+        until: Instant,
+        build: Build,
+    ): ScheduleWindow? =
+        withContext(dispatcher) {
+            val (account, chosen) = signedIn() ?: return@withContext null
+            val days =
+                if (build == Build.CachedOnly) cachedDays(account, chosen, from) else channelDays(account, chosen, from)
+            if (days == null) {
+                ScheduleWindow(emptyList(), complete = false)
+            } else {
+                windowOf(account, chosen, days.filter { it.hidden == null }, from, until, build)
+            }
+        }
+
+    private suspend fun windowOf(
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+        visible: List<ChannelDay>,
+        from: Instant,
+        until: Instant,
+        build: Build,
+    ): ScheduleWindow {
+        val fromMs = from.toEpochMilliseconds()
+        val untilMs = until.toEpochMilliseconds()
+        val laid =
+            visible.map { today ->
+                // The end of the day after the one that holds `from`, in the channel's own epoch length (as onAir).
+                val builtUntilMs = today.epochStartMs + 2 * today.settings.epochMs
+                val limit = minOf(untilMs, builtUntilMs)
+                val own = today.day.blocks.filter { it.endMs > fromMs && it.startMs < limit }
+                Triple(today, builtUntilMs, own + blocksUntil(account, chosen, today, limit, build))
+            }
+        val ids =
+            laid.flatMapTo(HashSet()) { (_, _, blocks) ->
+                blocks.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
+            }
+        val info = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids)
+        var complete = true
+        val rows =
+            laid.map { (today, builtUntilMs, blocks) ->
+                // A row that stops short of the window (or of what is built) lacks a day: it was not built or not kept.
+                if ((blocks.lastOrNull()?.endMs ?: fromMs) < minOf(untilMs, builtUntilMs)) complete = false
+                ChannelRow(today.airing(), blocks.map { it.toAiring(info) }, builtUntilMs)
+            }
+        return ScheduleWindow(rows, complete)
+    }
+
+    /**
+     * The blocks of the days that follow [from]'s day, up to [limitMs] (the blocks that start before it). With
+     * [Build.CachedOnly] only kept days are read, and the blocks stop at the first that is not; otherwise each is
+     * built as [followingBlocks] builds it. Fewer if the channel stops airing.
+     */
+    private suspend fun blocksUntil(
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+        from: ChannelDay,
+        limitMs: Long,
+        build: Build,
+    ): List<ScheduleBlock> {
+        val blocks = ArrayList<ScheduleBlock>()
+        var day = from
+        while (day.day.endMs < limitMs) {
+            val start = Instant.fromEpochMilliseconds(day.day.endMs)
+            val (days, builtInMs) =
+                if (build == Build.CachedOnly) {
+                    cachedDays(account, chosen, start) to null
+                } else {
+                    channelDaysTimed(account, chosen, start)
+                }
+            day = days?.firstOrNull { it.channel.id == from.channel.id } ?: break
+            if (builtInMs != null) timed(day.n, builtInMs)
+            blocks += day.day.blocks.filter { it.startMs < limitMs }
+        }
+        return blocks
     }
 
     override suspend fun standIns(
@@ -284,14 +366,44 @@ class BuiltInScheduleSource(
         }
     }
 
+    /** The lineup held for [account], the channels scheduled at [at] and the [Key] their days are kept under. */
+    private data class Lookup(
+        val held: Revisioned,
+        val scheduled: List<Scheduled>,
+        val key: Key,
+    )
+
+    private suspend fun lookup(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Lookup? {
+        val held = service.loaded(account) ?: return null
+        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
+        val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
+        return Lookup(held, scheduled, Key(account, held.revision, libraries, cutoffs))
+    }
+
+    /**
+     * The days at [at] only if they are already kept: null otherwise. It never starts a build, joins one in flight
+     * (a warmer's, say: that reads as not built), reads a snapshot or retries a stale build, so it takes no longer than
+     * the lock.
+     */
+    private suspend fun cachedDays(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): List<ChannelDay>? {
+        val key = lookup(account, libraries, at)?.key ?: return null
+        return synchronized(lock) { kept[key] }
+    }
+
     private suspend fun channelDaysOnce(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
-        val held = service.loaded(account) ?: return emptyList<ChannelDay>() to null
-        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
-        val key = Key(account, held.revision, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
+        val (held, scheduled, key) = lookup(account, libraries, at) ?: return emptyList<ChannelDay>() to null
         val began = TimeSource.Monotonic.markNow()
         var started = false
         val (hit, flight) =

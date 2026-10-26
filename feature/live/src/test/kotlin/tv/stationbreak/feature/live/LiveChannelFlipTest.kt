@@ -9,6 +9,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 

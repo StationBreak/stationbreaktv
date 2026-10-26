@@ -30,8 +30,11 @@ import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.ProgramInfo
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CanonicalId
@@ -49,153 +52,6 @@ import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
-
-const val MIN = 60_000L
-const val HOUR = 60 * MIN
-
-/** The start of the test day; every block time is a number of minutes from it. */
-const val T0 = 1_700_000_000_000L - 1_700_000_000_000L % (24 * HOUR)
-
-fun id(n: Int): CanonicalId = CanonicalId.parse(n.toString(16).padStart(32, '0'))
-
-fun itemOf(n: Int): ItemId = ItemId(id(n).value)
-
-fun info(
-    n: Int,
-    title: String = "Test Movie $n",
-) = ProgramInfo(id(n), ScheduleItemKind.Movie, title, null, null, null)
-
-fun episodeInfo(
-    n: Int,
-    series: String,
-    season: Int,
-    episode: Int,
-) = ProgramInfo(id(n), ScheduleItemKind.Episode, "Test Episode $episode", series, season, episode)
-
-/** A program block from minute [from] to [to] (minutes from the test day's start). */
-fun program(
-    from: Long,
-    to: Long,
-    n: Int,
-    mediaStartMs: Long = 0,
-    info: ProgramInfo? = info(n),
-) = AiringBlock(T0 + from * MIN, T0 + to * MIN, Airing.Program(id(n), mediaStartMs, info))
-
-fun slate(
-    from: Long,
-    to: Long,
-) = AiringBlock(T0 + from * MIN, T0 + to * MIN, Airing.Slate)
-
-fun standIn(
-    from: Long,
-    to: Long,
-    n: Int,
-    forBlockStartMin: Long,
-) = AiringBlock(T0 + from * MIN, T0 + to * MIN, Airing.StandIn(id(n), info(n), T0 + forBlockStartMin * MIN))
-
-val CH7 = ChannelId("ch-7")
-val CH5 = ChannelId("ch-5")
-val CH9 = ChannelId("ch-9")
-
-/** A schedule the test edits while it runs. Day length 24 h from [T0]. */
-class FakeSchedule : ScheduleSource {
-    class Entry(
-        val number: Int,
-        val name: String,
-        var hidden: HiddenReason? = null,
-        var blocks: List<AiringBlock> = emptyList(),
-        /** The channel's day length; the schedule is built to the end of the day after the one that holds `at`. */
-        var epochMs: Long = DAY,
-        /** The tier of the channel's rating ceiling, null for none. */
-        var ceilingRank: Int? = null,
-    )
-
-    val channels = linkedMapOf<ChannelId, Entry>()
-    var standInScript: (AiringBlock, Set<CanonicalId>) -> List<AiringBlock> = { _, _ -> emptyList() }
-    val standInCalls = mutableListOf<Pair<AiringBlock, Set<CanonicalId>>>()
-    val onAirCalls = mutableListOf<Pair<ChannelId, Long>>()
-
-    /** Told how many following blocks each [onAir] asks for, as it is asked; may throw to fail the call. */
-    var onAirObserver: (next: Int) -> Unit = {}
-
-    /** How long each [onAir] takes on the virtual clock (a slow schedule read). */
-    var onAirDelayMs = 0L
-
-    /** The numbers (counting from 1) of the [onAir] calls that throw once their wait is over. */
-    var onAirThrowsAfterWaitOn: Set<Int> = emptySet()
-
-    /** When set, the [onAirDelayMs] wait ignores cancellation (a read that unwinds slowly). */
-    var onAirUncancellable = false
-
-    fun channel(
-        id: ChannelId,
-        number: Int,
-        blocks: List<AiringBlock>,
-        hidden: HiddenReason? = null,
-    ): Entry = Entry(number, "Test Channel $number", hidden, blocks).also { channels[id] = it }
-
-    private fun airing(
-        id: ChannelId,
-        e: Entry,
-        at: Long,
-    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden, e.ceilingRank)
-
-    private fun dayStart(
-        e: Entry,
-        at: Long,
-    ) = T0 + (at - T0).floorDiv(e.epochMs) * e.epochMs
-
-    override suspend fun onAir(
-        channel: ChannelId,
-        at: Instant,
-        next: Int,
-    ): ChannelOnAir? {
-        val ms = at.toEpochMilliseconds()
-        onAirCalls += channel to ms
-        onAirObserver(next)
-        if (onAirUncancellable) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { kotlinx.coroutines.delay(onAirDelayMs) }
-        } else {
-            kotlinx.coroutines.delay(onAirDelayMs)
-        }
-        check(onAirCalls.size !in onAirThrowsAfterWaitOn) { "lookup failed" }
-        val e = channels[channel]?.takeIf { it.hidden == null }
-        val index = e?.blocks?.indexOfFirst { ms >= it.startMs && ms < it.endMs } ?: -1
-        return e?.takeIf { index >= 0 }?.let {
-            val builtUntil = dayStart(it, ms) + 2 * it.epochMs
-            ChannelOnAir(airing(channel, it, ms), it.blocks[index], it.blocks.drop(index + 1).take(next), builtUntil)
-        }
-    }
-
-    override suspend fun standIns(
-        channel: ChannelId,
-        block: AiringBlock,
-        exclude: Set<CanonicalId>,
-    ): List<AiringBlock> {
-        standInCalls += block to exclude
-        return standInScript(block, exclude)
-    }
-
-    /** How long each [airings] takes on the virtual clock (a slow lineup read). */
-    var airingsDelayMs = 0L
-
-    /** The numbers of the lineup reads (counting from 1) that fail. */
-    var airingsFailOn: Set<Int> = emptySet()
-
-    /** How many lineup reads were made. */
-    var airingsCalls = 0
-
-    override suspend fun airings(at: Instant): List<ChannelAiring> {
-        airingsCalls++
-        check(airingsCalls !in airingsFailOn) { "lineup read failed" }
-        kotlinx.coroutines.delay(airingsDelayMs)
-        return channels.entries.sortedBy { it.value.number }.map { (id, e) -> airing(id, e, at.toEpochMilliseconds()) }
-    }
-
-    companion object {
-        const val DAY = 24 * HOUR
-    }
-}
 
 /** One thing the machine asked the port to do, and when (milliseconds since the test began). */
 sealed interface Call {
