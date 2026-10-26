@@ -1,0 +1,181 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.feature.guide
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.ChannelAiring
+import tv.stationbreak.core.domain.lineup.ChannelRow
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.model.ChannelId
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
+
+class GuideFocusTest {
+    private fun row(
+        id: ChannelId,
+        number: Int,
+        vararg blocks: AiringBlock,
+    ) = ChannelRow(
+        ChannelAiring(id, number, "Test Channel $number", Instant.fromEpochMilliseconds(T0), null),
+        blocks.toList(),
+        T0 + 48 * 60 * MIN,
+    )
+
+    private fun min(m: Long) = T0 + m * MIN
+
+    // now = minute 65, so the origin is minute 60.
+    private val now = min(65)
+
+    private val model =
+        buildGuideModel(
+            ScheduleWindow(
+                listOf(
+                    row(CH5, 5, program(30, 90, 1), program(90, 120, 2), program(120, 180, 3)),
+                    row(CH7, 7, program(60, 100, 4), slate(100, 130), program(130, 180, 5)),
+                    row(CH9, 9, program(60, 75, 6), program(75, 84, 7)),
+                ),
+                complete = true,
+            ),
+            now,
+        )
+
+    private fun focusAt(
+        row: Int,
+        cell: Int,
+    ) = model.rows[row].let {
+        GuideFocus(it.channel, it.cells[cell].startMs, maxOf(it.cells[cell].startMs, model.originMs))
+    }
+
+    @Test
+    fun initialFocusIsCurrentChannelNowCell() {
+        val focus = model.initialFocus(CH7, now)
+        assertEquals(CH7, focus.channel)
+        assertEquals(min(60), focus.cellStartMs)
+        assertEquals(1 to 0, model.indexOf(focus))
+        // Channel 5's cell holding "now" started before the origin, and is still the one focused.
+        val first = model.initialFocus(CH5, now)
+        assertEquals(min(30), first.cellStartMs)
+        assertEquals(min(60), first.anchorMs)
+    }
+
+    @Test
+    fun unknownCurrentChannelFocusesFirstRow() {
+        assertEquals(CH5, model.initialFocus(null, now).channel)
+        assertEquals(CH5, model.initialFocus(ChannelId("gone"), now).channel)
+        assertEquals(0 to 0, model.indexOf(model.initialFocus(null, now)))
+    }
+
+    @Test
+    fun indexOfIsNullWhenTheCellIsGone() {
+        assertNull(model.indexOf(GuideFocus(CH5, min(7), min(7))))
+        assertNull(model.indexOf(GuideFocus(ChannelId("gone"), min(60), min(60))))
+    }
+
+    @Test
+    fun upDownKeepsAnchorTime() {
+        val start = GuideFocus(CH5, min(90), min(110))
+        val down = model.move(start, GuideDirection.Down)
+        assertEquals(CH7, down.channel)
+        assertEquals(min(100), down.cellStartMs) // the slate holds minute 110
+        assertEquals(min(110), down.anchorMs)
+        val back = model.move(down, GuideDirection.Up)
+        assertEquals(CH5, back.channel)
+        assertEquals(min(90), back.cellStartMs)
+        assertEquals(min(110), back.anchorMs)
+    }
+
+    @Test
+    fun upDownOntoSlateLandsOnSlate() {
+        val focus = model.move(GuideFocus(CH5, min(120), min(125)), GuideDirection.Down)
+        assertEquals(min(100), focus.cellStartMs)
+        assertEquals(CellKind.Slate, model.rows[1].cells[model.indexOf(focus)!!.second].kind)
+    }
+
+    @Test
+    fun upDownOntoShorterRowLandsOnItsLastCell() {
+        // Row 9 ends at minute 84; anchor 150 is past it.
+        val focus = model.move(GuideFocus(CH7, min(130), min(150)), GuideDirection.Down)
+        assertEquals(CH9, focus.channel)
+        assertEquals(min(75), focus.cellStartMs)
+        assertEquals(min(150), focus.anchorMs)
+    }
+
+    @Test
+    fun upDownClampsAnchorToOrigin() {
+        // Row 5's first cell starts at 30, before the origin (60); an anchor of 30 is clamped up to it.
+        val down = model.move(GuideFocus(CH5, min(30), min(30)), GuideDirection.Down)
+        assertEquals(min(60), down.anchorMs)
+        assertEquals(min(60), down.cellStartMs)
+    }
+
+    @Test
+    fun leftRightVisitsEveryCellIncludingCompactAndSlates() {
+        var focus = focusAt(1, 0)
+        val visited = mutableListOf(focus.cellStartMs)
+        repeat(2) {
+            focus = model.move(focus, GuideDirection.Right)
+            visited += focus.cellStartMs
+        }
+        assertEquals(listOf(min(60), min(100), min(130)), visited)
+        assertEquals(min(130), focus.anchorMs)
+        // Row 9 holds a 15 and a 9 minute cell; both are visited.
+        val second = model.move(focusAt(2, 0), GuideDirection.Right)
+        assertEquals(min(75), second.cellStartMs)
+        assertEquals(min(60), model.move(second, GuideDirection.Left).cellStartMs)
+    }
+
+    @Test
+    fun leftStopsAtOrigin() {
+        // The first cell of row 5 starts before the origin and is the leftmost cell: Left stays.
+        val first = focusAt(0, 0)
+        assertEquals(min(60), first.anchorMs)
+        assertEquals(first, model.move(first, GuideDirection.Left))
+        // Right then Left returns to it, the anchor clamped to the origin.
+        assertEquals(first, model.move(model.move(first, GuideDirection.Right), GuideDirection.Left))
+    }
+
+    @Test
+    fun noWrapAtEdges() {
+        val top = focusAt(0, 1)
+        assertEquals(top, model.move(top, GuideDirection.Up))
+        val bottom = focusAt(2, 1)
+        assertEquals(bottom, model.move(bottom, GuideDirection.Down))
+        val last = focusAt(0, 2)
+        assertEquals(last, model.move(last, GuideDirection.Right))
+    }
+
+    @Test
+    fun viewportShiftsBySlotAndNeverBeforeOrigin() {
+        val origin = model.originMs
+        val span = 90.minutes
+        // Visible already (the viewport covers 60..150): no change.
+        assertEquals(origin, viewportStartFor(focusAt(0, 0), model, origin, span))
+        assertEquals(origin, viewportStartFor(focusAt(1, 2), model, origin, span))
+        // A cell starting at 160 needs whole-slot shifts: a viewport from 90 holds it.
+        assertEquals(min(90), viewportStartFor(GuideFocus(CH5, min(160), min(160)), model, origin, span))
+        // The cell starts before the viewport: it moves back to the cell's slot.
+        assertEquals(min(120), viewportStartFor(GuideFocus(CH5, min(120), min(120)), model, min(150), span))
+        assertEquals(min(90), viewportStartFor(GuideFocus(CH5, min(100), min(100)), model, min(150), span))
+        // A cell before the origin never pulls the viewport before it.
+        assertEquals(origin, viewportStartFor(GuideFocus(CH5, min(30), origin), model, min(90), span))
+    }
+
+    @Test
+    fun firstVisibleRowFollowsFocusAtEdges() {
+        assertEquals(0, firstVisibleRowFor(2, 0, 5, 20))
+        assertEquals(1, firstVisibleRowFor(5, 0, 5, 20))
+        assertEquals(3, firstVisibleRowFor(3, 4, 5, 20))
+        assertEquals(4, firstVisibleRowFor(6, 4, 5, 20))
+        assertEquals(0, firstVisibleRowFor(1, 0, 5, 3))
+        assertEquals(15, firstVisibleRowFor(19, 15, 5, 20))
+    }
+}
