@@ -153,31 +153,38 @@ internal fun liveKeyCommand(
 }
 
 /**
- * Whether a Back press that [handleLiveKey] consumed is still waiting for its release. The overlay a Back closes is
- * gone by the time the release arrives, so the release cannot be judged by the state then: it is remembered per press.
+ * The keys whose press [handleLiveKey] consumed and whose release has not come yet. A press changes the screen before
+ * its release arrives (Back closes the overlay, Select brings the actions banner and moves the focus to Info), so the
+ * release cannot be judged by the state then: it is remembered per press. A release that reached a button instead
+ * would click it, since tv-material buttons click on the release.
  */
 internal class HeldKeys {
-    var backConsumed = false
+    private val consumed = mutableSetOf<Key>()
 
     /**
-     * True for the release of a Back that was consumed. A Back going down starts a press of its own, so a release
-     * lost earlier cannot outlive it and swallow a later one.
+     * True for the release of a press that was consumed. Any event of [key] ends the hold, so a release lost earlier
+     * cannot outlive the next press and swallow its release.
      */
-    fun releasesBack(
+    fun releases(
         key: Key,
         type: KeyEventType,
     ): Boolean {
-        if (key != Key.Back) return false
-        val held = backConsumed && type == KeyEventType.KeyUp
-        backConsumed = false
+        val held = type == KeyEventType.KeyUp && key in consumed
+        consumed -= key
         return held
+    }
+
+    /** Marks the press of [key] as consumed, so its release is consumed too. */
+    fun hold(key: Key) {
+        consumed += key
     }
 }
 
 /**
  * Sends the command of a mapped key and says whether the screen consumed [event]: a mapped key's down (which sends) and
  * its up (which does nothing, but nothing else should see a stray release). Everything else passes. Back is mapped only
- * while an overlay is up; the release of a Back that was consumed is consumed too, whatever [up] says by then.
+ * while an overlay is up, Select only while none is; the release of a press that was consumed is consumed too, whatever
+ * [up] says by then.
  */
 internal fun handleLiveKey(
     event: KeyEvent,
@@ -193,14 +200,14 @@ internal fun handleLiveKey(
     held: HeldKeys,
     send: (LiveCommand) -> Unit,
 ): Boolean {
-    val release = held.releasesBack(key, type)
+    val release = held.releases(key, type)
     // Left and Right move the focus between the buttons, which is the viewer still at work: keep the banner up.
     val sideways = key == Key.DirectionLeft || key == Key.DirectionRight
     if (up.actions && sideways && type == KeyEventType.KeyDown) send(LiveCommand.ShowBanner)
     val command = mappedCommand(key, up)
     if (command != null && type == KeyEventType.KeyDown) {
         send(command)
-        if (key == Key.Back) held.backConsumed = true
+        held.hold(key)
     }
     return release || (command != null && (type == KeyEventType.KeyDown || type == KeyEventType.KeyUp))
 }
