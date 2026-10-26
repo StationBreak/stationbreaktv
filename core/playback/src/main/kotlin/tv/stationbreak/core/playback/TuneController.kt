@@ -134,6 +134,7 @@ sealed interface TuneResult {
      * seek position; both are null when the player could not say (diagnostics only). [loads] is what the media loads
      * before the tracks cost (count, time, bytes, container), also diagnostics only. [notes] are the play's stalls and
      * their ends (at most [MAX_STALL_NOTES] stalls), and complete when [end] does; diagnostics only.
+     * [av] times the audio and video start-up steps (diagnostics only).
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -146,6 +147,7 @@ sealed interface TuneResult {
         val skippedFrames: Long? = null,
         val loads: LoadStats? = null,
         val notes: Flow<PlayNote> = emptyFlow(),
+        val av: AvTimings? = null,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -417,6 +419,7 @@ class TuneController(
                     attempt.skippedFrames,
                     attempt.loads,
                     attempt.notes,
+                    attempt.av,
                 )
             }
 
@@ -505,6 +508,7 @@ class TuneController(
         val skippedFrames: Long?,
         val loads: LoadStats?,
         val notes: Flow<PlayNote>,
+        val av: AvTimings?,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -623,6 +627,7 @@ class TuneController(
             skippedFrames = landing.skippedFrames,
             loads = landing.loads,
             notes = landing.notes,
+            av = landing.playing.av?.copy(playCallMs = landing.playCalledAt - began),
         )
     }
 
@@ -642,6 +647,7 @@ class TuneController(
             val skippedFrames: Long?,
             val loads: LoadStats?,
             val notes: Flow<PlayNote>,
+            val playCalledAt: Long,
         ) : Wait
     }
 
@@ -650,6 +656,7 @@ class TuneController(
      * a late event of an earlier play cannot answer for it. [Wait.TimedOut] when neither happens in
      * [PLAYING_TIMEOUT]. Once playing, it waits up to [FIRST_FRAME_WAIT] more for the first frame.
      */
+    @Suppress("LongMethod") // One play's listener and its measures, kept together.
     private suspend fun playAndWait(source: PlayerSource): Wait =
         coroutineScope {
             val generation = CompletableDeferred<Long>()
@@ -694,7 +701,16 @@ class TuneController(
                             // The tracks come before the picture, so they are known by now or not at all.
                             val tracksMs = tracksAt.get().takeIf { it != NO_TIME }?.minus(playCalledAt)
                             val skipped = frame?.skippedFrames
-                            Wait.Landed(frame?.atMs, event, watch.flow, tracksMs, skipped, loads.get(), watch.notes)
+                            Wait.Landed(
+                                frame?.atMs,
+                                event,
+                                watch.flow,
+                                tracksMs,
+                                skipped,
+                                loads.get(),
+                                watch.notes,
+                                playCalledAt,
+                            )
                         }
 
                         is PlayerEvent.Failed -> {

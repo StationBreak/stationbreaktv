@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.playback.AvTimings
 import tv.stationbreak.core.playback.LoadStats
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -135,10 +136,20 @@ class LiveChannelReportTest {
             "tune kind=fresh resolveMs=-1 firstFrameMs=1800 playingMs=2000 posErrMs=-1 fallback=none lagMs=40 " +
                 "from=direct route=stream tracksMs=-1 skippedFrames=-1"
         val noLoads = " loads=-1 loadMs=-1 maxLoadMs=-1 loadKb=-1 container=unknown opensKb=-1 ioMs=-1 parseMs=-1"
-        assertEquals(line + noLoads, tune.line())
+        val noAv =
+            " playCallMs=-1 videoDecInitMs=-1 videoDecInitDurMs=-1 audioDecInitMs=-1 audioDecInitDurMs=-1" +
+                " audioTrackInitMs=-1 audioAdvancingMs=-1 audioUnderruns=-1 readyMs=-1"
+        assertEquals(line + noLoads + noAv, tune.line())
+        val av = AvTimings(30, 120, 40, 150, 25, 300, 1_050, 2, 900)
+        assertEquals(
+            line + noLoads +
+                " playCallMs=30 videoDecInitMs=120 videoDecInitDurMs=40 audioDecInitMs=150 audioDecInitDurMs=25" +
+                " audioTrackInitMs=300 audioAdvancingMs=1050 audioUnderruns=2 readyMs=900",
+            tune.copy(av = av).line(),
+        )
         val measured = tune.copy(tracksMs = 350, skippedFrames = 42)
         assertEquals(
-            line.replace("tracksMs=-1 skippedFrames=-1", "tracksMs=350 skippedFrames=42") + noLoads,
+            line.replace("tracksMs=-1 skippedFrames=-1", "tracksMs=350 skippedFrames=42") + noLoads + noAv,
             measured.line(),
         )
         val stats =
@@ -153,13 +164,13 @@ class LiveChannelReportTest {
             )
         val loaded = tune.copy(loads = stats)
         assertEquals(
-            line + " loads=3 loadMs=410 maxLoadMs=250 loadKb=96 container=mp4 opensKb=0,7 ioMs=300 parseMs=-1",
+            line + " loads=3 loadMs=410 maxLoadMs=250 loadKb=96 container=mp4 opensKb=0,7 ioMs=300 parseMs=-1" + noAv,
             loaded.line(),
         )
         val timed = loaded.copy(tracksMs = 350).line()
-        assertTrue(timed, timed.endsWith("ioMs=300 parseMs=50"))
+        assertTrue(timed, timed.endsWith("ioMs=300 parseMs=50$noAv"))
         val ioHeavy = loaded.copy(tracksMs = 100).line()
-        assertTrue(ioHeavy, ioHeavy.endsWith("ioMs=300 parseMs=0"))
+        assertTrue(ioHeavy, ioHeavy.endsWith("ioMs=300 parseMs=0$noAv"))
         val cut = TuneReport.Cut(gapMs = 300, resolveMs = 0, toFirstFrameMs = null)
         assertEquals("cut gapMs=300 resolveMs=0 toFirstFrameMs=-1", cut.line())
     }

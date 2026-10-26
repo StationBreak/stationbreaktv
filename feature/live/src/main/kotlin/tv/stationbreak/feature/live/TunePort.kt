@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.AvTimings
 import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
@@ -36,6 +37,7 @@ class NextHandle(
  * @property skippedFrames video frames decoded and dropped to reach an exact seek position, at the first picture; null
  * if unknown.
  * @property loads what the media loads before the tracks cost (count, time, bytes, container type), null if unknown.
+ * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -47,6 +49,7 @@ data class TuneTimings(
     val tracksMs: Long? = null,
     val skippedFrames: Long? = null,
     val loads: LoadStats? = null,
+    val av: AvTimings? = null,
 )
 
 /**

@@ -5,6 +5,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import tv.stationbreak.core.playback.AvTimings
 import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
@@ -44,7 +45,9 @@ sealed interface TuneReport {
     /**
      * One tune that played. [resolveMs] is 0 for a prepared tune (resolved ahead) and [NOT_SEPARATE] for any other:
      * the controller does not split a fresh tune's resolve from its play, so it is inside [firstFrameMs] and
-     * [playingMs]. A null time is logged as [NOT_SEPARATE]. [lagMs] is how far behind the schedule the picture started:
+     * [playingMs]. The audio and video fields at the end run from the play call, not the tune's start: add
+     * `playCallMs` to compare them with those. A null time is logged as [NOT_SEPARATE]. A -1 there can also mean the
+     * decoder or AudioTrack was reused. [lagMs] is how far behind the schedule the picture started:
      * `(time at playing - block start) - (position tuned - media position at the block start)`.
      */
     data class Tune(
@@ -60,13 +63,23 @@ sealed interface TuneReport {
         val tracksMs: Long? = null,
         val skippedFrames: Long? = null,
         val loads: LoadStats? = null,
+        val av: AvTimings? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
                 "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
                 "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
-                loadFields()
+                loadFields() + " " + avFields()
+
+        private fun avFields(): String {
+            val a = av ?: AvTimings()
+            return "playCallMs=${a.playCallMs} videoDecInitMs=${a.videoDecInitMs} " +
+                "videoDecInitDurMs=${a.videoDecInitDurMs} " +
+                "audioDecInitMs=${a.audioDecInitMs} audioDecInitDurMs=${a.audioDecInitDurMs} " +
+                "audioTrackInitMs=${a.audioTrackInitMs} audioAdvancingMs=${a.audioAdvancingMs} " +
+                "audioUnderruns=${if (av == null) NOT_SEPARATE else a.audioUnderruns} readyMs=${a.readyMs}"
+        }
 
         private fun loadFields(): String =
             "loads=${loads?.loads ?: NOT_SEPARATE} loadMs=${loads?.loadMs ?: NOT_SEPARATE} " +
@@ -233,6 +246,7 @@ internal fun Sitting.reportTune(
             timings.tracksMs,
             timings.skippedFrames,
             timings.loads,
+            timings.av,
         ),
     )
     if (cutSince != null) {
