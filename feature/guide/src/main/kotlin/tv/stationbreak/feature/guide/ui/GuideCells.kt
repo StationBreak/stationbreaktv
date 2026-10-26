@@ -106,7 +106,10 @@ internal class CellPlace(
     fun visibleRight(viewportStartMs: Long): Dp = (viewportRight(viewportStartMs) - x).coerceIn(0.dp, width)
 
     /** The viewport's left edge on the row, from the origin. */
-    private fun viewportLeft(viewportStartMs: Long): Dp = geometry.widthOf(viewportStartMs - originMs)
+    fun viewportLeft(viewportStartMs: Long): Dp = geometry.widthOf(viewportStartMs - originMs)
+
+    /** How wide the time columns are. */
+    val viewportWidth: Dp = geometry.viewportWidth
 
     /** The viewport's right edge on the row, from the origin. */
     fun viewportRight(viewportStartMs: Long): Dp = viewportLeft(viewportStartMs) + geometry.viewportWidth
@@ -253,12 +256,15 @@ private fun CompactLabel(
             Modifier
                 .zIndex(1f)
                 .layout { measurable, constraints ->
-                    val label = measurable.measure(Constraints())
+                    // Never wider than the time columns, so a long title ends in its ellipsis, not at the clip.
+                    val label = measurable.measure(Constraints(maxWidth = place.viewportWidth.roundToPx()))
                     layout(0, 0) {
+                        val viewport = viewportOf()
+                        val first = place.viewportLeft(viewport).roundToPx()
+                        val last = place.viewportRight(viewport).roundToPx() - label.width
                         val right = (place.x + place.width + LabelGap).roundToPx()
-                        val edge = place.viewportRight(viewportOf()).roundToPx()
                         val left = (place.x - LabelGap).roundToPx() - label.width
-                        val x = if (right + label.width <= edge) right else left
+                        val x = (if (right <= last) right else left).coerceIn(first, maxOf(first, last))
                         label.placeRelative(x, (constraints.maxHeight - label.height) / 2)
                     }
                 }.background(BroadcastColors.Accent)
@@ -268,6 +274,7 @@ private fun CompactLabel(
         color = BroadcastColors.Ink,
         maxLines = 1,
         softWrap = false,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
