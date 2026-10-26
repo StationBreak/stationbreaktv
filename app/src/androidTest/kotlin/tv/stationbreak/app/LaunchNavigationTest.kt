@@ -21,6 +21,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -56,6 +57,7 @@ import tv.stationbreak.core.model.StoredSession
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.guide.ui.GuideTags
 import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.launch.LaunchTags
 import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
@@ -198,6 +200,17 @@ class LaunchNavigationTest {
         compose.waitUntil(TIMEOUT_MS) { count(tag) > 0 }
     }
 
+    /**
+     * Back from live TV opens the guide (spec 17, owner decision 3), and Back from the guide leaves the app: two
+     * presses where the rest of the app takes one, which is why the guide's hint row says so.
+     */
+    private fun assertBackOpensTheGuideThenLeavesTheApp() {
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.SCREEN)
+        assertFalse("the first Back only opens the guide", compose.activity.isFinishing)
+        assertBackLeavesTheApp()
+    }
+
     private fun assertBackLeavesTheApp() {
         // The activity goes away, so nothing below may touch the compose rule again.
         val activity = compose.activity
@@ -221,14 +234,14 @@ class LaunchNavigationTest {
     }
 
     @Test
-    fun aRestoredSessionWithAChoiceOpensTheLiveScreenAndBackLeavesTheApp() {
+    fun aRestoredSessionWithAChoiceOpensTheLiveScreenAndBackLeavesThroughTheGuide() {
         storeSession()
         Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
         launchApp()
 
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(ServerTags.FIELD))
-        assertBackLeavesTheApp()
+        assertBackOpensTheGuideThenLeavesTheApp()
     }
 
     @Test
@@ -350,7 +363,7 @@ class LaunchNavigationTest {
     // The end of onboarding
 
     @Test
-    fun doneSavesTheChoiceOpensTheLiveScreenAndBackLeavesTheApp() {
+    fun doneSavesTheChoiceOpensTheLiveScreenAndBackLeavesThroughTheGuide() {
         storeSession()
         Launched.settings = InMemoryServerSettings(ServerRecord(https))
         launchApp()
@@ -360,7 +373,7 @@ class LaunchNavigationTest {
 
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(setOf(movies.id), Launched.settings.currentLibraries)
-        assertBackLeavesTheApp()
+        assertBackOpensTheGuideThenLeavesTheApp()
     }
 
     @Test

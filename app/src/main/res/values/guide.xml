@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  Whether this build writes the guide's measurement line (spec 17, Task 9): not in release. The debug and benchmark
+  builds set it to true in their own source sets. A resource rather than a BuildConfig field, so detekt's type
+  resolution can see it.
+-->
+<resources>
+    <bool name="guide_measure">false</bool>
+</resources>

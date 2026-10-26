@@ -91,6 +91,9 @@ class LiveChannel(
     /** The program info overlay (spec 17) while one is open: closed by a tune, a boundary or a flip. */
     val info: StateFlow<LiveInfo?> = screen.info
 
+    /** The channel tuned last (the one playing, or being tuned); null before the first. The guide opens on it. */
+    val playingChannel: ChannelId? get() = tuned.playing?.id
+
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog
 

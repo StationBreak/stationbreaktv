@@ -55,6 +55,8 @@ internal class SitRequest(
  * run only (design: not persisted).
  */
 internal class Tuned {
+    // Volatile: the screen reads it on a key press (the guide opens on it) while the run writes it.
+    @Volatile
     var playing: ChannelAiring? = null
         private set
 

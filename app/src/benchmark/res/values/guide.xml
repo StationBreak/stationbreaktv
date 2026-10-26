@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The benchmark build writes the guide's measurement line (spec 17, Task 9): it is what device timing runs use.
+-->
+<resources>
+    <bool name="guide_measure">true</bool>
+</resources>

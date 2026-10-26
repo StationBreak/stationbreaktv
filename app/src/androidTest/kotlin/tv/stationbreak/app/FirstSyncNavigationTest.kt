@@ -21,6 +21,7 @@ import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -62,6 +63,7 @@ import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
+import tv.stationbreak.feature.guide.ui.GuideTags
 import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncTags
 import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
@@ -207,6 +209,17 @@ class FirstSyncNavigationTest {
         compose.waitForIdle()
     }
 
+    /**
+     * Back from live TV opens the guide (spec 17, owner decision 3), and Back from the guide leaves the app: two
+     * presses where the rest of the app takes one, which is why the guide's hint row says so.
+     */
+    private fun assertBackOpensTheGuideThenLeavesTheApp() {
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.SCREEN)
+        assertFalse("the first Back only opens the guide", compose.activity.isFinishing)
+        assertBackLeavesTheApp()
+    }
+
     private fun assertBackLeavesTheApp() {
         // The activity goes away, so nothing below may touch the compose rule again.
         val activity = compose.activity
@@ -237,7 +250,7 @@ class FirstSyncNavigationTest {
 
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(FirstSyncTags.HEADLINE))
-        assertBackLeavesTheApp()
+        assertBackOpensTheGuideThenLeavesTheApp()
     }
 
     @Test

@@ -204,7 +204,7 @@ class LiveKeysTest {
     }
 
     @Test
-    fun theReleaseOfAMappedKeyIsConsumedButSendsNothingAndBackPassesBothWays() {
+    fun theReleaseOfAMappedKeyIsConsumedButSendsNothingAndBackInTheGuidePassesBothWays() {
         val got = mutableListOf<LiveCommand>()
         for (code in listOf(KEYCODE_DPAD_UP, KEYCODE_DPAD_DOWN, KEYCODE_MENU)) {
             assertTrue("$code up consumed", handleLiveKey(key(ACTION_UP, code)) { got += it })
@@ -212,8 +212,9 @@ class LiveKeysTest {
         assertEquals(emptyList<LiveCommand>(), got)
         assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_DPAD_UP)) { got += it })
         assertEquals(listOf<LiveCommand>(LiveCommand.Flip(FlipDirection.Up)), got)
-        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK)) { got += it })
-        assertFalse(handleLiveKey(key(ACTION_UP, KEYCODE_BACK)) { got += it })
+        val inGuide = OverlayUp(guide = true)
+        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), inGuide) { got += it })
+        assertFalse(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), inGuide) { got += it })
         assertEquals(1, got.size)
     }
 
@@ -228,7 +229,7 @@ class LiveKeysTest {
     }
 
     @Test
-    fun backAndTheMediaKeysAreNotConsumed() {
+    fun backSendsNoCommandAndTheMediaKeysAreNotConsumed() {
         show()
         for (code in listOf(KEYCODE_BACK, KEYCODE_MEDIA_NEXT, KEYCODE_MEDIA_PREVIOUS)) {
             assertNull("$code", liveKeyCommand(key(ACTION_DOWN, code)))
@@ -278,7 +279,10 @@ class LiveKeysTest {
     @Test
     fun backClosesAnOverlayButNeverATuneBanner() {
         val got = mutableListOf<LiveCommand>()
-        assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK)) { got += it })
+        val guide = mutableListOf<Boolean>()
+        // With nothing up, Back opens the guide: consumed, but no command for the machine.
+        assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), guide = { guide += it }) { got += it })
+        assertEquals(listOf(true), guide)
         assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), OverlayUp(info = true)) { got += it })
         assertTrue(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), OverlayUp(info = true)) { got += it })
         assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), OverlayUp(actions = true)) { got += it })

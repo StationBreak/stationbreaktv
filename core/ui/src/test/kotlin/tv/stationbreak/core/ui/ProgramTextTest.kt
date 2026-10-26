@@ -2,7 +2,9 @@
 package tv.stationbreak.core.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import java.io.File
 import java.time.Instant
@@ -50,6 +52,31 @@ class ProgramTextTest {
     }
 
     @Test
+    fun dayTimeHasTheWeekday() {
+        // 00:12 UTC on Tuesday 27 October 2026 is 8:12 PM on Monday 26 October in New York.
+        val at = ms("2026-10-27T00:12:00Z")
+        assertEquals("Mon 8:12 PM", ProgramText.dayTime(at, newYork, false, Locale.US))
+        assertEquals("Mon 20:12", ProgramText.dayTime(at, newYork, true, Locale.US))
+    }
+
+    @Test
+    fun slotOnTodayHasNoWeekday() {
+        val now = ms("2026-10-26T23:00:00Z")
+        val start = ms("2026-10-27T00:00:00Z")
+        val slot = ProgramText.slotOn(start, start + HALF_HOUR, now, newYork, false, Locale.US)
+        assertEquals("8:00 – 8:30 PM", slot)
+    }
+
+    @Test
+    fun slotOnAnotherDayStartsWithItsWeekday() {
+        // 7:00 PM Monday in New York; the program is at 1:00 AM on Tuesday.
+        val now = ms("2026-10-26T23:00:00Z")
+        val start = ms("2026-10-27T05:00:00Z")
+        val slot = ProgramText.slotOn(start, start + HALF_HOUR, now, newYork, false, Locale.US)
+        assertEquals("Tue 1:00 – 1:30 AM", slot)
+    }
+
+    @Test
     fun episodeLineIsSeasonAndEpisodeAndTitle() {
         assertEquals("S2 E5 · Episode One", episode(2, 5))
     }
@@ -81,6 +108,18 @@ class ProgramTextTest {
         assertEquals("Off air until 6:00 AM", copy.offAirUntil("6:00 AM"))
         assertEquals("Starts in 5 min", copy.startsIn(5))
         assertEquals("12 min left", copy.minutesLeft(12))
+    }
+
+    @Test
+    fun formattersAreMadeOncePerLocaleAndClock() {
+        val us12 = ProgramText.formatter("h:mm a", Locale.US)
+        assertSame(us12, ProgramText.formatter("h:mm a", Locale.US))
+        assertNotSame(us12, ProgramText.formatter("HH:mm", Locale.US))
+        assertNotSame(us12, ProgramText.formatter("h:mm a", Locale.UK))
+    }
+
+    private companion object {
+        const val HALF_HOUR = 30 * 60_000L
     }
 }
 

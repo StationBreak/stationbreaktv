@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +45,7 @@ import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
@@ -51,7 +53,6 @@ import tv.stationbreak.feature.live.R
 import java.time.ZoneId
 import java.util.Locale
 
-private const val OVERSCAN = 0.05f
 private const val RULE_HEIGHT = 4
 private const val TINT_ALPHA = 0.08f
 
@@ -85,8 +86,9 @@ internal fun CableBanner(
     clock: () -> Long = System::currentTimeMillis,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val side = maxWidth * OVERSCAN
-        val edge = maxHeight * OVERSCAN
+        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val side = safe.left
+        val edge = safe.top
         if (cornerNumber) {
             Text(
                 text = channelNumber(banner.number),
@@ -119,8 +121,9 @@ internal fun ChannelBanner(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val side = maxWidth * OVERSCAN
-        val edge = maxHeight * OVERSCAN
+        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val side = safe.left
+        val edge = safe.top
         Column(
             Modifier
                 .align(Alignment.BottomCenter)

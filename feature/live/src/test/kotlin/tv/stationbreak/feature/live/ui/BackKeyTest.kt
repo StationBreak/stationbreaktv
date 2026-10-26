@@ -9,10 +9,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.feature.live.LiveCommand
 
-/** Back over the overlays: the press is consumed whole, even though its own Down closed the overlay. */
+/**
+ * Back over the overlays: the press is consumed whole, even though its own Down closed the overlay. Back is not the
+ * screen's only while the guide is open ([inGuide]): then it leaves live TV.
+ */
 class BackKeyTest {
     private val sent = mutableListOf<LiveCommand>()
     private val held = HeldKeys()
+    private val inGuide = OverlayUp(guide = true)
 
     private fun back(
         type: KeyEventType,
@@ -29,8 +33,8 @@ class BackKeyTest {
 
     @Test
     fun aBackThatWasNotConsumedPassesBothWays() {
-        assertFalse(back(KeyEventType.KeyDown, OverlayUp.None))
-        assertFalse(back(KeyEventType.KeyUp, OverlayUp.None))
+        assertFalse(back(KeyEventType.KeyDown, inGuide))
+        assertFalse(back(KeyEventType.KeyUp, inGuide))
         assertEquals(emptyList<LiveCommand>(), sent)
     }
 
@@ -38,15 +42,15 @@ class BackKeyTest {
     fun theReleaseIsOnlyHeldBackOnce() {
         back(KeyEventType.KeyDown, OverlayUp(actions = true))
         assertTrue(back(KeyEventType.KeyUp, OverlayUp.None))
-        assertFalse("the next, separate release is not ours", back(KeyEventType.KeyUp, OverlayUp.None))
+        assertFalse("the next, separate release is not ours", back(KeyEventType.KeyUp, inGuide))
     }
 
     @Test
     fun aLostReleaseDoesNotSwallowTheNextRealOne() {
         // The first press was consumed, but its release never arrived.
         assertTrue(back(KeyEventType.KeyDown, OverlayUp(info = true)))
-        // The next press finds no overlay: not consumed, and it clears the stale hold.
-        assertFalse(back(KeyEventType.KeyDown, OverlayUp.None))
-        assertFalse(back(KeyEventType.KeyUp, OverlayUp.None))
+        // The next press finds the guide open: not consumed, and it clears the stale hold.
+        assertFalse(back(KeyEventType.KeyDown, inGuide))
+        assertFalse(back(KeyEventType.KeyUp, inGuide))
     }
 }

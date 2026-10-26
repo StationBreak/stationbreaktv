@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import tv.stationbreak.feature.guide.ui.GuideDestination
 import tv.stationbreak.feature.live.ui.LiveDestination
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncDestination
 import tv.stationbreak.feature.onboarding.launch.LaunchDestination
@@ -91,7 +92,14 @@ internal fun AppNavGraph(
         }
         composable<LiveRoute> {
             // The session ended while watching: the launch router decides where that leads, as for any lost session.
-            LiveDestination(onSignedOut = { navController.replaceAll(LaunchRoute) })
+            LiveDestination(
+                onSignedOut = { navController.replaceAll(LaunchRoute) },
+                // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so the
+                // graph hands it over. Live says where its picture is; the guide leaves that hole clear.
+                guide = { current, openedAtNanos, pictureHole, onTune ->
+                    GuideDestination(current, openedAtNanos, pictureHole, onTune)
+                },
+            )
         }
     }
 }
