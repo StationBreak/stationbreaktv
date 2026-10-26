@@ -6,22 +6,22 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /** How much time the grid shows at once: the one span that scrolling and the clock tick both go by. */
-val GUIDE_VIEWPORT_SPAN: Duration = 90.minutes
+internal val GUIDE_VIEWPORT_SPAN: Duration = 90.minutes
 
-enum class GuideDirection { Up, Down, Left, Right }
+internal enum class GuideDirection { Up, Down, Left, Right }
 
 /**
  * The focused cell, by identity: its channel and start, not its place in the lists, so a focus that outlives a
  * rebuilt model highlights nothing rather than the wrong cell. [anchorMs] is the time Up and Down keep.
  */
-data class GuideFocus(
+internal data class GuideFocus(
     val channel: ChannelId,
     val cellStartMs: Long,
     val anchorMs: Long,
 )
 
 /** The (row, cell) the [focus] names, or null when that cell is gone. */
-fun GuideModel.indexOf(focus: GuideFocus): Pair<Int, Int>? {
+internal fun GuideModel.indexOf(focus: GuideFocus): Pair<Int, Int>? {
     val row = rows.indexOfFirst { it.channel == focus.channel }
     if (row < 0) return null
     val cell = rows[row].cells.indexOfFirst { it.startMs == focus.cellStartMs }
@@ -38,7 +38,7 @@ private fun GuideModel.focusOn(
  * Where the guide opens: the cell on air now on the [current] channel's row, or, when that channel is not in the model
  * or has no cells, on the first row that has cells. Null when no row has a cell, since there is nothing to focus.
  */
-fun GuideModel.initialFocus(
+internal fun GuideModel.initialFocus(
     current: ChannelId?,
     nowMs: Long,
 ): GuideFocus? {
@@ -54,7 +54,7 @@ fun GuideModel.initialFocus(
  * One step of [direction] from [focus]; at an edge, or when the focused cell is gone, the focus stays. Up and Down skip
  * rows that have no cells, and stay put when no row in that direction has any.
  */
-fun GuideModel.move(
+internal fun GuideModel.move(
     focus: GuideFocus,
     direction: GuideDirection,
 ): GuideFocus {
@@ -84,20 +84,21 @@ private fun GuideModel.moveVertically(
 
 /**
  * The start of the visible time range after focus moves in [direction], always a whole number of half hours from the
- * origin and never before it. [viewportStartMs] is where the range starts now, [viewportSpan] how long it is.
+ * origin and never before it. [viewportStartMs] is where the range starts now, [viewportSpan] how long it is. A null
+ * [direction] is a rebuild (the clock or a new window), not a key: it moves the range as Left and Right do.
  *
  * - Up and Down keep the time columns steady: the range stays put while the focused cell overlaps it (a long cell that
  *   began before the range still counts). Only when the cell does not overlap is the range moved, by the fewest whole
  *   slots that show the focus's anchor time if the cell holds it, else the cell's nearest edge, so the focused cell is
  *   always at least partly visible.
- * - Left and Right move the range only when the focused cell is entirely outside it, to the slot that holds the
- *   cell's start.
+ * - Left and Right (and a rebuild) move the range only when the focused cell is entirely outside it, to the slot that
+ *   holds the cell's start.
  */
-fun viewportStartFor(
+internal fun viewportStartFor(
     focus: GuideFocus,
     model: GuideModel,
     viewportStartMs: Long,
-    direction: GuideDirection,
+    direction: GuideDirection?,
     viewportSpan: Duration = GUIDE_VIEWPORT_SPAN,
 ): Long {
     val origin = model.originMs
@@ -112,7 +113,7 @@ fun viewportStartFor(
             start
         }
 
-        direction == GuideDirection.Left || direction == GuideDirection.Right -> {
+        direction == null || direction == GuideDirection.Left || direction == GuideDirection.Right -> {
             origin + (cellStart - origin).floorDiv(SLOT_MS) * SLOT_MS
         }
 
@@ -145,7 +146,7 @@ private fun revealing(
     }
 
 /** The first row to show once [focusRow] is focused: it stays visible, scrolling a row at a time at the edges. */
-fun firstVisibleRowFor(
+internal fun firstVisibleRowFor(
     focusRow: Int,
     firstVisibleRow: Int,
     visibleRows: Int,

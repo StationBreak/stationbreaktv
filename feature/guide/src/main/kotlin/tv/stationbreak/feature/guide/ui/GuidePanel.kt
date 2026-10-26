@@ -34,9 +34,9 @@ import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
-import tv.stationbreak.feature.guide.PanelDetails
 import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
 
@@ -54,7 +54,7 @@ private const val OVERVIEW_LINES = 3
  */
 @Composable
 internal fun DetailsPanel(
-    panel: StateFlow<PanelDetails?>,
+    panel: StateFlow<CellDetails?>,
     nowOf: () -> Long?,
     modifier: Modifier,
 ) {
@@ -74,7 +74,7 @@ internal fun DetailsPanel(
 
 @Composable
 private fun PanelLines(
-    details: PanelDetails,
+    details: CellDetails,
     nowMs: Long,
 ) {
     val copy = programCopy()

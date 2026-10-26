@@ -104,8 +104,8 @@ the guide is open. A feature module may not depend on another, so `app` fills th
 guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
 what it shows is the guide's.
 
-The geometry both sides must agree on is in `core:ui`, not in either feature: `GuideLayout.safeArea` (the 5% overscan inset
-the banner, the info overlay and the guide all use) and `GuideLayout.pictureRect` (where the live picture sits beside the
+The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan inset
+the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where the live picture sits beside the
 guide, and so where the guide leaves its hole). `core:ui` has grown from the theme into the shared program UI of spec 17: the
 program text rules (`ProgramText`: slots, times, episode lines), the program info overlay, and that geometry.
 

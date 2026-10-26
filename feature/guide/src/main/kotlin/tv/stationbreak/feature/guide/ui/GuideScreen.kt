@@ -40,17 +40,16 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.GuideLayout
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 import tv.stationbreak.feature.guide.GuideFocus
-import tv.stationbreak.feature.guide.GuideInfo
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
-import tv.stationbreak.feature.guide.PanelDetails
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.indexOf
 import java.time.ZoneId
@@ -73,8 +72,8 @@ private const val HINT_SPACE = "   "
 internal class GuideGeometry(
     screen: DpSize,
 ) {
-    val safe: DpRect = GuideLayout.safeArea(screen)
-    val picture: DpRect = GuideLayout.pictureRect(safe)
+    val safe: DpRect = ScreenLayout.safeArea(screen)
+    val picture: DpRect = ScreenLayout.pictureRect(safe)
     val panelWidth: Dp = picture.left - safe.left - PanelGap
     val topHeight: Dp = picture.bottom - picture.top
     val viewportWidth: Dp = safe.right - safe.left - ChannelColumnWidth
@@ -94,8 +93,8 @@ internal class GuideGeometry(
 @Composable
 internal fun GuideScreen(
     snapshot: StateFlow<GuideSnapshot>,
-    panel: StateFlow<PanelDetails?>,
-    info: GuideInfo?,
+    panel: StateFlow<CellDetails?>,
+    info: CellDetails?,
     current: ChannelId?,
     pictureInCorner: Boolean,
     modifier: Modifier = Modifier,
@@ -284,7 +283,7 @@ private fun HintRow(snapshotOf: () -> GuideSnapshot) {
 /** The info overlay of a later program: the shared overlay, its slot with the weekday when it is not today. */
 @Composable
 private fun GuideInfoOverlay(
-    info: GuideInfo,
+    info: CellDetails,
     nowOf: () -> Long?,
 ) {
     val copy = programCopy()

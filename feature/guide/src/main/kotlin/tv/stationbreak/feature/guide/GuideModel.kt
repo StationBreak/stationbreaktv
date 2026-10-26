@@ -11,29 +11,32 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.time.Duration.Companion.minutes
 
+// The model classes are @Immutable, a Compose runtime annotation and the one Compose import here: ProgramInfo comes
+// from a module the Compose compiler does not see, so without it every cell would count as unstable, and a minute tick
+// that rebuilds an equal model would recompose every cell on the grid.
+
 /** What a guide cell shows: a program (or a stand-in for one), or a slate (nothing to play). */
-enum class CellKind { Program, Slate }
+internal enum class CellKind { Program, Slate }
 
 /**
  * One cell of a guide row, half-open `[startMs, endMs)` in milliseconds since 1970. The first cell of a row may start
  * before [GuideModel.originMs]. [title] is derived from [info], the display title: the series name for an episode of a
  * known series, else the item's own title. It and [info] are null for a slate and for a program no longer in the
- * library; [itemId] is null for a slate. A [compact] cell is too short to hold a title.
+ * library; [itemId] is null for a slate. Whether it is too narrow for a title is the screen's call (`CellPlace`).
  */
 @Immutable
-data class GuideCell(
+internal data class GuideCell(
     val startMs: Long,
     val endMs: Long,
     val kind: CellKind,
     val title: String?,
     val info: ProgramInfo?,
     val itemId: CanonicalId?,
-    val compact: Boolean,
 )
 
 /** One channel's row, in channel-number order. */
 @Immutable
-data class GuideRow(
+internal data class GuideRow(
     val channel: ChannelId,
     val number: Int,
     val name: String,
@@ -45,7 +48,7 @@ data class GuideRow(
  * cell). [complete] is false when the schedule behind it is not all built yet.
  */
 @Immutable
-data class GuideModel(
+internal data class GuideModel(
     val rows: List<GuideRow>,
     val originMs: Long,
     val endMs: Long,
@@ -53,10 +56,9 @@ data class GuideModel(
 )
 
 internal val SLOT_MS: Long = 30.minutes.inWholeMilliseconds
-private val COMPACT_BELOW_MS: Long = 10.minutes.inWholeMilliseconds
 
 /** Lays [window] out as cells from the half hour that holds [nowMs]; blocks that ended before it are left out. */
-fun buildGuideModel(
+internal fun buildGuideModel(
     window: ScheduleWindow,
     nowMs: Long,
 ): GuideModel {
@@ -110,14 +112,13 @@ private fun continues(
 }
 
 private fun cellOf(block: AiringBlock): GuideCell {
-    val compact = block.endMs - block.startMs < COMPACT_BELOW_MS
     val (kind, info, itemId) =
         when (val airing = block.airing) {
             is Airing.Program -> Triple(CellKind.Program, airing.info, airing.itemId)
             is Airing.StandIn -> Triple(CellKind.Program, airing.info, airing.itemId)
             Airing.Slate -> Triple(CellKind.Slate, null, null)
         }
-    return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId, compact)
+    return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId)
 }
 
 private fun displayTitle(info: ProgramInfo): String {

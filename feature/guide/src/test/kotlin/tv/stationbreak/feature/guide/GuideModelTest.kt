@@ -89,12 +89,6 @@ class GuideModelTest {
     }
 
     @Test
-    fun shortCellsAreCompact() {
-        val result = cells(window(program(0, 9, 1), program(9, 19, 2), program(19, 60, 3)), nowMin = 0)
-        assertEquals(listOf(true, false, false), result.map { it.compact })
-    }
-
-    @Test
     fun slateIsASlateCell() {
         val result = cells(window(slate(0, 30), program(30, 60, 2)), nowMin = 0)
         assertEquals(CellKind.Slate, result[0].kind)

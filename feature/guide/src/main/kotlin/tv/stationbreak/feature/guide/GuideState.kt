@@ -9,10 +9,10 @@ import tv.stationbreak.core.model.ItemDetails
  * rows (228 dp) are what fit in the 5% safe area of a 960 x 540 dp screen under the details panel and the clock strip,
  * with the hint row below (the guide UX notes); the screen draws exactly this many.
  */
-const val GUIDE_VISIBLE_ROWS = 6
+internal const val GUIDE_VISIBLE_ROWS = 6
 
-/** What the guide's grid shows. The focused cell, the details panel and the info overlay are separate flows. */
-sealed interface GuideState {
+/** What the guide's grid shows. The focus travels with it in a [GuideSnapshot]; the panel and the overlay are apart. */
+internal sealed interface GuideState {
     /** The guide is not open. */
     data object Closed : GuideState
 
@@ -36,10 +36,10 @@ sealed interface GuideState {
 
 /**
  * What the grid draws, as one value: the [state] and the [focus] in it, replaced together so they always belong to the
- * same moment. A [focus] that does not resolve with `indexOf` in the model of a [GuideState.Ready] [state] must be
- * treated as no focus (it is null when the guide is not showing a grid, or no row has a cell).
+ * same moment. A [focus] always resolves with `indexOf` in the model of a [GuideState.Ready] [state] (the ViewModel
+ * checks it as it publishes); it is null when the guide is not showing a grid, or no row has a cell.
  */
-data class GuideSnapshot(
+internal data class GuideSnapshot(
     val state: GuideState,
     val focus: GuideFocus?,
 ) {
@@ -50,19 +50,11 @@ data class GuideSnapshot(
 }
 
 /**
- * The panel under the grid: the focused [cell] and what the server says about its item. [loading] is true from the
- * focus landing until the details arrive; if they never do, [item] stays null and [loading] goes false.
+ * A [cell] on its channel and what the server says about its item: what the details panel shows for the focused cell,
+ * and the info overlay for the cell Select opened it on. [loading] is true while the details are on their way; if they
+ * never come, [item] stays null and [loading] goes false.
  */
-data class PanelDetails(
-    val cell: GuideCell,
-    val channelNumber: Int,
-    val channelName: String,
-    val item: ItemDetails?,
-    val loading: Boolean,
-)
-
-/** The info overlay opened with Select on a cell that is not on air: the same facts as [PanelDetails]. */
-data class GuideInfo(
+internal data class CellDetails(
     val cell: GuideCell,
     val channelNumber: Int,
     val channelName: String,
@@ -71,7 +63,7 @@ data class GuideInfo(
 )
 
 /** One-off things the guide asks of its screen. */
-sealed interface GuideEvent {
+internal sealed interface GuideEvent {
     /** Select on the cell on air now: close the guide and tune [channel]. */
     data class Tune(
         val channel: ChannelId,

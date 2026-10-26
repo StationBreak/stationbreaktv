@@ -9,11 +9,11 @@ import androidx.compose.ui.unit.width
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class GuideLayoutTest {
+class ScreenLayoutTest {
     @Test
     fun pictureIsTopRightFortyPercentSixteenByNine() {
         val safeArea = DpRect(left = 48.dp, top = 27.dp, right = (48 + 864).dp, bottom = (27 + 486).dp)
-        val picture = GuideLayout.pictureRect(safeArea)
+        val picture = ScreenLayout.pictureRect(safeArea)
         assertEquals(48f + 864f - 345.6f, picture.left.value, EPS)
         assertEquals(27f, picture.top.value, EPS)
         assertEquals(345.6f, picture.width.value, EPS)
@@ -23,7 +23,7 @@ class GuideLayoutTest {
 
     @Test
     fun safeAreaIsFivePercentInFromEveryEdge() {
-        val safe = GuideLayout.safeArea(DpSize(960.dp, 540.dp))
+        val safe = ScreenLayout.safeArea(DpSize(960.dp, 540.dp))
         assertEquals(48f, safe.left.value, EPS)
         assertEquals(27f, safe.top.value, EPS)
         assertEquals(912f, safe.right.value, EPS)
@@ -33,7 +33,7 @@ class GuideLayoutTest {
     @Test
     fun theHoleAndThePictureComeFromTheSameSafeArea() {
         // The guide's hole and the corner picture are both pictureRect of safeArea: one source, so they cannot drift.
-        val picture = GuideLayout.pictureRect(GuideLayout.safeArea(DpSize(960.dp, 540.dp)))
+        val picture = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(960.dp, 540.dp)))
         assertEquals(912f - 345.6f, picture.left.value, EPS)
         assertEquals(27f, picture.top.value, EPS)
         assertEquals(27f + 194.4f, picture.bottom.value, EPS)

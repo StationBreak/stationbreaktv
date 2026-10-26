@@ -4,6 +4,8 @@ package tv.stationbreak.feature.guide
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -148,6 +150,11 @@ class GuideViewModelTest {
 
     private fun GuideViewModel.focused() = checkNotNull(snapshot.value.focus)
 
+    // The two halves of the snapshot, each as it changes.
+    private fun GuideViewModel.states() = snapshot.map { it.state }.distinctUntilChanged()
+
+    private fun GuideViewModel.focuses() = snapshot.map { it.focus }.distinctUntilChanged()
+
     @Test
     fun aCallThatEndsAfterItsSessionDoesNotSetTheNextSessionsWindowTime() =
         guideTest { vm ->
@@ -165,8 +172,8 @@ class GuideViewModelTest {
             fake.cachedUntilMs = min(180)
             val states = mutableListOf<GuideState>()
             val focuses = mutableListOf<GuideFocus?>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.toList(states) }
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.focus.toList(focuses) }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.states().toList(states) }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.focuses().toList(focuses) }
 
             vm.open(CH7)
             runCurrent()
@@ -188,7 +195,7 @@ class GuideViewModelTest {
         guideTest { vm ->
             fake.nothingCached = true
             val states = mutableListOf<GuideState>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.toList(states) }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.states().toList(states) }
 
             vm.open(CH7)
             runCurrent()
@@ -577,7 +584,7 @@ class GuideViewModelTest {
     fun cachedRowsOpenStraightToReady() =
         guideTest { vm ->
             val states = mutableListOf<GuideState>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.toList(states) }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.states().toList(states) }
             vm.open(CH7)
             runCurrent()
             assertEquals(listOf("Closed", "Ready"), states.map { it::class.simpleName })
@@ -592,7 +599,7 @@ class GuideViewModelTest {
             schedule.asNeededGate = gate
             val ends = mutableListOf<Long>()
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-                vm.state.collect { (it as? GuideState.Ready)?.let { ready -> ends += ready.model.endMs } }
+                vm.states().collect { (it as? GuideState.Ready)?.let { ready -> ends += ready.model.endMs } }
             }
             vm.open(CH7)
             runCurrent()

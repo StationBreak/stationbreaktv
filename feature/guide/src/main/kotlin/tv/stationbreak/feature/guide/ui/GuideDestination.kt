@@ -39,7 +39,7 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * live TV closes the guide then.
  *
  * With [pictureInCorner] false the guide is opaque over the whole picture, which plays on behind it; true leaves a
- * hole at the top right for the picture (`GuideLayout.pictureRect`). [openedAtNanos] is when the key that opened the
+ * hole at the top right for the picture (`ScreenLayout.pictureRect`). [openedAtNanos] is when the key that opened the
  * guide arrived (`System.nanoTime`), for the guide's open-time measurement.
  *
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes

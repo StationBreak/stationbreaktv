@@ -15,8 +15,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
@@ -38,10 +36,9 @@ import kotlin.time.Instant
  *
  * What the grid draws is one [GuideSnapshot]: the [GuideState] and the focus, replaced together in a single assignment,
  * so a collector that conflates (a Compose frame) can never read a model from one moment and a focus from another. A
- * screen reads [snapshot] and derives each cell's "focused" from it. The focus is by identity ([GuideFocus]); one that
- * does not resolve with `indexOf` in the snapshot's model must be treated as no focus. [state] and [focus] are the two
- * halves as flows of their own, for a consumer that wants only one. The details [panel] and the [info] overlay are
- * flows of their own too, so a key press does not recompose the grid.
+ * screen reads [snapshot] and derives each cell's "focused" from it. The focus is by identity ([GuideFocus]), and a
+ * published one always resolves with `indexOf` in the snapshot's model. The details [panel] and the [info] overlay are
+ * flows of their own, so a key press does not recompose the grid.
  *
  * Each [open] starts a session that [close] (or the next [open]) ends; the session owns the clock tick, the fill-in,
  * the extensions and every details request, so nothing runs while the guide is closed. State is changed under [lock],
@@ -50,7 +47,7 @@ import kotlin.time.Instant
  */
 @Suppress("TooManyFunctions") // One session's steps (load, tick, extend, commit, follow), each small.
 @HiltViewModel
-class GuideViewModel
+internal class GuideViewModel
     internal constructor(
         private val schedule: ScheduleSource,
         private val details: ProgramDetailsCache,
@@ -68,24 +65,18 @@ class GuideViewModel
         ) : this(schedule, details, clock, Dispatchers.Default, measure)
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
-        private val shownPanel = MutableStateFlow<PanelDetails?>(null)
-        private val shownInfo = MutableStateFlow<GuideInfo?>(null)
+        private val shownPanel = MutableStateFlow<CellDetails?>(null)
+        private val shownInfo = MutableStateFlow<CellDetails?>(null)
         private val eventChannel = Channel<GuideEvent>(Channel.BUFFERED)
 
         /** The grid and its focus, always consistent with each other. */
         val snapshot: StateFlow<GuideSnapshot> = shownSnapshot.asStateFlow()
 
-        /** The grid alone: the model, the visible time range and rows, and the time of the "now" line. */
-        val state: Flow<GuideState> = shownSnapshot.map { it.state }.distinctUntilChanged()
-
-        /** The focus alone. Treat one that does not resolve in the model it is read with as no focus. */
-        val focus: Flow<GuideFocus?> = shownSnapshot.map { it.focus }.distinctUntilChanged()
-
         /** The details of the focused cell, filled in after [DWELL_MS] of staying on it. */
-        val panel: StateFlow<PanelDetails?> = shownPanel.asStateFlow()
+        val panel: StateFlow<CellDetails?> = shownPanel.asStateFlow()
 
         /** The info overlay, while one is open. */
-        val info: StateFlow<GuideInfo?> = shownInfo.asStateFlow()
+        val info: StateFlow<CellDetails?> = shownInfo.asStateFlow()
 
         /** Things for the screen to do once, in order. Events from an ended session are dropped. */
         val events: Flow<GuideEvent> = eventChannel.receiveAsFlow()
@@ -355,19 +346,22 @@ class GuideViewModel
             val scrolled = previous != null && previous.viewportStartMs != previous.model.originMs
             val viewport =
                 if (previous != null && scrolled) maxOf(previous.viewportStartMs, model.originMs) else model.originMs
-            val shown = focus?.let { viewportStartFor(it, model, viewport, GuideDirection.Right) } ?: viewport
+            val shown = focus?.let { viewportStartFor(it, model, viewport, direction = null) } ?: viewport
             val ready = GuideState.Ready(model, shown, 0, now)
             publish(ready.copy(firstVisibleRow = ready.firstRowFor(focus, previous?.firstVisibleRow ?: 0)), focus)
         }
 
-        // One assignment, so the grid and its focus change together; then the panel follows the focus.
+        // One assignment, so the grid and its focus change together; then the panel follows the focus. A focus that
+        // does not resolve in the model is a bug in the steps above, never something for the screen to cope with.
         private fun publish(
             ready: GuideState.Ready,
             focus: GuideFocus?,
         ) {
+            val located = focus?.let { ready.model.indexOf(it) }
+            check(focus == null || located != null) { "The focus is not in the model it is published with" }
             val before = shownSnapshot.value.focus
             shownSnapshot.value = GuideSnapshot(ready, focus)
-            follow(ready.model, before, focus)
+            follow(ready.model, before, focus, located)
         }
 
         // Details
@@ -376,8 +370,8 @@ class GuideViewModel
             model: GuideModel,
             before: GuideFocus?,
             focus: GuideFocus?,
+            located: Pair<Int, Int>?,
         ) {
-            val located = focus?.let { model.indexOf(it) }
             if (focus == null || located == null) {
                 dwellJob?.cancel()
                 dwellJob = null
@@ -395,7 +389,7 @@ class GuideViewModel
             val id = cell.itemId
             val cached = id?.let(details::cached)
             val waiting = id != null && cached == null
-            shownPanel.value = PanelDetails(cell, row.number, row.name, cached, waiting)
+            shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting)
             dwellJob =
                 if (id != null && waiting) {
                     session?.launch {
@@ -423,7 +417,7 @@ class GuideViewModel
             val waiting = id != null && cached == null
             val target = row.channel to cell.startMs
             infoOf = target
-            shownInfo.value = GuideInfo(cell, row.number, row.name, cached, waiting)
+            shownInfo.value = CellDetails(cell, row.number, row.name, cached, waiting)
             infoJob =
                 if (id != null && waiting) {
                     session?.launch {

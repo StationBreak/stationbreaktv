@@ -12,7 +12,7 @@ import javax.inject.Qualifier
 annotation class GuideMeasured
 
 /** Frame-time percentiles of one guide session, in nanoseconds, nearest rank. */
-data class FramePercentiles(
+internal data class FramePercentiles(
     val frames: Int,
     val p50Ns: Long,
     val p90Ns: Long,
@@ -20,7 +20,7 @@ data class FramePercentiles(
 )
 
 /** Nearest-rank percentiles of [durationsNs] (rank = ceil(p/100 * n)); all zero for none. */
-fun percentiles(durationsNs: LongArray): FramePercentiles {
+internal fun percentiles(durationsNs: LongArray): FramePercentiles {
     if (durationsNs.isEmpty()) return FramePercentiles(0, 0, 0, 0)
     val sorted = durationsNs.sortedArray()
 
@@ -33,7 +33,7 @@ fun percentiles(durationsNs: LongArray): FramePercentiles {
  * refresh period misses `ceil(duration / period) - 1` of them. Time between frames (nothing to draw) counts for
  * nothing. A zero [periodNs] counts none.
  */
-fun missedVsyncs(
+internal fun missedVsyncs(
     frameDurationsNs: LongArray,
     periodNs: Long,
 ): Int {
@@ -51,7 +51,7 @@ fun missedVsyncs(
  * so [line] is safe for logcat. [openMs] is from the open request to the first grid frame and [windowMs] the first
  * schedule call; -1 when the session never got there (no grid, no call).
  */
-data class GuideReport(
+internal data class GuideReport(
     val openMs: Long,
     val windowMs: Long,
     val frames: FramePercentiles,

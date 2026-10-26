@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.DpSize
  * The banner, the info overlay, the guide and the guide's corner picture all lay out inside [safeArea], so the picture
  * and the guide's hole for it come from the one rectangle and cannot drift apart.
  */
-object GuideLayout {
+object ScreenLayout {
     /** How much a TV may crop (overscan): 5% of the width at each side, 5% of the height at top and bottom. */
     const val OVERSCAN = 0.05f
 
