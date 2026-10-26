@@ -17,14 +17,71 @@ class ServerTextTest {
     private fun overview(raw: String) = ServerText.overview(raw)
 
     @Test
-    fun hostileAngleBracketsAreLinear() {
+    fun hostileInputIsCutBeforeTheRegexesRun() {
+        val hostile = "x".repeat(1_000_000)
+
+        val bounded = ServerText.bound(hostile, ServerText.OVERVIEW_MAX)
+
+        assertTrue(bounded.length < hostile.length / 50, "cut to ${bounded.length}")
+        assertEquals(ServerText.OVERVIEW_MAX, overview(hostile)?.length)
+        assertTrue(ServerText.bound(hostile, ServerText.GENRE_MAX).length <= ServerText.GENRE_MAX * 8)
+    }
+
+    // Not a wall-clock benchmark: on a shared, niced host a tight limit flakes. The limit is generous (5 s), so it
+    // only catches a regex that has gone super-linear (which would take minutes), and the cut above bounds the work.
+    @Test
+    fun hostileAngleBracketsDoNotBlowUp() {
         val hostile = "<".repeat(1_000_000)
 
         val elapsed = measureTimeMillis { ServerText.overview(hostile) }
         val genre = measureTimeMillis { ServerText.genres(listOf(hostile)) }
 
-        assertTrue(elapsed < 500, "overview took $elapsed ms")
-        assertTrue(genre < 500, "genre took $genre ms")
+        assertTrue(elapsed < 5_000, "overview took $elapsed ms")
+        assertTrue(genre < 5_000, "genre took $genre ms")
+    }
+
+    @Test
+    fun paragraphsKeepALineBreak() {
+        assertEquals("One\nTwo", overview("<p>One</p><p>Two</p>"))
+        assertEquals("One\nTwo", overview("<DIV>One</DIV><div>Two</Div >"))
+        assertEquals("A\n\nB", overview("<ul><li>A</li><LI class=\"x\">B</li></ul>"))
+        assertEquals(listOf("Sci Fi"), ServerText.genres(listOf("Sci</p>Fi")))
+    }
+
+    @Test
+    fun blankLineRunsCollapse() {
+        assertEquals("a\n\nb", overview("a\n\n\n\n\nb"))
+        assertEquals("a\n\nb", overview("a<br><br><br>b"))
+        assertEquals("a\nb", overview("a\nb"))
+    }
+
+    @Test
+    fun supplementaryTagCharactersAreStripped() {
+        val tags = listOf(0xE0001, 0xE0020, 0xE0041, 0xE007F).joinToString("") { ch(it) }
+
+        assertEquals("ab", overview("a${tags}b"))
+    }
+
+    @Test
+    fun supplementaryCombiningMarksAreCapped() {
+        // U+1D167 is a non-spacing mark above U+FFFF.
+        val marks = ch(0x1D167).repeat(50)
+
+        assertEquals("a" + ch(0x1D167).repeat(ServerText.MARKS_MAX) + "b", overview("a${marks}b"))
+    }
+
+    @Test
+    fun unpairedSurrogatesAreDropped() {
+        val high = 0xD83D.toChar()
+        val low = 0xDE00.toChar()
+
+        assertEquals("ab", overview("a${high}b"))
+        assertEquals("ab", overview("a${low}b"))
+        assertEquals("a${ch(0x1F600)}b", overview("a${high}${low}b"))
+        // The pre-cut can leave half of a pair at the end.
+        val cutThroughPair = "x".repeat(ServerText.OVERVIEW_MAX * 8 - 1) + ch(0x1F600)
+        val result = overview(cutThroughPair)
+        assertTrue(result != null && result.none { it.isSurrogate() })
     }
 
     @Test

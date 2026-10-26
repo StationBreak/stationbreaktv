@@ -3,12 +3,13 @@ package tv.stationbreak.data.jellyfin
 
 /**
  * Makes free text from the server safe to draw (it is untrusted input). The input is cut to a multiple of the cap
- * first, so no later step does unbounded work. Then markup is removed (`<br>` becomes a new line, or a space in a
- * genre; every other tag is dropped; entities are decoded once), line and paragraph separators become new lines (or
- * go, in a genre), tab and a lone carriage return become a space, and a CRLF is one new line. Control characters and
- * Unicode format characters (direction controls, marks, the byte order mark...) other than the joiners ZWJ and ZWNJ
- * are removed, a run of combining marks is capped, and the result is trimmed and capped. Decoding comes before the
- * strip so an entity can't smuggle a character in.
+ * first, so no later step does unbounded work. Then markup is removed (`<br>`, `</p>`, `</div>`, `</li>` and `<li>`
+ * become a new line, or a space in a genre; every other tag is dropped; entities are decoded once), line and
+ * paragraph separators become new lines (or go, in a genre), tab and a lone carriage return become a space, and a
+ * CRLF is one new line. Control characters and Unicode format characters (direction controls, marks, the byte order
+ * mark...) other than the joiners ZWJ and ZWNJ are removed, as is any half of a surrogate pair, a run of combining
+ * marks is capped, three or more new lines in a row become two, and the result is trimmed and capped. Text is walked
+ * by code point, not UTF-16 unit. Decoding comes before the strip so an entity can't smuggle a character in.
  *
  * Code points are written as numbers, not `\u` escapes, because the formatter rewrites an escape into the raw
  * (invisible) character, which a reader can't see in the source.
@@ -22,7 +23,9 @@ internal object ServerText {
     // How much raw text is looked at before the cap: room for markup and entities, but bounded.
     private const val INPUT_FACTOR = 8
 
-    private val lineBreak = Regex("<br\\s*/?>", RegexOption.IGNORE_CASE)
+    // A line break, or the edge of a block (end of a paragraph, division or list item, or the start of a list item).
+    private val lineBreak = Regex("<br\\s*/?>|</(?:p|div|li)\\s*>|<li\\b[^<>]*>", RegexOption.IGNORE_CASE)
+    private val blankRuns = Regex("\n{3,}")
 
     // No '<' inside, so a run of them is matched in one pass and the scan stays linear.
     private val tag = Regex("<[^<>]*>")
@@ -33,7 +36,7 @@ internal object ServerText {
 
     /** The overview as safe text, or null when nothing readable is left. */
     fun overview(raw: String?): String? {
-        val bounded = raw?.take(OVERVIEW_MAX * INPUT_FACTOR) ?: return null
+        val bounded = bound(raw ?: return null, OVERVIEW_MAX)
         return clean(bounded, multiline = true, max = OVERVIEW_MAX)
     }
 
@@ -42,9 +45,15 @@ internal object ServerText {
         raw
             .orEmpty()
             .asSequence()
-            .mapNotNull { clean(it.take(GENRE_MAX * INPUT_FACTOR), multiline = false, max = GENRE_MAX) }
+            .mapNotNull { clean(bound(it, GENRE_MAX), multiline = false, max = GENRE_MAX) }
             .take(GENRES_MAX)
             .toList()
+
+    /** The raw text cut to room for markup around [max] characters; run before any regex, so their work is bounded. */
+    internal fun bound(
+        raw: String,
+        max: Int,
+    ): String = raw.take(max * INPUT_FACTOR)
 
     private fun clean(
         raw: String,
@@ -53,7 +62,9 @@ internal object ServerText {
     ): String? {
         val unmarked = raw.replace(lineBreak, if (multiline) "\n" else " ").replace(tag, "")
         val text = decode(unmarked).replace("\r\n", "\n")
-        val kept = limitMarks(text.mapNotNull { map(it, multiline) }.joinToString("")).trim()
+        val mapped = StringBuilder(text.length)
+        text.codePoints().forEach { cp -> map(cp, multiline)?.let { mapped.append(it) } }
+        val kept = limitMarks(mapped).replace(blankRuns, "\n\n").trim()
         return capped(kept, max).trimEnd().takeIf { it.isNotEmpty() }
     }
 
@@ -74,30 +85,33 @@ internal object ServerText {
             ""
         }
 
-    /** What [c] becomes: itself, a space, a new line, or nothing. */
+    /** What code point [cp] becomes: itself, a space, a new line, or nothing (also for half of a surrogate pair). */
     private fun map(
-        c: Char,
+        cp: Int,
         multiline: Boolean,
     ): String? =
         when {
-            c == '\n' || c.code == LINE_SEPARATOR || c.code == PARAGRAPH_SEPARATOR -> if (multiline) "\n" else null
-            c == '\t' || c == '\r' -> " "
-            c < ' ' || c.code in DELETE..LAST_C1 -> null
-            isBidi(c.code) -> null
-            Character.getType(c) == Character.FORMAT.toInt() && c.code != ZWNJ && c.code != ZWJ -> null
-            else -> c.toString()
+            cp in SURROGATES -> null
+            cp == '\n'.code || cp == LINE_SEPARATOR || cp == PARAGRAPH_SEPARATOR -> if (multiline) "\n" else null
+            cp == '\t'.code || cp == '\r'.code -> " "
+            isInvisible(cp) -> null
+            else -> String(Character.toChars(cp))
         }
+
+    private fun isInvisible(cp: Int): Boolean =
+        cp < ' '.code || cp in DELETE..LAST_C1 || isBidi(cp) ||
+            (Character.getType(cp) == Character.FORMAT.toInt() && cp != ZWNJ && cp != ZWJ)
 
     // Embeddings and overrides (U+202A to U+202E) and isolates (U+2066 to U+2069).
     private fun isBidi(code: Int): Boolean = code in EMBEDDINGS || code in ISOLATES
 
     /** Keeps at most [MARKS_MAX] combining marks in a row, so a stack of them can't grow a line without bound. */
-    private fun limitMarks(text: String): String {
+    private fun limitMarks(text: CharSequence): String {
         val out = StringBuilder(text.length)
         var run = 0
-        for (c in text) {
-            run = if (Character.getType(c) == Character.NON_SPACING_MARK.toInt()) run + 1 else 0
-            if (run <= MARKS_MAX) out.append(c)
+        text.codePoints().forEach { cp ->
+            run = if (Character.getType(cp) == Character.NON_SPACING_MARK.toInt()) run + 1 else 0
+            if (run <= MARKS_MAX) out.appendCodePoint(cp)
         }
         return out.toString()
     }

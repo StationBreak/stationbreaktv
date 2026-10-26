@@ -170,7 +170,7 @@ class BuiltInScheduleSource(
                 }
 
                 else -> {
-                    val reading = Reading(account, chosen, build, first.held.revision)
+                    val reading = WindowRead(account, chosen, build, first.held.revision)
                     windowOf(reading, days.filter { it.hidden == null }, from, until)
                 }
             }
@@ -178,7 +178,7 @@ class BuiltInScheduleSource(
     }
 
     /** What one [schedule] call reads: the following days it resolved (by start) and whether the lineup stayed put. */
-    private class Reading(
+    private class WindowRead(
         val account: LibraryAccount,
         val chosen: Set<ItemId>,
         val build: ScheduleBuild,
@@ -189,7 +189,7 @@ class BuiltInScheduleSource(
     }
 
     private suspend fun windowOf(
-        reading: Reading,
+        reading: WindowRead,
         visible: List<ChannelDay>,
         from: Instant,
         until: Instant,
@@ -228,7 +228,7 @@ class BuiltInScheduleSource(
      * It does not report to `timed`: that line counts only the builds a tune waited for.
      */
     private suspend fun blocksUntil(
-        reading: Reading,
+        reading: WindowRead,
         from: ChannelDay,
         limitMs: Long,
     ): List<ScheduleBlock> {
@@ -243,7 +243,7 @@ class BuiltInScheduleSource(
 
     /** The day of [channel] that starts at [startMs], or null if there is none to read (see [blocksUntil]). */
     private suspend fun followingDay(
-        reading: Reading,
+        reading: WindowRead,
         channel: ChannelId,
         startMs: Long,
     ): ChannelDay? {
@@ -257,7 +257,7 @@ class BuiltInScheduleSource(
      * newer revision marks the reading inconsistent and gives nothing.
      */
     private suspend fun followingDays(
-        reading: Reading,
+        reading: WindowRead,
         startMs: Long,
     ): List<ChannelDay>? {
         if (reading.following.containsKey(startMs)) return reading.following[startMs]

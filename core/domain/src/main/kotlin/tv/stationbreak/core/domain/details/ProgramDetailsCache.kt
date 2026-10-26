@@ -63,6 +63,9 @@ class ProgramDetailsCache(
         var waiters = 0
     }
 
+    /** Test seam: runs between reading the session and registering the request, where a sign-out can slip in. */
+    internal var afterSessionRead: suspend () -> Unit = {}
+
     private val lock = Any()
     private val permits = Semaphore(MAX_FETCHES)
 
@@ -87,12 +90,17 @@ class ProgramDetailsCache(
     suspend fun details(id: CanonicalId): ItemDetails? {
         val session = sessions.current.value ?: return null
         val key = key(session, id)
+        afterSessionRead()
         var hit: ItemDetails? = null
         var started: Flight? = null
+        var stale = false
         val flight =
             synchronized(lock) {
-                hit = entries[key]
-                if (hit != null) {
+                // A sign-out or account switch since the read above means this account's entries are gone.
+                val current = sessions.current.value
+                stale = current == null || key(current, id) != key
+                hit = if (stale) null else entries[key]
+                if (stale || hit != null) {
                     null
                 } else {
                     val shared = inFlight[key] ?: newFlight(session, key).also { started = it }
@@ -100,7 +108,11 @@ class ProgramDetailsCache(
                 }
             }
         started?.job?.start()
-        return if (flight == null) hit else await(flight, key)
+        return when {
+            stale -> null
+            flight == null -> hit
+            else -> await(flight, key)
+        }
     }
 
     /** What is held for [id] and the signed-in account, without asking the server; null if nothing or nobody. */

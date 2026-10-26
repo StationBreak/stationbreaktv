@@ -235,4 +235,18 @@ class ProgramDetailsCacheTest {
             all.forEachIndexed { n, call -> assertEquals(details(id(n + 1)), call.await()) }
             assertEquals(5, server.itemDetailsCalls.size)
         }
+
+    @Test
+    fun signOutBetweenReadAndRegisterRegistersNothing() =
+        runTest {
+            sessions.save(sessionOf("u1"))
+            val cache = cache()
+            cache.afterSessionRead = { sessions.clear() }
+
+            val result = cache.details(id(1))
+            runCurrent()
+
+            assertNull(result)
+            assertEquals(0, server.itemDetailsCalls.size)
+        }
 }
