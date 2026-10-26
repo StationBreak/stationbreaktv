@@ -6,6 +6,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ChannelId
 
 /** The first channel when nothing is saved (#375): PG-tier ceiling, then any ceiling, then the lowest. */

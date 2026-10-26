@@ -107,4 +107,21 @@ interface ScheduleSource {
      * [at]. Empty while nobody is signed in, no libraries are chosen, or there is no lineup.
      */
     suspend fun airings(at: Instant): List<ChannelAiring>
+
+    /**
+     * The airings of every visible channel (see [ChannelAiring.hidden]; hidden ones are left out) in `[from, until)`,
+     * in number order: every block that overlaps the window, the first of which may start before [from]. Null exactly
+     * when [onAir] would be for lack of an account or libraries. The days are those of the broadcast day that holds
+     * [from] and the ones after it, up to the end of day n + 1 ([ChannelRow.builtUntilMs]), so a longer window is cut
+     * there. With [ScheduleBuild.CachedOnly] nothing is built or awaited, and the window says what it lacks
+     * ([ScheduleWindow.complete]); with [ScheduleBuild.AsNeeded] the days are built like [onAir] builds them. The
+     * blocks are named with one library read per call. With no lineup,
+     * [ScheduleBuild.AsNeeded] gives an empty complete window and
+     * [ScheduleBuild.CachedOnly] an empty incomplete one. [until] must be after [from].
+     */
+    suspend fun schedule(
+        from: Instant,
+        until: Instant,
+        build: ScheduleBuild,
+    ): ScheduleWindow?
 }

@@ -18,6 +18,7 @@ import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.core.model.CollectionMemberPage
 import tv.stationbreak.core.model.CollectionPage
+import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
@@ -281,6 +282,11 @@ class JellyfinMediaServer internal constructor(
         session: Session,
         itemId: ItemId,
     ): ServerResult<UserItemState> = media.userData(session, itemId)
+
+    override suspend fun itemDetails(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<ItemDetails> = media.itemDetails(session, itemId)
 
     override suspend fun markPlayed(
         session: Session,

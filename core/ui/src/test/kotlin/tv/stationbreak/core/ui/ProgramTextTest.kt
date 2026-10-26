@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.ui
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Locale
+
+/** The shared program text rules. The copy is read from `strings.xml` itself, so the test checks the shipped words. */
+class ProgramTextTest {
+    private val copy = StringsXml.programCopy()
+    private val newYork = ZoneId.of("America/New_York")
+
+    private fun ms(iso: String) = Instant.parse(iso).toEpochMilli()
+
+    private fun episode(
+        season: Int?,
+        number: Int?,
+    ) = ProgramText.episodeLine(true, "Test Series B", season, number, "Episode One", copy)
+
+    @Test
+    fun slotUsesTheDeviceZoneWithDst() {
+        // 00:00 UTC on 1 July is 8:00 PM on 30 June in New York (EDT, UTC-4); standard time would say 7:00 PM.
+        val summer = ProgramText.slot(ms("2026-07-01T00:00:00Z"), ms("2026-07-01T00:30:00Z"), newYork, false, Locale.US)
+        assertEquals("8:00 – 8:30 PM", summer)
+        val winter = ProgramText.slot(ms("2026-01-01T01:00:00Z"), ms("2026-01-01T01:30:00Z"), newYork, false, Locale.US)
+        assertEquals("8:00 – 8:30 PM", winter)
+    }
+
+    @Test
+    fun slotSaysBothMeridiemsWhenTheyDiffer() {
+        val noon = ProgramText.slot(ms("2026-07-01T15:30:00Z"), ms("2026-07-01T16:00:00Z"), newYork, false, Locale.US)
+        assertEquals("11:30 AM – 12:00 PM", noon)
+    }
+
+    @Test
+    fun slotHonours24HourClock() {
+        val slot = ProgramText.slot(ms("2026-07-01T00:00:00Z"), ms("2026-07-01T00:30:00Z"), newYork, true, Locale.US)
+        assertEquals("20:00 – 20:30", slot)
+    }
+
+    @Test
+    fun timeIs12And24Hour() {
+        val at = ms("2026-07-01T00:30:00Z")
+        assertEquals("8:30 PM", ProgramText.time(at, newYork, false, Locale.US))
+        assertEquals("20:30", ProgramText.time(at, newYork, true, Locale.US))
+    }
+
+    @Test
+    fun episodeLineIsSeasonAndEpisodeAndTitle() {
+        assertEquals("S2 E5 · Episode One", episode(2, 5))
+    }
+
+    @Test
+    fun episodeLineWithOnlyOneNumberKeepsThatNumber() {
+        assertEquals("S2 · Episode One", episode(2, null))
+        assertEquals("E5 · Episode One", episode(null, 5))
+    }
+
+    @Test
+    fun episodeLineWithoutNumbersIsTitleOnly() {
+        assertEquals("Episode One", episode(null, null))
+    }
+
+    @Test
+    fun movieHasNoEpisodeLine() {
+        assertNull(ProgramText.episodeLine(false, null, null, null, "Test Movie A", copy))
+    }
+
+    @Test
+    fun anEpisodeWithoutASeriesNameHasNoEpisodeLine() {
+        assertNull(ProgramText.episodeLine(true, null, 2, 5, "Episode One", copy))
+    }
+
+    @Test
+    fun countdownCopyIsTheShippedWords() {
+        assertEquals("Next: Test Show at 8:30 PM", copy.next("Test Show", "8:30 PM"))
+        assertEquals("Off air until 6:00 AM", copy.offAirUntil("6:00 AM"))
+        assertEquals("Starts in 5 min", copy.startsIn(5))
+        assertEquals("12 min left", copy.minutesLeft(12))
+    }
+}
+
+/** Reads the shipped `strings.xml` (the unit test's working directory is the module) into [ProgramCopy]. */
+object StringsXml {
+    private val file = File("src/main/res/values/strings.xml")
+
+    fun text(name: String): String {
+        val match = Regex("""<string name="$name"[^>]*>(.*?)</string>""").find(file.readText())
+        return checkNotNull(match) { "missing string $name" }.groupValues[1]
+    }
+
+    fun programCopy() =
+        ProgramCopy(
+            episodeBoth = { s, e, t -> String.format(Locale.US, text("program_episode_both"), s, e, t) },
+            episodeSeason = { s, t -> String.format(Locale.US, text("program_episode_season"), s, t) },
+            episodeNumber = { e, t -> String.format(Locale.US, text("program_episode_number"), e, t) },
+            next = { t, at -> String.format(Locale.US, text("program_next"), t, at) },
+            offAirUntil = { String.format(Locale.US, text("program_off_air_until"), it) },
+            startsIn = { String.format(Locale.US, text("program_starts_in"), it) },
+            minutesLeft = { String.format(Locale.US, text("program_minutes_left"), it) },
+        )
+}

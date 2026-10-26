@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
+import tv.stationbreak.core.ui.ProgramCopy
+import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
@@ -130,13 +132,14 @@ private fun BannerStrip(
 ) {
     val context = LocalContext.current
     val copy = remember(context) { BannerCopy.from(context.resources) }
+    val programCopy = remember(context) { ProgramCopy.from(context.resources) }
     val is24h = remember(context) { DateFormat.is24HourFormat(context) }
     val slot =
         remember(banner, is24h) {
-            BannerText.slot(banner.slotStartMs, banner.slotEndMs, ZoneId.systemDefault(), is24h)
+            ProgramText.slot(banner.slotStartMs, banner.slotEndMs, ZoneId.systemDefault(), is24h)
         }
     val joined = remember(banner) { BannerText.joined(banner.joinedMs, copy) }
-    val episode = remember(banner) { BannerText.episodeLine(banner.info, copy) }
+    val episode = remember(banner) { BannerText.episodeLine(banner.info, programCopy) }
     Column(
         modifier
             .fillMaxWidth()

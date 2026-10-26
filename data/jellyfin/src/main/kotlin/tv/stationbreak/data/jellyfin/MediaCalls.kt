@@ -18,6 +18,7 @@ import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionMemberKind
 import tv.stationbreak.core.model.CollectionMemberPage
 import tv.stationbreak.core.model.CollectionPage
+import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
@@ -336,6 +337,24 @@ internal class MediaCalls(
                 UserItemState(duration(dto.playbackPositionTicks) ?: Duration.ZERO, dto.played)
             }
         }
+
+    suspend fun itemDetails(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<ItemDetails> {
+        val query = listOf("userId" to session.userId.value, "fields" to "Overview,Genres")
+        return calls.send(session, Endpoint.get("Items/${itemId.value}", query)).flatMap { text ->
+            Wire.parse(text, ItemDetailsDto.serializer()).map { dto ->
+                ItemDetails(
+                    id = itemId,
+                    overview = ServerText.overview(dto.overview),
+                    year = dto.productionYear,
+                    genres = ServerText.genres(dto.genres),
+                    runtime = dto.runTimeTicks?.let(::duration),
+                )
+            }
+        }
+    }
 
     suspend fun markPlayed(
         session: Session,

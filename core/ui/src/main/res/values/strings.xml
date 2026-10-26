@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The program text shared by the live banner and the guide (spec 17): episode lines, next/off-air/countdown words and
+  the program info overlay.
+-->
+<resources>
+    <!-- The episode line: season and episode numbers (the ones that are known), then the episode's title. -->
+    <string name="program_episode_both">S%1$d E%2$d · %3$s</string>
+    <string name="program_episode_season">S%1$d · %2$s</string>
+    <string name="program_episode_number">E%1$d · %2$s</string>
+
+    <string name="program_next">Next: %1$s at %2$s</string>
+    <string name="program_off_air_until">Off air until %1$s</string>
+    <string name="program_starts_in">Starts in %1$d min</string>
+    <string name="program_minutes_left">%1$d min left</string>
+
+    <!-- The info overlay's detail line (year, genres, runtime) and its loading indicator's description. -->
+    <string name="program_runtime_minutes">%1$d min</string>
+    <string name="program_details_loading">Loading details</string>
+</resources>

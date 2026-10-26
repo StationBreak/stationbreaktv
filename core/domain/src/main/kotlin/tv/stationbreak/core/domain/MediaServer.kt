@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.CollectionMemberPage
 import tv.stationbreak.core.model.CollectionPage
+import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemPage
@@ -273,6 +274,16 @@ interface MediaServer {
         session: Session,
         itemId: ItemId,
     ): ServerResult<UserItemState>
+
+    /**
+     * The overview, year, genres and runtime of [itemId] for the signed-in user (`GET /Items/{itemId}`), fetched when a
+     * screen asks. The text is untrusted server input: the adapter strips markup, control and direction characters and
+     * caps the lengths before it crosses the port.
+     */
+    suspend fun itemDetails(
+        session: Session,
+        itemId: ItemId,
+    ): ServerResult<ItemDetails>
 
     /** Marks [itemId] played for the signed-in user (`POST /UserPlayedItems/{itemId}`). */
     suspend fun markPlayed(
