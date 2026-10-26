@@ -91,6 +91,7 @@ internal fun ActionsRow(
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
+    // 6 dp here plus the banner column's 4 dp spacing makes the 10 dp gap above the buttons of the UX notes.
     Row(
         Modifier.padding(top = 6.dp).testTag(LiveTags.BANNER_ACTIONS),
         horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -2,6 +2,7 @@
 package tv.stationbreak.core.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -127,5 +128,12 @@ class ProgramInfoOverlayTest {
         val texts = title.config[SemanticsProperties.Text].map { it.text }
         assertTrue(texts.toString(), "Test Show" in texts && "8:00 – 8:30 PM" in texts)
         compose.onAllNodesWithText("A test overview.").assertCountEquals(1)
+    }
+
+    @Test
+    fun aScreenReaderAnnouncesThePanelAsItOpens() {
+        show()
+        val panel = compose.onNodeWithText("Test Show").fetchSemanticsNode()
+        assertEquals(LiveRegionMode.Polite, panel.config[SemanticsProperties.LiveRegion])
     }
 }
