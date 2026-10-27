@@ -120,7 +120,9 @@ sealed interface TuneReport {
      * flip that never resolved, `superseded` (a newer commit replaced it) or `abandoned` (the run stopped first).
      * [route], [from] and [fallback] are the first tune's, as in [Tune]. [lookupMs] is the commit's own schedule
      * lookups after the settle, and [handoverMs] the time from the commit being sent to the new sitting's tune
-     * starting; [NOT_SEPARATE] when there was none (diagnostics, #392).
+     * starting; [NOT_SEPARATE] when there was none (diagnostics, #392). [via] is written last, and only for a commit
+     * made elsewhere than live TV's keys: `guide` for the guide's Select (spec 17), so a device gate can count those
+     * apart. A flip's and Menu's line is as it was.
      */
     data class Flip(
         val toFirstFrameMs: Long?,
@@ -133,11 +135,13 @@ sealed interface TuneReport {
         val from: String? = null,
         val lookupMs: Long = NOT_SEPARATE,
         val handoverMs: Long = NOT_SEPARATE,
+        val via: String? = null,
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
                 "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} " +
-                "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs"
+                "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs" +
+                via?.let { " via=$it" }.orEmpty()
     }
 
     /**
@@ -278,6 +282,7 @@ internal fun Sitting.reportFlipPlayed(
             timings.from,
             timing.lookupMs,
             timing.handoverMs,
+            timing.via,
         ),
     )
 }
@@ -305,4 +310,5 @@ internal fun FlipTiming.ended(
     null,
     lookupMs,
     handoverMs,
+    via,
 )

@@ -4,8 +4,8 @@ package tv.stationbreak.feature.live.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,8 +69,11 @@ internal fun LiveScreen(
 /** Where the picture goes while the guide is open, on a [screen] of that size: the guide's corner. */
 private fun pictureCorner(screen: DpSize): DpRect = ScreenLayout.pictureRect(ScreenLayout.safeArea(screen))
 
-/** Exactly [rect] of the parent, which starts at the screen's top-left. */
-private fun Modifier.inRect(rect: DpRect): Modifier = offset(rect.left, rect.top).size(rect.width, rect.height)
+/**
+ * Exactly [rect] of the parent, which starts at the screen's top-left. Absolute: the corner is the same top-right in a
+ * right-to-left layout, as the guide's hole is.
+ */
+private fun Modifier.inRect(rect: DpRect): Modifier = absoluteOffset(rect.left, rect.top).size(rect.width, rect.height)
 
 /**
  * What live TV shows in the guide's corner for [state] when there is no picture to show: snow while tuning, the cards

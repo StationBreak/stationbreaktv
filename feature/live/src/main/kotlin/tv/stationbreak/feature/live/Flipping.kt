@@ -21,10 +21,15 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+/** The tune line's `via` for a channel picked in the guide. */
+private const val VIA_GUIDE = "guide"
+
 /** When the viewer last pressed a key for a flip, and how long the settle waited after it (for [TuneReport.Flip]). */
 internal class FlipTiming(
     val lastCommandAt: Instant,
     val settleMs: Long,
+    /** What made the commit when it was not a key on live TV: `guide` for the guide's Select; null for a flip, Menu. */
+    val via: String? = null,
 ) {
     private var logged = false
 
@@ -174,11 +179,14 @@ internal class Flipper(
         }
     }
 
-    /** The run is ending: presses still waiting for a first sitting can never be acted on. */
-    fun abandonEarly() {
+    /**
+     * Presses still waiting for a first sitting will never be acted on: the run is ending ([outcome] `abandoned`), or a
+     * newer intent replaced them (`superseded`).
+     */
+    fun abandonEarly(outcome: String = "abandoned") {
         earlyRead?.cancel()
         val presses = early.take()
-        writeLines(presses, presses.size, "abandoned")
+        writeLines(presses, presses.size, outcome)
         if (earlyShown) screen.drop()
         earlyShown = false
     }
@@ -437,6 +445,8 @@ internal class Flipper(
             reading?.cancel()
             repeat(queued.size) { dropped("superseded-by-menu") }
             queued.clear()
+            // A guide tune still looking its channel up is older too: it must not land after Menu.
+            tuning?.cancel()
         }
         val before = recalls.lastOrNull()
         lateinit var job: Job
@@ -517,20 +527,31 @@ internal class Flipper(
         reading?.cancel()
         repeat(queued.size) { dropped("superseded-by-tune") }
         queued.clear()
+        // Early presses too: stepped from the guide's channel once it plays, they would undo the viewer's pick.
+        closeEarlyTail("superseded")
+        abandonEarly("superseded")
         tuning?.cancel()
         tuning = scope.launch { tuneTo(channel) }
     }
 
     private suspend fun tuneTo(channel: ChannelId) {
-        if (!onScreen) {
-            dropped("tune-off-screen")
+        // Before the first sitting has a channel there is no account to tune with yet (a cold launch): the sitting
+        // lands as it would have; only the presses the guide's pick replaced are gone.
+        val cannot =
+            when {
+                !onScreen -> "tune-off-screen"
+                tuned.playing == null -> "tune-no-anchor"
+                else -> null
+            }
+        if (cannot != null) {
+            dropped(cannot)
             return
         }
         // From here a commit: it owes a flip line, `superseded` if a newer press replaces it.
-        val timing = FlipTiming(clock.now(), 0)
+        val timing = FlipTiming(clock.now(), 0, via = VIA_GUIDE)
         try {
             val lookedAt = clock.now()
-            val onAir = lineup().byId(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+            val onAir = find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
             // A lookup that ran on past a newer press must not land.
             currentCoroutineContext().ensureActive()
             if (onAir == null) {
@@ -556,6 +577,17 @@ internal class Flipper(
                 unresolved(timing)
             }
         }
+    }
+
+    /**
+     * [channel] in the lineup. The guide can show a channel the cached lineup does not have yet (one that came back on
+     * the air, #299), so a miss reads the lineup again, and keeps what it read for the presses to come.
+     */
+    private suspend fun find(channel: ChannelId): ChannelAiring? {
+        lineup().byId(channel)?.let { return it }
+        val fresh = FlipOrder(schedule.airings(clock.now()))
+        cached = fresh
+        return fresh.byId(channel)
     }
 
     /**
