@@ -78,9 +78,10 @@ internal fun GuideRoot(
     // Started with the session, not in `remember`: a composition that is abandoned before it applies must not leak the
     // frame thread and its listener.
     var measurement by remember(viewModel) { mutableStateOf<GuideMeasurement?>(null) }
-    // One session per showing. The guide's own state starts Closed and may say so for a moment while the open runs: it
-    // never closes the guide, which is live TV's to do.
-    DisposableEffect(viewModel) {
+    // One session per showing, and per opening: live TV can close and reopen the guide between two frames, which leaves
+    // this on screen with a new [openedAtNanos]. The guide's own state starts Closed and may say so for a moment while
+    // the open runs: it never closes the guide, which is live TV's to do.
+    DisposableEffect(viewModel, openedAtNanos) {
         val started = GuideMeasurement.start(measure, view, openedAtNanos)
         measurement = started
         viewModel.open(current)
@@ -94,7 +95,7 @@ internal fun GuideRoot(
         }
     }
     // The first grid frame: openMs lands on the frame that drew the grid or one frame later (about 16 ms).
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, openedAtNanos) {
         viewModel.snapshot.first { it.state is GuideState.Ready }
         withFrameNanos { }
         withFrameNanos { }

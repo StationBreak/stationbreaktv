@@ -292,6 +292,16 @@ class GuideScreenTest {
     }
 
     @Test
+    fun aCloseAndReopenInOneFrameStartsFresh() {
+        // Live TV closed and opened the guide between two frames: the slot never left the screen, but this is a new
+        // opening (a new open time), and it must open afresh.
+        showReady(CH7)
+        scrollFarRight()
+        compose.runOnIdle { openedAt.longValue = 2L }
+        assertFreshOpen()
+    }
+
+    @Test
     fun slateReadsOffAirUntil() {
         showReady(CH9)
         press(Key.DirectionRight)

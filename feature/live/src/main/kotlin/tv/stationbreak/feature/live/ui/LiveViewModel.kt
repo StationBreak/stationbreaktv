@@ -119,8 +119,11 @@ internal class LiveViewModel
         /** The channel that was playing when the guide last opened: the guide opens with focus on it. */
         val guideChannel: ChannelId? get() = guide.channel
 
-        /** When the guide last opened, in `System.nanoTime` units, for the guide's open-time measurement. */
-        val guideOpenedAtNanos: Long get() = guide.openedAtNanos
+        /**
+         * When the guide last opened, in `System.nanoTime` units: each opening's own, for the guide's open-time
+         * measurement and so each opening is a fresh guide session.
+         */
+        val guideOpenedAt: StateFlow<Long> = guide.openedAt
 
         // The running sitting's machine, while there is one: the guide asks it which channel is playing.
         @Volatile

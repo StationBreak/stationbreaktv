@@ -17,10 +17,16 @@ internal class GuideSwitch {
     /** True while the guide is open. */
     val shown: StateFlow<Boolean> = open.asStateFlow()
 
-    /** When the guide last opened, in `System.nanoTime` units. */
-    @Volatile
-    var openedAtNanos: Long = 0L
-        private set
+    private val opened = MutableStateFlow(0L)
+
+    /**
+     * When the guide last opened, in `System.nanoTime` units: a new value for each opening, so the guide can tell a
+     * close and reopen that [shown] (true, false, true before a frame reads it) does not show.
+     */
+    val openedAt: StateFlow<Long> = opened.asStateFlow()
+
+    /** [openedAt] as it stands. */
+    val openedAtNanos: Long get() = opened.value
 
     /** The channel that was playing when the guide last opened; null when none was yet. */
     @Volatile
@@ -32,8 +38,8 @@ internal class GuideSwitch {
         atNanos: Long,
         channel: ChannelId?,
     ) {
-        openedAtNanos = atNanos
         this.channel = channel
+        opened.value = atNanos
         open.value = true
     }
 

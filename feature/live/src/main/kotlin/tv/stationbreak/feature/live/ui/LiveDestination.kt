@@ -37,7 +37,8 @@ import tv.stationbreak.feature.live.LiveState
 
 /**
  * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
- * dp; null while the picture is full screen) and what to call to tune a channel.
+ * dp; null while the picture is full screen) and what to call to tune a channel. A new opening time is a new opening,
+ * even when the guide never left the screen between the two (closed and opened again before a frame).
  */
 typealias GuideSlot = @Composable (
     current: ChannelId?,
@@ -83,6 +84,7 @@ internal fun LiveRoot(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val info by viewModel.info.collectAsStateWithLifecycle()
     val guideOpen by viewModel.guideOpen.collectAsStateWithLifecycle()
+    val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -104,7 +106,7 @@ internal fun LiveRoot(
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         // Until Select-to-tune comes (spec 17, Task 10), picking the channel on air only closes the guide.
         guide = {
-            guide(viewModel.guideChannel, viewModel.guideOpenedAtNanos, GuidePictureHole) { viewModel.closeGuide() }
+            guide(viewModel.guideChannel, guideOpenedAt, GuidePictureHole) { viewModel.closeGuide() }
         },
     ) { AndroidView(factory = { surface }) }
 }

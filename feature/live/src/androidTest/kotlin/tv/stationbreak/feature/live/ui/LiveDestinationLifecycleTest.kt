@@ -232,12 +232,11 @@ class LiveDestinationLifecycleTest {
         assertTrue("still watching: paused is not stopped", "release#1" !in log)
     }
 
-    @Test
-    fun guideKeyCloseThenBackReopenGivesTheGuideTwoShowings() {
-        // The device's path: Back opens the guide, the Guide key closes it, Back opens it again 3 s later. Each showing
-        // of the slot is one guide session: two starts, one end, and the second opening at a later time.
-        val showings = CopyOnWriteArrayList<String>()
-        val vm = viewModel()
+    // Live TV with a guide slot that records each showing: "start@<opened at>" and "end".
+    private fun showWithGuide(
+        vm: LiveViewModel,
+        showings: MutableList<String>,
+    ) {
         compose.setContent {
             StationBreakTheme {
                 LiveRoot(vm, {}, guide = { _, openedAtNanos, _, _ ->
@@ -250,6 +249,31 @@ class LiveDestinationLifecycleTest {
         }
         awaitLog("create#1")
         compose.waitForIdle()
+    }
+
+    @Test
+    fun aCloseAndReopenBetweenTwoFramesHandsTheGuideTheNewOpening() {
+        // The flag goes true, false, true before a frame sees it; the slot stays, but it is told the new open time.
+        val showings = CopyOnWriteArrayList<String>()
+        val vm = viewModel()
+        showWithGuide(vm, showings)
+        compose.runOnIdle { vm.openGuide(1L) }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            vm.closeGuide()
+            vm.openGuide(2L)
+        }
+        compose.waitForIdle()
+        assertEquals(listOf("start@1", "end", "start@2"), showings.toList())
+    }
+
+    @Test
+    fun guideKeyCloseThenBackReopenGivesTheGuideTwoShowings() {
+        // The device's path: Back opens the guide, the Guide key closes it, Back opens it again 3 s later. Each showing
+        // of the slot is one guide session: two starts, one end, and the second opening at a later time.
+        val showings = CopyOnWriteArrayList<String>()
+        val vm = viewModel()
+        showWithGuide(vm, showings)
         tap(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(WAIT_MS) { vm.guideOpen.value }
         tap(KeyEvent.KEYCODE_GUIDE)
