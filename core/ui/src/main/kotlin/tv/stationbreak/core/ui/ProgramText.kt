@@ -41,7 +41,9 @@ class ProgramCopy(
 object ProgramText {
     private const val NOON_HOUR = 12
     private const val SLOT_DASH = " – "
-    private const val MS_PER_MINUTE = 60_000L
+
+    /** A minute in milliseconds, the unit of [minutesUntil] and [untilNextMinute]. */
+    const val MINUTE_MS = 60_000L
 
     // Every guide cell's description and every clock label formats times: a formatter is made once per pattern (and so
     // per 12- or 24-hour clock) and locale, not once per call.
@@ -131,14 +133,14 @@ object ProgramText {
         nowMs: Long,
     ): Int {
         if (atMs <= nowMs) return 0
-        return maxOf(1L, atMs.floorDiv(MS_PER_MINUTE) - nowMs.floorDiv(MS_PER_MINUTE)).toInt()
+        return maxOf(1L, atMs.floorDiv(MINUTE_MS) - nowMs.floorDiv(MINUTE_MS)).toInt()
     }
 
     /**
      * How long from [nowMs] to the clock's next minute, when [minutesUntil] next changes: the banner's progress tick
      * and the guide's minute tick both wait this long, so neither shows a minute late.
      */
-    fun untilNextMinute(nowMs: Long): Long = MS_PER_MINUTE - nowMs.mod(MS_PER_MINUTE)
+    fun untilNextMinute(nowMs: Long): Long = MINUTE_MS - nowMs.mod(MINUTE_MS)
 
     /**
      * "S2 E5 · episode title" for an episode of a known series (the numbers that are known, else the title alone);

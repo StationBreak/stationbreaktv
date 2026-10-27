@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.core.ui.ProgramText
 import javax.inject.Inject
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
@@ -100,6 +101,7 @@ internal class GuideViewModel
         private var asked = 0
         private var applied = 0
         private var tickLag = 0L
+        private var tickLate = 0L
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
         fun open(current: ChannelId?) {
@@ -127,6 +129,12 @@ internal class GuideViewModel
          * the measurement line, to settle on a device whether the panel's clock can lag (#440).
          */
         val tickLagMaxMs: Long get() = synchronized(lock) { tickLag }
+
+        /**
+         * The latest this session's ticks read the clock after the moment they were due, in milliseconds (a late
+         * wake-up, or a wall clock ahead of the timer); 0 when none was late. Early reads are [tickLagMaxMs]'s.
+         */
+        val tickLateMaxMs: Long get() = synchronized(lock) { tickLate }
 
         /** Closes the guide and stops everything its session was doing. */
         fun close() {
@@ -214,6 +222,7 @@ internal class GuideViewModel
             asked = 0
             applied = 0
             tickLag = 0
+            tickLate = 0
             while (eventChannel.tryReceive().isSuccess) {
                 // Dropped: a Tune from this session must not fire in the next.
             }
@@ -339,20 +348,21 @@ internal class GuideViewModel
 
         // Each tick is due at a moment (the next minute, or a block's end) and is told it, so a wake-up a little before
         // that moment by the clock still shows it: see [tick].
-        // The next is worked out from no earlier than the last moment due, so a clock still short of it does not tick
-        // that moment again.
+        // The next is worked out from no earlier than the last moment shown, so a clock still short of it does not tick
+        // that moment again. Never from the moment due when an earlier one was shown: a tick that read the clock too
+        // far short of its minute showed the minute before, and the next must come at the clock's minute, not a whole
+        // minute later.
         private suspend fun tickLoop(s: CoroutineScope) {
-            var lastDue = Long.MIN_VALUE
+            var lastShown = Long.MIN_VALUE
             while (true) {
                 val (wait, due) =
                     synchronized(lock) {
-                        val now = maxOf(nowMs(), lastDue)
+                        val now = maxOf(nowMs(), lastShown)
                         val wait = (shownSnapshot.value.state as? GuideState.Ready).nextTickDelayMs(now)
                         wait to now + wait
                     }
                 delay(wait)
-                tick(s, due)
-                lastDue = due
+                lastShown = minOf(due, tick(s, due))
             }
         }
 
@@ -365,25 +375,34 @@ internal class GuideViewModel
          * The tick shows the moment it was [due] at when the clock reads a little short of it (the timer and the wall
          * clock need not agree to the millisecond). Showing the moment before would show the minute before for a whole
          * minute: the next tick is worked out from a later reading, already past [due], so it is a minute away, and
-         * every "min left" would read one too many. A clock read further short than [EARLY_WAKE_MS] still shows the
-         * minute before; [tickLagMaxMs] counts it, for the device check (#440).
+         * every "min left" would read one too many. A clock read further short than [EARLY_WAKE_MS] shows the moment it
+         * read, which may be the minute before; the loop then ticks again at the clock's minute, and [tickLagMaxMs]
+         * counts it. A read after [due] is counted in [tickLateMaxMs]. Both are for the device check (#440).
+         *
+         * Returns the moment shown ([due] when nothing was shown).
          */
         private fun tick(
             s: CoroutineScope,
             due: Long,
-        ) {
-            val built = synchronized(lock) { if (session === s) window else null } ?: return
+        ): Long {
+            val built = synchronized(lock) { if (session === s) window else null } ?: return due
             val read = nowMs()
             val now = if (due - read in 1..EARLY_WAKE_MS) due else read
             val model = buildGuideModel(built, now)
-            synchronized(lock) {
+            return synchronized(lock) {
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
-                if (session !== s || window !== built || now < shownNowMs()) return
-                commit(model, now)
-                // Measured, not corrected: how far the shown minute is behind the minute this tick was for.
-                tickLag = maxOf(tickLag, (due.floorDiv(MINUTE_MS) - now.floorDiv(MINUTE_MS)) * MINUTE_MS)
-                scrollAsked = null
-                extendIfNearTheEnd(s, model, now)
+                if (session !== s || window !== built || now < shownNowMs()) {
+                    due
+                } else {
+                    commit(model, now)
+                    // Measured: how far the shown minute is behind the minute this tick was for, and how late it read.
+                    val minute = ProgramText.MINUTE_MS
+                    tickLag = maxOf(tickLag, (due.floorDiv(minute) - now.floorDiv(minute)) * minute)
+                    tickLate = maxOf(tickLate, read - due)
+                    scrollAsked = null
+                    extendIfNearTheEnd(s, model, now)
+                    now
+                }
             }
         }
 
@@ -573,7 +592,6 @@ internal class GuideViewModel
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L
-            const val MINUTE_MS = 60_000L
             val WINDOW = 6.hours
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours

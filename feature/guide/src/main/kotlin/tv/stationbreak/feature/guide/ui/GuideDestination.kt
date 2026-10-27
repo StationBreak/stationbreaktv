@@ -92,6 +92,7 @@ internal fun GuideRoot(
                     viewModel.extensionsAsked,
                     viewModel.extensionsApplied,
                     viewModel.tickLagMaxMs,
+                    viewModel.tickLateMaxMs,
                 )
             } finally {
                 viewModel.close()

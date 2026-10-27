@@ -62,7 +62,7 @@ class GuideMeasurementTest {
         assertEquals(1, lines.size)
         assertEquals(
             "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
-                "rows=0 durationMs=5000 extensions=0 extended=0 tickLagMaxMs=0",
+                "rows=0 durationMs=5000 extensions=0 extended=0 tickLagMaxMs=0 tickLateMaxMs=0",
             lines.single(),
         )
     }
@@ -101,8 +101,9 @@ class GuideMeasurementTest {
     @Test
     fun theLineSaysHowFarTheShownMinuteFellBehind() {
         val m = measurement()
-        m.finish(windowMs = 12, rows = 6, tickLagMaxMs = 60_000)
-        assertTrue(lines.single(), lines.single().endsWith(" tickLagMaxMs=60000"))
+        // Early and late are apart: a tick that showed the minute before, and one that read the clock after its moment.
+        m.finish(windowMs = 12, rows = 6, tickLagMaxMs = 60_000, tickLateMaxMs = 1_250)
+        assertTrue(lines.single(), lines.single().endsWith(" tickLagMaxMs=60000 tickLateMaxMs=1250"))
     }
 
     @Test

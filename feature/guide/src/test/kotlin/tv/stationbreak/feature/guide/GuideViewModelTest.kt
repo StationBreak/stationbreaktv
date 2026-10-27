@@ -286,6 +286,39 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
+    fun aTickThatShowedTheMinuteBeforeTicksAgainAtItsMinute() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            // The wall clock runs 1.5 s behind the timer for two reads: the tick due at 66 shows 65 min 58.5 s (too far
+            // short to count as 66), and the reading that works out the next tick is short too. The next tick must
+            // come at the wall clock's 66, not a minute later: minute 66 must not be shown as 65 for a whole minute.
+            after(MIN - 1)
+            lagNextReadMs = 1_500
+            lagReads = 2
+            after(1)
+            assertTrue(vm.ready().nowMs < min(66))
+            after(2_000)
+            assertTrue("shown ${vm.ready().nowMs - min(66)} ms from 66 min", vm.ready().nowMs >= min(66))
+            assertTrue(vm.ready().nowMs < min(67))
+            // Still counted: the tick that showed 65 for 66 happened.
+            assertEquals(60_000L, vm.tickLagMaxMs)
+        }
+
+    @Test
+    fun aTickThatWakesLateIsCounted() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            // The tick due at 66 reads a clock 2 s past it (a late wake-up, or a wall clock ahead of the timer).
+            after(MIN - 1)
+            lagNextReadMs = -2_000
+            after(1)
+            assertEquals(2_000L, vm.tickLateMaxMs)
+            assertEquals(0L, vm.tickLagMaxMs)
+        }
+
+    @Test
     fun ticksOnTimeHaveNoLag() =
         guideTest { vm ->
             vm.open(CH7)
@@ -293,6 +326,7 @@ class GuideViewModelTest : GuideRig() {
             after(5 * MIN)
             assertEquals(min(70), vm.ready().nowMs)
             assertEquals(0L, vm.tickLagMaxMs)
+            assertEquals(0L, vm.tickLateMaxMs)
         }
 
     @Test
