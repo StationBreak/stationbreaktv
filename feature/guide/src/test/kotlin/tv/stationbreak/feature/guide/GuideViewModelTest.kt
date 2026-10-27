@@ -273,6 +273,24 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
+    fun selectActsOnTheMomentTheGridShows() =
+        guideTest { vm ->
+            val events = mutableListOf<GuideEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
+            vm.open(CH7)
+            runCurrent()
+            // The grid shows 65 minutes: the cell from 60 to 90 is on now and the hint says "OK Watch". A clock that
+            // reads past its end before the tick has shown that must not turn the same OK into "Info".
+            lagNextReadMs = -30 * MIN
+
+            vm.select()
+            runCurrent()
+
+            assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH7)), events)
+            assertNull(vm.info.value)
+        }
+
+    @Test
     fun aVerticalMoveMinutesAfterOpeningLandsOnWhatIsOnNow() =
         guideTest { vm ->
             // Channel 9's program from 0 to 75 stays on the grid (from 60) after it ends; at 80 the one on now

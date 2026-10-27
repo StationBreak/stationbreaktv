@@ -162,7 +162,8 @@ internal class GuideViewModel
                 if (ready == null || located == null || shownInfo.value != null) return
                 val row = ready.model.rows[located.first]
                 val cell = row.cells[located.second]
-                val now = nowMs()
+                // The moment the grid shows, as the hint does: what OK does must be what the hint said.
+                val now = ready.nowMs
                 when {
                     cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
                     cell.kind == CellKind.Slate -> Unit
