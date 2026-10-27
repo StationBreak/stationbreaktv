@@ -114,11 +114,11 @@ internal class Flipper(
     private var target: ChannelAiring? = null
     private var settling: Job? = null
 
-    // The last step's settle, to start again with another wait (the key held, or let go), the press it counts from, and
-    // whether it is still waiting rather than committing. The flip key is down from a Flip to its FlipReleased; the
-    // held key's pace.
+    // The last step's settle, to start again with another wait (the key held, or let go), the key's last down or repeat
+    // it counts from, and whether it is still waiting rather than committing. The flip key is down from a Flip to its
+    // FlipReleased; the held key's pace.
     private var resettle: (suspend (pressedAt: Instant, wait: Duration) -> Unit)? = null
-    private var lastPressAt: Instant? = null
+    private var lastDownAt: Instant? = null
     private var waiting = false
     private var keyDown = false
     private val held = HeldFlip(timings.flipRepeatDelay, timings.flipRepeatEvery)
@@ -252,6 +252,7 @@ internal class Flipper(
         val now = clock.now()
         val keyAtMs = command.atMs ?: now.toEpochMilliseconds()
         keyDown = true
+        lastDownAt = now
         when {
             !command.repeat -> held.press(keyAtMs)
             !held.repeatSteps(keyAtMs) -> return settleAgain(now, timings.flipReleaseFallback)
@@ -259,11 +260,16 @@ internal class Flipper(
         press(command.direction, now)
     }
 
-    /** The flip key came up: the settle runs from now, for the channel the last press chose. */
+    /**
+     * The flip key came up (R55): the commit is at the later of the last down or repeat plus the settle, and now. A tap
+     * commits at its press plus the settle, as a flip always did; a key held past that commits at once.
+     */
     private fun released() {
         if (!keyDown) return
         keyDown = false
-        lastPressAt?.let { settleAgain(it, timings.flipSettle) }
+        val downAt = lastDownAt ?: return
+        val left = (downAt + timings.flipSettle - clock.now()).coerceAtLeast(Duration.ZERO)
+        settleAgain(downAt, left)
     }
 
     /**
@@ -410,7 +416,6 @@ internal class Flipper(
         screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
         val again: suspend (Instant, Duration) -> Unit = { at, wait -> settle(steps, next, direction, at, wait) }
         resettle = again
-        lastPressAt = pressedAt
         // A key still down waits for its release (or the fallback); one already up settles now.
         val wait = if (keyDown) timings.flipReleaseFallback else timings.flipSettle
         waiting = true

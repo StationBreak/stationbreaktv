@@ -9,7 +9,7 @@ sealed interface LiveCommand {
      * Move the channel number one step; the stop is what tunes. One per key-down, auto-repeat included: a [repeat] (a
      * key held down) steps only at the held-key rate (`LiveTimings.flipRepeatDelay` and `flipRepeatEvery`, #430),
      * paced by [atMs], the key event's time (`KeyEvent.getEventTime`, uptime), or the clock when there is none. While
-     * the key is down nothing is tuned: the settle counts from [FlipReleased] (#430).
+     * the key is down nothing is tuned: the commit waits for [FlipReleased] (#430).
      */
     data class Flip(
         val direction: FlipDirection,
@@ -18,7 +18,8 @@ sealed interface LiveCommand {
     ) : LiveCommand
 
     /**
-     * The Up or Down key of the last [Flip] came up: the settle starts now. A release that never arrives is covered by
+     * The Up or Down key of the last [Flip] came up: the channel is tuned at the later of the last down or repeat plus
+     * the settle, and now (R55). A release that never arrives is covered by
      * `LiveTimings.flipReleaseFallback` after the last down or repeat.
      */
     data object FlipReleased : LiveCommand

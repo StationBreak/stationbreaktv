@@ -22,9 +22,9 @@ import kotlin.time.Duration.Companion.seconds
  * @property preResolveLead how long before a block ends the next program is resolved.
  * @property crashBackoff how long the card holds after a sitting broke on an unexpected exception, before a fresh
  *   sitting re-anchors to the clock: long enough that a fault which repeats cannot spin the loop.
- * @property flipSettle how long after the last Up or Down key comes up the channel the viewer stopped on is tuned
- *   (spec 15; from the release since #430, so nothing is tuned while a key is held): short enough to cost the flip
- *   little of its time budget.
+ * @property flipSettle how long after the last Up or Down press or repeat the channel the viewer stopped on is tuned
+ *   (spec 15), but never while the key is still down: a key held past it tunes when it comes up (#430, R55). Short
+ *   enough to cost the flip little of its time budget.
  * @property flipRepeatDelay how long a held Up or Down waits after its first step before it steps again (#430): the
  *   pause of a cable box or TV, so a press that lingers moves one channel, not two.
  * @property flipRepeatEvery how often a held Up or Down steps after that pause (#430): slow enough to read each channel

@@ -122,9 +122,10 @@ class LiveChannelHeldFlipTest {
             holdUp(f, holdMs = 2_000, firstRepeatMs = 480, release = false)
             assertEquals("nothing is tuned while the key is held", before, f.r.tunes.size)
             f.send(LiveCommand.FlipReleased)
-            at(start + 2_000 + 399)
-            assertEquals("the settle counts from the release", before, f.r.tunes.size)
-            at(start + 2_000 + 401)
+            // R55: the commit is at the later of the last repeat (1980 ms) plus the settle, and the release.
+            at(start + 1_980 + 399)
+            assertEquals(before, f.r.tunes.size)
+            at(start + 1_980 + 401)
             assertEquals(1, f.r.tunes.size - before)
             at(start + 10_000)
             assertEquals(1, f.r.tunes.size - before)
@@ -148,8 +149,10 @@ class LiveChannelHeldFlipTest {
         }
 
     @Test
-    fun aShortTapStepsOnceAndTunesOnceTheSettleAfterItsRelease() =
+    fun aShortTapStepsOnceAndTunesOnceTheSettleAfterItsPress() =
         runTest {
+            // R55: a tap (up 100 ms after the press) commits at press + settle, as before #430, so a flip's time
+            // measured from the press is not taxed by the tap's length.
             val f = manyChannels()
             val before = f.r.tunes.size
             val start = currentTime
@@ -157,14 +160,45 @@ class LiveChannelHeldFlipTest {
             assertEquals(listOf(9), f.choosingNumbers())
             at(start + 100)
             f.send(LiveCommand.FlipReleased)
-            at(start + 100 + 399)
+            at(start + 399)
             assertEquals(before, f.r.tunes.size)
-            at(start + 100 + 401)
+            at(start + 401)
             assertEquals(
                 listOf(itemOf(9)),
                 f.r.tunes
                     .drop(before)
                     .map { it.item },
+            )
+            val flip =
+                f.r.reports
+                    .filterIsInstance<TuneReport.Flip>()
+                    .single()
+            assertEquals("settleMs counts from the last down", 400L, flip.settleMs)
+        }
+
+    @Test
+    fun aPressHeldPastTheSettleCommitsAtItsRelease() =
+        runTest {
+            // Held 600 ms with no auto-repeat yet (a 700 ms first repeat): press + settle has passed while the key was
+            // down, so the commit comes the moment it is let go, not before.
+            val f = manyChannels()
+            val before = f.r.tunes.size
+            val start = currentTime
+            f.upKey(start)
+            at(start + 600)
+            assertEquals("nothing is tuned while the key is down", before, f.r.tunes.size)
+            f.send(LiveCommand.FlipReleased)
+            assertEquals(
+                listOf(itemOf(9)),
+                f.r.tunes
+                    .drop(before)
+                    .map { it.item },
+            )
+            assertEquals(
+                start + 600,
+                f.r.tunes
+                    .last()
+                    .at,
             )
         }
 
