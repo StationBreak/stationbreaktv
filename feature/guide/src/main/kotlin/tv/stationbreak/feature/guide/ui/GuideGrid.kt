@@ -68,7 +68,7 @@ internal fun GuideGrid(
     modifier: Modifier = Modifier,
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
-    Box(modifier.testTag(GuideTags.GRID)) {
+    Box(modifier.testTag(GuideTags.GRID).tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE)) {
         Column {
             ClockStrip(nowOf, viewportOf, geometry)
             for (index in firstVisibleRow until last) {

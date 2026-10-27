@@ -219,10 +219,8 @@ private fun Modifier.stickyText(
 ): Modifier =
     layout { measurable, constraints ->
         val viewport = viewportOf()
-        if (place.compactIn(viewport)) {
-            measurable.measure(Constraints(maxWidth = 0))
-            return@layout layout(constraints.maxWidth, 0) {}
-        }
+        // Not measured at all: a title measured to no width is still laid out, on every pass.
+        if (place.compactIn(viewport)) return@layout layout(constraints.maxWidth, 0) {}
         val inset = CellInset.roundToPx()
         val start =
             (place.visibleLeft(viewport).roundToPx() - inset).coerceAtLeast(0) +
@@ -250,17 +248,27 @@ private fun CellText(
             slate -> BroadcastColors.Ground
             else -> BroadcastColors.Cream
         }
-    val minor = if (focused) BroadcastColors.Ink else BroadcastColors.Ground
     val numbers =
         cell.info?.takeIf { it.kind == ScheduleItemKind.Episode && place.width >= EpisodeFrom }?.let(::numbersOf)
+    // The title's colour is the text's own, not a span of it: a focus move changes only that, which is drawn, so the
+    // text is not laid out again. The numbers keep a span of their own colour, so a cell that shows them is.
+    val minor =
+        when {
+            numbers == null -> Color.Unspecified
+            focused -> BroadcastColors.Ink
+            else -> BroadcastColors.Ground
+        }
     val text =
-        buildAnnotatedString {
-            withStyle(SpanStyle(color = main)) { append(title) }
-            numbers?.let { withStyle(SpanStyle(color = minor, fontWeight = FontWeight.Normal)) { append("  $it") } }
+        remember(title, numbers, minor) {
+            buildAnnotatedString {
+                append(title)
+                numbers?.let { withStyle(SpanStyle(color = minor, fontWeight = FontWeight.Normal)) { append("  $it") } }
+            }
         }
     Text(
         text = text,
         modifier = modifier,
+        color = main,
         style =
             if (slate) {
                 TextStyle(fontSize = 16.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal)

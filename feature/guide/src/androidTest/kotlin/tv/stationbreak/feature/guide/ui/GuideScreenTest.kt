@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.ACTION_DOWN
 import android.view.KeyEvent.ACTION_UP
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
@@ -39,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -277,13 +280,13 @@ class GuideScreenTest {
     }
 
     @Test
-    fun reopeningSecondsAfterAGuideKeyCloseStartsFresh() {
-        // As on the device: the measured build, the guide closed (the Guide key) and opened again (Back) 3 s later.
+    fun reopeningAfterAGuideKeyCloseStartsFresh() {
+        // As on the device: the measured build, the guide closed (the Guide key) and opened again (Back) later. Nothing
+        // here goes by the clock, so the reopen follows at once.
         showReady(CH7, measure = true)
         scrollFarRight()
         compose.runOnIdle { showing.value = false }
         compose.waitForIdle()
-        Thread.sleep(REOPEN_AFTER_MS)
         compose.runOnIdle {
             openedAt.longValue = 2L
             showing.value = true
@@ -362,6 +365,74 @@ class GuideScreenTest {
         // Not the grid's body either (BODY would be in the map): the move changed the focus, not the frame.
         // The cell that lost the focus and the one that took it; no row and no other cell.
         assertEquals(mapOf("${CH7.value}@${min(60)}" to 1, "${CH7.value}@${min(90)}" to 1), composed.toMap())
+    }
+
+    @Test
+    fun aMoveRecomposesTheTwoCellsThePanelAndTheHintOnly() {
+        showReady(CH7)
+        // Right (a later cell: the hint changes to Info), then Down (on to channel 9, still in the window: no row
+        // moves).
+        for ((key, to) in listOf(Key.DirectionRight to cell(CH7, 90), Key.DirectionDown to cell(CH9, 0))) {
+            val composed = traceComposition { press(key) }
+            to.assertIsSelected()
+            Log.i(LOG_TAG, "$key: $composed")
+            val roots = composed.guideRoots
+            // Each cell recomposes on its own (it reads only whether it is focused), and nothing over or around the
+            // cells does: not their row, the channel column, the clock strip, the now line or the grid.
+            assertEquals("$key: $roots", 2, roots.count { it == "ui.GuideCellView" })
+            val others = roots.filterNot { it == "ui.GuideCellView" || it.startsWith("ui.DetailsPanel") }
+            assertTrue("$key: $roots", others.all { it.startsWith("ui.HintRow") })
+        }
+    }
+
+    /**
+     * Every text on screen by node, its tag (or its text) and the paragraphs it is laid out in now; none for a text
+     * that has never been measured (a title in a cell with no room for one).
+     */
+    private fun laidOut(): Map<Int, Pair<String, Any?>> =
+        compose
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .associate { node ->
+                val layouts = mutableListOf<TextLayoutResult>()
+                node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+                val text = node.config.getOrElse(SemanticsProperties.Text) { emptyList() }.joinToString("")
+                val name = node.config.getOrElse(SemanticsProperties.TestTag) { text }
+                node.id to (name to layouts.singleOrNull()?.multiParagraph)
+            }
+
+    @Test
+    fun aFocusMoveDoesNotLayOutTheCellsTextsAgain() {
+        showReady(CH7)
+        for (key in listOf(Key.DirectionRight, Key.DirectionDown)) {
+            val before = laidOut()
+            press(key)
+            val after = laidOut()
+            // Laid out again: new paragraphs for a text that was there before (one that changed, or one re-measured).
+            val again =
+                after
+                    .filter { (id, now) -> before[id]?.let { it.second !== now.second } == true }
+                    .values
+                    .map { it.first }
+            Log.i(LOG_TAG, "$key: ${again.size} of ${after.size} texts laid out again: $again")
+            // The two cells whose focus changed only change colour: that is drawn, not laid out. The panel and the hint
+            // say something else, and are laid out again for it.
+            assertEquals("$key: $again", emptyList<String>(), again.filter { it.startsWith(CELL_TEXT) })
+        }
+    }
+
+    @Test
+    fun aCellPagedOutOfViewDoesNotLayItsTitleOut() {
+        showReady(CH7)
+        // Channel 9's first program (0 to 150 minutes) shows its title from 60 to 150; a page to 150 leaves none of it
+        // in view, so it is compact there and its title is not measured at all (not measured to no width).
+        repeat(2) { press(Key.DirectionRight) }
+        val title = laidOut().entries.single { it.value.first == GuideTags.cellText(CH9, min(0)) }.key
+        val paragraphs = laidOut().getValue(title).second
+        assertNotNull("laid out while in view", paragraphs)
+        press(Key.DirectionRight)
+        assertEquals(min(150), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+        assertTrue("laid out again", laidOut().getValue(title).second === paragraphs)
     }
 
     @Test
@@ -483,7 +554,8 @@ class GuideScreenTest {
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
         const val BODY = "body"
+        const val LOG_TAG = "GuideScreenTest"
+        const val CELL_TEXT = "guide:cellText:"
         const val TICK_TIMEOUT_MS = 20_000L
-        const val REOPEN_AFTER_MS = 3_000L
     }
 }

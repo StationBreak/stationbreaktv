@@ -126,8 +126,10 @@ internal fun GuideRoot(
         modifier =
             modifier
                 .focusRequester(keys)
-                .onKeyEvent { guideKey(it, viewModel::move, viewModel::select, backs?.let { d -> d::onBackPressed }) }
-                .focusable(),
+                .onKeyEvent {
+                    val move = { direction: GuideDirection -> traced(TRACE_MOVE) { viewModel.move(direction) } }
+                    guideKey(it, move, viewModel::select, backs?.let { d -> d::onBackPressed })
+                }.focusable(),
     )
 }
 
