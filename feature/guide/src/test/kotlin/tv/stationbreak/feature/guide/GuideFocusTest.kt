@@ -21,6 +21,12 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
+// The moves these tests make are at the origin's moment unless one says otherwise: the anchor's floor is the origin.
+private fun GuideModel.move(
+    focus: GuideFocus,
+    direction: GuideDirection,
+) = move(focus, direction, originMs)
+
 class GuideFocusTest {
     private fun row(
         id: ChannelId,
@@ -93,6 +99,33 @@ class GuideFocusTest {
         assertEquals(CH5, back.channel)
         assertEquals(min(90), back.cellStartMs)
         assertEquals(min(110), back.anchorMs)
+    }
+
+    @Test
+    fun upDownNeverKeepsAnAnchorEarlierThanNow() {
+        // Channel 7's cell on now was focused at 60 and kept that anchor while the clock went on to 80. Channel 9's
+        // program from 60 ended at 75 and is still on the grid: Down lands on what is on now, 75 to 84.
+        val down = model.move(GuideFocus(CH7, min(60), min(60)), GuideDirection.Down, min(80))
+        assertEquals(CH9, down.channel)
+        assertEquals(min(75), down.cellStartMs)
+        assertEquals(min(80), down.anchorMs)
+        // A later anchor is kept as it is.
+        assertEquals(min(150), model.move(GuideFocus(CH7, min(130), min(150)), GuideDirection.Down, min(80)).anchorMs)
+    }
+
+    @Test
+    fun theFocusThatFollowsNowIsAnchoredAtNow() {
+        // The tick at 80 (late: the end at 75 was not on the visible range) moves the focus off the program that ended
+        // to the one on now, which began at 75: its anchor is now, not that start.
+        val focus = model.followingNow(GuideFocus(CH9, min(60), min(60)), previousNowMs = min(65), nowMs = min(80))
+        assertEquals(GuideFocus(CH9, min(75), min(80)), focus)
+    }
+
+    @Test
+    fun aFocusReplacedByARebuildIsAnchoredNoEarlierThanNow() {
+        // The focused cell (from 50) is not in the rebuilt grid; its row's cell holding now is focused instead.
+        val focus = model.focusAfterRebuild(GuideFocus(CH9, min(50), min(60)), CH9, min(80))
+        assertEquals(GuideFocus(CH9, min(75), min(80)), focus)
     }
 
     @Test

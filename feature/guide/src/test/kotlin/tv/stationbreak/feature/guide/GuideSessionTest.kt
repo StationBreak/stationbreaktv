@@ -15,8 +15,10 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.model.ChannelId
 
 /**
@@ -82,6 +84,91 @@ class GuideSessionTest : GuideRig() {
             // Asked once per new end, not once per key.
             val extensions = fake.scheduleCalls.drop(1)
             assertEquals(extensions.map { it.second }.distinct(), extensions.map { it.second })
+        }
+
+    @Test
+    fun scrollingRightKeepsGoingWhenAnotherRowRunsFarPastTheWindow() =
+        guideTest { vm ->
+            // Channel 9 is off air from 210 minutes to the end of its day: one slate, far past the six hours opened
+            // with, as the scheduler lays out a channel that has run out of programs. The grid's end is that slate's,
+            // but channel 7's row stops at the window, so scrolling it must still ask for more.
+            lineup(untilMin = 780)
+            fake.channel(CH9, 9, listOf(program(0, 150, 300), program(150, 210, 301), slate(210, 1440)))
+            vm.open(CH7)
+            runCurrent()
+            assertEquals(min(1440), vm.ready().model.endMs)
+
+            repeat(20) {
+                vm.move(GuideDirection.Right)
+                runCurrent()
+            }
+
+            assertEquals(min(660), vm.focused().cellStartMs)
+            assertTrue(fake.scheduleCalls.none { it.third == ScheduleBuild.AsNeeded })
+            // What the measurement line reports, so a device run shows the extension happened.
+            assertEquals(fake.scheduleCalls.size - 1, vm.extensionsAsked)
+            assertTrue(vm.extensionsAsked >= 1)
+            assertEquals(vm.extensionsAsked, vm.extensionsApplied)
+
+            vm.close()
+            assertEquals(0, vm.extensionsAsked)
+            assertEquals(0, vm.extensionsApplied)
+        }
+
+    @Test
+    fun scrollingAsksAgainOnceMoreHasBeenBuilt() =
+        guideTest { vm ->
+            // The grid's end is pinned by channel 9's slate. What is built stops at 7 hours, so the first ask from
+            // channel 7 finds nothing new, and the next keys do not ask again for the same end. A minute on, more is
+            // built: a further Right asks again and goes on.
+            lineup(untilMin = 780)
+            fake.channel(CH9, 9, listOf(program(0, 150, 300), program(150, 210, 301), slate(210, 1440)))
+            fake.cachedUntilMs = min(420)
+            vm.open(CH7)
+            runCurrent()
+            repeat(12) {
+                vm.move(GuideDirection.Right)
+                runCurrent()
+            }
+            assertEquals(min(390), vm.focused().cellStartMs)
+            val asked = fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly }
+
+            vm.move(GuideDirection.Right)
+            runCurrent()
+            assertEquals(asked, fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly })
+
+            fake.cachedUntilMs = null
+            after(MIN)
+            vm.move(GuideDirection.Right)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            runCurrent()
+
+            assertTrue(fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly } > asked)
+            assertEquals(min(420), vm.focused().cellStartMs)
+        }
+
+    @Test
+    fun theClockKeepsShortRowsGoingWhenAnotherRowRunsFarPastTheWindow() =
+        guideTest { vm ->
+            // As above, with nobody scrolling: the clock must ask for more before channel 7's row runs out.
+            lineup(untilMin = 780)
+            fake.channel(CH9, 9, listOf(program(0, 150, 300), program(150, 210, 301), slate(210, 1440)))
+            vm.open(CH7)
+            runCurrent()
+            val ch7 = {
+                vm
+                    .ready()
+                    .model.rows
+                    .single { it.channel == CH7 }
+            }
+            assertEquals(min(420), ch7().cells.last().endMs)
+
+            after(5 * HOUR)
+
+            assertTrue(fake.scheduleCalls.drop(1).isNotEmpty())
+            assertTrue(fake.scheduleCalls.none { it.third == ScheduleBuild.AsNeeded })
+            assertEquals(min(780), ch7().cells.last().endMs)
         }
 
     @Test

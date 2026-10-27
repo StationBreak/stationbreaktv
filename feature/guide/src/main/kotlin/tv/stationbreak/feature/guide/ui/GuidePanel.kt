@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -29,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
@@ -39,11 +43,13 @@ import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
+import kotlin.time.Duration.Companion.milliseconds
 
 private val ChipPadding = 6.dp
 private const val PROGRESS_TRACK_ALPHA = 0.35f
 private const val OVERVIEW_LINES_WITH_EPISODE = 2
 private const val OVERVIEW_LINES = 3
+private const val DESCRIBE_AFTER_MS = 150L
 
 /**
  * A node of its own, never merged into the panel's live region: for what changes every minute (the countdown, the
@@ -53,11 +59,11 @@ private val OutsideTheLiveRegion = Modifier.semantics(mergeDescendants = true) {
 
 /**
  * The details of the focused cell: the channel, the title, the episode line, when it airs (with a NOW chip and the
- * time left for a program on now, or how soon it starts), its progress when on now, and the overview once fetched. A
- * block of its own, so something else (a menu) can take its place later. Only it reads [panel]; the clock is read
- * through [nowOf], which changes once a minute. Read out by a screen reader as it changes (a polite live region: the
- * channel, the title, the episode and the slot, not the minute countdown), since no screen reader can see the guide's
- * own focus.
+ * time left for a program on now, or how soon it starts), its progress when on now, and the overview once fetched and
+ * the focus has rested on the cell ([restedOn]). A block of its own, so something else (a menu) can take its place
+ * later. Only it reads [panel]; the clock is read through [nowOf], which changes once a minute. Read out by a screen
+ * reader as it changes (a polite live region: the channel, the title, the episode and the slot, not the minute
+ * countdown), since no screen reader can see the guide's own focus.
  */
 @Composable
 internal fun DetailsPanel(
@@ -75,14 +81,32 @@ internal fun DetailsPanel(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val shown = details ?: return@Column
-        PanelLines(shown, now ?: shown.cell.startMs)
+        val rested = restedOn(shown.channelNumber to shown.cell.startMs)
+        PanelLines(shown, now ?: shown.cell.startMs, describe = rested)
     }
+}
+
+/**
+ * Whether the focus has rested on [cell] for [DESCRIBE_AFTER_MS]: until then the panel leaves the description out. A
+ * held key moves the focus 20 times a second, too fast to read a description, and laying a few lines of it out on every
+ * step costs frames on the older TV; the title and the time still follow every step. Details that arrive for a cell
+ * the focus has rested on show at once.
+ */
+@Composable
+private fun restedOn(cell: Pair<Int, Long>): Boolean {
+    var rested by remember { mutableStateOf<Pair<Int, Long>?>(null) }
+    LaunchedEffect(cell) {
+        delay(DESCRIBE_AFTER_MS.milliseconds)
+        rested = cell
+    }
+    return rested == cell
 }
 
 @Composable
 private fun PanelLines(
     details: CellDetails,
     nowMs: Long,
+    describe: Boolean,
 ) {
     val copy = programCopy()
     val cell = details.cell
@@ -116,7 +140,7 @@ private fun PanelLines(
     val onNow = cell.startMs <= nowMs && nowMs < cell.endMs
     TimeRow(cell, nowMs, onNow, copy)
     if (onNow && cell.kind == CellKind.Program) Progress(cell.startMs, cell.endMs, nowMs)
-    details.item?.overview?.let {
+    details.item?.overview?.takeIf { describe }?.let {
         Text(
             text = it,
             modifier = Modifier.testTag(GuideTags.PANEL_OVERVIEW),

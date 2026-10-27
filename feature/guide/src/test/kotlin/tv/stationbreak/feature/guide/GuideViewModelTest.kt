@@ -23,7 +23,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.feature.guide.ui.minutesUntil
 
 class GuideViewModelTest : GuideRig() {
     @Test
@@ -230,6 +232,80 @@ class GuideViewModelTest : GuideRig() {
             assertEquals(min(66), vm.ready().nowMs)
             after(MIN)
             assertEquals(min(67), vm.ready().nowMs)
+        }
+
+    @Test
+    fun aTickThatWakesJustBeforeTheMinuteStillShowsTheMinute() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            // The tick due at 66 minutes reads a clock 6 ms short of it, as a wake-up a hair early does on a device
+            // whose wall clock runs a little behind the timer; the next read is on time again.
+            after(MIN - 1)
+            lagNextReadMs = 6
+            after(1)
+
+            // Half a minute on, the panel's "min left" for the cell on now (60 to 90) is 24 (23.5, rounded up): the
+            // shown time is the minute, not the moment before it, which would say 25 for a whole minute.
+            after(MIN / 2)
+            assertTrue("shown ${vm.ready().nowMs - min(66)} ms from 66 min", vm.ready().nowMs >= min(66))
+            assertEquals(24, minutesUntil(min(90), vm.ready().nowMs))
+        }
+
+    @Test
+    fun aTickThatShowedItsMinuteDoesNotTickThatMinuteAgain() =
+        guideTest { vm ->
+            val shown = mutableListOf<Long>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.snapshot.collect { (it.state as? GuideState.Ready)?.nowMs?.let(shown::add) }
+            }
+            vm.open(CH7)
+            runCurrent()
+            // The tick due at 66 minutes, and the reading that works out the next one, are both 6 ms short of it.
+            after(MIN - 1)
+            lagNextReadMs = 6
+            lagReads = 2
+            after(1)
+            after(MIN / 2)
+
+            // One moment shown for the 66th minute: the tick that showed it is not followed by another 6 ms later.
+            assertEquals(listOf(min(66)), shown.filter { it >= min(66) && it < min(67) })
+        }
+
+    @Test
+    fun selectActsOnTheMomentTheGridShows() =
+        guideTest { vm ->
+            val events = mutableListOf<GuideEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
+            vm.open(CH7)
+            runCurrent()
+            // The grid shows 65 minutes: the cell from 60 to 90 is on now and the hint says "OK Watch". A clock that
+            // reads past its end before the tick has shown that must not turn the same OK into "Info".
+            lagNextReadMs = -30 * MIN
+
+            vm.select()
+            runCurrent()
+
+            assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH7)), events)
+            assertNull(vm.info.value)
+        }
+
+    @Test
+    fun aVerticalMoveMinutesAfterOpeningLandsOnWhatIsOnNow() =
+        guideTest { vm ->
+            // Channel 9's program from 0 to 75 stays on the grid (from 60) after it ends; at 80 the one on now
+            // began at 75.
+            fake.channel(CH9, 9, listOf(program(0, 75, 300), program(75, 600, 301)))
+            vm.open(CH7)
+            runCurrent()
+            assertEquals(GuideFocus(CH7, min(60), min(60)), vm.focused())
+
+            after(15 * MIN)
+            vm.move(GuideDirection.Down)
+
+            assertEquals(CH9, vm.focused().channel)
+            assertEquals(min(75), vm.focused().cellStartMs)
+            assertTrue(vm.focused().anchorMs >= vm.ready().nowMs)
         }
 
     @Test

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.SurfaceView
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +14,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
@@ -216,6 +220,83 @@ class LiveDestinationLifecycleTest {
     }
 
     @Test
+    fun leavingTheForegroundClosesTheGuideBeforeTheScreenStops() {
+        // Home: the screen is paused at once, but stopped only once the launcher is up, seconds later on a Fire TV.
+        // Coming back in between must not find the guide left open as it was (it would not be a fresh open).
+        val vm = viewModel()
+        show(vm)
+        awaitLog("create#1")
+        compose.runOnIdle { vm.openGuide(0L) }
+        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        compose.waitUntil(WAIT_MS) { !vm.guideOpen.value }
+        assertTrue("still watching: paused is not stopped", "release#1" !in log)
+    }
+
+    // Live TV with a guide slot that records each showing: "start@<opened at>" and "end".
+    private fun showWithGuide(
+        vm: LiveViewModel,
+        showings: MutableList<String>,
+    ) {
+        compose.setContent {
+            StationBreakTheme {
+                LiveRoot(vm, {}, guide = { _, openedAtNanos, _, _ ->
+                    DisposableEffect(openedAtNanos) {
+                        showings += "start@$openedAtNanos"
+                        onDispose { showings += "end" }
+                    }
+                }) { _, _ -> RecordingTuner() }
+            }
+        }
+        awaitLog("create#1")
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun aCloseAndReopenBetweenTwoFramesHandsTheGuideTheNewOpening() {
+        // The flag goes true, false, true before a frame sees it; the slot stays, but it is told the new open time.
+        val showings = CopyOnWriteArrayList<String>()
+        val vm = viewModel()
+        showWithGuide(vm, showings)
+        compose.runOnIdle { vm.openGuide(1L) }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            vm.closeGuide()
+            vm.openGuide(2L)
+        }
+        compose.waitForIdle()
+        assertEquals(listOf("start@1", "end", "start@2"), showings.toList())
+    }
+
+    @Test
+    fun guideKeyCloseThenBackReopenGivesTheGuideTwoShowings() {
+        // The device's path: Back opens the guide, the Guide key closes it, Back opens it again (3 s later there;
+        // nothing goes by the clock, so at once here). Each showing of the slot is one guide session: two starts, one
+        // end, and the second opening at a later time.
+        val showings = CopyOnWriteArrayList<String>()
+        val vm = viewModel()
+        showWithGuide(vm, showings)
+        tap(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(WAIT_MS) { vm.guideOpen.value }
+        tap(KeyEvent.KEYCODE_GUIDE)
+        compose.waitUntil(WAIT_MS) { !vm.guideOpen.value }
+        compose.waitForIdle()
+        tap(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(WAIT_MS) { vm.guideOpen.value }
+        compose.waitForIdle()
+        assertEquals(listOf("start", "end", "start"), showings.map { it.substringBefore('@') })
+        assertTrue(showings.toString(), showings[0] != showings[2])
+    }
+
+    private fun tap(code: Int) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val at = SystemClock.uptimeMillis()
+        instrumentation.sendKeySync(KeyEvent(at, at, KeyEvent.ACTION_DOWN, code, 0))
+        compose.waitForIdle()
+        instrumentation.sendKeySync(KeyEvent(at, at + PRESS_MS, KeyEvent.ACTION_UP, code, 0))
+        compose.waitForIdle()
+    }
+
+    @Test
     fun theScreenStaysOnWhileShownAndStartedAndNotAfter() {
         var shown by mutableStateOf(true)
         var host: View? = null
@@ -242,5 +323,6 @@ class LiveDestinationLifecycleTest {
 
     private companion object {
         const val WAIT_MS = 10_000L
+        const val PRESS_MS = 50L
     }
 }

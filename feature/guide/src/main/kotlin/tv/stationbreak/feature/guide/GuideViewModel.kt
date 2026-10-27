@@ -95,8 +95,10 @@ internal class GuideViewModel
         private var infoOf: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
-        private var extendedUntil = NEVER
+        private var scrollAsked: Pair<ChannelId, Long>? = null
         private var firstWindowMs = NO_MEASURE
+        private var asked = 0
+        private var applied = 0
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
         fun open(current: ChannelId?) {
@@ -112,6 +114,12 @@ internal class GuideViewModel
         /** How long the session's first schedule call took, in milliseconds, or -1 before it has returned (Task 9). */
         val windowMs: Long get() = synchronized(lock) { firstWindowMs }
 
+        /** How often this session asked for more of the built schedule, for the measurement line (numbers only). */
+        val extensionsAsked: Int get() = synchronized(lock) { asked }
+
+        /** How many of this session's extensions reached the grid (one that lost a race is dropped). */
+        val extensionsApplied: Int get() = synchronized(lock) { applied }
+
         /** Closes the guide and stops everything its session was doing. */
         fun close() {
             synchronized(lock) { endSession() }
@@ -119,7 +127,8 @@ internal class GuideViewModel
 
         /**
          * One step of focus. Ignored while the info overlay is open, which owns the keys. Scrolling toward the end of
-         * what is loaded asks for more of what is already built, as the clock does.
+         * what is loaded asks for more of what is already built, as the clock does; so does a key that cannot move on
+         * at the end of a row, since more may have been built since.
          */
         fun move(direction: GuideDirection) {
             synchronized(lock) {
@@ -127,13 +136,16 @@ internal class GuideViewModel
                 val ready = current.state as? GuideState.Ready
                 val from = current.focus
                 if (ready == null || from == null || shownInfo.value != null) return
-                val to = ready.model.move(from, direction)
-                if (to == from) return
-                val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
-                val row = ready.firstRowFor(to, ready.firstVisibleRow)
-                val moved = ready.copy(viewportStartMs = viewport, firstVisibleRow = row)
-                publish(moved, to)
-                session?.let { extendIfScrolledNearTheEnd(it, moved, to) }
+                val to = ready.model.move(from, direction, ready.nowMs)
+                val shown =
+                    if (to == from) {
+                        ready
+                    } else {
+                        val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
+                        val row = ready.firstRowFor(to, ready.firstVisibleRow)
+                        ready.copy(viewportStartMs = viewport, firstVisibleRow = row).also { publish(it, to) }
+                    }
+                session?.let { extendIfScrolledNearTheEnd(it, shown, to) }
             }
         }
 
@@ -150,7 +162,8 @@ internal class GuideViewModel
                 if (ready == null || located == null || shownInfo.value != null) return
                 val row = ready.model.rows[located.first]
                 val cell = row.cells[located.second]
-                val now = nowMs()
+                // The moment the grid shows, as the hint does: what OK does must be what the hint said.
+                val now = ready.nowMs
                 when {
                     cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
                     cell.kind == CellKind.Slate -> Unit
@@ -188,8 +201,10 @@ internal class GuideViewModel
             infoOf = null
             extensionJob = null
             extendedFrom = NEVER
-            extendedUntil = NEVER
+            scrollAsked = null
             firstWindowMs = NO_MEASURE
+            asked = 0
+            applied = 0
             while (eventChannel.tryReceive().isSuccess) {
                 // Dropped: a Tune from this session must not fire in the next.
             }
@@ -301,6 +316,7 @@ internal class GuideViewModel
                 val model = if (now == built) early else buildGuideModel(fresh, now)
                 val endNow = (shownSnapshot.value.state as? GuideState.Ready)?.model?.endMs
                 if (extension && endNow != null && model.endMs < endNow) return
+                if (extension) applied++
                 window = fresh
                 commit(model, now)
                 if (tickJob == null) tickJob = s.launch { tickLoop(s) }
@@ -312,10 +328,22 @@ internal class GuideViewModel
 
         // Ticks
 
+        // Each tick is due at a moment (the next minute, or a block's end) and is told it, so a wake-up a little before
+        // that moment by the clock still shows it: see [tick].
+        // The next is worked out from no earlier than the last moment due, so a clock still short of it does not tick
+        // that moment again.
         private suspend fun tickLoop(s: CoroutineScope) {
+            var lastDue = Long.MIN_VALUE
             while (true) {
-                delay(synchronized(lock) { (shownSnapshot.value.state as? GuideState.Ready).nextTickDelayMs(nowMs()) })
-                tick(s)
+                val (wait, due) =
+                    synchronized(lock) {
+                        val now = maxOf(nowMs(), lastDue)
+                        val wait = (shownSnapshot.value.state as? GuideState.Ready).nextTickDelayMs(now)
+                        wait to now + wait
+                    }
+                delay(wait)
+                tick(s, due)
+                lastDue = due
             }
         }
 
@@ -324,52 +352,71 @@ internal class GuideViewModel
          * advances (the viewport follows it unless the viewer has scrolled away). The next tick is at the next minute
          * or at the end of the nearest block in the visible range, as it stood when the previous tick was published,
          * so a block end revealed by scrolling may be ticked up to a minute late.
+         *
+         * The tick shows the moment it was [due] at when the clock reads a little short of it (the timer and the wall
+         * clock need not agree to the millisecond). Showing the moment before would show the minute before for a whole
+         * minute: the next tick is worked out from a later reading, already past [due], so it is a minute away, and
+         * every "min left" (rounded up) would read one too many.
          */
-        private fun tick(s: CoroutineScope) {
+        private fun tick(
+            s: CoroutineScope,
+            due: Long,
+        ) {
             val built = synchronized(lock) { if (session === s) window else null } ?: return
-            val now = nowMs()
+            val read = nowMs()
+            val now = if (due - read in 1..EARLY_WAKE_MS) due else read
             val model = buildGuideModel(built, now)
             synchronized(lock) {
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
                 if (session !== s || window !== built || now < shownNowMs()) return
                 commit(model, now)
+                scrollAsked = null
                 extendIfNearTheEnd(s, model, now)
             }
         }
 
-        // The clock asks for more when the end of the grid comes within reach of now, at most once per half hour.
+        // The clock asks for more when the end of the shortest row comes within reach of now, at most once per half
+        // hour: the grid's own end is its longest row's, which can run hours past the others (see below).
         private fun extendIfNearTheEnd(
             s: CoroutineScope,
             model: GuideModel,
             now: Long,
         ) {
-            val near = model.endMs - now < EXTEND_WITHIN.inWholeMilliseconds
+            val shortest = model.rows.mapNotNull { it.cells.lastOrNull()?.endMs }.minOrNull() ?: model.endMs
+            val near = shortest - now < EXTEND_WITHIN.inWholeMilliseconds
             if (near && extendedFrom != model.originMs) extend(s, model)
         }
 
-        // Scrolling asks for more when the visible range or the focused cell comes within reach of the end of the grid,
-        // at most once for each end the grid reaches. Under the lock.
+        // Scrolling asks for more when the visible range or the focused cell comes within reach of the end of the
+        // focused row, once for each end that row reaches. The row's end, not the grid's: the grid ends where its
+        // longest row does (a channel off air to the end of its day is one slate that runs hours past the window), and
+        // a row that stops at the window must still be scrolled past it. Each tick forgets what was asked, so a row
+        // whose ask found nothing more built is asked for again, at most once a minute. Under the lock.
         private fun extendIfScrolledNearTheEnd(
             s: CoroutineScope,
             ready: GuideState.Ready,
             focus: GuideFocus,
         ) {
             val model = ready.model
-            val cellEnd = model.indexOf(focus)?.let { (r, c) -> model.rows[r].cells[c].endMs } ?: focus.cellStartMs
+            val located = model.indexOf(focus)
+            val cellEnd = located?.let { (r, c) -> model.rows[r].cells[c].endMs } ?: focus.cellStartMs
+            val row = located?.let { model.rows[it.first] }
+            val rowEnd = row?.cells?.lastOrNull()?.endMs ?: model.endMs
             val reach = maxOf(ready.viewportStartMs + GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, cellEnd)
-            val near = model.endMs - reach < EXTEND_WITHIN.inWholeMilliseconds
-            if (near && extendedUntil != model.endMs) extend(s, model)
+            val near = rowEnd - reach < EXTEND_WITHIN.inWholeMilliseconds
+            val ask = focus.channel to rowEnd
+            if (near && scrollAsked != ask && extend(s, model)) scrollAsked = ask
         }
 
         // Extensions only ever read what is already built (never `AsNeeded`), one at a time, and never while the
-        // open's own load (and its fill-in) is still running. Under the lock.
+        // open's own load (and its fill-in) is still running. True when one was started. Under the lock.
         private fun extend(
             s: CoroutineScope,
             model: GuideModel,
-        ) {
-            if (!loaded || extensionJob?.isActive == true) return
+        ): Boolean {
+            if (!loaded || extensionJob?.isActive == true) return false
             extendedFrom = model.originMs
-            extendedUntil = model.endMs
+            asked++
             extensionJob =
                 s.launch {
                     val longer =
@@ -381,6 +428,7 @@ internal class GuideViewModel
                         )
                     if (longer != null && longer.rows.isNotEmpty()) apply(s, longer, extension = true)
                 }
+            return true
         }
 
         // Publishing
@@ -516,5 +564,8 @@ internal class GuideViewModel
             val WINDOW = 6.hours
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours
+
+            /** How far short of its moment a tick may read the clock and still show that moment. */
+            const val EARLY_WAKE_MS = 1_000L
         }
     }

@@ -113,14 +113,20 @@ internal class LiveViewModel
 
         private val guide = GuideSwitch()
 
-        /** The program guide (spec 17) is open over the picture. Closed when the screen stops. */
+        /**
+         * The program guide (spec 17) is open over the picture. Closed as soon as the screen is paused (it leaves the
+         * foreground: the screen closes it), and again when the screen stops, should the pause have been missed.
+         */
         val guideOpen: StateFlow<Boolean> = guide.shown
 
         /** The channel that was playing when the guide last opened: the guide opens with focus on it. */
         val guideChannel: ChannelId? get() = guide.channel
 
-        /** When the guide last opened, in `System.nanoTime` units, for the guide's open-time measurement. */
-        val guideOpenedAtNanos: Long get() = guide.openedAtNanos
+        /**
+         * When the guide last opened, in `System.nanoTime` units: each opening's own, for the guide's open-time
+         * measurement and so each opening is a fresh guide session.
+         */
+        val guideOpenedAt: StateFlow<Long> = guide.openedAt
 
         // The running sitting's machine, while there is one: the guide asks it which channel is playing.
         @Volatile

@@ -23,6 +23,14 @@ androidComponents {
             variant.buildType == "benchmark" && variant.productFlavors.contains("distribution" to "amazon")
         if (!amazonBenchmark) variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
     }
+    // kotlinx-coroutines' debug-agent file is for a JVM debugger attaching to the process; a non-debuggable build has no
+    // use for it.
+    onVariants { variant ->
+        if (variant.buildType != "debug") {
+            variant.packaging.resources.excludes
+                .add("DebugProbesKt.bin")
+        }
+    }
 }
 
 android {
@@ -51,6 +59,12 @@ android {
         release {
             // No signing config: release signing comes only from protected secrets (S4.1.1).
             isDebuggable = false
+            // R8 shrinks and optimises what ships; ADR-0008's SP-2 frame numbers were measured with it on. Class and
+            // method names stay readable (-dontobfuscate in proguard-rules.pro), so logs that print class simple names
+            // need nothing more (#331). A stack trace's line numbers and inlined frames need the build's mapping.txt.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         // The playback matrix build (spec 13): release code, with the benchmark-only PlaybackTestActivity (src/benchmark)
         // that plays items on a real device and reports JSON lines. Not debuggable, so it measures what ships. It is

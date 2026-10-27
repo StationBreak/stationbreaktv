@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.ACTION_DOWN
 import android.view.KeyEvent.ACTION_UP
@@ -12,14 +13,19 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -35,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -122,7 +129,14 @@ class GuideScreenTest {
         fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
     }
 
-    private fun show(current: ChannelId?) {
+    // Whether live TV shows the guide, and when it last opened it; a test changes them to close and open again.
+    private val showing = mutableStateOf(true)
+    private val openedAt = mutableLongStateOf(1L)
+
+    private fun show(
+        current: ChannelId?,
+        measure: Boolean = false,
+    ) {
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
         vm = GuideViewModel(schedule, cache, clock, work)
         compose.setContent {
@@ -137,7 +151,16 @@ class GuideScreenTest {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
                     // guide left alone would be spent moving the focus back out to the root.
                     Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                        GuideRoot(vm, current, pictureHole = null, onTune = { tuned += it })
+                        if (showing.value) {
+                            GuideRoot(
+                                vm,
+                                current,
+                                pictureHole = null,
+                                onTune = { tuned += it },
+                                openedAtNanos = openedAt.longValue,
+                                measure = measure,
+                            )
+                        }
                     }
                 }
             }
@@ -145,9 +168,12 @@ class GuideScreenTest {
         compose.waitForIdle()
     }
 
-    private fun showReady(current: ChannelId?) {
+    private fun showReady(
+        current: ChannelId?,
+        measure: Boolean = false,
+    ) {
         lineup()
-        show(current)
+        show(current, measure)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
     }
@@ -224,20 +250,58 @@ class GuideScreenTest {
     }
 
     @Test
-    fun compactCellShowsTitleOnFocus() {
+    fun compactCellShowsItsTitleInThePanelOnly() {
         showReady(ch3)
-        // Five minutes is too narrow for a title: nothing is written in the cell until it has the focus.
-        compose.onNodeWithTag(GuideTags.COMPACT_LABEL).assertDoesNotExist()
+        // Five minutes is too narrow for a title: nothing is written in the cell, focused or not, and nothing floats
+        // over its neighbours. The panel names it.
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
-        assertEquals("Test Movie 401", text(GuideTags.COMPACT_LABEL))
+        compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
-        // Beside the cell, never over it or its focus ring.
-        val label = compose.onNodeWithTag(GuideTags.COMPACT_LABEL).fetchSemanticsNode().boundsInRoot
-        val box = cell(ch3, 70).fetchSemanticsNode().boundsInRoot
-        assertTrue("$label over $box", label.right <= box.left || label.left >= box.right)
-        press(Key.DirectionRight)
-        compose.onNodeWithTag(GuideTags.COMPACT_LABEL).assertDoesNotExist()
+        compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
+        // The neighbour it used to float over is still there to read.
+        compose.onNodeWithTag(GuideTags.cellText(ch3, min(75)), useUnmergedTree = true).assertExists()
+    }
+
+    // Far right on channel 7, then the guide closed: what a reopen must not come back to.
+    private fun scrollFarRight() {
+        repeat(6) { press(Key.DirectionRight) }
+        cell(CH7, 240).assertIsSelected()
+    }
+
+    private fun assertFreshOpen() {
+        compose.waitUntil(TIMEOUT_MS) {
+            vm.snapshot.value.focus
+                ?.cellStartMs == min(60)
+        }
+        compose.waitForIdle()
+        cell(CH7, 60).assertIsSelected()
+        assertEquals(min(60), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+    }
+
+    @Test
+    fun reopeningAfterAGuideKeyCloseStartsFresh() {
+        // As on the device: the measured build, the guide closed (the Guide key) and opened again (Back) later. Nothing
+        // here goes by the clock, so the reopen follows at once.
+        showReady(CH7, measure = true)
+        scrollFarRight()
+        compose.runOnIdle { showing.value = false }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            openedAt.longValue = 2L
+            showing.value = true
+        }
+        assertFreshOpen()
+    }
+
+    @Test
+    fun aCloseAndReopenInOneFrameStartsFresh() {
+        // Live TV closed and opened the guide between two frames: the slot never left the screen, but this is a new
+        // opening (a new open time), and it must open afresh.
+        showReady(CH7)
+        scrollFarRight()
+        compose.runOnIdle { openedAt.longValue = 2L }
+        assertFreshOpen()
     }
 
     @Test
@@ -268,6 +332,21 @@ class GuideScreenTest {
     }
 
     @Test
+    fun infoOverlayHidesTheGuidesOwnPanel() {
+        showReady(CH7)
+        press(Key.DirectionRight)
+        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(GuideTags.INFO).assertExists()
+        // The title and the time once, in the overlay: not again in the panel underneath it.
+        compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).assertDoesNotExist()
+        compose.onAllNodesWithText("Test Movie 103", useUnmergedTree = true).assertCountEquals(2) // overlay + cell
+        back()
+        compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
+        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
+    }
+
+    @Test
     fun selectOnNowCellAsksToTuneItsChannel() {
         showReady(CH7)
         press(Key.DirectionDown)
@@ -286,6 +365,77 @@ class GuideScreenTest {
         // Not the grid's body either (BODY would be in the map): the move changed the focus, not the frame.
         // The cell that lost the focus and the one that took it; no row and no other cell.
         assertEquals(mapOf("${CH7.value}@${min(60)}" to 1, "${CH7.value}@${min(90)}" to 1), composed.toMap())
+    }
+
+    @Test
+    fun aMoveRecomposesTheTwoCellsThePanelAndTheHintOnly() {
+        showReady(CH7)
+        // Right (a later cell: the hint changes to Info), then Down (on to channel 9, still in the window: no row
+        // moves).
+        for ((key, to) in listOf(Key.DirectionRight to cell(CH7, 90), Key.DirectionDown to cell(CH9, 0))) {
+            val traced = traceComposition { press(key) }
+            to.assertIsSelected()
+            Log.i(LOG_TAG, "$key: $traced")
+            // Something composed (the cells at least): if the compiler's markers change shape, this fails, rather than
+            // the filtered checks below passing on nothing.
+            assertTrue("no composition was traced", traced.all.isNotEmpty())
+            val roots = traced.guideRoots
+            // Each cell recomposes on its own (it reads only whether it is focused), and nothing over or around the
+            // cells does: not their row, the channel column, the clock strip, the now line or the grid.
+            assertEquals("$key: $roots", 2, roots.count { it == "ui.GuideCellView" })
+            val others = roots.filterNot { it == "ui.GuideCellView" || it.startsWith("ui.DetailsPanel") }
+            assertTrue("$key: $roots", others.all { it.startsWith("ui.HintRow") })
+        }
+    }
+
+    /**
+     * Every text on screen by node, its tag (or its text) and the paragraphs it is laid out in now; none for a text
+     * that has never been measured (a title in a cell with no room for one).
+     */
+    private fun laidOut(): Map<Int, Pair<String, Any?>> =
+        compose
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .associate { node ->
+                val layouts = mutableListOf<TextLayoutResult>()
+                node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+                val text = node.config.getOrElse(SemanticsProperties.Text) { emptyList() }.joinToString("")
+                val name = node.config.getOrElse(SemanticsProperties.TestTag) { text }
+                node.id to (name to layouts.singleOrNull()?.multiParagraph)
+            }
+
+    @Test
+    fun aFocusMoveDoesNotLayOutTheCellsTextsAgain() {
+        showReady(CH7)
+        for (key in listOf(Key.DirectionRight, Key.DirectionDown)) {
+            val before = laidOut()
+            press(key)
+            val after = laidOut()
+            // Laid out again: new paragraphs for a text that was there before (one that changed, or one re-measured).
+            val again =
+                after
+                    .filter { (id, now) -> before[id]?.let { it.second !== now.second } == true }
+                    .values
+                    .map { it.first }
+            Log.i(LOG_TAG, "$key: ${again.size} of ${after.size} texts laid out again: $again")
+            // The two cells whose focus changed only change colour: that is drawn, not laid out. The panel and the hint
+            // say something else, and are laid out again for it.
+            assertEquals("$key: $again", emptyList<String>(), again.filter { it.startsWith(CELL_TEXT) })
+        }
+    }
+
+    @Test
+    fun aCellPagedOutOfViewDoesNotLayItsTitleOut() {
+        showReady(CH7)
+        // Channel 9's first program (0 to 150 minutes) shows its title from 60 to 150; a page to 150 leaves none of it
+        // in view, so it is compact there and its title is not measured at all (not measured to no width).
+        repeat(2) { press(Key.DirectionRight) }
+        val title = laidOut().entries.single { it.value.first == GuideTags.cellText(CH9, min(0)) }.key
+        val paragraphs = laidOut().getValue(title).second
+        assertNotNull("laid out while in view", paragraphs)
+        press(Key.DirectionRight)
+        assertEquals(min(150), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+        assertTrue("laid out again", laidOut().getValue(title).second === paragraphs)
     }
 
     @Test
@@ -407,6 +557,8 @@ class GuideScreenTest {
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
         const val BODY = "body"
+        const val LOG_TAG = "GuideScreenTest"
+        const val CELL_TEXT = "guide:cellText:"
         const val TICK_TIMEOUT_MS = 20_000L
     }
 }

@@ -62,7 +62,7 @@ class GuideMeasurementTest {
         assertEquals(1, lines.size)
         assertEquals(
             "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
-                "rows=0 pip=false durationMs=5000",
+                "rows=0 pip=false durationMs=5000 extensions=0 extended=0",
             lines.single(),
         )
     }
@@ -89,6 +89,13 @@ class GuideMeasurementTest {
         m.finish(windowMs = 12, rows = 6, pip = false)
         assertTrue(lines.single(), lines.single().contains(" frames=3 "))
         assertTrue(lines.single(), lines.single().contains(" missedVsyncs=3 droppedFrames=3 "))
+    }
+
+    @Test
+    fun theLineSaysHowOftenTheGridAskedForMoreAndGotIt() {
+        val m = measurement()
+        m.finish(windowMs = 12, rows = 6, pip = false, extensionsAsked = 3, extensionsApplied = 2)
+        assertTrue(lines.single(), lines.single().endsWith(" extensions=3 extended=2"))
     }
 
     @Test

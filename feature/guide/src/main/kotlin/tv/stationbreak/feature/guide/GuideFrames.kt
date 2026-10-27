@@ -41,6 +41,8 @@ internal fun missedVsyncs(
  * so [line] is safe for logcat. [openMs] is from the open request to the first grid frame and [windowMs] the first
  * schedule call; -1 when the session never got there (no grid, no call). [droppedFrames] is what the platform says it
  * dropped (the sum of each frame report's dropped count), beside the [missedVsyncs] counted from frame times.
+ * [extensionsAsked] is how often scrolling or the clock asked for more of the built schedule, and [extensionsApplied]
+ * how many of those answers made it onto the grid.
  */
 internal data class GuideReport(
     val openMs: Long,
@@ -51,12 +53,15 @@ internal data class GuideReport(
     val rows: Int,
     val pip: Boolean,
     val durationMs: Long,
+    val extensionsAsked: Int = 0,
+    val extensionsApplied: Int = 0,
 ) {
     /** The log line, in the style of the tune lines (`SBLIVE`). */
     fun line() =
         "guide openMs=$openMs windowMs=$windowMs frames=${frames.frames} p50Ms=${ms(frames.p50Ns)} " +
             "p90Ms=${ms(frames.p90Ns)} p99Ms=${ms(frames.p99Ns)} missedVsyncs=$missedVsyncs " +
-            "droppedFrames=$droppedFrames rows=$rows pip=$pip durationMs=$durationMs"
+            "droppedFrames=$droppedFrames rows=$rows pip=$pip durationMs=$durationMs " +
+            "extensions=$extensionsAsked extended=$extensionsApplied"
 
     // Milliseconds to one decimal, without a locale.
     private fun ms(ns: Long): String {

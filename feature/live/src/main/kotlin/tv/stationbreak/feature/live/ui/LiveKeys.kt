@@ -216,7 +216,11 @@ private fun movesBetweenButtons(
     up: OverlayUp,
 ): Boolean = up.actions && !up.guide && (key == Key.DirectionLeft || key == Key.DirectionRight)
 
-/** The key line of [key] when it is a mapped key's down, else null: ups and unmapped keys are not logged. */
+/**
+ * The key line of [key] when it is the down of a key that acts (sends a command, or opens or closes the guide), else
+ * null: ups and keys that do nothing here are not logged. The guide's keys are logged so a device run shows whether a
+ * Guide key reached the app at all (Fire OS takes it on some remotes).
+ */
 @Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
 internal fun keyLogLine(
     type: KeyEventType,
@@ -227,7 +231,7 @@ internal fun keyLogLine(
     state: LiveState,
     up: OverlayUp = OverlayUp.None,
 ): String? =
-    if (type == KeyEventType.KeyDown && mappedCommand(key, up) != null) {
+    if (type == KeyEventType.KeyDown && keyAction(key, up) != null) {
         liveKeyLine(code, "down", repeat, handled, state)
     } else {
         null

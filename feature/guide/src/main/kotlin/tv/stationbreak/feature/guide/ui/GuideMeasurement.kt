@@ -103,6 +103,8 @@ internal class GuideMeasurement private constructor(
         windowMs: Long,
         rows: Int,
         pip: Boolean,
+        extensionsAsked: Int = 0,
+        extensionsApplied: Int = 0,
     ) {
         val taken: LongArray
         val droppedFrames: Long
@@ -123,6 +125,8 @@ internal class GuideMeasurement private constructor(
                 rows = rows,
                 pip = pip,
                 durationMs = (nanoTime() - openedAtNanos) / NANOS_PER_MS,
+                extensionsAsked = extensionsAsked,
+                extensionsApplied = extensionsApplied,
             )
         log(report.line())
     }

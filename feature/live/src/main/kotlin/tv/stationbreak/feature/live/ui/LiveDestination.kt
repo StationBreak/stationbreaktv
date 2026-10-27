@@ -11,6 +11,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -36,7 +37,8 @@ import tv.stationbreak.feature.live.LiveState
 
 /**
  * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
- * dp; null while the picture is full screen) and what to call to tune a channel.
+ * dp; null while the picture is full screen) and what to call to tune a channel. A new opening time is a new opening,
+ * even when the guide never left the screen between the two (closed and opened again before a frame).
  */
 typealias GuideSlot = @Composable (
     current: ChannelId?,
@@ -82,6 +84,7 @@ internal fun LiveRoot(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val info by viewModel.info.collectAsStateWithLifecycle()
     val guideOpen by viewModel.guideOpen.collectAsStateWithLifecycle()
+    val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -92,6 +95,7 @@ internal fun LiveRoot(
         }
     }
     KeepScreenOn(owner)
+    CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
     LiveKeysRoot(
         state = state,
@@ -102,7 +106,7 @@ internal fun LiveRoot(
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         // Until Select-to-tune comes (spec 17, Task 10), picking the channel on air only closes the guide.
         guide = {
-            guide(viewModel.guideChannel, viewModel.guideOpenedAtNanos, GuidePictureHole) { viewModel.closeGuide() }
+            guide(viewModel.guideChannel, guideOpenedAt, GuidePictureHole) { viewModel.closeGuide() }
         },
     ) { AndroidView(factory = { surface }) }
 }
@@ -190,5 +194,23 @@ private fun KeepScreenOn(owner: LifecycleOwner) {
             owner.lifecycle.removeObserver(observer)
             view.keepScreenOn = false
         }
+    }
+}
+
+/**
+ * The guide closes as soon as live TV leaves the foreground (Home, another app), not only when it stops: Fire OS can
+ * stop the screen seconds after it was left, and a viewer back within them would find the guide as they left it, focus
+ * and all, rather than the picture. A guide wanted after that is opened again, afresh.
+ */
+@Composable
+private fun CloseGuideOnPause(
+    owner: LifecycleOwner,
+    close: () -> Unit,
+) {
+    val closing by rememberUpdatedState(close)
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_PAUSE) closing() }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
     }
 }

@@ -78,23 +78,24 @@ internal fun GuideRoot(
     // Started with the session, not in `remember`: a composition that is abandoned before it applies must not leak the
     // frame thread and its listener.
     var measurement by remember(viewModel) { mutableStateOf<GuideMeasurement?>(null) }
-    // One session per showing. The guide's own state starts Closed and may say so for a moment while the open runs: it
-    // never closes the guide, which is live TV's to do.
-    DisposableEffect(viewModel) {
+    // One session per showing, and per opening: live TV can close and reopen the guide between two frames, which leaves
+    // this on screen with a new [openedAtNanos]. The guide's own state starts Closed and may say so for a moment while
+    // the open runs: it never closes the guide, which is live TV's to do.
+    DisposableEffect(viewModel, openedAtNanos) {
         val started = GuideMeasurement.start(measure, view, openedAtNanos)
         measurement = started
         viewModel.open(current)
         onDispose {
             try {
                 val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0
-                started?.finish(viewModel.windowMs, rows, pip)
+                started?.finish(viewModel.windowMs, rows, pip, viewModel.extensionsAsked, viewModel.extensionsApplied)
             } finally {
                 viewModel.close()
             }
         }
     }
     // The first grid frame: openMs lands on the frame that drew the grid or one frame later (about 16 ms).
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, openedAtNanos) {
         viewModel.snapshot.first { it.state is GuideState.Ready }
         withFrameNanos { }
         withFrameNanos { }
@@ -116,6 +117,8 @@ internal fun GuideRoot(
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    // A move, inside its trace section ("guide move"): the step and its publish.
+    val move = remember(viewModel) { { direction: GuideDirection -> traced(TRACE_MOVE) { viewModel.move(direction) } } }
     GuideScreen(
         snapshot = viewModel.snapshot,
         panel = viewModel.panel,
@@ -125,7 +128,7 @@ internal fun GuideRoot(
         modifier =
             modifier
                 .focusRequester(keys)
-                .onKeyEvent { guideKey(it, viewModel::move, viewModel::select, backs?.let { d -> d::onBackPressed }) }
+                .onKeyEvent { guideKey(it, move, viewModel::select, backs?.let { d -> d::onBackPressed }) }
                 .focusable(),
     )
 }

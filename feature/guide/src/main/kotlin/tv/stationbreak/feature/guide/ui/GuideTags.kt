@@ -16,7 +16,6 @@ object GuideTags {
     const val PANEL_TIME = "guide:panel:time"
     const val PANEL_PROGRESS = "guide:panel:progress"
     const val PANEL_OVERVIEW = "guide:panel:overview"
-    const val COMPACT_LABEL = "guide:compactLabel"
     const val NOW_LINE = "guide:nowLine"
     const val HINT = "guide:hint"
     const val LOADING = "guide:loading"
