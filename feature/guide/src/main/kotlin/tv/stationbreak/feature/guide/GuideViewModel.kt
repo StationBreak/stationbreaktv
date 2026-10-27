@@ -97,6 +97,8 @@ internal class GuideViewModel
         private var extendedFrom = NEVER
         private var extendedUntil = NEVER
         private var firstWindowMs = NO_MEASURE
+        private var asked = 0
+        private var applied = 0
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
         fun open(current: ChannelId?) {
@@ -111,6 +113,12 @@ internal class GuideViewModel
 
         /** How long the session's first schedule call took, in milliseconds, or -1 before it has returned (Task 9). */
         val windowMs: Long get() = synchronized(lock) { firstWindowMs }
+
+        /** How often this session asked for more of the built schedule, for the measurement line (numbers only). */
+        val extensionsAsked: Int get() = synchronized(lock) { asked }
+
+        /** How many of this session's extensions reached the grid (one that lost a race is dropped). */
+        val extensionsApplied: Int get() = synchronized(lock) { applied }
 
         /** Closes the guide and stops everything its session was doing. */
         fun close() {
@@ -190,6 +198,8 @@ internal class GuideViewModel
             extendedFrom = NEVER
             extendedUntil = NEVER
             firstWindowMs = NO_MEASURE
+            asked = 0
+            applied = 0
             while (eventChannel.tryReceive().isSuccess) {
                 // Dropped: a Tune from this session must not fire in the next.
             }
@@ -301,6 +311,7 @@ internal class GuideViewModel
                 val model = if (now == built) early else buildGuideModel(fresh, now)
                 val endNow = (shownSnapshot.value.state as? GuideState.Ready)?.model?.endMs
                 if (extension && endNow != null && model.endMs < endNow) return
+                if (extension) applied++
                 window = fresh
                 commit(model, now)
                 if (tickJob == null) tickJob = s.launch { tickLoop(s) }
@@ -347,17 +358,22 @@ internal class GuideViewModel
             if (near && extendedFrom != model.originMs) extend(s, model)
         }
 
-        // Scrolling asks for more when the visible range or the focused cell comes within reach of the end of the grid,
-        // at most once for each end the grid reaches. Under the lock.
+        // Scrolling asks for more when the visible range or the focused cell comes within reach of the end of the
+        // focused row, at most once for each end the grid reaches. The row's end, not the grid's: the grid ends where
+        // its longest row does (a channel off air to the end of its day is one slate that runs hours past the window),
+        // and a row that stops at the window must still be scrolled past it. Under the lock.
         private fun extendIfScrolledNearTheEnd(
             s: CoroutineScope,
             ready: GuideState.Ready,
             focus: GuideFocus,
         ) {
             val model = ready.model
-            val cellEnd = model.indexOf(focus)?.let { (r, c) -> model.rows[r].cells[c].endMs } ?: focus.cellStartMs
+            val located = model.indexOf(focus)
+            val cellEnd = located?.let { (r, c) -> model.rows[r].cells[c].endMs } ?: focus.cellStartMs
+            val row = located?.let { model.rows[it.first] }
+            val rowEnd = row?.cells?.lastOrNull()?.endMs ?: model.endMs
             val reach = maxOf(ready.viewportStartMs + GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, cellEnd)
-            val near = model.endMs - reach < EXTEND_WITHIN.inWholeMilliseconds
+            val near = rowEnd - reach < EXTEND_WITHIN.inWholeMilliseconds
             if (near && extendedUntil != model.endMs) extend(s, model)
         }
 
@@ -370,6 +386,7 @@ internal class GuideViewModel
             if (!loaded || extensionJob?.isActive == true) return
             extendedFrom = model.originMs
             extendedUntil = model.endMs
+            asked++
             extensionJob =
                 s.launch {
                     val longer =

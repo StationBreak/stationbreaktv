@@ -33,7 +33,7 @@ class GuideFramesTest {
         val line = GuideReport(-1, -1, percentiles(LongArray(0)), 0, 0, 0, false, 0).line()
         assertEquals(
             "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
-                "rows=0 pip=false durationMs=0",
+                "rows=0 pip=false durationMs=0 extensions=0 extended=0",
             line,
         )
     }
@@ -43,10 +43,10 @@ class GuideFramesTest {
     @Test
     fun lineHasNoTitlesOrIds() {
         val p = percentiles(longArrayOf(16_700_000L, 33_400_000L, 8_000_000L))
-        val line = GuideReport(850, 12, p, 3, 2, 14, true, 9_000).line()
+        val line = GuideReport(850, 12, p, 3, 2, 14, true, 9_000, extensionsAsked = 2, extensionsApplied = 1).line()
         assertEquals(
             "guide openMs=850 windowMs=12 frames=3 p50Ms=16.7 p90Ms=33.4 p99Ms=33.4 missedVsyncs=3 droppedFrames=2 " +
-                "rows=14 pip=true durationMs=9000",
+                "rows=14 pip=true durationMs=9000 extensions=2 extended=1",
             line,
         )
         val values = line.removePrefix("guide ").split(' ').map { it.substringAfter('=') }

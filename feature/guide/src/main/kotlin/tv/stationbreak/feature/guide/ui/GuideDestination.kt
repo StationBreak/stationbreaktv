@@ -87,7 +87,7 @@ internal fun GuideRoot(
         onDispose {
             try {
                 val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0
-                started?.finish(viewModel.windowMs, rows, pip)
+                started?.finish(viewModel.windowMs, rows, pip, viewModel.extensionsAsked, viewModel.extensionsApplied)
             } finally {
                 viewModel.close()
             }

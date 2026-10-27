@@ -17,6 +17,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.model.ChannelId
 
 /**
@@ -82,6 +83,35 @@ class GuideSessionTest : GuideRig() {
             // Asked once per new end, not once per key.
             val extensions = fake.scheduleCalls.drop(1)
             assertEquals(extensions.map { it.second }.distinct(), extensions.map { it.second })
+        }
+
+    @Test
+    fun scrollingRightKeepsGoingWhenAnotherRowRunsFarPastTheWindow() =
+        guideTest { vm ->
+            // Channel 9 is off air from 210 minutes to the end of its day: one slate, far past the six hours opened
+            // with, as the scheduler lays out a channel that has run out of programs. The grid's end is that slate's,
+            // but channel 7's row stops at the window, so scrolling it must still ask for more.
+            lineup(untilMin = 780)
+            fake.channel(CH9, 9, listOf(program(0, 150, 300), program(150, 210, 301), slate(210, 1440)))
+            vm.open(CH7)
+            runCurrent()
+            assertEquals(min(1440), vm.ready().model.endMs)
+
+            repeat(20) {
+                vm.move(GuideDirection.Right)
+                runCurrent()
+            }
+
+            assertEquals(min(660), vm.focused().cellStartMs)
+            assertTrue(fake.scheduleCalls.none { it.third == ScheduleBuild.AsNeeded })
+            // What the measurement line reports, so a device run shows the extension happened.
+            assertEquals(fake.scheduleCalls.size - 1, vm.extensionsAsked)
+            assertTrue(vm.extensionsAsked >= 1)
+            assertEquals(vm.extensionsAsked, vm.extensionsApplied)
+
+            vm.close()
+            assertEquals(0, vm.extensionsAsked)
+            assertEquals(0, vm.extensionsApplied)
         }
 
     @Test
