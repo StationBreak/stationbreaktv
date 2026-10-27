@@ -41,6 +41,7 @@ class ProgramCopy(
 object ProgramText {
     private const val NOON_HOUR = 12
     private const val SLOT_DASH = " – "
+    private const val MS_PER_MINUTE = 60_000L
 
     // Every guide cell's description and every clock label formats times: a formatter is made once per pattern (and so
     // per 12- or 24-hour clock) and locale, not once per call.
@@ -117,6 +118,20 @@ object ProgramText {
     ): String {
         val pattern = if (is24h) "HH:mm" else "h:mm a"
         return formatter(pattern, locale).format(Instant.ofEpochMilli(atMs).atZone(zone))
+    }
+
+    /**
+     * The minutes from [nowMs] to [atMs] as the viewer reads them: the clock's minute against the minute the slot
+     * shows (both cut to the minute), at least 1 until [atMs] and 0 from then on. Back-to-back programs end on any
+     * second; a program ending at 8:51:40 shows as ending at 8:51, so at 8:29 it has 22 minutes left, as on a cable
+     * box, where rounding the 22 min 40 s up would say 23 (#440).
+     */
+    fun minutesUntil(
+        atMs: Long,
+        nowMs: Long,
+    ): Int {
+        if (atMs <= nowMs) return 0
+        return maxOf(1L, atMs.floorDiv(MS_PER_MINUTE) - nowMs.floorDiv(MS_PER_MINUTE)).toInt()
     }
 
     /**

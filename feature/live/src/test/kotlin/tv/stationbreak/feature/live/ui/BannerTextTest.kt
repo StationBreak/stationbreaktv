@@ -76,10 +76,27 @@ class BannerTextTest {
     }
 
     @Test
-    fun minutesLeftRoundsUpAndStopsAtZero() {
+    fun minutesLeftSaysOneInTheLastMinuteAndStopsAtZero() {
         assertEquals(30, BannerText.minutesLeft(0, 30 * 60_000L, 1_000))
         assertEquals(1, BannerText.minutesLeft(0, 60_000L, 59_999))
         assertEquals(0, BannerText.minutesLeft(0, 60_000L, 90_000))
+    }
+
+    @Test
+    fun theProgressTickIsDueOnTheClocksNextMinute() {
+        assertEquals(59_200L, BannerText.untilNextMinute(29 * 60_000L + 800))
+        assertEquals(60_000L, BannerText.untilNextMinute(30 * 60_000L))
+        assertEquals(1L, BannerText.untilNextMinute(30 * 60_000L - 1))
+    }
+
+    @Test
+    fun minutesLeftReadsTheClockMinuteAgainstTheSlotsEndMinute() {
+        // A back-to-back program ending 51 min 40 s in, shown as ending at :51: at 29 min 0.8 s that is 22 minutes,
+        // as the clock and the slot read, not 23 (22 min 39 s rounded up).
+        val end = 51 * 60_000L + 40_000L
+        assertEquals(22, BannerText.minutesLeft(0, end, 29 * 60_000L + 800))
+        assertEquals(22, BannerText.minutesLeft(0, end, 29 * 60_000L + 59_000))
+        assertEquals(21, BannerText.minutesLeft(0, end, 30 * 60_000L + 1_500))
     }
 
     @Test

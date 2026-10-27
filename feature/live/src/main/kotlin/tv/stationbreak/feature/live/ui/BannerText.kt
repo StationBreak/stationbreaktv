@@ -47,15 +47,18 @@ internal object BannerText {
         return ((nowMs - startMs).toFloat() / (endMs - startMs)).coerceIn(0f, 1f)
     }
 
-    /** Whole minutes left at [nowMs], rounded up so the last seconds still say "1 min left"; never negative. */
+    /**
+     * The minutes left at [nowMs] as the clock and the slot read (see [ProgramText.minutesUntil]): "1 min left" to the
+     * end, never negative; counted from [startMs] before the program starts.
+     */
     fun minutesLeft(
         startMs: Long,
         endMs: Long,
         nowMs: Long,
-    ): Int {
-        val left = (endMs - maxOf(nowMs, startMs)).coerceAtLeast(0)
-        return ((left + MS_PER_MINUTE - 1) / MS_PER_MINUTE).toInt()
-    }
+    ): Int = ProgramText.minutesUntil(endMs, maxOf(nowMs, startMs))
+
+    /** How long from [nowMs] to the clock's next minute, when "min left" and the progress bar next change. */
+    fun untilNextMinute(nowMs: Long): Long = MS_PER_MINUTE - nowMs.mod(MS_PER_MINUTE)
 
     /** [title] cut to [NEXT_TITLE_MAX] characters, the last one an ellipsis, when it is longer. */
     fun capTitle(title: String): String =

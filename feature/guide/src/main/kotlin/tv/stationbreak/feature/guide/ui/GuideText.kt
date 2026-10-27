@@ -18,7 +18,6 @@ import java.time.ZoneId
 
 /** The letter spacing of the guide's capitals (channel lines, the NOW chip), in sp. */
 internal const val LETTER_SPACING = 1.5f
-private const val MS_PER_MINUTE = 60_000L
 
 /** "3 · Test Channel": the channel line of the panel and the overlay. */
 internal fun channelLine(
@@ -53,11 +52,11 @@ internal fun episodeLine(
         )
     }
 
-/** Whole minutes from [nowMs] to [atMs], rounded up so the last seconds still say 1; never negative. */
+/** The minutes from [nowMs] to [atMs] as the clock and the slot read (see [ProgramText.minutesUntil]). */
 internal fun minutesUntil(
     atMs: Long,
     nowMs: Long,
-): Int = (((atMs - nowMs).coerceAtLeast(0) + MS_PER_MINUTE - 1) / MS_PER_MINUTE).toInt()
+): Int = ProgramText.minutesUntil(atMs, nowMs)
 
 @Composable
 internal fun programCopy(): ProgramCopy {

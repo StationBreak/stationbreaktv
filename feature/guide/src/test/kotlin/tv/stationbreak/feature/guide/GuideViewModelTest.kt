@@ -253,6 +253,18 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
+    fun minutesLeftForAProgramEndingOnAnySecondReadsAsTheClockAndTheSlotDo() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            // Back-to-back programs end on any second (#440): one ending 40 s into minute 90 shows as ending at 90.
+            // Through minute 66 the panel says 24 (90 - 66), not 25 (23 min 40 s .. 24 min 40 s rounded up).
+            after(MIN)
+            assertEquals(min(66), vm.ready().nowMs)
+            assertEquals(24, minutesUntil(min(90) + 40_000, vm.ready().nowMs))
+        }
+
+    @Test
     fun aTickThatShowedItsMinuteDoesNotTickThatMinuteAgain() =
         guideTest { vm ->
             val shown = mutableListOf<Long>()

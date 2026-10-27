@@ -111,6 +111,35 @@ class ProgramTextTest {
     }
 
     @Test
+    fun minutesUntilIsTheClockMinuteToTheSlotMinuteAsShown() {
+        // Back-to-back programs end on any second: this one at 8:51:40, which the slot shows as 8:51. The viewer reads
+        // the clock's minute against that, as on a cable box: 23 at 8:28, 22 all through 8:29, 21 from 8:30.
+        val end = ms("2026-10-27T00:51:40Z")
+        assertEquals(23, ProgramText.minutesUntil(end, ms("2026-10-27T00:28:59Z")))
+        assertEquals(22, ProgramText.minutesUntil(end, ms("2026-10-27T00:29:00.800Z")))
+        assertEquals(22, ProgramText.minutesUntil(end, ms("2026-10-27T00:29:59Z")))
+        assertEquals(21, ProgramText.minutesUntil(end, ms("2026-10-27T00:30:01.500Z")))
+    }
+
+    @Test
+    fun minutesUntilSaysOneInTheLastMinuteAndNoneOnceReached() {
+        val end = ms("2026-10-27T00:51:40Z")
+        assertEquals(1, ProgramText.minutesUntil(end, ms("2026-10-27T00:50:59Z")))
+        assertEquals(1, ProgramText.minutesUntil(end, ms("2026-10-27T00:51:10Z")))
+        assertEquals(1, ProgramText.minutesUntil(end, end - 1))
+        assertEquals(0, ProgramText.minutesUntil(end, end))
+        assertEquals(0, ProgramText.minutesUntil(end, end + 90_000))
+    }
+
+    @Test
+    fun minutesUntilAWholeMinuteIsTheDifference() {
+        val end = ms("2026-10-27T00:30:00Z")
+        assertEquals(30, ProgramText.minutesUntil(end, ms("2026-10-27T00:00:00Z")))
+        assertEquals(30, ProgramText.minutesUntil(end, ms("2026-10-27T00:00:59.999Z")))
+        assertEquals(29, ProgramText.minutesUntil(end, ms("2026-10-27T00:01:00Z")))
+    }
+
+    @Test
     fun formattersAreMadeOncePerLocaleAndClock() {
         val us12 = ProgramText.formatter("h:mm a", Locale.US)
         assertSame(us12, ProgramText.formatter("h:mm a", Locale.US))
