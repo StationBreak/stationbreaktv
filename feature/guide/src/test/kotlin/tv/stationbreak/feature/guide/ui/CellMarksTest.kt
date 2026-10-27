@@ -70,6 +70,17 @@ class CellMarksTest {
     }
 
     @Test
+    fun aLongCellScrolledToASliverIsCompactThere() {
+        // From 0 to 33 minutes, with the viewport scrolled to 30: 3 minutes (24 dp) of it show, too few for a title.
+        val cell = place(0, 33)
+        assertFalse(cell.compactIn(at(0)))
+        assertTrue(cell.compactIn(at(30)))
+        assertEquals(CellMarks(ring = null, earlier = false, later = false), cell.marks(at(30), false))
+        // At its full width it has its title and its chevron as before.
+        assertTrue(place(0, 120).marks(at(0), false).later)
+    }
+
+    @Test
     fun aCompactCellDrawsNothingButItsFill() {
         // Five minutes, and a 4-minute sliver at the left edge: no text, no tick, no chevrons; the gap between cells
         // is their divider.

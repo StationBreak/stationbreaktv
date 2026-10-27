@@ -97,6 +97,16 @@ internal class CellPlace(
      */
     val compact: Boolean = width < CompactBelow
 
+    /**
+     * Compact with the viewport at [viewportStartMs]: [compact], or so little of the cell in view (a long program
+     * scrolled to a sliver at either edge) that a title would not fit there either. Read while laying out and drawing,
+     * so paging composes nothing.
+     */
+    fun compactIn(viewportStartMs: Long): Boolean {
+        val inView = visibleRight(viewportStartMs) - visibleLeft(viewportStartMs)
+        return compact || inView < CompactBelow
+    }
+
     /** The viewport's left edge from the cell's, clamped to the cell: where its title starts (sticky title). */
     fun visibleLeft(viewportStartMs: Long): Dp = (viewportLeft(viewportStartMs) - x).coerceIn(0.dp, width)
 
@@ -129,8 +139,8 @@ internal class CellPlace(
         val to = (visibleRight(viewportStartMs) - CellInset).coerceIn(from, inner)
         return CellMarks(
             ring = if (focused) from..to else null,
-            earlier = !focused && !compact && continuesEarlier(viewportStartMs),
-            later = !focused && !compact && continuesLater(viewportStartMs),
+            earlier = !focused && !compactIn(viewportStartMs) && continuesEarlier(viewportStartMs),
+            later = !focused && !compactIn(viewportStartMs) && continuesLater(viewportStartMs),
         )
     }
 }
@@ -199,8 +209,9 @@ internal fun GuideCellView(
 
 /**
  * Lays the title out inside the visible part of the cell: from the viewport's left edge for a cell that began before
- * it, and short of its right edge for one that runs past it, leaving room for the chevrons. The viewport is read here,
- * in the measure pass, so paging moves the title without composing anything.
+ * it, and short of its right edge for one that runs past it, leaving room for the chevrons. With too little of the cell
+ * in view for a title ([CellPlace.compactIn]) nothing is placed. The viewport is read here, in the measure pass, so
+ * paging moves the title without composing anything.
  */
 private fun Modifier.stickyText(
     place: CellPlace,
@@ -208,6 +219,10 @@ private fun Modifier.stickyText(
 ): Modifier =
     layout { measurable, constraints ->
         val viewport = viewportOf()
+        if (place.compactIn(viewport)) {
+            measurable.measure(Constraints(maxWidth = 0))
+            return@layout layout(constraints.maxWidth, 0) {}
+        }
         val inset = CellInset.roundToPx()
         val start =
             (place.visibleLeft(viewport).roundToPx() - inset).coerceAtLeast(0) +
