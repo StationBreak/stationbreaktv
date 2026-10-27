@@ -39,6 +39,7 @@ import tv.stationbreak.feature.live.LiveChannel
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
 import tv.stationbreak.feature.live.TuneReport
@@ -107,6 +108,8 @@ internal class LiveViewModel
         private val players: VideoPlayerFactory,
         private val server: MediaServer,
         private val details: ProgramDetailsCache,
+        // The live screen's tunables, with the device's own key-repeat timeout (the app builds them).
+        private val timings: LiveTimings,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
@@ -266,6 +269,7 @@ internal class LiveViewModel
                         library,
                         channels,
                         clock,
+                        timings = timings,
                         report = { log(it.line()) },
                         server = server,
                         details = details,

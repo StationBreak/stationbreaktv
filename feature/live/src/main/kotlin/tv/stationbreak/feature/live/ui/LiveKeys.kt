@@ -125,6 +125,9 @@ internal class HeldKeys {
     /** What the consumed press of [key], now being held, did; null when [key] is not held after a consumed press. */
     fun consumedPress(key: Key): KeyAction? = consumed[key]
 
+    /** True while any consumed press that flipped (Up, Down, CH+, CH-) is still down. */
+    fun flipHeld(): Boolean = consumed.values.any { (it as? KeyAction.Send)?.command is LiveCommand.Flip }
+
     /** True when [key]'s press, now being held, began with a first down that came here and passed through. */
     fun passedThrough(key: Key): Boolean = key in passed
 
@@ -231,7 +234,7 @@ private fun handleRepeat(
 
 /**
  * True when this event of [key] is the release of a press that was consumed ([HeldKeys.releases]); the release of one
- * that flipped also tells the machine, which settles from it (#430).
+ * that flipped also tells the machine, which settles from it (#430), once no other flip key is still down.
  */
 private fun release(
     key: Key,
@@ -241,7 +244,9 @@ private fun release(
 ): Boolean {
     val pressed = held.consumedPress(key)
     val release = held.releases(key, type)
-    if (release && (pressed as? KeyAction.Send)?.command is LiveCommand.Flip) send(LiveCommand.FlipReleased)
+    // With rollover (Up held, Down pressed, Up let go) the flip is still held: only the last flip key's release counts.
+    val flipped = (pressed as? KeyAction.Send)?.command is LiveCommand.Flip
+    if (release && flipped && !held.flipHeld()) send(LiveCommand.FlipReleased)
     return release
 }
 

@@ -58,6 +58,7 @@ import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
+import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.NextHandle
 import tv.stationbreak.feature.live.TuneOutcome
 import tv.stationbreak.feature.live.TunePort
@@ -145,6 +146,7 @@ class LiveKeysTest {
             VideoPlayerFactory { _, _ -> error("no session, so no player") },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
+            LiveTimings(),
         )
     }
 

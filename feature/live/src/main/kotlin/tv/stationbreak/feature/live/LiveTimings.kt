@@ -30,8 +30,11 @@ import kotlin.time.Duration.Companion.seconds
  * @property flipRepeatEvery how often a held Up or Down steps after that pause (#430): slow enough to read each channel
  *   and let go on the one wanted, whatever rate the remote repeats at (about 20 a second on a Fire TV remote).
  * @property flipReleaseFallback how long after a held key's last down or repeat the channel is tuned when its release
- *   never arrives (#430). Longer than [KEY_REPEAT_TIMEOUT], so the gap between a press and its first auto-repeat
+ *   never arrives (#430). Longer than [keyRepeatTimeout], so the gap between a press and its first auto-repeat
  *   never passes for a release.
+ * @property keyRepeatTimeout the device's key-repeat timeout, `ViewConfiguration.getKeyRepeatTimeout()`: a held key's
+ *   first auto-repeat comes about this long after its press (480 ms on the Insignia). The app passes the device's own
+ *   ([forKeyRepeatTimeout]); Android's default stands in for it elsewhere (JVM tests).
  * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
@@ -48,9 +51,10 @@ data class LiveTimings(
     val flipRepeatEvery: Duration = 250.milliseconds,
     val flipReleaseFallback: Duration = 1.seconds,
     val flipLogSize: Int = 50,
+    val keyRepeatTimeout: Duration = DEFAULT_KEY_REPEAT_TIMEOUT,
 ) {
     init {
-        require(flipReleaseFallback > KEY_REPEAT_TIMEOUT) { "flipReleaseFallback must outlast the key-repeat timeout" }
+        require(flipReleaseFallback > keyRepeatTimeout) { "flipReleaseFallback must outlast the key-repeat timeout" }
         require(flipLogSize >= 1) { "At least one flip must be kept" }
         require(standInAttempts >= 1) { "At least one stand-in must be tried" }
         require(flipRepeatDelay >= Duration.ZERO) { "flipRepeatDelay must not be negative" }
@@ -58,10 +62,16 @@ data class LiveTimings(
     }
 
     companion object {
+        /** Android's default key-repeat timeout (the long-press timeout): 500 ms. */
+        val DEFAULT_KEY_REPEAT_TIMEOUT: Duration = 500.milliseconds
+
         /**
-         * Android's key-repeat timeout, `ViewConfiguration.getKeyRepeatTimeout()` (the long-press timeout, 500 ms by
-         * default): a held key's first auto-repeat comes about this long after its press (480 ms on the Insignia).
+         * The defaults on a device whose key-repeat timeout is [timeout]: the release fallback is the default one, or
+         * twice [timeout] when that is longer, so a slow key repeat (an accessibility setting) never ends a hold.
          */
-        val KEY_REPEAT_TIMEOUT: Duration = 500.milliseconds
+        fun forKeyRepeatTimeout(timeout: Duration): LiveTimings {
+            val fallback = LiveTimings().flipReleaseFallback
+            return LiveTimings(keyRepeatTimeout = timeout, flipReleaseFallback = maxOf(fallback, timeout * 2))
+        }
     }
 }

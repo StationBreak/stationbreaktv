@@ -63,6 +63,7 @@ import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.NextHandle
 import tv.stationbreak.feature.live.TuneOutcome
 import tv.stationbreak.feature.live.TunePort
@@ -189,6 +190,7 @@ class LiveDestinationLifecycleTest {
             VideoPlayerFactory { _, _ -> RecordingPlayer(++created).also { log += "create#$created" } },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
+            LiveTimings(),
         )
     }
 

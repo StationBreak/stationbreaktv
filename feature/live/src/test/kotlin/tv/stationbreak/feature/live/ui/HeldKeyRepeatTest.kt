@@ -100,6 +100,18 @@ class HeldKeyRepeatTest {
     }
 
     @Test
+    fun withTwoFlipKeysDownOnlyTheLastReleaseSaysSo() {
+        // Rollover: Up held, Down pressed, Up let go while Down is still down. The flip must not settle yet.
+        down(Key.DirectionUp, 0, OverlayUp.None)
+        down(Key.DirectionDown, 0, OverlayUp.None)
+        assertTrue(release(Key.DirectionUp, OverlayUp.None))
+        assertEquals(0, sent.count { it == LiveCommand.FlipReleased })
+        assertTrue(release(Key.DirectionDown, OverlayUp.None))
+        assertEquals(1, sent.count { it == LiveCommand.FlipReleased })
+        assertEquals(LiveCommand.FlipReleased, sent.last())
+    }
+
+    @Test
     fun onlyTheReleaseOfAFlipSaysSo() {
         down(Key.Menu, 0, OverlayUp.None)
         release(Key.Menu, OverlayUp.None)

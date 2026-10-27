@@ -18,6 +18,7 @@ import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
 import tv.stationbreak.feature.live.report.RecordingServer
@@ -58,6 +59,7 @@ class LiveViewModelLeaveTest {
                 VideoPlayerFactory { _, _ -> error("the test makes its own players") },
                 server,
                 r.details,
+                LiveTimings(),
             )
         return Setup(r, server, vm)
     }
