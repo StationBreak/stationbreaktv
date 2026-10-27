@@ -329,16 +329,20 @@ internal class GuideViewModel
 
         // Each tick is due at a moment (the next minute, or a block's end) and is told it, so a wake-up a little before
         // that moment by the clock still shows it: see [tick].
+        // The next is worked out from no earlier than the last moment due, so a clock still short of it does not tick
+        // that moment again.
         private suspend fun tickLoop(s: CoroutineScope) {
+            var lastDue = Long.MIN_VALUE
             while (true) {
                 val (wait, due) =
                     synchronized(lock) {
-                        val now = nowMs()
+                        val now = maxOf(nowMs(), lastDue)
                         val wait = (shownSnapshot.value.state as? GuideState.Ready).nextTickDelayMs(now)
                         wait to now + wait
                     }
                 delay(wait)
                 tick(s, due)
+                lastDue = due
             }
         }
 

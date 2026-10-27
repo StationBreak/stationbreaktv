@@ -253,6 +253,26 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
+    fun aTickThatShowedItsMinuteDoesNotTickThatMinuteAgain() =
+        guideTest { vm ->
+            val shown = mutableListOf<Long>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                vm.snapshot.collect { (it.state as? GuideState.Ready)?.nowMs?.let(shown::add) }
+            }
+            vm.open(CH7)
+            runCurrent()
+            // The tick due at 66 minutes, and the reading that works out the next one, are both 6 ms short of it.
+            after(MIN - 1)
+            lagNextReadMs = 6
+            lagReads = 2
+            after(1)
+            after(MIN / 2)
+
+            // One moment shown for the 66th minute: the tick that showed it is not followed by another 6 ms later.
+            assertEquals(listOf(min(66)), shown.filter { it >= min(66) && it < min(67) })
+        }
+
+    @Test
     fun aVerticalMoveMinutesAfterOpeningLandsOnWhatIsOnNow() =
         guideTest { vm ->
             // Channel 9's program from 0 to 75 stays on the grid (from 60) after it ends; at 80 the one on now

@@ -102,13 +102,20 @@ open class GuideRig {
     internal fun splitAround90(untilMin: Long = 600): List<AiringBlock> =
         listOf(program(0, 95, 900), program(95, 120, 901)) + halfHours(untilMin, fromMin = 120)
 
-    /** How far behind the scheduler the clock's next read is; the read after it is on time again. */
+    /** How far behind the scheduler the clock's next [lagReads] reads are; the reads after them are on time again. */
     internal var lagNextReadMs = 0L
+
+    /** How many reads [lagNextReadMs] holds for. */
+    internal var lagReads = 1
 
     internal fun TestScope.clock(startMin: Long) =
         object : Clock {
             override fun now(): Instant {
-                val lag = lagNextReadMs.also { lagNextReadMs = 0L }
+                val lag = lagNextReadMs
+                if (lag != 0L && --lagReads <= 0) {
+                    lagNextReadMs = 0L
+                    lagReads = 1
+                }
                 return Instant.fromEpochMilliseconds(T0 + startMin * MIN + testScheduler.currentTime - lag)
             }
         }
