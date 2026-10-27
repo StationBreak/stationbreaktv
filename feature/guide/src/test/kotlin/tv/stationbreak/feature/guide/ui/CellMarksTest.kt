@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.ui.ScreenLayout
 
 /**
  * What a cell draws over its fill (spec 17): the focus ring and the chevrons. On the reference screen the time columns
@@ -16,7 +17,8 @@ import org.junit.Test
  * width less 2 dp.
  */
 class CellMarksTest {
-    private val geometry = GuideGeometry(DpSize(960.dp, 540.dp))
+    private val screen = DpSize(960.dp, 540.dp)
+    private val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
     private val minute = 60_000L
     private val origin = 1_700_000_000_000L - 1_700_000_000_000L % (30 * minute)
 

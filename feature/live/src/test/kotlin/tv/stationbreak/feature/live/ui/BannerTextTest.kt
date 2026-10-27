@@ -83,13 +83,6 @@ class BannerTextTest {
     }
 
     @Test
-    fun theProgressTickIsDueOnTheClocksNextMinute() {
-        assertEquals(59_200L, BannerText.untilNextMinute(29 * 60_000L + 800))
-        assertEquals(60_000L, BannerText.untilNextMinute(30 * 60_000L))
-        assertEquals(1L, BannerText.untilNextMinute(30 * 60_000L - 1))
-    }
-
-    @Test
     fun minutesLeftReadsTheClockMinuteAgainstTheSlotsEndMinute() {
         // A back-to-back program ending 51 min 40 s in, shown as ending at :51: at 29 min 0.8 s that is 22 minutes,
         // as the clock and the slot read, not 23 (22 min 39 s rounded up).

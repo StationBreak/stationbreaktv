@@ -183,7 +183,7 @@ private fun TimeRow(
         Text(text = slot, style = mono(16.sp), color = BroadcastColors.Ground, maxLines = 1)
         when {
             onNow -> {
-                val left = minutesUntil(cell.endMs, nowMs)
+                val left = ProgramText.minutesUntil(cell.endMs, nowMs)
                 Text(
                     text = copy.minutesLeft(left),
                     modifier = OutsideTheLiveRegion,
@@ -194,7 +194,7 @@ private fun TimeRow(
             }
 
             cell.startMs > nowMs -> {
-                val soon = minutesUntil(cell.startMs, nowMs)
+                val soon = ProgramText.minutesUntil(cell.startMs, nowMs)
                 Text(
                     text = copy.startsIn(soon),
                     modifier = OutsideTheLiveRegion,

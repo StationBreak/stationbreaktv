@@ -99,6 +99,7 @@ internal class GuideViewModel
         private var firstWindowMs = NO_MEASURE
         private var asked = 0
         private var applied = 0
+        private var tickLag = 0L
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
         fun open(current: ChannelId?) {
@@ -119,6 +120,13 @@ internal class GuideViewModel
 
         /** How many of this session's extensions reached the grid (one that lost a race is dropped). */
         val extensionsApplied: Int get() = synchronized(lock) { applied }
+
+        /**
+         * The most this session's ticks fell behind, in milliseconds: how many minutes earlier than the minute a tick
+         * was due at the moment it showed was (0 normally; 60000 for a tick that read the clock a minute short). For
+         * the measurement line, to settle on a device whether the panel's clock can lag (#440).
+         */
+        val tickLagMaxMs: Long get() = synchronized(lock) { tickLag }
 
         /** Closes the guide and stops everything its session was doing. */
         fun close() {
@@ -205,6 +213,7 @@ internal class GuideViewModel
             firstWindowMs = NO_MEASURE
             asked = 0
             applied = 0
+            tickLag = 0
             while (eventChannel.tryReceive().isSuccess) {
                 // Dropped: a Tune from this session must not fire in the next.
             }
@@ -356,7 +365,8 @@ internal class GuideViewModel
          * The tick shows the moment it was [due] at when the clock reads a little short of it (the timer and the wall
          * clock need not agree to the millisecond). Showing the moment before would show the minute before for a whole
          * minute: the next tick is worked out from a later reading, already past [due], so it is a minute away, and
-         * every "min left" (rounded up) would read one too many.
+         * every "min left" would read one too many. A clock read further short than [EARLY_WAKE_MS] still shows the
+         * minute before; [tickLagMaxMs] counts it, for the device check (#440).
          */
         private fun tick(
             s: CoroutineScope,
@@ -370,6 +380,8 @@ internal class GuideViewModel
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
                 if (session !== s || window !== built || now < shownNowMs()) return
                 commit(model, now)
+                // Measured, not corrected: how far the shown minute is behind the minute this tick was for.
+                tickLag = maxOf(tickLag, (due.floorDiv(MINUTE_MS) - now.floorDiv(MINUTE_MS)) * MINUTE_MS)
                 scrollAsked = null
                 extendIfNearTheEnd(s, model, now)
             }
@@ -561,6 +573,7 @@ internal class GuideViewModel
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L
+            const val MINUTE_MS = 60_000L
             val WINDOW = 6.hours
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours

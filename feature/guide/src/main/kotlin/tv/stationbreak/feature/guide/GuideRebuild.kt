@@ -2,9 +2,8 @@
 package tv.stationbreak.feature.guide
 
 import tv.stationbreak.core.model.ChannelId
-import kotlin.time.Duration.Companion.minutes
+import tv.stationbreak.core.ui.ProgramText
 
-private val MINUTE_MS = 1.minutes.inWholeMilliseconds
 private val VIEWPORT_SPAN_MS = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
 /**
@@ -86,7 +85,7 @@ internal fun GuideState.Ready.firstRowFor(
  * time range if that comes first, so a program ending is seen when it ends. At least 1 ms. Null state: the next minute.
  */
 internal fun GuideState.Ready?.nextTickDelayMs(nowMs: Long): Long {
-    val untilMinute = MINUTE_MS - nowMs.mod(MINUTE_MS)
+    val untilMinute = ProgramText.untilNextMinute(nowMs)
     if (this == null) return untilMinute
     val to = viewportStartMs + VIEWPORT_SPAN_MS
     val nextEnd =

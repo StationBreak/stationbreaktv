@@ -57,9 +57,6 @@ internal object BannerText {
         nowMs: Long,
     ): Int = ProgramText.minutesUntil(endMs, maxOf(nowMs, startMs))
 
-    /** How long from [nowMs] to the clock's next minute, when "min left" and the progress bar next change. */
-    fun untilNextMinute(nowMs: Long): Long = MS_PER_MINUTE - nowMs.mod(MS_PER_MINUTE)
-
     /** [title] cut to [NEXT_TITLE_MAX] characters, the last one an ellipsis, when it is longer. */
     fun capTitle(title: String): String =
         when {

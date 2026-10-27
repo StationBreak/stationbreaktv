@@ -65,18 +65,19 @@ private val PanelGap = 16.dp
 private const val HINT_SPACE = "   "
 
 /**
- * Where the guide's parts go on a screen, from the shared safe area: the panel takes the band beside the place the
- * corner picture has (`ScreenLayout.pictureRect`), whether or not live has put its picture there. Times become widths
- * at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen.
+ * Where the guide's parts go on a screen, from the shared safe area and the [hole] live TV laid its picture in (screen
+ * dp): the panel takes the band from the safe area's left edge to the hole, as tall as the hole reaches down, and the
+ * clock strip and the grid start below it. Live owns where the picture is; the guide only lays out around it. Times
+ * become widths at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen.
  */
 @Immutable
 internal class GuideGeometry(
     screen: DpSize,
+    hole: DpRect,
 ) {
     val safe: DpRect = ScreenLayout.safeArea(screen)
-    private val corner: DpRect = ScreenLayout.pictureRect(safe)
-    val panelWidth: Dp = corner.left - safe.left - PanelGap
-    val topHeight: Dp = corner.bottom - corner.top
+    val panelWidth: Dp = hole.left - safe.left - PanelGap
+    val topHeight: Dp = hole.bottom - safe.top
     val viewportWidth: Dp = safe.right - safe.left - ChannelColumnWidth
     val spanMs: Long = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
@@ -98,7 +99,7 @@ internal fun GuideScreen(
     panel: StateFlow<CellDetails?>,
     info: CellDetails?,
     current: ChannelId?,
-    pictureHole: DpRect?,
+    pictureHole: DpRect,
     modifier: Modifier = Modifier,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
@@ -113,7 +114,8 @@ internal fun GuideScreen(
     val stateOf: () -> GuideState = remember(shown) { { shown.value.state } }
     val snapshotOf: () -> GuideSnapshot = remember(shown) { { shown.value } }
     BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
-        val geometry = remember(maxWidth, maxHeight) { GuideGeometry(DpSize(maxWidth, maxHeight)) }
+        val geometry =
+            remember(maxWidth, maxHeight, pictureHole) { GuideGeometry(DpSize(maxWidth, maxHeight), pictureHole) }
         Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole) })
         Column(
             Modifier
@@ -133,12 +135,8 @@ internal fun GuideScreen(
     }
 }
 
-/** The ground of the guide: Ink everywhere, except the [hole] live TV laid its picture in, when it gave one. */
-private fun DrawScope.ground(hole: DpRect?) {
-    if (hole == null) {
-        drawRect(BroadcastColors.Ink)
-        return
-    }
+/** The ground of the guide: Ink everywhere, except the [hole] live TV laid its picture in. */
+private fun DrawScope.ground(hole: DpRect) {
     val left = hole.left.toPx()
     val top = hole.top.toPx()
     val right = hole.right.toPx()

@@ -52,12 +52,6 @@ internal fun episodeLine(
         )
     }
 
-/** The minutes from [nowMs] to [atMs] as the clock and the slot read (see [ProgramText.minutesUntil]). */
-internal fun minutesUntil(
-    atMs: Long,
-    nowMs: Long,
-): Int = ProgramText.minutesUntil(atMs, nowMs)
-
 @Composable
 internal fun programCopy(): ProgramCopy {
     val resources = LocalResources.current

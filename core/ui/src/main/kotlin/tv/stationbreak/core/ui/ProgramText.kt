@@ -135,6 +135,12 @@ object ProgramText {
     }
 
     /**
+     * How long from [nowMs] to the clock's next minute, when [minutesUntil] next changes: the banner's progress tick
+     * and the guide's minute tick both wait this long, so neither shows a minute late.
+     */
+    fun untilNextMinute(nowMs: Long): Long = MS_PER_MINUTE - nowMs.mod(MS_PER_MINUTE)
+
+    /**
      * "S2 E5 · episode title" for an episode of a known series (the numbers that are known, else the title alone);
      * null for a movie and for anything without a series name.
      */

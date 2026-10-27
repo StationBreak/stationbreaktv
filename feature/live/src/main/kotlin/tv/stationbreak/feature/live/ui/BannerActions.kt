@@ -35,6 +35,7 @@ import kotlinx.coroutines.delay
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.ProgramCopy
+import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.live.R
 
 private const val PROGRESS_TRACK_ALPHA = 0.35f
@@ -64,7 +65,7 @@ internal fun ProgressBar(
         while (true) {
             val read = clock()
             now.longValue = read
-            delay(BannerText.untilNextMinute(read))
+            delay(ProgramText.untilNextMinute(read))
         }
     }
     Box(

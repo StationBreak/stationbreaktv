@@ -102,9 +102,9 @@ internal class GuideMeasurement private constructor(
     fun finish(
         windowMs: Long,
         rows: Int,
-        pip: Boolean,
         extensionsAsked: Int = 0,
         extensionsApplied: Int = 0,
+        tickLagMaxMs: Long = 0,
     ) {
         val taken: LongArray
         val droppedFrames: Long
@@ -123,10 +123,10 @@ internal class GuideMeasurement private constructor(
                 missedVsyncs = missedVsyncs(taken, periodNs),
                 droppedFrames = droppedFrames.toInt(),
                 rows = rows,
-                pip = pip,
                 durationMs = (nanoTime() - openedAtNanos) / NANOS_PER_MS,
                 extensionsAsked = extensionsAsked,
                 extensionsApplied = extensionsApplied,
+                tickLagMaxMs = tickLagMaxMs,
             )
         log(report.line())
     }

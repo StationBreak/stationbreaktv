@@ -25,7 +25,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ItemDetails
-import tv.stationbreak.feature.guide.ui.minutesUntil
+import tv.stationbreak.core.ui.ProgramText
 
 class GuideViewModelTest : GuideRig() {
     @Test
@@ -245,23 +245,54 @@ class GuideViewModelTest : GuideRig() {
             lagNextReadMs = 6
             after(1)
 
-            // Half a minute on, the panel's "min left" for the cell on now (60 to 90) is 24 (23.5, rounded up): the
-            // shown time is the minute, not the moment before it, which would say 25 for a whole minute.
+            // Half a minute on, the panel's "min left" for the cell on now (60 to 90) is 24 (90 - 66, the clock's
+            // minute against the slot's): the shown time is the minute, not the moment before it, which would say 25
+            // for a whole minute.
             after(MIN / 2)
             assertTrue("shown ${vm.ready().nowMs - min(66)} ms from 66 min", vm.ready().nowMs >= min(66))
-            assertEquals(24, minutesUntil(min(90), vm.ready().nowMs))
+            assertEquals(24, ProgramText.minutesUntil(min(90), vm.ready().nowMs))
+            assertEquals(0L, vm.tickLagMaxMs)
         }
 
     @Test
     fun minutesLeftForAProgramEndingOnAnySecondReadsAsTheClockAndTheSlotDo() =
         guideTest { vm ->
+            // Back-to-back programs end on any second (#440): channel 7's program on now ends 40 s into minute 90, and
+            // its slot shows it ending at 90.
+            val afterIt = program(90, 120, 101).let { it.copy(startMs = it.startMs + 40_000) }
+            val blocks = listOf(program(0, 60, 99), offMinute(60, 90, 40_000, 100), afterIt) + halfHours(600, 120)
+            fake.channel(CH7, 7, blocks)
             vm.open(CH7)
             runCurrent()
-            // Back-to-back programs end on any second (#440): one ending 40 s into minute 90 shows as ending at 90.
-            // Through minute 66 the panel says 24 (90 - 66), not 25 (23 min 40 s .. 24 min 40 s rounded up).
             after(MIN)
             assertEquals(min(66), vm.ready().nowMs)
-            assertEquals(24, minutesUntil(min(90) + 40_000, vm.ready().nowMs))
+            val panel = checkNotNull(vm.panel.value)
+            assertEquals(min(90) + 40_000, panel.cell.endMs)
+            // Through minute 66 the panel says 24 (90 - 66), not 25 (23 min 40 s .. 24 min 40 s rounded up).
+            assertEquals(24, ProgramText.minutesUntil(panel.cell.endMs, vm.ready().nowMs))
+        }
+
+    @Test
+    fun aTickThatWakesWellBeforeItsMinuteIsCountedAsLag() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            // The tick due at 66 minutes reads a clock 1.5 s short of it, more than an early wake-up is allowed: it
+            // shows minute 65 for minute 66, which the measurement line reports (#440, for the device check).
+            after(MIN - 1)
+            lagNextReadMs = 1_500
+            after(1)
+            assertEquals(60_000L, vm.tickLagMaxMs)
+        }
+
+    @Test
+    fun ticksOnTimeHaveNoLag() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            after(5 * MIN)
+            assertEquals(min(70), vm.ready().nowMs)
+            assertEquals(0L, vm.tickLagMaxMs)
         }
 
     @Test

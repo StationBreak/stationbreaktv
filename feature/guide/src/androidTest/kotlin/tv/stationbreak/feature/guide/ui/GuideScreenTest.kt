@@ -35,6 +35,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -67,6 +68,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ProgramInfoTags
+import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
@@ -159,7 +161,7 @@ class GuideScreenTest {
                             GuideRoot(
                                 vm,
                                 current,
-                                pictureHole = null,
+                                pictureHole = HOLE,
                                 onTune = { tuned += it },
                                 openedAtNanos = openedAt.longValue,
                                 measure = measure,
@@ -627,6 +629,9 @@ class GuideScreenTest {
         // make the focused cell compact; the screen is hosted at this size whatever the device is.
         const val HOST_WIDTH_DP = 960
         const val HOST_HEIGHT_DP = 540
+
+        // Where live TV lays its picture on that screen, as it tells the guide.
+        val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
         const val BODY = "body"

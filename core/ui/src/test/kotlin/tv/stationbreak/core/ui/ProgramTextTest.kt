@@ -140,6 +140,13 @@ class ProgramTextTest {
     }
 
     @Test
+    fun theNextMinuteIsWhenTheClockNextReadsAnotherMinute() {
+        assertEquals(59_200L, ProgramText.untilNextMinute(29 * 60_000L + 800))
+        assertEquals(60_000L, ProgramText.untilNextMinute(30 * 60_000L))
+        assertEquals(1L, ProgramText.untilNextMinute(30 * 60_000L - 1))
+    }
+
+    @Test
     fun formattersAreMadeOncePerLocaleAndClock() {
         val us12 = ProgramText.formatter("h:mm a", Locale.US)
         assertSame(us12, ProgramText.formatter("h:mm a", Locale.US))

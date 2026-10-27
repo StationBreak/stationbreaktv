@@ -102,17 +102,24 @@ visible range, the details of the focused program, the clock) and its screen. It
 the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
 the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
 guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
-what it shows is the guide's. Where the picture is while the guide is open is live's too: live moves its one surface to the
-top-right corner by its modifier alone (the surface is never made again), the slot carries that hole, and the guide leaves
-exactly that clear. A channel the guide picks (Select on a program on now) goes back through the slot; live closes the
-guide and tunes it through the flip's commit (`LiveCommand.Tune`), so Menu, the look-ahead and the tune line follow as
-for a flip. Everything in `feature:guide`
-is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for `app`'s tests.
+what it shows is the guide's. Where the picture is while the guide is open is live's too, and live is the one source of
+it: live moves its one surface to the top-right corner by its modifier alone (the surface is never made again), and the
+slot carries that hole (a `DpRect`, never null). The guide does not work out where the picture is: it leaves the hole
+clear and lays its details panel and grid out around it. A channel the guide picks (Select on a program on now) goes
+back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`), so Menu, the
+look-ahead and the tune line follow as for a flip (the line ends `via=guide`). Everything in `feature:guide` is
+internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for `app`'s tests.
 
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
-inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where the corner picture goes
-beside the guide's details panel). `core:ui` has grown from the theme into the shared program UI of spec 17: the program
-text rules (`ProgramText`: slots, times, episode lines), the program info overlay, and that geometry.
+inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where live puts the corner
+picture; the guide is handed the result). `core:ui` has grown from the theme into the shared program UI of spec 17: the
+program text rules (`ProgramText`: slots, times, episode lines, and the minutes until a time as the clock and the slot
+read them, with the wait to the clock's next minute that the banner and the guide both tick on), the program info
+overlay, and that geometry.
+
+`core:domain` also holds `logName()`, the name a log line prints for a class (`state.javaClass.logName()`): taken from
+the binary name, because R8 drops the attribute `simpleName` needs from nested classes. It relies on the release build's
+`-dontobfuscate` (`app/proguard-rules.pro`); with obfuscation it would print invented names.
 
 The guide departs from ADR-0008's grid, which moved focus with Compose focus search over lazy lists: its focus is a value in
 the ViewModel (`GuideFocus`, by channel and start), moved by pure functions over the model, and published with the grid as

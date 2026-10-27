@@ -57,12 +57,12 @@ class GuideMeasurementTest {
     fun sessionWithoutAGridLogsOpenMsMinusOneOnce() {
         val m = measurement()
         now = 5_000_000_000L
-        m.finish(windowMs = -1, rows = 0, pip = false)
-        m.finish(windowMs = -1, rows = 0, pip = false)
+        m.finish(windowMs = -1, rows = 0)
+        m.finish(windowMs = -1, rows = 0)
         assertEquals(1, lines.size)
         assertEquals(
             "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
-                "rows=0 pip=false durationMs=5000 extensions=0 extended=0",
+                "rows=0 durationMs=5000 extensions=0 extended=0 tickLagMaxMs=0",
             lines.single(),
         )
     }
@@ -74,7 +74,7 @@ class GuideMeasurementTest {
         m.gridShown()
         now = 900_000_000L
         m.gridShown()
-        m.finish(windowMs = 12, rows = 6, pip = true)
+        m.finish(windowMs = 12, rows = 6)
         assertTrue(lines.single().startsWith("guide openMs=800 windowMs=12 "))
     }
 
@@ -86,7 +86,7 @@ class GuideMeasurementTest {
         report(10_000_000L, 0)
         report(40_000_000L, 2)
         report(18_000_000L, 1)
-        m.finish(windowMs = 12, rows = 6, pip = false)
+        m.finish(windowMs = 12, rows = 6)
         assertTrue(lines.single(), lines.single().contains(" frames=3 "))
         assertTrue(lines.single(), lines.single().contains(" missedVsyncs=3 droppedFrames=3 "))
     }
@@ -94,15 +94,22 @@ class GuideMeasurementTest {
     @Test
     fun theLineSaysHowOftenTheGridAskedForMoreAndGotIt() {
         val m = measurement()
-        m.finish(windowMs = 12, rows = 6, pip = false, extensionsAsked = 3, extensionsApplied = 2)
-        assertTrue(lines.single(), lines.single().endsWith(" extensions=3 extended=2"))
+        m.finish(windowMs = 12, rows = 6, extensionsAsked = 3, extensionsApplied = 2)
+        assertTrue(lines.single(), lines.single().contains(" extensions=3 extended=2 "))
+    }
+
+    @Test
+    fun theLineSaysHowFarTheShownMinuteFellBehind() {
+        val m = measurement()
+        m.finish(windowMs = 12, rows = 6, tickLagMaxMs = 60_000)
+        assertTrue(lines.single(), lines.single().endsWith(" tickLagMaxMs=60000"))
     }
 
     @Test
     fun aListenerThatWillNotComeOffStillEndsTheSession() {
         val frames = FakeFrames(stopFails = true)
         val m = measurement(frames)
-        m.finish(windowMs = 12, rows = 6, pip = false)
+        m.finish(windowMs = 12, rows = 6)
         assertTrue(frames.stopped)
         assertEquals(1, lines.size)
     }
