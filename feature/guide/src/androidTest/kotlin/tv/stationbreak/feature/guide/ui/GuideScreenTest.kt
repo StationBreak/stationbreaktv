@@ -17,9 +17,11 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -224,20 +226,17 @@ class GuideScreenTest {
     }
 
     @Test
-    fun compactCellShowsTitleOnFocus() {
+    fun compactCellShowsItsTitleInThePanelOnly() {
         showReady(ch3)
-        // Five minutes is too narrow for a title: nothing is written in the cell until it has the focus.
-        compose.onNodeWithTag(GuideTags.COMPACT_LABEL).assertDoesNotExist()
+        // Five minutes is too narrow for a title: nothing is written in the cell, focused or not, and nothing floats
+        // over its neighbours. The panel names it.
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
-        assertEquals("Test Movie 401", text(GuideTags.COMPACT_LABEL))
+        compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
-        // Beside the cell, never over it or its focus ring.
-        val label = compose.onNodeWithTag(GuideTags.COMPACT_LABEL).fetchSemanticsNode().boundsInRoot
-        val box = cell(ch3, 70).fetchSemanticsNode().boundsInRoot
-        assertTrue("$label over $box", label.right <= box.left || label.left >= box.right)
-        press(Key.DirectionRight)
-        compose.onNodeWithTag(GuideTags.COMPACT_LABEL).assertDoesNotExist()
+        compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
+        // The neighbour it used to float over is still there to read.
+        compose.onNodeWithTag(GuideTags.cellText(ch3, min(75)), useUnmergedTree = true).assertExists()
     }
 
     @Test
