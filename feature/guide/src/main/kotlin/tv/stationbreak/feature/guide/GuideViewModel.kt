@@ -323,10 +323,18 @@ internal class GuideViewModel
 
         // Ticks
 
+        // Each tick is due at a moment (the next minute, or a block's end) and is told it, so a wake-up a little before
+        // that moment by the clock still shows it: see [tick].
         private suspend fun tickLoop(s: CoroutineScope) {
             while (true) {
-                delay(synchronized(lock) { (shownSnapshot.value.state as? GuideState.Ready).nextTickDelayMs(nowMs()) })
-                tick(s)
+                val (wait, due) =
+                    synchronized(lock) {
+                        val now = nowMs()
+                        val wait = (shownSnapshot.value.state as? GuideState.Ready).nextTickDelayMs(now)
+                        wait to now + wait
+                    }
+                delay(wait)
+                tick(s, due)
             }
         }
 
@@ -335,10 +343,19 @@ internal class GuideViewModel
          * advances (the viewport follows it unless the viewer has scrolled away). The next tick is at the next minute
          * or at the end of the nearest block in the visible range, as it stood when the previous tick was published,
          * so a block end revealed by scrolling may be ticked up to a minute late.
+         *
+         * The tick shows the moment it was [due] at when the clock reads a little short of it (the timer and the wall
+         * clock need not agree to the millisecond). Showing the moment before would show the minute before for a whole
+         * minute: the next tick is worked out from a later reading, already past [due], so it is a minute away, and
+         * every "min left" (rounded up) would read one too many.
          */
-        private fun tick(s: CoroutineScope) {
+        private fun tick(
+            s: CoroutineScope,
+            due: Long,
+        ) {
             val built = synchronized(lock) { if (session === s) window else null } ?: return
-            val now = nowMs()
+            val read = nowMs()
+            val now = if (due - read in 1..EARLY_WAKE_MS) due else read
             val model = buildGuideModel(built, now)
             synchronized(lock) {
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
@@ -533,5 +550,8 @@ internal class GuideViewModel
             val WINDOW = 6.hours
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours
+
+            /** How far short of its moment a tick may read the clock and still show that moment. */
+            const val EARLY_WAKE_MS = 1_000L
         }
     }

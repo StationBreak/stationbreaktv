@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.feature.guide.ui.minutesUntil
 
 class GuideViewModelTest : GuideRig() {
     @Test
@@ -230,6 +231,24 @@ class GuideViewModelTest : GuideRig() {
             assertEquals(min(66), vm.ready().nowMs)
             after(MIN)
             assertEquals(min(67), vm.ready().nowMs)
+        }
+
+    @Test
+    fun aTickThatWakesJustBeforeTheMinuteStillShowsTheMinute() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            // The tick due at 66 minutes reads a clock 6 ms short of it, as a wake-up a hair early does on a device
+            // whose wall clock runs a little behind the timer; the next read is on time again.
+            after(MIN - 1)
+            lagNextReadMs = 6
+            after(1)
+
+            // Half a minute on, the panel's "min left" for the cell on now (60 to 90) is 24 (23.5, rounded up): the
+            // shown time is the minute, not the moment before it, which would say 25 for a whole minute.
+            after(MIN / 2)
+            assertTrue("shown ${vm.ready().nowMs - min(66)} ms from 66 min", vm.ready().nowMs >= min(66))
+            assertEquals(24, minutesUntil(min(90), vm.ready().nowMs))
         }
 
     @Test
