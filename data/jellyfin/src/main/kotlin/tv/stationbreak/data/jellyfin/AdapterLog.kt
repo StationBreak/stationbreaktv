@@ -35,7 +35,7 @@ fun interface AdapterLog {
             message: String,
             error: Throwable,
         ): String {
-            val type = error.logName().ifEmpty { "Throwable" }
+            val type = error.javaClass.logName().ifEmpty { "Throwable" }
             val detail = error.message
             return if (detail.isNullOrEmpty()) "$message: $type" else "$message: $type: $detail"
         }

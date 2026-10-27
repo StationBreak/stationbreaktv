@@ -103,7 +103,7 @@ internal class Authenticator(
     ) = log.log(
         when (result) {
             is ServerResult.Success -> "$what ok"
-            is ServerResult.Failure -> "$what failed: ${result.error.logName()}"
+            is ServerResult.Failure -> "$what failed: ${result.error.javaClass.logName()}"
         },
     )
 }

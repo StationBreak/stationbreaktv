@@ -184,7 +184,7 @@ class JellyfinMediaServer internal constructor(
         adapterLog.log(
             when (result) {
                 is ServerResult.Success -> "revoke ok"
-                is ServerResult.Failure -> "revoke failed: ${result.error.logName()}"
+                is ServerResult.Failure -> "revoke failed: ${result.error.javaClass.logName()}"
             },
         )
         return result

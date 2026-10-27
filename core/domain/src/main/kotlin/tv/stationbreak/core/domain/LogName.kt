@@ -2,16 +2,15 @@
 package tv.stationbreak.core.domain
 
 /**
- * The class's own name for a log line: "Watching" for `LiveState.Watching`, and "" for an anonymous class.
+ * The class's own name for a log line: "Watching" for `LiveState.Watching`, and "" for an anonymous class. Call it on
+ * a value's class (`state.javaClass.logName()`).
  *
  * Read from the binary name, not `simpleName`: on Android `getSimpleName()` of a nested class needs its InnerClasses
  * attribute, which R8 drops from every class no keep rule names (a `-keepattributes` rule does not bring it back), so a
- * minified build would print "LiveState$Watching" (#441). Names stay readable there (`-dontobfuscate`).
+ * minified build would print "LiveState$Watching" (#441). It relies on the release build's `-dontobfuscate`: with
+ * obfuscation the binary name would be a short invented one.
  */
 fun Class<*>.logName(): String {
     val last = name.substringAfterLast('.').substringAfterLast('$')
     return if (last.firstOrNull()?.isDigit() == true) "" else last
 }
-
-/** [logName] of this value's class. */
-fun Any.logName(): String = javaClass.logName()

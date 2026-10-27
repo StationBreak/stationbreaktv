@@ -66,7 +66,10 @@ internal data class LibrariesUiState(
     val canFinish: Boolean
         get() = (phase == LibrariesPhase.Choosing || phase == LibrariesPhase.SaveFailed) && selected.isNotEmpty()
 
-    override fun toString(): String = "LibrariesUiState(phase=${phase.logName()}, libraries=${libraries.size})"
+    override fun toString(): String {
+        val phaseName = phase.javaClass.logName()
+        return "LibrariesUiState(phase=$phaseName, libraries=${libraries.size})"
+    }
 }
 
 /**

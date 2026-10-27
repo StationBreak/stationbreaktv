@@ -121,7 +121,7 @@ internal data class SignInUiState(
     val phase: SignInPhase = SignInPhase.Idle,
 ) {
     // The password is a credential: it must not appear in a log line or a crash report built from the state.
-    override fun toString(): String = "SignInUiState(phase=${phase.logName()}, password=***)"
+    override fun toString(): String = "SignInUiState(phase=${phase.javaClass.logName()}, password=***)"
 }
 
 /**

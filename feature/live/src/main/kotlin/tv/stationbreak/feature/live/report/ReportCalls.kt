@@ -39,7 +39,7 @@ internal class ReportCalls(
 
     private fun failed(error: MediaServerError): Nothing? {
         if (error is MediaServerError.HttpUnauthorized || error is MediaServerError.SessionExpired) halted = true
-        log("report error kind=${error.logName().lowercase()}")
+        log("report error kind=${error.javaClass.logName().lowercase()}")
         return null
     }
 }

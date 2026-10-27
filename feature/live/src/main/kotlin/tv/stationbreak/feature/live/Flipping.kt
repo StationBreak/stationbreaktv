@@ -612,14 +612,14 @@ internal class Flipper(
 
     /** A flip that broke on an unexpected exception: report its class name only, and show the channel again. */
     private fun failed(error: Exception) {
-        report(TuneReport.Failed(error.logName().ifEmpty { "Unknown" }))
+        report(TuneReport.Failed(error.javaClass.logName().ifEmpty { "Unknown" }))
         order = null
         target = null
         screen.drop()
     }
 
     /** Writes the line of a press that was not acted on, with the label of why and the state on screen (#392). */
-    private fun dropped(reason: String) = report(TuneReport.PressDropped(reason, screen.value.logName()))
+    private fun dropped(reason: String) = report(TuneReport.PressDropped(reason, screen.value.javaClass.logName()))
 
     private fun ChannelAiring.tag() = ChannelTag(number, name)
 }

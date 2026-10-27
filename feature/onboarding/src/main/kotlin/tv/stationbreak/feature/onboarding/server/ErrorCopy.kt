@@ -137,10 +137,9 @@ internal object ErrorCopyTable {
                 other(R.string.error_quick_connect_message, R.string.error_quick_connect_details),
         )
 
-    fun copyFor(error: MediaServerError): ErrorCopy {
-        val copy = entries[error::class.java]
-        return copy ?: error("No error copy for ${error.logName()}")
-    }
+    fun copyFor(error: MediaServerError): ErrorCopy = entries[error::class.java] ?: missing(error)
+
+    private fun missing(error: MediaServerError): Nothing = error("No error copy for ${error.javaClass.logName()}")
 
     /** The arguments the error's message needs: only [MediaServerError.UnsupportedVersion] has any (found, minimum). */
     fun messageArgs(error: MediaServerError): List<Any> =

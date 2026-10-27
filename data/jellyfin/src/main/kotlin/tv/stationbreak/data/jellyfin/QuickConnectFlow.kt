@@ -62,7 +62,7 @@ internal class QuickConnectFlow(
                     is ServerResult.Failure -> QuickConnectState.Failed(reached.error)
                     is ServerResult.Success -> issueAndPoll(reached.value, acknowledgement) { emit(it) }
                 }
-            log.log("quickConnect ended: ${terminal.logName()}")
+            log.log("quickConnect ended: ${terminal.javaClass.logName()}")
             emit(terminal)
         }
 

@@ -245,4 +245,4 @@ internal fun liveKeyLine(
     repeat: Int,
     handled: Boolean,
     state: LiveState,
-): String = "key code=$code action=$action repeat=$repeat handled=$handled state=${state.logName()}"
+): String = "key code=$code action=$action repeat=$repeat handled=$handled state=${state.javaClass.logName()}"

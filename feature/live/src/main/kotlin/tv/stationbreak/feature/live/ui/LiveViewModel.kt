@@ -175,7 +175,7 @@ internal class LiveViewModel
             surface: SurfaceView,
             tuners: TunerFactory,
         ) {
-            val before = shown.value.logName()
+            val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
             val session = sessions.current.value

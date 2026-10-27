@@ -370,7 +370,7 @@ class LiveChannel(
         sitting: Sitting?,
         known: ChannelTag?,
     ) {
-        report(TuneReport.Failed(error.logName().ifEmpty { "Unknown" }))
+        report(TuneReport.Failed(error.javaClass.logName().ifEmpty { "Unknown" }))
         screen.value = LiveState.Ident(null, known)
         withContext(NonCancellable) {
             try {

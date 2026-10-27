@@ -4,32 +4,35 @@ package tv.stationbreak.core.domain
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+/** A class at the top of its file: its binary name has no '$'. */
+private class TopLevel
+
 class LogNameTest {
     private sealed interface Outer {
         data object Watching : Outer
 
-        class Tuning : Outer
+        class Tuning : Outer {
+            class Deeper
+        }
     }
 
-    private class TopLevelLike
-
     @Test
-    fun aNestedClassIsNamedWithoutItsOuterClass() {
+    fun aNestedClassIsNamedWithoutItsOuterClasses() {
         // From the binary name, so a minified build that drops the InnerClasses attribute still says "Watching" (#441).
-        assertEquals("Watching", Outer.Watching.logName())
-        assertEquals("Tuning", Outer.Tuning().logName())
-        assertEquals("Watching", Outer.Watching::class.java.logName())
+        assertEquals("Watching", Outer.Watching.javaClass.logName())
+        assertEquals("Tuning", Outer.Tuning::class.java.logName())
+        assertEquals("Deeper", Outer.Tuning.Deeper::class.java.logName())
     }
 
     @Test
-    fun aClassNestedInATestIsNamedByItsOwnName() {
-        assertEquals("TopLevelLike", TopLevelLike().logName())
-        assertEquals("String", "x".logName())
+    fun aTopLevelClassIsNamedByItsOwnName() {
+        assertEquals("TopLevel", TopLevel::class.java.logName())
+        assertEquals("String", "x".javaClass.logName())
     }
 
     @Test
     fun anAnonymousClassHasNoName() {
         val anonymous = object {}
-        assertEquals("", anonymous.logName())
+        assertEquals("", anonymous.javaClass.logName())
     }
 }
