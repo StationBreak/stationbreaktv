@@ -120,6 +120,9 @@ internal class Flipper(
     // Menu's lookups of the previous channel, in the order pressed, while they are running.
     private val recalls = ArrayList<Job>()
 
+    // The guide's tune, while its lookup runs; a newer press or tune replaces it.
+    private var tuning: Job? = null
+
     /** Reads the lineup in the background for the presses to come; a read still running is replaced. */
     fun refresh() {
         refreshing?.cancel()
@@ -206,6 +209,7 @@ internal class Flipper(
                 when (command) {
                     is LiveCommand.Flip -> press(command.direction)
                     LiveCommand.Previous -> recall()
+                    is LiveCommand.Tune -> tune(command.channel)
                     LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
                 }
             } catch (e: CancellationException) {
@@ -225,6 +229,7 @@ internal class Flipper(
         val now = clock.now()
         // Cancelled, not joined: the number must not wait for a commit's lookup to unwind.
         settling?.cancel()
+        tuning?.cancel()
         recalls.forEach {
             dropped("menu-superseded")
             it.cancel()
@@ -494,6 +499,62 @@ internal class Flipper(
         ) {
             if (currentCoroutineContext().isActive) close(timing, "failed") else unresolved(timing)
             throw e
+        }
+    }
+
+    /**
+     * The guide's Select on a program on now: [channel], at once. The newest intent, like Menu: a flip still settling,
+     * a Menu lookup and presses waiting for a lineup are dropped. The lookup runs in a job of its own, so the collector
+     * never waits on it, and the landing is a flip's commit ([land]): the same tune line, Menu back to the channel
+     * before, the look-ahead from the new channel.
+     */
+    private fun tune(channel: ChannelId) {
+        settling?.cancel()
+        recalls.forEach {
+            dropped("menu-superseded")
+            it.cancel()
+        }
+        reading?.cancel()
+        repeat(queued.size) { dropped("superseded-by-tune") }
+        queued.clear()
+        tuning?.cancel()
+        tuning = scope.launch { tuneTo(channel) }
+    }
+
+    private suspend fun tuneTo(channel: ChannelId) {
+        if (!onScreen) {
+            dropped("tune-off-screen")
+            return
+        }
+        // From here a commit: it owes a flip line, `superseded` if a newer press replaces it.
+        val timing = FlipTiming(clock.now(), 0)
+        try {
+            val lookedAt = clock.now()
+            val onAir = lineup().byId(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+            // A lookup that ran on past a newer press must not land.
+            currentCoroutineContext().ensureActive()
+            if (onAir == null) {
+                dropped("tune-off-air")
+                // A number a cancelled flip had put up goes with it.
+                if (target != null) screen.drop()
+                order = null
+                target = null
+                return
+            }
+            timing.lookupMs = (clock.now() - lookedAt).inWholeMilliseconds
+            land(onAir, onAir.channel, timing)
+        } catch (e: CancellationException) {
+            unresolved(timing)
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            if (currentCoroutineContext().isActive) {
+                failed(e)
+                close(timing, "failed")
+            } else {
+                unresolved(timing)
+            }
         }
     }
 

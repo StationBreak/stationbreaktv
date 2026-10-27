@@ -102,8 +102,11 @@ visible range, the details of the focused program, the clock) and its screen. It
 the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
 the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
 guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
-what it shows is the guide's. Where the picture is while the guide is open is live's too: the slot carries the hole live
-laid its picture in (null while it is full screen), and the guide leaves exactly that clear. Everything in `feature:guide`
+what it shows is the guide's. Where the picture is while the guide is open is live's too: live moves its one surface to the
+top-right corner by its modifier alone (the surface is never made again), the slot carries that hole, and the guide leaves
+exactly that clear. A channel the guide picks (Select on a program on now) goes back through the slot; live closes the
+guide and tunes it through the flip's commit (`LiveCommand.Tune`), so Menu, the look-ahead and the tune line follow as
+for a flip. Everything in `feature:guide`
 is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for `app`'s tests.
 
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan

@@ -3,17 +3,26 @@ package tv.stationbreak.feature.live.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
@@ -29,26 +38,53 @@ import java.time.ZoneId
  * [info] is the program info overlay (spec 17), over the picture in place of the banner; the actions banner's buttons
  * send their [LiveCommand] to [onCommand].
  *
- * [guide], while the program guide is open (spec 17), is drawn over the picture in place of everything else: the guide
- * is opaque, so a banner, a slate or animated snow under it would only cost frames. The picture keeps playing.
+ * [guide], while the program guide is open (spec 17), is drawn over the picture, which moves to the guide's corner
+ * (`ScreenLayout.pictureRect` of the safe area): the guide is told that rectangle and leaves it clear. The surface
+ * stays where it is in the composition and only its modifier changes, so the one surface is never made again and the
+ * picture plays on. What stands in for a picture (snow, the cards) is drawn in the corner too, cut to it; the banners
+ * and the info overlay make way for the guide, which says the same.
  */
 @Composable
 internal fun LiveScreen(
     state: LiveState,
     info: LiveInfo? = null,
     onCommand: (LiveCommand) -> Unit = {},
-    guide: (@Composable () -> Unit)? = null,
+    guide: (@Composable (pictureHole: DpRect) -> Unit)? = null,
     surface: @Composable () -> Unit,
 ) {
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
     LaunchedEffect(Unit) { SnowFrames.get() }
-    Box(Modifier.fillMaxSize().background(BroadcastColors.Ink)) {
-        surface()
+    BoxWithConstraints(Modifier.fillMaxSize().background(BroadcastColors.Ink)) {
+        val corner = remember(maxWidth, maxHeight) { pictureCorner(DpSize(maxWidth, maxHeight)) }
+        Box(if (guide != null) Modifier.inRect(corner) else Modifier.fillMaxSize()) { surface() }
         if (guide != null) {
-            guide()
+            Box(Modifier.inRect(corner).clipToBounds()) { PictureLayers(state) }
+            guide(corner)
         } else {
             LiveLayers(state, info, onCommand)
         }
+    }
+}
+
+/** Where the picture goes while the guide is open, on a [screen] of that size: the guide's corner. */
+private fun pictureCorner(screen: DpSize): DpRect = ScreenLayout.pictureRect(ScreenLayout.safeArea(screen))
+
+/** Exactly [rect] of the parent, which starts at the screen's top-left. */
+private fun Modifier.inRect(rect: DpRect): Modifier = offset(rect.left, rect.top).size(rect.width, rect.height)
+
+/**
+ * What live TV shows in the guide's corner for [state] when there is no picture to show: snow while tuning, the cards
+ * without their banners. Nothing over a picture (the guide says what is on), nor while signed out.
+ */
+@Composable
+private fun PictureLayers(state: LiveState) {
+    when (state) {
+        is LiveState.Tuning -> Snow()
+        is LiveState.Choosing -> if (!state.overPicture) Snow()
+        is LiveState.TechnicalDifficulties -> DifficultiesSlate(upNext = null, channel = null)
+        is LiveState.Ident -> IdentSlate(upNext = null, channel = null)
+        LiveState.NoChannels -> NoChannelsSlate()
+        is LiveState.Watching, LiveState.SignedOut -> Unit
     }
 }
 

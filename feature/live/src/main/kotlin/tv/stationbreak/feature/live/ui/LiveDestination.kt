@@ -37,21 +37,16 @@ import tv.stationbreak.feature.live.LiveState
 
 /**
  * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
- * dp; null while the picture is full screen) and what to call to tune a channel. A new opening time is a new opening,
- * even when the guide never left the screen between the two (closed and opened again before a frame).
+ * dp: the guide's top-right corner, `ScreenLayout.pictureRect`) and what to call to tune a channel, which live tunes
+ * and closes the guide for. A new opening time is a new opening, even when the guide never left the screen between the
+ * two (closed and opened again before a frame).
  */
 typealias GuideSlot = @Composable (
     current: ChannelId?,
     openedAtNanos: Long,
-    pictureHole: DpRect?,
+    pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
 ) -> Unit
-
-/**
- * Where live TV lays its picture while the guide is open. Until the corner picture comes (spec 17, Task 10) it stays
- * full screen, so the guide gets no hole.
- */
-internal val GuidePictureHole: DpRect? = null
 
 /**
  * The live channel screen (spec 14, F1.3). It owns the player for each STARTED period of its lifecycle, not the
@@ -104,10 +99,7 @@ internal fun LiveRoot(
         guideOpen = guideOpen,
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
-        // Until Select-to-tune comes (spec 17, Task 10), picking the channel on air only closes the guide.
-        guide = {
-            guide(viewModel.guideChannel, guideOpenedAt, GuidePictureHole) { viewModel.closeGuide() }
-        },
+        guide = { pictureHole, onTune -> guide(viewModel.guideChannel, guideOpenedAt, pictureHole, onTune) },
     ) { AndroidView(factory = { surface }) }
 }
 
@@ -117,8 +109,9 @@ internal fun LiveRoot(
  *
  * Each key is judged by [upNow], read as the key arrives, when there is one: the composition's view of the overlays can
  * be a frame behind, and a Back in that frame must not open the guide twice or miss that it is open. [onGuide] opens
- * (true) or closes (false) the guide; while [guideOpen], [guide] is drawn over the picture and takes the D-pad and
- * Select, and live's own keys are off.
+ * (true) or closes (false) the guide; while [guideOpen], [guide] is drawn over the picture, which is in the rectangle
+ * it is given, and takes the D-pad and Select, and live's own keys are off. The channel the guide picks (Select on a
+ * program on now) is tuned as a flip's commit is ([LiveCommand.Tune]), and the guide closes.
  */
 @Suppress("LongParameterList") // The screen's state, its two key outlets and the guide's slot.
 @Composable
@@ -129,9 +122,19 @@ internal fun LiveKeysRoot(
     guideOpen: Boolean = false,
     upNow: (() -> OverlayUp)? = null,
     onGuide: (open: Boolean) -> Unit = {},
-    guide: @Composable () -> Unit = {},
+    guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
     video: @Composable () -> Unit,
 ) {
+    val command by rememberUpdatedState(onCommand)
+    val guiding by rememberUpdatedState(onGuide)
+    // Closed first, so the tune's banner comes up over the full picture.
+    val tune =
+        remember {
+            { channel: ChannelId ->
+                guiding(false)
+                command(LiveCommand.Tune(channel))
+            }
+        }
     val owner = LocalLifecycleOwner.current
     // The root holds focus so the remote's keys reach it; its preview handler sees them before anything below does.
     val focus = remember { FocusRequester() }
@@ -153,7 +156,8 @@ internal fun LiveKeysRoot(
                 handleLiveKey(event, up, held, onGuide, onCommand).also { logLiveKey(event, it, state, up) }
             }.focusable(),
     ) {
-        LiveScreen(state, info, onCommand, guide.takeIf { guideOpen }, video)
+        val shown: (@Composable (DpRect) -> Unit)? = if (guideOpen) ({ hole -> guide(hole, tune) }) else null
+        LiveScreen(state, info, onCommand, shown, video)
     }
 }
 

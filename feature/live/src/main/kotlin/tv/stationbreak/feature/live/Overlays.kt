@@ -37,7 +37,7 @@ internal class Overlays(
             LiveCommand.ShowInfo -> showInfo(scope)
             LiveCommand.DismissOverlay -> dismiss(scope)
             is LiveCommand.Flip -> keepActions(scope)
-            LiveCommand.Previous -> Unit
+            LiveCommand.Previous, is LiveCommand.Tune -> Unit
         }
     }
 
