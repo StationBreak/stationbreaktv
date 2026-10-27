@@ -8,6 +8,7 @@ can be answered later, by the phase shown.
 | ID | Assumption | Where it matters |
 | --- | --- | --- |
 | A-DEV-1 | ✅ **Confirmed:** the reference Insignia runs **Fire OS 6.7.0.8 (Android 7.1, API 25)**, exactly the minSdk. Owner's principle: *my needs are the floor*, so this device defines minimum support. Model AFTJMST12, about 1.5 GB RAM, hardware-backed Keystore (ADR-0009). Codec capabilities are captured by the F1.6 probe. | All gates; minSdk |
+| A-DEV-2 | ✅ **Confirmed 2026-10-27 (spec 17 device checks):** the Guide key (`KEYCODE_GUIDE`, 172) reaches the app on the Fire TV Stick (API 30), but Fire OS takes it on the older Fire TV (API 25) and opens Amazon's own Live TV guide. The app doesn't rely on the Guide key on Fire OS; Back and Select are the paths. | F2.1, F2.2 |
 | A-NET-1 | The Jellyfin server for the gates is on the same LAN (or a fast reverse proxy) as the Insignia. | Phase 1 flip gate |
 | A-ARCH-1 | ✅ Confirmed by ADR-0005/0006: `jellyfin-sdk-kotlin` on its OkHttp client. The Jellyfin adapter stays pure JVM and is reusable by the companion server. | MODULES.md |
 | A-ARCH-2 | Channels are stored as rules JSON (the portable source of truth) inside one lineup file per account in `data:settings` (spec 12); settings live in **DataStore**. **Room** holds only the library cache; ScheduleBlocks are built in memory and not yet persisted. | F0.6, F1.1 |
@@ -55,8 +56,9 @@ can be answered later, by the phase shown.
 
 - ~~**Q-UX-1**~~ ✅ **Resolved 2026-10-19 ([#112](https://github.com/StationBreak/stationbreaktv/issues/112), spec 12):** a themed starter catalog replaces per-library, per-genre and per-collection automatic channels. The best-filling recipes are switched on, up to a default cap of 50; the rest wait on a "More channels" shelf. A recipe fills when its pool holds at least 12 hours of runtime. A channel the user hid or removed is never switched back on by the app. Opt-in recipes (After Hours) are never switched on automatically.
 - ~~**Q-UX-2**~~ ✅ **Resolved 2026-10-06:** Back follows the platform convention: it goes **up a level or exits, depending on context** (closes an open overlay or guide first, then leaves live TV). It is **not** the previous-channel key. Previous channel is a "Last" action in the now/next banner, with Menu (☰) as a one-press shortcut (S1.4.3).
-- **Q-UX-3** Reminders ("notify me when X starts") are in or out of v1?
-- **Q-UX-4** Guide over live video: translucent overlay or PIP-in-corner?
+  - **Live TV refinement, 2026-10-25 (owner decision, reaffirmed 2026-10-27; spec 17):** on live TV, Back from the full-screen show opens the guide, and Back in the guide exits live TV. Open overlays (the banner, Info) close first. The tune banner never blocks input.
+- ~~**Q-UX-3**~~ ✅ **Resolved 2026-10-25:** reminders are out of v1.
+- ~~**Q-UX-4**~~ ✅ **Resolved 2026-10-25 (built in PR [#443](https://github.com/StationBreak/stationbreaktv/pull/443)):** the guide shows the live picture in a corner window at the top right. The details panel is top-left and the grid is below. It is one video surface, moved and resized, not a second player ([ADR-0008](adr/0008-guide-grid-spike.md), addendum).
 - **Q-UX-5** Phone-assisted setup (QR → local web form for the server URL/password) is in or out? It's a big win for typing URLs with a remote.
 - **Q-PRIV-1** For opt-in crash reporting, which tool? Self-hosted Sentry/GlitchTip, ACRA to your own endpoint, or none (manual diagnostics export only)?
 - **Q-BRAND-1** Logo/visual branding is still open. Who designs it, and is it needed by the Phase 3 beta?
