@@ -88,7 +88,8 @@ internal class GuideGeometry(
  * The guide: the details [panel] top-left, the picture's place top-right, the clock strip above the time columns, the
  * grid of [snapshot] below, and the hint row. The grid reads [snapshot] as one value, so a model and a focus from
  * different moments are never drawn together; each cell reads only whether it is the focused one, so a move recomposes
- * the two cells it touched and the panel. [info] is the overlay Select opened on a later program.
+ * the two cells it touched and the panel. [info] is the overlay Select opened on a later program; the panel is not
+ * shown under it.
  */
 @Suppress("LongParameterList") // The guide's flows, the overlay, the channel playing and the picture's hole.
 @Composable
@@ -119,7 +120,10 @@ internal fun GuideScreen(
                 .offset(geometry.safe.left, geometry.safe.top)
                 .width(geometry.safe.right - geometry.safe.left),
         ) {
-            DetailsPanel(panel, nowOf, Modifier.size(geometry.panelWidth, geometry.topHeight))
+            // The info overlay says what the panel would, so the panel makes way while it is open: the title and the
+            // time are shown once. Its place is kept, so the grid does not move.
+            val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
+            if (info == null) DetailsPanel(panel, nowOf, panelSize) else Spacer(panelSize)
             Spacer(Modifier.height(TopGap))
             GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
             Spacer(Modifier.height(HintGap))

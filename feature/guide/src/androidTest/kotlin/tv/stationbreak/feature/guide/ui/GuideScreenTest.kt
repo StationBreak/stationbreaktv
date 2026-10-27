@@ -267,6 +267,21 @@ class GuideScreenTest {
     }
 
     @Test
+    fun infoOverlayHidesTheGuidesOwnPanel() {
+        showReady(CH7)
+        press(Key.DirectionRight)
+        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(GuideTags.INFO).assertExists()
+        // The title and the time once, in the overlay: not again in the panel underneath it.
+        compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).assertDoesNotExist()
+        compose.onAllNodesWithText("Test Movie 103", useUnmergedTree = true).assertCountEquals(2) // overlay + cell
+        back()
+        compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
+        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
+    }
+
+    @Test
     fun selectOnNowCellAsksToTuneItsChannel() {
         showReady(CH7)
         press(Key.DirectionDown)
