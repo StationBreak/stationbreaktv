@@ -87,6 +87,10 @@ class LiveChannel(
     private var flipLog: List<TuneReport.Flip> = emptyList()
     private var sittings = 0L
 
+    // The running run's reporter, so that [leave] can end its reporting before the run's own teardown gets to it.
+    @Volatile
+    private var reporting: PlaybackReporter? = null
+
     val state: StateFlow<LiveState> = screen.flow
 
     /** The program info overlay (spec 17) while one is open: closed by a tune, a boundary or a flip. */
@@ -97,6 +101,16 @@ class LiveChannel(
 
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog
+
+    /**
+     * The viewer has left live TV (#431): ends reporting now, without suspending, so the final Stopped is queued at
+     * once and goes out on the reporter's next dispatch, ahead of the run's own teardown (a tuner stop, the
+     * neighbours' release), which may still be waiting. The host calls it as the screen leaves, then cancels the run.
+     * Reporting stays closed for the rest of this run; a later [run] reports afresh.
+     */
+    fun leave() {
+        reporting?.close()
+    }
 
     /**
      * Follows the viewer: picks a channel, tunes it at the schedule's offset and follows its blocks, and obeys
@@ -130,6 +144,7 @@ class LiveChannel(
                     report(TuneReport.Reported(line))
                 }
             }
+        reporting = reporter
         try {
             coroutineScope {
                 val flipper =
@@ -161,6 +176,7 @@ class LiveChannel(
             try {
                 withContext(NonCancellable) { neighbours.release() }
             } finally {
+                reporting = null
                 finishReporting(reporter, reporterScope)
                 screen.drop()
             }

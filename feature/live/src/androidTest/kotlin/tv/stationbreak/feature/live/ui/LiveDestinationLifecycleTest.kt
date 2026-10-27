@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -70,8 +71,8 @@ import kotlin.time.Duration
 import kotlin.time.Instant
 
 /**
- * The player belongs to a STARTED period (spec 14, review): moving the screen out of STARTED closes the tuner, detaches
- * the surface and releases the player, in that order, and coming back makes a new player.
+ * The player belongs to a STARTED period (spec 14, review): moving the screen out of STARTED detaches the surface and
+ * releases the player within that callback, then closes the tuner (#431), and coming back makes a new player.
  */
 @RunWith(AndroidJUnit4::class)
 class LiveDestinationLifecycleTest {
@@ -197,13 +198,46 @@ class LiveDestinationLifecycleTest {
 
     private fun awaitLog(entry: String) = compose.waitUntil(WAIT_MS) { entry in log }
 
+    /**
+     * What the log held when [event] reached an observer added before the screen's own: a lifecycle runs a step down
+     * (pause, stop) through its newest observers first, so this one sees the log as the screen's left it in that same
+     * callback.
+     */
+    private fun logAt(event: Lifecycle.Event): CopyOnWriteArrayList<String> {
+        val seen = CopyOnWriteArrayList<String>()
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.lifecycle.addObserver(
+                LifecycleEventObserver { _, e -> if (e == event && seen.isEmpty()) seen += listOf("@$e") + log },
+            )
+        }
+        return seen
+    }
+
     @Test
-    fun leavingStartedClosesThenDetachesThenReleases() {
+    fun leavingStartedReleasesThePlayerWithinTheStopThenClosesTheTuner() {
+        // #431: the player is stopped, detached and released inside ON_STOP itself, not when the teardown gets to it;
+        // the tuner's close (the server's encode stop) follows.
+        val atStop = logAt(Lifecycle.Event.ON_STOP)
         show(viewModel())
         awaitLog("create#1")
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
-        awaitLog("release#1")
-        assertEquals(listOf("create#1", "attach(surface)#1", "close", "attach(null)#1", "release#1"), log.toList())
+        awaitLog("close")
+        assertEquals(listOf("@ON_STOP") + RELEASED, atStop.toList())
+        assertEquals(RELEASED + "close", log.toList())
+    }
+
+    @Test
+    fun backingOutOfTheAppReleasesThePlayerAsTheScreenPauses() {
+        // #431: Back out of the app finishes the activity. Android stops it only once the launcher is idle, up to 10 s
+        // later, so the player must not wait for ON_STOP: a finishing screen never comes back.
+        val atPause = logAt(Lifecycle.Event.ON_PAUSE)
+        show(viewModel())
+        awaitLog("create#1")
+        compose.activityRule.scenario.onActivity { it.finish() }
+        compose.waitUntil(WAIT_MS) { atPause.isNotEmpty() }
+        assertEquals(listOf("@ON_PAUSE") + RELEASED, atPause.toList())
+        awaitLog("close")
+        assertEquals(1, log.count { it == "release#1" })
     }
 
     @Test
@@ -322,6 +356,8 @@ class LiveDestinationLifecycleTest {
     }
 
     private companion object {
+        // The first player made, shown, then detached and released.
+        val RELEASED = listOf("create#1", "attach(surface)#1", "attach(null)#1", "release#1")
         const val WAIT_MS = 10_000L
         const val PRESS_MS = 50L
     }

@@ -10,10 +10,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LastChannelStore
@@ -133,6 +135,10 @@ internal class LiveViewModel
         @Volatile
         private var live: LiveChannel? = null
 
+        // The running sitting's player and machine, while there is one: [leave] ends them at once.
+        @Volatile
+        private var period: LivePeriod? = null
+
         // Here, not in the composition, because the ViewModel outlives it; drained at the start of each sitting.
         private val commands = Channel<LiveCommand>(Channel.UNLIMITED)
 
@@ -159,10 +165,20 @@ internal class LiveViewModel
         }
 
         /**
-         * One STARTED period: makes the player, shows it on [surface], runs the live channel, and on the way out (a
-         * stop, or the session ending) closes the tuner, then detaches and releases the player, in that order
-         * (ADR-0016, 5). Returns when the session ends; otherwise runs until cancelled. The guide closes with it, so
-         * live TV comes back from Home or standby on the picture.
+         * The screen is leaving the foreground (#431): stops and releases the running sitting's player, ends its
+         * reporting and cancels it, at once, on the caller's thread ([LivePeriod.leave]). The tuner's close follows as
+         * the sitting unwinds. Nothing when no sitting runs; a second call does nothing.
+         */
+        fun leave() {
+            period?.leave()
+        }
+
+        /**
+         * One STARTED period: makes the player, shows it on [surface], runs the live channel, and on the way out
+         * closes the tuner, then detaches and releases the player. When the session ends that is the order
+         * (ADR-0016, 5); when the screen leaves, [leave] has already stopped, detached and released the player, and the
+         * close only ends the server's encode. Returns when the session ends; otherwise runs until cancelled. The guide
+         * closes with it, so live TV comes back from Home or standby on the picture.
          */
         suspend fun sit(
             context: Context,
@@ -184,7 +200,10 @@ internal class LiveViewModel
                 shown.value = LiveState.SignedOut
                 return
             }
-            val player = players.create(context, SystemClock::elapsedRealtime)
+            val made = players.create(context, SystemClock::elapsedRealtime)
+            val running = LivePeriod(made, currentCoroutineContext().job)
+            period = running
+            val player = running.player
             var tuner: TunePort? = null
             var ended = false
             try {
@@ -203,7 +222,10 @@ internal class LiveViewModel
                         report = { Log.i(LOG_TAG, it.line()) },
                         server = server,
                         details = details,
-                    ).also { live = it }
+                    ).also {
+                        live = it
+                        running.machine = it
+                    }
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
@@ -217,6 +239,8 @@ internal class LiveViewModel
                 if (!ended) shown.value = machine.state.value
             } finally {
                 live = null
+                // A sitting started after this one was cancelled may already have taken the slot.
+                if (period === running) period = null
                 withContext(NonCancellable) {
                     tuner?.close(session)
                     player.attach(null)

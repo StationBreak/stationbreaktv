@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import android.view.SurfaceView
 import androidx.compose.foundation.focusable
@@ -50,8 +53,10 @@ typealias GuideSlot = @Composable (
 
 /**
  * The live channel screen (spec 14, F1.3). It owns the player for each STARTED period of its lifecycle, not the
- * ViewModel: when the screen stops (Home, standby) everything is closed and released at once, and when it starts
- * again a new player and a new sitting begin, anchored to the clock. [onSignedOut] is called when the session ended.
+ * ViewModel: when the screen stops (Home, standby), or is paused on its way out of the app (Back), the player is
+ * released and the Stopped report sent within that callback, and the rest is closed as the sitting unwinds; when it
+ * starts again a new player and a new sitting begin, anchored to the clock. [onSignedOut] is called when the session
+ * ended.
  *
  * Live TV owns the surface and the keys; the program guide (spec 17) is a slot, [guide], drawn over the picture while
  * it is open. It gets the channel playing when it opened, when that was (`System.nanoTime`), and what to call when the
@@ -89,6 +94,7 @@ internal fun LiveRoot(
             if (tuners == null) viewModel.sit(context, surface) else viewModel.sit(context, surface, tuners)
         }
     }
+    LeaveAtOnce(owner, viewModel::leave)
     KeepScreenOn(owner)
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
@@ -200,6 +206,39 @@ private fun KeepScreenOn(owner: LifecycleOwner) {
         }
     }
 }
+
+/**
+ * Live TV stops the moment the screen leaves (#431), inside the lifecycle callback, not when the cancelled sitting's
+ * teardown gets to it: [leave] stops and releases the player and sends the Stopped report then. The screen leaves at
+ * ON_STOP, or already at ON_PAUSE when the activity is finishing (Back out of the app): Android stops a finishing
+ * activity only once the next one is idle, up to 10 s later, and a backgrounded process can be killed before that, so
+ * the picture and sound ran on over the launcher and the Stopped was late or never sent. A pause that is not a finish
+ * (an overlay over the app) keeps playing.
+ */
+@Composable
+private fun LeaveAtOnce(
+    owner: LifecycleOwner,
+    leave: () -> Unit,
+) {
+    val leaving by rememberUpdatedState(leave)
+    val activity = LocalContext.current.findActivity()
+    DisposableEffect(owner, activity) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                val finishing = event == Lifecycle.Event.ON_PAUSE && activity?.isFinishing == true
+                if (event == Lifecycle.Event.ON_STOP || finishing) leaving()
+            }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
 
 /**
  * The guide closes as soon as live TV leaves the foreground (Home, another app), not only when it stops: Fire OS can
