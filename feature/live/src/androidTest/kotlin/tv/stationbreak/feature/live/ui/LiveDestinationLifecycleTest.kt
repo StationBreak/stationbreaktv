@@ -269,8 +269,9 @@ class LiveDestinationLifecycleTest {
 
     @Test
     fun guideKeyCloseThenBackReopenGivesTheGuideTwoShowings() {
-        // The device's path: Back opens the guide, the Guide key closes it, Back opens it again 3 s later. Each showing
-        // of the slot is one guide session: two starts, one end, and the second opening at a later time.
+        // The device's path: Back opens the guide, the Guide key closes it, Back opens it again (3 s later there;
+        // nothing goes by the clock, so at once here). Each showing of the slot is one guide session: two starts, one
+        // end, and the second opening at a later time.
         val showings = CopyOnWriteArrayList<String>()
         val vm = viewModel()
         showWithGuide(vm, showings)
@@ -279,7 +280,6 @@ class LiveDestinationLifecycleTest {
         tap(KeyEvent.KEYCODE_GUIDE)
         compose.waitUntil(WAIT_MS) { !vm.guideOpen.value }
         compose.waitForIdle()
-        Thread.sleep(REOPEN_AFTER_MS)
         tap(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(WAIT_MS) { vm.guideOpen.value }
         compose.waitForIdle()
@@ -323,7 +323,6 @@ class LiveDestinationLifecycleTest {
 
     private companion object {
         const val WAIT_MS = 10_000L
-        const val REOPEN_AFTER_MS = 3_000L
         const val PRESS_MS = 50L
     }
 }
