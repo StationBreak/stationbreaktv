@@ -37,12 +37,14 @@ internal fun missedVsyncs(
 }
 
 /**
- * One guide session's measurement (spec 17, Task 9): numbers and booleans only, never a title, a channel name or an id,
+ * One guide session's measurement (spec 17, Task 9): numbers only, never a title, a channel name or an id,
  * so [line] is safe for logcat. [openMs] is from the open request to the first grid frame and [windowMs] the first
  * schedule call; -1 when the session never got there (no grid, no call). [droppedFrames] is what the platform says it
  * dropped (the sum of each frame report's dropped count), beside the [missedVsyncs] counted from frame times.
  * [extensionsAsked] is how often scrolling or the clock asked for more of the built schedule, and [extensionsApplied]
- * how many of those answers made it onto the grid.
+ * how many of those answers made it onto the grid. [tickLagMaxMs] is the most a minute tick showed a moment earlier
+ * than the minute it was for (0, or 60000 when the panel's clock was a minute behind; #440), counting early reads only;
+ * [tickLateMaxMs] is the latest a tick read the clock after its moment, counting late reads only.
  */
 internal data class GuideReport(
     val openMs: Long,
@@ -51,17 +53,19 @@ internal data class GuideReport(
     val missedVsyncs: Int,
     val droppedFrames: Int,
     val rows: Int,
-    val pip: Boolean,
     val durationMs: Long,
     val extensionsAsked: Int = 0,
     val extensionsApplied: Int = 0,
+    val tickLagMaxMs: Long = 0,
+    val tickLateMaxMs: Long = 0,
 ) {
     /** The log line, in the style of the tune lines (`SBLIVE`). */
     fun line() =
         "guide openMs=$openMs windowMs=$windowMs frames=${frames.frames} p50Ms=${ms(frames.p50Ns)} " +
             "p90Ms=${ms(frames.p90Ns)} p99Ms=${ms(frames.p99Ns)} missedVsyncs=$missedVsyncs " +
-            "droppedFrames=$droppedFrames rows=$rows pip=$pip durationMs=$durationMs " +
-            "extensions=$extensionsAsked extended=$extensionsApplied"
+            "droppedFrames=$droppedFrames rows=$rows durationMs=$durationMs " +
+            "extensions=$extensionsAsked extended=$extensionsApplied tickLagMaxMs=$tickLagMaxMs " +
+            "tickLateMaxMs=$tickLateMaxMs"
 
     // Milliseconds to one decimal, without a locale.
     private fun ms(ns: Long): String {

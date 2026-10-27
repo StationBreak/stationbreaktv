@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
@@ -102,7 +103,7 @@ internal class Authenticator(
     ) = log.log(
         when (result) {
             is ServerResult.Success -> "$what ok"
-            is ServerResult.Failure -> "$what failed: ${result.error::class.simpleName}"
+            is ServerResult.Failure -> "$what failed: ${result.error.javaClass.logName()}"
         },
     )
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.derivedStateOf
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +56,7 @@ import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.indexOf
 import java.time.ZoneId
+import kotlin.math.abs
 
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).
 internal val ChannelColumnWidth = 144.dp
@@ -64,19 +68,35 @@ private val HintHeight = 24.dp
 private val PanelGap = 16.dp
 private const val HINT_SPACE = "   "
 
+// How far (dp) the hole may sit from the safe area's top and right edges: rounding, not placement.
+private const val CORNER_SLACK = 0.5f
+
 /**
- * Where the guide's parts go on a screen, from the shared safe area: the panel takes the band beside the place the
- * corner picture has (`ScreenLayout.pictureRect`), whether or not live has put its picture there. Times become widths
- * at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen.
+ * Where the guide's parts go on a screen, from the shared safe area and the [hole] live TV laid its picture in (screen
+ * dp): the panel takes the band from the safe area's left edge to the hole, as tall as the hole reaches down, and the
+ * clock strip and the grid start below it. Live owns where the picture is; the guide only lays out around it. Times
+ * become widths at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen. The hole must
+ * be in the safe area's top-right corner, where `ScreenLayout.pictureRect` puts it (anything else is refused), and the
+ * guide is laid out left to right whatever the layout direction, as that corner and its hole are.
  */
 @Immutable
 internal class GuideGeometry(
     screen: DpSize,
+    hole: DpRect,
 ) {
     val safe: DpRect = ScreenLayout.safeArea(screen)
-    private val corner: DpRect = ScreenLayout.pictureRect(safe)
-    val panelWidth: Dp = corner.left - safe.left - PanelGap
-    val topHeight: Dp = corner.bottom - corner.top
+
+    init {
+        // The panel takes the band left of the hole and the grid starts below it: a hole anywhere else would be drawn
+        // over. Live puts it at ScreenLayout.pictureRect, the safe area's top-right corner.
+        val atTop = abs(hole.top.value - safe.top.value) <= CORNER_SLACK
+        val atRight = abs(hole.right.value - safe.right.value) <= CORNER_SLACK
+        require(atTop && atRight) { "The picture hole must be in the safe area's top-right corner: $hole in $safe" }
+        require(hole.left - PanelGap > safe.left) { "The picture hole leaves no room for the panel: $hole in $safe" }
+    }
+
+    val panelWidth: Dp = hole.left - safe.left - PanelGap
+    val topHeight: Dp = hole.bottom - safe.top
     val viewportWidth: Dp = safe.right - safe.left - ChannelColumnWidth
     val spanMs: Long = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
@@ -98,7 +118,7 @@ internal fun GuideScreen(
     panel: StateFlow<CellDetails?>,
     info: CellDetails?,
     current: ChannelId?,
-    pictureHole: DpRect?,
+    pictureHole: DpRect,
     modifier: Modifier = Modifier,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
@@ -112,33 +132,34 @@ internal fun GuideScreen(
     val viewportOf: () -> Long = remember(viewport) { { viewport.value } }
     val stateOf: () -> GuideState = remember(shown) { { shown.value.state } }
     val snapshotOf: () -> GuideSnapshot = remember(shown) { { shown.value } }
-    BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
-        val geometry = remember(maxWidth, maxHeight) { GuideGeometry(DpSize(maxWidth, maxHeight)) }
-        Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole) })
-        Column(
-            Modifier
-                .offset(geometry.safe.left, geometry.safe.top)
-                .width(geometry.safe.right - geometry.safe.left),
-        ) {
-            // The info overlay says what the panel would, so the panel makes way while it is open: the title and the
-            // time are shown once. Its place is kept, so the grid does not move.
-            val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
-            if (info == null) DetailsPanel(panel, nowOf, panelSize) else Spacer(panelSize)
-            Spacer(Modifier.height(TopGap))
-            GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
-            Spacer(Modifier.height(HintGap))
-            HintRow(snapshotOf)
+    // Left to right whatever the device's language: the picture's hole is top-right in screen coordinates, and the
+    // panel, the clock strip's times and the grid's time axis read from it leftwards and onwards, as on a cable guide.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
+            val geometry =
+                remember(maxWidth, maxHeight, pictureHole) { GuideGeometry(DpSize(maxWidth, maxHeight), pictureHole) }
+            Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole) })
+            Column(
+                Modifier
+                    .offset(geometry.safe.left, geometry.safe.top)
+                    .width(geometry.safe.right - geometry.safe.left),
+            ) {
+                // The info overlay says what the panel would, so the panel makes way while it is open: the title and
+                // the time are shown once. Its place is kept, so the grid does not move.
+                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
+                if (info == null) DetailsPanel(panel, nowOf, panelSize) else Spacer(panelSize)
+                Spacer(Modifier.height(TopGap))
+                GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
+                Spacer(Modifier.height(HintGap))
+                HintRow(snapshotOf)
+            }
+            info?.let { GuideInfoOverlay(it, nowOf) }
         }
-        info?.let { GuideInfoOverlay(it, nowOf) }
     }
 }
 
-/** The ground of the guide: Ink everywhere, except the [hole] live TV laid its picture in, when it gave one. */
-private fun DrawScope.ground(hole: DpRect?) {
-    if (hole == null) {
-        drawRect(BroadcastColors.Ink)
-        return
-    }
+/** The ground of the guide: Ink everywhere, except the [hole] live TV laid its picture in. */
+private fun DrawScope.ground(hole: DpRect) {
     val left = hole.left.toPx()
     val top = hole.top.toPx()
     val right = hole.right.toPx()

@@ -99,12 +99,14 @@ internal class GuideMeasurement private constructor(
      * Ends the session: stops collecting and logs one line, once. A frame listener that will not come off (the window
      * already gone) does not stop the line, nor the guide's own close after it.
      */
+    @Suppress("LongParameterList") // The session's numbers, one per field of the line; all but two default to none.
     fun finish(
         windowMs: Long,
         rows: Int,
-        pip: Boolean,
         extensionsAsked: Int = 0,
         extensionsApplied: Int = 0,
+        tickLagMaxMs: Long = 0,
+        tickLateMaxMs: Long = 0,
     ) {
         val taken: LongArray
         val droppedFrames: Long
@@ -123,10 +125,11 @@ internal class GuideMeasurement private constructor(
                 missedVsyncs = missedVsyncs(taken, periodNs),
                 droppedFrames = droppedFrames.toInt(),
                 rows = rows,
-                pip = pip,
                 durationMs = (nanoTime() - openedAtNanos) / NANOS_PER_MS,
                 extensionsAsked = extensionsAsked,
                 extensionsApplied = extensionsApplied,
+                tickLagMaxMs = tickLagMaxMs,
+                tickLateMaxMs = tickLateMaxMs,
             )
         log(report.line())
     }

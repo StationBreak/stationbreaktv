@@ -40,9 +40,8 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * live TV closes the guide then.
  *
  * [pictureHole] is where live TV laid its picture while the guide is open, in screen dp: the guide leaves that
- * rectangle clear. Null means live left the picture full screen, and the guide is opaque over it while it plays on
- * behind. [openedAtNanos] is when the key that opened the guide arrived (`System.nanoTime`), for the guide's open-time
- * measurement.
+ * rectangle clear and lays its panel and grid out around it. [openedAtNanos] is when the key that opened the guide
+ * arrived (`System.nanoTime`), for the guide's open-time measurement.
  *
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes
  * the info overlay when one is open and is otherwise left to the activity, which leaves live TV.
@@ -51,7 +50,7 @@ import tv.stationbreak.feature.guide.GuideViewModel
 fun GuideDestination(
     current: ChannelId?,
     openedAtNanos: Long,
-    pictureHole: DpRect?,
+    pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,16 +64,15 @@ fun GuideDestination(
 internal fun GuideRoot(
     viewModel: GuideViewModel,
     current: ChannelId?,
-    pictureHole: DpRect?,
+    pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     modifier: Modifier = Modifier,
     openedAtNanos: Long = System.nanoTime(),
     measure: Boolean = false,
 ) {
     // The session's measurement line (Task 9) is written when the session ends, and only when [measure] says this build
-    // writes it. The rows and the corner picture are read as they stand then.
+    // writes it. The rows and the ticks' lag are read as they stand then.
     val view = LocalView.current
-    val pip by rememberUpdatedState(pictureHole != null)
     // Started with the session, not in `remember`: a composition that is abandoned before it applies must not leak the
     // frame thread and its listener.
     var measurement by remember(viewModel) { mutableStateOf<GuideMeasurement?>(null) }
@@ -88,7 +86,14 @@ internal fun GuideRoot(
         onDispose {
             try {
                 val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0
-                started?.finish(viewModel.windowMs, rows, pip, viewModel.extensionsAsked, viewModel.extensionsApplied)
+                started?.finish(
+                    viewModel.windowMs,
+                    rows,
+                    viewModel.extensionsAsked,
+                    viewModel.extensionsApplied,
+                    viewModel.tickLagMaxMs,
+                    viewModel.tickLateMaxMs,
+                )
             } finally {
                 viewModel.close()
             }

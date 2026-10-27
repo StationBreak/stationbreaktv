@@ -7,6 +7,9 @@ import android.view.KeyEvent
 import android.view.KeyEvent.ACTION_DOWN
 import android.view.KeyEvent.ACTION_UP
 import android.view.KeyEvent.KEYCODE_BACK
+import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
@@ -17,6 +20,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -24,6 +28,7 @@ import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -32,7 +37,10 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.view.ViewCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
@@ -63,6 +71,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ProgramInfoTags
+import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
@@ -133,6 +142,9 @@ class GuideScreenTest {
     private val showing = mutableStateOf(true)
     private val openedAt = mutableLongStateOf(1L)
 
+    // The device's layout direction; a test sets right-to-left before showing the guide.
+    private var direction = LayoutDirection.Ltr
+
     private fun show(
         current: ChannelId?,
         measure: Boolean = false,
@@ -146,6 +158,7 @@ class GuideScreenTest {
             CompositionLocalProvider(
                 LocalCellComposed provides { channel, start -> count(channel, start) },
                 LocalBodyComposed provides { composed.merge(BODY, 1, Int::plus) },
+                LocalLayoutDirection provides direction,
             ) {
                 StationBreakTheme {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
@@ -155,7 +168,7 @@ class GuideScreenTest {
                             GuideRoot(
                                 vm,
                                 current,
-                                pictureHole = null,
+                                pictureHole = HOLE,
                                 onTune = { tuned += it },
                                 openedAtNanos = openedAt.longValue,
                                 measure = measure,
@@ -180,6 +193,7 @@ class GuideScreenTest {
 
     @After
     fun tearDown() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation.setOnAccessibilityEventListener(null)
         if (::vm.isInitialized) vm.close()
         pool.shutdownNow()
     }
@@ -231,6 +245,88 @@ class GuideScreenTest {
         assertTrue(announced, announced.contains("Test Movie 201"))
         assertTrue(announced, !announced.contains("min left"))
         compose.onNodeWithText("min left", substring = true).assertExists()
+    }
+
+    @Test
+    fun aRestingFocusSendsNoAccessibilityEvents() {
+        // #438: with VoiceView on, a cell the focus rests on was read again every ~6 s. A screen reader reads again
+        // what changes, so while nothing is pressed the guide must send it nothing: no content, selection or live
+        // region change. A move does send events, which shows the recorder hears the guide.
+        showReady(CH5)
+        val events = recordAccessibilityEvents()
+        press(Key.DirectionDown)
+        press(Key.DirectionUp)
+        cell(CH5, 60).assertIsSelected()
+        // The description's 150 ms rest and the details' 500 ms dwell, with room for the events they send to arrive.
+        rest(SETTLE_MS)
+        assertTrue("a move sends events", events.isNotEmpty())
+        events.clear()
+
+        rest(REST_MS)
+
+        assertEquals(emptyList<String>(), events.toList())
+    }
+
+    /**
+     * Lets [ms] go by on the screen's clock (its effects, frames and accessibility events run on it) in steps of a
+     * frame or so, and as long on the wall clock, which the guide's own thread and the event delivery run on.
+     */
+    private fun rest(ms: Long) {
+        val until = SystemClock.uptimeMillis() + ms
+        repeat((ms / REST_STEP_MS).toInt()) {
+            compose.mainClock.advanceTimeBy(REST_STEP_MS)
+            SystemClock.sleep((until - SystemClock.uptimeMillis()).coerceIn(0, REST_STEP_MS))
+        }
+        compose.waitForIdle()
+    }
+
+    /**
+     * The accessibility events the screen sends from now on, as "type changes=content-change-types class", while the
+     * test runs. Compose sends them only when a screen reader is on; the test's own instrumentation stands in for one,
+     * and Compose is told to send them as it would then.
+     */
+    private fun recordAccessibilityEvents(): MutableList<String> {
+        val events = CopyOnWriteArrayList<String>()
+        val app = compose.activity.packageName
+        InstrumentationRegistry.getInstrumentation().uiAutomation.setOnAccessibilityEventListener { event ->
+            if (event.packageName == app) {
+                val type = AccessibilityEvent.eventTypeToString(event.eventType)
+                events += "$type changes=${event.contentChangeTypes} ${event.className}"
+            }
+        }
+        compose.runOnUiThread { forceAccessibility(compose.activity.window.decorView) }
+        return events
+    }
+
+    // Compose's own test switch (internal API, read by reflection): the semantics events go out as with a screen reader
+    // on. A Compose update that renames it fails the test here rather than letting it pass without hearing anything.
+    private fun forceAccessibility(root: View) {
+        val composeView = checkNotNull(findComposeView(root)) { "no AndroidComposeView" }
+        val delegate = checkNotNull(ViewCompat.getAccessibilityDelegate(composeView)) { "no accessibility delegate" }
+        val flag = delegate.javaClass.declaredFields.first { it.name.startsWith(FORCE_ACCESSIBILITY) }
+        flag.isAccessible = true
+        flag.setBoolean(delegate, true)
+    }
+
+    private fun findComposeView(view: View): View? =
+        when {
+            view.javaClass.name.endsWith("AndroidComposeView") -> view
+            view is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { findComposeView(view.getChildAt(it)) }
+            else -> null
+        }
+
+    @Test
+    fun theGuideIsLaidOutLeftToRightInARightToLeftLayoutToo() {
+        // Live TV's picture and the guide's hole are top-right whatever the language: the guide's panel must stay
+        // top-left beside it, not be mirrored over it.
+        direction = LayoutDirection.Rtl
+        showReady(CH5)
+        val screen = compose.onNodeWithTag(GuideTags.SCREEN).getBoundsInRoot()
+        val panel = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot()
+        val left = panel.left - screen.left
+        val right = panel.right - screen.left
+        assertTrue("panel from $left to $right dp", left.value < HOLE.left.value / 2)
+        assertTrue("panel from $left to $right dp", right <= HOLE.left)
     }
 
     @Test
@@ -554,11 +650,20 @@ class GuideScreenTest {
         // make the focused cell compact; the screen is hosted at this size whatever the device is.
         const val HOST_WIDTH_DP = 960
         const val HOST_HEIGHT_DP = 540
+
+        // Where live TV lays its picture on that screen, as it tells the guide.
+        val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
         const val PRESS_MS = 50L
         const val BODY = "body"
         const val LOG_TAG = "GuideScreenTest"
         const val CELL_TEXT = "guide:cellText:"
         const val TICK_TIMEOUT_MS = 20_000L
+
+        // Two of the ~6 s cycles seen on the device (#438), and the deferrals after a move.
+        const val REST_MS = 13_000L
+        const val SETTLE_MS = 1_500L
+        const val REST_STEP_MS = 100L
+        const val FORCE_ACCESSIBILITY = "accessibilityForceEnabledForTesting"
     }
 }

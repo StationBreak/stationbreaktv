@@ -39,6 +39,7 @@ import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.feature.live.report.PlaybackReporter
@@ -369,7 +370,7 @@ class LiveChannel(
         sitting: Sitting?,
         known: ChannelTag?,
     ) {
-        report(TuneReport.Failed(error.javaClass.simpleName.ifEmpty { "Unknown" }))
+        report(TuneReport.Failed(error.javaClass.logName().ifEmpty { "Unknown" }))
         screen.value = LiveState.Ident(null, known)
         withContext(NonCancellable) {
             try {

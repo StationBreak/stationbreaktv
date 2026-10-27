@@ -35,11 +35,11 @@ import kotlinx.coroutines.delay
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.ProgramCopy
+import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.live.R
 
 private const val PROGRESS_TRACK_ALPHA = 0.35f
 private const val ACTION_FILL_ALPHA = 0.16f
-private const val PROGRESS_TICK_MS = 60_000L
 private val ActionTextSize = 16.sp
 
 /** What the two buttons of the actions banner do. */
@@ -60,10 +60,12 @@ internal fun ProgressBar(
     clock: () -> Long,
 ) {
     val now = remember(clock) { mutableLongStateOf(clock()) }
+    // On the clock's minute, when "min left" changes (#440), not a minute from whenever the banner came up.
     LaunchedEffect(clock) {
         while (true) {
-            now.longValue = clock()
-            delay(PROGRESS_TICK_MS)
+            val read = clock()
+            now.longValue = read
+            delay(ProgramText.untilNextMinute(read))
         }
     }
     Box(

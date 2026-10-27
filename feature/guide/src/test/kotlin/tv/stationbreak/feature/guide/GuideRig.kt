@@ -98,6 +98,14 @@ open class GuideRig {
         fromMin: Long = 0,
     ): List<AiringBlock> = (fromMin until untilMin step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) }
 
+    /** A program from [fromMin] to [extraMs] past [toMin]: back-to-back programs end on any second (#440). */
+    internal fun offMinute(
+        fromMin: Long,
+        toMin: Long,
+        extraMs: Long,
+        n: Int,
+    ): AiringBlock = program(fromMin, toMin, n).let { it.copy(endMs = it.endMs + extraMs) }
+
     /** Channel 7 with no cell starting at 90: one runs 0 to 95 and the next 95 to 120. */
     internal fun splitAround90(untilMin: Long = 600): List<AiringBlock> =
         listOf(program(0, 95, 900), program(95, 120, 901)) + halfHours(untilMin, fromMin = 120)

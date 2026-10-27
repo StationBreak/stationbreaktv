@@ -30,27 +30,40 @@ class GuideFramesTest {
 
     @Test
     fun emptySessionLogsZeroFrames() {
-        val line = GuideReport(-1, -1, percentiles(LongArray(0)), 0, 0, 0, false, 0).line()
+        val line = GuideReport(-1, -1, percentiles(LongArray(0)), 0, 0, 0, 0).line()
         assertEquals(
             "guide openMs=-1 windowMs=-1 frames=0 p50Ms=0.0 p90Ms=0.0 p99Ms=0.0 missedVsyncs=0 droppedFrames=0 " +
-                "rows=0 pip=false durationMs=0 extensions=0 extended=0",
+                "rows=0 durationMs=0 extensions=0 extended=0 tickLagMaxMs=0 tickLateMaxMs=0",
             line,
         )
     }
 
     // GuideReport has no string fields at all: a title, a channel name or an id cannot get into the line. What is left
-    // to check is that every value in it is a number or a boolean.
+    // to check is that every value in it is a number.
     @Test
     fun lineHasNoTitlesOrIds() {
         val p = percentiles(longArrayOf(16_700_000L, 33_400_000L, 8_000_000L))
-        val line = GuideReport(850, 12, p, 3, 2, 14, true, 9_000, extensionsAsked = 2, extensionsApplied = 1).line()
+        val line =
+            GuideReport(
+                850,
+                12,
+                p,
+                3,
+                2,
+                14,
+                9_000,
+                extensionsAsked = 2,
+                extensionsApplied = 1,
+                tickLagMaxMs = 60_000,
+                tickLateMaxMs = 1_250,
+            ).line()
         assertEquals(
             "guide openMs=850 windowMs=12 frames=3 p50Ms=16.7 p90Ms=33.4 p99Ms=33.4 missedVsyncs=3 droppedFrames=2 " +
-                "rows=14 pip=true durationMs=9000 extensions=2 extended=1",
+                "rows=14 durationMs=9000 extensions=2 extended=1 tickLagMaxMs=60000 tickLateMaxMs=1250",
             line,
         )
         val values = line.removePrefix("guide ").split(' ').map { it.substringAfter('=') }
-        assertFalse(values.any { v -> v.any { it.isLetter() } && v != "true" && v != "false" })
+        assertFalse(values.any { v -> v.any { it.isLetter() } })
     }
 
     @Test

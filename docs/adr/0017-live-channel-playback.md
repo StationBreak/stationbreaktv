@@ -130,6 +130,9 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   while a channel shows a slate or ident card, so a flip off a card is a neighbour tune.
   `handoverMs` is that of the committed item's own first tune, so on `outcome=standin` it never includes the slate's
   hold (-1 if the item never tuned). An HLS transcode reports the playlist's container (for example `x-mpegurl`) in `container=`.
+  2026-10-27 (spec 17, PR C2): a channel picked in the guide (Select on a program on now) is tuned through the same
+  commit, so it writes a flip line too, with `settleMs=0` like Menu; that line alone ends with `via=guide` after
+  `handoverMs`, so a gate can count guide tunes apart. Flip and Menu lines are unchanged.
   2026-10-25 (#392, lead C): the tune line's load fields change meaning, replacing the first #392 meaning above (media load
   events, which read `loads=1-2 loadMs=0 loadKb=0` on direct play because a progressive file is one long load that
   Media3 reopens inside when the extractor seeks). They now count data source opens (HTTP requests) from the play call
