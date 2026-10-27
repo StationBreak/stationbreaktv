@@ -216,6 +216,19 @@ class LiveDestinationLifecycleTest {
     }
 
     @Test
+    fun leavingTheForegroundClosesTheGuideBeforeTheScreenStops() {
+        // Home: the screen is paused at once, but stopped only once the launcher is up, seconds later on a Fire TV.
+        // Coming back in between must not find the guide left open as it was (it would not be a fresh open).
+        val vm = viewModel()
+        show(vm)
+        awaitLog("create#1")
+        compose.runOnIdle { vm.openGuide(0L) }
+        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        compose.waitUntil(WAIT_MS) { !vm.guideOpen.value }
+        assertTrue("still watching: paused is not stopped", "release#1" !in log)
+    }
+
+    @Test
     fun theScreenStaysOnWhileShownAndStartedAndNotAfter() {
         var shown by mutableStateOf(true)
         var host: View? = null

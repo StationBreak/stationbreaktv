@@ -11,6 +11,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -92,6 +93,7 @@ internal fun LiveRoot(
         }
     }
     KeepScreenOn(owner)
+    CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
     LiveKeysRoot(
         state = state,
@@ -190,5 +192,23 @@ private fun KeepScreenOn(owner: LifecycleOwner) {
             owner.lifecycle.removeObserver(observer)
             view.keepScreenOn = false
         }
+    }
+}
+
+/**
+ * The guide closes as soon as live TV leaves the foreground (Home, another app), not only when it stops: Fire OS can
+ * stop the screen seconds after it was left, and a viewer back within them would find the guide as they left it, focus
+ * and all, rather than the picture. A guide wanted after that is opened again, afresh.
+ */
+@Composable
+private fun CloseGuideOnPause(
+    owner: LifecycleOwner,
+    close: () -> Unit,
+) {
+    val closing by rememberUpdatedState(close)
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_PAUSE) closing() }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
     }
 }
