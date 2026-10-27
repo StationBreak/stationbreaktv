@@ -373,10 +373,13 @@ class GuideScreenTest {
         // Right (a later cell: the hint changes to Info), then Down (on to channel 9, still in the window: no row
         // moves).
         for ((key, to) in listOf(Key.DirectionRight to cell(CH7, 90), Key.DirectionDown to cell(CH9, 0))) {
-            val composed = traceComposition { press(key) }
+            val traced = traceComposition { press(key) }
             to.assertIsSelected()
-            Log.i(LOG_TAG, "$key: $composed")
-            val roots = composed.guideRoots
+            Log.i(LOG_TAG, "$key: $traced")
+            // Something composed (the cells at least): if the compiler's markers change shape, this fails, rather than
+            // the filtered checks below passing on nothing.
+            assertTrue("no composition was traced", traced.all.isNotEmpty())
+            val roots = traced.guideRoots
             // Each cell recomposes on its own (it reads only whether it is focused), and nothing over or around the
             // cells does: not their row, the channel column, the clock strip, the now line or the grid.
             assertEquals("$key: $roots", 2, roots.count { it == "ui.GuideCellView" })

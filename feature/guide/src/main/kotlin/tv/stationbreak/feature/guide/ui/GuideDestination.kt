@@ -117,6 +117,8 @@ internal fun GuideRoot(
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    // A move, inside its trace section ("guide move"): the step and its publish.
+    val move = remember(viewModel) { { direction: GuideDirection -> traced(TRACE_MOVE) { viewModel.move(direction) } } }
     GuideScreen(
         snapshot = viewModel.snapshot,
         panel = viewModel.panel,
@@ -126,10 +128,8 @@ internal fun GuideRoot(
         modifier =
             modifier
                 .focusRequester(keys)
-                .onKeyEvent {
-                    val move = { direction: GuideDirection -> traced(TRACE_MOVE) { viewModel.move(direction) } }
-                    guideKey(it, move, viewModel::select, backs?.let { d -> d::onBackPressed })
-                }.focusable(),
+                .onKeyEvent { guideKey(it, move, viewModel::select, backs?.let { d -> d::onBackPressed }) }
+                .focusable(),
     )
 }
 

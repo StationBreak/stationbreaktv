@@ -10,6 +10,11 @@ import androidx.compose.runtime.InternalComposeTracingApi
  * the bodies that ran, by name, and the [roots], the ones the runtime ran because something they read changed (the
  * outermost body of each recomposition; what they call runs inside them). A skipped composable runs no body and
  * leaves no mark.
+ *
+ * Built on internal runtime API ([InternalComposeTracingApi]: `Composer.setTracer`) and on the text of the markers
+ * the compiler emits, `"<fully qualified name> (<File>.kt:<line>)"`: a name is that text up to " (". Either may
+ * change with a Compose update; the tests that use this also check that something was recorded at all, so a change
+ * fails them.
  */
 internal class Composed(
     val all: List<String>,

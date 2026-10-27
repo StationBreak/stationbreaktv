@@ -86,6 +86,22 @@ class DetailsPanelTest {
     }
 
     @Test
+    fun backOnTheCellTheFocusRestedOnShowsItsDescriptionAtOnce() {
+        // Rested on A, a step to B and straight back: A is the cell the focus last rested on, so no second wait.
+        show(details(0, "About zero"))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        show(details(30, "About 30"))
+        overview().assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(STEP_MS)
+        show(details(0, "About zero"))
+        assertEquals("About zero", text(GuideTags.PANEL_OVERVIEW))
+        // And B, never rested on, still waits after that.
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        show(details(30, "About 30"))
+        overview().assertDoesNotExist()
+    }
+
+    @Test
     fun descriptionThatArrivesAfterTheFocusRestedShowsAtOnce() {
         // The dwell's fetch: the same cell, its details come later. The focus has long rested, so no second wait.
         show(details(0, null))

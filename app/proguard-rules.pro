@@ -4,8 +4,9 @@
 # kotlinx-serialization, the Jellyfin SDK, AndroidX) ship their own consumer rules; add a rule here only where the
 # minified build is shown to break without it, and say why.
 
-# Names stay readable: logs and diagnostics print class simple names (#331), and stack traces read without a mapping
-# upload. Shrinking and optimisation still apply.
+# Class and method names stay readable: logs and diagnostics print class simple names (#331), and a stack trace names
+# its frames. Shrinking and optimisation still apply, so a trace's line numbers and inlined frames need the build's
+# mapping.txt (R8 writes instruction offsets for lines and a map ID for the source file).
 -dontobfuscate
 
 # core:domain's ThreadCpu reads the JVM's thread CPU time on the JVM and catches the LinkageError where
