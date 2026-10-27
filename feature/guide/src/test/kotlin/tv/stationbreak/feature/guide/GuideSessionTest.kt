@@ -15,6 +15,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
@@ -112,6 +113,29 @@ class GuideSessionTest : GuideRig() {
             vm.close()
             assertEquals(0, vm.extensionsAsked)
             assertEquals(0, vm.extensionsApplied)
+        }
+
+    @Test
+    fun theClockKeepsShortRowsGoingWhenAnotherRowRunsFarPastTheWindow() =
+        guideTest { vm ->
+            // As above, with nobody scrolling: the clock must ask for more before channel 7's row runs out.
+            lineup(untilMin = 780)
+            fake.channel(CH9, 9, listOf(program(0, 150, 300), program(150, 210, 301), slate(210, 1440)))
+            vm.open(CH7)
+            runCurrent()
+            val ch7 = {
+                vm
+                    .ready()
+                    .model.rows
+                    .single { it.channel == CH7 }
+            }
+            assertEquals(min(420), ch7().cells.last().endMs)
+
+            after(5 * HOUR)
+
+            assertTrue(fake.scheduleCalls.drop(1).isNotEmpty())
+            assertTrue(fake.scheduleCalls.none { it.third == ScheduleBuild.AsNeeded })
+            assertEquals(min(780), ch7().cells.last().endMs)
         }
 
     @Test

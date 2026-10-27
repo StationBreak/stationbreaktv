@@ -365,13 +365,15 @@ internal class GuideViewModel
             }
         }
 
-        // The clock asks for more when the end of the grid comes within reach of now, at most once per half hour.
+        // The clock asks for more when the end of the shortest row comes within reach of now, at most once per half
+        // hour: the grid's own end is its longest row's, which can run hours past the others (see below).
         private fun extendIfNearTheEnd(
             s: CoroutineScope,
             model: GuideModel,
             now: Long,
         ) {
-            val near = model.endMs - now < EXTEND_WITHIN.inWholeMilliseconds
+            val shortest = model.rows.mapNotNull { it.cells.lastOrNull()?.endMs }.minOrNull() ?: model.endMs
+            val near = shortest - now < EXTEND_WITHIN.inWholeMilliseconds
             if (near && extendedFrom != model.originMs) extend(s, model)
         }
 
