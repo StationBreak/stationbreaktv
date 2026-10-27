@@ -7,6 +7,9 @@ import android.view.KeyEvent
 import android.view.KeyEvent.ACTION_DOWN
 import android.view.KeyEvent.ACTION_UP
 import android.view.KeyEvent.KEYCODE_BACK
+import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
@@ -33,6 +36,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.core.view.ViewCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
@@ -180,6 +184,7 @@ class GuideScreenTest {
 
     @After
     fun tearDown() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation.setOnAccessibilityEventListener(null)
         if (::vm.isInitialized) vm.close()
         pool.shutdownNow()
     }
@@ -232,6 +237,74 @@ class GuideScreenTest {
         assertTrue(announced, !announced.contains("min left"))
         compose.onNodeWithText("min left", substring = true).assertExists()
     }
+
+    @Test
+    fun aRestingFocusSendsNoAccessibilityEvents() {
+        // #438: with VoiceView on, a cell the focus rests on was read again every ~6 s. A screen reader reads again
+        // what changes, so while nothing is pressed the guide must send it nothing: no content, selection or live
+        // region change. A move does send events, which shows the recorder hears the guide.
+        showReady(CH5)
+        val events = recordAccessibilityEvents()
+        press(Key.DirectionDown)
+        press(Key.DirectionUp)
+        cell(CH5, 60).assertIsSelected()
+        // The description's 150 ms rest and the details' 500 ms dwell, with room for the events they send to arrive.
+        rest(SETTLE_MS)
+        assertTrue("a move sends events", events.isNotEmpty())
+        events.clear()
+
+        rest(REST_MS)
+
+        assertEquals(emptyList<String>(), events.toList())
+    }
+
+    /**
+     * Lets [ms] go by on the screen's clock (its effects, frames and accessibility events run on it) in steps of a
+     * frame or so, and as long on the wall clock, which the guide's own thread and the event delivery run on.
+     */
+    private fun rest(ms: Long) {
+        val until = SystemClock.uptimeMillis() + ms
+        repeat((ms / REST_STEP_MS).toInt()) {
+            compose.mainClock.advanceTimeBy(REST_STEP_MS)
+            SystemClock.sleep((until - SystemClock.uptimeMillis()).coerceIn(0, REST_STEP_MS))
+        }
+        compose.waitForIdle()
+    }
+
+    /**
+     * The accessibility events the screen sends from now on, as "type changes=content-change-types class", while the
+     * test runs. Compose sends them only when a screen reader is on; the test's own instrumentation stands in for one,
+     * and Compose is told to send them as it would then.
+     */
+    private fun recordAccessibilityEvents(): MutableList<String> {
+        val events = CopyOnWriteArrayList<String>()
+        val app = compose.activity.packageName
+        InstrumentationRegistry.getInstrumentation().uiAutomation.setOnAccessibilityEventListener { event ->
+            if (event.packageName == app) {
+                val type = AccessibilityEvent.eventTypeToString(event.eventType)
+                events += "$type changes=${event.contentChangeTypes} ${event.className}"
+            }
+        }
+        compose.runOnUiThread { forceAccessibility(compose.activity.window.decorView) }
+        return events
+    }
+
+    // Compose's own test switch (internal API, read by reflection): the semantics events go out as with a screen reader
+    // on. A Compose update that renames it fails the test here rather than letting it pass without hearing anything.
+    private fun forceAccessibility(root: View) {
+        val composeView = checkNotNull(findComposeView(root)) { "no AndroidComposeView" }
+        val delegate = checkNotNull(ViewCompat.getAccessibilityDelegate(composeView)) { "no accessibility delegate" }
+        val flag = delegate.javaClass.declaredFields.first { it.name.startsWith(FORCE_ACCESSIBILITY) }
+        flag.isAccessible = true
+        flag.setBoolean(delegate, true)
+    }
+
+    private fun findComposeView(view: View): View? =
+        when {
+            view.javaClass.name.endsWith("AndroidComposeView") -> view
+            view is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { findComposeView(view.getChildAt(it)) }
+            else -> null
+        }
 
     @Test
     fun dpadMovesFocusAndPanelFollows() {
@@ -560,5 +633,11 @@ class GuideScreenTest {
         const val LOG_TAG = "GuideScreenTest"
         const val CELL_TEXT = "guide:cellText:"
         const val TICK_TIMEOUT_MS = 20_000L
+
+        // Two of the ~6 s cycles seen on the device (#438), and the deferrals after a move.
+        const val REST_MS = 13_000L
+        const val SETTLE_MS = 1_500L
+        const val REST_STEP_MS = 100L
+        const val FORCE_ACCESSIBILITY = "accessibilityForceEnabledForTesting"
     }
 }
