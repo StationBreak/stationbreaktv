@@ -60,7 +60,8 @@ CI, starting with the F0.2 hello-world. Nothing is built by hand.
 - **SP-2 Compose for TV on the Insignia.** ✅ **Done 2026-10-10** ([ADR-0008](adr/0008-guide-grid-spike.md)). A
   50-channel × 6-hour guide from standard Compose lists, with app-owned horizontal sync, looks smooth to the owner
   on the Insignia at normal pace (~30 fps) and when holding Down, with no focus anomalies. No custom grid is
-  needed. A baseline profile is required. De-risks R-PERF-2.
+  needed. A baseline profile is required. De-risks R-PERF-2. The built guide (spec 17) later moved to a plain
+  column of model-driven rows; see the ADR-0008 addendum.
 - **SP-3 Keystore on Fire OS.** ✅ **Done 2026-10-10** ([ADR-0009](adr/0009-keystore-spike.md)). On the Insignia the AES-256-GCM key
   reports itself as hardware-backed and survives a restart, an app update and 3 reboots with no interaction. Every
   injected fault (clearing app data, deleting the key, a flipped or truncated blob) fails safely, and a Firestick 4K
@@ -115,7 +116,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 | ID | Risk | Sev | Mitigation |
 | --- | --- | --- | --- |
 | R-PERF-1 | **< 2 s mid-program tune-in on a budget Fire TV.** Seeking into an MKV without cues, slow server disk, remote (WAN) servers, or a transcode start can each blow the budget. The spec's gate also implies a LAN server. The 2026-10-24 gate holds the 2 s bar on the Firestick 4K only; the Insignia has a usable-floor bar (EPICS.md). | 🔴 | SP-1 spike in Phase 0; a single reused player; pre-resolve adjacent channels; close the first-frame→playing gap (ADR-0007); verify seeks landed and fall back to transcode; the gate is measured on the home network (A-NET-1). |
-| R-PERF-2 | Compose for TV performance on low-end hardware (≈1–1.5 GB RAM, older Mali GPU) for a 6h × 50-channel grid. | 🟠 | SP-2 passed with standard Compose lists ([ADR-0008](adr/0008-guide-grid-spike.md)); Baseline Profiles (decisive in SP-2); R8; watch fast horizontal sweeps. |
+| R-PERF-2 | Compose for TV performance on low-end hardware (≈1–1.5 GB RAM, older Mali GPU) for a 6h × 50-channel grid. | 🟠 | SP-2 passed with standard Compose lists; the built guide uses model-driven rows ([ADR-0008](adr/0008-guide-grid-spike.md) and addendum); Baseline Profiles (decisive in SP-2); R8; watch fast horizontal sweeps. |
 | R-DET-1 | **Cross-device determinism.** It depends on both devices having the same snapshot (sync lag), the same epoch math (timezone/DST), and the same hash-keyed ordering bit-for-bit, including future Swift/BrightScript ports. | 🔴 | Snapshot = items with `dateCreated < epochStart − grace`; tombstones; UTC origin + fixed offset in rules; SplitMix64-derived seeds; ID-byte canonical sort; hard epoch cuts; golden vectors (incl. `formatVersion`) as the cross-platform contract. |
 | R-DET-2 | Per-user library permissions and watch-state make lineups account-dependent. | 🟢 | **Resolved by ADR-0002:** same account → same lineup; channel rules set content limits; hash-keyed ordering keeps reduced lineups recognisably similar. |
 | R-DET-4 | Custom channels are per device until sharing is designed, so a custom channel doesn't appear at Grandma's. Starter lineups are chosen on each TV and can differ between TVs set up at different times (spec 12); a given channel's rules and seed schedule identically everywhere. | 🟢 | Accepted for v1. Channel sharing is deferred (F5.1). |

@@ -5,6 +5,7 @@
 - **Decided by:** Phil Critchfield
 - **Resolves:** spike SP-2 ([ROADMAP.md](../ROADMAP.md))
 - **Informs:** R-PERF-2, F2.1, F2.5
+- **Amended:** 2026-10-27, see the addendum (the built guide no longer uses standard Compose lists)
 
 ## Context
 
@@ -122,7 +123,7 @@ Also built:
 
 Benchmark builds compiled with the app profile, median of 3 runs. Scenarios: s1 Down stepping (150 ms), s2 Down held
 (50 ms), s3 Left/right sweep stepping (150 ms), s4 Left/right sweep held (50 ms), s5 Mixed (100 ms). SP-2 values are
-p90 / p99 from the table above. The other columns are frame time p50 / p90 / p99 in ms. Device checks 1 (C1), 1b (C1b)
+clean-condition p90 / p99 from the table above. The other columns are frame time p50 / p90 / p99 in ms. Device checks 1 (C1), 1b (C1b)
 and 2 (C2) ran on both TVs.
 
 **The comparison is not like-for-like.** SP-2 had no details panel and no video. Its percentiles are also diluted by

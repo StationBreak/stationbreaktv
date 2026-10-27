@@ -136,8 +136,8 @@ layout phase, when each row is placed, and clipped to the time columns. A Left/R
 the sticky titles and the "continues" chevrons follow the viewport in the layout and draw phases too. Vertically the
 grid is a window of six rows that the model chooses (`firstVisibleRow`) in a plain column, in place of a lazy list
 scrolled by focus. This departs from ADR-0008 decision 1, which chose standard Compose lists (a `LazyColumn` of
-`LazyRow`s): the guide uses neither, and the model moves the focus rather than Compose focus search. An ADR-0008
-addendum records the departure after device check 1 has measured it.
+`LazyRow`s): the guide uses neither, and the model moves the focus rather than Compose focus search. The ADR-0008
+addendum records the departure and the device results.
 
 `data:settings` exists since F0.4 and holds `KeystoreSecretStore` (the `SecretStore` implementation) and, since F0.5
 task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configured address and its certificate pin as one
