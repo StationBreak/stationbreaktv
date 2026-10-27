@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Instant
 
 /** The tune line's `via` for a channel picked in the guide. */
@@ -113,8 +114,13 @@ internal class Flipper(
     private var target: ChannelAiring? = null
     private var settling: Job? = null
 
-    // The last step's settle, to start again from a later time while its key is held; and the held key's pace.
-    private var settleAgain: (suspend (pressedAt: Instant) -> Unit)? = null
+    // The last step's settle, to start again with another wait (the key held, or let go), the press it counts from, and
+    // whether it is still waiting rather than committing. The flip key is down from a Flip to its FlipReleased; the
+    // held key's pace.
+    private var resettle: (suspend (pressedAt: Instant, wait: Duration) -> Unit)? = null
+    private var lastPressAt: Instant? = null
+    private var waiting = false
+    private var keyDown = false
     private val held = HeldFlip(timings.flipRepeatDelay, timings.flipRepeatEvery)
 
     // Presses made while there was no lineup to step through, and the read being made for them.
@@ -220,6 +226,7 @@ internal class Flipper(
                 overlay(command)
                 when (command) {
                     is LiveCommand.Flip -> flip(command)
+                    LiveCommand.FlipReleased -> released()
                     LiveCommand.Previous -> recall()
                     is LiveCommand.Tune -> tune(command.channel)
                     LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
@@ -238,24 +245,38 @@ internal class Flipper(
         get() = screen.value.let { it != LiveState.NoChannels && it != LiveState.SignedOut }
 
     /**
-     * A press steps at once. A held key's repeat steps only when [held] says it is due; between steps it only starts
-     * the settle again, so the channel is not tuned while the key is down (as when every repeat stepped).
+     * A press steps at once. A held key's repeat steps only when [held] says it is due, on the key events' own times;
+     * between steps it only starts the release fallback again. While the key is down nothing is tuned (#430).
      */
     private fun flip(command: LiveCommand.Flip) {
         val now = clock.now()
+        val keyAtMs = command.atMs ?: now.toEpochMilliseconds()
+        keyDown = true
         when {
-            !command.repeat -> held.press(now)
-            !held.repeatSteps(now) -> return holdOn(now)
+            !command.repeat -> held.press(keyAtMs)
+            !held.repeatSteps(keyAtMs) -> return settleAgain(now, timings.flipReleaseFallback)
         }
         press(command.direction, now)
     }
 
-    /** A held key between steps at [now]: a settle still waiting starts again from now, on the same channel. */
-    private fun holdOn(now: Instant) {
-        val again = settleAgain
-        if (settling?.isActive != true || again == null) return
+    /** The flip key came up: the settle runs from now, for the channel the last press chose. */
+    private fun released() {
+        if (!keyDown) return
+        keyDown = false
+        lastPressAt?.let { settleAgain(it, timings.flipSettle) }
+    }
+
+    /**
+     * Starts the pending settle again on the same channel, waiting [wait] from now; [pressedAt] is the press its flip
+     * line counts from. Only while it is still waiting: a commit already looking its channel up is left alone.
+     */
+    private fun settleAgain(
+        pressedAt: Instant,
+        wait: Duration,
+    ) {
+        val again = resettle.takeIf { waiting && settling?.isActive == true } ?: return
         settling?.cancel()
-        settling = scope.launch { again(now) }
+        settling = scope.launch { again(pressedAt, wait) }
     }
 
     private fun press(
@@ -387,21 +408,29 @@ internal class Flipper(
         earlyShown = false
         target = next
         screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
-        val again: suspend (Instant) -> Unit = { at -> settle(steps, next, direction, at) }
-        settleAgain = again
-        settling = scope.launch { again(pressedAt) }
+        val again: suspend (Instant, Duration) -> Unit = { at, wait -> settle(steps, next, direction, at, wait) }
+        resettle = again
+        lastPressAt = pressedAt
+        // A key still down waits for its release (or the fallback); one already up settles now.
+        val wait = if (keyDown) timings.flipReleaseFallback else timings.flipSettle
+        waiting = true
+        settling = scope.launch { again(pressedAt, wait) }
     }
 
-    /** Waits out the settle after the last press at [pressedAt], then commits to [chosen]. */
+    /** Waits [wait] (the settle, or the fallback for a lost release), then commits to [chosen]. */
+    @Suppress("LongParameterList") // The step's choice and how long to wait for it.
     private suspend fun settle(
         steps: FlipOrder,
         chosen: ChannelAiring,
         direction: FlipDirection,
         pressedAt: Instant,
+        wait: Duration,
     ) {
         var timing: FlipTiming? = null
         try {
-            delay(timings.flipSettle)
+            waiting = true
+            delay(wait)
+            waiting = false
             timing = FlipTiming(pressedAt, (clock.now() - pressedAt).inWholeMilliseconds)
             commit(steps, chosen, direction, timing)
         } catch (e: CancellationException) {

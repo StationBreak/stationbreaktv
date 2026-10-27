@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -16,8 +17,9 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * A held Up or Down (#430): the remote repeats about 20 times a second, but the number moves at a rate the viewer can
- * read: one step at the press, a pause, then a steady rate (both [LiveTimings]). The hold commits once, after the
- * release, as a single press does.
+ * read: one step at the press, a pause, then a steady rate (both [LiveTimings]), paced by the key events' own times.
+ * Nothing is tuned while the key is down: the settle counts from the release, and a release that never comes is covered
+ * by a fallback after the last down or repeat.
  */
 class LiveChannelHeldFlipTest {
     private val repeatEveryMs = 50L
@@ -27,22 +29,38 @@ class LiveChannelHeldFlipTest {
             .filterIsInstance<LiveState.Choosing>()
             .map { it.target.number }
 
+    private fun TestScope.at(ms: Long) {
+        advanceTimeBy((ms - currentTime).milliseconds)
+        runCurrent()
+    }
+
+    /** A key event of Up at [atMs] on the key clock: the press, or one of its auto-repeats. */
+    private fun Flipping.upKey(
+        atMs: Long,
+        repeat: Boolean = false,
+    ) = send(LiveCommand.Flip(FlipDirection.Up, repeat = repeat, atMs = atMs))
+
     /**
-     * Holds Up for [holdMs]: the press, then an auto-repeat every 50 ms (20 a second) until the last one before
-     * [holdMs], then the release (which sends nothing).
+     * Holds Up from now for [holdMs]: the press, the first auto-repeat [firstRepeatMs] later, then one every 50 ms
+     * (20 a second) until the last one before [holdMs]. With [release] the key comes up at [holdMs]. The key times
+     * are the test clock's.
      */
     private fun TestScope.holdUp(
         f: Flipping,
         holdMs: Long,
+        firstRepeatMs: Long = repeatEveryMs,
+        release: Boolean = true,
     ) {
-        f.up()
-        var at = repeatEveryMs
+        val start = currentTime
+        f.upKey(start)
+        var at = firstRepeatMs
         while (at < holdMs) {
-            advanceTimeBy(repeatEveryMs.milliseconds)
-            runCurrent()
-            f.send(LiveCommand.Flip(FlipDirection.Up, repeat = true))
+            at(start + at)
+            f.upKey(start + at, repeat = true)
             at += repeatEveryMs
         }
+        at(start + holdMs)
+        if (release) f.send(LiveCommand.FlipReleased)
     }
 
     private suspend fun TestScope.manyChannels(timings: LiveTimings = LiveTimings()): Flipping =
@@ -59,53 +77,154 @@ class LiveChannelHeldFlipTest {
             val f = manyChannels()
             val before = f.r.tunes.size
             // 2 s: the press at 0, then repeats at 50..1950 ms. Steps at 0, 400, 650, 900, 1150, 1400, 1650, 1900.
-            holdUp(f, holdMs = 2_000)
+            holdUp(f, holdMs = 2_000, release = false)
             assertEquals(listOf(9, 10, 11, 12, 13, 14, 15, 16), f.choosingNumbers())
             assertEquals("nothing is tuned while the key is held", before, f.r.tunes.size)
             // The release: the settle runs out once, and the channel stopped on is tuned once.
+            f.send(LiveCommand.FlipReleased)
             advanceTimeBy(1_000.milliseconds)
             runCurrent()
-            val tunes = f.r.tunes.drop(before)
-            assertEquals(1, tunes.size)
-            assertEquals(itemOf(16), tunes.single().item)
+            assertEquals(
+                listOf(itemOf(16)),
+                f.r.tunes
+                    .drop(before)
+                    .map { it.item },
+            )
         }
 
     @Test
     fun thePauseAndTheRateAreTheTimingsOnes() =
         runTest {
             val f = manyChannels(LiveTimings(flipRepeatDelay = 600.milliseconds, flipRepeatEvery = 500.milliseconds))
+            val before = f.r.tunes.size
             // The press at 0, then repeats to 1950 ms. Steps at 0, 600, 1100, 1600.
-            holdUp(f, holdMs = 2_000)
+            holdUp(f, holdMs = 2_000, release = false)
             assertEquals(listOf(9, 10, 11, 12), f.choosingNumbers())
-        }
-
-    @Test
-    fun aRepeatAfterAGapStepsOnceNotOncePerStepMissed() =
-        runTest {
-            // Repeats that stop for a while (a lost burst) and come back step once, not once per step missed. A long
-            // settle keeps the gap from committing.
-            val f = manyChannels(LiveTimings(flipSettle = 5.seconds))
-            f.up()
-            advanceTimeBy(1_500.milliseconds)
+            assertEquals("nothing is tuned while the key is held", before, f.r.tunes.size)
+            f.send(LiveCommand.FlipReleased)
+            advanceTimeBy(1_000.milliseconds)
             runCurrent()
-            f.send(LiveCommand.Flip(FlipDirection.Up, repeat = true))
-            assertEquals(listOf(9, 10), f.choosingNumbers())
+            assertEquals(
+                listOf(itemOf(12)),
+                f.r.tunes
+                    .drop(before)
+                    .map { it.item },
+            )
         }
 
     @Test
-    fun aShortTapStillStepsOnceAndTunesOnce() =
+    fun aFirstRepeatLaterThanTheSettleTunesNothingUntilTheRelease() =
+        runTest {
+            // The Insignia: the first auto-repeat comes 480 ms after the press, past the 400 ms settle.
+            val f = manyChannels()
+            val before = f.r.tunes.size
+            val start = currentTime
+            holdUp(f, holdMs = 2_000, firstRepeatMs = 480, release = false)
+            assertEquals("nothing is tuned while the key is held", before, f.r.tunes.size)
+            f.send(LiveCommand.FlipReleased)
+            at(start + 2_000 + 399)
+            assertEquals("the settle counts from the release", before, f.r.tunes.size)
+            at(start + 2_000 + 401)
+            assertEquals(1, f.r.tunes.size - before)
+            at(start + 10_000)
+            assertEquals(1, f.r.tunes.size - before)
+        }
+
+    @Test
+    fun aLostReleaseCommitsOnceAfterTheFallbackFromTheLastRepeat() =
         runTest {
             val f = manyChannels()
             val before = f.r.tunes.size
-            f.up()
+            val start = currentTime
+            // The last repeat at 950 ms; the release never comes.
+            holdUp(f, holdMs = 1_000, release = false)
+            val fallback = LiveTimings().flipReleaseFallback.inWholeMilliseconds
+            at(start + 950 + fallback - 1)
+            assertEquals(before, f.r.tunes.size)
+            at(start + 950 + fallback + 1)
+            assertEquals(1, f.r.tunes.size - before)
+            at(start + 10_000)
+            assertEquals(1, f.r.tunes.size - before)
+        }
+
+    @Test
+    fun aShortTapStepsOnceAndTunesOnceTheSettleAfterItsRelease() =
+        runTest {
+            val f = manyChannels()
+            val before = f.r.tunes.size
+            val start = currentTime
+            f.upKey(start)
             assertEquals(listOf(9), f.choosingNumbers())
-            advanceTimeBy(1_000.milliseconds)
-            runCurrent()
+            at(start + 100)
+            f.send(LiveCommand.FlipReleased)
+            at(start + 100 + 399)
+            assertEquals(before, f.r.tunes.size)
+            at(start + 100 + 401)
             assertEquals(
                 listOf(itemOf(9)),
                 f.r.tunes
                     .drop(before)
                     .map { it.item },
             )
+        }
+
+    @Test
+    fun aRepeatAfterAGapStepsOnceNotOncePerStepMissed() =
+        runTest {
+            // Repeats that stop for a while (a lost burst) and come back step once, not once per step missed. A long
+            // fallback keeps the gap from committing.
+            val f = manyChannels(LiveTimings(flipReleaseFallback = 5.seconds))
+            val start = currentTime
+            f.upKey(start)
+            at(start + 1_500)
+            f.upKey(start + 1_500, repeat = true)
+            assertEquals(listOf(9, 10), f.choosingNumbers())
+        }
+
+    @Test
+    fun theHeldPaceFollowsTheKeyTimesNotTheClock() =
+        runTest {
+            // The wall clock steps back a minute in the middle of the hold; the key events' uptime goes on.
+            val f = manyChannels()
+            f.r.jumpMs = 0
+            val start = currentTime
+            f.upKey(start)
+            f.r.jumpMs = -60_000
+            var at = 50L
+            while (at < 1_000) {
+                at(start + at)
+                f.upKey(start + at, repeat = true)
+                at += repeatEveryMs
+            }
+            // Steps at 0, 400, 650, 900.
+            assertEquals(listOf(9, 10, 11, 12), f.choosingNumbers())
+        }
+
+    @Test
+    fun aRepeatThatIsNotDueLeavesACommitInItsLookupAlone() =
+        runTest {
+            // The fallback ran out (the release was lost) and the commit is looking up its channel, slowly; a late
+            // repeat of the same hold, not yet due a step, must not cancel that commit and start the wait again.
+            val f = manyChannels(LiveTimings(flipRepeatDelay = 5.seconds))
+            f.r.schedule.onAirDelayMs = 2_000
+            val before = f.r.tunes.size
+            val start = currentTime
+            f.upKey(start)
+            val fallback = LiveTimings().flipReleaseFallback.inWholeMilliseconds
+            at(start + fallback + 100)
+            f.upKey(start + fallback + 100, repeat = true)
+            at(start + fallback + 6_000)
+            assertEquals(1, f.r.tunes.size - before)
+            assertEquals(
+                itemOf(9),
+                f.r.tunes
+                    .last()
+                    .item,
+            )
+            val superseded =
+                f.r.reports
+                    .filterIsInstance<TuneReport.Flip>()
+                    .filter { it.outcome == "superseded" }
+            assertEquals("the commit was never cancelled", emptyList<TuneReport.Flip>(), superseded)
         }
 }

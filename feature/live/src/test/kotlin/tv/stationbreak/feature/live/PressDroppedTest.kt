@@ -27,6 +27,8 @@ class PressDroppedTest {
             val keys = Channel<LiveCommand>(Channel.UNLIMITED)
             r.start(commands = keys.receiveAsFlow())
             keys.trySend(LiveCommand.Flip(FlipDirection.Up))
+            // A tap: the release follows at once (#430: the settle counts from it).
+            keys.trySend(LiveCommand.FlipReleased)
             runCurrent()
             val dropped = r.reports.filterIsInstance<TuneReport.PressDropped>()
             assertEquals(listOf("press dropped reason=off-screen state=NoChannels"), dropped.map { it.line() })

@@ -83,10 +83,29 @@ class HeldKeyRepeatTest {
         assertTrue(release(Key.DirectionDown, OverlayUp.None))
         val up = LiveCommand.Flip(FlipDirection.Up)
         val down = LiveCommand.Flip(FlipDirection.Down)
-        // The repeats are marked, so the machine steps them at the held-key rate (#430), not at the remote's.
+        // The repeats are marked, so the machine steps them at the held-key rate (#430), not at the remote's; each
+        // release reaches the machine, which settles from it.
         val upAgain = up.copy(repeat = true)
         val downAgain = down.copy(repeat = true)
-        assertEquals(listOf<LiveCommand>(up, upAgain, down, downAgain), sent)
+        val off = LiveCommand.FlipReleased
+        assertEquals(listOf(up, upAgain, off, down, downAgain, off), sent)
+    }
+
+    @Test
+    fun aFlipCarriesItsKeyEventsTime() {
+        handleLiveKey(KeyEventType.KeyDown, Key.DirectionUp, OverlayUp.None, held, 0, atMs = 1_000L) { sent += it }
+        handleLiveKey(KeyEventType.KeyDown, Key.DirectionUp, OverlayUp.None, held, 1, atMs = 1_480L) { sent += it }
+        val up = LiveCommand.Flip(FlipDirection.Up, atMs = 1_000L)
+        assertEquals(listOf(up, up.copy(repeat = true, atMs = 1_480L)), sent)
+    }
+
+    @Test
+    fun onlyTheReleaseOfAFlipSaysSo() {
+        down(Key.Menu, 0, OverlayUp.None)
+        release(Key.Menu, OverlayUp.None)
+        // An Up release with no press of live TV's before it (the guide had it) says nothing either.
+        release(Key.DirectionUp, OverlayUp.None)
+        assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent)
     }
 
     @Test
