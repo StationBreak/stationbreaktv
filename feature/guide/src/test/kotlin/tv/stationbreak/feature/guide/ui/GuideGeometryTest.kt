@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.ui.ScreenLayout
 
@@ -27,6 +28,16 @@ class GuideGeometryTest {
         val geometry = GuideGeometry(screen, hole)
         assertEquals(600f - 48f - 16f, geometry.panelWidth.value, EPS)
         assertEquals(200f - 27f, geometry.topHeight.value, EPS)
+    }
+
+    @Test
+    fun aHoleThatIsNotInTheTopRightCornerIsRefused() {
+        // The panel takes the band left of the hole and the grid starts below it: that only works for a hole in the
+        // top-right corner of the safe area.
+        val low = DpRect(left = 566.dp, top = 100.dp, right = 912.dp, bottom = 300.dp)
+        assertThrows(IllegalArgumentException::class.java) { GuideGeometry(screen, low) }
+        val left = DpRect(left = 48.dp, top = 27.dp, right = 400.dp, bottom = 221.dp)
+        assertThrows(IllegalArgumentException::class.java) { GuideGeometry(screen, left) }
     }
 
     private companion object {

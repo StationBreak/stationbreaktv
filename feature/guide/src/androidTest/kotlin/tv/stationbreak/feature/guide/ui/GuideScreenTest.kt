@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -27,6 +28,7 @@ import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -36,6 +38,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -139,6 +142,9 @@ class GuideScreenTest {
     private val showing = mutableStateOf(true)
     private val openedAt = mutableLongStateOf(1L)
 
+    // The device's layout direction; a test sets right-to-left before showing the guide.
+    private var direction = LayoutDirection.Ltr
+
     private fun show(
         current: ChannelId?,
         measure: Boolean = false,
@@ -152,6 +158,7 @@ class GuideScreenTest {
             CompositionLocalProvider(
                 LocalCellComposed provides { channel, start -> count(channel, start) },
                 LocalBodyComposed provides { composed.merge(BODY, 1, Int::plus) },
+                LocalLayoutDirection provides direction,
             ) {
                 StationBreakTheme {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
@@ -307,6 +314,20 @@ class GuideScreenTest {
             view is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { findComposeView(view.getChildAt(it)) }
             else -> null
         }
+
+    @Test
+    fun theGuideIsLaidOutLeftToRightInARightToLeftLayoutToo() {
+        // Live TV's picture and the guide's hole are top-right whatever the language: the guide's panel must stay
+        // top-left beside it, not be mirrored over it.
+        direction = LayoutDirection.Rtl
+        showReady(CH5)
+        val screen = compose.onNodeWithTag(GuideTags.SCREEN).getBoundsInRoot()
+        val panel = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot()
+        val left = panel.left - screen.left
+        val right = panel.right - screen.left
+        assertTrue("panel from $left to $right dp", left.value < HOLE.left.value / 2)
+        assertTrue("panel from $left to $right dp", right <= HOLE.left)
+    }
 
     @Test
     fun dpadMovesFocusAndPanelFollows() {

@@ -105,10 +105,12 @@ guide is open is live's to decide (Back from the full picture and the Guide key 
 what it shows is the guide's. Where the picture is while the guide is open is live's too, and live is the one source of
 it: live moves its one surface to the top-right corner by its modifier alone (the surface is never made again), and the
 slot carries that hole (a `DpRect`, never null). The guide does not work out where the picture is: it leaves the hole
-clear and lays its details panel and grid out around it. A channel the guide picks (Select on a program on now) goes
-back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`), so Menu, the
-look-ahead and the tune line follow as for a flip (the line ends `via=guide`). Everything in `feature:guide` is
-internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for `app`'s tests.
+clear and lays its details panel and grid out around it, left to right whatever the device's layout direction (the hole
+is top-right in screen coordinates; live places its picture absolutely). A channel the guide picks (Select on a program
+on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
+so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). Everything in
+`feature:guide` is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for
+`app`'s tests.
 
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
 inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where live puts the corner
