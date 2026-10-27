@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
-import android.view.SurfaceView
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
@@ -16,9 +13,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
-import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
-import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
 import tv.stationbreak.feature.live.report.RecordingServer
@@ -31,28 +26,6 @@ import kotlin.time.Duration.Companion.minutes
  */
 class LivePeriodTest {
     private val facts = ReportFacts(MediaSourceId("src"), PlaySessionId("ps"), PlayMethod.DirectPlay, 50.minutes)
-
-    private class RecordingPlayer : VideoPlayer {
-        val log = mutableListOf<String>()
-        override val events: SharedFlow<PlayerEvent> = MutableSharedFlow()
-
-        override fun play(source: PlayerSource): Long {
-            log += "play"
-            return 1
-        }
-
-        override fun stop() {
-            log += "stop"
-        }
-
-        override fun attach(surface: SurfaceView?) {
-            log += if (surface == null) "attach(null)" else "attach(surface)"
-        }
-
-        override fun release() {
-            log += "release"
-        }
-    }
 
     private fun TestScope.reportingRig(server: RecordingServer): Rig {
         val r = Rig(this, startMin = 10, server = server)

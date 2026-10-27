@@ -23,6 +23,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+    // The activity's user-leave hint (Home, recents), so live TV stops at once when the viewer leaves (#431). The app
+    // already ships this version.
+    implementation(libs.androidx.activity.compose)
 
     testImplementation(testFixtures(project(":core:domain")))
     testImplementation(libs.kotlinx.coroutines.test)

@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.OnUserLeaveHintProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -33,6 +34,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
@@ -89,12 +92,20 @@ internal fun LiveRoot(
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
     val surface = remember(context) { SurfaceView(context) }
+    // Each new value starts a sitting afresh while STARTED: a screen resumed after a leave it was never stopped for
+    // (back from Home before Fire OS stopped it) has none left running.
+    val sittings = remember(viewModel) { MutableStateFlow(0) }
     LaunchedEffect(viewModel, owner, surface) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            if (tuners == null) viewModel.sit(context, surface) else viewModel.sit(context, surface, tuners)
+            sittings.collectLatest {
+                if (tuners == null) viewModel.sit(context, surface) else viewModel.sit(context, surface, tuners)
+            }
         }
     }
-    LeaveAtOnce(owner, viewModel::leave)
+    // A start begins a sitting of its own (above); only a resume without one needs a new sitting.
+    LeaveAtOnce(owner, viewModel::leave) { event ->
+        if (viewModel.takeRestart() && event == Lifecycle.Event.ON_RESUME) sittings.value++
+    }
     KeepScreenOn(owner)
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
@@ -208,28 +219,42 @@ private fun KeepScreenOn(owner: LifecycleOwner) {
 }
 
 /**
- * Live TV stops the moment the screen leaves (#431), inside the lifecycle callback, not when the cancelled sitting's
- * teardown gets to it: [leave] stops and releases the player and sends the Stopped report then. The screen leaves at
- * ON_STOP, or already at ON_PAUSE when the activity is finishing (Back out of the app): Android stops a finishing
- * activity only once the next one is idle, up to 10 s later, and a backgrounded process can be killed before that, so
- * the picture and sound ran on over the launcher and the Stopped was late or never sent. A pause that is not a finish
- * (an overlay over the app) keeps playing.
+ * Live TV stops the moment the screen leaves (#431), inside the callback that says so, not when the cancelled sitting's
+ * teardown gets to it: [leave] stops and releases the player and sends the Stopped report then. The screen leaves:
+ * - at ON_STOP;
+ * - at the activity's user-leave hint (Home, recents), which comes before its pause;
+ * - at ON_PAUSE when the activity is finishing (Back out of the app).
+ *
+ * Android stops a screen that was left only once the next one is idle, up to 10 s later, and a backgrounded process
+ * can be killed before that, so the picture and sound ran on over the launcher and the Stopped was late or never sent.
+ * A pause with neither a hint nor a finish (a system overlay such as the voice search) keeps playing. [resumed] is
+ * called at ON_START and ON_RESUME: a screen resumed without a start may be back from Home before it was ever stopped,
+ * with no sitting running.
  */
 @Composable
 private fun LeaveAtOnce(
     owner: LifecycleOwner,
     leave: () -> Unit,
+    resumed: (Lifecycle.Event) -> Unit,
 ) {
     val leaving by rememberUpdatedState(leave)
+    val resuming by rememberUpdatedState(resumed)
     val activity = LocalContext.current.findActivity()
     DisposableEffect(owner, activity) {
         val observer =
             LifecycleEventObserver { _, event ->
                 val finishing = event == Lifecycle.Event.ON_PAUSE && activity?.isFinishing == true
                 if (event == Lifecycle.Event.ON_STOP || finishing) leaving()
+                if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) resuming(event)
             }
+        val hint = Runnable { leaving() }
+        val hints = activity as? OnUserLeaveHintProvider
         owner.lifecycle.addObserver(observer)
-        onDispose { owner.lifecycle.removeObserver(observer) }
+        hints?.addOnUserLeaveHintListener(hint)
+        onDispose {
+            owner.lifecycle.removeObserver(observer)
+            hints?.removeOnUserLeaveHintListener(hint)
+        }
     }
 }
 

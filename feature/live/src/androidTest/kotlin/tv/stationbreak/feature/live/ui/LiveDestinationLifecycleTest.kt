@@ -240,6 +240,63 @@ class LiveDestinationLifecycleTest {
         assertEquals(1, log.count { it == "release#1" })
     }
 
+    /** Home (or recents): the activity is told the user is leaving, before its pause. */
+    private fun userLeaves() {
+        compose.activityRule.scenario.onActivity {
+            InstrumentationRegistry.getInstrumentation().callActivityOnUserLeaving(it)
+        }
+    }
+
+    @Test
+    fun homeReleasesThePlayerWithinTheUserLeaveHint() {
+        // #431: Home is a user-leave hint, then a pause; Fire OS stops the screen only seconds later.
+        show(viewModel())
+        awaitLog("create#1")
+        var atHint = emptyList<String>()
+        compose.activityRule.scenario.onActivity {
+            InstrumentationRegistry.getInstrumentation().callActivityOnUserLeaving(it)
+            atHint = log.toList()
+        }
+        assertEquals(RELEASED, atHint)
+        awaitLog("close")
+        assertEquals(RELEASED + "close", log.toList())
+    }
+
+    @Test
+    fun backFromHomeBeforeTheScreenStoppedStartsANewSitting() {
+        show(viewModel())
+        awaitLog("create#1")
+        userLeaves()
+        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        awaitLog("attach(surface)#2")
+        assertEquals(1, log.count { it == "release#1" })
+        assertEquals(1, log.count { it.startsWith("create#") && it != "create#1" })
+    }
+
+    @Test
+    fun aPauseWithoutTheHintKeepsPlaying() {
+        // A system overlay (the voice search) pauses the screen with no hint: live TV plays on, and no second sitting
+        // starts when it goes.
+        show(viewModel())
+        awaitLog("create#1")
+        pauseOnly()
+        compose.waitForIdle()
+        resumeOnly()
+        compose.waitForIdle()
+        assertEquals(listOf("create#1", "attach(surface)#1"), log.toList())
+    }
+
+    /**
+     * A pause with no other activity started and no user-leave hint, as a system overlay window gives. The scenario's
+     * own move to STARTED starts a floating activity on top, and that start is itself a user-leave hint.
+     */
+    private fun pauseOnly() = compose.activityRule.scenario.onActivity { instrumentation().callActivityOnPause(it) }
+
+    private fun resumeOnly() = compose.activityRule.scenario.onActivity { instrumentation().callActivityOnResume(it) }
+
+    private fun instrumentation() = InstrumentationRegistry.getInstrumentation()
+
     @Test
     fun comingBackMakesANewPlayer() {
         show(viewModel())
@@ -261,9 +318,10 @@ class LiveDestinationLifecycleTest {
         show(vm)
         awaitLog("create#1")
         compose.runOnIdle { vm.openGuide(0L) }
-        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        pauseOnly()
         compose.waitUntil(WAIT_MS) { !vm.guideOpen.value }
         assertTrue("still watching: paused is not stopped", "release#1" !in log)
+        resumeOnly()
     }
 
     // Live TV with a guide slot that records each showing: "start@<opened at>" and "end".

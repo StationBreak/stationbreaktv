@@ -7,10 +7,12 @@ import android.util.Log
 import android.view.SurfaceView
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -170,38 +172,92 @@ internal class LiveViewModel
          * the sitting unwinds. Nothing when no sitting runs; a second call does nothing.
          */
         fun leave() {
-            period?.leave()
+            val running = period ?: return
+            running.leave()
+            restartWanted = true
         }
+
+        // Set by a leave, cleared when a sitting starts: a screen resumed without being stopped (back from Home before
+        // Fire OS stopped it) has no sitting, and must start one.
+        @Volatile
+        private var restartWanted = false
+
+        /** True, once, when a [leave] ended the last sitting and none has started since. */
+        fun takeRestart(): Boolean = restartWanted.also { restartWanted = false }
 
         /**
          * One STARTED period: makes the player, shows it on [surface], runs the live channel, and on the way out
          * closes the tuner, then detaches and releases the player. When the session ends that is the order
          * (ADR-0016, 5); when the screen leaves, [leave] has already stopped, detached and released the player, and the
-         * close only ends the server's encode. Returns when the session ends; otherwise runs until cancelled. The guide
-         * closes with it, so live TV comes back from Home or standby on the picture.
+         * close only ends the server's encode. Returns when the session ends or the screen left ([leave]); otherwise
+         * runs until cancelled. The guide closes with it, so live TV comes back from Home or standby on the picture.
          */
         suspend fun sit(
             context: Context,
             surface: SurfaceView,
             tuners: TunerFactory = controllers,
-        ) = guide.whileSitting { sitting(context, surface, tuners) }
+        ) = sit({ players.create(context, SystemClock::elapsedRealtime) }, surface, tuners) { Log.i(LOG_TAG, it) }
 
-        private suspend fun sitting(
-            context: Context,
-            surface: SurfaceView,
+        /**
+         * [sit] with its Android parts passed in, so a JVM test can run a sitting: [makePlayer] makes the period's
+         * player, [surface] is what it shows on (null: none) and [log] takes the logcat lines.
+         */
+        internal suspend fun sit(
+            makePlayer: () -> VideoPlayer,
+            surface: SurfaceView?,
             tuners: TunerFactory,
+            log: (String) -> Unit,
+        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, log) }
+
+        @Suppress("SwallowedException") // The period's own cancel ends it; a cancel of the caller is rethrown.
+        private suspend fun sitting(
+            makePlayer: () -> VideoPlayer,
+            surface: SurfaceView?,
+            tuners: TunerFactory,
+            log: (String) -> Unit,
         ) {
+            restartWanted = false
             val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
             val session = sessions.current.value
-            drainStalePresses(commands, before, session == null) { Log.i(LOG_TAG, it) }
+            drainStalePresses(commands, before, session == null, log)
             if (session == null) {
                 shown.value = LiveState.SignedOut
                 return
             }
-            val made = players.create(context, SystemClock::elapsedRealtime)
-            val running = LivePeriod(made, currentCoroutineContext().job)
+            var ended = false
+            try {
+                // Its own scope, so a leave cancels this period and never the caller's job.
+                coroutineScope {
+                    val running = LivePeriod(makePlayer(), coroutineContext.job)
+                    ended = period(running, session, surface, tuners, log)
+                }
+            } catch (e: CancellationException) {
+                // The leave cancelled the period: the sitting is over and the caller carries on. A cancel of the caller
+                // itself goes on up.
+                currentCoroutineContext().ensureActive()
+                return
+            }
+            // As everywhere else, the rejected session and its account's cached library go together; only then does
+            // the screen learn it, because it navigates away at once and a cancelled sitting would skip the cleanup.
+            if (ended) {
+                publishAfterCleanup(
+                    { sessions.onServerError(MediaServerError.SessionExpired(), session) },
+                    { shown.value = LiveState.SignedOut },
+                )
+            }
+        }
+
+        /** Runs [running]'s live channel until the session ends (true) or it is cancelled, then tears it down. */
+        @Suppress("LongParameterList") // The period, its session and the sitting's Android parts.
+        private suspend fun period(
+            running: LivePeriod,
+            session: Session,
+            surface: SurfaceView?,
+            tuners: TunerFactory,
+            log: (String) -> Unit,
+        ): Boolean {
             period = running
             val player = running.player
             var tuner: TunePort? = null
@@ -219,7 +275,7 @@ internal class LiveViewModel
                         library,
                         channels,
                         clock,
-                        report = { Log.i(LOG_TAG, it.line()) },
+                        report = { log(it.line()) },
                         server = server,
                         details = details,
                     ).also {
@@ -247,14 +303,7 @@ internal class LiveViewModel
                     player.release()
                 }
             }
-            // As everywhere else, the rejected session and its account's cached library go together; only then does
-            // the screen learn it, because it navigates away at once and a cancelled sitting would skip the cleanup.
-            if (ended) {
-                publishAfterCleanup(
-                    { sessions.onServerError(MediaServerError.SessionExpired(), session) },
-                    { shown.value = LiveState.SignedOut },
-                )
-            }
+            return ended
         }
     }
 
