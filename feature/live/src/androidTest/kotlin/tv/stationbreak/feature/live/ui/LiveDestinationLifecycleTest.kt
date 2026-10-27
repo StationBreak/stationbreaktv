@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.SurfaceView
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +14,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
@@ -229,6 +233,46 @@ class LiveDestinationLifecycleTest {
     }
 
     @Test
+    fun guideKeyCloseThenBackReopenGivesTheGuideTwoShowings() {
+        // The device's path: Back opens the guide, the Guide key closes it, Back opens it again 3 s later. Each showing
+        // of the slot is one guide session: two starts, one end, and the second opening at a later time.
+        val showings = CopyOnWriteArrayList<String>()
+        val vm = viewModel()
+        compose.setContent {
+            StationBreakTheme {
+                LiveRoot(vm, {}, guide = { _, openedAtNanos, _, _ ->
+                    DisposableEffect(openedAtNanos) {
+                        showings += "start@$openedAtNanos"
+                        onDispose { showings += "end" }
+                    }
+                }) { _, _ -> RecordingTuner() }
+            }
+        }
+        awaitLog("create#1")
+        compose.waitForIdle()
+        tap(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(WAIT_MS) { vm.guideOpen.value }
+        tap(KeyEvent.KEYCODE_GUIDE)
+        compose.waitUntil(WAIT_MS) { !vm.guideOpen.value }
+        compose.waitForIdle()
+        Thread.sleep(REOPEN_AFTER_MS)
+        tap(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(WAIT_MS) { vm.guideOpen.value }
+        compose.waitForIdle()
+        assertEquals(listOf("start", "end", "start"), showings.map { it.substringBefore('@') })
+        assertTrue(showings.toString(), showings[0] != showings[2])
+    }
+
+    private fun tap(code: Int) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val at = SystemClock.uptimeMillis()
+        instrumentation.sendKeySync(KeyEvent(at, at, KeyEvent.ACTION_DOWN, code, 0))
+        compose.waitForIdle()
+        instrumentation.sendKeySync(KeyEvent(at, at + PRESS_MS, KeyEvent.ACTION_UP, code, 0))
+        compose.waitForIdle()
+    }
+
+    @Test
     fun theScreenStaysOnWhileShownAndStartedAndNotAfter() {
         var shown by mutableStateOf(true)
         var host: View? = null
@@ -255,5 +299,7 @@ class LiveDestinationLifecycleTest {
 
     private companion object {
         const val WAIT_MS = 10_000L
+        const val REOPEN_AFTER_MS = 3_000L
+        const val PRESS_MS = 50L
     }
 }

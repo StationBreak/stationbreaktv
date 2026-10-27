@@ -12,6 +12,8 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
@@ -124,7 +126,14 @@ class GuideScreenTest {
         fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
     }
 
-    private fun show(current: ChannelId?) {
+    // Whether live TV shows the guide, and when it last opened it; a test changes them to close and open again.
+    private val showing = mutableStateOf(true)
+    private val openedAt = mutableLongStateOf(1L)
+
+    private fun show(
+        current: ChannelId?,
+        measure: Boolean = false,
+    ) {
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
         vm = GuideViewModel(schedule, cache, clock, work)
         compose.setContent {
@@ -139,7 +148,16 @@ class GuideScreenTest {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
                     // guide left alone would be spent moving the focus back out to the root.
                     Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                        GuideRoot(vm, current, pictureHole = null, onTune = { tuned += it })
+                        if (showing.value) {
+                            GuideRoot(
+                                vm,
+                                current,
+                                pictureHole = null,
+                                onTune = { tuned += it },
+                                openedAtNanos = openedAt.longValue,
+                                measure = measure,
+                            )
+                        }
                     }
                 }
             }
@@ -147,9 +165,12 @@ class GuideScreenTest {
         compose.waitForIdle()
     }
 
-    private fun showReady(current: ChannelId?) {
+    private fun showReady(
+        current: ChannelId?,
+        measure: Boolean = false,
+    ) {
         lineup()
-        show(current)
+        show(current, measure)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
     }
@@ -237,6 +258,37 @@ class GuideScreenTest {
         compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
         // The neighbour it used to float over is still there to read.
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(75)), useUnmergedTree = true).assertExists()
+    }
+
+    // Far right on channel 7, then the guide closed: what a reopen must not come back to.
+    private fun scrollFarRight() {
+        repeat(6) { press(Key.DirectionRight) }
+        cell(CH7, 240).assertIsSelected()
+    }
+
+    private fun assertFreshOpen() {
+        compose.waitUntil(TIMEOUT_MS) {
+            vm.snapshot.value.focus
+                ?.cellStartMs == min(60)
+        }
+        compose.waitForIdle()
+        cell(CH7, 60).assertIsSelected()
+        assertEquals(min(60), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+    }
+
+    @Test
+    fun reopeningSecondsAfterAGuideKeyCloseStartsFresh() {
+        // As on the device: the measured build, the guide closed (the Guide key) and opened again (Back) 3 s later.
+        showReady(CH7, measure = true)
+        scrollFarRight()
+        compose.runOnIdle { showing.value = false }
+        compose.waitForIdle()
+        Thread.sleep(REOPEN_AFTER_MS)
+        compose.runOnIdle {
+            openedAt.longValue = 2L
+            showing.value = true
+        }
+        assertFreshOpen()
     }
 
     @Test
@@ -422,5 +474,6 @@ class GuideScreenTest {
         const val PRESS_MS = 50L
         const val BODY = "body"
         const val TICK_TIMEOUT_MS = 20_000L
+        const val REOPEN_AFTER_MS = 3_000L
     }
 }

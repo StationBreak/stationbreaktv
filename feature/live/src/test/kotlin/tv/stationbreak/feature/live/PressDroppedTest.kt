@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.feature.live.ui.OverlayUp
 import tv.stationbreak.feature.live.ui.drainStalePresses
 import tv.stationbreak.feature.live.ui.keyLogLine
 import tv.stationbreak.feature.live.ui.liveKeyLine
@@ -114,13 +115,28 @@ class PressDroppedTest {
     }
 
     @Test
-    fun onlyAMappedKeysDownIsLogged() {
+    fun onlyTheDownOfAKeyThatActsIsLogged() {
         val state = LiveState.NoChannels
         assertEquals(
             "key code=19 action=down repeat=0 handled=true state=NoChannels",
             keyLogLine(KeyEventType.KeyDown, Key.DirectionUp, 19, 0, true, state),
         )
         assertNull(keyLogLine(KeyEventType.KeyUp, Key.DirectionUp, 19, 0, true, state))
-        assertNull(keyLogLine(KeyEventType.KeyDown, Key.Back, 4, 0, false, state))
+        // Back with the guide open is the activity's (it leaves live TV): live TV does nothing with it.
+        assertNull(keyLogLine(KeyEventType.KeyDown, Key.Back, 4, 0, false, state, OverlayUp(guide = true)))
+    }
+
+    @Test
+    fun theKeysThatOpenAndCloseTheGuideAreLogged() {
+        // So a device run shows whether the Guide key reached the app at all (Fire OS may take it).
+        val state = LiveState.NoChannels
+        assertEquals(
+            "key code=4 action=down repeat=0 handled=true state=NoChannels",
+            keyLogLine(KeyEventType.KeyDown, Key.Back, 4, 0, true, state),
+        )
+        assertEquals(
+            "key code=172 action=down repeat=0 handled=true state=NoChannels",
+            keyLogLine(KeyEventType.KeyDown, Key.Guide, 172, 0, true, state, OverlayUp(guide = true)),
+        )
     }
 }
