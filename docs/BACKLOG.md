@@ -199,7 +199,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - 🧪 Generation is deterministic: the same server, catalog version and library give the same lineup, numbers and seeds. The default seed of a starter channel is `splitmix64(fnv1a64(bytes))`, where the bytes are the 32 ASCII characters of the server ID, `0x00`, the kind `recipe`, `0x00`, and the recipe key. The channel's own ID and its other rules are never inputs. It is written into the rules the app generates ([rules format](rules-format.md#seed), `core:rules` `AutoSeed`). The `library`, `genre` and `collection` kinds stay in the format; nothing the app ships uses them yet.
 - 🧪 A channel whose pool for the current day is empty (the evaluator's pool after the scheduler's per-day filter) is hidden from the guide and from flipping, kept in channel management with the reason from `PoolCounts`, and comes back by itself when it has items again. This is separate from a user's hide (S2.4.1). Decision, 2026-10-19: [#299](https://github.com/StationBreak/stationbreaktv/issues/299).
 - 🧪 Building a day's channels makes one `ruleSnapshot` call per distinct cut-off and no `scheduleItems` call ([#275](https://github.com/StationBreak/stationbreaktv/issues/275)).
-- 🧪 No screen is built yet: the guide (F2.1), banner (F2.2), builder (F2.3) and channel management and shelf (F2.4) read the lineup from `ChannelRepository` and the built-in `ScheduleSource` when they arrive.
+- 🧪 The guide (F2.1) and banner (F2.2) are built (spec 17) and read the lineup from `ChannelRepository` and the built-in `ScheduleSource`. The builder (F2.3) and channel management and shelf (F2.4) will do the same when they arrive.
 - 📺 Performance, tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309) and **to land before F1.3**: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50 channels. Both are over the 5 s target, and every launch refreshes twice.
 
 **S1.2.2** As the engine, I need rule evaluation against the cache so that channel membership is correct.
@@ -248,10 +248,10 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 
 **S1.4.3** As a viewer, I want a "previous channel" toggle so that I can jump between two channels.
 
-📺 **Menu half built 2026-10-24, device check pending** (spec 15, PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390) and PR [#391](https://github.com/StationBreak/stationbreaktv/pull/391)). The banner action waits for F2.2.
+📺 **Menu half built 2026-10-24** (spec 15, PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390) and PR [#391](https://github.com/StationBreak/stationbreaktv/pull/391)). **Banner "Last" action built 2026-10-26** (spec 17, PR [#419](https://github.com/StationBreak/stationbreaktv/pull/419)); device check done.
 - 📺 The now/next banner (opened with Select) offers a **"Last: <channel>"** action that tunes the previous channel; pressing it again toggles back.
 - 📺 The **Menu (☰)** key is a one-press shortcut for the same toggle. Back is **not** used for it (Q-UX-2).
-- 📺 Back follows the platform convention: it closes an open overlay or the guide first, then leaves live TV.
+- 📺 Back follows the platform convention (Q-UX-2): it closes an open overlay (the banner, Info) first. From the full-screen show it then opens the guide, and Back in the guide leaves live TV. The tune banner never blocks input.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
 
@@ -296,21 +296,30 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 ## F2.1 Grid guide (M)
 
 **S2.1.1** As a viewer, I want a grid guide showing ≥ 6 hours ahead so that I can see what's coming.
+
+📺 **Built 2026-10-27** (spec 17, PRs [#418](https://github.com/StationBreak/stationbreaktv/pull/418), [#426](https://github.com/StationBreak/stationbreaktv/pull/426), [#439](https://github.com/StationBreak/stationbreaktv/pull/439) and [#443](https://github.com/StationBreak/stationbreaktv/pull/443)). Device checks 1, 1b and 2 are done on the Insignia and the Firestick; results are in the [ADR-0008](adr/0008-guide-grid-spike.md) addendum. The older-hardware performance gate is still the owner's call. Open follow-ups: [#430](https://github.com/StationBreak/stationbreaktv/issues/430) (held Up/Down is too fast, and a tune can start during the hold), [#431](https://github.com/StationBreak/stationbreaktv/issues/431) (Back out keeps the player running), [#438](https://github.com/StationBreak/stationbreaktv/issues/438) (VoiceView re-reads with the guide open), [#442](https://github.com/StationBreak/stationbreaktv/issues/442) (C2 leftovers).
 - 📺 Rows are channels, columns are time in 30-minute slots, with a "now" line. Program cells are proportional to duration.
 - 📺 D-pad navigation: Up/Down moves between channels, Left/Right moves through programs in time. Focus never gets lost or jumps to an off-screen cell.
-- 📺 Select on a current program tunes to that channel. Select on a future program shows its info (reminders: see Q-UX-3).
+- 📺 Select on a program airing now changes to that channel and closes the guide. Select on the channel already playing closes the guide without retuning. Select on a later program opens Info. Reminders are out of v1 (Q-UX-3). Menu pressed during a guide tune wins: the pending tune is superseded. A Select before the first channel is on air is dropped.
 - 🧪 Guide data comes from materialised ScheduleBlocks (S1.1.4), never computed on the UI thread.
-- 🧪 Built from standard Compose lists with app-owned scrolling: one shared horizontal offset applied to all rows, and focus moves drive the scroll ([ADR-0008](adr/0008-guide-grid-spike.md)).
+- 🧪 Built with app-owned scrolling: one shared horizontal offset applied to all rows, and the guide model owns focus and moves it on each key press. It uses a plain `Column` of rows with a custom layout per row, not standard Compose lists ([ADR-0008](adr/0008-guide-grid-spike.md), addendum). Laid out left-to-right only for now.
 
 **S2.1.2** As a viewer, I want to open the guide from live TV without losing the picture so that it feels like cable.
-- 📺 The guide opens over the live video (picture continues, either as a PIP corner or behind a translucent overlay, see Q-UX-4). Back returns to full screen on the same channel without re-tuning.
+
+📺 **Built 2026-10-27** (spec 17, PRs [#426](https://github.com/StationBreak/stationbreaktv/pull/426), [#439](https://github.com/StationBreak/stationbreaktv/pull/439) and [#443](https://github.com/StationBreak/stationbreaktv/pull/443)); device checks 1, 1b and 2 done on both TVs. Open: [#445](https://github.com/StationBreak/stationbreaktv/issues/445) (Info overlaps the corner picture on smaller screens).
+- 📺 Back from the full-screen show opens the guide over the live video. The picture continues in a corner window at the top right (Q-UX-4), with the details panel top-left and the grid below. It is the same video surface as full screen, so there is no re-tune. Back in the guide leaves live TV (Q-UX-2).
+- 📺 The Guide key reaches the app on the Fire TV Stick but not on the older Fire TV, where Fire OS opens Amazon's own Live TV guide. Back and Select are the paths (A-DEV-2).
 
 ## F2.2 Now/next banner & info overlay (M)
 
 **S2.2.1** As a viewer, I want a banner on every tune showing channel, now, and next so that I know what I'm watching.
-- 📺 The banner appears for ~4 s on tune or on an info key press. It shows channel number/name/logo, the current title (with S/E for episodes), a progress bar, and the next title + start time.
+
+📺 **Built 2026-10-26** (spec 17, PR [#419](https://github.com/StationBreak/stationbreaktv/pull/419)); device check done. Channel names are text only (no logos) in v1.
+- 📺 The banner appears for ~4 s on tune or on an info key press. It shows channel number and name (text only, no logo), the current title (with S/E for episodes), a progress bar, and the next title + start time.
 
 **S2.2.2** As a viewer, I want an info overlay with the description so that I can decide whether to stay.
+
+📺 **Built 2026-10-26** (spec 17, PRs [#418](https://github.com/StationBreak/stationbreaktv/pull/418), [#419](https://github.com/StationBreak/stationbreaktv/pull/419) and [#426](https://github.com/StationBreak/stationbreaktv/pull/426)); device check done. In the guide, Select on a later program opens Info, and Info shows the description.
 - 📺 Select (or the Info key) during playback opens the overview, year, genres, and runtime.
 
 ## F2.3 Custom channel builder (M)
@@ -337,7 +346,7 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 ## F2.5 Large-library performance (M)
 
 **S2.5.1** As a user with 10k+ items and 50+ channels, I want the guide to stay smooth so that the app feels premium on a budget stick.
-- 🧪 A macrobenchmark on the Insignia (or the closest emulator profile) runs: guide open → first frame < 1.0 s, and a vertical scroll over 50 channels with no scenario more than **20% worse** than the SP-2 baseline on p90 or p99 frame time, or on missed vsyncs. The baseline scenarios are stepping and held-key scrolling, vertical, horizontal and mixed ([ADR-0008](adr/0008-guide-grid-spike.md)). It's a starting point that can be tightened later. Janky % isn't used: SP-2 showed that stepping at a steady ~30 fps, which looks smooth, counts as 85–100% janky on the Insignia ([ADR-0008](adr/0008-guide-grid-spike.md)).
+- 🧪 A macrobenchmark on the Insignia (or the closest emulator profile) runs: guide open → first frame < 1.0 s, and a vertical scroll over 50 channels with no scenario more than **20% worse** than the SP-2 baseline on p90 or p99 frame time, or on missed vsyncs. The baseline scenarios are stepping and held-key scrolling, vertical, horizontal and mixed ([ADR-0008](adr/0008-guide-grid-spike.md)). It's a starting point that can be tightened later. On the older Fire TV this gate is the owner's call and still open ([ADR-0008](adr/0008-guide-grid-spike.md) addendum). Janky % isn't used: SP-2 showed that stepping at a steady ~30 fps, which looks smooth, counts as 85–100% janky on the Insignia ([ADR-0008](adr/0008-guide-grid-spike.md)).
 - 🧪 A Baseline Profile covering the guide is generated in CI and shipped in the release build. It's required: compilation state was the largest factor in SP-2.
 - 🧪 Room queries for the guide window are indexed (`channelId, startTime`) and verified with `EXPLAIN QUERY PLAN` in a test.
 
