@@ -149,8 +149,8 @@ internal data class CellMarks(
  * One cell, placed by time from the origin. It reads only whether it is the focused cell (derived from [focusOf] by
  * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
  * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the ring and the
- * chevrons). Fill, ring, slate dashes and chevrons are drawn; nothing animates or scales. A compact cell writes nothing,
- * focused or not: the details panel names the focused cell.
+ * chevrons). Fill, ring, slate dashes and chevrons are drawn; nothing animates or scales. A compact cell writes
+ * nothing, focused or not: the details panel names the focused cell.
  */
 @Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
 @Composable

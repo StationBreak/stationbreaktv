@@ -255,7 +255,8 @@ class GuideViewModelTest : GuideRig() {
     @Test
     fun aVerticalMoveMinutesAfterOpeningLandsOnWhatIsOnNow() =
         guideTest { vm ->
-            // Channel 9's program from 0 to 75 is on the grid (from 60) after it ends; at 80 the one on now began at 75.
+            // Channel 9's program from 0 to 75 stays on the grid (from 60) after it ends; at 80 the one on now
+            // began at 75.
             fake.channel(CH9, 9, listOf(program(0, 75, 300), program(75, 600, 301)))
             vm.open(CH7)
             runCurrent()
