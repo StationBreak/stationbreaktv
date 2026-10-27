@@ -49,7 +49,9 @@ internal class GuideSwitch {
 
     /**
      * Runs one sitting of live TV and closes the guide when it ends, however it ends: Home or standby stops the
-     * sitting, and live TV comes back on the picture, not on a guide left open from before.
+     * sitting, and live TV comes back on the picture, not on a guide left open from before. The screen closes the
+     * guide earlier still, when it is paused: Fire OS can stop a screen seconds after leaving it, and a viewer back
+     * within them must not find the old guide. This close is the backstop.
      */
     suspend fun whileSitting(sitting: suspend () -> Unit) {
         try {

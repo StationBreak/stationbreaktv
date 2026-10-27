@@ -113,7 +113,10 @@ internal class LiveViewModel
 
         private val guide = GuideSwitch()
 
-        /** The program guide (spec 17) is open over the picture. Closed when the screen stops. */
+        /**
+         * The program guide (spec 17) is open over the picture. Closed as soon as the screen is paused (it leaves the
+         * foreground: the screen closes it), and again when the screen stops, should the pause have been missed.
+         */
         val guideOpen: StateFlow<Boolean> = guide.shown
 
         /** The channel that was playing when the guide last opened: the guide opens with focus on it. */
