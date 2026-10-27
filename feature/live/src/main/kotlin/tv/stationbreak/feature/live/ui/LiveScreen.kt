@@ -4,16 +4,16 @@ package tv.stationbreak.feature.live.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.height
@@ -71,9 +71,17 @@ private fun pictureCorner(screen: DpSize): DpRect = ScreenLayout.pictureRect(Scr
 
 /**
  * Exactly [rect] of the parent, which starts at the screen's top-left. Absolute: the corner is the same top-right in a
- * right-to-left layout, as the guide's hole is.
+ * right-to-left layout, as the guide's hole is. The element takes the parent's whole size and places its content at
+ * [rect] itself, so the parent's alignment (start, which a right-to-left layout mirrors) cannot move it; an offset
+ * alone would be added to that mirrored place.
  */
-private fun Modifier.inRect(rect: DpRect): Modifier = absoluteOffset(rect.left, rect.top).size(rect.width, rect.height)
+private fun Modifier.inRect(rect: DpRect): Modifier =
+    layout { measurable, constraints ->
+        val content = measurable.measure(Constraints.fixed(rect.width.roundToPx(), rect.height.roundToPx()))
+        val x = rect.left.roundToPx()
+        val y = rect.top.roundToPx()
+        layout(constraints.maxWidth, constraints.maxHeight) { content.place(x, y) }
+    }
 
 /**
  * What live TV shows in the guide's corner for [state] when there is no picture to show: snow while tuning, the cards

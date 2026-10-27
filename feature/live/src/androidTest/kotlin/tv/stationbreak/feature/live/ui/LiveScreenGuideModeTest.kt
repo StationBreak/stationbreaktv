@@ -60,7 +60,7 @@ class LiveScreenGuideModeTest {
         compose.setContent {
             StationBreakTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides direction) {
-                    Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp)) {
+                    Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).testTag(HOST)) {
                         LiveScreen(
                             shown.value,
                             info,
@@ -81,7 +81,13 @@ class LiveScreenGuideModeTest {
         compose.waitForIdle()
     }
 
-    private fun SemanticsNodeInteraction.bounds(): DpRect = getBoundsInRoot()
+    // In the screen's own coordinates: the host is a 960 x 540 dp screen wherever the test device places it (a
+    // right-to-left layout puts it at the device's right edge).
+    private fun SemanticsNodeInteraction.bounds(): DpRect {
+        val host = compose.onNodeWithTag(HOST).getBoundsInRoot()
+        val node = getBoundsInRoot()
+        return DpRect(node.left - host.left, node.top - host.top, node.right - host.left, node.bottom - host.top)
+    }
 
     private fun assertRect(
         expected: DpRect,
@@ -165,5 +171,6 @@ class LiveScreenGuideModeTest {
         const val START = 1_800_000_000_000L
         const val GUIDE = "test:guide"
         const val SURFACE = "test:surface"
+        const val HOST = "test:host"
     }
 }
