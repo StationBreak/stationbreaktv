@@ -12,9 +12,9 @@ import tv.stationbreak.feature.live.LiveCommand
 
 /**
  * A key held down auto-repeats: more downs with a rising repeat count, then one up. The repeats belong to the press the
- * screen took, so they are consumed, and only a flip runs again (holding Up keeps flipping). Anything else would redo a
- * step the press already took: open the info a second time, close the banner under the overlay Back just closed, or
- * toggle back and forth between two channels.
+ * screen took, so they are consumed, and only a flip runs again (holding Up keeps flipping), marked as a repeat.
+ * Anything else would redo a step the press already took: open the info a second time, close the banner under the
+ * overlay Back just closed, or toggle back and forth between two channels.
  */
 class HeldKeyRepeatTest {
     private val sent = mutableListOf<LiveCommand>()
@@ -83,7 +83,10 @@ class HeldKeyRepeatTest {
         assertTrue(release(Key.DirectionDown, OverlayUp.None))
         val up = LiveCommand.Flip(FlipDirection.Up)
         val down = LiveCommand.Flip(FlipDirection.Down)
-        assertEquals(listOf<LiveCommand>(up, up, down, down), sent)
+        // The repeats are marked, so the machine steps them at the held-key rate (#430), not at the remote's.
+        val upAgain = up.copy(repeat = true)
+        val downAgain = down.copy(repeat = true)
+        assertEquals(listOf<LiveCommand>(up, upAgain, down, downAgain), sent)
     }
 
     @Test
@@ -91,7 +94,8 @@ class HeldKeyRepeatTest {
         down(Key.ChannelUp, 0, OverlayUp.None)
         down(Key.ChannelUp, 1, OverlayUp.None)
         down(Key.ChannelUp, 2, OverlayUp.None)
-        assertEquals(List(3) { LiveCommand.Flip(FlipDirection.Up) }, sent)
+        val up = LiveCommand.Flip(FlipDirection.Up)
+        assertEquals(listOf(up, up.copy(repeat = true), up.copy(repeat = true)), sent)
     }
 
     @Test

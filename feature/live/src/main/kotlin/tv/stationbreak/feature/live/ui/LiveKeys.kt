@@ -92,17 +92,20 @@ private fun keyAction(
 
 /**
  * The command a key sends the machine on the live screen (spec 15), or null when it sends none. Key-down only,
- * auto-repeat included, so holding Up or Down keeps flipping. Up/Down and the remote's CH+/CH- flip, Menu goes to the
- * previous channel, Select brings the actions banner and Info the program's info (spec 17). Back sends only while [up]
- * says an overlay is open (otherwise it opens the guide, which is no command); the media next/previous keys are kept
- * for pause and skip. With the guide open nothing is sent.
+ * auto-repeat included, so holding Up or Down keeps flipping; a repeat's flip is marked as one, and the machine steps
+ * those at its held-key rate (#430). Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel, Select
+ * brings the actions banner and Info the program's info (spec 17). Back sends only while [up] says an overlay is open
+ * (otherwise it opens the guide, which is no command); the media next/previous keys are kept for pause and skip. With
+ * the guide open nothing is sent.
  */
 internal fun liveKeyCommand(
     event: KeyEvent,
     up: OverlayUp = OverlayUp.None,
 ): LiveCommand? {
     if (event.type != KeyEventType.KeyDown) return null
-    return mappedCommand(event.key, up)
+    val command = mappedCommand(event.key, up)
+    val repeat = event.nativeKeyEvent.repeatCount > 0
+    return if (command is LiveCommand.Flip && repeat) command.copy(repeat = true) else command
 }
 
 /**
@@ -198,8 +201,9 @@ internal fun handleLiveKey(
 
 /**
  * An auto-repeat down of [key]: part of a press already judged, never a new one. The repeats of a consumed press are
- * consumed and send again only when it flipped; those of a press that passed through pass too; and those of a press
- * whose first down never came here are consumed and do nothing.
+ * consumed and send again only when it flipped, marked as repeats so the machine steps at the held-key rate (#430);
+ * those of a press that passed through pass too; and those of a press whose first down never came here are consumed
+ * and do nothing.
  */
 private fun handleRepeat(
     key: Key,
@@ -207,7 +211,8 @@ private fun handleRepeat(
     send: (LiveCommand) -> Unit,
 ): Boolean {
     val press = held.consumedPress(key)
-    if (press is KeyAction.Send && press.command is LiveCommand.Flip) send(press.command)
+    val command = (press as? KeyAction.Send)?.command
+    if (command is LiveCommand.Flip) send(command.copy(repeat = true))
     return press != null || !held.passedThrough(key)
 }
 

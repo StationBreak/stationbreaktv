@@ -113,6 +113,10 @@ internal class Flipper(
     private var target: ChannelAiring? = null
     private var settling: Job? = null
 
+    // The last step's settle, to start again from a later time while its key is held; and the held key's pace.
+    private var settleAgain: (suspend (pressedAt: Instant) -> Unit)? = null
+    private val held = HeldFlip(timings.flipRepeatDelay, timings.flipRepeatEvery)
+
     // Presses made while there was no lineup to step through, and the read being made for them.
     private val queued = ArrayList<Pair<FlipDirection, Instant>>()
     private var reading: Job? = null
@@ -215,7 +219,7 @@ internal class Flipper(
             try {
                 overlay(command)
                 when (command) {
-                    is LiveCommand.Flip -> press(command.direction)
+                    is LiveCommand.Flip -> flip(command)
                     LiveCommand.Previous -> recall()
                     is LiveCommand.Tune -> tune(command.channel)
                     LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
@@ -233,8 +237,31 @@ internal class Flipper(
     private val onScreen: Boolean
         get() = screen.value.let { it != LiveState.NoChannels && it != LiveState.SignedOut }
 
-    private fun press(direction: FlipDirection) {
+    /**
+     * A press steps at once. A held key's repeat steps only when [held] says it is due; between steps it only starts
+     * the settle again, so the channel is not tuned while the key is down (as when every repeat stepped).
+     */
+    private fun flip(command: LiveCommand.Flip) {
         val now = clock.now()
+        when {
+            !command.repeat -> held.press(now)
+            !held.repeatSteps(now) -> return holdOn(now)
+        }
+        press(command.direction, now)
+    }
+
+    /** A held key between steps at [now]: a settle still waiting starts again from now, on the same channel. */
+    private fun holdOn(now: Instant) {
+        val again = settleAgain
+        if (settling?.isActive != true || again == null) return
+        settling?.cancel()
+        settling = scope.launch { again(now) }
+    }
+
+    private fun press(
+        direction: FlipDirection,
+        now: Instant,
+    ) {
         // Cancelled, not joined: the number must not wait for a commit's lookup to unwind.
         settling?.cancel()
         tuning?.cancel()
@@ -360,7 +387,9 @@ internal class Flipper(
         earlyShown = false
         target = next
         screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
-        settling = scope.launch { settle(steps, next, direction, pressedAt) }
+        val again: suspend (Instant) -> Unit = { at -> settle(steps, next, direction, at) }
+        settleAgain = again
+        settling = scope.launch { again(pressedAt) }
     }
 
     /** Waits out the settle after the last press at [pressedAt], then commits to [chosen]. */

@@ -5,9 +5,14 @@ import tv.stationbreak.core.model.ChannelId
 
 /** What the viewer asks of the live channel (spec 15, F1.4). The screen sends these; [LiveChannel.run] follows them. */
 sealed interface LiveCommand {
-    /** Move the channel number one step. One per key-down, auto-repeat included; the stop is what tunes. */
+    /**
+     * Move the channel number one step; the stop is what tunes. One per key-down, auto-repeat included: a [repeat] (a
+     * key held down) steps only at the held-key rate (`LiveTimings.flipRepeatDelay` and `flipRepeatEvery`, #430), and
+     * one between steps only keeps the settle from running out while the key is down.
+     */
     data class Flip(
         val direction: FlipDirection,
+        val repeat: Boolean = false,
     ) : LiveCommand
 
     /** The Menu key: back to the channel before this one, at once. Pressed again, it toggles back. */

@@ -24,6 +24,10 @@ import kotlin.time.Duration.Companion.seconds
  *   sitting re-anchors to the clock: long enough that a fault which repeats cannot spin the loop.
  * @property flipSettle how long after the last Up or Down press the channel the viewer stopped on is tuned (spec 15):
  *   long enough that a held key only moves the number, short enough to cost the flip little of its time budget.
+ * @property flipRepeatDelay how long a held Up or Down waits after its first step before it steps again (#430): the
+ *   pause of a cable box or TV, so a press that lingers moves one channel, not two.
+ * @property flipRepeatEvery how often a held Up or Down steps after that pause (#430): slow enough to read each channel
+ *   and let go on the one wanted, whatever rate the remote repeats at (about 20 a second on a Fire TV remote).
  * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
@@ -36,10 +40,14 @@ data class LiveTimings(
     val preResolveLead: Duration = 45.seconds,
     val crashBackoff: Duration = 5.seconds,
     val flipSettle: Duration = 400.milliseconds,
+    val flipRepeatDelay: Duration = 400.milliseconds,
+    val flipRepeatEvery: Duration = 250.milliseconds,
     val flipLogSize: Int = 50,
 ) {
     init {
         require(flipLogSize >= 1) { "At least one flip must be kept" }
         require(standInAttempts >= 1) { "At least one stand-in must be tried" }
+        require(flipRepeatDelay >= Duration.ZERO) { "flipRepeatDelay must not be negative" }
+        require(flipRepeatEvery > Duration.ZERO) { "flipRepeatEvery must be positive" }
     }
 }

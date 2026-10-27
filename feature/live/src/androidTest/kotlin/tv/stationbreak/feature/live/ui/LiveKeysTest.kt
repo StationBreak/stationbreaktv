@@ -193,9 +193,10 @@ class LiveKeysTest {
     }
 
     @Test
-    fun aHeldKeyFlipsOncePerRepeat() {
+    fun aHeldKeyFlipsOncePerRepeatMarkedAsARepeat() {
+        // The machine steps the repeats at its held-key rate (#430).
         val repeat = KeyEvent(android.view.KeyEvent(0, 0, ACTION_DOWN, KEYCODE_DPAD_UP, 3))
-        assertEquals(LiveCommand.Flip(FlipDirection.Up), liveKeyCommand(repeat))
+        assertEquals(LiveCommand.Flip(FlipDirection.Up, repeat = true), liveKeyCommand(repeat))
     }
 
     @Test
