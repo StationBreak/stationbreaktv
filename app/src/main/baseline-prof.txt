@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+#
+# The app's baseline profile, by hand: an interim until the generated one and its Macrobenchmark module (#416, F2.5).
+# AGP merges it with the libraries' own profiles into assets/dexopt/baseline.prof, and profileinstaller hands it to
+# ART, which compiles these methods ahead of time instead of interpreting them until the JIT gets to them. Broad on
+# purpose: the guide and live TV are most of the app, and the older TV has no time to spare on a first open.
+# Rules match only what R8 kept.
+
+# The app's own code: every screen, the guide's grid and panel, live TV, the schedule and the DI graph Hilt generates.
+HSPLtv/stationbreak/**;->**(**)**
+Ltv/stationbreak/**;
+
+# What the guide and live paths run on that ships no profile of its own (or only part of one).
+# Coroutines and flows: every state the guide and live TV publish.
+HSPLkotlinx/coroutines/**;->**(**)**
+Lkotlinx/coroutines/**;
+# The lineup and schedule codecs.
+HSPLkotlinx/serialization/**;->**(**)**
+Lkotlinx/serialization/**;
+# TV Material (its own profile covers only part of it): every Text on the guide.
+HSPLandroidx/tv/material3/**;->**(**)**
+Landroidx/tv/material3/**;
+# The player: live TV starts one on every tune.
+HSPLandroidx/media3/**;->**(**)**
+Landroidx/media3/**;
+# Hilt's runtime, and Room, which holds the library the schedule is built from.
+HSPLdagger/**;->**(**)**
+Ldagger/**;
+HSPLandroidx/room/**;->**(**)**
+Landroidx/room/**;
