@@ -194,6 +194,48 @@ class TuneCommandTest {
         }
 
     @Test
+    fun anEarlyPressHandedOnAndThenReplacedByAGuideTuneHasOneLine() =
+        runTest {
+            // A cold launch: the day build takes 20 s and a press waits for it. Once the sitting lands, the press is
+            // handed on to wait for a lineup read (slow, 10 s), and the guide's tune replaces it while it waits.
+            val r = Rig(this)
+            r.schedule.channel(CH2, 2, listOf(program(0, 600, 2)))
+            r.schedule.channel(CH5, 5, listOf(program(0, 600, 5)))
+            r.schedule.channel(CH9, 9, listOf(program(0, 600, 9)))
+            r.lastChannel.save(r.account, CH5)
+            r.tune.preResolveResult = { false }
+            r.schedule.airingsDelayMs = 20_000
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
+            advanceTimeBy(1.seconds)
+            r.schedule.airingsDelayMs = 10_000
+            keys.trySend(LiveCommand.Flip(FlipDirection.Up))
+            runCurrent()
+            advanceTimeBy(21.seconds)
+            runCurrent()
+            assertEquals("the first sitting landed", listOf(itemOf(5)), r.tunes.map { it.item })
+
+            keys.trySend(LiveCommand.Tune(CH2))
+            advanceTimeBy(40.seconds)
+            runCurrent()
+
+            // One line for the press, its flip's (superseded); not a dropped-press line as well.
+            assertEquals(listOf(itemOf(5), itemOf(2)), r.tunes.map { it.item })
+            val dropped =
+                r.reports
+                    .filterIsInstance<TuneReport.PressDropped>()
+                    .filter { it.reason == "superseded-by-tune" }
+            assertEquals(emptyList<TuneReport>(), dropped)
+            assertEquals(
+                listOf("superseded"),
+                r.reports
+                    .filterIsInstance<TuneReport.Flip>()
+                    .filter { it.via == null }
+                    .map { it.outcome },
+            )
+        }
+
+    @Test
     fun aGuideTuneBeforeTheFirstSittingDropsTheEarlyPresses() =
         runTest {
             // A cold launch: the first day build takes 20 s, and a press is made before it lands.
@@ -233,6 +275,19 @@ class TuneCommandTest {
             advanceTimeBy(1.seconds)
             runCurrent()
             assertEquals(listOf(itemOf(7)), f.tunedItems(before))
+        }
+
+    @Test
+    fun aLineupJustReadIsNotReadAgainForAChannelItDoesNotHave() =
+        runTest {
+            // The sitting's own lineup read fails, so nothing is cached and the tune reads the lineup itself.
+            val f = flipping { schedule.airingsFailOn = setOf(2) }
+            val reads = f.r.schedule.airingsCalls
+            f.send(LiveCommand.Tune(CH7))
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertEquals(1, f.r.schedule.airingsCalls - reads)
+            assertTrue(f.r.reports.any { it is TuneReport.PressDropped && it.reason == "tune-off-air" })
         }
 
     @Test

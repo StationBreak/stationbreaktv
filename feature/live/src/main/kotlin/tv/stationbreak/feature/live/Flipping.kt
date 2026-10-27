@@ -525,7 +525,9 @@ internal class Flipper(
             it.cancel()
         }
         reading?.cancel()
-        repeat(queued.size) { dropped("superseded-by-tune") }
+        // One line per press: the early press handed on last has its flip's line (closed below), not a dropped one too.
+        val tail = earlyTail
+        queued.forEach { if (it != tail) dropped("superseded-by-tune") }
         queued.clear()
         // Early presses too: stepped from the guide's channel once it plays, they would undo the viewer's pick.
         closeEarlyTail("superseded")
@@ -581,10 +583,14 @@ internal class Flipper(
 
     /**
      * [channel] in the lineup. The guide can show a channel the cached lineup does not have yet (one that came back on
-     * the air, #299), so a miss reads the lineup again, and keeps what it read for the presses to come.
+     * the air, #299), so a miss on the cached lineup reads it again, and keeps what it read for the presses to come. A
+     * lineup that was just read (nothing was cached) is not read twice.
      */
     private suspend fun find(channel: ChannelId): ChannelAiring? {
-        lineup().byId(channel)?.let { return it }
+        val wasCached = cached != null
+        val order = lineup()
+        val found = order.byId(channel)
+        if (found != null || !wasCached) return found
         val fresh = FlipOrder(schedule.airings(clock.now()))
         cached = fresh
         return fresh.byId(channel)
