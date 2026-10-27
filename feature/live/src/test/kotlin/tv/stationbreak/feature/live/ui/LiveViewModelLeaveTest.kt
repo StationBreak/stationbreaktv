@@ -103,8 +103,6 @@ class LiveViewModelLeaveTest {
             runCurrent()
             s.vm.leave()
             runCurrent()
-            assertTrue("a leave asks for a new sitting", s.vm.takeRestart())
-            assertFalse("once", s.vm.takeRestart())
 
             backgroundScope.launch { s.sit(RecordingPlayer()) }
             advanceTimeBy(29.seconds)

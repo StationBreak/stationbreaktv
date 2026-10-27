@@ -92,20 +92,24 @@ internal fun LiveRoot(
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
     val surface = remember(context) { SurfaceView(context) }
-    // Each new value starts a sitting afresh while STARTED: a screen resumed after a leave it was never stopped for
-    // (back from Home before Fire OS stopped it) has none left running.
-    val sittings = remember(viewModel) { MutableStateFlow(0) }
+    // While STARTED, each new value starts a sitting afresh; null means the screen has left (a user-leave hint, a
+    // finish or a stop), and no sitting starts, not even one queued behind the last one's teardown. A start or a resume
+    // after a leave sets a new value: a screen resumed without being stopped (back from Home before Fire OS stopped
+    // it) has no sitting left running.
+    val sittings = remember(viewModel) { MutableStateFlow<Long?>(0L) }
     LaunchedEffect(viewModel, owner, surface) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             sittings.collectLatest {
+                if (it == null) return@collectLatest
                 if (tuners == null) viewModel.sit(context, surface) else viewModel.sit(context, surface, tuners)
             }
         }
     }
-    // A start begins a sitting of its own (above); only a resume without one needs a new sitting.
-    LeaveAtOnce(owner, viewModel::leave) { event ->
-        if (viewModel.takeRestart() && event == Lifecycle.Event.ON_RESUME) sittings.value++
+    val leaveNow = {
+        sittings.value = null
+        viewModel.leave()
     }
+    LeaveAtOnce(owner, leaveNow) { if (sittings.value == null) sittings.value = System.nanoTime() }
     KeepScreenOn(owner)
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }

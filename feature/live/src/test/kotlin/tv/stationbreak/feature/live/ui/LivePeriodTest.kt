@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -52,7 +53,7 @@ class LivePeriodTest {
             val inner = RecordingPlayer()
             val period = LivePeriod(inner, job).also { it.machine = r.live }
 
-            period.leave()
+            assertTrue("the first leave ends the period", period.leave())
 
             // On the caller's thread, before any coroutine ran: the player is stopped, detached and released.
             assertEquals(listOf("stop", "attach(null)", "release"), inner.log)
@@ -67,7 +68,7 @@ class LivePeriodTest {
             period.player.attach(null)
             period.player.play(source)
             period.player.release()
-            period.leave()
+            assertFalse("a second leave does nothing", period.leave())
             r.at(120_000)
             assertEquals(listOf("stop", "attach(null)", "release"), inner.log)
             assertEquals(1, server.count("stopped"))

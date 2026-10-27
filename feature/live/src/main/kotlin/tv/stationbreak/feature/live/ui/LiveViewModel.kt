@@ -169,21 +169,13 @@ internal class LiveViewModel
         /**
          * The screen is leaving the foreground (#431): stops and releases the running sitting's player, ends its
          * reporting and cancels it, at once, on the caller's thread ([LivePeriod.leave]). The tuner's close follows as
-         * the sitting unwinds. Nothing when no sitting runs; a second call does nothing.
+         * the sitting unwinds. The slot is cleared at once, not when that teardown ends, so a second leave meanwhile
+         * finds nothing to leave. Nothing when no sitting runs; a second call does nothing.
          */
         fun leave() {
             val running = period ?: return
-            running.leave()
-            restartWanted = true
+            if (running.leave() && period === running) period = null
         }
-
-        // Set by a leave, cleared when a sitting starts: a screen resumed without being stopped (back from Home before
-        // Fire OS stopped it) has no sitting, and must start one.
-        @Volatile
-        private var restartWanted = false
-
-        /** True, once, when a [leave] ended the last sitting and none has started since. */
-        fun takeRestart(): Boolean = restartWanted.also { restartWanted = false }
 
         /**
          * One STARTED period: makes the player, shows it on [surface], runs the live channel, and on the way out
@@ -216,7 +208,6 @@ internal class LiveViewModel
             tuners: TunerFactory,
             log: (String) -> Unit,
         ) {
-            restartWanted = false
             val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
@@ -294,7 +285,8 @@ internal class LiveViewModel
                 ended = machine.state.value == LiveState.SignedOut
                 if (!ended) shown.value = machine.state.value
             } finally {
-                live = null
+                // A newer sitting may already have taken these slots.
+                if (live === running.machine) live = null
                 // A sitting started after this one was cancelled may already have taken the slot.
                 if (period === running) period = null
                 withContext(NonCancellable) {

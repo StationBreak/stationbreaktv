@@ -32,13 +32,15 @@ internal class LivePeriod(
 
     val player: VideoPlayer = Guarded()
 
-    fun leave() {
-        if (!left.compareAndSet(false, true)) return
+    /** Leaves the period; true when this call did, false when it was already left (or released). */
+    fun leave(): Boolean {
+        if (!left.compareAndSet(false, true)) return false
         machine?.leave()
         inner.stop()
         inner.attach(null)
         inner.release()
         sitting.cancel()
+        return true
     }
 
     private inner class Guarded : VideoPlayer {

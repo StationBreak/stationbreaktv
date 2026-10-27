@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -99,7 +100,10 @@ class LiveDestinationLifecycleTest {
         }
     }
 
-    private inner class RecordingTuner : TunePort {
+    /** A tuner whose close takes [closeMs] (the server's encode stop, slow), and writes "close" when it is done. */
+    private inner class RecordingTuner(
+        private val closeMs: Long = 0,
+    ) : TunePort {
         override suspend fun tune(
             session: Session,
             item: ItemId,
@@ -126,6 +130,7 @@ class LiveDestinationLifecycleTest {
         override suspend fun stop(session: Session) = Unit
 
         override suspend fun close(session: Session) {
+            delay(closeMs)
             log += "close"
         }
     }
@@ -189,10 +194,11 @@ class LiveDestinationLifecycleTest {
 
     private fun show(
         vm: LiveViewModel,
+        closeMs: Long = 0,
         signedOut: () -> Unit = {},
     ) {
         compose.setContent {
-            StationBreakTheme { LiveRoot(vm, signedOut) { _, _ -> RecordingTuner() } }
+            StationBreakTheme { LiveRoot(vm, signedOut) { _, _ -> RecordingTuner(closeMs) } }
         }
     }
 
@@ -260,6 +266,28 @@ class LiveDestinationLifecycleTest {
         assertEquals(RELEASED, atHint)
         awaitLog("close")
         assertEquals(RELEASED + "close", log.toList())
+    }
+
+    @Test
+    fun homeAgainBeforeTheFirstTeardownEndsLeavesNothingPlaying() {
+        // Home, a quick return, and Home again, all while the first sitting's tuner close (the server's encode stop)
+        // is still running: the sitting the return asked for must not start behind the launcher once it is done.
+        show(viewModel(), closeMs = SLOW_CLOSE_MS)
+        awaitLog("create#1")
+        // Home: the hint, then the pause (the scenario's move to STARTED starts an activity on top, itself a hint).
+        userLeaves()
+        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        // Back, then Home again, before the first close is done.
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        userLeaves()
+        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        awaitLog("close")
+        // Time for a sitting queued behind the close to start, if one were going to.
+        Thread.sleep(SETTLE_MS)
+        compose.waitForIdle()
+        val made = log.count { it.startsWith("create#") }
+        val released = log.count { it.startsWith("release#") }
+        assertEquals("nothing is left playing: $log", made, released)
     }
 
     @Test
@@ -417,6 +445,8 @@ class LiveDestinationLifecycleTest {
         // The first player made, shown, then detached and released.
         val RELEASED = listOf("create#1", "attach(surface)#1", "attach(null)#1", "release#1")
         const val WAIT_MS = 10_000L
+        const val SLOW_CLOSE_MS = 2_000L
+        const val SETTLE_MS = 1_000L
         const val PRESS_MS = 50L
     }
 }
