@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -22,6 +26,48 @@ class CellMarksTest {
     ) = CellPlace(origin + fromMin * minute, origin + toMin * minute, origin, geometry)
 
     private fun at(min: Long) = origin + min * minute
+
+    // Widths come from float arithmetic: equal to a hundredth of a dp.
+    private fun assertDp(
+        expected: Dp,
+        actual: Dp,
+    ) = assertEquals(expected.value, actual.value, 0.01f)
+
+    @Test
+    fun aFocusedCellThatRunsPastTheRightEdgeHasItsRingClosedThereAndNoChevron() {
+        // From 60 to 120 minutes with the viewport on 0 to 90: 30 minutes (240 dp) of it show.
+        val cell = place(60, 120)
+        val focused = cell.marks(at(0), focused = true)
+        val ring = checkNotNull(focused.ring)
+        assertDp(0.dp, ring.start)
+        // The ring's right side is drawn at the viewport's edge, inside the time columns (and so the safe area).
+        assertDp(239.dp, ring.endInclusive)
+        // The ring owns that edge: no "›" inside it.
+        assertFalse(focused.later)
+
+        val plain = cell.marks(at(0), focused = false)
+        assertNull(plain.ring)
+        assertTrue(plain.later)
+    }
+
+    @Test
+    fun aFocusedCellThatBeganBeforeTheLeftEdgeHasItsRingClosedThereAndNoChevron() {
+        // From 0 to 60 minutes with the viewport scrolled to 30: its second half (240 to 480 dp) shows.
+        val cell = place(0, 60)
+        val focused = cell.marks(at(30), focused = true)
+        val ring = checkNotNull(focused.ring)
+        assertDp(239.dp, ring.start)
+        assertDp(478.dp, ring.endInclusive)
+        assertFalse(focused.earlier)
+        assertTrue(cell.marks(at(30), focused = false).earlier)
+    }
+
+    @Test
+    fun aFocusedCellInsideTheViewportHasItsRingAllRound() {
+        val ring = checkNotNull(place(30, 60).marks(at(0), focused = true).ring)
+        assertDp(0.dp, ring.start)
+        assertDp(238.dp, ring.endInclusive)
+    }
 
     @Test
     fun aCompactCellDrawsNothingButItsFill() {

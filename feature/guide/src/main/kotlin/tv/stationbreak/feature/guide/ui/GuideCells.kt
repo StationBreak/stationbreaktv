@@ -115,16 +115,22 @@ internal class CellPlace(
     /** "›": the cell runs on after the viewport. */
     fun continuesLater(viewportStartMs: Long): Boolean = endMs > viewportStartMs + geometry.spanMs
 
-    /** What the cell draws over its fill with the viewport at [viewportStartMs], [focused] or not: see [CellMarks]. */
+    /**
+     * What the cell draws over its fill with the viewport at [viewportStartMs], [focused] or not: see [CellMarks]. The
+     * ring goes round the part of the cell that is in view, so a cell cut by either edge of the time columns has a
+     * closed ring inside them (and so inside the safe area); that edge is the ring's, and its chevron is not drawn.
+     */
     fun marks(
         viewportStartMs: Long,
         focused: Boolean,
     ): CellMarks {
         val inner = width - CellInset * 2
+        val from = (visibleLeft(viewportStartMs) - CellInset).coerceIn(0.dp, inner)
+        val to = (visibleRight(viewportStartMs) - CellInset).coerceIn(from, inner)
         return CellMarks(
-            ring = if (focused) 0.dp..inner else null,
-            earlier = !compact && continuesEarlier(viewportStartMs),
-            later = !compact && continuesLater(viewportStartMs),
+            ring = if (focused) from..to else null,
+            earlier = !focused && !compact && continuesEarlier(viewportStartMs),
+            later = !focused && !compact && continuesLater(viewportStartMs),
         )
     }
 }
@@ -277,8 +283,9 @@ private fun cellDescription(
 
 /**
  * The cell's look, drawn: Cream at 8% (a slate: a dashed Ground border instead), or when [focused] Accent with a 3 dp
- * White ring inside the bounds, so the row's clip can never cut it. Chevrons mark a program running on past either
- * edge of the viewport, at that edge; they read [viewportOf] while drawing. A compact cell has neither.
+ * White ring inside the part of the cell in view, so the row's clip can never cut it. Chevrons mark a program running
+ * on past either edge of the viewport, at that edge, unless it is focused; they read [viewportOf] while drawing. A
+ * compact cell has none.
  */
 private fun Modifier.cellLook(
     slate: Boolean,
