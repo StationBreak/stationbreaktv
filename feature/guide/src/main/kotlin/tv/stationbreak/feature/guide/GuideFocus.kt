@@ -51,29 +51,33 @@ internal fun GuideModel.initialFocus(
 }
 
 /**
- * One step of [direction] from [focus]; at an edge, or when the focused cell is gone, the focus stays. Up and Down skip
- * rows that have no cells, and stay put when no row in that direction has any.
+ * One step of [direction] from [focus] at [nowMs] (the moment the grid shows); at an edge, or when the focused cell is
+ * gone, the focus stays. Up and Down skip rows that have no cells, and stay put when no row in that direction has any.
+ * They go by the focus's anchor, never earlier than now: an anchor kept from minutes ago would land on a program that
+ * has ended since.
  */
 internal fun GuideModel.move(
     focus: GuideFocus,
     direction: GuideDirection,
+    nowMs: Long,
 ): GuideFocus {
     val (rowIndex, cellIndex) = indexOf(focus) ?: return focus
     val row = rows[rowIndex]
     return when (direction) {
         GuideDirection.Left -> row.cells.getOrNull(cellIndex - 1)?.let { focusOn(row, it, it.startMs) } ?: focus
         GuideDirection.Right -> row.cells.getOrNull(cellIndex + 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        GuideDirection.Up -> moveVertically(focus, rowIndex - 1 downTo 0)
-        GuideDirection.Down -> moveVertically(focus, rowIndex + 1 until rows.size)
+        GuideDirection.Up -> moveVertically(focus, rowIndex - 1 downTo 0, nowMs)
+        GuideDirection.Down -> moveVertically(focus, rowIndex + 1 until rows.size, nowMs)
     }
 }
 
 private fun GuideModel.moveVertically(
     focus: GuideFocus,
     candidates: IntProgression,
+    nowMs: Long,
 ): GuideFocus {
     val target = candidates.firstOrNull { rows[it].cells.isNotEmpty() }?.let { rows[it] }
-    val anchor = maxOf(focus.anchorMs, originMs)
+    val anchor = maxOf(focus.anchorMs, originMs, nowMs)
     val cells = target?.cells.orEmpty()
     val cell =
         cells.firstOrNull { anchor >= it.startMs && anchor < it.endMs }

@@ -135,7 +135,7 @@ internal class GuideViewModel
                 val ready = current.state as? GuideState.Ready
                 val from = current.focus
                 if (ready == null || from == null || shownInfo.value != null) return
-                val to = ready.model.move(from, direction)
+                val to = ready.model.move(from, direction, ready.nowMs)
                 if (to == from) return
                 val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
                 val row = ready.firstRowFor(to, ready.firstVisibleRow)

@@ -9,8 +9,9 @@ private val VIEWPORT_SPAN_MS = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
 /**
  * Where focus goes when this model replaces the one [old] was in. The focus itself if its cell is still there; else
- * the cell of the same row that now holds its time (its anchor, never before the origin), else the one Up and Down
- * would pick; else, when the row has no cells left, where the guide would open for [current]. With no [old], that too.
+ * the cell of the same row that now holds its time (its anchor, never before the origin or [nowMs]), else the one Up
+ * and Down would pick; else, when the row has no cells left, where the guide would open for [current]. With no [old],
+ * that too.
  */
 internal fun GuideModel.focusAfterRebuild(
     old: GuideFocus?,
@@ -26,7 +27,7 @@ private fun GuideModel.replacementFor(
     nowMs: Long,
 ): GuideFocus? {
     val cells = rows.firstOrNull { it.channel == old.channel }?.cells.orEmpty()
-    val anchor = maxOf(old.anchorMs, originMs)
+    val anchor = maxOf(old.anchorMs, originMs, nowMs)
     val cell =
         cells.firstOrNull { anchor >= it.startMs && anchor < it.endMs }
             ?: cells.lastOrNull { it.startMs <= anchor }
@@ -36,7 +37,8 @@ private fun GuideModel.replacementFor(
 
 /**
  * The focus once the clock has moved from [previousNowMs] to [nowMs]: one on a program that was on air then and has
- * ended since goes to what is on now in the same row, as the picture moved on; any other focus stays where it is.
+ * ended since goes to what is on now in the same row, as the picture moved on, anchored at now; any other focus stays
+ * where it is.
  */
 internal fun GuideModel.followingNow(
     focus: GuideFocus,
@@ -52,7 +54,7 @@ internal fun GuideModel.followingNow(
     return if (row == null || onNow == null) {
         focus
     } else {
-        GuideFocus(row.channel, onNow.startMs, maxOf(onNow.startMs, originMs))
+        GuideFocus(row.channel, onNow.startMs, maxOf(onNow.startMs, originMs, nowMs))
     }
 }
 

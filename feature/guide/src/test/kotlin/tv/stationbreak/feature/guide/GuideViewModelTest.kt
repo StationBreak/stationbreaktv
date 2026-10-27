@@ -23,6 +23,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.feature.guide.ui.minutesUntil
 
@@ -249,6 +250,23 @@ class GuideViewModelTest : GuideRig() {
             after(MIN / 2)
             assertTrue("shown ${vm.ready().nowMs - min(66)} ms from 66 min", vm.ready().nowMs >= min(66))
             assertEquals(24, minutesUntil(min(90), vm.ready().nowMs))
+        }
+
+    @Test
+    fun aVerticalMoveMinutesAfterOpeningLandsOnWhatIsOnNow() =
+        guideTest { vm ->
+            // Channel 9's program from 0 to 75 is on the grid (from 60) after it ends; at 80 the one on now began at 75.
+            fake.channel(CH9, 9, listOf(program(0, 75, 300), program(75, 600, 301)))
+            vm.open(CH7)
+            runCurrent()
+            assertEquals(GuideFocus(CH7, min(60), min(60)), vm.focused())
+
+            after(15 * MIN)
+            vm.move(GuideDirection.Down)
+
+            assertEquals(CH9, vm.focused().channel)
+            assertEquals(min(75), vm.focused().cellStartMs)
+            assertTrue(vm.focused().anchorMs >= vm.ready().nowMs)
         }
 
     @Test
