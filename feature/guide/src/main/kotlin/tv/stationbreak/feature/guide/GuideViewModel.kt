@@ -95,7 +95,7 @@ internal class GuideViewModel
         private var infoOf: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
-        private var extendedUntil = NEVER
+        private var scrollAsked: Pair<ChannelId, Long>? = null
         private var firstWindowMs = NO_MEASURE
         private var asked = 0
         private var applied = 0
@@ -127,7 +127,8 @@ internal class GuideViewModel
 
         /**
          * One step of focus. Ignored while the info overlay is open, which owns the keys. Scrolling toward the end of
-         * what is loaded asks for more of what is already built, as the clock does.
+         * what is loaded asks for more of what is already built, as the clock does; so does a key that cannot move on
+         * at the end of a row, since more may have been built since.
          */
         fun move(direction: GuideDirection) {
             synchronized(lock) {
@@ -136,12 +137,15 @@ internal class GuideViewModel
                 val from = current.focus
                 if (ready == null || from == null || shownInfo.value != null) return
                 val to = ready.model.move(from, direction, ready.nowMs)
-                if (to == from) return
-                val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
-                val row = ready.firstRowFor(to, ready.firstVisibleRow)
-                val moved = ready.copy(viewportStartMs = viewport, firstVisibleRow = row)
-                publish(moved, to)
-                session?.let { extendIfScrolledNearTheEnd(it, moved, to) }
+                val shown =
+                    if (to == from) {
+                        ready
+                    } else {
+                        val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
+                        val row = ready.firstRowFor(to, ready.firstVisibleRow)
+                        ready.copy(viewportStartMs = viewport, firstVisibleRow = row).also { publish(it, to) }
+                    }
+                session?.let { extendIfScrolledNearTheEnd(it, shown, to) }
             }
         }
 
@@ -196,7 +200,7 @@ internal class GuideViewModel
             infoOf = null
             extensionJob = null
             extendedFrom = NEVER
-            extendedUntil = NEVER
+            scrollAsked = null
             firstWindowMs = NO_MEASURE
             asked = 0
             applied = 0
@@ -361,6 +365,7 @@ internal class GuideViewModel
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
                 if (session !== s || window !== built || now < shownNowMs()) return
                 commit(model, now)
+                scrollAsked = null
                 extendIfNearTheEnd(s, model, now)
             }
         }
@@ -378,9 +383,10 @@ internal class GuideViewModel
         }
 
         // Scrolling asks for more when the visible range or the focused cell comes within reach of the end of the
-        // focused row, at most once for each end the grid reaches. The row's end, not the grid's: the grid ends where
-        // its longest row does (a channel off air to the end of its day is one slate that runs hours past the window),
-        // and a row that stops at the window must still be scrolled past it. Under the lock.
+        // focused row, once for each end that row reaches. The row's end, not the grid's: the grid ends where its
+        // longest row does (a channel off air to the end of its day is one slate that runs hours past the window), and
+        // a row that stops at the window must still be scrolled past it. Each tick forgets what was asked, so a row
+        // whose ask found nothing more built is asked for again, at most once a minute. Under the lock.
         private fun extendIfScrolledNearTheEnd(
             s: CoroutineScope,
             ready: GuideState.Ready,
@@ -393,18 +399,18 @@ internal class GuideViewModel
             val rowEnd = row?.cells?.lastOrNull()?.endMs ?: model.endMs
             val reach = maxOf(ready.viewportStartMs + GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, cellEnd)
             val near = rowEnd - reach < EXTEND_WITHIN.inWholeMilliseconds
-            if (near && extendedUntil != model.endMs) extend(s, model)
+            val ask = focus.channel to rowEnd
+            if (near && scrollAsked != ask && extend(s, model)) scrollAsked = ask
         }
 
         // Extensions only ever read what is already built (never `AsNeeded`), one at a time, and never while the
-        // open's own load (and its fill-in) is still running. Under the lock.
+        // open's own load (and its fill-in) is still running. True when one was started. Under the lock.
         private fun extend(
             s: CoroutineScope,
             model: GuideModel,
-        ) {
-            if (!loaded || extensionJob?.isActive == true) return
+        ): Boolean {
+            if (!loaded || extensionJob?.isActive == true) return false
             extendedFrom = model.originMs
-            extendedUntil = model.endMs
             asked++
             extensionJob =
                 s.launch {
@@ -417,6 +423,7 @@ internal class GuideViewModel
                         )
                     if (longer != null && longer.rows.isNotEmpty()) apply(s, longer, extension = true)
                 }
+            return true
         }
 
         // Publishing

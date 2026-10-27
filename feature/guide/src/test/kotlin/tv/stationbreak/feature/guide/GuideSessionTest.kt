@@ -116,6 +116,39 @@ class GuideSessionTest : GuideRig() {
         }
 
     @Test
+    fun scrollingAsksAgainOnceMoreHasBeenBuilt() =
+        guideTest { vm ->
+            // The grid's end is pinned by channel 9's slate. What is built stops at 7 hours, so the first ask from
+            // channel 7 finds nothing new, and the next keys do not ask again for the same end. A minute on, more is
+            // built: a further Right asks again and goes on.
+            lineup(untilMin = 780)
+            fake.channel(CH9, 9, listOf(program(0, 150, 300), program(150, 210, 301), slate(210, 1440)))
+            fake.cachedUntilMs = min(420)
+            vm.open(CH7)
+            runCurrent()
+            repeat(12) {
+                vm.move(GuideDirection.Right)
+                runCurrent()
+            }
+            assertEquals(min(390), vm.focused().cellStartMs)
+            val asked = fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly }
+
+            vm.move(GuideDirection.Right)
+            runCurrent()
+            assertEquals(asked, fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly })
+
+            fake.cachedUntilMs = null
+            after(MIN)
+            vm.move(GuideDirection.Right)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            runCurrent()
+
+            assertTrue(fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly } > asked)
+            assertEquals(min(420), vm.focused().cellStartMs)
+        }
+
+    @Test
     fun theClockKeepsShortRowsGoingWhenAnotherRowRunsFarPastTheWindow() =
         guideTest { vm ->
             // As above, with nobody scrolling: the clock must ask for more before channel 7's row runs out.
