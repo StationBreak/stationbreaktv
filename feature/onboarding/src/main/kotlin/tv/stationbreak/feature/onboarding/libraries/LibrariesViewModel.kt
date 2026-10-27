@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
@@ -65,7 +66,7 @@ internal data class LibrariesUiState(
     val canFinish: Boolean
         get() = (phase == LibrariesPhase.Choosing || phase == LibrariesPhase.SaveFailed) && selected.isNotEmpty()
 
-    override fun toString(): String = "LibrariesUiState(phase=${phase::class.simpleName}, libraries=${libraries.size})"
+    override fun toString(): String = "LibrariesUiState(phase=${phase.logName()}, libraries=${libraries.size})"
 }
 
 /**

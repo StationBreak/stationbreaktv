@@ -9,6 +9,7 @@ import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.QuickConnectSecret
@@ -61,7 +62,7 @@ internal class QuickConnectFlow(
                     is ServerResult.Failure -> QuickConnectState.Failed(reached.error)
                     is ServerResult.Success -> issueAndPoll(reached.value, acknowledgement) { emit(it) }
                 }
-            log.log("quickConnect ended: ${terminal::class.simpleName}")
+            log.log("quickConnect ended: ${terminal.logName()}")
             emit(terminal)
         }
 

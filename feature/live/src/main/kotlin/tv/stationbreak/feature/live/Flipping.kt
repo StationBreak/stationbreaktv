@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -518,14 +519,14 @@ internal class Flipper(
 
     /** A flip that broke on an unexpected exception: report its class name only, and show the channel again. */
     private fun failed(error: Exception) {
-        report(TuneReport.Failed(error.javaClass.simpleName.ifEmpty { "Unknown" }))
+        report(TuneReport.Failed(error.logName().ifEmpty { "Unknown" }))
         order = null
         target = null
         screen.drop()
     }
 
     /** Writes the line of a press that was not acted on, with the label of why and the state on screen (#392). */
-    private fun dropped(reason: String) = report(TuneReport.PressDropped(reason, screen.value.javaClass.simpleName))
+    private fun dropped(reason: String) = report(TuneReport.PressDropped(reason, screen.value.logName()))
 
     private fun ChannelAiring.tag() = ChannelTag(number, name)
 }

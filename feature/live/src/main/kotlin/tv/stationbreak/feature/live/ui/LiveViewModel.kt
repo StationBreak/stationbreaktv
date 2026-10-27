@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
@@ -174,7 +175,7 @@ internal class LiveViewModel
             surface: SurfaceView,
             tuners: TunerFactory,
         ) {
-            val before = shown.value.javaClass.simpleName
+            val before = shown.value.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
             val session = sessions.current.value

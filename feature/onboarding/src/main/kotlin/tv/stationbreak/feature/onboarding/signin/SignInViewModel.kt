@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
@@ -120,7 +121,7 @@ internal data class SignInUiState(
     val phase: SignInPhase = SignInPhase.Idle,
 ) {
     // The password is a credential: it must not appear in a log line or a crash report built from the state.
-    override fun toString(): String = "SignInUiState(phase=${phase::class.simpleName}, password=***)"
+    override fun toString(): String = "SignInUiState(phase=${phase.logName()}, password=***)"
 }
 
 /**

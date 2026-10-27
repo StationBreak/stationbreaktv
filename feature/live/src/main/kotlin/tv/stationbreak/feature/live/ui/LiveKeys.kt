@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
@@ -244,4 +245,4 @@ internal fun liveKeyLine(
     repeat: Int,
     handled: Boolean,
     state: LiveState,
-): String = "key code=$code action=$action repeat=$repeat handled=$handled state=${state.javaClass.simpleName}"
+): String = "key code=$code action=$action repeat=$repeat handled=$handled state=${state.logName()}"

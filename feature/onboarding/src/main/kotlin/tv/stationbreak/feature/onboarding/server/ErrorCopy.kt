@@ -3,6 +3,7 @@ package tv.stationbreak.feature.onboarding.server
 
 import androidx.annotation.StringRes
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.feature.onboarding.R
 
 /**
@@ -136,8 +137,10 @@ internal object ErrorCopyTable {
                 other(R.string.error_quick_connect_message, R.string.error_quick_connect_details),
         )
 
-    fun copyFor(error: MediaServerError): ErrorCopy =
-        entries[error::class.java] ?: error("No error copy for ${error::class.java.simpleName}")
+    fun copyFor(error: MediaServerError): ErrorCopy {
+        val copy = entries[error::class.java]
+        return copy ?: error("No error copy for ${error.logName()}")
+    }
 
     /** The arguments the error's message needs: only [MediaServerError.UnsupportedVersion] has any (found, minimum). */
     fun messageArgs(error: MediaServerError): List<Any> =

@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.flatMap
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ClientIdentity
 import tv.stationbreak.core.model.CollectionMemberPage
@@ -183,7 +184,7 @@ class JellyfinMediaServer internal constructor(
         adapterLog.log(
             when (result) {
                 is ServerResult.Success -> "revoke ok"
-                is ServerResult.Failure -> "revoke failed: ${result.error::class.simpleName}"
+                is ServerResult.Failure -> "revoke failed: ${result.error.logName()}"
             },
         )
         return result

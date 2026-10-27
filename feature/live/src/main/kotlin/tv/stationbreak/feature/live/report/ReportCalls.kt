@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.logName
 
 /**
  * Runs the reporter's server calls: each under [ReportingConfig.callTimeout], none throwing but for cancellation, every
@@ -38,7 +39,7 @@ internal class ReportCalls(
 
     private fun failed(error: MediaServerError): Nothing? {
         if (error is MediaServerError.HttpUnauthorized || error is MediaServerError.SessionExpired) halted = true
-        log("report error kind=${error::class.simpleName.orEmpty().lowercase()}")
+        log("report error kind=${error.logName().lowercase()}")
         return null
     }
 }

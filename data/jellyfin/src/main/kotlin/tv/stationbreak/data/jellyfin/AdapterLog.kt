@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.Redactor
 
 /**
@@ -34,7 +35,7 @@ fun interface AdapterLog {
             message: String,
             error: Throwable,
         ): String {
-            val type = error::class.simpleName ?: "Throwable"
+            val type = error.logName().ifEmpty { "Throwable" }
             val detail = error.message
             return if (detail.isNullOrEmpty()) "$message: $type" else "$message: $type: $detail"
         }
