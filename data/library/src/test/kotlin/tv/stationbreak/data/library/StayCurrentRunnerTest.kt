@@ -18,6 +18,8 @@ import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TestTimeSource
 
 /**
  * Spec 06 task 4.7 (the worker's side): what the quiet worker runs when WorkManager starts it. The plan says which of
@@ -25,7 +27,9 @@ import kotlin.time.Duration.Companion.hours
  * nothing to do.
  */
 class StayCurrentRunnerTest {
-    private val rig = StayCurrentRig()
+    private val lines = mutableListOf<String>()
+    private val time = TestTimeSource()
+    private val rig = StayCurrentRig(timeSource = time) { lines += it }
     private val server = rig.server
 
     @After
@@ -464,5 +468,99 @@ class StayCurrentRunnerTest {
             assertNull(rig.runner.lastBackfill)
             assertTrue(server.calls.none { isBackfill(it) })
             assertTrue(rig.repository.backfillPending(ALICE))
+        }
+
+    // The numbers-only timing lines (logged under "Sync"): what ran, how long, how it ended.
+
+    @Test
+    fun anIncrementalRunWithTheRereadPendingReportsTheRunAndTheRereadTimings() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call ->
+                time += (if (isBackfill(call)) 250 else 0).milliseconds
+                if (call.idsOnly) time += 100.milliseconds
+                null
+            }
+
+            rig.runner.run(both)
+
+            assertEquals(
+                listOf(
+                    "StayCurrent incremental=true reconcile=true",
+                    "StayCurrentDone ms=${100 * server.calls.count { it.idsOnly }} outcome=Completed",
+                    "Backfill pending=true",
+                ),
+                lines.take(3),
+            )
+            val done = lines.single { it.startsWith("BackfillDone ") }
+            val ms = 250 * server.calls.count { isBackfill(it) }
+            assertTrue(done, done.startsWith("BackfillDone ms=$ms outcome=Completed "))
+            assertTrue(done, done.contains(" inserted=0 updated=0 unchanged=300 skipped=0 "))
+            assertTrue(done, done.endsWith("stillPending=false"))
+        }
+
+    @Test
+    fun aRunWithoutTheIncrementalPassReportsNoRereadLines() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+
+            rig.runner.run(SyncPlan(incremental = false, reconcile = true))
+
+            assertEquals("StayCurrent incremental=false reconcile=true", lines.first())
+            assertTrue(lines.none { it.startsWith("Backfill") })
+        }
+
+    @Test
+    fun anIncrementalRunWithNothingPendingReportsOnlyThePendingLine() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+
+            rig.runner.run(both)
+
+            assertTrue("Backfill pending=false" in lines)
+            assertTrue(lines.none { it.startsWith("BackfillDone") })
+        }
+
+    @Test
+    fun aFailedRereadNamesTheFailureAndNothingElse() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call -> if (isBackfill(call)) MediaServerError.Timeout() else null }
+
+            rig.runner.run(both)
+
+            val done = lines.single { it.startsWith("BackfillDone ") }
+            assertTrue(done, done.contains("outcome=Failed failure=Network "))
+            assertTrue(done, done.endsWith("stillPending=true"))
+        }
+
+    @Test
+    fun noReportedLineCarriesAnIdAnAddressOrAUserFromTheFixtures() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+
+            rig.runner.run(both)
+
+            val secrets =
+                listOf(
+                    ALICE.server.value,
+                    ALICE.user.value,
+                    MOVIES.value,
+                    SyncWorld.session.address.toString(),
+                    SyncWorld.session.userId.value,
+                )
+            assertTrue(lines.isNotEmpty())
+            for (line in lines) {
+                for (secret in secrets) assertFalse("$line leaks $secret", line.contains(secret))
+                assertTrue(line, line.all { it.isLetterOrDigit() || it == ' ' || it == '=' })
+            }
         }
 }
