@@ -76,9 +76,9 @@ object KidHold {
 
     /**
      * Whether [entry] is made for children: one of its genres is in [KIDS_GENRES] or one of its studios is in
-     * [KID_STUDIOS], and so, when [series] is not null, is one of the series'. A null [series] (a movie, an episode with
-     * no series, or one whose series the snapshot lacks) contributes nothing, so such an episode matches on its own
-     * names only.
+     * [KID_STUDIOS], and so, when [series] is not null, is one of the series'. A null [series] (a movie, an episode
+     * with no series, or one whose series the snapshot lacks) contributes nothing, so such an episode matches on its
+     * own names only.
      */
     fun isMadeForKids(
         entry: RuleItem,

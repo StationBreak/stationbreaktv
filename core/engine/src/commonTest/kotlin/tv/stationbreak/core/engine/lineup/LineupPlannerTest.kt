@@ -517,7 +517,8 @@ class LineupPlannerTest {
         assertEquals(1, waiting.catalogVersion, "the default still waits")
         assertEquals(lineup.channels, waiting.channels)
 
-        val told = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+        val told =
+            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
         assertEquals(2, told.catalogVersion)
         assertEquals(
             excluded,
@@ -535,7 +536,8 @@ class LineupPlannerTest {
         val v2 = TestCatalog(base.recipes + kaiju, version = 2)
         val lineup = firstLineup(v1, extra = mapOf("kaiju" to QUALIFYING_ITEMS))
         val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
-        val told = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+        val told =
+            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
         assertEquals(2, told.catalogVersion)
         assertEquals(
             kaiju.sources,

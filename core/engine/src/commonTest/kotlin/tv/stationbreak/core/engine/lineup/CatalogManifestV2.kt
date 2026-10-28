@@ -4,8 +4,8 @@ package tv.stationbreak.core.engine.lineup
 /**
  * The starter catalog as it shipped at version 2, frozen. Never edit it: a key or number that shipped here is kept or
  * retired, and any change to what a recipe airs needs a newer catalog version (see `CatalogManifestTest`). Version 2
- * kept every version 1 key and number and added the kids' genre exclusions (every spelling in `KidHold.KIDS_GENRES`) to every recipe outside the Kids band, so
- * only their fingerprints differ from [CATALOG_MANIFEST_V1].
+ * kept every version 1 key and number and added the kids' genre exclusions (every spelling in `KidHold.KIDS_GENRES`)
+ * to every recipe outside the Kids band, so only their fingerprints differ from [CATALOG_MANIFEST_V1].
  */
 internal val CATALOG_MANIFEST_V2: CatalogManifest =
     CatalogManifest(

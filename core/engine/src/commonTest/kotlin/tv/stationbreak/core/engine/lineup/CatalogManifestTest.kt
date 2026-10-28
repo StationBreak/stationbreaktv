@@ -136,7 +136,8 @@ class CatalogManifestTest {
     fun theEverKidSafeKeysAreStillTheVersionOneSet() {
         val v1 = CATALOG_MANIFEST_V1
         val expected =
-            v1.recipes.filterValues { it.maxRating != null }.keys + v1.leftovers.filterValues { it.maxRating != null }.keys
+            v1.recipes.filterValues { it.maxRating != null }.keys +
+                v1.leftovers.filterValues { it.maxRating != null }.keys
         assertEquals(expected, StarterCatalog.EVER_KID_SAFE_KEYS)
     }
 

@@ -69,7 +69,8 @@ internal fun libraryOf(
     var next = 0x10000
     val items =
         fills.entries.sortedBy { it.key }.flatMap { (genre, count) ->
-            List(count) { movie(idOf(next++), rating = "G", genres = if (genre in alsoKids) listOf(genre, "Kids") else listOf(genre)) }
+            val genres = if (genre in alsoKids) listOf(genre, "Kids") else listOf(genre)
+            List(count) { movie(idOf(next++), rating = "G", genres = genres) }
         }
     return snapshot(items = items, collections = collections, collectionsSynced = collectionsSynced)
 }

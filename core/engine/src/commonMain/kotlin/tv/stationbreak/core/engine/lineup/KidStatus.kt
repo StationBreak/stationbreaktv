@@ -7,7 +7,10 @@ package tv.stationbreak.core.engine.lineup
  */
 object KidStatus {
     /** A kid recipe: in the Kids band, or a key that was ever kid-safe. */
-    fun isKidRecipe(recipe: Recipe): Boolean = recipe.band == Band.Kids || recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS
+    fun isKidRecipe(recipe: Recipe): Boolean {
+        val everKidSafe = recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS
+        return recipe.band == Band.Kids || everKidSafe
+    }
 
     /** A kid channel: numbered in the Kids band, or a key that was ever kid-safe (whatever its number or edit). */
     fun isKidChannel(channel: LineupChannel): Boolean {

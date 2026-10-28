@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -109,17 +110,26 @@ object PoolEvaluator {
             val seriesId = item.seriesId
             val series = if (seriesId == null) null else snapshot.series[seriesId]
             if (!sourceMatcher.tally(entry, series, matched)) return
-            if (excludeAll || exclusionMatcher.matches(entry, series)) {
-                excluded++
-                return
+            when {
+                excludeAll || exclusionMatcher.matches(entry, series) -> excluded++
+                held && !KidHold.isMadeForKids(entry, series) -> heldOut++
+                else -> admit(entry, series)
             }
-            if (held && !KidHold.isMadeForKids(entry, series)) {
-                heldOut++
-                return
-            }
-            if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
+        }
+
+        // What matched, was not excluded and is not held out: counted, then kept or blocked by the ceiling.
+        private fun admit(
+            entry: RuleItem,
+            series: RuleSeries?,
+        ) {
+            val item = entry.item
+            if (item.kind == ScheduleItemKind.Episode && item.seriesId != null && series == null) unknownSeries++
             val passes =
-                if (held) KidHold.passesKidCeiling(entry, series, maxRating) else passesCeiling(entry, series, maxRating)
+                if (held) {
+                    KidHold.passesKidCeiling(entry, series, maxRating)
+                } else {
+                    passesCeiling(entry, series, maxRating)
+                }
             if (passes) kept.add(item) else blocked++
         }
 

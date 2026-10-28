@@ -46,12 +46,16 @@ object Leftovers {
             val series = if (seriesId == null) null else snapshot.series[seriesId]
             if (held && !KidHold.isMadeForKids(entry, series)) {
                 heldOut++
-                continue
+            } else {
+                if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
+                val passes =
+                    if (held) {
+                        KidHold.passesKidCeiling(entry, series, maxRating)
+                    } else {
+                        passesCeiling(entry, series, maxRating)
+                    }
+                if (passes) kept.add(item) else blocked++
             }
-            if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
-            val passes =
-                if (held) KidHold.passesKidCeiling(entry, series, maxRating) else passesCeiling(entry, series, maxRating)
-            if (passes) kept.add(item) else blocked++
         }
         return Pool(
             items = kept,
