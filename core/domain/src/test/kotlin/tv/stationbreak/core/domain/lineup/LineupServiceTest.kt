@@ -222,6 +222,54 @@ class LineupServiceTest {
         }
 
     @Test
+    fun aFinalisedLineupAlreadyAtTheCurrentCatalogIsUnchangedWhenCollectionPassesKeepFailing() =
+        runBlocking<Unit> {
+            finalisedAtCatalogOne()
+            val before = checkNotNull(stored())
+
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(before.channels, stored()?.channels)
+            assertEquals(before.catalogVersion, stored()?.catalogVersion)
+        }
+
+    // The catalog with "laughs" reading the collection named "Synthetic Pack", at [version].
+    private fun hintedCatalog(version: Int) =
+        object : StarterCatalogView by TestCatalog {
+            override val version: Int = version
+            override val recipes =
+                TestCatalog.recipes.map {
+                    if (it.key == "laughs") it.copy(collectionHints = listOf("Synthetic Pack")) else it
+                }
+        }
+
+    @Test
+    fun aGiveUpBumpKeepsTheResolvedCollectionSourcesWhileTheirNamesAreUnchanged() =
+        runBlocking<Unit> {
+            val pack = id(0x900)
+            library.delegate.seedCollectionName(ACCOUNT, pack, "Synthetic Pack")
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            LineupService(store, library, clock, { offset }, { events += it }, hintedCatalog(1))
+                .refresh(ACCOUNT, LIBRARIES)
+            assertTrue(Source.Collection(pack) in sourcesOfLaughs(stored()), "resolved at version 1")
+
+            // The collection pass keeps failing, and a newer catalog arrives: the lineup gives up waiting and bumps.
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+            LineupService(store, library, clock, { offset }, { events += it }, hintedCatalog(2))
+                .refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(2, stored()?.catalogVersion)
+            assertTrue(Source.Collection(pack) in sourcesOfLaughs(stored()), "the collection source survives the bump")
+        }
+
+    private fun sourcesOfLaughs(lineup: Lineup?): List<Source> {
+        val laughs = checkNotNull(lineup).channels.first { it.id == LineupIds.starter("laughs") }
+        return (laughs.source as ChannelSource.Starter).rules.sources
+    }
+
+    @Test
     fun aMetaOnlySaveNeverPutsAnOlderFileBackOverNewerChannelsInMemory() =
         runBlocking<Unit> {
             library.delegate.setCollectionsSynced(ACCOUNT, true)
