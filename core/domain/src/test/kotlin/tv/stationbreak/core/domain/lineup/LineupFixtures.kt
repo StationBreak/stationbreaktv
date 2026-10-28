@@ -168,7 +168,7 @@ internal fun fillingLibrary(): List<RuleItem> {
     val genres = listOf("Comedy", "Crime", "Western", "Horror", "Science Fiction")
     val grownUp =
         genres.flatMapIndexed { g, genre -> (0 until 7).map { movie(100 + g * 10 + it, genre, rating = "R") } }
-    val kids = (0 until 7).map { movie(200 + it, "Animation", rating = "G") }
+    val kids = (0 until 7).map { movie(200 + it, "Animation", "Kids", rating = "G") }
     return grownUp + kids
 }
 

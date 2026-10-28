@@ -310,7 +310,7 @@ class BuiltInScheduleSourceTest {
 
     @Test
     fun kidsLeftoversItemNotOnGrownUpLeftovers() {
-        library.seed(movie(600, "Puppets", rating = "G"), movie(601, "Thriller", rating = "R"))
+        library.seed(movie(600, "Puppets", "Kids", rating = "G"), movie(601, "Thriller", rating = "R"))
         library.seed(movie(602, "Odd", rating = null))
         for (kidsState in listOf(ChannelState.On, ChannelState.UserHidden)) {
             val kids = leftovers("kids-odds-and-ends", 99, "PG", kidsState)
@@ -337,7 +337,7 @@ class BuiltInScheduleSourceTest {
     fun airingNowhereIsZeroWithLeftoversOn() =
         runBlocking<Unit> {
             library.seed(fillingLibrary())
-            library.seed(movie(600, "Puppets", rating = "G"), movie(601, "Thriller", rating = "R"))
+            library.seed(movie(600, "Puppets", "Kids", rating = "G"), movie(601, "Thriller", rating = "R"))
             library.seed(movie(500, "Drama", rating = "TV-MA", tags = listOf("late")))
             service.refresh(ACCOUNT, LIBRARIES)
 

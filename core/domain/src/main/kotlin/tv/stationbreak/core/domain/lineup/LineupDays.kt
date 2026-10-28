@@ -90,6 +90,11 @@ internal class Scheduled(
  * channel whose key is in the catalog takes the catalog's, an unedited starter of a kid-safe recipe takes the recipe's,
  * an edited one keeps its own but never above PG, and any channel numbered in the Kids band is held to PG at most.
  *
+ * A kid channel ([isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
+ * made-for-kids content (spec 18): every pool it gets, ruled, leftovers and withheld, is evaluated with the hold, and
+ * its cache key says so. A hidden or opt-in kid channel withholds only what it would air if shown, so what the hold
+ * keeps off it stays with the grown-up leftovers.
+ *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
 internal class LineupDays(
@@ -187,11 +192,12 @@ internal class LineupDays(
         private fun evaluate(
             rules: ChannelRules,
             cutoff: Long,
+            held: Boolean,
         ): Pool {
-            val key = EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.maxRating)
+            val key = EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.maxRating, held)
             evaluations[key]?.let { return it }
             evaluated()
-            return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff)).also { evaluations[key] = it }
+            return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff), held).also { evaluations[key] = it }
         }
 
         // Leftovers channels that claim in turn: ceilinged first, then by number and ID. Shelved ones claim nothing.
@@ -241,7 +247,7 @@ internal class LineupDays(
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            return dayOf(s, evaluate(rules, s.cutoffMs))
+            return dayOf(s, evaluate(rules, s.cutoffMs, isKidChannel(s.channel)))
         }
 
         private fun leftoversDay(
@@ -276,7 +282,7 @@ internal class LineupDays(
         fun withheld(cutoff: Long): Set<CanonicalId> =
             withheldBy.getOrPut(cutoff) {
                 val rules = optInRules() + hiddenRules()
-                rules.flatMapTo(HashSet()) { r -> evaluate(r, cutoff).items.map { it.id } }
+                rules.flatMapTo(HashSet()) { (r, held) -> evaluate(r, cutoff, held).items.map { it.id } }
             }
 
         /** What the hidden leftovers channels would air from the [cutoff]'s snapshot: held back on purpose too. */
@@ -292,29 +298,48 @@ internal class LineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), isKidChannel(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
-        private fun optInRules(): List<ChannelRules> =
+        // Held when the recipe was ever a kid recipe; the ceiling is as today.
+        private fun optInRules(): List<HeldRules> =
             catalog.recipes.filter { it.optIn }.flatMap { recipe ->
                 val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
-                val held = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }?.let(::rulesOf)
-                listOfNotNull(resolved, held)
+                val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }?.let(::rulesOf)
+                val kid = recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS
+                listOfNotNull(resolved, inLineup).map { HeldRules(it, kid) }
             }
 
-        private fun hiddenRules(): List<ChannelRules> {
-            val hidden = lineup.channels.filter { it.state == ChannelState.UserHidden }
-            return hidden.mapNotNull(::rulesOf)
-        }
+        // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling, held if a kid channel.
+        private fun hiddenRules(): List<HeldRules> =
+            lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
+                rulesOf(channel)?.let { HeldRules(it.copy(maxRating = ceilingOf(channel)), isKidChannel(channel)) }
+            }
     }
 
-    /** What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions and ceiling. */
+    /** Rules to evaluate, and whether the pool is held to made-for-kids content. */
+    private data class HeldRules(
+        val rules: ChannelRules,
+        val held: Boolean,
+    )
+
+    /**
+     * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions and ceiling, and
+     * whether it is held, so a held and an unheld channel with the same rules never share a pool.
+     */
     private data class EvaluationKey(
         val cutoffMs: Long,
         val sources: List<Source>,
         val exclusions: List<Source>,
         val maxRating: String?,
+        val held: Boolean,
     )
+
+    // A kid channel: numbered in the Kids band, or a key that was ever kid-safe (whatever its number or edit).
+    private fun isKidChannel(channel: LineupChannel): Boolean {
+        val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
+        return inKidsBand || keyOf(channel.source)?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
+    }
 
     /**
      * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is
@@ -325,9 +350,7 @@ internal class LineupDays(
      */
     private fun ceilingOf(channel: LineupChannel): String? {
         val stored = storedCeiling(channel.source)
-        val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
-        val kidSafe = inKidsBand || keyOf(channel.source)?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
-        return if (kidSafe && !atMostPg(stored)) KIDS_MAX_RATING else stored
+        return if (isKidChannel(channel) && !atMostPg(stored)) KIDS_MAX_RATING else stored
     }
 
     private fun keyOf(source: ChannelSource): String? =
@@ -391,7 +414,8 @@ internal fun hiddenReason(
     return when {
         day.isNotEmpty() -> null
         !counts.collectionsSynced && unresolved -> HiddenReason.CollectionsNotSynced
-        pool.items.size + counts.excluded + counts.blockedByCeiling == 0 -> HiddenReason.NoMatches
+        pool.items.size + counts.excluded + counts.heldOut + counts.blockedByCeiling == 0 -> HiddenReason.NoMatches
+        pool.items.isEmpty() && counts.heldOut > 0 && counts.blockedByCeiling == 0 -> HiddenReason.NothingMadeForKids
         pool.items.isEmpty() && counts.blockedByCeiling == 0 -> HiddenReason.AllExcluded
         pool.items.isEmpty() -> HiddenReason.AllBlockedByCeiling
         else -> HiddenReason.EmptyToday

@@ -34,6 +34,9 @@ enum class HiddenReason {
     /** Everything that matched and was not excluded is above the channel's rating ceiling, or has no rating. */
     AllBlockedByCeiling,
 
+    /** A kid channel matched items but none is made for kids. */
+    NothingMadeForKids,
+
     /** The channel has content, but none for this day (all too new, gone before it, or too long or short to air). */
     EmptyToday,
 }
