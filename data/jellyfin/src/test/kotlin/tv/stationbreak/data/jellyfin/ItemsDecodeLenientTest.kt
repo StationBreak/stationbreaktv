@@ -163,4 +163,56 @@ class ItemsDecodeLenientTest {
                 ?.runtime,
         )
     }
+
+    private fun studiosOfItem(studios: String): List<String>? {
+        val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie"$studios}],"TotalRecordCount":1}"""
+        return page(body)
+            .getOrNull()
+            ?.items
+            ?.single()
+            ?.studios
+    }
+
+    @Test
+    fun studiosAreReadByNameAndKeepTheirOrderAndSpelling() {
+        val studios = ""","Studios":[{"Name":"Zed Pictures","Id":"x"},{"Name":" a studio "},{"Name":"A Studio"}]"""
+
+        assertEquals(listOf("Zed Pictures", " a studio ", "A Studio"), studiosOfItem(studios))
+    }
+
+    @Test
+    fun missingNullAndEmptyStudiosAreEmpty() {
+        assertEquals(emptyList(), studiosOfItem(""))
+        assertEquals(emptyList(), studiosOfItem(""","Studios":null"""))
+        assertEquals(emptyList(), studiosOfItem(""","Studios":[]"""))
+    }
+
+    @Test
+    fun aStudioWithNoOrBlankNameIsDropped() {
+        val studios = ""","Studios":[{"Id":"x"},{"Name":null},{"Name":""},{"Name":"  "},{"Name":"Kept"}]"""
+
+        assertEquals(listOf("Kept"), studiosOfItem(studios))
+    }
+
+    @Test
+    fun atMostSixteenStudiosAreKept() {
+        val many = (1..20).joinToString(",", prefix = ""","Studios":[""", postfix = "]") { """{"Name":"S$it"}""" }
+
+        assertEquals((1..16).map { "S$it" }, studiosOfItem(many))
+    }
+
+    @Test
+    fun aNameOver256CharactersIsDroppedNotCut() {
+        val long = "a".repeat(257)
+        val exact = "b".repeat(256)
+
+        assertEquals(listOf(exact), studiosOfItem(""","Studios":[{"Name":"$long"},{"Name":"$exact"}]"""))
+    }
+
+    @Test
+    fun studiosThatAreTextFailThePageLikeTheOtherStrictFields() {
+        val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie","Studios":"A Studio"}],"TotalRecordCount":1}"""
+
+        assertIs<MediaServerError.NotJellyfin>(page(body).errorOrNull())
+    }
 }

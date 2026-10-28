@@ -73,6 +73,32 @@ class SeriesMappingTest {
     }
 
     @Test
+    fun studiosAreReadByNameDroppingBlankAndOverlongOnesAndCappedAtSixteen() {
+        val long = "a".repeat(257)
+        val many = (1..20).joinToString(",") { """{"Name":"S$it"}""" }
+        val body =
+            """{"Items":[{"Id":"s1","Name":"A","Type":"Series","Studios":[{"Name":"One","Id":"x"},{"Id":"y"},
+            {"Name":" "},{"Name":"$long"},{"Name":" Two "}]},
+            {"Id":"s2","Name":"B","Type":"Series","Studios":[$many]},
+            {"Id":"s3","Name":"C","Type":"Series","Studios":null},{"Id":"s4","Name":"D","Type":"Series"}],
+            "TotalRecordCount":4}"""
+
+        val studios = series(body).getOrNull()?.series?.map { it.studios }
+
+        assertEquals(
+            listOf(listOf("One", " Two "), (1..16).map { "S$it" }, emptyList(), emptyList()),
+            studios,
+        )
+    }
+
+    @Test
+    fun seriesStudiosThatAreTextFailThePage() {
+        val result = series("""{"Items":[{"Id":"s1","Name":"A","Type":"Series","Studios":"A"}],"TotalRecordCount":1}""")
+
+        assertIs<MediaServerError.NotJellyfin>(result.errorOrNull())
+    }
+
+    @Test
     fun nullEmptyAndBlankRatingsStayDistinct() {
         val body =
             """{"Items":[{"Id":"s1","Name":"A","Type":"Series"},{"Id":"s2","Name":"B","Type":"Series","OfficialRating":""},

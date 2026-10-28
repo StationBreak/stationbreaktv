@@ -484,13 +484,13 @@ internal class MediaCalls(
          * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
          * runtime) come with every item, so asking for more would only make the answer bigger.
          */
-        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,ParentId"
+        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,Studios,ParentId"
 
         /** The series calls (spec 10): only Series, never an episode, with the two fields a rule matches on. */
         const val SERIES_TYPE = "Series"
 
-        /** `OfficialRating` and the name come with every item, so a series needs only these two asked for. */
-        const val SERIES_FIELDS = "Genres,Tags"
+        /** `OfficialRating` and the name come with every item, so a series needs only these three asked for. */
+        const val SERIES_FIELDS = "Genres,Tags,Studios"
 
         /** The collection calls (spec 10, Unit 2): BoxSets, listed and read by their members. */
         const val BOX_SET_TYPE = "BoxSet"
@@ -551,6 +551,7 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         officialRating = dto.officialRating,
         genres = dto.genres.orEmpty(),
         tags = dto.tags.orEmpty(),
+        studios = studiosOf(dto.studios),
         seriesId = dto.seriesId?.let(::ItemId),
         seasonId = dto.seasonId?.let(::ItemId),
         seasonNumber = dto.seasonNumber,
@@ -572,7 +573,32 @@ internal fun toSeriesInfo(dto: SeriesDto): SeriesInfo =
         officialRating = dto.officialRating,
         genres = dto.genres.orEmpty(),
         tags = dto.tags.orEmpty(),
+        studios = studiosOf(dto.studios),
     )
+
+/** The most studios kept for one item or series; a real title has a handful, so more is a malformed answer. */
+internal const val STUDIOS_MAX = 16
+
+/** The longest studio name kept, in characters. */
+private const val STUDIO_NAME_MAX = 256
+
+/**
+ * The studio names of [raw], in the server's order and spelling (no trim, no case fold). An entry with a null or blank
+ * name is dropped, and so is a name over 256 characters: a cut name could match the wrong studio. At most
+ * [STUDIOS_MAX] are kept.
+ */
+internal fun studiosOf(raw: List<StudioDto>?): List<String> {
+    if (raw.isNullOrEmpty()) return emptyList()
+    val names = ArrayList<String>(minOf(raw.size, STUDIOS_MAX))
+    for (studio in raw) {
+        val name = studio.name
+        if (name != null && name.isNotBlank() && name.length <= STUDIO_NAME_MAX) {
+            names.add(name)
+            if (names.size == STUDIOS_MAX) break
+        }
+    }
+    return names
+}
 
 /**
  * `DateCreated` as the server's creation moment, in whole milliseconds: `floorDiv(T, 10000)` for `T` the time in
