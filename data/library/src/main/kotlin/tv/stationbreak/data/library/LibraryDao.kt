@@ -398,6 +398,17 @@ internal abstract class LibraryDao {
         userId: String,
     ): SyncMetaEntity?
 
+    /** Sets the backfill flag. Targeted on purpose: a whole-row write of `sync_meta` would reset it to its default. */
+    @Query(
+        "UPDATE sync_meta SET backfillPending = :pending " +
+            "WHERE serverId = :serverId AND userId = :userId",
+    )
+    abstract suspend fun setBackfillPending(
+        serverId: String,
+        userId: String,
+        pending: Boolean,
+    )
+
     @Query(
         "UPDATE sync_meta SET failedPasses = :failed, passRunning = :running " +
             "WHERE serverId = :serverId AND userId = :userId",
@@ -611,8 +622,34 @@ internal abstract class LibraryDao {
         nowMs: Long,
     ) {
         requireActive(serverId, userId)
-        saveState(AccountStateEntity(serverId, userId, AccountStateEntity.STATE_IDLE, null, null, nowMs))
+        saveIdle(serverId, userId, nowMs)
     }
+
+    /**
+     * An incremental pass ended well at [nowMs] (spec 18). It saves what [finishSync] saves, and when [backfillDone] it
+     * also clears the account's `backfillPending` flag in the same transaction. If the account is running a first sync
+     * (a library-selection change started one during a long walk) it does nothing, so that sync's state and the flag
+     * survive. First sync ends through [finishSync], which never touches the flag.
+     */
+    @Transaction
+    open suspend fun finishIncremental(
+        serverId: String,
+        userId: String,
+        nowMs: Long,
+        backfillDone: Boolean,
+    ) {
+        requireActive(serverId, userId)
+        if (state(serverId, userId)?.state == AccountStateEntity.STATE_FIRST_RUNNING) return
+        saveIdle(serverId, userId, nowMs)
+        if (backfillDone) setBackfillPending(serverId, userId, false)
+    }
+
+    // account_state may be saved whole. sync_meta never is (see setBackfillPending).
+    private suspend fun saveIdle(
+        serverId: String,
+        userId: String,
+        nowMs: Long,
+    ) = saveState(AccountStateEntity(serverId, userId, AccountStateEntity.STATE_IDLE, null, null, nowMs))
 
     /** The snapshot's items with their genres, tags and studios, all from one moment. */
     @Transaction

@@ -77,7 +77,7 @@ internal data class RowCounts(
  * ever holds a
  * token. The database is a cache: it can be deleted and fetched again.
  */
-@Suppress("TooManyFunctions") // The port plus the sync's side: each is one call into a DAO transaction.
+@Suppress("TooManyFunctions", "LargeClass") // The port plus the sync's side: each is one call into a DAO transaction.
 class RoomLibraryRepository internal constructor(
     private val db: LibraryDatabase,
     private val clock: Clock,
@@ -522,6 +522,25 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         dao.finishSync(server, user, (recorded ?: clock.now()).toEpochMilliseconds())
+    }
+
+    /**
+     * An incremental pass ended well (see [LibraryDao.finishIncremental]): like [finishSync], but it does nothing while
+     * the account runs a first sync, and clears the backfill flag when [backfillDone].
+     */
+    internal suspend fun finishIncremental(
+        account: LibraryAccount,
+        recorded: Instant,
+        backfillDone: Boolean,
+    ) {
+        val (server, user) = account.keys()
+        dao.finishIncremental(server, user, recorded.toEpochMilliseconds(), backfillDone)
+    }
+
+    /** True while the account's cache still lacks studios and the next incremental pass must read everything again. */
+    internal suspend fun backfillPending(account: LibraryAccount): Boolean {
+        val (server, user) = account.keys()
+        return dao.metaRow(server, user)?.backfillPending ?: false
     }
 
     /** The recorded moment of the last successful pass, or null before the first sync ended. */

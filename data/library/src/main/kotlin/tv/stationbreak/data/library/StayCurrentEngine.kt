@@ -224,13 +224,15 @@ internal class StayCurrentEngine(
             last: Instant,
             started: Instant,
         ): StayResult<PassSummary> {
+            // While the cache lacks studios (spec 18) every item and series is read again, from the start.
+            val pending = repository.backfillPending(account)
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), passed)
                 }
             // A last success ahead of now means the clock went back: count from the older of the two.
-            val since = minOf(last, started) - margin
+            val since = if (pending) null else minOf(last, started) - margin
             for (library in libraries) {
                 val failed =
                     walk(library, since) { items ->
@@ -243,7 +245,9 @@ internal class StayCurrentEngine(
                 if (seriesFailed != null) return StayResult(seriesFailed, passed)
             }
             currentCoroutineContext().ensureActive()
-            repository.finishSync(account, started)
+            // The flag clears only if every chosen library was walked; one the server did not list keeps it set.
+            val allWalked = chosen.all { id -> libraries.any { it.id == id } }
+            repository.finishIncremental(account, started, backfillDone = pending && allWalked)
             return StayResult(SyncOutcome.Completed, passed)
         }
 
@@ -458,7 +462,7 @@ internal class StayCurrentEngine(
         // Reads the series of [library] saved since [since], saving each page. Null when it reached the end.
         private suspend fun walkSeries(
             library: Library,
-            since: Instant,
+            since: Instant?,
         ): SyncOutcome? {
             val limit = PageLimit(pageSize)
             var next = 0
