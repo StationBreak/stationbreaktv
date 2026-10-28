@@ -72,4 +72,34 @@ class LeftoversTest {
     fun aCeilingOffTheLadderIsRefusedLikeThePoolEvaluator() {
         assertFailsWith<IllegalArgumentException> { Leftovers.pool(snapshot(), emptySet(), "XX") }
     }
+
+    @Test
+    fun aHeldLeftoversChannelDropsGrownUpItemsAndKeepsKidsItemsUnderTheCeiling() {
+        val snap =
+            snapshot(
+                items =
+                    listOf(
+                        movie(idOf(1), rating = "G", genres = listOf("Kids")),
+                        movie(idOf(2), rating = "G", genres = listOf("Drama")),
+                        movie(idOf(3), rating = "TV-PG", genres = listOf("Kids")),
+                        movie(idOf(4), rating = "G", genres = listOf("Kids")),
+                    ),
+            )
+        val pool = Leftovers.pool(snap, setOf(idOf(4)), "PG", held = true)
+        assertEquals(listOf(idOf(1)), pool.items.map { it.id })
+        assertEquals(1, pool.counts.heldOut)
+        assertEquals(1, pool.counts.blockedByCeiling)
+        val unheld = Leftovers.pool(snap, setOf(idOf(4)), "PG")
+        assertEquals(0, unheld.counts.heldOut)
+        assertEquals(listOf(idOf(1), idOf(2), idOf(3)), unheld.items.map { it.id })
+    }
+
+    @Test
+    fun aHeldLeftoversEpisodeOfAnUnknownSeriesIsHeldOutAndNotCountedUnknown() {
+        val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "G")))
+        val pool = Leftovers.pool(snap, emptySet(), "PG", held = true)
+        assertEquals(1, pool.counts.heldOut)
+        assertEquals(0, pool.counts.episodesWithUnknownSeries)
+        assertEquals(0, pool.counts.blockedByCeiling)
+    }
 }

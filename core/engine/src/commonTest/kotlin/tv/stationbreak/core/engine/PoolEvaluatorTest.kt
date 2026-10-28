@@ -487,4 +487,96 @@ class PoolEvaluatorTest {
         val r = rules(listOf(Source.Genre("a"), Source.Library(LIB)))
         assertEquals(eval(r, snap), eval(r, snap))
     }
+
+    // The kid hold (spec 18): a held evaluation is the app's narrowing, not rules-format behaviour.
+
+    private val kidShow = idOf(0x40)
+    private val grownShow = idOf(0x41)
+    private val goneShow = idOf(0x42)
+    private val heldIds = (1..6).map { idOf(it) }
+
+    private fun heldSnapshot(): RuleSnapshot =
+        snapshot(
+            items =
+                listOf(
+                    movie(idOf(1), rating = "G", genres = listOf("Kids")),
+                    movie(idOf(2), rating = "PG", genres = listOf("Fantasy")),
+                    episode(idOf(3), kidShow, rating = "TV-PG"),
+                    movie(idOf(4), rating = "Approved", genres = listOf("Kids")),
+                    episode(idOf(5), goneShow, rating = "G", genres = listOf("Drama")),
+                    episode(idOf(6), grownShow, rating = "TV-Y"),
+                ),
+            series =
+                listOf(
+                    series(kidShow, rating = "TV-PG", genres = listOf("Kids")),
+                    series(grownShow, rating = "TV-Y", genres = listOf("Drama")),
+                ),
+        )
+
+    @Test
+    fun anUnheldEvaluationIsTodaysPoolWithNothingHeldOut() {
+        val r = libraryRules(maxRating = "PG-13")
+        val pool = PoolEvaluator.evaluate(r, heldSnapshot(), held = false)
+        assertEquals(0, pool.counts.heldOut)
+        assertEquals(PoolEvaluator.evaluate(r, heldSnapshot()), pool)
+    }
+
+    @Test
+    fun theLadderIsUnchangedWhenNotHeld() {
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG-13"), heldSnapshot())
+        // The TV-PG episode and the Approved movie are kept; only the unknown-series episode is blocked.
+        assertEquals(listOf(1, 2, 3, 4, 6), pool.items.map { heldIds.indexOf(it.id) + 1 })
+        assertEquals(1, pool.counts.blockedByCeiling)
+        assertEquals(0, pool.counts.heldOut)
+    }
+
+    @Test
+    fun aHeldPgChannelKeepsOnlyKidsContentUnderTheKidTable() {
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), heldSnapshot(), held = true)
+        assertEquals(listOf(idOf(1)), pool.items.map { it.id })
+        // The Fantasy movie and the two episodes of Drama or unknown series are not made for kids.
+        assertEquals(3, pool.counts.heldOut)
+        // The TV-PG kids episode and the Approved kids movie are refused by the kid table.
+        assertEquals(2, pool.counts.blockedByCeiling)
+        assertEquals(0, pool.counts.excluded)
+    }
+
+    @Test
+    fun anEpisodeOfAMissingSeriesThatFailsTheGateIsHeldOutNotCountedUnknown() {
+        val ep = episode(idOf(1), goneShow, rating = "G")
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snapshot(items = listOf(ep)), held = true)
+        assertEquals(emptyList(), pool.items)
+        assertEquals(1, pool.counts.heldOut)
+        assertEquals(0, pool.counts.episodesWithUnknownSeries)
+        assertEquals(0, pool.counts.blockedByCeiling)
+    }
+
+    @Test
+    fun anEpisodeOfAMissingSeriesThatPassesTheGateOnItsOwnNamesIsCountedUnknownAndBlocked() {
+        val ep = episode(idOf(1), goneShow, rating = "G", genres = listOf("Kids"))
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snapshot(items = listOf(ep)), held = true)
+        assertEquals(emptyList(), pool.items)
+        assertEquals(0, pool.counts.heldOut)
+        assertEquals(1, pool.counts.episodesWithUnknownSeries)
+        assertEquals(1, pool.counts.blockedByCeiling)
+    }
+
+    @Test
+    fun exclusionsComeBeforeTheHold() {
+        val r = libraryRules(exclusions = listOf(Source.Genre("fantasy")), maxRating = "PG")
+        val pool = PoolEvaluator.evaluate(r, heldSnapshot(), held = true)
+        // The Fantasy movie, and the episode whose series is missing (a genre exclusion fails closed on it).
+        assertEquals(2, pool.counts.excluded)
+        assertEquals(1, pool.counts.heldOut)
+    }
+
+    @Test
+    fun aHeldPoolsCountsAddUpToWhatMatched() {
+        val snap = heldSnapshot()
+        for (exclusions in listOf(null, listOf(Source.Genre("fantasy")))) {
+            val pool = PoolEvaluator.evaluate(libraryRules(exclusions, "PG"), snap, held = true)
+            val c = pool.counts
+            assertEquals(snap.items.size, pool.items.size + c.excluded + c.heldOut + c.blockedByCeiling)
+        }
+    }
 }

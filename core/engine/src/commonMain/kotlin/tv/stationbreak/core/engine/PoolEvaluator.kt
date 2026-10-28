@@ -25,6 +25,11 @@ import tv.stationbreak.core.rules.Source
  *    ID, [SeriesState.Unknown] when the ID is set but the snapshot has no such series, and [SeriesState.Known]
  *    otherwise.
  *
+ * **Held channels.** When the caller says the channel is held (a kid channel, spec 18), an item that survives the
+ * exclusions must also be made for kids ([KidHold.isMadeForKids]) and passes the kid rating table
+ * ([KidHold.passesKidCeiling]) in place of the ladder. This is the app's narrowing (ADR-0019), not rules-format
+ * behaviour: rules format v1 knows nothing of it, and a `held` of false is exactly the evaluation above.
+ *
  * **No time filter.** This does not look at creation, deletion or runtime. An item with a deletion time is kept, and
  * which items count for which epoch is `EpochPool`'s decision.
  *
@@ -39,14 +44,18 @@ object PoolEvaluator {
      * The pool of [rules] over [snapshot], with its counts. Throws [IllegalArgumentException]:
      *  - naming the ID, when two items of the snapshot share one, whether or not either would be kept;
      *  - when `rules.maxRating` is not on the rating ladder, whatever the items (so even an empty snapshot throws).
+     *
+     * [held] applies the kid hold after the exclusions (see the class comment); it is the app's narrowing (ADR-0019),
+     * not rules-format behaviour.
      */
     fun evaluate(
         rules: ChannelRules,
         snapshot: RuleSnapshot,
+        held: Boolean = false,
     ): Pool {
         val ceiling = rules.maxRating
         require(ceiling == null || ceiling in RatingLadder.names) { NOT_ON_LADDER }
-        val pass = Pass(rules, snapshot)
+        val pass = Pass(rules, snapshot, held)
         val items = snapshot.items
         for (index in items.indices) pass.visit(items[index])
         return Pool(
@@ -60,6 +69,7 @@ object PoolEvaluator {
                     unresolvedSources = unresolvedCollections(rules.sources, snapshot),
                     unresolvedExclusions = pass.unresolvedExclusions,
                     collectionsSynced = snapshot.collectionsSynced,
+                    heldOut = pass.heldOut,
                 ),
         )
     }
@@ -69,6 +79,7 @@ object PoolEvaluator {
     private class Pass(
         rules: ChannelRules,
         private val snapshot: RuleSnapshot,
+        private val held: Boolean,
     ) {
         private val sourceMatcher = SourceMatcher(rules.sources, snapshot)
         private val exclusionMatcher =
@@ -90,6 +101,7 @@ object PoolEvaluator {
         var excluded = 0
         var blocked = 0
         var unknownSeries = 0
+        var heldOut = 0
 
         fun visit(entry: RuleItem) {
             val item = entry.item
@@ -101,8 +113,14 @@ object PoolEvaluator {
                 excluded++
                 return
             }
+            if (held && !KidHold.isMadeForKids(entry, series)) {
+                heldOut++
+                return
+            }
             if (item.kind == ScheduleItemKind.Episode && seriesId != null && series == null) unknownSeries++
-            if (passesCeiling(entry, series, maxRating)) kept.add(item) else blocked++
+            val passes =
+                if (held) KidHold.passesKidCeiling(entry, series, maxRating) else passesCeiling(entry, series, maxRating)
+            if (passes) kept.add(item) else blocked++
         }
 
         private fun requireNew(id: String) {
