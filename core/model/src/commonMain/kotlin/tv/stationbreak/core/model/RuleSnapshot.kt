@@ -43,7 +43,7 @@ data class RuleSnapshot(
 /**
  * One item of a [RuleSnapshot]: the scheduler's [item], composed rather than copied so it is built once, through
  * `ScheduleItem`'s own checks, with what the rules read beside it. [officialRating] is as stored: null, `""` and `" "`
- * are three values. [genres] and [tags] keep the server's order.
+ * are three values. [genres], [tags] and [studios] keep the server's order; [studios] is empty until the library holds them.
  */
 data class RuleItem(
     val item: ScheduleItem,
@@ -52,10 +52,13 @@ data class RuleItem(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
+    val studios: List<String> = emptyList(),
 ) {
     @Volatile private var foldedGenresCache: List<String>? = null
 
     @Volatile private var foldedTagsCache: List<String>? = null
+
+    @Volatile private var foldedStudiosCache: List<String>? = null
 
     /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept: a rule match reads this. */
     val foldedGenres: List<String>
@@ -65,10 +68,15 @@ data class RuleItem(
     val foldedTags: List<String>
         get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
 
-    /** Sets [foldedGenres] and [foldedTags] from [folds], shared with the rest of the snapshot. Changes no value. */
+    /** [studios] folded, as [foldedGenres]. */
+    val foldedStudios: List<String>
+        get() = foldedStudiosCache ?: foldNames(studios).also { foldedStudiosCache = it }
+
+    /** Sets [foldedGenres], [foldedTags] and [foldedStudios] from [folds], shared with the rest of the snapshot. */
     fun primeFolds(folds: NameFolds) {
         foldedGenresCache = folds.of(genres)
         foldedTagsCache = folds.of(tags)
+        foldedStudiosCache = folds.of(studios)
     }
 }
 
@@ -78,10 +86,13 @@ data class RuleSeries(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
+    val studios: List<String> = emptyList(),
 ) {
     @Volatile private var foldedGenresCache: List<String>? = null
 
     @Volatile private var foldedTagsCache: List<String>? = null
+
+    @Volatile private var foldedStudiosCache: List<String>? = null
 
     /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept. */
     val foldedGenres: List<String>
@@ -91,10 +102,15 @@ data class RuleSeries(
     val foldedTags: List<String>
         get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
 
-    /** Sets [foldedGenres] and [foldedTags] from [folds], shared with the rest of the snapshot. Changes no value. */
+    /** [studios] folded, as [foldedGenres]. */
+    val foldedStudios: List<String>
+        get() = foldedStudiosCache ?: foldNames(studios).also { foldedStudiosCache = it }
+
+    /** Sets [foldedGenres], [foldedTags] and [foldedStudios] from [folds], shared with the rest of the snapshot. */
     fun primeFolds(folds: NameFolds) {
         foldedGenresCache = folds.of(genres)
         foldedTagsCache = folds.of(tags)
+        foldedStudiosCache = folds.of(studios)
     }
 }
 

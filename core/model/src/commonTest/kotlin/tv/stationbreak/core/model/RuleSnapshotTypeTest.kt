@@ -122,4 +122,31 @@ class RuleSnapshotTypeTest {
         // names through its own current-state read, never through the snapshot).
         assertFalse("name" in snapshot.toString().lowercase(), snapshot.toString())
     }
+
+    @Test
+    fun studiosAreEmptyByDefaultAndFoldedLikeGenresOnARuleItemAndASeries() {
+        assertEquals(emptyList(), ruleItem(1).studios)
+        assertEquals(emptyList(), ruleItem(1).foldedStudios)
+
+        val item = ruleItem(1).copy(studios = listOf("A Studio"))
+        assertEquals(listOf("A Studio"), item.studios)
+        assertEquals(listOf(foldNameAscii("A Studio")), item.foldedStudios)
+
+        val series = RuleSeries(id(7), null, emptyList(), emptyList(), studios = listOf("B Network"))
+        assertEquals(listOf(foldNameAscii("B Network")), series.foldedStudios)
+        assertEquals(emptyList(), RuleSeries(id(8), null, emptyList(), emptyList()).studios)
+    }
+
+    @Test
+    fun primingFoldsAlsoPrimesStudios() {
+        val folds = NameFolds()
+        val item = ruleItem(1).copy(studios = listOf("A Studio"))
+        val series = RuleSeries(id(7), null, emptyList(), emptyList(), studios = listOf("B Network"))
+
+        item.primeFolds(folds)
+        series.primeFolds(folds)
+
+        assertEquals(listOf(foldNameAscii("A Studio")), item.foldedStudios)
+        assertEquals(listOf(foldNameAscii("B Network")), series.foldedStudios)
+    }
 }
