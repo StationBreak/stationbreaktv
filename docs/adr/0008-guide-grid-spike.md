@@ -173,9 +173,16 @@ The Fire TV Stick (API 30), C2 with the corner picture playing (frame time p50 /
 The first open after a cold launch took 324–734 ms, so the under-1-second gate passes every time (C1 took
 1307–1365 ms). Later opens took 165–287 ms. This is the same as or better than C1b, which had no picture.
 
-### Gate status: open
+### Gate decision (2026-10-27)
 
 Decision 4 says no scenario may be more than 20% worse than SP-2's p90/p99. By raw percentiles the Insignia is over
-that on most scenarios, but the comparison is not like-for-like (above). **The gate for the older hardware is the
-owner's call and is still open.** No pass or fail is recorded here. The project's direction for slow hardware is
-"measure, don't gate", with a usable floor.
+that on most scenarios, but the comparison is not like-for-like (above).
+
+**The owner accepted the guide on the older hardware as built (2026-10-27).** On the Insignia the 20% rule is not
+applied: its numbers are measured and recorded, as for the project's other slow-hardware timings, and the guide must
+keep a usable floor instead:
+- the guide opens in under 1 s, including the first open after a cold launch;
+- no hangs;
+- focus is never lost.
+
+Decision 4's 20% rule still applies on the Fire TV Stick.
