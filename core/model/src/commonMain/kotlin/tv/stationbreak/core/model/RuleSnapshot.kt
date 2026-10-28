@@ -43,7 +43,8 @@ data class RuleSnapshot(
 /**
  * One item of a [RuleSnapshot]: the scheduler's [item], composed rather than copied so it is built once, through
  * `ScheduleItem`'s own checks, with what the rules read beside it. [officialRating] is as stored: null, `""` and `" "`
- * are three values. [genres], [tags] and [studios] keep the server's order; [studios] is empty until the library holds them.
+ * are three values. [genres], [tags] and [studios] keep the server's order; [studios] is empty until the library
+ * holds them.
  */
 data class RuleItem(
     val item: ScheduleItem,
