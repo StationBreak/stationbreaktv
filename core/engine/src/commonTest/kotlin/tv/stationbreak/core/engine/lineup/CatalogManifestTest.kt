@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -56,7 +57,8 @@ class CatalogManifestTest {
 
     @Test
     fun everyGrownUpRecipeExcludesTheKidsGenresAndKidRecipesKeepTheirSources() {
-        val kidsGenres = listOf(Source.Genre("Children"), Source.Genre("Kids"), Source.Genre("Preschool"))
+        // Exactly the spellings the kid hold recognises, so a grown-up channel drops what a kid channel would take.
+        val kidsGenres = KidHold.KIDS_GENRES.map { Source.Genre(it) }
         for (recipe in StarterCatalog.recipes) {
             if (recipe.band == Band.Kids) {
                 assertEquals(emptyList(), recipe.exclusions, recipe.key)
