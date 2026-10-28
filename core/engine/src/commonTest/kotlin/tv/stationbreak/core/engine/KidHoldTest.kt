@@ -141,16 +141,58 @@ class KidHoldTest {
         assertTrue(KidHold.isMadeForKids(episodeOf(genres = listOf("Kids")), null))
     }
 
+    // --- kid hold 2: children's ratings and animation studios ---
+
+    @Test
+    fun aChildrensRatingMakesItMadeForKidsWithOnlyAThemeGenre() {
+        assertTrue(KidHold.isMadeForKids(film("TV-Y", genres = listOf("Adventure")), null))
+        assertTrue(KidHold.isMadeForKids(film("TV-Y7", genres = listOf("Adventure")), null))
+        assertTrue(KidHold.isMadeForKids(film("tv-y7-fv"), null))
+        assertTrue(KidHold.isMadeForKids(film(" TV-Y7-FV "), null))
+    }
+
+    @Test
+    fun aGeneralAudienceRatingAloneIsNotMadeForKids() {
+        assertFalse(KidHold.isMadeForKids(film("TV-G"), null))
+        assertFalse(KidHold.isMadeForKids(film("G"), null))
+        assertFalse(KidHold.isMadeForKids(film("PG"), null))
+    }
+
+    @Test
+    fun anEpisodeTakesAChildrensRatingFromItsKnownSeries() {
+        assertTrue(KidHold.isMadeForKids(episodeOf(""), show("TV-Y7")))
+        assertTrue(KidHold.isMadeForKids(episodeOf(null), show("TV-Y")))
+        assertFalse(KidHold.isMadeForKids(episodeOf(""), show("TV-G")))
+    }
+
+    @Test
+    fun aMissingSeriesContributesNoRating() {
+        assertFalse(KidHold.isMadeForKids(episodeOf(""), null))
+        assertTrue(KidHold.isMadeForKids(episodeOf("TV-Y"), null))
+    }
+
+    @Test
+    fun anAnimationStudioMakesItMadeForKidsExceptTheOneLeftOff() {
+        assertTrue(KidHold.isMadeForKids(film(studios = listOf("Pixar")), null))
+        assertTrue(KidHold.isMadeForKids(film(studios = listOf("dreamworks animation")), null))
+        assertFalse(KidHold.isMadeForKids(film(studios = listOf("Studio Ghibli")), null))
+        assertFalse(KidHold.isMadeForKids(film(studios = listOf("DreamWorks Pictures")), null))
+    }
+
     // --- the frozen manifest ---
 
     // A change to either list is a new version name: the hold's behaviour is versioned by it.
     @Test
     fun theManifestIsFrozenUnderItsVersionName() {
-        assertEquals("kid-hold-1", KidHold.VERSION_NAME)
+        assertEquals("kid-hold-2", KidHold.VERSION_NAME)
         assertEquals(
             listOf("Children", "Children's", "Children’s", "Childrens", "Kids", "Kid", "Preschool", "Pre-school"),
             KidHold.KIDS_GENRES,
         )
+    }
+
+    @Test
+    fun theStudioListIsFrozenUnderItsVersionName() {
         assertEquals(
             listOf(
                 "Nickelodeon",
@@ -192,7 +234,43 @@ class KidHoldTest {
                 "4Kids Entertainment",
                 "HiT Entertainment",
             ),
-            KidHold.KID_STUDIOS,
+            KidHold.KID_STUDIOS.take(CHANNEL_AND_LABEL_STUDIOS),
         )
+    }
+
+    @Test
+    fun theAnimationStudiosFollowTheChannelAndLabelStudios() {
+        assertEquals(
+            listOf(
+                "Walt Disney Animation Studios",
+                "Walt Disney Feature Animation",
+                "Disney Television Animation",
+                "Pixar",
+                "Pixar Animation Studios",
+                "DreamWorks Animation",
+                "Illumination",
+                "Illumination Entertainment",
+                "Blue Sky Studios",
+                "Sony Pictures Animation",
+                "Aardman",
+                "Aardman Animations",
+                "Laika",
+                "Hanna-Barbera",
+                "Hanna-Barbera Productions",
+                "Jim Henson Company",
+                "The Jim Henson Company",
+                "Rankin/Bass",
+                "Rankin/Bass Productions",
+                "Nelvana",
+                "WildBrain",
+                "DHX Media",
+            ),
+            KidHold.KID_STUDIOS.drop(CHANNEL_AND_LABEL_STUDIOS),
+        )
+    }
+
+    private companion object {
+        /** The studios `kid-hold-1` already had; the animation studios of `kid-hold-2` come after them. */
+        const val CHANNEL_AND_LABEL_STUDIOS = 38
     }
 }

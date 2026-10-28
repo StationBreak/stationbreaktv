@@ -533,9 +533,10 @@ class PoolEvaluatorTest {
     @Test
     fun aHeldPgChannelKeepsOnlyKidsContentUnderTheKidTable() {
         val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), heldSnapshot(), held = true)
-        assertEquals(listOf(idOf(1)), pool.items.map { it.id })
-        // The Fantasy movie and the two episodes of Drama or unknown series are not made for kids.
-        assertEquals(3, pool.counts.heldOut)
+        // The TV-Y episode counts as made for kids by its children's rating, whatever its series' genre.
+        assertEquals(listOf(idOf(1), idOf(6)), pool.items.map { it.id })
+        // The Fantasy movie and the episode of an unknown series (rated G, a Drama) are not made for kids.
+        assertEquals(2, pool.counts.heldOut)
         // The TV-PG kids episode and the Approved kids movie are refused by the kid table.
         assertEquals(2, pool.counts.blockedByCeiling)
         assertEquals(0, pool.counts.excluded)
@@ -567,7 +568,8 @@ class PoolEvaluatorTest {
         val pool = PoolEvaluator.evaluate(r, heldSnapshot(), held = true)
         // The Fantasy movie, and the episode whose series is missing (a genre exclusion fails closed on it).
         assertEquals(2, pool.counts.excluded)
-        assertEquals(1, pool.counts.heldOut)
+        // Nothing else is held out: the TV-Y episode is made for kids by its rating.
+        assertEquals(0, pool.counts.heldOut)
     }
 
     @Test

@@ -14,7 +14,7 @@ import tv.stationbreak.core.rules.RatingLadder
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-1"
+    const val VERSION_NAME = "kid-hold-2"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
@@ -27,7 +27,9 @@ object KidHold {
     /**
      * The studios that mean made for children. The written rule: a children's network, channel block or label whose
      * published output is made for children; a studio with grown-up or general-family output (a big film studio's main
-     * label, for example) is left off.
+     * label, for example) is left off. Animation studios whose features are made for children and families also count
+     * (owner decision 2026-10-28), except Studio Ghibli, which is left off on purpose. A big film studio's live-action
+     * label (a DreamWorks Pictures label, say) is left off too.
      */
     val KID_STUDIOS: List<String> =
         listOf(
@@ -69,6 +71,28 @@ object KidHold {
             "Kids' WB",
             "4Kids Entertainment",
             "HiT Entertainment",
+            "Walt Disney Animation Studios",
+            "Walt Disney Feature Animation",
+            "Disney Television Animation",
+            "Pixar",
+            "Pixar Animation Studios",
+            "DreamWorks Animation",
+            "Illumination",
+            "Illumination Entertainment",
+            "Blue Sky Studios",
+            "Sony Pictures Animation",
+            "Aardman",
+            "Aardman Animations",
+            "Laika",
+            "Hanna-Barbera",
+            "Hanna-Barbera Productions",
+            "Jim Henson Company",
+            "The Jim Henson Company",
+            "Rankin/Bass",
+            "Rankin/Bass Productions",
+            "Nelvana",
+            "WildBrain",
+            "DHX Media",
         )
 
     private const val TIER_PG = 2
@@ -79,10 +103,11 @@ object KidHold {
     private val studioSet = NameSet(KID_STUDIOS, IntArray(KID_STUDIOS.size))
 
     /**
-     * Whether [entry] is made for children: one of its genres is in [KIDS_GENRES] or one of its studios is in
-     * [KID_STUDIOS], and so, when [series] is not null, is one of the series'. A null [series] (a movie, an episode
-     * with no series, or one whose series the snapshot lacks) contributes nothing, so such an episode matches on its
-     * own names only.
+     * Whether [entry] is made for children: one of its genres is in [KIDS_GENRES], one of its studios is in
+     * [KID_STUDIOS], or its rating is a children's one (`TV-Y`, `TV-Y7`, `TV-Y7-FV`, per the TV Parental Guidelines),
+     * and so, when [series] is not null, is one of the series'. A null [series] (a movie, an episode with no series,
+     * or one whose series the snapshot lacks) contributes nothing, so such an episode matches on its own names and
+     * rating only.
      */
     fun isMadeForKids(
         entry: RuleItem,
@@ -90,7 +115,21 @@ object KidHold {
     ): Boolean =
         anyMatch(genreSet, entry.foldedGenres) ||
             anyMatch(studioSet, entry.foldedStudios) ||
-            (series != null && (anyMatch(genreSet, series.foldedGenres) || anyMatch(studioSet, series.foldedStudios)))
+            isChildrensRating(entry.officialRating) ||
+            (
+                series != null &&
+                    (
+                        anyMatch(genreSet, series.foldedGenres) ||
+                            anyMatch(studioSet, series.foldedStudios) ||
+                            isChildrensRating(series.officialRating)
+                    )
+            )
+
+    private fun isChildrensRating(rating: String?): Boolean {
+        if (rating == null) return false
+        val name = RatingLadder.normalise(rating)
+        return name == "TV-Y" || name == "TV-Y7" || name == "TV-Y7-FV"
+    }
 
     /**
      * The kid tier of the rating [rating] after `RatingLadder.normalise`: 0 for `TV-Y`, `TV-G`, `G`; 1 for `TV-Y7`,
