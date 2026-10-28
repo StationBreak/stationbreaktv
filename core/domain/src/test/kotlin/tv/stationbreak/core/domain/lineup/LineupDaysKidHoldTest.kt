@@ -110,6 +110,7 @@ class LineupDaysKidHoldTest {
     @Test
     fun anOptInKidRecipeWithholdsOnlyWhatItWouldAirIfShown() {
         seed()
+        // A synthetic opt-in kid recipe built on a fixture's opt-in one; the real "little-farm" is not opt-in.
         val catalog =
             object : StarterCatalogView by TestCatalog {
                 override val recipes =
