@@ -36,7 +36,9 @@ class LineupPlannerPropertyTest {
                     current = newerCatalog(gen, current)
                     newerCatalogs++
                 }
-                val snapshot = libraryOf(fillsOf(gen, current), collectionsSynced = gen.chance(70))
+                // A kid recipe fills only with items made for children, so its items carry the Kids genre.
+                val kidKeys = current.recipes.filter { it.band == Band.Kids }.mapTo(HashSet()) { it.key }
+                val snapshot = libraryOf(fillsOf(gen, current), collectionsSynced = gen.chance(70), alsoKids = kidKeys)
                 val now = round * 1_000L
                 val offset = gen.nextInt(-48..56) * 15
                 val next = planOf(lineup, snapshot, current, nowMs = now, offset = offset)

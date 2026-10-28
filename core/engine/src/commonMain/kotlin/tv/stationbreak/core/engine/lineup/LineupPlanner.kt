@@ -32,11 +32,10 @@ object LineupPlanner {
      * collection pass (`collectionsSynced`), so every recipe's collection hints resolve before it ranks and the same
      * library gives every TV the same lineup; until then the lineup has no channels. With [withoutCollections] it does
      * not wait: a collection pass that never completes would otherwise keep the lineup empty, or on an old catalog,
-     * for good. The caller
-     * decides when that is (the planner stays pure and only obeys). The choice is made with the collection names it
-     * was given (none, if no pass has run), and a pass that lands later reaches the starters through the hint pass
-     * below. With fewer than
-     * [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes nothing is on yet either.
+     * for good. The caller decides when that is (the planner stays pure and only obeys). The choice is made with the
+     * collection names it was given (none, if no pass has run), and a pass that lands later reaches the starters
+     * through the hint pass below. With fewer than [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes
+     * nothing is on yet either. A kid recipe fills only with what is made for children (the kid hold, ADR-0019).
      * Otherwise the leftovers channels and the best-filling non-opt-in recipes (ties by key) are switched on up to
      * [LineupDefaults.CAP], and every other recipe goes on the shelf at its default number.
      *
@@ -250,7 +249,7 @@ private class Planning(
     fun ranked(candidates: List<Pair<Recipe, ChannelRules>>): List<Recipe> =
         candidates
             .mapNotNull { (recipe, rules) ->
-                val pool = PoolEvaluator.evaluate(rules, snapshot)
+                val pool = PoolEvaluator.evaluate(rules, snapshot, held = KidStatus.isKidRecipe(recipe))
                 val runtime = airableRuntimeMs(pool.items, rules.toSchedulerSettings())
                 if (runtime >= LineupDefaults.MIN_AIRABLE_RUNTIME_MS) recipe to runtime else null
             }.sortedWith(compareByDescending<Pair<Recipe, Long>> { it.second }.thenBy { it.first.key })

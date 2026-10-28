@@ -3,16 +3,16 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolEvaluator
-import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
+import tv.stationbreak.core.engine.lineup.KidStatus.isKidRecipe
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.RecipeResolver
-import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
@@ -90,7 +90,7 @@ internal class Scheduled(
  * channel whose key is in the catalog takes the catalog's, an unedited starter of a kid-safe recipe takes the recipe's,
  * an edited one keeps its own but never above PG, and any channel numbered in the Kids band is held to PG at most.
  *
- * A kid channel ([isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
+ * A kid channel ([KidStatus.isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
  * made-for-kids content (spec 18): every pool it gets, ruled, leftovers and withheld, is evaluated with the hold, and
  * its cache key says so. A hidden or opt-in kid channel withholds only what it would air if shown, so what the hold
  * keeps off it stays with the grown-up leftovers.
@@ -300,14 +300,17 @@ internal class LineupDays(
             claimed: Set<CanonicalId>,
         ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), isKidChannel(channel))
 
-        // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
-        // Held when the recipe was ever a kid recipe; the ceiling is as today.
+        // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
+        // held when it is a kid one: the resolved recipe by its recipe, the lineup's channel by its channel. The
+        // ceiling is as today.
         private fun optInRules(): List<HeldRules> =
             catalog.recipes.filter { it.optIn }.flatMap { recipe ->
                 val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
-                val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }?.let(::rulesOf)
-                val kid = recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS
-                listOfNotNull(resolved, inLineup).map { HeldRules(it, kid) }
+                val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
+                listOfNotNull(
+                    HeldRules(resolved, isKidRecipe(recipe)),
+                    inLineup?.let(::rulesOf)?.let { HeldRules(it, isKidChannel(inLineup)) },
+                )
             }
 
         // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling, held if a kid channel.
@@ -335,12 +338,6 @@ internal class LineupDays(
         val held: Boolean,
     )
 
-    // A kid channel: numbered in the Kids band, or a key that was ever kid-safe (whatever its number or edit).
-    private fun isKidChannel(channel: LineupChannel): Boolean {
-        val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
-        return inKidsBand || keyOf(channel.source)?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
-    }
-
     /**
      * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is
      * in the catalog (the stored one only counts for a retired key). An unedited starter of a kid-safe recipe takes the
@@ -352,13 +349,6 @@ internal class LineupDays(
         val stored = storedCeiling(channel.source)
         return if (isKidChannel(channel) && !atMostPg(stored)) KIDS_MAX_RATING else stored
     }
-
-    private fun keyOf(source: ChannelSource): String? =
-        when (source) {
-            is ChannelSource.Starter -> source.recipeKey
-            is ChannelSource.Leftovers -> source.recipeKey
-            else -> null
-        }
 
     // The ceiling before the kids' cap: the catalog's wherever it governs, else the stored one.
     private fun storedCeiling(source: ChannelSource): String? =

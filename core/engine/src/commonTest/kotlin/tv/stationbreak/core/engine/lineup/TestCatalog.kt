@@ -64,11 +64,12 @@ internal fun libraryOf(
     fills: Map<String, Int>,
     collectionsSynced: Boolean = true,
     collections: List<RuleCollection> = emptyList(),
+    alsoKids: Set<String> = setOf("tots"),
 ): RuleSnapshot {
     var next = 0x10000
     val items =
         fills.entries.sortedBy { it.key }.flatMap { (genre, count) ->
-            List(count) { movie(idOf(next++), rating = "G", genres = listOf(genre)) }
+            List(count) { movie(idOf(next++), rating = "G", genres = if (genre in alsoKids) listOf(genre, "Kids") else listOf(genre)) }
         }
     return snapshot(items = items, collections = collections, collectionsSynced = collectionsSynced)
 }
