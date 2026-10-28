@@ -71,7 +71,8 @@ The owner decisions of 2026-10-27:
        or on its known series. The TV Parental Guidelines define these as children's programming, so this follows
        decision 1 (kids means made for kids). An unknown series contributes nothing. `TV-G` and `G` do not count.
      - The major animation studios join the studio list (owner decision), except Studio Ghibli, which is left off on
-       purpose. A big film studio's live-action label stays off.
+       purpose, as is Nelvana, which also co-produces general-audience work. A big film studio's live-action label
+       stays off.
 
      The kids genres are unchanged, so catalog version 2 is unchanged.
 6. **The kid rating table.** A fixed table in the hold, not a change to `RatingLadder`:

@@ -176,6 +176,7 @@ class KidHoldTest {
         assertTrue(KidHold.isMadeForKids(film(studios = listOf("Pixar")), null))
         assertTrue(KidHold.isMadeForKids(film(studios = listOf("dreamworks animation")), null))
         assertFalse(KidHold.isMadeForKids(film(studios = listOf("Studio Ghibli")), null))
+        assertFalse(KidHold.isMadeForKids(film(studios = listOf("Nelvana")), null))
         assertFalse(KidHold.isMadeForKids(film(studios = listOf("DreamWorks Pictures")), null))
     }
 
@@ -261,7 +262,6 @@ class KidHoldTest {
                 "The Jim Henson Company",
                 "Rankin/Bass",
                 "Rankin/Bass Productions",
-                "Nelvana",
                 "WildBrain",
                 "DHX Media",
             ),

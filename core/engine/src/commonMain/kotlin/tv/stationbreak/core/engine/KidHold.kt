@@ -28,8 +28,9 @@ object KidHold {
      * The studios that mean made for children. The written rule: a children's network, channel block or label whose
      * published output is made for children; a studio with grown-up or general-family output (a big film studio's main
      * label, for example) is left off. Animation studios whose features are made for children and families also count
-     * (owner decision 2026-10-28), except Studio Ghibli, which is left off on purpose. A big film studio's live-action
-     * label (a DreamWorks Pictures label, say) is left off too.
+     * (owner decision 2026-10-28), except Studio Ghibli, which is left off on purpose. Also left off on purpose:
+     * Nelvana, which also co-produces general-audience work, and a big film studio's live-action label (a DreamWorks
+     * Pictures label, say).
      */
     val KID_STUDIOS: List<String> =
         listOf(
@@ -90,7 +91,6 @@ object KidHold {
             "The Jim Henson Company",
             "Rankin/Bass",
             "Rankin/Bass Productions",
-            "Nelvana",
             "WildBrain",
             "DHX Media",
         )
