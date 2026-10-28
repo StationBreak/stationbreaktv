@@ -6,6 +6,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
+import tv.stationbreak.core.model.ItemId
 
 /**
  * Spec 10 task 1.5.3: the as-of read carries the rating, the ordered genres and the ordered tags of the version it
@@ -165,22 +166,10 @@ class HeldRowFieldsTest {
             repository.select(ALICE, setOf(MOVIES))
             repository.put(ALICE, MOVIES, sitem(1).copy(studios = listOf("Invented Studio")))
             clock.stepMs(10_000)
-            repository.tombstone(
-                ALICE,
-                listOf(
-                    tv.stationbreak.core.model
-                        .ItemId(hexId(1)),
-                ),
-            )
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
             clock.stepMs(10_000)
 
-            repository.revive(
-                ALICE,
-                listOf(
-                    tv.stationbreak.core.model
-                        .ItemId(hexId(1)),
-                ),
-            )
+            repository.revive(ALICE, listOf(ItemId(hexId(1))))
 
             val version = repository.versions(ALICE).single()
             assertEquals(listOf("Invented Studio"), VersionCodec.decode(version.studios))

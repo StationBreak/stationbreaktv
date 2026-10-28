@@ -334,7 +334,10 @@ class InMemoryLibraryRepository : LibraryRepository {
             .sortedBy { it.item.id.value }
     }
 
-    private fun MediaItem.extras() = Extras(seasonId?.let { CanonicalId.parseOrNull(it.value) }, officialRating, genres, tags, studios)
+    private fun MediaItem.extras(): Extras {
+        val season = seasonId?.let { CanonicalId.parseOrNull(it.value) }
+        return Extras(season, officialRating, genres, tags, studios)
+    }
 
     private fun MediaItem.toScheduleItemOrNull(): ScheduleItem? {
         val scheduleKind = ScheduleItemKind.entries.firstOrNull { it.name == kind.name }

@@ -177,7 +177,9 @@ internal abstract class ItemHistoryDao {
             rows.map {
                 val id = it.itemId
                 val genres = names.genres[id].orEmpty()
-                it.toVersion(stamps.getValue(id), genres, names.tags[id].orEmpty(), names.studios[id].orEmpty())
+                val tags = names.tags[id].orEmpty()
+                val studios = names.studios[id].orEmpty()
+                it.toVersion(stamps.getValue(id), genres, tags, studios)
             }
         return RevivalPlan(versions, rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.itemId)) })
     }
