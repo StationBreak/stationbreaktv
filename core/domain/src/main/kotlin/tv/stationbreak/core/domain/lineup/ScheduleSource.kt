@@ -28,14 +28,14 @@ enum class HiddenReason {
     /** Nothing in the library matches the channel's sources. For a leftovers channel: nothing is left over. */
     NoMatches,
 
+    /** A kid channel matched items but none is made for kids. */
+    NothingMadeForKids,
+
     /** Everything that matched was removed by the channel's exclusions. */
     AllExcluded,
 
     /** Everything that matched and was not excluded is above the channel's rating ceiling, or has no rating. */
     AllBlockedByCeiling,
-
-    /** A kid channel matched items but none is made for kids. */
-    NothingMadeForKids,
 
     /** The channel has content, but none for this day (all too new, gone before it, or too long or short to air). */
     EmptyToday,
