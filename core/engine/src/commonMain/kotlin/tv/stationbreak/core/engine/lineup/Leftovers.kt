@@ -30,7 +30,7 @@ object Leftovers {
         snapshot: RuleSnapshot,
         claimed: Set<CanonicalId>,
         maxRating: String?,
-        held: Boolean = false,
+        held: Boolean,
     ): Pool {
         require(maxRating == null || maxRating in RatingLadder.names) { NOT_ON_LADDER }
         val kept = ArrayList<ScheduleItem>()
