@@ -47,14 +47,14 @@ internal abstract class CacheTransactionDao(
     /**
      * Writes one page and its checkpoint together (no checkpoint when [checkpoint] is null: a changed-since page moves
      * no position). An item the database already holds, equal, is left alone; one that differs is updated and its
-     * genres and tags replaced; a new one is inserted. A change to a field the scheduler reads (genres and tags
-     * included), or a row that clears a tombstone, first keeps the old row as a version (spec 09). The account must
-     * still be signed in, which is checked inside this transaction. [nowMs] stamps new rows and versions.
+     * genres, tags and studios replaced; a new one is inserted. A change to a field the scheduler reads (genres, tags
+     * and studios included), or a row that clears a tombstone, first keeps the old row as a version (spec 09). The
+     * account must still be signed in, which is checked inside this transaction. [nowMs] stamps new rows and versions.
      *
-     * The item rows (with their genres and tags) are written through [LibraryDao] first, then the versions through
-     * [ItemHistoryDao], then the checkpoint. [betweenItemsAndHistory] runs after the first and before the second, and
-     * [betweenItemsAndCheckpoint] after the second and before the checkpoint. Both are test seams, null in the app: a
-     * test makes the write die at either point and proves nothing before it is kept.
+     * The item rows (with their genres, tags and studios) are written through [LibraryDao] first, then the versions
+     * through [ItemHistoryDao], then the checkpoint. [betweenItemsAndHistory] runs after the first and before the
+     * second, and [betweenItemsAndCheckpoint] after the second and before the checkpoint. Both are test seams, null in
+     * the app: a test makes the write die at either point and proves nothing before it is kept.
      *
      * [seriesRows] are the page's series (a series page holds no items, and an item page no series). They are written
      * through [SeriesDao] after the item versions and before the second seam, in the same transaction.
@@ -77,19 +77,20 @@ internal abstract class CacheTransactionDao(
                 .chunked(LibraryDao.MAX_VARIABLES)
                 .flatMap { library.itemsByIds(server, user, it) }
                 .associateBy { it.itemId }
-        // The old genres and tags are read here, inside the transaction and before they are deleted below.
-        val oldGenres = library.genreNames(server, user, existing.keys)
-        val oldTags = library.tagNames(server, user, existing.keys)
-        val plan = history.planPage(items, existing, oldGenres, oldTags, nowMs)
+        // The old genres, tags and studios are read here, inside the transaction and before they are deleted below.
+        val old = library.sideNames(server, user, existing.keys)
+        val plan = history.planPage(items, existing, old, nowMs)
         library.insertItems(plan.toInsert)
         library.updateItems(plan.toUpdate)
         val changedIds = (plan.toInsert + plan.toUpdate).map { it.itemId }
         changedIds.chunked(LibraryDao.MAX_VARIABLES).forEach {
             library.deleteGenres(server, user, it)
             library.deleteTags(server, user, it)
+            library.deleteStudios(server, user, it)
         }
         library.insertGenres(changedIds.flatMap { items.getValue(it).genres })
         library.insertTags(changedIds.flatMap { items.getValue(it).tags })
+        library.insertStudios(changedIds.flatMap { items.getValue(it).studios })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
         val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
@@ -235,9 +236,8 @@ internal abstract class CacheTransactionDao(
             val rows = library.itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
             if (rows.isEmpty()) continue
             val rowIds = rows.map { it.itemId }
-            val genres = library.genreNames(serverId, userId, rowIds)
-            val tags = library.tagNames(serverId, userId, rowIds)
-            val plan = history.planRevival(rows, genres, tags, nowMs)
+            val names = library.sideNames(serverId, userId, rowIds)
+            val plan = history.planRevival(rows, names, nowMs)
             history.insertVersions(plan.versions)
             library.updateItems(plan.revived)
         }
@@ -277,10 +277,10 @@ internal abstract class CacheTransactionDao(
     /**
      * Purges the account's history older than [retentionMs] at [nowMs], in one transaction after the account is
      * checked: the versions superseded, and the tombstones set, more than that long ago, for items, series and
-     * collections (whose member rows superseded that long ago go too). The
-     * current version of a live item or series is never touched, and a purged tombstone takes its genres, tags and
-     * versions with it (the foreign keys). The versions go first, so the count is of the ones superseded long ago and
-     * not of the ones a tombstone takes with it. A tombstone also needs `seenFromMs < cutoff` (Vimes L-1 on #268).
+     * collections (whose member rows superseded that long ago go too). The current version of a live item or series is
+     * never touched, and a purged tombstone takes its genres, tags, studios and versions with it (the foreign keys).
+     * The versions go first, so the count is of the ones superseded long ago and not of the ones a tombstone takes
+     * with it. A tombstone also needs `seenFromMs < cutoff` (Vimes L-1 on #268).
      * Every delete is plain SQL and nothing is passed in but numbers, so no callback runs inside the transaction.
      *
      * A clock that looks wrong purges nothing (Vimes L2): [nowMs] before [referenceMs], or more than the retention

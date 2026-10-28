@@ -269,7 +269,8 @@ class InMemoryLibraryRepositoryTest {
         genres: List<String> = emptyList(),
         tags: List<String> = emptyList(),
         seasonId: CanonicalId? = null,
-    ) = RuleItem(item, library, seasonId, rating, genres, tags)
+        studios: List<String> = emptyList(),
+    ) = RuleItem(item, library, seasonId, rating, genres, tags, studios)
 
     private fun collection(
         hex: Char,
@@ -309,7 +310,8 @@ class InMemoryLibraryRepositoryTest {
         runBlocking {
             val repository = InMemoryLibraryRepository()
             val cutoffMs = epoch.toEpochMilliseconds()
-            val rated = ruleItem(held('b'), rating = " ", genres = listOf("Drama", "Comedy"), tags = listOf("noir"))
+            val genres = listOf("Drama", "Comedy")
+            val rated = ruleItem(held('b'), rating = " ", genres = genres, tags = listOf("noir"), studios = listOf("S"))
             repository.seedRule(alice, rated, ruleItem(held('a'), rating = null))
             repository.seedRule(alice, ruleItem(held('c', deletedAtMs = cutoffMs - 1)))
             repository.seedRule(alice, ruleItem(held('d', deletedAtMs = cutoffMs)))
@@ -341,6 +343,7 @@ class InMemoryLibraryRepositoryTest {
                     officialRating = "",
                     genres = listOf("g"),
                     tags = listOf("t"),
+                    studios = listOf("s"),
                 ),
             )
 
@@ -349,8 +352,8 @@ class InMemoryLibraryRepositoryTest {
             assertEquals(listOf(id('b')), items.map { it.item.id })
             val only = items.single()
             assertEquals(
-                listOf(moviesId, null, "", listOf("g"), listOf("t")),
-                listOf(only.libraryId, only.seasonId, only.officialRating, only.genres, only.tags),
+                listOf(moviesId, null, "", listOf("g"), listOf("t"), listOf("s")),
+                listOf(only.libraryId, only.seasonId, only.officialRating, only.genres, only.tags, only.studios),
             )
         }
 

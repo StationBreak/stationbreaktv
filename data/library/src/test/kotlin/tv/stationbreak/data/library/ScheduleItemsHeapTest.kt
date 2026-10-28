@@ -14,7 +14,8 @@ import kotlin.time.Instant
 /**
  * Spec 09 task 2.13 (Goal 4): on the generated 15,000-item library with three superseded versions per item (45,000
  * `item_version` rows), the as-of read finishes in under one second on the JVM, and its heap growth stays under the
- * spec 06 budget of 64 MB. The same read runs on the API 25 emulator (`ScheduleItemsHeapOnDeviceTest`).
+ * spec 06 budget of 64 MB. The same read runs on the API 25 emulator (`ScheduleItemsHeapOnDeviceTest`). Every item has
+ * one studio, so every version row carries one too (spec 18).
  */
 class ScheduleItemsHeapTest {
     private val clock = FakeClock()
@@ -40,7 +41,10 @@ class ScheduleItemsHeapTest {
             clock.stepMs(1.hours.inWholeMilliseconds)
             var start = 0
             while (start < ITEMS) {
-                val page = library.page(start, PAGE).map { it.copy(officialRating = "R$round") }
+                val page =
+                    library.page(start, PAGE).map {
+                        it.copy(officialRating = "R$round", studios = studioOf(it.id.value))
+                    }
                 repository.upsertItems(ALICE, MOVIES, page)
                 start += PAGE
             }
@@ -89,5 +93,9 @@ class ScheduleItemsHeapTest {
         const val LIMIT_MB = 64L
         const val LIMIT_MS = 1_000L
         const val NANOS_PER_MS = 1_000_000L
+        val STUDIOS = listOf("Studio North", "Studio South", "Studio East", "Studio West", "Studio Centre")
+
+        // One invented studio per item or series (spec 18), the same for an ID every round.
+        fun studioOf(id: String) = listOf(STUDIOS[Math.floorMod(id.hashCode(), STUDIOS.size)])
     }
 }

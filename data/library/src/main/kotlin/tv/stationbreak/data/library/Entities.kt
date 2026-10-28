@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -9,9 +10,9 @@ import tv.stationbreak.core.model.CollectionMemberKind
 // The saved library's tables (spec 06, Unit 2). Every row is keyed by server and user (ADR-0002). All times are UTC
 // milliseconds. Nothing here can hold a token or a password: the columns are IDs, names, numbers and dates.
 //
-// Deleting a `library` row deletes everything under it (items, their genres and tags, the checkpoint) through the
-// foreign keys, so unticking a library, signing out and a change of account are each one DELETE. SQLite on API 25 is
-// 3.9: no UPSERT, no window functions, no row values, at most 999 variables in a statement. The DAO sticks to that.
+// Deleting a `library` row deletes everything under it (items, their genres, tags and studios, the checkpoint) through
+// the foreign keys, so unticking a library, signing out and a change of account are each one DELETE. SQLite on API 25
+// is 3.9: no UPSERT, no window functions, no row values, at most 999 variables in a statement. The DAO sticks to that.
 
 /** One chosen library of one account. [fetched] is false from the tick until the sync has read all of it. */
 @Entity(tableName = "library", primaryKeys = ["serverId", "userId", "libraryId"])
@@ -73,8 +74,10 @@ internal data class ItemEntity(
  * The item row is always the current version, and each item's versions form contiguous, strictly increasing intervals
  * `[seenFromMs, supersededAtMs)` that end where the next one, or the item row's own `seenFromMs`, begins (Vimes H1).
  * Only the fields the scheduler reads are kept (not the name), with [deletedAtMs] too, so a tombstone that was revived
- * stays a tombstone in the version that held it. [genres] and [tags] are one [VersionCodec] column each (Vimes M1).
- * The foreign key deletes the history with its item: sign-out, unticking a library and the purge of a tombstone (H5).
+ * stays a tombstone in the version that held it. [genres], [tags] and [studios] are one [VersionCodec] column each
+ * (Vimes M1). [studios] (spec 18) defaults to `''`, the empty list, so a version kept before the cache stored studios
+ * reads "no studios" and never falls back to the current ones. The foreign key deletes the history with its item:
+ * sign-out, unticking a library and the purge of a tombstone (H5).
  */
 @Entity(
     tableName = "item_version",
@@ -110,13 +113,15 @@ internal data class ItemVersionEntity(
     val deletedAtMs: Long?,
     val genres: String,
     val tags: String,
+    @ColumnInfo(defaultValue = "") val studios: String,
 )
 
 /**
- * A series of a selected library (spec 10, Unit 1): the fields a rule reads that its episodes do not carry. [genres]
- * and [tags] are one [VersionCodec] column each, because nothing queries them in SQL and the evaluator reads whole
- * series. [officialRating] is kept as the server sent it: null, `""` and `" "` are three values. The row is the current
- * version; [seenFromMs] and [firstSeenMs] work as on [ItemEntity]. Deleting a `library` row deletes its series.
+ * A series of a selected library (spec 10, Unit 1): the fields a rule reads that its episodes do not carry. [genres],
+ * [tags] and [studios] are one [VersionCodec] column each, because nothing queries them in SQL and the evaluator reads
+ * whole series; [studios] defaults to `''` as on [ItemVersionEntity]. [officialRating] is kept as the server sent it:
+ * null, `""` and `" "` are three values. The row is the current version; [seenFromMs] and [firstSeenMs] work as on
+ * [ItemEntity]. Deleting a `library` row deletes its series.
  *
  * A series listed in two ticked libraries has one row: each write flips [libraryId] to the library that wrote it (an
  * unversioned update), and unticking either library removes the series. Items behave the same way (spec 09).
@@ -152,6 +157,7 @@ internal data class SeriesEntity(
     val deletedAtMs: Long?,
     val seenFromMs: Long,
     val firstSeenMs: Long,
+    @ColumnInfo(defaultValue = "") val studios: String,
 )
 
 /**
@@ -185,6 +191,7 @@ internal data class SeriesVersionEntity(
     val genres: String,
     val tags: String,
     val deletedAtMs: Long?,
+    @ColumnInfo(defaultValue = "") val studios: String,
 )
 
 /**
@@ -296,6 +303,10 @@ internal data class CollectionSyncEntity(
  * [failedPasses] counts the collection passes that ended without completing since the last completed one: a pass
  * records that it started ([passRunning]) and that it completed; one that ended some other way adds one, and so does a
  * start that finds the previous pass still marked running (the process died in it). A completed pass sets it to zero.
+ *
+ * [backfillPending] is set by the migration from version 7 (spec 18): the cache then held no studios, so every item and
+ * series must be read again. Only the backfill step that completes that re-read clears it. A row made later, and every
+ * row of a new install, starts with it off.
  */
 @Entity(tableName = "sync_meta", primaryKeys = ["serverId", "userId"])
 internal data class SyncMetaEntity(
@@ -304,6 +315,7 @@ internal data class SyncMetaEntity(
     val contentGeneration: Long,
     val failedPasses: Int = 0,
     val passRunning: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val backfillPending: Boolean = false,
 )
 
 /** One genre of an item, at [position] so the server's order is kept. */
@@ -341,6 +353,27 @@ internal data class GenreEntity(
     ],
 )
 internal data class TagEntity(
+    val serverId: String,
+    val userId: String,
+    val itemId: String,
+    val position: Int,
+    val name: String,
+)
+
+/** One studio of an item, at [position] so the server's order is kept (spec 18). */
+@Entity(
+    tableName = "item_studio",
+    primaryKeys = ["serverId", "userId", "itemId", "position"],
+    foreignKeys = [
+        ForeignKey(
+            entity = ItemEntity::class,
+            parentColumns = ["serverId", "userId", "itemId"],
+            childColumns = ["serverId", "userId", "itemId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+internal data class StudioEntity(
     val serverId: String,
     val userId: String,
     val itemId: String,
@@ -418,13 +451,14 @@ internal fun nextStamp(
 ): Long = maxOf(nowMs, oldSeenFromMs + 1)
 
 /**
- * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags and
- * the tombstone. The name and the library are not (Vimes L2).
+ * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags, the
+ * ordered studios (spec 18) and the tombstone. The name and the library are not (Vimes L2).
  */
 internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
     officialRating == other.officialRating &&
         genres == other.genres &&
         tags == other.tags &&
+        studios == other.studios &&
         deletedAtMs == other.deletedAtMs
 
 /** This row as an earlier version, ending at [supersededAtMs]. */
@@ -440,6 +474,7 @@ internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
         genres = genres,
         tags = tags,
         deletedAtMs = deletedAtMs,
+        studios = studios,
     )
 
 /** True when every field the scheduler reads is equal. The name, the parent, the stamps and the tombstone are not. */
@@ -456,11 +491,12 @@ internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
         productionYear == other.productionYear &&
         officialRating == other.officialRating
 
-/** This row as an earlier version, ending at [supersededAtMs], with the genres and tags it had. */
+/** This row as an earlier version, ending at [supersededAtMs], with the genres, tags and studios it had. */
 internal fun ItemEntity.toVersion(
     supersededAtMs: Long,
     genres: List<String>,
     tags: List<String>,
+    studios: List<String>,
 ) = ItemVersionEntity(
     serverId = serverId,
     userId = userId,
@@ -481,6 +517,7 @@ internal fun ItemEntity.toVersion(
     deletedAtMs = deletedAtMs,
     genres = VersionCodec.encode(genres),
     tags = VersionCodec.encode(tags),
+    studios = VersionCodec.encode(studios),
 )
 
 /**

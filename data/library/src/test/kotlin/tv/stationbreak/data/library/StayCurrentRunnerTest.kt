@@ -7,9 +7,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.PagedCall
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
@@ -389,5 +391,78 @@ class StayCurrentRunnerTest {
 
             assertEquals(SyncOutcome.Cancelled, outcome)
             assertEquals(null, rig.runner.lastCollectionPass)
+        }
+
+    // Spec 18, ruling R9: the studios re-read runs last and on its own; it never skips or fails the other passes.
+
+    private suspend fun backfillIsPending() {
+        val (server, user) = ALICE.server.value to ALICE.user.value
+        rig.repository.dao.ensureMetaRow(server, user)
+        rig.repository.dao.setBackfillPending(server, user, true)
+    }
+
+    // A full walk's item page: no window and not an ID listing. Only the backfill asks for one in these runs.
+    private fun isBackfill(call: PagedCall) = !call.idsOnly && call.changedSince == null
+
+    @Test
+    fun theBackfillRunsAfterEveryOtherPassAndClearsTheFlag() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            var callsBeforeCollections = -1
+            var callsBeforePurge = -1
+            server.respondToCollections = {
+                if (callsBeforeCollections < 0) callsBeforeCollections = server.calls.size
+                null
+            }
+            rig.runner.purge = { _, _ ->
+                callsBeforePurge = server.calls.size
+                PurgeOutcome.Purged(0, 0)
+            }
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Success, verdict)
+            val firstBackfillCall = server.calls.indexOfFirst { isBackfill(it) }
+            assertTrue(firstBackfillCall > server.calls.indexOfLast { it.idsOnly })
+            assertTrue(callsBeforeCollections in 0..firstBackfillCall)
+            assertTrue(callsBeforePurge in 0..firstBackfillCall)
+            assertEquals(SyncOutcome.Completed, rig.runner.lastBackfill?.outcome)
+            assertFalse(rig.repository.backfillPending(ALICE))
+        }
+
+    @Test
+    fun aFailedBackfillNeverFailsTheRunNorSkipsTheOtherPasses() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call -> if (isBackfill(call)) MediaServerError.Timeout() else null }
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Success, verdict)
+            assertEquals(SyncOutcome.Failed(SyncFailure.Network), rig.runner.lastBackfill?.outcome)
+            assertTrue(rig.runner.lastPurge != null && rig.runner.lastCollectionPass != null)
+            val status = rig.repository.activeStatus().first()!!
+            assertEquals(SyncState.Idle, status.state)
+            assertEquals(rig.clock.now(), status.lastSuccess)
+            assertTrue(rig.repository.backfillPending(ALICE))
+        }
+
+    @Test
+    fun aFailedIncrementalPassRunsNoBackfill() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { MediaServerError.Timeout() }
+
+            rig.runner.run(both)
+
+            assertNull(rig.runner.lastBackfill)
+            assertTrue(server.calls.none { isBackfill(it) })
+            assertTrue(rig.repository.backfillPending(ALICE))
         }
 }

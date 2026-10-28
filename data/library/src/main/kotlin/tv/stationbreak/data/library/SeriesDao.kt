@@ -29,6 +29,7 @@ internal class HeldSeries(
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
+    val studios: List<String>,
 )
 
 /**
@@ -148,7 +149,7 @@ internal abstract class SeriesDao {
      * list. Per series: (a) the current row if it was first seen before the cut-off; else (b) the version that was
      * current just before it; else (c) the oldest version, or the current row if it has none. A series is left out when
      * it is unknown, or when the version held was deleted before the cut-off (`deletedAt < cutoffMs`): a tombstone is
-     * kept until then. Genres and tags share their strings through [strings].
+     * kept until then. Genres, tags and studios share their strings through [strings].
      *
      * It returns a list and takes no callback, for the reason given on [ItemHistoryDao.heldAsOf].
      */
@@ -188,11 +189,13 @@ internal abstract class SeriesDao {
         val rating = if (version != null) version.officialRating else row.officialRating
         val genres = if (version != null) version.genres else row.genres
         val tags = if (version != null) version.tags else row.tags
+        val studios = if (version != null) version.studios else row.studios
         return HeldSeries(
             row.seriesId,
             rating?.let(strings::of),
             strings.all(VersionCodec.decode(genres)),
             strings.all(VersionCodec.decode(tags)),
+            strings.all(VersionCodec.decode(studios)),
         )
     }
 
@@ -218,7 +221,7 @@ internal abstract class SeriesDao {
 
     /**
      * Works out what writing [incoming] over the rows the database holds ([existing]) does. The change test compares
-     * the rating, the ordered genres, the ordered tags and the tombstone, and nothing else: not the name and not the
+     * the rating, the ordered genres, tags and studios, and the tombstone, and nothing else: not the name and not the
      * library (Vimes L2). A series listed in two ticked libraries keeps one row whose library flips with each write, by
      * an unversioned update (Vimes L-1; items behave so too). A row that clears a tombstone is a change by the last of
      * those. The stamp of a changed row is `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.

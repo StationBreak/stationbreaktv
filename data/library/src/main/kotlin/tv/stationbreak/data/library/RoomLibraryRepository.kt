@@ -63,6 +63,7 @@ internal data class RowCounts(
     val collectionVersions: Int = 0,
     val collectionMembers: Int = 0,
     val collectionSyncs: Int = 0,
+    val studios: Int = 0,
 ) {
     companion object {
         val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -76,7 +77,7 @@ internal data class RowCounts(
  * ever holds a
  * token. The database is a cache: it can be deleted and fetched again.
  */
-@Suppress("TooManyFunctions") // The port plus the sync's side: each is one call into a DAO transaction.
+@Suppress("TooManyFunctions", "LargeClass") // The port plus the sync's side: each is one call into a DAO transaction.
 class RoomLibraryRepository internal constructor(
     private val db: LibraryDatabase,
     private val clock: Clock,
@@ -86,7 +87,7 @@ class RoomLibraryRepository internal constructor(
 ) : LibraryRepository {
     internal val dao =
         db.dao().also { dao ->
-            dao.generationSeed = { clock.now().toEpochMilliseconds() shl LibraryDao.GENERATION_SHIFT }
+            dao.generationSeed = LibraryDao.seedFrom(clock)
         }
 
     /**
@@ -292,7 +293,7 @@ class RoomLibraryRepository internal constructor(
         libraries: Set<ItemId>,
     ) {
         val (server, user) = account.keys()
-        // Unticked libraries go, with their items, genres, tags and checkpoint (foreign keys cascade).
+        // Unticked libraries go, with their items, genres, tags, studios and checkpoint (foreign keys cascade).
         dao.select(server, user, libraries.map { it.value })
     }
 
@@ -523,6 +524,36 @@ class RoomLibraryRepository internal constructor(
         dao.finishSync(server, user, (recorded ?: clock.now()).toEpochMilliseconds())
     }
 
+    /**
+     * An incremental pass ended well (see [LibraryDao.finishIncremental]): like [finishSync], but it does nothing while
+     * the account runs a first sync, and then returns false.
+     */
+    internal suspend fun finishIncremental(
+        account: LibraryAccount,
+        recorded: Instant,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.finishIncremental(server, user, recorded.toEpochMilliseconds())
+    }
+
+    /**
+     * The studios re-read ended well (see [LibraryDao.finishBackfill]): the flag is cleared when [allWalked]. False,
+     * with nothing written, while the account runs a first sync.
+     */
+    internal suspend fun finishBackfill(
+        account: LibraryAccount,
+        allWalked: Boolean,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.finishBackfill(server, user, allWalked)
+    }
+
+    /** True while the account's cache still lacks studios and the backfill must read everything again. */
+    internal suspend fun backfillPending(account: LibraryAccount): Boolean {
+        val (server, user) = account.keys()
+        return dao.metaRow(server, user)?.backfillPending ?: false
+    }
+
     /** The recorded moment of the last successful pass, or null before the first sync ended. */
     internal suspend fun lastSuccess(account: LibraryAccount): Instant? {
         val (server, user) = account.keys()
@@ -551,6 +582,15 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         dao.failSync(server, user, failure.ordinal)
+    }
+
+    /** A stay-current pass stopped for [failure] (see [LibraryDao.failStayCurrent]); a running first sync is kept. */
+    internal suspend fun failStayCurrent(
+        account: LibraryAccount,
+        failure: SyncFailure,
+    ) {
+        val (server, user) = account.keys()
+        dao.failStayCurrent(server, user, failure.ordinal)
     }
 
     /**
@@ -644,6 +684,7 @@ class RoomLibraryRepository internal constructor(
             items = dao.countItems(),
             genres = dao.countGenres(),
             tags = dao.countTags(),
+            studios = dao.countStudios(),
             libraries = dao.countLibraries(),
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
@@ -846,7 +887,7 @@ class RoomLibraryRepository internal constructor(
             retention: HistoryRetention = HistoryRetention(),
             collectionRelist: CollectionRelist = CollectionRelist(),
         ): RoomLibraryRepository {
-            val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
+            val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME, clock)
             // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
             val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
             return RoomLibraryRepository(builder.build(), clock, sync, retention, collectionRelist)
@@ -898,6 +939,7 @@ private fun MediaItem.toRows(
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
+    studios = studios.mapIndexed { index, value -> StudioEntity(server, user, id.value, index, value) },
 )
 
 private fun CollectionMember.toEntity(
@@ -928,6 +970,7 @@ private fun SeriesInfo.toEntity(
     officialRating = officialRating,
     genres = VersionCodec.encode(genres),
     tags = VersionCodec.encode(tags),
+    studios = VersionCodec.encode(studios),
     deletedAtMs = null,
     // The DAO stamps both when it writes the row.
     seenFromMs = 0,
@@ -947,6 +990,7 @@ private fun ItemRows.toItem() =
         officialRating = item.officialRating,
         genres = genres.map { it.name },
         tags = tags.map { it.name },
+        studios = studios.map { it.name },
         seriesId = item.seriesId?.let(::ItemId),
         seasonId = item.seasonId?.let(::ItemId),
         seasonNumber = item.seasonNumber,

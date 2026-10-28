@@ -39,7 +39,12 @@ class FirstSyncHeapTest {
         override fun page(
             startIndex: Int,
             limit: Int,
-        ): List<MediaItem> = library.page(startIndex, limit).also { pages += WeakReference(it) }
+        ): List<MediaItem> =
+            library
+                .page(startIndex, limit)
+                // Every item has one studio, as after the re-read that follows the upgrade (spec 18).
+                .map { it.copy(studios = studioOf(it.id.value)) }
+                .also { pages += WeakReference(it) }
 
         override fun savedAt(item: MediaItem): Instant =
             library.savedAt(
@@ -95,5 +100,9 @@ class FirstSyncHeapTest {
         const val MB = KB * KB
         const val LIMIT_MB = 64L
         const val HEX = 16
+        val STUDIOS = listOf("Studio North", "Studio South", "Studio East", "Studio West", "Studio Centre")
+
+        // One invented studio per item or series (spec 18), the same for an ID every round.
+        fun studioOf(id: String) = listOf(STUDIOS[Math.floorMod(id.hashCode(), STUDIOS.size)])
     }
 }

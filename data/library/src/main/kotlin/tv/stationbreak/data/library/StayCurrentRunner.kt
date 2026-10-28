@@ -46,6 +46,11 @@ data class SyncPlan(
  * The purge is housekeeping: a purge that fails, or is skipped for a clock that looks wrong, is kept in [lastPurge] and
  * never fails the run.
  *
+ * Last of all, in a run with the incremental pass whose passes completed, it runs the studios re-read while one is
+ * pending (spec 18, ruling R9; see [StayCurrentEngine.backfill]). It goes after everything else, so a re-read that is
+ * stopped by WorkManager's window or fails never costs the other passes; its result is kept in [lastBackfill] and never
+ * changes how the run ended.
+ *
  * Only one run goes at a time in the process (a second one, from another trigger, does nothing), and a run leaves an
  * account whose first sync has not finished to the first sync. A failure is recorded in the saved library for Phase 1's
  * banner to read; none of it retries, because the next open or the next periodic run is the retry.
@@ -73,6 +78,14 @@ class StayCurrentRunner(
      * the account's sync state.
      */
     internal var lastCollectionPass: CollectionResult? = null
+        private set
+
+    /**
+     * How the last studios re-read of this process ended, or null if none has run: the record of a failure and of the
+     * items it passed over. Like a failed collection pass, it never fails the run and is not written to the account's
+     * sync state; the next run with the incremental pass is the retry.
+     */
+    internal var lastBackfill: StayResult<PassSummary>? = null
         private set
 
     /** Test seam: the purge the run does after a completed reconcile. The repository's own in the app. */
@@ -123,7 +136,6 @@ class StayCurrentRunner(
         }
     }
 
-    @Suppress("ReturnCount") // Each early return is a pass that did not complete.
     private suspend fun passes(
         session: Session,
         account: LibraryAccount,
@@ -133,6 +145,19 @@ class StayCurrentRunner(
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
+        val outcome = stayCurrent(engine, session, account, chosen, plan)
+        if (plan.incremental && outcome == SyncOutcome.Completed) backfill(engine, session, account, chosen)
+        return outcome
+    }
+
+    @Suppress("ReturnCount") // Each early return is a pass that did not complete.
+    private suspend fun stayCurrent(
+        engine: StayCurrentEngine,
+        session: Session,
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+        plan: SyncPlan,
+    ): SyncOutcome {
         // The incremental pass records a new success; the purge's clock guard needs the one from before this run.
         val reference = repository.lastSuccess(account)
         if (plan.incremental) {
@@ -171,6 +196,27 @@ class StayCurrentRunner(
             }
     }
 
+    // The studios re-read, after everything else. Its result is kept for the record and never changes the run's;
+    // cancellation and a sign-out pass through, the same as for the passes.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun backfill(
+        engine: StayCurrentEngine,
+        session: Session,
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+    ) {
+        lastBackfill =
+            try {
+                engine.backfill(session, account, chosen)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (signedOut: AccountNotActiveException) {
+                throw signedOut
+            } catch (_: Exception) {
+                StayResult(SyncOutcome.Failed(SyncFailure.Server), PassSummary())
+            }
+    }
+
     // Housekeeping after a pass that completed: a failure is kept and never fails the run. Cancellation and a sign-out
     // pass through, the same as for the passes.
     @Suppress("TooGenericExceptionCaught")
@@ -206,12 +252,13 @@ class StayCurrentRunner(
             record(account, SyncFailure.Server)
         }
 
-    // The server could not be asked, or rejected the session: the saved library keeps what it has, and says why.
+    // The server could not be asked, or rejected the session: the saved library keeps what it has, and says why. A
+    // first sync that started meanwhile is left alone.
     private suspend fun record(
         account: LibraryAccount,
         failure: SyncFailure,
     ): SyncOutcome {
-        repository.failSync(account, failure)
+        repository.failStayCurrent(account, failure)
         return SyncOutcome.Failed(failure)
     }
 }

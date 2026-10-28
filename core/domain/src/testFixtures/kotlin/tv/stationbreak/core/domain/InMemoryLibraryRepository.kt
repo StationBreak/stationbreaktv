@@ -46,6 +46,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         val officialRating: String? = null,
         val genres: List<String> = emptyList(),
         val tags: List<String> = emptyList(),
+        val studios: List<String> = emptyList(),
     )
 
     // One item the as-of read returns, with the library it was held in.
@@ -130,7 +131,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         vararg items: RuleItem,
     ) {
         items.forEach {
-            val extras = Extras(it.seasonId, it.officialRating, it.genres, it.tags)
+            val extras = Extras(it.seasonId, it.officialRating, it.genres, it.tags, it.studios)
             held += HeldRow(account, ItemId(it.libraryId.value), it.item, extras)
         }
         noteContentChange(account)
@@ -276,7 +277,16 @@ class InMemoryLibraryRepository : LibraryRepository {
         for (entry in heldItems(account, libraries, cutoff)) {
             val library = requireNotNull(CanonicalId.parseOrNull(entry.library.value))
             val extras = entry.extras
-            items += RuleItem(entry.item, library, extras.seasonId, extras.officialRating, extras.genres, extras.tags)
+            items +=
+                RuleItem(
+                    entry.item,
+                    library,
+                    extras.seasonId,
+                    extras.officialRating,
+                    extras.genres,
+                    extras.tags,
+                    extras.studios,
+                )
         }
         val wanted = items.mapNotNullTo(HashSet()) { it.item.seriesId }
         val series =
@@ -324,7 +334,10 @@ class InMemoryLibraryRepository : LibraryRepository {
             .sortedBy { it.item.id.value }
     }
 
-    private fun MediaItem.extras() = Extras(seasonId?.let { CanonicalId.parseOrNull(it.value) }, officialRating, genres, tags)
+    private fun MediaItem.extras(): Extras {
+        val season = seasonId?.let { CanonicalId.parseOrNull(it.value) }
+        return Extras(season, officialRating, genres, tags, studios)
+    }
 
     private fun MediaItem.toScheduleItemOrNull(): ScheduleItem? {
         val scheduleKind = ScheduleItemKind.entries.firstOrNull { it.name == kind.name }

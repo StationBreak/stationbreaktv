@@ -35,6 +35,7 @@ class ItemRoundTripTest {
             seriesId = ItemId("series-9"),
             seasonNumber = 3,
             episodeNumber = 12,
+            studios = listOf("Invented Studio B", "Invented Studio A"),
         )
 
     @Test
@@ -63,9 +64,14 @@ class ItemRoundTripTest {
         }
 
     @Test
-    fun theOrderOfGenresAndTagsIsKept() =
+    fun theOrderOfGenresTagsAndStudiosIsKept() =
         runBlocking {
-            val ordered = everyField.copy(genres = listOf("Z", "A", "M"), tags = listOf("2", "1", "3"))
+            val ordered =
+                everyField.copy(
+                    genres = listOf("Z", "A", "M"),
+                    tags = listOf("2", "1", "3"),
+                    studios = listOf("Zed", "Alpha", "Mid"),
+                )
             repository.select(ALICE, setOf(MOVIES))
             repository.writePage(ALICE, MOVIES, listOf(ordered), nextStartIndex = 1, totalCount = 1, run = 1)
 

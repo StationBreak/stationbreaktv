@@ -31,14 +31,19 @@ class ItemHistoryDaoSplitTest {
     private fun rows(
         item: ItemEntity,
         genres: List<String> = emptyList(),
-    ) = ItemRows(item, genres.mapIndexed { i, name -> GenreEntity(server, user, item.itemId, i, name) }, emptyList())
+    ) = ItemRows(
+        item,
+        genres.mapIndexed { i, name -> GenreEntity(server, user, item.itemId, i, name) },
+        emptyList(),
+        emptyList(),
+    )
 
-    // Plans writing [new] over the held row [old], with the old row's genres and tags empty.
+    // Plans writing [new] over the held row [old], with the old row's genres, tags and studios empty.
     private fun plan(
         old: ItemEntity,
         new: ItemRows,
         nowMs: Long,
-    ) = history.planPage(mapOf(old.itemId to new), mapOf(old.itemId to old), emptyMap(), emptyMap(), nowMs)
+    ) = history.planPage(mapOf(old.itemId to new), mapOf(old.itemId to old), SideNames.NONE, nowMs)
 
     @Test
     fun theVersionsAreKeptAndReadByTheHistoryDao() =
@@ -127,7 +132,7 @@ class ItemHistoryDaoSplitTest {
             repository.put(ALICE, MOVIES, sitem(1))
             val fresh = stored(hexId(1)).copy(itemId = hexId(2), seenFromMs = 0, firstSeenMs = 0)
 
-            val plan = history.planPage(mapOf(fresh.itemId to rows(fresh)), emptyMap(), emptyMap(), emptyMap(), t0 + 7)
+            val plan = history.planPage(mapOf(fresh.itemId to rows(fresh)), emptyMap(), SideNames.NONE, t0 + 7)
 
             assertEquals(listOf(fresh.copy(seenFromMs = t0 + 7, firstSeenMs = t0 + 7)), plan.toInsert)
             assertEquals(emptyList<ItemVersionEntity>(), plan.versions)
@@ -143,7 +148,7 @@ class ItemHistoryDaoSplitTest {
             val tombstoned = stored(hexId(1))
 
             val genres = mapOf(tombstoned.itemId to listOf("Drama"))
-            val plan = history.planRevival(listOf(tombstoned), genres, emptyMap(), t0 + 20_000)
+            val plan = history.planRevival(listOf(tombstoned), SideNames(genres, emptyMap(), emptyMap()), t0 + 20_000)
 
             val version = plan.versions.single()
             assertEquals(t0, version.seenFromMs)

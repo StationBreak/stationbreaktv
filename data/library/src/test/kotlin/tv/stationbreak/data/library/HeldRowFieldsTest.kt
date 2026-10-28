@@ -6,6 +6,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
+import tv.stationbreak.core.model.ItemId
 
 /**
  * Spec 10 task 1.5.3: the as-of read carries the rating, the ordered genres and the ordered tags of the version it
@@ -114,5 +115,64 @@ class HeldRowFieldsTest {
             assertSame(current.getValue(hexId(1)).tags[0], current.getValue(hexId(2)).tags[0])
             assertSame(older.getValue(hexId(1)).genres[0], older.getValue(hexId(2)).genres[0])
             assertSame(older.getValue(hexId(1)).tags[0], older.getValue(hexId(2)).tags[0])
+        }
+
+    // Spec 18 section 2: studios ride the as-of read like genres, from the side table or the version's codec column.
+
+    @Test
+    fun aCurrentRowCarriesItsStudiosInTheServersOrderIntoTheRuleItem() =
+        runBlocking {
+            repository.select(ALICE, setOf(MOVIES))
+            repository.put(ALICE, MOVIES, sitem(1).copy(studios = listOf("Zed Pictures", "Alpha Films")))
+
+            val row = held(start + 5_000).getValue(hexId(1))
+            val rule = repository.ruleSnapshot(ALICE, setOf(MOVIES), at(start + 5_000)).items.single()
+
+            assertEquals(listOf("Zed Pictures", "Alpha Films"), row.studios)
+            assertEquals(listOf("Zed Pictures", "Alpha Films"), rule.studios)
+        }
+
+    @Test
+    fun aCutoffBeforeTheStudiosVersionReadsNoStudios() =
+        runBlocking {
+            repository.select(ALICE, setOf(MOVIES))
+            repository.put(ALICE, MOVIES, sitem(1))
+            clock.stepMs(10_000)
+            // The re-read after the upgrade: only studios differ.
+            repository.put(ALICE, MOVIES, sitem(1).copy(studios = listOf("Invented Studio")))
+
+            val before = repository.ruleSnapshot(ALICE, setOf(MOVIES), at(start + 5_000)).items.single()
+            val after = repository.ruleSnapshot(ALICE, setOf(MOVIES), at(start + 20_000)).items.single()
+
+            assertEquals(emptyList<String>(), before.studios)
+            assertEquals(listOf("Invented Studio"), after.studios)
+        }
+
+    @Test
+    fun anOlderVersionCarriesTheStudiosItHad() =
+        runBlocking {
+            repository.select(ALICE, setOf(MOVIES))
+            repository.put(ALICE, MOVIES, sitem(1).copy(officialRating = "G", studios = listOf("Old Studio")))
+            clock.stepMs(10_000)
+            repository.put(ALICE, MOVIES, sitem(1).copy(officialRating = "R", studios = listOf("New Studio")))
+
+            assertEquals(listOf("Old Studio"), held(start + 5_000).getValue(hexId(1)).studios)
+            assertEquals(listOf("New Studio"), held(start + 20_000).getValue(hexId(1)).studios)
+        }
+
+    @Test
+    fun aRevivedItemKeepsItsStudiosInTheVersionAndTheRow() =
+        runBlocking {
+            repository.select(ALICE, setOf(MOVIES))
+            repository.put(ALICE, MOVIES, sitem(1).copy(studios = listOf("Invented Studio")))
+            clock.stepMs(10_000)
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            clock.stepMs(10_000)
+
+            repository.revive(ALICE, listOf(ItemId(hexId(1))))
+
+            val version = repository.versions(ALICE).single()
+            assertEquals(listOf("Invented Studio"), VersionCodec.decode(version.studios))
+            assertEquals(listOf("Invented Studio"), held(clock.nowMs + 1).getValue(hexId(1)).studios)
         }
 }

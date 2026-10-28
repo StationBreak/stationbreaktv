@@ -60,13 +60,15 @@ internal fun sitem(
 )
 
 /** A series as the server describes it, with a rating and lists given or empty. */
+@Suppress("LongParameterList") // One optional parameter per field a test sets.
 internal fun series(
     id: String,
     rating: String? = null,
     genres: List<String> = emptyList(),
     tags: List<String> = emptyList(),
     name: String = "Series $id",
-) = SeriesInfo(ItemId(id), name, rating, genres, tags)
+    studios: List<String> = emptyList(),
+) = SeriesInfo(ItemId(id), name, rating, genres, tags, studios)
 
 /** As [put], for series. */
 internal suspend fun RoomLibraryRepository.putSeries(
