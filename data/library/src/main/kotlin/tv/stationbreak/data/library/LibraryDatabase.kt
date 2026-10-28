@@ -82,12 +82,12 @@ internal object LibraryDatabases {
      * A builder for the database [name] (in the app's `databases` directory), or an in-memory one when [name] is null.
      * A file of version 7 or later migrates; a schema it has no migration for, older or newer, is dropped and rebuilt
      * empty: the cache is fetched again. [clock] seeds the `sync_meta` rows a migration creates, as the repository's
-     * clock seeds the ones it creates.
+     * clock seeds the ones it creates ([LibraryDao.seedFrom] for both).
      */
     fun builder(
         context: Context,
         name: String?,
-        clock: Clock = Clock.System,
+        clock: Clock,
     ): RoomDatabase.Builder<LibraryDatabase> {
         val base =
             if (name == null) {
@@ -95,11 +95,10 @@ internal object LibraryDatabases {
             } else {
                 Room.databaseBuilder(context, LibraryDatabase::class.java, name)
             }
-        val seed = { clock.now().toEpochMilliseconds() shl LibraryDao.GENERATION_SHIFT }
         // The migrations first: the fallbacks apply only where no migration path exists.
         return base
             .addCallback(SecureDeleteCallback)
-            .addMigrations(Migration7To8(seed))
+            .addMigrations(Migration7To8(LibraryDao.seedFrom(clock)))
             .withDestructiveFallbacks()
     }
 

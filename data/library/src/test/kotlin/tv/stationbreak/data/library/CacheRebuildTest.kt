@@ -155,13 +155,14 @@ class CacheRebuildTest {
             other.otherDao().put(OtherRow("kept?"))
             other.close()
 
+            val clock = FakeClock()
             val repository =
                 RoomLibraryRepository.testing(
                     LibraryDatabases
-                        .builder(context, "rebuild.db")
+                        .builder(context, "rebuild.db", clock)
                         .setDriver(BundledSQLiteDriver())
                         .setQueryCoroutineContext(TEST_QUERY_CONTEXT),
-                    FakeClock(),
+                    clock,
                 )
 
             // It opens (no crash, no migration error), is empty, and is usable.
@@ -188,13 +189,14 @@ class CacheRebuildTest {
             older.otherDao().put(OtherRow("kept?"))
             older.close()
 
+            val clock = FakeClock()
             val repository =
                 RoomLibraryRepository.testing(
                     LibraryDatabases
-                        .builder(context, "upgrade.db")
+                        .builder(context, "upgrade.db", clock)
                         .setDriver(BundledSQLiteDriver())
                         .setQueryCoroutineContext(TEST_QUERY_CONTEXT),
-                    FakeClock(),
+                    clock,
                 )
 
             assertEquals(RowCounts.NONE, repository.rowCounts())

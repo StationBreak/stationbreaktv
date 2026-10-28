@@ -305,8 +305,8 @@ internal data class CollectionSyncEntity(
  * start that finds the previous pass still marked running (the process died in it). A completed pass sets it to zero.
  *
  * [backfillPending] is set by the migration from version 7 (spec 18): the cache then held no studios, so every item and
- * series must be read again. Only the incremental pass that completes that re-read clears it. A row made later, and
- * every row of a new install, starts with it off.
+ * series must be read again. Only the backfill step that completes that re-read clears it. A row made later, and every
+ * row of a new install, starts with it off.
  */
 @Entity(tableName = "sync_meta", primaryKeys = ["serverId", "userId"])
 internal data class SyncMetaEntity(

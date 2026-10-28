@@ -18,15 +18,19 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
 
-/** What a pass did with the items it was given: new rows, rows that differed, and rows that were already identical. */
+/**
+ * What a pass did with the items it was given: new rows, rows that differed, and rows that were already identical; and
+ * [skipped], the items and series a walk passed over because they would not decode.
+ */
 internal data class PassSummary(
     val inserted: Int = 0,
     val updated: Int = 0,
     val unchanged: Int = 0,
+    val skipped: Int = 0,
 ) {
     operator fun plus(write: PageWrite): PassSummary {
         val added = inserted + write.inserted
-        return PassSummary(added, updated + write.updated, unchanged + write.unchanged)
+        return PassSummary(added, updated + write.updated, unchanged + write.unchanged, skipped)
     }
 }
 
@@ -155,8 +159,8 @@ internal class StayCurrentEngine(
 
     /**
      * Fetches what changed in [chosen] since the last successful pass (less the margin) for [account] and saves it.
-     * Ends as [SyncOutcome.Cancelled] when there is nothing to top up (the first sync has not finished) or the account
-     * stopped being the signed-in one.
+     * Ends as [SyncOutcome.Cancelled] when there is nothing to top up (the first sync has not finished), the account
+     * stopped being the signed-in one, or a first sync started while it ran (its state is then left alone).
      */
     suspend fun incremental(
         session: Session,
@@ -169,6 +173,39 @@ internal class StayCurrentEngine(
                 StayResult(SyncOutcome.Cancelled, PassSummary())
             } else {
                 Pass(session, account).incremental(chosen, last, clock.now())
+            }
+        } catch (_: AccountNotActiveException) {
+            StayResult(SyncOutcome.Cancelled, PassSummary())
+        }
+
+    /**
+     * The studios re-read (spec 18, ruling R9): while the account's `backfillPending` flag is set, reads every item and
+     * series of [chosen] again from the start and saves them, then clears the flag if every chosen library was walked.
+     * It is its own step so it can never hold up the other passes: it never moves the recorded moment and never
+     * changes the account's sync state, so its failure is only returned. An item or series that will not decode is
+     * counted in [PassSummary.skipped] and passed over (it keeps no studios), never a failure. Ends as
+     * [SyncOutcome.Completed] with nothing asked when the flag is clear, and as [SyncOutcome.Cancelled] when the first
+     * sync has not finished, one started while it ran (the flag then stays set), or the account stopped being the
+     * signed-in one.
+     */
+    suspend fun backfill(
+        session: Session,
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+    ): StayResult<PassSummary> =
+        try {
+            when {
+                repository.lastSuccess(account) == null || repository.isFirstSyncRunning(account) -> {
+                    StayResult(SyncOutcome.Cancelled, PassSummary())
+                }
+
+                !repository.backfillPending(account) -> {
+                    StayResult(SyncOutcome.Completed, PassSummary())
+                }
+
+                else -> {
+                    Pass(session, account, backfilling = true).backfill(chosen)
+                }
             }
         } catch (_: AccountNotActiveException) {
             StayResult(SyncOutcome.Cancelled, PassSummary())
@@ -210,10 +247,12 @@ internal class StayCurrentEngine(
         return CollectionPass(repository, server, clock, pageSize, margin, interval)
     }
 
+    // [backfilling]: the studios re-read, which records nothing in the account's state and skips without a limit.
     @Suppress("ReturnCount", "TooManyFunctions") // Early returns carry a failure out of the loops.
     private inner class Pass(
         private val session: Session,
         private val account: LibraryAccount,
+        private val backfilling: Boolean = false,
     ) {
         private var skipped = 0
         private var passed = PassSummary()
@@ -224,15 +263,13 @@ internal class StayCurrentEngine(
             last: Instant,
             started: Instant,
         ): StayResult<PassSummary> {
-            // While the cache lacks studios (spec 18) every item and series is read again, from the start.
-            val pending = repository.backfillPending(account)
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), passed)
                 }
             // A last success ahead of now means the clock went back: count from the older of the two.
-            val since = if (pending) null else minOf(last, started) - margin
+            val since = minOf(last, started) - margin
             for (library in libraries) {
                 val failed =
                     walk(library, since) { items ->
@@ -245,11 +282,35 @@ internal class StayCurrentEngine(
                 if (seriesFailed != null) return StayResult(seriesFailed, passed)
             }
             currentCoroutineContext().ensureActive()
+            // A first sync that started meanwhile owns the account: this pass stops rather than race it.
+            val finished = repository.finishIncremental(account, started)
+            return StayResult(if (finished) SyncOutcome.Completed else SyncOutcome.Cancelled, passed)
+        }
+
+        suspend fun backfill(chosen: Set<ItemId>): StayResult<PassSummary> {
+            val libraries =
+                when (val listed = server.libraries(session)) {
+                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
+                    is ServerResult.Failure -> return StayResult(fail(listed.error), counted())
+                }
+            for (library in libraries) {
+                val failed =
+                    walk(library, since = null) { items ->
+                        passed += repository.upsertItems(account, library.id, items)
+                        true
+                    }
+                if (failed != null) return StayResult(failed, counted())
+                val seriesFailed = walkSeries(library, since = null)
+                if (seriesFailed != null) return StayResult(seriesFailed, counted())
+            }
+            currentCoroutineContext().ensureActive()
             // The flag clears only if every chosen library was walked; one the server did not list keeps it set.
             val allWalked = chosen.all { id -> libraries.any { it.id == id } }
-            repository.finishIncremental(account, started, backfillDone = pending && allWalked)
-            return StayResult(SyncOutcome.Completed, passed)
+            val finished = repository.finishBackfill(account, allWalked)
+            return StayResult(if (finished) SyncOutcome.Completed else SyncOutcome.Cancelled, counted())
         }
+
+        private fun counted() = passed.copy(skipped = skipped)
 
         suspend fun reconcile(chosen: Set<ItemId>): StayResult<ReconcileSummary> {
             val libraries =
@@ -410,7 +471,7 @@ internal class StayCurrentEngine(
                     }
 
                     Fetched.Malformed -> {
-                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        skip()?.let { return it }
                         onMalformed(next)
                         next += 1
                     }
@@ -441,7 +502,7 @@ internal class StayCurrentEngine(
                     }
 
                     Fetched.Malformed -> {
-                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        skip()?.let { return it }
                         next += 1
                     }
 
@@ -473,7 +534,7 @@ internal class StayCurrentEngine(
                     }
 
                     Fetched.Malformed -> {
-                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
+                        skip()?.let { return it }
                         next += 1
                     }
 
@@ -486,14 +547,20 @@ internal class StayCurrentEngine(
             }
         }
 
-        private suspend fun suspect(): SyncOutcome {
-            repository.failSync(account, SyncFailure.Suspect)
-            return SyncOutcome.Failed(SyncFailure.Suspect)
+        // One item or series would not decode: past the limit that fails the pass, except in the backfill.
+        private suspend fun skip(): SyncOutcome? {
+            skipped += 1
+            return if (!backfilling && skipped > maxSkippedItems) fail(MediaServerError.NotJellyfin()) else null
         }
 
-        private suspend fun fail(error: MediaServerError): SyncOutcome {
-            val failure = error.toSyncFailure()
-            repository.failSync(account, failure)
+        private suspend fun suspect(): SyncOutcome = failed(SyncFailure.Suspect)
+
+        private suspend fun fail(error: MediaServerError): SyncOutcome = failed(error.toSyncFailure())
+
+        // Recorded for the account, unless a first sync started meanwhile (its state is left alone) or this is the
+        // backfill, whose failure is only returned.
+        private suspend fun failed(failure: SyncFailure): SyncOutcome {
+            if (!backfilling) repository.failStayCurrent(account, failure)
             return SyncOutcome.Failed(failure)
         }
     }

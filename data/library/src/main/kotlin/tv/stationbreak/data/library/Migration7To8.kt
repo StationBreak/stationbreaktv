@@ -13,7 +13,7 @@ import androidx.sqlite.execSQL
  * - `item_studio` mirrors `item_genre`: the same primary key and position, and the cascade from `item`.
  * - `studios` on `item_version`, `series` and `series_version` defaults to `''`, the codec's empty list, so every row
  *   kept before now reads "no studios" and an as-of read never borrows the current ones.
- * - `sync_meta.backfillPending` asks the next incremental pass to read every item and series again. It is set on every
+ * - `sync_meta.backfillPending` asks the backfill step to read every item and series again. It is set on every
  *   row, and a row is made, seeded at [seed] as `LibraryDao.generationSeed` seeds one, for every account that has an
  *   `account_state` row and no `sync_meta` row, so a row made later with the flag off cannot lose it. `account_state`
  *   (and so `lastSuccessMs`, which routes to the first-sync screen when null) is not touched.

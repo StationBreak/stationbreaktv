@@ -87,7 +87,7 @@ class RoomLibraryRepository internal constructor(
 ) : LibraryRepository {
     internal val dao =
         db.dao().also { dao ->
-            dao.generationSeed = { clock.now().toEpochMilliseconds() shl LibraryDao.GENERATION_SHIFT }
+            dao.generationSeed = LibraryDao.seedFrom(clock)
         }
 
     /**
@@ -526,18 +526,29 @@ class RoomLibraryRepository internal constructor(
 
     /**
      * An incremental pass ended well (see [LibraryDao.finishIncremental]): like [finishSync], but it does nothing while
-     * the account runs a first sync, and clears the backfill flag when [backfillDone].
+     * the account runs a first sync, and then returns false.
      */
     internal suspend fun finishIncremental(
         account: LibraryAccount,
         recorded: Instant,
-        backfillDone: Boolean,
-    ) {
+    ): Boolean {
         val (server, user) = account.keys()
-        dao.finishIncremental(server, user, recorded.toEpochMilliseconds(), backfillDone)
+        return dao.finishIncremental(server, user, recorded.toEpochMilliseconds())
     }
 
-    /** True while the account's cache still lacks studios and the next incremental pass must read everything again. */
+    /**
+     * The studios re-read ended well (see [LibraryDao.finishBackfill]): the flag is cleared when [allWalked]. False,
+     * with nothing written, while the account runs a first sync.
+     */
+    internal suspend fun finishBackfill(
+        account: LibraryAccount,
+        allWalked: Boolean,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.finishBackfill(server, user, allWalked)
+    }
+
+    /** True while the account's cache still lacks studios and the backfill must read everything again. */
     internal suspend fun backfillPending(account: LibraryAccount): Boolean {
         val (server, user) = account.keys()
         return dao.metaRow(server, user)?.backfillPending ?: false
@@ -571,6 +582,15 @@ class RoomLibraryRepository internal constructor(
     ) {
         val (server, user) = account.keys()
         dao.failSync(server, user, failure.ordinal)
+    }
+
+    /** A stay-current pass stopped for [failure] (see [LibraryDao.failStayCurrent]); a running first sync is kept. */
+    internal suspend fun failStayCurrent(
+        account: LibraryAccount,
+        failure: SyncFailure,
+    ) {
+        val (server, user) = account.keys()
+        dao.failStayCurrent(server, user, failure.ordinal)
     }
 
     /**

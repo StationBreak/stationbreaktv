@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import kotlin.time.Clock
 
 /** How a purge ended (spec 09, Unit 3). */
 internal sealed interface PurgeOutcome {
@@ -378,7 +379,7 @@ internal abstract class LibraryDao {
      * break that; the lineup is then at worst refreshed or, in a freak case, taken for current.
      */
     @Volatile
-    var generationSeed: () -> Long = { System.currentTimeMillis() shl GENERATION_SHIFT }
+    var generationSeed: () -> Long = seedFrom(Clock.System)
 
     /** Makes sure the account has a `sync_meta` row, starting its generation at [generationSeed]. */
     suspend fun ensureMetaRow(
@@ -574,7 +575,32 @@ internal abstract class LibraryDao {
         failure: Int,
     ) {
         requireActive(serverId, userId)
+        saveFailed(serverId, userId, state(serverId, userId), failure)
+    }
+
+    /**
+     * A stay-current pass stopped for [failure]: as [failSync], but it does nothing while the account runs a first sync
+     * (one may start during a long pass), so that sync's state survives. False when it did nothing for that reason.
+     */
+    @Transaction
+    open suspend fun failStayCurrent(
+        serverId: String,
+        userId: String,
+        failure: Int,
+    ): Boolean {
+        requireActive(serverId, userId)
         val old = state(serverId, userId)
+        if (old?.state == AccountStateEntity.STATE_FIRST_RUNNING) return false
+        saveFailed(serverId, userId, old, failure)
+        return true
+    }
+
+    private suspend fun saveFailed(
+        serverId: String,
+        userId: String,
+        old: AccountStateEntity?,
+        failure: Int,
+    ) {
         val failed = AccountStateEntity.STATE_FAILED
         saveState(AccountStateEntity(serverId, userId, failed, old?.total, failure, old?.lastSuccessMs))
     }
@@ -626,22 +652,38 @@ internal abstract class LibraryDao {
     }
 
     /**
-     * An incremental pass ended well at [nowMs] (spec 18). It saves what [finishSync] saves, and when [backfillDone] it
-     * also clears the account's `backfillPending` flag in the same transaction. If the account is running a first sync
-     * (a library-selection change started one during a long walk) it does nothing, so that sync's state and the flag
-     * survive. First sync ends through [finishSync], which never touches the flag.
+     * An incremental pass ended well at [nowMs]. It saves what [finishSync] saves, unless the account is running a
+     * first sync (a library-selection change started one during the pass): then it does nothing, so that sync's state
+     * survives, and returns false.
      */
     @Transaction
     open suspend fun finishIncremental(
         serverId: String,
         userId: String,
         nowMs: Long,
-        backfillDone: Boolean,
-    ) {
+    ): Boolean {
         requireActive(serverId, userId)
-        if (state(serverId, userId)?.state == AccountStateEntity.STATE_FIRST_RUNNING) return
+        if (state(serverId, userId)?.state == AccountStateEntity.STATE_FIRST_RUNNING) return false
         saveIdle(serverId, userId, nowMs)
-        if (backfillDone) setBackfillPending(serverId, userId, false)
+        return true
+    }
+
+    /**
+     * The studios re-read ended well (spec 18, ruling R9): when [allWalked] (every chosen library was read) the
+     * account's `backfillPending` flag is cleared. Nothing else is written: the state and the last success stay as
+     * they are. While the account runs a first sync it does nothing and returns false, so the flag stays set. First
+     * sync ends through [finishSync], which never touches the flag.
+     */
+    @Transaction
+    open suspend fun finishBackfill(
+        serverId: String,
+        userId: String,
+        allWalked: Boolean,
+    ): Boolean {
+        requireActive(serverId, userId)
+        if (state(serverId, userId)?.state == AccountStateEntity.STATE_FIRST_RUNNING) return false
+        if (allWalked) setBackfillPending(serverId, userId, false)
+        return true
     }
 
     // account_state may be saved whole. sync_meta never is (see setBackfillPending).
@@ -697,6 +739,13 @@ internal abstract class LibraryDao {
 
     companion object {
         const val GENERATION_SHIFT = 10
+
+        /**
+         * Where a new `sync_meta` row starts counting, read from [clock] when the row is made: its milliseconds
+         * shifted left by [GENERATION_SHIFT] (see [generationSeed]). The repository and the 7 to 8 migration both seed
+         * this way.
+         */
+        fun seedFrom(clock: Clock): () -> Long = { clock.now().toEpochMilliseconds() shl GENERATION_SHIFT }
 
         /** SQLite on API 25 allows 999 variables in a statement; lookups by a list of IDs stay well under it. */
         const val MAX_VARIABLES = 400

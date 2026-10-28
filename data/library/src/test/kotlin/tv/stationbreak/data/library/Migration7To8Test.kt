@@ -13,7 +13,12 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryStatus
+import tv.stationbreak.core.domain.ListLibrarySource
+import tv.stationbreak.core.domain.PagedMediaServer
+import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemKind
 import java.io.File
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
@@ -151,6 +156,74 @@ class Migration7To8Test {
             reopened.close()
         }
 
+    // A version 7 file with one movie and one episode of one series, all first seen long before EPOCH.
+    private fun writeVersion7WithASeries(file: File) =
+        SchemaFile.create(file, 7) { db ->
+            val (server, user) = alice
+            val account = "'$server', '$user'"
+            val movies = "'${MOVIES.value}'"
+            db.insert("active_account", account)
+            db.insert("account_state", "$account, 1, NULL, NULL, ${lastSuccess.toEpochMilliseconds()}")
+            db.insert("library", "$account, $movies, 1")
+            for ((n, kind) in listOf(1 to "Movie", 3 to "Episode")) {
+                val seriesId = if (kind == "Episode") "'$SERIES'" else "NULL"
+                db.execSQL(
+                    "INSERT INTO item (serverId, userId, itemId, libraryId, kind, name, seriesId, runtimeMs, " +
+                        "createdAtMs, seenFromMs, firstSeenMs) VALUES ($account, '${hexId(n)}', $movies, '$kind', " +
+                        "'Name of $n', $seriesId, 5400000, ${CREATED.toEpochMilliseconds()}, $SEEN_FIRST, " +
+                        "$SEEN_FIRST)",
+                )
+            }
+            db.insert("series", "$account, '$SERIES', $movies, 'Invented Series', NULL, '', '', NULL, 1000, 1000")
+        }
+
+    @Test
+    fun theBackfillOnAMigratedFileFillsStudiosOnlyFromItsOwnMomentOn() =
+        runBlocking {
+            // Review item L2: the whole path. An as-of read before the re-read keeps "no studios", for items and
+            // series; one after it reads them.
+            val file = File(folder.root, "backfill.db")
+            writeVersion7WithASeries(file)
+            val repository = migrated(file)
+            val movie = sitem(1).copy(dateCreated = CREATED, studios = listOf("Invented Pictures"))
+            val episode =
+                sitem(3).copy(
+                    kind = ItemKind.Episode,
+                    dateCreated = CREATED,
+                    seriesId = ItemId(SERIES),
+                )
+            val source = ListLibrarySource(mutableListOf(movie, episode))
+            val server = PagedMediaServer(listOf(SyncWorld.movies), mapOf(MOVIES to source))
+            server.seriesSources[MOVIES] =
+                SeriesSource(mutableListOf(series(SERIES, name = "Invented Series", studios = listOf("Invented Kids"))))
+            clock.instant += 1.hours
+            val reread = clock.instant
+
+            val result = StayCurrentEngine(repository, server, clock).backfill(SyncWorld.session, ALICE, setOf(MOVIES))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertFalse(repository.backfillPending(ALICE))
+            val before = repository.ruleSnapshot(ALICE, setOf(MOVIES), reread - 1.hours)
+            assertEquals(listOf(hexId(1), hexId(3)), before.items.map { it.item.id.value })
+            assertTrue(before.items.all { it.studios.isEmpty() })
+            assertEquals(
+                emptyList<String>(),
+                before.series.values
+                    .single()
+                    .studios,
+            )
+            clock.instant += 1.hours
+            val after = repository.ruleSnapshot(ALICE, setOf(MOVIES), clock.instant)
+            assertEquals(listOf(listOf("Invented Pictures"), emptyList()), after.items.map { it.studios })
+            assertEquals(
+                listOf("Invented Kids"),
+                after.series.values
+                    .single()
+                    .studios,
+            )
+            repository.close()
+        }
+
     @Test
     fun aNewInstallCreatesVersion8WithTheFlagOff() =
         runBlocking {
@@ -167,5 +240,7 @@ class Migration7To8Test {
         const val GENERATION = 1_234_567L
         const val SEEN_FIRST = 1_000L
         const val SEEN_EDITED = 2_000L
+        val SERIES = hexId(0x5E)
+        val CREATED = EPOCH - 30.hours
     }
 }
