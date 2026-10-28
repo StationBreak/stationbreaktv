@@ -82,6 +82,7 @@ class Migration7To8OnDeviceTest {
             )
         }
         execSQL("INSERT INTO series VALUES ($keys, 'invented-series', $lib, 'Invented', NULL, '', '', NULL, 1, 1)")
+        execSQL("INSERT INTO series_version VALUES ($keys, 'invented-series', 0, 1, $lib, NULL, '', '', NULL)")
     }
 
     private fun SupportSQLiteDatabase.longs(sql: String): List<Long> =
@@ -106,6 +107,7 @@ class Migration7To8OnDeviceTest {
         assertEquals(listOf(GENERATION, seed), generations)
         assertEquals(listOf(2L), migrated.longs("SELECT COUNT(*) FROM item_version WHERE studios = ''"))
         assertEquals(listOf(1L), migrated.longs("SELECT COUNT(*) FROM series WHERE studios = ''"))
+        assertEquals(listOf(1L), migrated.longs("SELECT COUNT(*) FROM series_version WHERE studios = ''"))
         migrated.close()
 
         val repository = RoomLibraryRepository.create(context, clock)
