@@ -389,7 +389,10 @@ class LineupService internal constructor(
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
 }
 
-/** How many collection passes must have ended without completing before the first lineup stops waiting for them. */
+/**
+ * How many collection passes must have ended without completing before a lineup stops waiting for them: the first
+ * lineup for its first choice, and a finalised one for a newer catalog (which it would otherwise never receive).
+ */
 internal const val GIVE_UP_AFTER = 2
 
 /**
