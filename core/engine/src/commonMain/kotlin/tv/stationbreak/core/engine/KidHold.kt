@@ -16,7 +16,11 @@ object KidHold {
     /** The name of this version of the gate lists and the rating table. */
     const val VERSION_NAME = "kid-hold-1"
 
-    /** The genres that mean made for children, in their spellings. Family is not one of them. */
+    /**
+     * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
+     * grown-up recipes exclude exactly these, so a change here also changes the catalog and needs a new
+     * `StarterCatalog.VERSION` and frozen manifest.
+     */
     val KIDS_GENRES: List<String> =
         listOf("Children", "Children's", "Children’s", "Childrens", "Kids", "Kid", "Preschool", "Pre-school")
 
