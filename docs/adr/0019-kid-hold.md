@@ -34,8 +34,8 @@ The owner decisions of 2026-10-27:
    kids and is rated within the kid ceiling, whatever the channel's stored rules say. Rule files and the rules format
    do not change.
 2. **Where it lives.** The gate and the kid rating table are a pure function in `core/engine` (`KidHold`), with frozen
-   test vectors. Its version name is `kid-hold-1` (`KidHold.VERSION_NAME`). The name is used in this ADR and the test
-   vectors only. Day caches are in memory and an app update restarts the process, so no stored cache is rebuilt.
+   test vectors. Its version name is `kid-hold-2` (`KidHold.VERSION_NAME`; `kid-hold-1` was the first, see §5). The
+   name is used in this ADR and the test vectors only. Day caches are in memory and an app update restarts the process, so no stored cache is rebuilt.
    `LineupDays` only decides *whether* a channel is held.
    `PoolEvaluator.evaluate` keeps the contract in [rules-format.md](../rules-format.md).
 3. **Which channels are held.** A channel is held when it is numbered in the Kids band, or its recipe key is in
@@ -66,6 +66,15 @@ The owner decisions of 2026-10-27:
      library cache; an item or series the cache holds no studios for matches on genres only, which makes kid channels
      thinner, never less safe.
    - A library may confirm these lists but never decides them.
+   - **`kid-hold-2` (2026-10-28).** Kid channels were too thin under `kid-hold-1`, so the gate widens in two ways.
+     - A children's rating counts as made for kids: `TV-Y`, `TV-Y7` or `TV-Y7-FV`, in any server spelling, on the item
+       or on its known series. The TV Parental Guidelines define these as children's programming, so this follows
+       decision 1 (kids means made for kids). An unknown series contributes nothing. `TV-G` and `G` do not count.
+     - The major animation studios join the studio list (owner decision), except Studio Ghibli, which is left off on
+       purpose, as is Nelvana, which also co-produces general-audience work. A big film studio's live-action label
+       stays off.
+
+     The kids genres are unchanged, so catalog version 2 is unchanged.
 6. **The kid rating table.** A fixed table in the hold, not a change to `RatingLadder`:
 
    | Tier | Ratings |
