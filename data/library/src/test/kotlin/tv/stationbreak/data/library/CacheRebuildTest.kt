@@ -18,8 +18,9 @@ import tv.stationbreak.data.library.LibraryDatabases.withDestructiveFallbacks
 import java.io.File
 
 /**
- * Spec 06 task 2.11: the database is a cache. A schema change drops it and it is fetched again, and the schema is
- * exported so a change shows in review.
+ * Spec 06 task 2.11: the database is a cache. A schema it has no migration for (version 6 and older, any newer one,
+ * any foreign one) drops it and it is fetched again, and the schema is exported so a change shows in review. Since
+ * spec 18, version 7 and later migrate (Migration7To8Test).
  */
 class CacheRebuildTest {
     @get:Rule
@@ -40,6 +41,7 @@ class CacheRebuildTest {
                 "collection_member",
                 "collection_sync",
                 "sync_meta",
+                "item_studio",
                 "item_genre",
                 "item_tag",
                 "checkpoint",
@@ -52,13 +54,25 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion7WithThePremiereDateExactMillisecondsAndTheSeasonId() {
-        assertEquals(7, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion8WithStudiosAndTheBackfillFlag() {
+        assertEquals(8, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)
         assertTrue("runtimeNanos" !in columns)
         assertTrue("seasonId" in columns)
+        val text = SchemaFile.text()
+        // Each version column has a default, so a row written before the migration reads the empty list (spec 18).
+        for (table in listOf("item_version", "series", "series_version")) {
+            val block = tableBlock(text, table)
+            assertTrue("$table needs studios", block.contains("\"columnName\": \"studios\""))
+            assertTrue("$table: studios needs the default ''", block.contains("`studios` TEXT NOT NULL DEFAULT ''"))
+        }
+        val meta = tableBlock(text, "sync_meta")
+        assertTrue(meta.contains("`backfillPending` INTEGER NOT NULL DEFAULT 0"))
+        val studio = tableBlock(text, "item_studio")
+        assertTrue(studio.contains("PRIMARY KEY(`serverId`, `userId`, `itemId`, `position`)"))
+        assertTrue(studio.contains("\"onDelete\": \"CASCADE\""))
     }
 
     @Test
@@ -113,7 +127,7 @@ class CacheRebuildTest {
     fun theHistoryTableHoldsTheScheduleFieldsTheStampsAndTheEncodedListsAndCascadesFromItem() {
         val text = SchemaFile.text()
         val columns = SchemaFile.columnNames()
-        listOf("seenFromMs", "firstSeenMs", "supersededAtMs", "genres", "tags").forEach {
+        listOf("seenFromMs", "firstSeenMs", "supersededAtMs", "genres", "tags", "studios").forEach {
             assertTrue("$it missing", it in columns)
         }
         assertTrue("item_version needs a cascading foreign key to item", text.contains("\"onDelete\": \"CASCADE\""))
@@ -162,8 +176,8 @@ class CacheRebuildTest {
     @Test
     fun aDatabaseFromAnOlderSchemaIsDroppedAndRebuiltEmpty() =
         runBlocking {
-            // The upgrade path (the file is older than the code), which version 2 is the first to take: the cache has
-            // no migration, so the old file is dropped and fetched again.
+            // The upgrade path (the file is older than the code) from a version before 7: the cache has no migration
+            // for it, so the old file is dropped and fetched again. Version 7 and later migrate instead (spec 18).
             val context = TestContext(folder.root)
             val older =
                 Room
@@ -191,9 +205,9 @@ class CacheRebuildTest {
         }
 
     @Test
-    fun aVersion6FileOpenedByVersion5CodeIsDroppedAndRebuiltEmpty() =
+    fun aCurrentFileOpenedByOlderCodeIsDroppedAndRebuiltEmpty() =
         runBlocking {
-            // The rollback path (the app goes back from v6 to v5): the file is NEWER than the code. A v5 builder with
+            // The rollback path (an older APK sideloaded): the file is NEWER than the code. An older builder with
             // the same destructive-on-downgrade setting the cache uses must drop every table, not throw.
             val context = TestContext(folder.root)
             val current = TestLibraries.onDisk(folder.root, name = "downgrade.db")
@@ -209,10 +223,10 @@ class CacheRebuildTest {
                     .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
                     .withDestructiveFallbacks() // The cache's own settings, so a change there changes this test.
                     .build()
-            older.otherDao().put(OtherRow("v5 works"))
+            older.otherDao().put(OtherRow("older code works"))
             older.close()
 
-            // Back on v6 the cache is empty and usable: the v6 data did not survive the round trip.
+            // Back on the current code the cache is empty and usable: the data did not survive the round trip.
             val again = TestLibraries.onDisk(folder.root, name = "downgrade.db")
             assertEquals(RowCounts.NONE, again.rowCounts())
             again.useAccount(ALICE)
@@ -282,40 +296,43 @@ class CacheRebuildTest {
         writeSchemaFile(file, 3, tail)
     }
 
-    // Creates the database of schema [version] from its committed file (its CREATE statements, its identity hash,
-    // user_version), with one library and one item in it, so there is something to lose. [itemTail] is the item
-    // row's columns after its name.
+    // Creates the database of schema [version] from its committed file, with one library and one item in it, so there
+    // is something to lose. [itemTail] is the item row's columns after its name.
     private fun writeSchemaFile(
         file: File,
         version: Int,
         itemTail: String,
-    ) {
-        val text = File("schemas/tv.stationbreak.data.library.LibraryDatabase/$version.json").readText()
-        assertTrue(text.contains("\"version\": $version"))
-        val hash = Regex("\"identityHash\":\\s*\"([0-9a-f]+)\"").find(text)!!.groupValues[1]
-        val connection = BundledSQLiteDriver().open(file.path)
-        try {
-            var table = ""
-            Regex("\"(tableName|createSql)\":\\s*\"([^\"]*)\"").findAll(text).forEach { match ->
-                val (key, value) = match.destructured
-                if (key == "tableName") {
-                    table = value
-                } else {
-                    connection.execSQL(value.replace("\${TABLE_NAME}", table))
-                }
-            }
-            val master = "room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)"
-            connection.execSQL("CREATE TABLE IF NOT EXISTS $master")
-            connection.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '$hash')")
-            connection.execSQL("INSERT INTO library VALUES ('server-1', 'alice', 'lib-movies', 1)")
-            connection.execSQL(
-                "INSERT INTO item VALUES ('server-1', 'alice', 'x', 'lib-movies', 'Movie', 'X', $itemTail)",
-            )
-            connection.execSQL("PRAGMA user_version = $version")
-        } finally {
-            connection.close()
-        }
+    ) = SchemaFile.create(file, version) { connection ->
+        connection.execSQL("INSERT INTO library VALUES ('server-1', 'alice', 'lib-movies', 1)")
+        connection.execSQL("INSERT INTO item VALUES ('server-1', 'alice', 'x', 'lib-movies', 'Movie', 'X', $itemTail)")
     }
+
+    @Test
+    fun aRealVersion6FileFromSpec10Unit2IsDroppedAndRebuiltEmptyWithoutThrowing() =
+        runBlocking {
+            // Version 6 is the last version with no migration: its file is rebuilt, as the v3 to v5 files were.
+            val v6 = File(folder.root, "spec10-unit2.db")
+            writeSchemaFile(v6, 6, "NULL, NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL, 1, 1")
+
+            val repository = TestLibraries.onDisk(folder.root, name = "spec10-unit2.db")
+
+            assertEquals(RowCounts.NONE, repository.rowCounts())
+            repository.close()
+        }
+
+    @Test
+    fun aRealVersion7FileIsMigratedAndKeepsItsRows() =
+        runBlocking {
+            // Spec 18: version 7 is the first the cache migrates (Migration7To8Test holds the details).
+            val v7 = File(folder.root, "spec12.db")
+            writeSchemaFile(v7, 7, "NULL, NULL, NULL, NULL, NULL, 5400000, 1, NULL, NULL, NULL, NULL, 1, 1")
+
+            val repository = TestLibraries.onDisk(folder.root, name = "spec12.db", signedIn = emptyList())
+
+            assertEquals(1, repository.rowCounts().items)
+            assertEquals(1, repository.rowCounts().libraries)
+            repository.close()
+        }
 
     @Test
     fun aDatabaseFromTheCurrentSchemaIsKept() =
@@ -349,8 +366,8 @@ internal abstract class OtherSchemaDatabase : RoomDatabase() {
     abstract fun otherDao(): OtherDao
 }
 
-// The same, at the version before the current one.
-@Database(entities = [OtherRow::class], version = LibraryDatabase.VERSION - 1, exportSchema = false)
+// The same, at version 6: the last version the cache has no migration from, so its files are rebuilt.
+@Database(entities = [OtherRow::class], version = 6, exportSchema = false)
 internal abstract class OlderSchemaDatabase : RoomDatabase() {
     abstract fun otherDao(): OtherDao
 }

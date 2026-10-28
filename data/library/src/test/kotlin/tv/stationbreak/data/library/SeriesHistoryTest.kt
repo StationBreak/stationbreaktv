@@ -167,7 +167,7 @@ class SeriesHistoryTest {
     fun reviveCopiesTheTombstonedRowAsAVersionEndingAtTheNewStamp() =
         runBlocking {
             open()
-            put(series("s1", genres = listOf("Drama")))
+            put(series("s1", genres = listOf("Drama"), studios = listOf("Invented Studio")))
             clock.stepMs(10_000)
             repository.tombstoneSeries(ALICE, listOf(id))
             clock.stepMs(10_000)
@@ -179,7 +179,9 @@ class SeriesHistoryTest {
             assertEquals(start + 20_000, version.supersededAtMs)
             assertEquals(start + 10_000, version.deletedAtMs)
             assertEquals(listOf("Drama"), VersionCodec.decode(version.genres))
+            assertEquals(listOf("Invented Studio"), VersionCodec.decode(version.studios))
             assertNull(current().deletedAtMs)
+            assertEquals(listOf("Invented Studio"), VersionCodec.decode(current().studios))
             assertEquals(start + 20_000, current().seenFromMs)
             repository.assertSeriesIntervalsContiguous(ALICE)
         }

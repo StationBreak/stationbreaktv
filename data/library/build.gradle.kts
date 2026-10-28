@@ -15,6 +15,13 @@ android {
     }
 }
 
+// Room's MigrationTestHelper reads the exported schemas from the test APK's assets (spec 18). Test APK only.
+androidComponents {
+    onVariants { variant ->
+        variant.deviceTests.values.forEach { it.sources.assets?.addStaticSourceDirectory("$projectDir/schemas") }
+    }
+}
+
 ksp {
     // The schema is versioned and exported so a change shows in review (spec 06, Unit 2).
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -48,6 +55,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    // The migration test on the platform SQLite (spec 18): Room's MigrationTestHelper. Test only, never in an APK.
+    androidTestImplementation(libs.androidx.room.testing)
 }
 
 // SchemaFile and CacheRebuildTest read the exported schema straight off disk, so Gradle must see it as an input.

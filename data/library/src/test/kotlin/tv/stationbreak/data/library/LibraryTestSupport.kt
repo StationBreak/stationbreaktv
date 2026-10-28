@@ -3,7 +3,9 @@ package tv.stationbreak.data.library
 
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.execSQL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
@@ -90,6 +92,39 @@ internal object SchemaFile {
         val pattern = Regex("\"$key\":\\s*\"([^\"]+)\"")
         return pattern.findAll(text()).map { it.groupValues[1] }.toList()
     }
+
+    /**
+     * Creates the database of the committed schema [version] in [file], as that version's app left it: its CREATE
+     * statements, its identity hash and `user_version`. [fill] then writes rows through the open connection.
+     */
+    fun create(
+        file: File,
+        version: Int,
+        fill: (SQLiteConnection) -> Unit,
+    ) {
+        val text = File("schemas/tv.stationbreak.data.library.LibraryDatabase/$version.json").readText()
+        check(text.contains("\"version\": $version")) { "$version.json is not version $version" }
+        val hash = Regex("\"identityHash\":\\s*\"([0-9a-f]+)\"").find(text)!!.groupValues[1]
+        val connection = BundledSQLiteDriver().open(file.path)
+        try {
+            var table = ""
+            Regex("\"(tableName|createSql)\":\\s*\"([^\"]*)\"").findAll(text).forEach { match ->
+                val (key, value) = match.destructured
+                if (key == "tableName") {
+                    table = value
+                } else {
+                    connection.execSQL(value.replace("\${TABLE_NAME}", table))
+                }
+            }
+            val master = "room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)"
+            connection.execSQL("CREATE TABLE IF NOT EXISTS $master")
+            connection.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '$hash')")
+            fill(connection)
+            connection.execSQL("PRAGMA user_version = $version")
+        } finally {
+            connection.close()
+        }
+    }
 }
 
 /**
@@ -126,7 +161,7 @@ internal object TestLibraries {
         signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
         retention: HistoryRetention = HistoryRetention(),
     ): RoomLibraryRepository {
-        val repository = RoomLibraryRepository.testing(builder(null, null), clock, sync, retention)
+        val repository = RoomLibraryRepository.testing(builder(null, null, clock), clock, sync, retention)
         return signedIn(repository, signedIn)
     }
 
@@ -136,7 +171,7 @@ internal object TestLibraries {
         name: String = "library-test.db",
         clock: Clock = FakeClock(),
         signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
-    ): RoomLibraryRepository = signedIn(RoomLibraryRepository.testing(builder(dir, name), clock), signedIn)
+    ): RoomLibraryRepository = signedIn(RoomLibraryRepository.testing(builder(dir, name, clock), clock), signedIn)
 
     /** Marks [accounts] as signed in (idempotent), without the clearing that `useAccount` does. */
     fun signedIn(
@@ -152,8 +187,9 @@ internal object TestLibraries {
     private fun builder(
         dir: File?,
         name: String?,
+        clock: Clock,
     ) = LibraryDatabases
-        .builder(TestContext(dir ?: File(System.getProperty("java.io.tmpdir"))), name)
+        .builder(TestContext(dir ?: File(System.getProperty("java.io.tmpdir"))), name, clock)
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(TEST_QUERY_CONTEXT)
 }

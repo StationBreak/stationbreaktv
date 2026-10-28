@@ -1,0 +1,1245 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 8,
+    "identityHash": "fc5df8a70f8fe83b634d4c4de1019836",
+    "entities": [
+      {
+        "tableName": "library",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `fetched` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`, `libraryId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "libraryId",
+            "columnName": "libraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetched",
+            "columnName": "fetched",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "libraryId"
+          ]
+        }
+      },
+      {
+        "tableName": "item",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `kind` TEXT NOT NULL, `name` TEXT NOT NULL, `parentId` TEXT, `seriesId` TEXT, `seasonId` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `runtimeMs` INTEGER, `createdAtMs` INTEGER, `premiereDate` TEXT, `productionYear` INTEGER, `officialRating` TEXT, `deletedAtMs` INTEGER, `seenFromMs` INTEGER NOT NULL, `firstSeenMs` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`, `itemId`), FOREIGN KEY(`serverId`, `userId`, `libraryId`) REFERENCES `library`(`serverId`, `userId`, `libraryId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "libraryId",
+            "columnName": "libraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentId",
+            "columnName": "parentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "seriesId",
+            "columnName": "seriesId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "seasonId",
+            "columnName": "seasonId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "seasonNumber",
+            "columnName": "seasonNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "episodeNumber",
+            "columnName": "episodeNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "runtimeMs",
+            "columnName": "runtimeMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "premiereDate",
+            "columnName": "premiereDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "productionYear",
+            "columnName": "productionYear",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "officialRating",
+            "columnName": "officialRating",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deletedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenMs",
+            "columnName": "firstSeenMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "itemId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_item_serverId_userId_libraryId",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_item_serverId_userId_libraryId` ON `${TABLE_NAME}` (`serverId`, `userId`, `libraryId`)"
+          },
+          {
+            "name": "index_item_serverId_userId_deletedAtMs",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "deletedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_item_serverId_userId_deletedAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `deletedAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "library",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "item_version",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `seenFromMs` INTEGER NOT NULL, `supersededAtMs` INTEGER NOT NULL, `libraryId` TEXT NOT NULL, `kind` TEXT NOT NULL, `seriesId` TEXT, `seasonId` TEXT, `seasonNumber` INTEGER, `episodeNumber` INTEGER, `runtimeMs` INTEGER, `createdAtMs` INTEGER, `premiereDate` TEXT, `productionYear` INTEGER, `officialRating` TEXT, `deletedAtMs` INTEGER, `genres` TEXT NOT NULL, `tags` TEXT NOT NULL, `studios` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`serverId`, `userId`, `itemId`, `seenFromMs`), FOREIGN KEY(`serverId`, `userId`, `itemId`) REFERENCES `item`(`serverId`, `userId`, `itemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "supersededAtMs",
+            "columnName": "supersededAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "libraryId",
+            "columnName": "libraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seriesId",
+            "columnName": "seriesId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "seasonId",
+            "columnName": "seasonId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "seasonNumber",
+            "columnName": "seasonNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "episodeNumber",
+            "columnName": "episodeNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "runtimeMs",
+            "columnName": "runtimeMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "premiereDate",
+            "columnName": "premiereDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "productionYear",
+            "columnName": "productionYear",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "officialRating",
+            "columnName": "officialRating",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deletedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "genres",
+            "columnName": "genres",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "studios",
+            "columnName": "studios",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "itemId",
+            "seenFromMs"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_item_version_serverId_userId_supersededAtMs",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "supersededAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_item_version_serverId_userId_supersededAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "item",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "series",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `seriesId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `name` TEXT NOT NULL, `officialRating` TEXT, `genres` TEXT NOT NULL, `tags` TEXT NOT NULL, `deletedAtMs` INTEGER, `seenFromMs` INTEGER NOT NULL, `firstSeenMs` INTEGER NOT NULL, `studios` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`serverId`, `userId`, `seriesId`), FOREIGN KEY(`serverId`, `userId`, `libraryId`) REFERENCES `library`(`serverId`, `userId`, `libraryId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seriesId",
+            "columnName": "seriesId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "libraryId",
+            "columnName": "libraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "officialRating",
+            "columnName": "officialRating",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "genres",
+            "columnName": "genres",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deletedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenMs",
+            "columnName": "firstSeenMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "studios",
+            "columnName": "studios",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "seriesId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_series_serverId_userId_libraryId",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_series_serverId_userId_libraryId` ON `${TABLE_NAME}` (`serverId`, `userId`, `libraryId`)"
+          },
+          {
+            "name": "index_series_serverId_userId_deletedAtMs",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "deletedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_series_serverId_userId_deletedAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `deletedAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "library",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "series_version",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `seriesId` TEXT NOT NULL, `seenFromMs` INTEGER NOT NULL, `supersededAtMs` INTEGER NOT NULL, `libraryId` TEXT NOT NULL, `officialRating` TEXT, `genres` TEXT NOT NULL, `tags` TEXT NOT NULL, `deletedAtMs` INTEGER, `studios` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`serverId`, `userId`, `seriesId`, `seenFromMs`), FOREIGN KEY(`serverId`, `userId`, `seriesId`) REFERENCES `series`(`serverId`, `userId`, `seriesId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seriesId",
+            "columnName": "seriesId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "supersededAtMs",
+            "columnName": "supersededAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "libraryId",
+            "columnName": "libraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "officialRating",
+            "columnName": "officialRating",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "genres",
+            "columnName": "genres",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deletedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "studios",
+            "columnName": "studios",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "seriesId",
+            "seenFromMs"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_series_version_serverId_userId_supersededAtMs",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "supersededAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_series_version_serverId_userId_supersededAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "series",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "seriesId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "seriesId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "collection",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `collectionId` TEXT NOT NULL, `name` TEXT NOT NULL, `deletedAtMs` INTEGER, `seenFromMs` INTEGER NOT NULL, `firstSeenMs` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`, `collectionId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectionId",
+            "columnName": "collectionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deletedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenMs",
+            "columnName": "firstSeenMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "collectionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_collection_serverId_userId_deletedAtMs",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "deletedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_serverId_userId_deletedAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `deletedAtMs`)"
+          }
+        ]
+      },
+      {
+        "tableName": "collection_version",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `collectionId` TEXT NOT NULL, `seenFromMs` INTEGER NOT NULL, `supersededAtMs` INTEGER NOT NULL, `deletedAtMs` INTEGER, PRIMARY KEY(`serverId`, `userId`, `collectionId`, `seenFromMs`), FOREIGN KEY(`serverId`, `userId`, `collectionId`) REFERENCES `collection`(`serverId`, `userId`, `collectionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectionId",
+            "columnName": "collectionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "supersededAtMs",
+            "columnName": "supersededAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deletedAtMs",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "collectionId",
+            "seenFromMs"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_collection_version_serverId_userId_supersededAtMs",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "supersededAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_version_serverId_userId_supersededAtMs` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "collection",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "collectionId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "collectionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "collection_member",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `collectionId` TEXT NOT NULL, `memberId` TEXT NOT NULL, `seenFromMs` INTEGER NOT NULL, `memberKind` TEXT NOT NULL, `supersededAtMs` INTEGER, PRIMARY KEY(`serverId`, `userId`, `collectionId`, `memberId`, `seenFromMs`), FOREIGN KEY(`serverId`, `userId`, `collectionId`) REFERENCES `collection`(`serverId`, `userId`, `collectionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectionId",
+            "columnName": "collectionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memberId",
+            "columnName": "memberId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seenFromMs",
+            "columnName": "seenFromMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memberKind",
+            "columnName": "memberKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "supersededAtMs",
+            "columnName": "supersededAtMs",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "collectionId",
+            "memberId",
+            "seenFromMs"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_collection_member_serverId_userId_supersededAtMs_memberId",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "userId",
+              "supersededAtMs",
+              "memberId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_collection_member_serverId_userId_supersededAtMs_memberId` ON `${TABLE_NAME}` (`serverId`, `userId`, `supersededAtMs`, `memberId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "collection",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "collectionId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "collectionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "collection_sync",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `collectionsSinceMs` INTEGER, `lastRelistMs` INTEGER, PRIMARY KEY(`serverId`, `userId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectionsSinceMs",
+            "columnName": "collectionsSinceMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastRelistMs",
+            "columnName": "lastRelistMs",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_meta",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `contentGeneration` INTEGER NOT NULL, `failedPasses` INTEGER NOT NULL, `passRunning` INTEGER NOT NULL, `backfillPending` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`serverId`, `userId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentGeneration",
+            "columnName": "contentGeneration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failedPasses",
+            "columnName": "failedPasses",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "passRunning",
+            "columnName": "passRunning",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backfillPending",
+            "columnName": "backfillPending",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId"
+          ]
+        }
+      },
+      {
+        "tableName": "item_genre",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `position` INTEGER NOT NULL, `name` TEXT NOT NULL, PRIMARY KEY(`serverId`, `userId`, `itemId`, `position`), FOREIGN KEY(`serverId`, `userId`, `itemId`) REFERENCES `item`(`serverId`, `userId`, `itemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "itemId",
+            "position"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "item",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "item_tag",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `position` INTEGER NOT NULL, `name` TEXT NOT NULL, PRIMARY KEY(`serverId`, `userId`, `itemId`, `position`), FOREIGN KEY(`serverId`, `userId`, `itemId`) REFERENCES `item`(`serverId`, `userId`, `itemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "itemId",
+            "position"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "item",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "item_studio",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `position` INTEGER NOT NULL, `name` TEXT NOT NULL, PRIMARY KEY(`serverId`, `userId`, `itemId`, `position`), FOREIGN KEY(`serverId`, `userId`, `itemId`) REFERENCES `item`(`serverId`, `userId`, `itemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "itemId",
+            "position"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "item",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "itemId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "checkpoint",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `nextStartIndex` INTEGER NOT NULL, `totalCount` INTEGER, `syncRun` INTEGER NOT NULL, PRIMARY KEY(`serverId`, `userId`, `libraryId`), FOREIGN KEY(`serverId`, `userId`, `libraryId`) REFERENCES `library`(`serverId`, `userId`, `libraryId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "libraryId",
+            "columnName": "libraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextStartIndex",
+            "columnName": "nextStartIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCount",
+            "columnName": "totalCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "syncRun",
+            "columnName": "syncRun",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId",
+            "libraryId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "library",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ],
+            "referencedColumns": [
+              "serverId",
+              "userId",
+              "libraryId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "account_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `state` INTEGER NOT NULL, `total` INTEGER, `failure` INTEGER, `lastSuccessMs` INTEGER, PRIMARY KEY(`serverId`, `userId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "total",
+            "columnName": "total",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "failure",
+            "columnName": "failure",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastSuccessMs",
+            "columnName": "lastSuccessMs",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId"
+          ]
+        }
+      },
+      {
+        "tableName": "active_account",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, PRIMARY KEY(`serverId`, `userId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "userId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fc5df8a70f8fe83b634d4c4de1019836')"
+    ]
+  }
+}

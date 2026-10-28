@@ -100,6 +100,9 @@ androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-com
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 # The annotation processor, through KSP (`ksp(...)`) in data:library only.
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+# Test only: Room's MigrationTestHelper, for the cache's migration test on the emulator (spec 18). It reads the exported
+# schemas as assets, which the JVM tests have no Android framework for. Never in an APK.
+androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 # Test only: the JVM build of the bundled SQLite driver (it carries the Linux x64 native library) that the cache's unit tests
 # run Room on (see [versions]). The Android build of this artifact has no host library. Never in an APK.
 androidx-sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.ref = "androidxSqlite" }

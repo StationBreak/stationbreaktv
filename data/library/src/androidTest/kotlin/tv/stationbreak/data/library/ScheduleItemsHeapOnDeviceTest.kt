@@ -97,7 +97,8 @@ class ScheduleItemsHeapOnDeviceTest {
     private suspend fun writeRound(round: Int) {
         var start = 0
         while (start < ITEMS) {
-            val page = library.page(start, PAGE).map { it.copy(officialRating = "R$round") }
+            val page =
+                library.page(start, PAGE).map { it.copy(officialRating = "R$round", studios = studioOf(it.id.value)) }
             repository.upsertItems(account, movies, page)
             start += PAGE
         }
@@ -163,5 +164,9 @@ class ScheduleItemsHeapOnDeviceTest {
         const val LIMIT_MB = 64L
         const val LIMIT_MS = 3_000L
         const val NANOS_PER_MS = 1_000_000L
+        val STUDIOS = listOf("Studio North", "Studio South", "Studio East", "Studio West", "Studio Centre")
+
+        // One invented studio per item or series (spec 18), the same for an ID every round.
+        fun studioOf(id: String) = listOf(STUDIOS[Math.floorMod(id.hashCode(), STUDIOS.size)])
     }
 }

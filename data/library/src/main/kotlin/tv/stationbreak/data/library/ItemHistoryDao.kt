@@ -11,11 +11,11 @@ private const val HELD_COLUMNS =
     "itemId, libraryId, kind, seriesId, seasonId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
         "productionYear, officialRating, deletedAtMs, seenFromMs"
 
-// The same from an item row, which keeps its genres and tags in side tables: the two list columns are null there.
-private const val HELD_COLUMNS_OF_ITEM = "$HELD_COLUMNS, NULL AS genres, NULL AS tags"
+// The same from an item row, which keeps its genres, tags and studios in side tables: the list columns are null there.
+private const val HELD_COLUMNS_OF_ITEM = "$HELD_COLUMNS, NULL AS genres, NULL AS tags, NULL AS studios"
 
-// The same from a version row, whose genres and tags are codec columns.
-private const val HELD_COLUMNS_OF_VERSION = "$HELD_COLUMNS, genres, tags"
+// The same from a version row, whose genres, tags and studios are codec columns.
+private const val HELD_COLUMNS_OF_VERSION = "$HELD_COLUMNS, genres, tags, studios"
 
 // The same, qualified by the alias v, with the names the mapping expects.
 private const val HELD_COLUMNS_OF_V =
@@ -23,12 +23,12 @@ private const val HELD_COLUMNS_OF_V =
         "v.seasonId AS seasonId, v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, " +
         "v.runtimeMs AS runtimeMs, v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, " +
         "v.productionYear AS productionYear, v.officialRating AS officialRating, v.deletedAtMs AS deletedAtMs, " +
-        "v.seenFromMs AS seenFromMs, v.genres AS genres, v.tags AS tags"
+        "v.seenFromMs AS seenFromMs, v.genres AS genres, v.tags AS tags, v.studios AS studios"
 
 /**
- * One row of the as-of read as Room maps it, from an item row or a version row. [genres] and [tags] are the codec
- * columns of a version, and null for an item row, whose lists are in the side tables. [ItemHistoryDao.heldAsOf] turns
- * it into a [HeldRow].
+ * One row of the as-of read as Room maps it, from an item row or a version row. [genres], [tags] and [studios] are the
+ * codec columns of a version, and null for an item row, whose lists are in the side tables.
+ * [ItemHistoryDao.heldAsOf] turns it into a [HeldRow].
  */
 @Suppress("LongParameterList") // One property per column of the as-of read, as Room maps them.
 internal class HeldRaw(
@@ -48,12 +48,28 @@ internal class HeldRaw(
     val seenFromMs: Long,
     val genres: String?,
     val tags: String?,
+    val studios: String?,
 )
 
-// The genres and tags of the current rows of one chunk, by item.
+// The genres, tags and studios of the current rows of one chunk, by item.
 private class SideLists {
     val genres = HashMap<String, MutableList<String>>()
     val tags = HashMap<String, MutableList<String>>()
+    val studios = HashMap<String, MutableList<String>>()
+}
+
+/**
+ * The genres, tags and studios the database holds for some items, by item ID, each in the server's order (see
+ * [LibraryDao.sideNames]). An item with none of a kind has no entry for it.
+ */
+internal class SideNames(
+    val genres: Map<String, List<String>>,
+    val tags: Map<String, List<String>>,
+    val studios: Map<String, List<String>>,
+) {
+    companion object {
+        val NONE = SideNames(emptyMap(), emptyMap(), emptyMap())
+    }
 }
 
 /**
@@ -96,16 +112,15 @@ internal abstract class ItemHistoryDao {
     ): Int
 
     /**
-     * Works out what writing [items] over the rows the database holds ([existing], with their [oldGenres] and
-     * [oldTags]) does. The caller reads the old genres and tags inside its transaction and before they are deleted, so
-     * a version can hold them and a genre-only or tag-only edit is seen as a change (Vimes H3). A row that clears a
-     * tombstone is a change too, even when no field differs (Vimes H2). This reads and writes nothing.
+     * Works out what writing [items] over the rows the database holds ([existing], with their [old] genres, tags and
+     * studios) does. The caller reads the old lists inside its transaction and before they are deleted, so a version
+     * can hold them and an edit to one list alone is seen as a change (Vimes H3; studios since spec 18). A row that
+     * clears a tombstone is a change too, even when no field differs (Vimes H2). This reads and writes nothing.
      */
     fun planPage(
         items: Map<String, ItemRows>,
         existing: Map<String, ItemEntity>,
-        oldGenres: Map<String, List<String>>,
-        oldTags: Map<String, List<String>>,
+        old: SideNames,
         nowMs: Long,
     ): PagePlan {
         val toInsert = mutableListOf<ItemEntity>()
@@ -113,26 +128,30 @@ internal abstract class ItemHistoryDao {
         val versions = mutableListOf<ItemVersionEntity>()
         var unchanged = 0
         for ((id, rows) in items) {
-            val old = existing[id]
-            if (old == null) {
+            val held = existing[id]
+            if (held == null) {
                 toInsert += rows.item.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
                 continue
             }
-            val genres = rows.genres.map { it.name }
-            val tags = rows.tags.map { it.name }
+            val genres = old.genres[id].orEmpty()
+            val tags = old.tags[id].orEmpty()
+            val studios = old.studios[id].orEmpty()
             val changed =
-                !old.sameScheduleFields(rows.item) || oldGenres[id].orEmpty() != genres || oldTags[id].orEmpty() != tags
-            val revived = old.deletedAtMs != null && rows.item.deletedAtMs == null
-            val kept = rows.item.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
+                !held.sameScheduleFields(rows.item) ||
+                    genres != rows.genres.map { it.name } ||
+                    tags != rows.tags.map { it.name } ||
+                    studios != rows.studios.map { it.name }
+            val revived = held.deletedAtMs != null && rows.item.deletedAtMs == null
+            val kept = rows.item.copy(seenFromMs = held.seenFromMs, firstSeenMs = held.firstSeenMs)
             when {
                 changed || revived -> {
-                    val stamp = nextStamp(old, nowMs)
-                    versions += old.toVersion(stamp, oldGenres[id].orEmpty(), oldTags[id].orEmpty())
-                    toUpdate += rows.item.copy(seenFromMs = stamp, firstSeenMs = old.firstSeenMs)
+                    val stamp = nextStamp(held, nowMs)
+                    versions += held.toVersion(stamp, genres, tags, studios)
+                    toUpdate += rows.item.copy(seenFromMs = stamp, firstSeenMs = held.firstSeenMs)
                 }
 
                 // Only the name or the parent differs: stored, but it is no new version of the schedule's inputs.
-                old != kept -> {
+                held != kept -> {
                     toUpdate += kept
                 }
 
@@ -150,15 +169,15 @@ internal abstract class ItemHistoryDao {
      */
     fun planRevival(
         rows: List<ItemEntity>,
-        genres: Map<String, List<String>>,
-        tags: Map<String, List<String>>,
+        names: SideNames,
         nowMs: Long,
     ): RevivalPlan {
         val stamps = rows.associate { it.itemId to nextStamp(it, nowMs) }
         val versions =
             rows.map {
                 val id = it.itemId
-                it.toVersion(stamps.getValue(id), genres[id].orEmpty(), tags[id].orEmpty())
+                val genres = names.genres[id].orEmpty()
+                it.toVersion(stamps.getValue(id), genres, names.tags[id].orEmpty(), names.studios[id].orEmpty())
             }
         return RevivalPlan(versions, rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.itemId)) })
     }
@@ -210,7 +229,7 @@ internal abstract class ItemHistoryDao {
         cutoffMs: Long,
     ): List<HeldRaw>
 
-    // Genres and tags of the current rows of one chunk, by item-ID range, in the server's order.
+    // Genres, tags and studios of the current rows of one chunk, by item-ID range, in the server's order.
     @Query(
         "SELECT * FROM item_genre WHERE serverId = :serverId AND userId = :userId AND itemId > :after " +
             "AND itemId <= :last ORDER BY itemId, position",
@@ -233,14 +252,25 @@ internal abstract class ItemHistoryDao {
         last: String,
     ): List<TagEntity>
 
+    @Query(
+        "SELECT * FROM item_studio WHERE serverId = :serverId AND userId = :userId AND itemId > :after " +
+            "AND itemId <= :last ORDER BY itemId, position",
+    )
+    protected abstract suspend fun studiosInRange(
+        serverId: String,
+        userId: String,
+        after: String,
+        last: String,
+    ): List<StudioEntity>
+
     /**
      * The version of every item of the account that this TV held before [cutoffMs], read [chunkSize] items at a time
      * in item-ID order inside one read transaction (Vimes H4, M2), and returned in item-ID order. Selection runs over
      * every item first; only then are the rows of [libraries] kept, less those whose held version was deleted before
      * the cut-off (`deletedAt < cutoffMs`). The validity checks are the caller's.
      *
-     * [strings] shares one `String` per distinct genre, tag, rating, library ID and season ID with whoever else reads
-     * in the same transaction (the rule snapshot does); a caller that has no one to share with passes none.
+     * [strings] shares one `String` per distinct genre, tag, studio, rating, library ID and season ID with whoever else
+     * reads in the same transaction (the rule snapshot does); a caller that has no one to share with passes none.
      *
      * It returns a list and takes no callback on purpose. An earlier version handed each chunk to a lambda; on API 25
      * (ART 7.1) a second caller with a different lambda class made the JIT-compiled loop deoptimise, and the next GC
@@ -305,7 +335,7 @@ internal abstract class ItemHistoryDao {
         return chosen
     }
 
-    // The genres and tags of the current rows in an ID range, by item, in the server's order.
+    // The genres, tags and studios of the current rows in an ID range, by item, in the server's order.
     private suspend fun readSide(
         serverId: String,
         userId: String,
@@ -319,6 +349,9 @@ internal abstract class ItemHistoryDao {
         }
         for (row in tagsInRange(serverId, userId, after, last)) {
             side.tags.getOrPut(row.itemId) { ArrayList() }.add(strings.of(row.name))
+        }
+        for (row in studiosInRange(serverId, userId, after, last)) {
+            side.studios.getOrPut(row.itemId) { ArrayList() }.add(strings.of(row.name))
         }
         return side
     }
@@ -342,6 +375,7 @@ internal abstract class ItemHistoryDao {
         officialRating = officialRating?.let(strings::of),
         genres = if (genres != null) strings.all(VersionCodec.decode(genres)) else side.genres[itemId].orEmpty(),
         tags = if (tags != null) strings.all(VersionCodec.decode(tags)) else side.tags[itemId].orEmpty(),
+        studios = if (studios != null) strings.all(VersionCodec.decode(studios)) else side.studios[itemId].orEmpty(),
         seasonId = seasonId?.let(strings::of),
     )
 

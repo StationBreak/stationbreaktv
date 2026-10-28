@@ -46,11 +46,12 @@ internal enum class PurgeSkip {
     ClockFarAhead,
 }
 
-/** An item row with its genre and tag rows. */
+/** An item row with its genre, tag and studio rows. */
 internal class ItemRows(
     val item: ItemEntity,
     val genres: List<GenreEntity>,
     val tags: List<TagEntity>,
+    val studios: List<StudioEntity>,
 )
 
 /** One live item's names, with its live series' name when it has one (see [LibraryDao.programRows]). */
@@ -240,7 +241,7 @@ internal abstract class LibraryDao {
     )
 
     // The purge (spec 09, Unit 3). Plain DELETEs scoped to the account and driven by the two purge indexes; the
-    // foreign keys take the genres, tags and versions of a deleted item with it. A tombstone also needs
+    // foreign keys take the genres, tags, studios and versions of a deleted item with it. A tombstone also needs
     // seenFromMs < cutoff: after a clock set back, deletedAt can be older than the row itself, and the cascade would
     // take versions superseded inside the retention (Vimes L-1 on #268).
     @Query(
@@ -253,13 +254,16 @@ internal abstract class LibraryDao {
         cutoffMs: Long,
     ): Int
 
-    // Genres and tags.
+    // Genres, tags and studios.
 
     @Insert
     abstract suspend fun insertGenres(rows: List<GenreEntity>)
 
     @Insert
     abstract suspend fun insertTags(rows: List<TagEntity>)
+
+    @Insert
+    abstract suspend fun insertStudios(rows: List<StudioEntity>)
 
     @Query("DELETE FROM item_genre WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids)")
     abstract suspend fun deleteGenres(
@@ -270,6 +274,13 @@ internal abstract class LibraryDao {
 
     @Query("DELETE FROM item_tag WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids)")
     abstract suspend fun deleteTags(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    )
+
+    @Query("DELETE FROM item_studio WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids)")
+    abstract suspend fun deleteStudios(
         serverId: String,
         userId: String,
         ids: List<String>,
@@ -294,6 +305,16 @@ internal abstract class LibraryDao {
         userId: String,
         ids: List<String>,
     ): List<TagEntity>
+
+    @Query(
+        "SELECT * FROM item_studio WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids) " +
+            "ORDER BY itemId, position",
+    )
+    abstract suspend fun studiosFor(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<StudioEntity>
 
     // Checkpoints.
 
@@ -473,6 +494,9 @@ internal abstract class LibraryDao {
     @Query("SELECT COUNT(*) FROM item_tag")
     abstract suspend fun countTags(): Int
 
+    @Query("SELECT COUNT(*) FROM item_studio")
+    abstract suspend fun countStudios(): Int
+
     @Query("SELECT COUNT(*) FROM library")
     abstract suspend fun countLibraries(): Int
 
@@ -506,26 +530,19 @@ internal abstract class LibraryDao {
         rows.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
     }
 
-    // The names of the genres (or tags) of [ids], in order, by item. Chunked under MAX_VARIABLES.
-    suspend fun genreNames(
+    /** The names of the genres, tags and studios of [ids], in order, by item. Chunked under MAX_VARIABLES. */
+    suspend fun sideNames(
         server: String,
         user: String,
         ids: Collection<String>,
-    ): Map<String, List<String>> =
-        ids
-            .chunked(MAX_VARIABLES)
-            .flatMap { genresFor(server, user, it) }
-            .groupBy({ it.itemId }, { it.name })
-
-    suspend fun tagNames(
-        server: String,
-        user: String,
-        ids: Collection<String>,
-    ): Map<String, List<String>> =
-        ids
-            .chunked(MAX_VARIABLES)
-            .flatMap { tagsFor(server, user, it) }
-            .groupBy({ it.itemId }, { it.name })
+    ): SideNames {
+        val chunks = ids.chunked(MAX_VARIABLES)
+        return SideNames(
+            genres = chunks.flatMap { genresFor(server, user, it) }.groupBy({ it.itemId }, { it.name }),
+            tags = chunks.flatMap { tagsFor(server, user, it) }.groupBy({ it.itemId }, { it.name }),
+            studios = chunks.flatMap { studiosFor(server, user, it) }.groupBy({ it.itemId }, { it.name }),
+        )
+    }
 
     /** The first sync starts or starts again: running, no total yet, the last success (if any) kept. */
     @Transaction
@@ -597,7 +614,7 @@ internal abstract class LibraryDao {
         saveState(AccountStateEntity(serverId, userId, AccountStateEntity.STATE_IDLE, null, null, nowMs))
     }
 
-    /** The snapshot's items with their genres and tags, all from one moment. */
+    /** The snapshot's items with their genres, tags and studios, all from one moment. */
     @Transaction
     open suspend fun snapshotRows(
         serverId: String,
@@ -620,7 +637,7 @@ internal abstract class LibraryDao {
         libraries: List<String>,
     ): Int = libraries.chunked(MAX_VARIABLES).sumOf { excludedChunk(serverId, userId, it) }
 
-    /** Every item of the account, with its genres and tags. */
+    /** Every item of the account, with its genres, tags and studios. */
     @Transaction
     open suspend fun allRows(
         serverId: String,
@@ -635,7 +652,10 @@ internal abstract class LibraryDao {
         val ids = items.map { it.itemId }
         val genres = ids.chunked(MAX_VARIABLES).flatMap { genresFor(serverId, userId, it) }.groupBy { it.itemId }
         val tags = ids.chunked(MAX_VARIABLES).flatMap { tagsFor(serverId, userId, it) }.groupBy { it.itemId }
-        return items.map { ItemRows(it, genres[it.itemId].orEmpty(), tags[it.itemId].orEmpty()) }
+        val studios = ids.chunked(MAX_VARIABLES).flatMap { studiosFor(serverId, userId, it) }.groupBy { it.itemId }
+        return items.map {
+            ItemRows(it, genres[it.itemId].orEmpty(), tags[it.itemId].orEmpty(), studios[it.itemId].orEmpty())
+        }
     }
 
     companion object {

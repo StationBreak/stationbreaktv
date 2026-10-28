@@ -34,7 +34,8 @@ class RuleSnapshotSeriesTest {
         rating: String? = null,
         genres: List<String> = emptyList(),
         tags: List<String> = emptyList(),
-    ) = repository.putSeries(ALICE, RULE_LIBRARY, series(hexId(n), rating, genres, tags))
+        studios: List<String> = emptyList(),
+    ) = repository.putSeries(ALICE, RULE_LIBRARY, series(hexId(n), rating, genres, tags, studios = studios))
 
     private suspend fun seriesAt(cutoffMs: Long): Map<CanonicalId, RuleSeries> {
         val libraries = setOf(RULE_LIBRARY)
@@ -46,7 +47,8 @@ class RuleSnapshotSeriesTest {
         rating: String? = null,
         genres: List<String> = emptyList(),
         tags: List<String> = emptyList(),
-    ) = RuleSeries(canon(n), rating, genres, tags)
+        studios: List<String> = emptyList(),
+    ) = RuleSeries(canon(n), rating, genres, tags, studios)
 
     @Test
     fun aSeriesEditedAfterTheCutoffIsReturnedAsItWasAndThenAsItIs() =
@@ -197,5 +199,40 @@ class RuleSnapshotSeriesTest {
             listOf(903, 901, 902).forEach { putShow(n = it) }
 
             assertEquals(listOf(canon(901), canon(902), canon(903)), seriesAt(start + 1).keys.toList())
+        }
+
+    // Spec 18 section 2: a series' studios follow the as-of cases, so two TVs reading an earlier cut-off agree.
+
+    @Test
+    fun aSeriesCarriesItsStudiosInOrderAndAnEarlierCutoffReadsNone() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            putShow(rating = "TV-Y", genres = listOf("Animation"))
+            clock.stepMs(10_000)
+            val cutoff = clock.nowMs
+            clock.stepMs(10_000)
+            // The re-read after the upgrade: only studios differ.
+            putShow(rating = "TV-Y", genres = listOf("Animation"), studios = listOf("Zed Toons", "Alpha Kids"))
+
+            val before = held(show, "TV-Y", listOf("Animation"))
+            val after = held(show, "TV-Y", listOf("Animation"), studios = listOf("Zed Toons", "Alpha Kids"))
+            assertEquals(mapOf(canon(show) to before), seriesAt(cutoff))
+            assertEquals(mapOf(canon(show) to after), seriesAt(clock.nowMs + 1))
+        }
+
+    @Test
+    fun aSeriesFirstSeenAfterTheCutoffKeepsTheStudiosItFirstHad() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            val cutoff = clock.nowMs
+            clock.stepMs(10_000)
+            putShow(studios = listOf("First Studio"))
+            clock.stepMs(10_000)
+            putShow(studios = listOf("Second Studio"))
+
+            // Case (c): the oldest version.
+            assertEquals(mapOf(canon(show) to held(show, studios = listOf("First Studio"))), seriesAt(cutoff))
         }
 }

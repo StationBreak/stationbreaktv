@@ -63,6 +63,7 @@ internal data class RowCounts(
     val collectionVersions: Int = 0,
     val collectionMembers: Int = 0,
     val collectionSyncs: Int = 0,
+    val studios: Int = 0,
 ) {
     companion object {
         val NONE = RowCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -292,7 +293,7 @@ class RoomLibraryRepository internal constructor(
         libraries: Set<ItemId>,
     ) {
         val (server, user) = account.keys()
-        // Unticked libraries go, with their items, genres, tags and checkpoint (foreign keys cascade).
+        // Unticked libraries go, with their items, genres, tags, studios and checkpoint (foreign keys cascade).
         dao.select(server, user, libraries.map { it.value })
     }
 
@@ -644,6 +645,7 @@ class RoomLibraryRepository internal constructor(
             items = dao.countItems(),
             genres = dao.countGenres(),
             tags = dao.countTags(),
+            studios = dao.countStudios(),
             libraries = dao.countLibraries(),
             checkpoints = dao.countCheckpoints(),
             states = dao.countStates(),
@@ -846,7 +848,7 @@ class RoomLibraryRepository internal constructor(
             retention: HistoryRetention = HistoryRetention(),
             collectionRelist: CollectionRelist = CollectionRelist(),
         ): RoomLibraryRepository {
-            val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME)
+            val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME, clock)
             // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
             val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
             return RoomLibraryRepository(builder.build(), clock, sync, retention, collectionRelist)
@@ -898,6 +900,7 @@ private fun MediaItem.toRows(
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
+    studios = studios.mapIndexed { index, value -> StudioEntity(server, user, id.value, index, value) },
 )
 
 private fun CollectionMember.toEntity(
@@ -928,6 +931,7 @@ private fun SeriesInfo.toEntity(
     officialRating = officialRating,
     genres = VersionCodec.encode(genres),
     tags = VersionCodec.encode(tags),
+    studios = VersionCodec.encode(studios),
     deletedAtMs = null,
     // The DAO stamps both when it writes the row.
     seenFromMs = 0,
@@ -947,6 +951,7 @@ private fun ItemRows.toItem() =
         officialRating = item.officialRating,
         genres = genres.map { it.name },
         tags = tags.map { it.name },
+        studios = studios.map { it.name },
         seriesId = item.seriesId?.let(::ItemId),
         seasonId = item.seasonId?.let(::ItemId),
         seasonNumber = item.seasonNumber,

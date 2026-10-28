@@ -25,7 +25,8 @@ import kotlin.time.Instant
  * 64 MB. The same read runs on the API 25 emulator (`RuleSnapshotHeapOnDeviceTest`), which holds the 3 s limit.
  *
  * The repeated strings are shared within the read: the distinct `String` instances of the genres, the tags, the
- * ratings and the library IDs are as many as the distinct values.
+ * studios, the ratings and the library IDs are as many as the distinct values. Every item and series has one studio,
+ * as after the re-read that follows the upgrade to schema 8 (spec 18).
  */
 class RuleSnapshotHeapTest {
     private val clock = FakeClock()
@@ -52,11 +53,15 @@ class RuleSnapshotHeapTest {
             clock.stepMs(1.hours.inWholeMilliseconds)
             var start = 0
             while (start < ITEMS) {
-                val page = library.page(start, PAGE).map { it.copy(officialRating = "R$round") }
+                val page =
+                    library.page(start, PAGE).map {
+                        it.copy(officialRating = "R$round", studios = studioOf(it.id.value))
+                    }
                 repository.upsertItems(ALICE, RULE_LIBRARY, page)
                 start += PAGE
             }
-            inputs.series(round).chunked(SERIES_PAGE).forEach { repository.upsertSeries(ALICE, RULE_LIBRARY, it) }
+            val series = inputs.series(round).map { it.copy(studios = studioOf(it.id.value)) }
+            series.chunked(SERIES_PAGE).forEach { repository.upsertSeries(ALICE, RULE_LIBRARY, it) }
             for (j in 0 until COLLECTIONS) {
                 repository.writeCollection(ALICE, inputs.collectionId(j), "Collection $j", inputs.members(j, round))
             }
@@ -86,10 +91,13 @@ class RuleSnapshotHeapTest {
         val tags = snapshot.items.flatMap { it.tags } + snapshot.series.values.flatMap { it.tags }
         assertShared("genres", genres)
         assertShared("tags", tags)
+        val studios = snapshot.items.flatMap { it.studios } + snapshot.series.values.flatMap { it.studios }
+        assertShared("studios", studios)
         val itemRatings = snapshot.items.mapNotNull { it.officialRating }
         assertShared("ratings", itemRatings + snapshot.series.values.mapNotNull { it.officialRating })
         assertShared("library IDs", snapshot.items.map { it.libraryId.value })
-        println("RULE SNAPSHOT strings: ${genres.size} genre and ${tags.size} tag references, all shared")
+        val references = "${genres.size} genre, ${tags.size} tag and ${studios.size} studio references"
+        println("RULE SNAPSHOT strings: $references, all shared")
     }
 
     @Test
@@ -154,5 +162,9 @@ class RuleSnapshotHeapTest {
         const val LIMIT_MB = 64L
         const val LIMIT_MS = 1_000L
         const val NANOS_PER_MS = 1_000_000L
+        val STUDIOS = listOf("Studio North", "Studio South", "Studio East", "Studio West", "Studio Centre")
+
+        // One invented studio per item or series (spec 18), the same for an ID every round.
+        fun studioOf(id: String) = listOf(STUDIOS[Math.floorMod(id.hashCode(), STUDIOS.size)])
     }
 }

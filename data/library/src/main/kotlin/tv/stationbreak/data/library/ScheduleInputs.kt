@@ -14,7 +14,7 @@ import java.util.EnumMap
 /**
  * An item as one version of it held its schedule fields (spec 09, Unit 2): a current row or an `item_version` row, read
  * with the same columns so both feed one mapping. It carries the rating exactly as received (null, `""` and `" "` are
- * three values), the ordered genres and tags, and an episode's season (spec 10, Unit 1).
+ * three values), the ordered genres, tags and studios, and an episode's season (spec 10, Unit 1; studios spec 18).
  */
 internal data class HeldRow(
     val itemId: String,
@@ -33,6 +33,7 @@ internal data class HeldRow(
     val genres: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     val seasonId: String? = null,
+    val studios: List<String> = emptyList(),
 )
 
 /**
@@ -218,10 +219,10 @@ internal object ScheduleInputs {
 }
 
 /**
- * Maps the items of an [ItemRead] to the rule engine's [RuleItem]. The strings (genres, tags, rating, library ID and
- * season ID) were shared by the read itself (spec 10, Vimes L5); this keeps one `CanonicalId` per distinct ID. An item
- * whose library ID is not a canonical ID has no place in a `RuleSnapshot`, so it is left out; a season ID that is not
- * one reads as no season.
+ * Maps the items of an [ItemRead] to the rule engine's [RuleItem]. The strings (genres, tags, studios, rating, library
+ * ID and season ID) were shared by the read itself (spec 10, Vimes L5); this keeps one `CanonicalId` per distinct ID.
+ * An item whose library ID is not a canonical ID has no place in a `RuleSnapshot`, so it is left out; a season ID that
+ * is not one reads as no season.
  */
 internal class RuleItemMapper {
     private val ids = HashMap<String, CanonicalId?>()
@@ -246,6 +247,7 @@ internal class RuleItemMapper {
                 officialRating = row.officialRating,
                 genres = row.genres,
                 tags = row.tags,
+                studios = row.studios,
             )
         mapped.primeFolds(folds)
         return mapped
@@ -288,7 +290,9 @@ internal object RuleInputs {
         val result = LinkedHashMap<CanonicalId, RuleSeries>(wanted.size * 2)
         for (id in wanted) {
             val series = byId.getValue(id)
-            result[id] = RuleSeries(id, series.officialRating, series.genres, series.tags).also { it.primeFolds(folds) }
+            val rule = RuleSeries(id, series.officialRating, series.genres, series.tags, series.studios)
+            rule.primeFolds(folds)
+            result[id] = rule
         }
         return result
     }

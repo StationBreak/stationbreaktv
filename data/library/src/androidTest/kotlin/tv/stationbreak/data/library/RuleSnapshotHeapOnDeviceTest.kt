@@ -106,11 +106,13 @@ class RuleSnapshotHeapOnDeviceTest {
     private suspend fun writeRound(round: Int) {
         var start = 0
         while (start < ITEMS) {
-            val page = library.page(start, PAGE).map { it.copy(officialRating = "R$round") }
+            val page =
+                library.page(start, PAGE).map { it.copy(officialRating = "R$round", studios = studioOf(it.id.value)) }
             repository.upsertItems(account, movies, page)
             start += PAGE
         }
-        for (chunk in inputs.series(round).chunked(SERIES_PAGE)) repository.upsertSeries(account, movies, chunk)
+        val series = inputs.series(round).map { it.copy(studios = studioOf(it.id.value)) }
+        for (chunk in series.chunked(SERIES_PAGE)) repository.upsertSeries(account, movies, chunk)
         for (j in 0 until COLLECTIONS) {
             repository.writeCollection(account, inputs.collectionId(j), "Collection $j", inputs.members(j, round))
         }
@@ -201,5 +203,9 @@ class RuleSnapshotHeapOnDeviceTest {
         const val LIMIT_MB = 64L
         const val LIMIT_MS = 3_000L
         const val NANOS_PER_MS = 1_000_000L
+        val STUDIOS = listOf("Studio North", "Studio South", "Studio East", "Studio West", "Studio Centre")
+
+        // One invented studio per item or series (spec 18), the same for an ID every round.
+        fun studioOf(id: String) = listOf(STUDIOS[Math.floorMod(id.hashCode(), STUDIOS.size)])
     }
 }
