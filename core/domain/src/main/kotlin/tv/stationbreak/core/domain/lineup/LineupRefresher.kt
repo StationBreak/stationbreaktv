@@ -50,9 +50,9 @@ import kotlin.time.Instant
  * the other reason) still differs. There is no timer of its own: with no further trigger it waits for the next one.
  *
  * A first lineup that cannot get its collections is not left empty: once the library reports that collection passes
- * keep ending without completing ([LibraryRepository.failedCollectionPasses], two or more), the next refresh of an
- * unfinalised lineup plans without them (see [LineupService.refresh]). A lineup that is unfinalised is behind, so any
- * trigger, or the next start, makes that refresh.
+ * keep ending without completing ([LibraryRepository.failedCollectionPasses], two or more), the next refresh plans
+ * without them (see [LineupService.refresh]), for an unfinalised lineup and for a finalised one waiting on a newer
+ * catalog. Either is behind, so any trigger, or the next start, makes that refresh.
  *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
  * ones or reaches the app scope. A trigger source that itself fails is reported the same way and listened to again

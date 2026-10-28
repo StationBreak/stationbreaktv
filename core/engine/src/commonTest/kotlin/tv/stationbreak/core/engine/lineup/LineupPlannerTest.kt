@@ -486,6 +486,61 @@ class LineupPlannerTest {
     }
 
     @Test
+    fun aNewerCatalogCanBeToldNotToWaitForCollections() {
+        val lineup = firstLineup()
+        val excluded = listOf(Source.Genre("Kids"))
+        val v2 =
+            TestCatalog(
+                base.recipes.map { if (it.key == "alpha") recipeOf("alpha", 110).copy(exclusions = excluded) else it },
+                version = 2,
+            )
+        val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
+        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2)
+        assertEquals(1, waiting.catalogVersion, "the default still waits")
+        assertEquals(lineup.channels, waiting.channels)
+
+        val told = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+        assertEquals(2, told.catalogVersion)
+        assertEquals(
+            excluded,
+            told
+                .channel("alpha")
+                .starter.rules.exclusions,
+        )
+        assertEquals(lineup.channel("bravo").starter.rules, told.channel("bravo").starter.rules)
+    }
+
+    @Test
+    fun aCollectionPassThatLandsAfterTheGiveUpStillReachesTheStarters() {
+        val kaiju = recipeOf("kaiju", 320, hints = listOf("Kaiju"))
+        val v1 = TestCatalog(base.recipes + kaiju)
+        val v2 = TestCatalog(base.recipes + kaiju, version = 2)
+        val lineup = firstLineup(v1, extra = mapOf("kaiju" to QUALIFYING_ITEMS))
+        val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
+        val told = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+        assertEquals(2, told.catalogVersion)
+        assertEquals(
+            kaiju.sources,
+            told
+                .channel("kaiju")
+                .starter.rules.sources,
+            "no collection yet",
+        )
+
+        val kaijuId = idOf(0xC1)
+        val synced =
+            libraryOf(fills(catalog = v2), collections = listOf(collection(kaijuId, movies = emptySet())))
+        val names = CollectionNames(mapOf(kaijuId to "Kaiju"))
+        val later = planOf(told, synced, v2, nowMs = 10_000L, names = names)
+        assertEquals(
+            kaiju.sources + Source.Collection(kaijuId),
+            later
+                .channel("kaiju")
+                .starter.rules.sources,
+        )
+    }
+
+    @Test
     fun newLeftoversRecipeTurnsOnWhenItsNumberIsFreeAndThereIsRoom() {
         val lineup = firstLineup().withChannel("alpha") { it.copy(numberOverride = 150) }
         val extra =

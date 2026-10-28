@@ -51,8 +51,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..100, "size was ${recipes.size}")
-        assertEquals(1, StarterCatalog.VERSION)
-        assertEquals(1, StarterCatalog.version)
+        assertEquals(2, StarterCatalog.VERSION)
+        assertEquals(2, StarterCatalog.version)
     }
 
     @Test

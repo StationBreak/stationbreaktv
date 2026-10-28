@@ -19,8 +19,11 @@ object StarterCatalog : StarterCatalogView {
      * The catalog's version. It goes up with any change to what a recipe airs (sources, exclusions, collection hints,
      * ordering), its ceiling or opt-in, or a recipe or leftovers recipe added or removed. The frozen manifests in the
      * tests hold the catalog to that.
+     *
+     * Version 2: every recipe outside the Kids band excludes the genres Children, Kids and Preschool, so kids' shows
+     * stop airing on grown-up channels.
      */
-    const val VERSION = 1
+    const val VERSION = 2
 
     override val version: Int = VERSION
 
@@ -72,6 +75,9 @@ private fun years(
     to: Int,
 ): List<Source> = listOf(Source.YearRange(from = from, to = to))
 
+/** The genres every grown-up recipe (anything outside the Kids band) leaves out, from catalog version 2. */
+private val KIDS_GENRE_EXCLUSIONS: List<Source> = genres("Children", "Kids", "Preschool")
+
 @Suppress("LongParameterList")
 private fun recipe(
     band: Band,
@@ -93,7 +99,7 @@ private fun recipe(
         number = n,
         optIn = optIn,
         sources = sources,
-        exclusions = emptyList(),
+        exclusions = if (band == Band.Kids) emptyList() else KIDS_GENRE_EXCLUSIONS,
         maxRating = rating,
         ordering = order,
         collectionHints = hints,

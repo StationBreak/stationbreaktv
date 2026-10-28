@@ -31,7 +31,8 @@ object LineupPlanner {
      * Until a lineup is finalised it is chosen afresh at [standardOffsetMinutes]. The first choice waits for a full
      * collection pass (`collectionsSynced`), so every recipe's collection hints resolve before it ranks and the same
      * library gives every TV the same lineup; until then the lineup has no channels. With [withoutCollections] it does
-     * not wait: a collection pass that never completes would otherwise keep the lineup empty for good. The caller
+     * not wait: a collection pass that never completes would otherwise keep the lineup empty, or on an old catalog,
+     * for good. The caller
      * decides when that is (the planner stays pure and only obeys). The choice is made with the collection names it
      * was given (none, if no pass has run), and a pass that lands later reaches the starters through the hint pass
      * below. With fewer than
@@ -45,9 +46,10 @@ object LineupPlanner {
      * again from its recipe, keeping its seed and timing, so a collection that appears later reaches it. A call
      * without one resolves no channel again, apart from a starter it switches on. A newer catalog refreshes unedited
      * starters (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new
-     * recipes (with no number when theirs is taken). A newer catalog is applied only with a full collection pass;
-     * until then the lineup keeps its catalog version. A leftovers channel whose key is in the catalog takes its
-     * rating ceiling from it on every call, deferred catalog or not. A catalog older than the lineup's changes nothing.
+     * recipes (with no number when theirs is taken). A newer catalog is applied only with a full collection pass (or
+     * [withoutCollections]); until then the lineup keeps its catalog version. A leftovers channel whose key is in the
+     * catalog takes its rating ceiling from it on every call, deferred catalog or not. A catalog older than the
+     * lineup's changes nothing.
      *
      * Each recipe's pool is evaluated at most once per call.
      */
@@ -71,7 +73,8 @@ object LineupPlanner {
             val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs)
             firstChoice(planning, userId, withoutCollections)
         } else {
-            refresh(current, Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs))
+            val planning = Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs)
+            refresh(current, planning, withoutCollections)
         }
     }
 
@@ -111,9 +114,11 @@ object LineupPlanner {
     private fun refresh(
         current: Lineup,
         p: Planning,
+        withoutCollections: Boolean,
     ): Lineup {
-        // A newer catalog waits for a full collection pass, so its hints resolve against every collection.
-        val newer = p.catalog.version > current.catalogVersion && p.snapshot.collectionsSynced
+        // A newer catalog waits for a full collection pass, so its hints resolve against every collection, unless the
+        // caller has given up waiting for one. Hints missed that way resolve on the first synced refresh (rehinted).
+        val newer = p.catalog.version > current.catalogVersion && (p.snapshot.collectionsSynced || withoutCollections)
         val refreshed = current.channels.map { refreshed(backToBack(it), p, newer) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         return current.copy(

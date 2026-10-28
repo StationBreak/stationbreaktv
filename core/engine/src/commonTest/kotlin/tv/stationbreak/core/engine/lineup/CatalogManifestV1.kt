@@ -5,7 +5,7 @@ package tv.stationbreak.core.engine.lineup
  * Every frozen catalog manifest, oldest first. Raising `StarterCatalog.VERSION` means adding a manifest for the new
  * version here (`CatalogManifestTest` fails until it is added); earlier ones are never edited or removed.
  */
-internal val CATALOG_MANIFESTS: List<CatalogManifest> by lazy { listOf(CATALOG_MANIFEST_V1) }
+internal val CATALOG_MANIFESTS: List<CatalogManifest> by lazy { listOf(CATALOG_MANIFEST_V1, CATALOG_MANIFEST_V2) }
 
 /**
  * The starter catalog as it shipped at version 1, frozen. Never edit it: a key or number that shipped here is kept or
