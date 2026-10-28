@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlin.time.TimeSource
 
 /**
  * Which of the two stay-current passes a run does: the incremental pass (items changed since the last one) and the ID
@@ -51,6 +52,10 @@ data class SyncPlan(
  * stopped by WorkManager's window or fails never costs the other passes; its result is kept in [lastBackfill] and never
  * changes how the run ended.
  *
+ * It reports timings through [report], numbers, flags and outcome names only (never a title, a name, an ID, an
+ * address or a message), so a device log shows whether the re-read ran and how long it took. Durations come from
+ * [timeSource], which is monotonic, not from [clock].
+ *
  * Only one run goes at a time in the process (a second one, from another trigger, does nothing), and a run leaves an
  * account whose first sync has not finished to the first sync. A failure is recorded in the saved library for Phase 1's
  * banner to read; none of it retries, because the next open or the next periodic run is the retry.
@@ -62,6 +67,8 @@ class StayCurrentRunner(
     private val server: MediaServer,
     private val repository: RoomLibraryRepository,
     private val clock: Clock = Clock.System,
+    private val timeSource: TimeSource = TimeSource.Monotonic,
+    private val report: (String) -> Unit = {},
 ) {
     private val gate = Mutex()
 
@@ -145,7 +152,19 @@ class StayCurrentRunner(
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
-        val outcome = stayCurrent(engine, session, account, chosen, plan)
+        report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
+        val began = timeSource.markNow()
+        val outcome =
+            try {
+                stayCurrent(engine, session, account, chosen, plan)
+            } catch (stopped: CancellationException) {
+                report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                throw stopped
+            } catch (signedOut: AccountNotActiveException) {
+                report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                throw signedOut
+            }
+        report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         if (plan.incremental && outcome == SyncOutcome.Completed) backfill(engine, session, account, chosen)
         return outcome
     }
@@ -205,16 +224,30 @@ class StayCurrentRunner(
         account: LibraryAccount,
         chosen: Set<ItemId>,
     ) {
-        lastBackfill =
+        val pending = repository.pendingOrNull(account)
+        report.say("Backfill pending=${pending ?: "unknown"}")
+        val began = timeSource.markNow()
+        val result =
             try {
                 engine.backfill(session, account, chosen)
             } catch (cancelled: CancellationException) {
+                if (pending != false) {
+                    report.say("BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                }
                 throw cancelled
             } catch (signedOut: AccountNotActiveException) {
                 throw signedOut
             } catch (_: Exception) {
                 StayResult(SyncOutcome.Failed(SyncFailure.Server), PassSummary())
             }
+        lastBackfill = result
+        if (pending == false) return
+        val read = result.summary
+        report.say(
+            "BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} ${result.outcome.label()} " +
+                "inserted=${read.inserted} updated=${read.updated} unchanged=${read.unchanged} " +
+                "skipped=${read.skipped} stillPending=${repository.pendingOrNull(account) ?: "unknown"}",
+        )
     }
 
     // Housekeeping after a pass that completed: a failure is kept and never fails the run. Cancellation and a sign-out
@@ -260,5 +293,36 @@ class StayCurrentRunner(
     ): SyncOutcome {
         repository.failStayCurrent(account, failure)
         return SyncOutcome.Failed(failure)
+    }
+}
+
+// The outcome as a log field: the class name, and for a failure the SyncFailure name; never a message.
+private fun SyncOutcome.label() =
+    when (this) {
+        SyncOutcome.Completed -> "outcome=Completed"
+        SyncOutcome.Cancelled -> "outcome=Cancelled"
+        is SyncOutcome.Failed -> "outcome=Failed failure=${failure.name}"
+    }
+
+// The re-read flag for the log only: null when it cannot be read, so a logging read never fails the run.
+@Suppress("TooGenericExceptionCaught")
+private suspend fun RoomLibraryRepository.pendingOrNull(account: LibraryAccount): Boolean? =
+    try {
+        backfillPending(account)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+
+// A report that throws must never change how the run ends.
+@Suppress("TooGenericExceptionCaught")
+private fun ((String) -> Unit).say(line: String) {
+    try {
+        invoke(line)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        // Logging is best effort.
     }
 }

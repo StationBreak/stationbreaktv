@@ -22,6 +22,7 @@ import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.library.StayCurrentProvider
 
 private const val LINEUP_TAG = "Lineup"
+private const val SYNC_TAG = "Sync"
 
 /**
  * The Hilt root. The bindings live in `di/`; the server screen's ViewModel consumes `MediaServer` (F0.5).
@@ -50,7 +51,7 @@ class StationBreakApp :
 
     // One object for the whole process, so the open trigger, the on-open work and the periodic job share one gate. It
     // is built over the stores the first-sync runner reads, which keeps the graph the tests replace as it is.
-    private val stayCurrent: StayCurrent by lazy { StayCurrent.create(this, firstSyncRunner()) }
+    private val stayCurrent: StayCurrent by lazy { StayCurrent.create(this, firstSyncRunner()) { Log.i(SYNC_TAG, it) } }
 
     // Each time the app comes to the foreground (a launch, or returning from Home) keep the saved library current,
     // quietly (spec 06 Unit 4). Off the main thread; a configuration change does not fire it.

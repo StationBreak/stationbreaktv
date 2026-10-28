@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import kotlin.time.Clock
+import kotlin.time.TimeSource
 
 /** Builders for the stay-current tests (spec 06 task 4.0), beside [SyncWorld]. */
 internal object StayCurrentWorld {
@@ -60,6 +61,8 @@ internal class RecordingEnqueuer :
  */
 internal class StayCurrentRig(
     val clock: FakeClock = FakeClock(),
+    timeSource: TimeSource = TimeSource.Monotonic,
+    report: (String) -> Unit = {},
 ) {
     val repository = TestLibraries.inMemory(clock)
     val fake = FakeMediaServer()
@@ -68,7 +71,7 @@ internal class StayCurrentRig(
     val store = InMemorySecretStore()
     val sessions = SessionRepository(store, server, repository)
     val settings = InMemoryServerSettings(ServerRecord(SyncWorld.session.address), setOf(MOVIES))
-    val runner = StayCurrentRunner(settings, sessions, server, repository, clock)
+    val runner = StayCurrentRunner(settings, sessions, server, repository, clock, timeSource, report)
 
     /** Signs in and runs the first sync to its end; the recorded moment is the clock at that time. */
     suspend fun firstSyncDone() {

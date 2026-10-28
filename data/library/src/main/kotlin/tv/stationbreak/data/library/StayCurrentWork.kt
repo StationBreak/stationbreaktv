@@ -165,11 +165,13 @@ class StayCurrent internal constructor(
     companion object {
         /**
          * Stay-current on the app's WorkManager, over the very stores [firstSync] reads (the stored server, the ticked
-         * libraries, the session, the server and the saved library), so the two cannot disagree about whose it is.
+         * libraries, the session, the server and the saved library), so the two cannot disagree about whose it is. [report]
+         * gets the runner's numbers-only timing lines.
          */
         fun create(
             context: Context,
             firstSync: FirstSyncRunner,
+            report: (String) -> Unit = {},
         ): StayCurrent {
             val enqueuer = WorkManagerEnqueuer(context)
             val runner =
@@ -179,6 +181,7 @@ class StayCurrent internal constructor(
                     firstSync.server,
                     firstSync.repository,
                     firstSync.clock,
+                    report = report,
                 )
             val policy = SyncTriggerPolicy(firstSync.clock)
             return StayCurrent(enqueuer, enqueuer, firstSync.repository, policy, runner)
