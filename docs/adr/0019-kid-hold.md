@@ -56,7 +56,8 @@ The owner decisions of 2026-10-27:
    enough. Tags never count: Jellyfin tags are TMDB keywords and are wrong about audience. Genres and studios use the
    same folding as genre sources. An episode matches on its own names or its series' names. If its series is unknown in
    the snapshot, it matches on its own names only, so the gate fails closed by matching less.
-   - **Kids genres:** Children (and the spellings Children's and Childrens), Kids, Kid, Preschool, Pre-school.
+   - **Kids genres**, exactly these eight spellings (`KidHold.KIDS_GENRES`): Children, Children's (straight
+     apostrophe), Children’s (curly apostrophe, U+2019), Childrens, Kids, Kid, Preschool, Pre-school.
      Family is left out on principle: decision 1 says family-friendly is not made for kids, and that holds for any
      library.
    - **Kid-brand studios:** matched against a list admitted by one written rule. A studio is on the list if it is "a
@@ -78,8 +79,11 @@ The owner decisions of 2026-10-27:
    "Approved" and any name off the ladder count as unrated, and unrated stays off kid channels. The ceiling is still
    capped at PG, so a PG ceiling admits PG films but not TV-PG shows. The check applies to an episode's effective
    rating and to its series' rating. An episode whose series is unknown fails closed.
-7. **Catalog version 2.** Every recipe outside the Kids band excludes the genres Children, Kids and Preschool, so
-   preschool shows stop appearing on grown-up channels. These are rules-format v1 features, so the rule files stay at
+7. **Catalog version 2.** Every recipe outside the Kids band excludes the same eight kids genre spellings as the gate
+   (§5, built from `KidHold.KIDS_GENRES`, so a grown-up channel drops exactly what a kid channel would take), so
+   preschool shows stop appearing on grown-up channels. A genre exclusion is checked against the episode's series
+   genres, and rules-format rule 3 fails it closed when the series is missing from the snapshot: grown-up starters now
+   also drop such episodes, which fall to Odds & Ends. These are rules-format v1 features, so the rule files stay at
    version 1. Kid recipes keep their theme sources, tags included, because the hold does the audience check and the
    themed channels do not go empty. Keys, numbers and `EVER_KID_SAFE_KEYS` do not change. A finalised lineup whose
    collection pass keeps failing also takes the catalog bump, after `GIVE_UP_AFTER` (2) failed passes, so the grown-up
@@ -96,8 +100,11 @@ The owner decisions of 2026-10-27:
 - Kid channels get thinner, and that is the intended failure. A thinly tagged library cannot make them unsafe.
 - Family-friendly titles, TV-PG shows and pre-1968 "Approved" films leave kid channels. They keep airing on grown-up
   channels, except where a grown-up channel now excludes a kids genre.
-- Kids' shows the hold refuses (unrated, TV-PG) now fall to grown-up channels. Spec 18 measures that and sets a
-  target for it.
+- Kids' shows the hold refuses (unrated, TV-PG) mostly reach the grown-up leftovers (Odds & Ends), not grown-up
+  channels in general, because grown-up starters exclude the kids genres. Spec 18 measures that and sets a target for
+  it.
+- Grown-up starters also drop episodes of a series the snapshot lacks, when the exclusion cannot be checked against
+  the series genres (rules-format rule 3 fails closed). Those episodes fall to Odds & Ends too.
 - ADR-0002's "same account, same lineup" now reads "same account, same lineup, same app version" for kid channels.
 - **Phase B needs no rules-format change, but it is not free of format change.**
   - Parent-marked library trust must be an account-scoped, versioned input (ADR-0002 §1 and its addendum) so two TVs
