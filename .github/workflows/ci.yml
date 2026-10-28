@@ -791,6 +791,11 @@ jobs:
           target: android-tv
           # The API 25 TV image exists only for x86.
           arch: x86
+          # A TV screen. Without it the AVD gets a 320x640 skin that flips between portrait and landscape as
+          # activities start, which relaunches the activity under a Compose test (#444). tv_720p is 960x540 dp, the
+          # same layout as the Fire TVs and as scripts/preflight.sh's tv_1080p, with a quarter of the pixels for the
+          # software GPU: on tv_1080p the first attempt ran out of time.
+          profile: tv_720p
           # Keep -gpu in step with scripts/preflight.sh.
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
@@ -830,6 +835,7 @@ jobs:
           api-level: 25
           target: android-tv
           arch: x86
+          profile: tv_720p
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2
