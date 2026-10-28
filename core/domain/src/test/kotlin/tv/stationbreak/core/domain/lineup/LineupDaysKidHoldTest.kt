@@ -2,11 +2,13 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
@@ -95,6 +97,43 @@ class LineupDaysKidHoldTest {
     }
 
     @Test
+    fun aCatalogKidKeyRenumberedOutOfTheBandIsStillHeld() {
+        seed()
+        // In the catalog (ceiling PG, which Fantasy passes) and ever kid-safe: only the hold keeps Fantasy out.
+        val kids = leftovers("kids-odds-and-ends", 150, "PG")
+        val odds = leftovers("odds-and-ends", 199, null)
+        val days = days(lineupOf(kids, odds))
+        assertEquals(setOf(kidsItem), days.getValue(kids.id.value).ids())
+        assertEquals(setOf(fantasyItem), days.getValue(odds.id.value).ids())
+    }
+
+    @Test
+    fun anOptInKidRecipeWithholdsOnlyWhatItWouldAirIfShown() {
+        seed()
+        val catalog =
+            object : StarterCatalogView by TestCatalog {
+                override val recipes =
+                    TestCatalog.recipes +
+                        TestCatalog.recipes.first { it.key == "after-hours" }.copy(
+                            key = "little-farm",
+                            band = Band.Kids,
+                            number = 50,
+                            sources = listOf(Source.Genre("Animation")),
+                            maxRating = "PG",
+                        )
+            }
+        val service = LineupService(store, library, clock, { 0 }, {}, catalog)
+        val optInSource = BuiltInScheduleSource(service, library) { LIBRARIES }
+        val odds = leftovers("odds-and-ends", 199, null)
+        val days =
+            runBlocking {
+                store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(odds)))
+                optInSource.channelDays(ACCOUNT, LIBRARIES, NOON).associateBy { it.channel.id.value }
+            }
+        assertEquals(setOf(fantasyItem), days.getValue(odds.id.value).ids())
+    }
+
+    @Test
     fun kidsLeftoversHoldsOutGrownUpContentAndOddsAndEndsAirsIt() {
         seed()
         val kids = leftovers("kids-odds-and-ends", 99, "PG")
@@ -107,7 +146,8 @@ class LineupDaysKidHoldTest {
     @Test
     fun aHiddenKidChannelWithholdsOnlyWhatItWouldAirIfShown() {
         seed()
-        val hidden = starterAt("toons", 10, animation("G"), state = ChannelState.UserHidden)
+        // No stored ceiling: it is scheduled at PG, which the Fantasy PG item passes, so only the hold keeps it out.
+        val hidden = starterAt("toons", 10, animation(null), edited = true, state = ChannelState.UserHidden)
         val kids = leftovers("kids-odds-and-ends", 99, "PG")
         val odds = leftovers("odds-and-ends", 199, null)
         val days = days(lineupOf(hidden, kids, odds))
@@ -134,7 +174,7 @@ class LineupDaysKidHoldTest {
     }
 
     @Test
-    fun nothingAiringNowhereWithBothLeftoversOn() =
+    fun airingNowhereIsZeroWithBothLeftoversOn() =
         runBlocking<Unit> {
             seed()
             val lineup =
