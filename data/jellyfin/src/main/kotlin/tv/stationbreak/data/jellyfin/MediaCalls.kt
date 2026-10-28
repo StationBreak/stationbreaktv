@@ -583,15 +583,15 @@ internal const val STUDIOS_MAX = 16
 private const val STUDIO_NAME_MAX = 256
 
 /**
- * The studio names of [raw], in the server's order and spelling (no trim, no case fold). An entry with a null or blank
- * name is dropped, and so is a name over 256 characters: a cut name could match the wrong studio. At most
- * [STUDIOS_MAX] are kept.
+ * The studio names of [raw], in the server's order and spelling (no trim, no case fold). A null entry, or one with a
+ * null or blank name, is dropped, and so is a name over 256 characters: a cut name could match the wrong studio. At
+ * most [STUDIOS_MAX] are kept.
  */
-internal fun studiosOf(raw: List<StudioDto>?): List<String> {
+internal fun studiosOf(raw: List<StudioDto?>?): List<String> {
     if (raw.isNullOrEmpty()) return emptyList()
     val names = ArrayList<String>(minOf(raw.size, STUDIOS_MAX))
     for (studio in raw) {
-        val name = studio.name
+        val name = studio?.name
         if (name != null && name.isNotBlank() && name.length <= STUDIO_NAME_MAX) {
             names.add(name)
             if (names.size == STUDIOS_MAX) break

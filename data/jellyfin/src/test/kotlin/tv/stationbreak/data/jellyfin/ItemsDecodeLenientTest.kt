@@ -195,6 +195,18 @@ class ItemsDecodeLenientTest {
     }
 
     @Test
+    fun aStudioWithAnExtraFieldAndANumericIdDecodes() {
+        val studios = ""","Studios":[{"Name":"Invented Pictures","Id":42,"Extra":{"Nested":[1,2]}}]"""
+
+        assertEquals(listOf("Invented Pictures"), studiosOfItem(studios))
+    }
+
+    @Test
+    fun aNullStudioIsDroppedAndTheRestKept() {
+        assertEquals(listOf("Kept"), studiosOfItem(""","Studios":[null,{"Name":"Kept"},null]"""))
+    }
+
+    @Test
     fun atMostSixteenStudiosAreKept() {
         val many = (1..20).joinToString(",", prefix = ""","Studios":[""", postfix = "]") { """{"Name":"S$it"}""" }
 

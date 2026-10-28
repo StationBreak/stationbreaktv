@@ -92,6 +92,22 @@ class SeriesMappingTest {
     }
 
     @Test
+    fun aSeriesStudioThatIsNullOrHasANumericIdAndExtraFieldsDecodes() {
+        val body =
+            """{"Items":[{"Id":"s1","Name":"A","Type":"Series",
+            "Studios":[null,{"Name":"Invented Studio","Id":7,"Extra":true}]}],"TotalRecordCount":1}"""
+
+        assertEquals(
+            listOf("Invented Studio"),
+            series(body)
+                .getOrNull()
+                ?.series
+                ?.single()
+                ?.studios,
+        )
+    }
+
+    @Test
     fun seriesStudiosThatAreTextFailThePage() {
         val result = series("""{"Items":[{"Id":"s1","Name":"A","Type":"Series","Studios":"A"}],"TotalRecordCount":1}""")
 

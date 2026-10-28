@@ -118,7 +118,7 @@ internal class ItemDto(
     @SerialName("OfficialRating") val officialRating: String? = null,
     @SerialName("Genres") val genres: List<String>? = null,
     @SerialName("Tags") val tags: List<String>? = null,
-    @SerialName("Studios") val studios: List<StudioDto>? = null,
+    @SerialName("Studios") val studios: List<StudioDto?>? = null,
     @SerialName("SeriesId") val seriesId: String? = null,
     @SerialName("SeasonId") val seasonId: String? = null,
     @SerialName("ParentIndexNumber") val seasonNumber: Int? = null,
@@ -149,10 +149,10 @@ internal class SeriesDto(
     @SerialName("OfficialRating") val officialRating: String? = null,
     @SerialName("Genres") val genres: List<String>? = null,
     @SerialName("Tags") val tags: List<String>? = null,
-    @SerialName("Studios") val studios: List<StudioDto>? = null,
+    @SerialName("Studios") val studios: List<StudioDto?>? = null,
 )
 
-/** One studio of an item or series: only the name is read. A studio with no name is dropped by [studiosOf]. */
+/** One studio of an item or series: only the name is read. [studiosOf] drops a null studio or one with no name. */
 @Serializable
 internal class StudioDto(
     @SerialName("Name") val name: String? = null,
