@@ -563,4 +563,47 @@ class StayCurrentRunnerTest {
                 assertTrue(line, line.all { it.isLetterOrDigit() || it == ' ' || it == '=' })
             }
         }
+
+    @Test
+    fun aReporterThatThrowsChangesNothingAboutTheRun() =
+        runBlocking {
+            val loud = StayCurrentRig(report = { error("the log is broken") })
+            try {
+                loud.firstSyncDone()
+                loud.repository.dao.ensureMetaRow(ALICE.server.value, ALICE.user.value)
+                loud.repository.dao.setBackfillPending(ALICE.server.value, ALICE.user.value, true)
+                loud.clock.instant += 7.hours
+
+                assertEquals(SyncOutcome.Completed, loud.runner.outcome(both))
+                assertEquals(SyncOutcome.Completed, loud.runner.lastBackfill?.outcome)
+                assertFalse(loud.repository.backfillPending(ALICE))
+            } finally {
+                loud.close()
+            }
+        }
+
+    @Test
+    fun aRunStoppedMidPassReportsItAsCancelledAndStaysStopped() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            rig.runner.purge = { _, _ -> throw kotlinx.coroutines.CancellationException("stopped") }
+
+            val stopped = runCatching { rig.runner.run(both) }.exceptionOrNull()
+
+            assertTrue(stopped is kotlinx.coroutines.CancellationException)
+            assertEquals("StayCurrentDone ms=0 outcome=Cancelled", lines.last())
+        }
+
+    @Test
+    fun aFailedMainPassReportsTheFailureName() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            server.respond = { MediaServerError.Timeout() }
+
+            rig.runner.run(both)
+
+            assertTrue(lines.toString(), "StayCurrentDone ms=0 outcome=Failed failure=Network" in lines)
+        }
 }

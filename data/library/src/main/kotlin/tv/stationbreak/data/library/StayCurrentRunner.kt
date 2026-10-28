@@ -152,10 +152,19 @@ class StayCurrentRunner(
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
-        report("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
+        report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val began = timeSource.markNow()
-        val outcome = stayCurrent(engine, session, account, chosen, plan)
-        report("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
+        val outcome =
+            try {
+                stayCurrent(engine, session, account, chosen, plan)
+            } catch (stopped: CancellationException) {
+                report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                throw stopped
+            } catch (signedOut: AccountNotActiveException) {
+                report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                throw signedOut
+            }
+        report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         if (plan.incremental && outcome == SyncOutcome.Completed) backfill(engine, session, account, chosen)
         return outcome
     }
@@ -215,27 +224,29 @@ class StayCurrentRunner(
         account: LibraryAccount,
         chosen: Set<ItemId>,
     ) {
-        val pending = repository.backfillPending(account)
-        report("Backfill pending=$pending")
+        val pending = repository.pendingOrNull(account)
+        report.say("Backfill pending=${pending ?: "unknown"}")
         val began = timeSource.markNow()
-        lastBackfill =
+        val result =
             try {
                 engine.backfill(session, account, chosen)
             } catch (cancelled: CancellationException) {
-                if (pending) report("BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                if (pending != false) {
+                    report.say("BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
+                }
                 throw cancelled
             } catch (signedOut: AccountNotActiveException) {
                 throw signedOut
             } catch (_: Exception) {
                 StayResult(SyncOutcome.Failed(SyncFailure.Server), PassSummary())
             }
-        val done = lastBackfill ?: return
-        if (!pending) return
-        val read = done.summary
-        report(
-            "BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} ${done.outcome.label()} " +
+        lastBackfill = result
+        if (pending == false) return
+        val read = result.summary
+        report.say(
+            "BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} ${result.outcome.label()} " +
                 "inserted=${read.inserted} updated=${read.updated} unchanged=${read.unchanged} " +
-                "skipped=${read.skipped} stillPending=${repository.backfillPending(account)}",
+                "skipped=${read.skipped} stillPending=${repository.pendingOrNull(account) ?: "unknown"}",
         )
     }
 
@@ -292,3 +303,26 @@ private fun SyncOutcome.label() =
         SyncOutcome.Cancelled -> "outcome=Cancelled"
         is SyncOutcome.Failed -> "outcome=Failed failure=${failure.name}"
     }
+
+// The re-read flag for the log only: null when it cannot be read, so a logging read never fails the run.
+@Suppress("TooGenericExceptionCaught")
+private suspend fun RoomLibraryRepository.pendingOrNull(account: LibraryAccount): Boolean? =
+    try {
+        backfillPending(account)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+
+// A report that throws must never change how the run ends.
+@Suppress("TooGenericExceptionCaught")
+private fun ((String) -> Unit).say(line: String) {
+    try {
+        invoke(line)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        // Logging is best effort.
+    }
+}
