@@ -27,7 +27,7 @@ class DayBuildEquivalenceTest {
     private val days = LineupDays(TestCatalog)
     private val legacy = LegacyLineupDays(TestCatalog)
 
-    private val genres = listOf("Comedy", "Crime", "Western", "Horror", "Science Fiction", "Animation", "Drama")
+    private val genres = listOf("Comedy", "Crime", "Western", "Horror", "Science Fiction", "Animation", "Kids", "Drama")
     private val ratings = listOf("G", "PG", "PG-13", "R", "TV-MA", null, "")
 
     /** [count] movies in canonical-ID order, varied in genre, rating, tag, runtime, age and (some) deletion. */

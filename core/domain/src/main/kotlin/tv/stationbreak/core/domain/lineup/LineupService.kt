@@ -139,9 +139,10 @@ class LineupService internal constructor(
      * generation still differs. The pass counts as taken in only when the planning read holds the collections
      * (`RuleSnapshot.collectionsSynced`).
      *
-     * The first choice waits for the collection pass. If the lineup is still unfinalised and at least [GIVE_UP_AFTER]
-     * collection passes have ended without completing since the last that did, it is planned without them, once per
-     * refresh that finds the same: a pass that never completes must not keep the lineup empty for good. The count is
+     * The first choice, and a newer catalog, wait for the collection pass. If at least [GIVE_UP_AFTER] collection
+     * passes have ended without completing since the last that did, the lineup is planned without them, once per
+     * refresh that finds the same: a pass that never completes must not keep an unfinalised lineup empty for good, nor
+     * hold a finalised one at an older catalog (so the grown-up genre exclusions reach every household). The count is
      * read here, so which trigger asked, and in what order, does not matter. The collections reach the lineup later
      * through the hint pass of the next refresh that holds them.
      */
@@ -161,10 +162,8 @@ class LineupService internal constructor(
             val now = clock.now()
             val snapshot = library.ruleSnapshot(account, libraries, now)
             val names = library.collectionNames(account)
-            // Read now, whatever trigger asked: the first lineup stops waiting for collections that are not coming.
-            val current = start.current
-            val unfinalised = current == null || !current.finalised
-            val giveUp = unfinalised && library.failedCollectionPasses(account) >= GIVE_UP_AFTER
+            // Read now, whatever trigger asked: the lineup stops waiting for collections that are not coming.
+            val giveUp = library.failedCollectionPasses(account) >= GIVE_UP_AFTER
             val planned =
                 LineupPlanner.plan(
                     start.current,
@@ -390,7 +389,10 @@ class LineupService internal constructor(
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
 }
 
-/** How many collection passes must have ended without completing before the first lineup stops waiting for them. */
+/**
+ * How many collection passes must have ended without completing before a lineup stops waiting for them: the first
+ * lineup for its first choice, and a finalised one for a newer catalog (which it would otherwise never receive).
+ */
 internal const val GIVE_UP_AFTER = 2
 
 /**

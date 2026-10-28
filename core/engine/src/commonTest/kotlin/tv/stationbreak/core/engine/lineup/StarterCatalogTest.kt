@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine.lineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.rules.AutoSeed
 import tv.stationbreak.core.rules.RatingLadder
+import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -51,8 +52,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..100, "size was ${recipes.size}")
-        assertEquals(1, StarterCatalog.VERSION)
-        assertEquals(1, StarterCatalog.version)
+        assertEquals(2, StarterCatalog.VERSION)
+        assertEquals(2, StarterCatalog.version)
     }
 
     @Test
@@ -115,6 +116,15 @@ class StarterCatalogTest {
         for (r in recipes.filter { it.band != Band.Kids }) {
             assertFalse(r.kidSafe)
             assertNull(r.maxRating, "${r.key} has a ceiling")
+        }
+    }
+
+    @Test
+    fun everyRecipeResolvesWithinTheRulesListLimits() {
+        for (r in recipes) {
+            assertTrue(r.exclusions.size <= RulesLimits.MAX_LIST_ENTRIES, "${r.key} exclusions")
+            // Building the rules checks the limits again, collection hints included.
+            RecipeResolver.resolve(r, SERVER, 0, NO_NAMES)
         }
     }
 

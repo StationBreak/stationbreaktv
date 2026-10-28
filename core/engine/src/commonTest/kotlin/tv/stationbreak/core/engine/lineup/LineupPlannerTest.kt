@@ -64,6 +64,24 @@ class LineupPlannerTest {
     }
 
     @Test
+    fun aKidsRecipeThatFillsOnlyWithGrownUpItemsIsNotSwitchedOnNorCounted() {
+        // Four grown-up recipes and "tots": the fifth qualifier is needed to finalise.
+        val four = TestCatalog(five.take(4).map { (k, n) -> recipeOf(k, n) } + recipeOf("tots", 10))
+        val grownUpOnly = libraryOf(fills(catalog = four), alsoKids = emptySet())
+        val unfinalised = planOf(null, grownUpOnly, four)
+        assertFalse(unfinalised.finalised, "tots fills only with grown-up items, so it does not count")
+
+        val kidsItems = libraryOf(fills(catalog = four))
+        assertTrue(planOf(null, kidsItems, four).finalised, "with kids' items it counts")
+
+        // A finalised lineup with "tots" on the shelf does not switch it on from grown-up items either.
+        val shelved = firstLineup().withChannel("tots") { it.copy(state = ChannelState.Shelf) }
+        val lonely = libraryOf(fills(), alsoKids = emptySet())
+        assertEquals(ChannelState.Shelf, planOf(shelved, lonely, base).channel("tots").state)
+        assertEquals(ChannelState.On, planOf(shelved, libraryOf(fills()), base).channel("tots").state)
+    }
+
+    @Test
     fun aNewStarterIsWrittenBackToBack() {
         val rules = firstLineup().channels.mapNotNull { (it.source as? ChannelSource.Starter)?.rules }
         assertTrue(rules.isNotEmpty() && rules.all { it.timing.alignToGrid == false })
@@ -483,6 +501,63 @@ class LineupPlannerTest {
         )
         assertEquals(ChannelState.On, synced.channel("mars").state)
         assertEquals(10_000L, synced.channel("mars").onSinceMs)
+    }
+
+    @Test
+    fun aNewerCatalogCanBeToldNotToWaitForCollections() {
+        val lineup = firstLineup()
+        val excluded = listOf(Source.Genre("Kids"))
+        val v2 =
+            TestCatalog(
+                base.recipes.map { if (it.key == "alpha") recipeOf("alpha", 110).copy(exclusions = excluded) else it },
+                version = 2,
+            )
+        val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
+        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2)
+        assertEquals(1, waiting.catalogVersion, "the default still waits")
+        assertEquals(lineup.channels, waiting.channels)
+
+        val told =
+            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+        assertEquals(2, told.catalogVersion)
+        assertEquals(
+            excluded,
+            told
+                .channel("alpha")
+                .starter.rules.exclusions,
+        )
+        assertEquals(lineup.channel("bravo").starter.rules, told.channel("bravo").starter.rules)
+    }
+
+    @Test
+    fun aCollectionPassThatLandsAfterTheGiveUpStillReachesTheStarters() {
+        val kaiju = recipeOf("kaiju", 320, hints = listOf("Kaiju"))
+        val v1 = TestCatalog(base.recipes + kaiju)
+        val v2 = TestCatalog(base.recipes + kaiju, version = 2)
+        val lineup = firstLineup(v1, extra = mapOf("kaiju" to QUALIFYING_ITEMS))
+        val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
+        val told =
+            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+        assertEquals(2, told.catalogVersion)
+        assertEquals(
+            kaiju.sources,
+            told
+                .channel("kaiju")
+                .starter.rules.sources,
+            "no collection yet",
+        )
+
+        val kaijuId = idOf(0xC1)
+        val synced =
+            libraryOf(fills(catalog = v2), collections = listOf(collection(kaijuId, movies = emptySet())))
+        val names = CollectionNames(mapOf(kaijuId to "Kaiju"))
+        val later = planOf(told, synced, v2, nowMs = 10_000L, names = names)
+        assertEquals(
+            kaiju.sources + Source.Collection(kaijuId),
+            later
+                .channel("kaiju")
+                .starter.rules.sources,
+        )
     }
 
     @Test

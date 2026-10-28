@@ -24,10 +24,12 @@ data class Pool(
  * Invariants:
  * - `matchedBySource.size == rules.sources.size`, and every index in [unresolvedSources] and [unresolvedExclusions]
  *   refers to the `ChannelRules` that was passed to [PoolEvaluator.evaluate], not to any other.
- * - The number of distinct items that matched a source equals `items.size + excluded + blockedByCeiling`. Summing
+ * - The number of distinct items that matched a source equals
+ *   `items.size + excluded + heldOut + blockedByCeiling`. Summing
  *   [matchedBySource] over-counts when sources overlap, because an item is counted for each source it matched.
  * - Under a ceiling every unknown-series episode is blocked, so `blockedByCeiling - episodesWithUnknownSeries` is the
- *   number blocked by rating alone. (With no ceiling nothing is blocked.)
+ *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is held: a held pool applies
+ *   the kid rating table even with no ceiling.)
  * - [collectionsSynced] is a pass-through of the snapshot's flag.
  *
  * @property matchedBySource for each entry of `rules.sources`, in order, how many items of the snapshot matched it
@@ -35,8 +37,8 @@ data class Pool(
  * @property excluded items that matched a source and were then removed by an exclusion. When [unresolvedExclusions] is
  *   not empty, that is every item that matched a source.
  * @property blockedByCeiling items that matched a source, survived the exclusions and then failed the rating ceiling.
- * @property episodesWithUnknownSeries episodes that matched a source and survived the exclusions (before the ceiling)
- *   whose series ID is set but has no entry in the snapshot. Under a ceiling these are blocked.
+ * @property episodesWithUnknownSeries episodes that matched a source, survived the exclusions and passed the hold
+ *   (before the ceiling) whose series ID is set but has no entry in the snapshot. Under a ceiling these are blocked.
  * @property unresolvedSources 0-based indices into `rules.sources`, ascending, of `collection` sources whose ID is not
  *   in the snapshot's collections. Libraries are not listed: the snapshot's libraries are the ones that were asked for,
  *   so a library missing from them may only not have been requested.
@@ -45,6 +47,8 @@ data class Pool(
  *   this is not empty, the pool is empty (docs/rules-format.md, rule 3).
  * @property collectionsSynced the snapshot's own flag, passed through: false means a collection missing from the
  *   snapshot may only not have been listed yet.
+ * @property heldOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and were not
+ *   made for kids, on a held channel. Always 0 when the pool is not held.
  */
 data class PoolCounts(
     val matchedBySource: List<Int>,
@@ -54,6 +58,7 @@ data class PoolCounts(
     val unresolvedSources: List<Int>,
     val unresolvedExclusions: List<Int>,
     val collectionsSynced: Boolean,
+    val heldOut: Int = 0,
 ) {
     init {
         require(unresolvedSources.all { it in matchedBySource.indices }) { "An unresolved source is a source" }

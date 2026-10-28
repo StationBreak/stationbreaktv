@@ -44,10 +44,10 @@ class LineupCeilingTest {
 
     private fun seedRatings() {
         library.seed(
-            movie(1, "Animation", rating = "G"),
-            movie(2, "Animation", rating = "PG"),
-            movie(3, "Animation", rating = "R"),
-            movie(4, "Animation", rating = "TV-MA"),
+            movie(1, "Animation", "Kids", rating = "G"),
+            movie(2, "Animation", "Kids", rating = "PG"),
+            movie(3, "Animation", "Kids", rating = "R"),
+            movie(4, "Animation", "Kids", rating = "TV-MA"),
         )
     }
 

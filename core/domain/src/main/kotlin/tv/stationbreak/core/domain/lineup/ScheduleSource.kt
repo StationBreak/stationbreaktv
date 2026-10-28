@@ -28,6 +28,9 @@ enum class HiddenReason {
     /** Nothing in the library matches the channel's sources. For a leftovers channel: nothing is left over. */
     NoMatches,
 
+    /** A kid channel matched items but none is made for kids. */
+    NothingMadeForKids,
+
     /** Everything that matched was removed by the channel's exclusions. */
     AllExcluded,
 

@@ -146,7 +146,7 @@ internal class LegacyLineupDays(
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs))
+            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs), isKidChannel(s.channel))
             return dayOf(s, pool)
         }
 
@@ -181,7 +181,9 @@ internal class LegacyLineupDays(
             withheldBy.getOrPut(cutoff) {
                 val snapshot = snapshots.getValue(cutoff)
                 val rules = optInRules() + hiddenRules()
-                rules.flatMapTo(HashSet()) { r -> PoolEvaluator.evaluate(r, snapshot).items.map { it.id } }
+                rules.flatMapTo(HashSet()) { (r, held) ->
+                    PoolEvaluator.evaluate(r, snapshot, held).items.map { it.id }
+                }
             }
 
         /** What the hidden leftovers channels would air from the [cutoff]'s snapshot: held back on purpose too. */
@@ -197,20 +199,20 @@ internal class LegacyLineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), isKidChannel(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
-        private fun optInRules(): List<ChannelRules> =
+        private fun optInRules(): List<Pair<ChannelRules, Boolean>> =
             catalog.recipes.filter { it.optIn }.flatMap { recipe ->
                 val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
                 val held = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }?.let(::rulesOf)
-                listOfNotNull(resolved, held)
+                listOfNotNull(resolved, held).map { it to (recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS) }
             }
 
-        private fun hiddenRules(): List<ChannelRules> {
-            val hidden = lineup.channels.filter { it.state == ChannelState.UserHidden }
-            return hidden.mapNotNull(::rulesOf)
-        }
+        private fun hiddenRules(): List<Pair<ChannelRules, Boolean>> =
+            lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
+                rulesOf(channel)?.let { it.copy(maxRating = ceilingOf(channel)) to isKidChannel(channel) }
+            }
     }
 
     /**
@@ -222,9 +224,12 @@ internal class LegacyLineupDays(
      */
     private fun ceilingOf(channel: LineupChannel): String? {
         val stored = storedCeiling(channel.source)
+        return if (isKidChannel(channel) && !atMostPg(stored)) KIDS_MAX_RATING else stored
+    }
+
+    private fun isKidChannel(channel: LineupChannel): Boolean {
         val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
-        val kidSafe = inKidsBand || keyOf(channel.source)?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
-        return if (kidSafe && !atMostPg(stored)) KIDS_MAX_RATING else stored
+        return inKidsBand || keyOf(channel.source)?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
     }
 
     private fun keyOf(source: ChannelSource): String? =

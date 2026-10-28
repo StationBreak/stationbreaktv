@@ -263,7 +263,8 @@ interface LibraryRepository : AccountCache {
      * How many collection passes of [account] ended without completing since the last one that completed: failed,
      * cancelled, or killed with the process (a pass is recorded as started, and a start that finds the previous one
      * never finished counts it). A completed pass sets it to zero, and so does a cache rebuild. A pass that is running
-     * now is not counted yet. The first lineup reads it to decide that collections are not coming.
+     * now is not counted yet. A lineup reads it to decide that collections are not coming: the first lineup, to make
+     * its first choice, and a finalised one, to take a newer catalog.
      */
     suspend fun failedCollectionPasses(account: LibraryAccount): Int
 

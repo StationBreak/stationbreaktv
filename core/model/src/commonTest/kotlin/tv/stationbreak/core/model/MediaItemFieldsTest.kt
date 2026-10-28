@@ -27,6 +27,7 @@ class MediaItemFieldsTest {
         assertNull(item.officialRating)
         assertEquals(emptyList(), item.genres)
         assertEquals(emptyList(), item.tags)
+        assertEquals(emptyList(), item.studios)
         assertNull(item.seriesId)
         assertNull(item.seasonId)
         assertNull(item.seasonNumber)
@@ -73,5 +74,15 @@ class MediaItemFieldsTest {
 
         assertNull(plain.seasonId)
         assertEquals(ItemId("season1"), withSeason.seasonId)
+    }
+
+    @Test
+    fun studiosAndASeriesInfoCarryWhatTheyAreGiven() {
+        val item = MediaItem(ItemId("i1"), "Heat", ItemKind.Movie, null, null, studios = listOf("A Studio"))
+        val series = SeriesInfo(ItemId("s1"), "Show", null, emptyList(), emptyList())
+
+        assertEquals(listOf("A Studio"), item.studios)
+        assertEquals(emptyList(), series.studios)
+        assertEquals(listOf("B Network"), series.copy(studios = listOf("B Network")).studios)
     }
 }

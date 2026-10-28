@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.Source
 
@@ -19,8 +20,11 @@ object StarterCatalog : StarterCatalogView {
      * The catalog's version. It goes up with any change to what a recipe airs (sources, exclusions, collection hints,
      * ordering), its ceiling or opt-in, or a recipe or leftovers recipe added or removed. The frozen manifests in the
      * tests hold the catalog to that.
+     *
+     * Version 2: every recipe outside the Kids band excludes every spelling of the kids' genres the kid hold knows
+     * ([KidHold.KIDS_GENRES]), so kids' shows stop airing on grown-up channels.
      */
-    const val VERSION = 1
+    const val VERSION = 2
 
     override val version: Int = VERSION
 
@@ -72,6 +76,12 @@ private fun years(
     to: Int,
 ): List<Source> = listOf(Source.YearRange(from = from, to = to))
 
+/**
+ * The genres every grown-up recipe (anything outside the Kids band) leaves out, from catalog version 2: the spellings
+ * the kid hold takes as made for children, so what a kid channel takes no grown-up channel airs.
+ */
+private val KIDS_GENRE_EXCLUSIONS: List<Source> = KidHold.KIDS_GENRES.map { Source.Genre(it) }
+
 @Suppress("LongParameterList")
 private fun recipe(
     band: Band,
@@ -93,7 +103,7 @@ private fun recipe(
         number = n,
         optIn = optIn,
         sources = sources,
-        exclusions = emptyList(),
+        exclusions = if (band == Band.Kids) emptyList() else KIDS_GENRE_EXCLUSIONS,
         maxRating = rating,
         ordering = order,
         collectionHints = hints,

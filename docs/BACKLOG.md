@@ -350,6 +350,22 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 - 🧪 A Baseline Profile covering the guide is generated in CI and shipped in the release build. It's required: compilation state was the largest factor in SP-2.
 - 🧪 Room queries for the guide window are indexed (`channelId, startTime`) and verified with `EXPLAIN QUERY PLAN` in a test.
 
+## F2.6 Kid channels, phase B (M)
+
+Phase A (the kid hold) is [ADR-0019](adr/0019-kid-hold.md). These items are the owner decisions of 2026-10-27 that phase A leaves for later. Phase A does not block them.
+
+**S2.6.1** As a parent, I want to mark a library as trusted for kids so that kid channels draw only from libraries I vouch for.
+- 🧪 When any library is parent-marked, kid channels draw only from parent-marked libraries. With none marked, nothing changes.
+- 🧪 The marks are an account-scoped, versioned input, so two TVs on one account agree (ADR-0002 §1 and its addendum). The lineup is device-local today (`LineupCodec`), so this needs a `LineupCodec` v2 or a new account document. Design that first.
+
+**S2.6.2** As a parent, I want Little Kids and Older Kids channels so that a preschooler is not shown what suits a nine-year-old.
+- 🧪 Little Kids is TV-Y, TV-G and G. Older Kids adds TV-Y7, and PG for films.
+- 🧪 The tiers are derived from the stored ceiling (G is Little Kids, PG is Older Kids). No new rules field.
+
+**S2.6.3** As a family, I want a family channel category for watch-together viewing so that PG-13 titles have a home outside the kid channels.
+- 🧪 Family channels keep the ordinary rules ladder (so "Approved" stays on the lowest step) and are not held as kid channels.
+- 🧪 The category is stored with the same account-scoped input as S2.6.1. To be tried before it is committed to.
+
 ---
 
 # E3 — Polish and personality
@@ -433,7 +449,7 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 
 # E5 — Expansion (outline; re-plan after E4)
 
-- **F5.1 Channel import/export / sharing between accounts**: **deferred.** Every option explored (short links, codes, server-side storage) needs static data hosted somewhere, which is a bigger problem than the core product. Re-plan after the companion service or a plugin approach is decided. Until then, custom channels live on the device that built them. The portable rules format keeps this cheap to add later. Context: sharing is between accounts on the *same* media server, as a copy with a fresh seed (same recipe, not same lineup).
+- **F5.1 Channel import/export / sharing between accounts**: **deferred.** Every option explored (short links, codes, server-side storage) needs static data hosted somewhere, which is a bigger problem than the core product. Re-plan after the companion service or a plugin approach is decided. Until then, custom channels live on the device that built them. The portable rules format keeps this cheap to add later. Context: sharing is between accounts on the *same* media server, as a copy with a fresh seed (same recipe, not same lineup). **Constraint from the kid hold ([ADR-0019](adr/0019-kid-hold.md)):** a channel is a kid channel today because of its local number or recipe key, and neither travels in a portable file. A shared channel must carry its kid status, or it would air unheld on the receiving TV.
 - **F5.2 Companion sync server**: reuses `core:*` and `data:jellyfin` (JVM). It syncs channels/settings, not schedules.
 - **F5.3 XMLTV/M3U `ScheduleSource`**: reads Tunarr/ErsatzTV output. The guide and player stay unchanged.
 - **F5.4 Roku** (separate repo): consumes the rules format plus the golden vectors.

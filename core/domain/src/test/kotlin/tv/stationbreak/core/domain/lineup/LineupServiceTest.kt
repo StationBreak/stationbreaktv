@@ -17,10 +17,12 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -171,6 +173,101 @@ class LineupServiceTest {
 
             assertEquals(before.channels, stored()?.channels)
         }
+
+    private val newerCatalog =
+        object : StarterCatalogView by TestCatalog {
+            override val version: Int = 2
+            override val recipes =
+                TestCatalog.recipes.map {
+                    if (it.key == "laughs") it.copy(exclusions = listOf(Source.Genre("Kids"))) else it
+                }
+        }
+
+    private suspend fun finalisedAtCatalogOne() {
+        library.delegate.setCollectionsSynced(ACCOUNT, true)
+        service.refresh(ACCOUNT, LIBRARIES)
+        assertEquals(1, stored()?.catalogVersion)
+        library.delegate.setCollectionsSynced(ACCOUNT, false)
+    }
+
+    private fun laughsExclusions(lineup: Lineup?): List<Source>? {
+        val laughs = checkNotNull(lineup).channels.first { it.id == LineupIds.starter("laughs") }
+        return (laughs.source as ChannelSource.Starter).rules.exclusions
+    }
+
+    @Test
+    fun aFinalisedLineupTakesTheNewerCatalogOnceCollectionPassesKeepFailing() =
+        runBlocking<Unit> {
+            finalisedAtCatalogOne()
+            val newer = LineupService(store, library, clock, { offset }, { events += it }, newerCatalog)
+
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+            newer.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(2, stored()?.catalogVersion)
+            assertEquals(listOf(Source.Genre("Kids")), laughsExclusions(stored()))
+        }
+
+    @Test
+    fun aFinalisedLineupWaitsForTheNewerCatalogWhileOnlyOnePassHasFailed() =
+        runBlocking<Unit> {
+            finalisedAtCatalogOne()
+            val newer = LineupService(store, library, clock, { offset }, { events += it }, newerCatalog)
+
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 1)
+            newer.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(1, stored()?.catalogVersion)
+            assertNull(laughsExclusions(stored()), "still the version 1 rules")
+        }
+
+    @Test
+    fun aFinalisedLineupAlreadyAtTheCurrentCatalogIsUnchangedWhenCollectionPassesKeepFailing() =
+        runBlocking<Unit> {
+            finalisedAtCatalogOne()
+            val before = checkNotNull(stored())
+
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(before.channels, stored()?.channels)
+            assertEquals(before.catalogVersion, stored()?.catalogVersion)
+        }
+
+    // The catalog with "laughs" reading the collection named "Synthetic Pack", at [version].
+    private fun hintedCatalog(version: Int) =
+        object : StarterCatalogView by TestCatalog {
+            override val version: Int = version
+            override val recipes =
+                TestCatalog.recipes.map {
+                    if (it.key == "laughs") it.copy(collectionHints = listOf("Synthetic Pack")) else it
+                }
+        }
+
+    @Test
+    fun aGiveUpBumpKeepsTheResolvedCollectionSourcesWhileTheirNamesAreUnchanged() =
+        runBlocking<Unit> {
+            val pack = id(0x900)
+            library.delegate.seedCollectionName(ACCOUNT, pack, "Synthetic Pack")
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            LineupService(store, library, clock, { offset }, { events += it }, hintedCatalog(1))
+                .refresh(ACCOUNT, LIBRARIES)
+            assertTrue(Source.Collection(pack) in sourcesOfLaughs(stored()), "resolved at version 1")
+
+            // The collection pass keeps failing, and a newer catalog arrives: the lineup gives up waiting and bumps.
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 2)
+            LineupService(store, library, clock, { offset }, { events += it }, hintedCatalog(2))
+                .refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(2, stored()?.catalogVersion)
+            assertTrue(Source.Collection(pack) in sourcesOfLaughs(stored()), "the collection source survives the bump")
+        }
+
+    private fun sourcesOfLaughs(lineup: Lineup?): List<Source> {
+        val laughs = checkNotNull(lineup).channels.first { it.id == LineupIds.starter("laughs") }
+        return (laughs.source as ChannelSource.Starter).rules.sources
+    }
 
     @Test
     fun aMetaOnlySaveNeverPutsAnOlderFileBackOverNewerChannelsInMemory() =

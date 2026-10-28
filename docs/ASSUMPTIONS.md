@@ -22,6 +22,7 @@ can be answered later, by the phase shown.
 | A-SCOPE-1 | Phases 4 and 5 have no gates in the spec, so I proposed them. Phase 5 is only outlined. | EPICS.md |
 | A-SCOPE-2 | The "should haves" (filler, retro, watch-state) are scheduled in Phase 3 per the roadmap, not in the MVP gate (Phase 2). | ROADMAP.md |
 | A-REPO-1 | ✅ **Confirmed:** the repo is `github.com/StationBreak/stationbreaktv` (created 2026-10-04, private; see Q-REPO-1). | F0.1 |
+| A-VER-1 | Every TV on an account runs the same app version. The kid hold ([ADR-0019](adr/0019-kid-hold.md)) is app logic, not rules, so no `formatVersion` refusal protects an older app, and a TV on an older version can show a different kid-channel lineup until it updates. Accepted (spec 18). | Kid channels, F2.4 |
 | A-LIC-1 | All dependencies must be GPL-3.0-compatible (Apache-2.0, MIT, BSD, LGPL OK). Media3's optional FFmpeg extension is compatible if used. | S0.1.2 |
 
 ## Questions for the owner
