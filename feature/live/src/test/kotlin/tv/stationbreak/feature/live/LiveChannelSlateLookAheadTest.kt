@@ -57,6 +57,8 @@ class LiveChannelSlateLookAheadTest {
 
     private fun Seated.up() {
         keys.trySend(LiveCommand.Flip(FlipDirection.Up))
+        // A tap: the release follows at once (#430: the settle counts from it).
+        keys.trySend(LiveCommand.FlipReleased)
     }
 
     private fun Rig.preResolves() = tune.calls.filterIsInstance<Call.PreResolve>()

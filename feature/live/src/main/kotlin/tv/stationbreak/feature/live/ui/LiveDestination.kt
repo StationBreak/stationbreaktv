@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import android.view.SurfaceView
 import androidx.compose.foundation.focusable
@@ -23,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.OnUserLeaveHintProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -30,6 +34,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
@@ -50,8 +56,10 @@ typealias GuideSlot = @Composable (
 
 /**
  * The live channel screen (spec 14, F1.3). It owns the player for each STARTED period of its lifecycle, not the
- * ViewModel: when the screen stops (Home, standby) everything is closed and released at once, and when it starts
- * again a new player and a new sitting begin, anchored to the clock. [onSignedOut] is called when the session ended.
+ * ViewModel: when the screen stops (Home, standby), or is paused on its way out of the app (Back), the player is
+ * released and the Stopped report sent within that callback, and the rest is closed as the sitting unwinds; when it
+ * starts again a new player and a new sitting begin, anchored to the clock. [onSignedOut] is called when the session
+ * ended.
  *
  * Live TV owns the surface and the keys; the program guide (spec 17) is a slot, [guide], drawn over the picture while
  * it is open. It gets the channel playing when it opened, when that was (`System.nanoTime`), and what to call when the
@@ -84,11 +92,24 @@ internal fun LiveRoot(
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
     val surface = remember(context) { SurfaceView(context) }
+    // While STARTED, each new value starts a sitting afresh; null means the screen has left (a user-leave hint, a
+    // finish or a stop), and no sitting starts, not even one queued behind the last one's teardown. A start or a resume
+    // after a leave sets a new value: a screen resumed without being stopped (back from Home before Fire OS stopped
+    // it) has no sitting left running.
+    val sittings = remember(viewModel) { MutableStateFlow<Long?>(0L) }
     LaunchedEffect(viewModel, owner, surface) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            if (tuners == null) viewModel.sit(context, surface) else viewModel.sit(context, surface, tuners)
+            sittings.collectLatest {
+                if (it == null) return@collectLatest
+                if (tuners == null) viewModel.sit(context, surface) else viewModel.sit(context, surface, tuners)
+            }
         }
     }
+    val leaveNow = {
+        sittings.value = null
+        viewModel.leave()
+    }
+    LeaveAtOnce(owner, leaveNow) { if (sittings.value == null) sittings.value = System.nanoTime() }
     KeepScreenOn(owner)
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
@@ -200,6 +221,53 @@ private fun KeepScreenOn(owner: LifecycleOwner) {
         }
     }
 }
+
+/**
+ * Live TV stops the moment the screen leaves (#431), inside the callback that says so, not when the cancelled sitting's
+ * teardown gets to it: [leave] stops and releases the player and sends the Stopped report then. The screen leaves:
+ * - at ON_STOP;
+ * - at the activity's user-leave hint (Home, recents), which comes before its pause;
+ * - at ON_PAUSE when the activity is finishing (Back out of the app).
+ *
+ * Android stops a screen that was left only once the next one is idle, up to 10 s later, and a backgrounded process
+ * can be killed before that, so the picture and sound ran on over the launcher and the Stopped was late or never sent.
+ * A pause with neither a hint nor a finish (a system overlay such as the voice search) keeps playing. [resumed] is
+ * called at ON_START and ON_RESUME: a screen resumed without a start may be back from Home before it was ever stopped,
+ * with no sitting running.
+ */
+@Composable
+private fun LeaveAtOnce(
+    owner: LifecycleOwner,
+    leave: () -> Unit,
+    resumed: (Lifecycle.Event) -> Unit,
+) {
+    val leaving by rememberUpdatedState(leave)
+    val resuming by rememberUpdatedState(resumed)
+    val activity = LocalContext.current.findActivity()
+    DisposableEffect(owner, activity) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                val finishing = event == Lifecycle.Event.ON_PAUSE && activity?.isFinishing == true
+                if (event == Lifecycle.Event.ON_STOP || finishing) leaving()
+                if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) resuming(event)
+            }
+        val hint = Runnable { leaving() }
+        val hints = activity as? OnUserLeaveHintProvider
+        owner.lifecycle.addObserver(observer)
+        hints?.addOnUserLeaveHintListener(hint)
+        onDispose {
+            owner.lifecycle.removeObserver(observer)
+            hints?.removeOnUserLeaveHintListener(hint)
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
 
 /**
  * The guide closes as soon as live TV leaves the foreground (Home, another app), not only when it stops: Fire OS can

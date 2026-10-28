@@ -27,6 +27,8 @@ class LiveChannelColdPressTest {
     ) {
         fun press(direction: FlipDirection) {
             keys.trySend(LiveCommand.Flip(direction))
+            // A tap: the release follows at once (#430: the settle counts from it).
+            keys.trySend(LiveCommand.FlipReleased)
             scope.runCurrent()
         }
 

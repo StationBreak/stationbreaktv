@@ -58,6 +58,7 @@ import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
+import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.NextHandle
 import tv.stationbreak.feature.live.TuneOutcome
 import tv.stationbreak.feature.live.TunePort
@@ -145,6 +146,7 @@ class LiveKeysTest {
             VideoPlayerFactory { _, _ -> error("no session, so no player") },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
+            LiveTimings(),
         )
     }
 
@@ -166,6 +168,9 @@ class LiveKeysTest {
         keyUp(key)
     }
 
+    /** The commands with their flips' key times taken out, which depend on when the test ran. */
+    private fun List<LiveCommand>.withoutTimes() = map { if (it is LiveCommand.Flip) it.copy(atMs = null) else it }
+
     private fun key(
         action: Int,
         code: Int,
@@ -175,14 +180,17 @@ class LiveKeysTest {
     fun upAndChannelUpSendFlipUp() {
         show()
         press(listOf(Key.DirectionUp, Key.ChannelUp))
-        assertEquals(List(2) { LiveCommand.Flip(FlipDirection.Up) }, sent.toList())
+        // Each tap is its press and its release (#430: the machine settles from the release).
+        val tap = listOf(LiveCommand.Flip(FlipDirection.Up), LiveCommand.FlipReleased)
+        assertEquals(tap + tap, sent.toList().withoutTimes())
     }
 
     @Test
     fun downAndChannelDownSendFlipDown() {
         show()
         press(listOf(Key.DirectionDown, Key.ChannelDown))
-        assertEquals(List(2) { LiveCommand.Flip(FlipDirection.Down) }, sent.toList())
+        val tap = listOf(LiveCommand.Flip(FlipDirection.Down), LiveCommand.FlipReleased)
+        assertEquals(tap + tap, sent.toList().withoutTimes())
     }
 
     @Test
@@ -193,9 +201,10 @@ class LiveKeysTest {
     }
 
     @Test
-    fun aHeldKeyFlipsOncePerRepeat() {
+    fun aHeldKeyFlipsOncePerRepeatMarkedAsARepeat() {
+        // The machine steps the repeats at its held-key rate (#430).
         val repeat = KeyEvent(android.view.KeyEvent(0, 0, ACTION_DOWN, KEYCODE_DPAD_UP, 3))
-        assertEquals(LiveCommand.Flip(FlipDirection.Up), liveKeyCommand(repeat))
+        assertEquals(LiveCommand.Flip(FlipDirection.Up, repeat = true, atMs = 0L), liveKeyCommand(repeat))
     }
 
     @Test
@@ -211,7 +220,7 @@ class LiveKeysTest {
         }
         assertEquals(emptyList<LiveCommand>(), got)
         assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_DPAD_UP)) { got += it })
-        assertEquals(listOf<LiveCommand>(LiveCommand.Flip(FlipDirection.Up)), got)
+        assertEquals(listOf<LiveCommand>(LiveCommand.Flip(FlipDirection.Up)), got.withoutTimes())
         val inGuide = OverlayUp(guide = true)
         assertFalse(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), inGuide) { got += it })
         assertFalse(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), inGuide) { got += it })
@@ -225,7 +234,7 @@ class LiveKeysTest {
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         compose.waitForIdle()
         press(listOf(Key.DirectionUp))
-        assertEquals(listOf<LiveCommand>(LiveCommand.Flip(FlipDirection.Up)), sent.toList())
+        assertEquals(listOf(LiveCommand.Flip(FlipDirection.Up), LiveCommand.FlipReleased), sent.toList().withoutTimes())
     }
 
     @Test

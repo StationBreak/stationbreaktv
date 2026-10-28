@@ -12,9 +12,9 @@ import tv.stationbreak.feature.live.LiveCommand
 
 /**
  * A key held down auto-repeats: more downs with a rising repeat count, then one up. The repeats belong to the press the
- * screen took, so they are consumed, and only a flip runs again (holding Up keeps flipping). Anything else would redo a
- * step the press already took: open the info a second time, close the banner under the overlay Back just closed, or
- * toggle back and forth between two channels.
+ * screen took, so they are consumed, and only a flip runs again (holding Up keeps flipping), marked as a repeat.
+ * Anything else would redo a step the press already took: open the info a second time, close the banner under the
+ * overlay Back just closed, or toggle back and forth between two channels.
  */
 class HeldKeyRepeatTest {
     private val sent = mutableListOf<LiveCommand>()
@@ -83,7 +83,41 @@ class HeldKeyRepeatTest {
         assertTrue(release(Key.DirectionDown, OverlayUp.None))
         val up = LiveCommand.Flip(FlipDirection.Up)
         val down = LiveCommand.Flip(FlipDirection.Down)
-        assertEquals(listOf<LiveCommand>(up, up, down, down), sent)
+        // The repeats are marked, so the machine steps them at the held-key rate (#430), not at the remote's; each
+        // release reaches the machine, which settles from it.
+        val upAgain = up.copy(repeat = true)
+        val downAgain = down.copy(repeat = true)
+        val off = LiveCommand.FlipReleased
+        assertEquals(listOf(up, upAgain, off, down, downAgain, off), sent)
+    }
+
+    @Test
+    fun aFlipCarriesItsKeyEventsTime() {
+        handleLiveKey(KeyEventType.KeyDown, Key.DirectionUp, OverlayUp.None, held, 0, atMs = 1_000L) { sent += it }
+        handleLiveKey(KeyEventType.KeyDown, Key.DirectionUp, OverlayUp.None, held, 1, atMs = 1_480L) { sent += it }
+        val up = LiveCommand.Flip(FlipDirection.Up, atMs = 1_000L)
+        assertEquals(listOf(up, up.copy(repeat = true, atMs = 1_480L)), sent)
+    }
+
+    @Test
+    fun withTwoFlipKeysDownOnlyTheLastReleaseSaysSo() {
+        // Rollover: Up held, Down pressed, Up let go while Down is still down. The flip must not settle yet.
+        down(Key.DirectionUp, 0, OverlayUp.None)
+        down(Key.DirectionDown, 0, OverlayUp.None)
+        assertTrue(release(Key.DirectionUp, OverlayUp.None))
+        assertEquals(0, sent.count { it == LiveCommand.FlipReleased })
+        assertTrue(release(Key.DirectionDown, OverlayUp.None))
+        assertEquals(1, sent.count { it == LiveCommand.FlipReleased })
+        assertEquals(LiveCommand.FlipReleased, sent.last())
+    }
+
+    @Test
+    fun onlyTheReleaseOfAFlipSaysSo() {
+        down(Key.Menu, 0, OverlayUp.None)
+        release(Key.Menu, OverlayUp.None)
+        // An Up release with no press of live TV's before it (the guide had it) says nothing either.
+        release(Key.DirectionUp, OverlayUp.None)
+        assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent)
     }
 
     @Test
@@ -91,7 +125,8 @@ class HeldKeyRepeatTest {
         down(Key.ChannelUp, 0, OverlayUp.None)
         down(Key.ChannelUp, 1, OverlayUp.None)
         down(Key.ChannelUp, 2, OverlayUp.None)
-        assertEquals(List(3) { LiveCommand.Flip(FlipDirection.Up) }, sent)
+        val up = LiveCommand.Flip(FlipDirection.Up)
+        assertEquals(listOf(up, up.copy(repeat = true), up.copy(repeat = true)), sent)
     }
 
     @Test

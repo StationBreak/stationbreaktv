@@ -210,6 +210,8 @@ class TuneCommandTest {
             advanceTimeBy(1.seconds)
             r.schedule.airingsDelayMs = 10_000
             keys.trySend(LiveCommand.Flip(FlipDirection.Up))
+            // A tap: the release follows at once (#430: the settle counts from it).
+            keys.trySend(LiveCommand.FlipReleased)
             runCurrent()
             advanceTimeBy(21.seconds)
             runCurrent()
@@ -251,6 +253,8 @@ class TuneCommandTest {
             advanceTimeBy(1.seconds)
             r.schedule.airingsDelayMs = 0
             keys.trySend(LiveCommand.Flip(FlipDirection.Up))
+            // A tap: the release follows at once (#430: the settle counts from it).
+            keys.trySend(LiveCommand.FlipReleased)
             runCurrent()
 
             keys.trySend(LiveCommand.Tune(CH2))

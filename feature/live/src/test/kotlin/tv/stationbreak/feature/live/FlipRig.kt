@@ -27,9 +27,15 @@ internal class Flipping(
         scope.runCurrent()
     }
 
-    fun up() = send(LiveCommand.Flip(FlipDirection.Up))
+    /** A tap of Up: the press and its release at once, so the settle runs from now. */
+    fun up() = tap(FlipDirection.Up)
 
-    fun down() = send(LiveCommand.Flip(FlipDirection.Down))
+    fun down() = tap(FlipDirection.Down)
+
+    private fun tap(direction: FlipDirection) {
+        keys.trySend(LiveCommand.Flip(direction))
+        send(LiveCommand.FlipReleased)
+    }
 }
 
 /** Channels 2, 5 and 9, each with one long program (item = its number); the sitting starts on [startOn]. */

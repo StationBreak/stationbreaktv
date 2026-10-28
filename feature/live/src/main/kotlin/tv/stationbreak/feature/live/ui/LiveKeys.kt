@@ -92,17 +92,21 @@ private fun keyAction(
 
 /**
  * The command a key sends the machine on the live screen (spec 15), or null when it sends none. Key-down only,
- * auto-repeat included, so holding Up or Down keeps flipping. Up/Down and the remote's CH+/CH- flip, Menu goes to the
- * previous channel, Select brings the actions banner and Info the program's info (spec 17). Back sends only while [up]
- * says an overlay is open (otherwise it opens the guide, which is no command); the media next/previous keys are kept
- * for pause and skip. With the guide open nothing is sent.
+ * auto-repeat included, so holding Up or Down keeps flipping; a repeat's flip is marked as one, and the machine steps
+ * those at its held-key rate (#430). Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel, Select
+ * brings the actions banner and Info the program's info (spec 17). Back sends only while [up] says an overlay is open
+ * (otherwise it opens the guide, which is no command); the media next/previous keys are kept for pause and skip. With
+ * the guide open nothing is sent.
  */
 internal fun liveKeyCommand(
     event: KeyEvent,
     up: OverlayUp = OverlayUp.None,
 ): LiveCommand? {
     if (event.type != KeyEventType.KeyDown) return null
-    return mappedCommand(event.key, up)
+    val native = event.nativeKeyEvent
+    val command = mappedCommand(event.key, up)
+    val repeat = native.repeatCount > 0
+    return if (command is LiveCommand.Flip) command.copy(repeat = repeat, atMs = native.eventTime) else command
 }
 
 /**
@@ -120,6 +124,9 @@ internal class HeldKeys {
 
     /** What the consumed press of [key], now being held, did; null when [key] is not held after a consumed press. */
     fun consumedPress(key: Key): KeyAction? = consumed[key]
+
+    /** True while any consumed press that flipped (Up, Down, CH+, CH-) is still down. */
+    fun flipHeld(): Boolean = consumed.values.any { (it as? KeyAction.Send)?.command is LiveCommand.Flip }
 
     /** True when [key]'s press, now being held, began with a first down that came here and passed through. */
     fun passedThrough(key: Key): Boolean = key in passed
@@ -168,8 +175,16 @@ internal fun handleLiveKey(
     held: HeldKeys = HeldKeys(),
     guide: (open: Boolean) -> Unit = {},
     send: (LiveCommand) -> Unit,
-): Boolean = handleLiveKey(event.type, event.key, up, held, event.nativeKeyEvent.repeatCount, guide, send)
+): Boolean {
+    val native = event.nativeKeyEvent
+    return handleLiveKey(event.type, event.key, up, held, native.repeatCount, guide, native.eventTime, send)
+}
 
+/**
+ * [handleLiveKey] on the key event's parts. [atMs] is the event's time (`KeyEvent.getEventTime`, uptime), which a flip
+ * carries so the machine paces a held key by it. The release of a press that flipped sends [LiveCommand.FlipReleased]:
+ * the settle counts from it (#430).
+ */
 @Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
 internal fun handleLiveKey(
     type: KeyEventType,
@@ -178,15 +193,18 @@ internal fun handleLiveKey(
     held: HeldKeys,
     repeat: Int = 0,
     guide: (open: Boolean) -> Unit = {},
+    atMs: Long? = null,
     send: (LiveCommand) -> Unit,
 ): Boolean {
-    if (type == KeyEventType.KeyDown && repeat > 0) return handleRepeat(key, held, send)
-    val release = held.releases(key, type)
+    if (type == KeyEventType.KeyDown && repeat > 0) return handleRepeat(key, held, atMs, send)
+    val release = release(key, type, held, send)
     if (type == KeyEventType.KeyDown && movesBetweenButtons(key, up)) send(LiveCommand.ShowBanner)
     val action = keyAction(key, up)
     if (action != null && type == KeyEventType.KeyDown) {
         when (action) {
-            is KeyAction.Send -> send(action.command)
+            // A flip carries the time of the key event that made it.
+            is KeyAction.Send -> send((action.command as? LiveCommand.Flip)?.copy(atMs = atMs) ?: action.command)
+
             is KeyAction.Guide -> guide(action.open)
         }
         held.hold(key, action)
@@ -198,17 +216,38 @@ internal fun handleLiveKey(
 
 /**
  * An auto-repeat down of [key]: part of a press already judged, never a new one. The repeats of a consumed press are
- * consumed and send again only when it flipped; those of a press that passed through pass too; and those of a press
- * whose first down never came here are consumed and do nothing.
+ * consumed and send again only when it flipped, marked as repeats so the machine steps at the held-key rate (#430);
+ * those of a press that passed through pass too; and those of a press whose first down never came here are consumed
+ * and do nothing.
  */
 private fun handleRepeat(
     key: Key,
     held: HeldKeys,
+    atMs: Long?,
     send: (LiveCommand) -> Unit,
 ): Boolean {
     val press = held.consumedPress(key)
-    if (press is KeyAction.Send && press.command is LiveCommand.Flip) send(press.command)
+    val command = (press as? KeyAction.Send)?.command
+    if (command is LiveCommand.Flip) send(command.copy(repeat = true, atMs = atMs))
     return press != null || !held.passedThrough(key)
+}
+
+/**
+ * True when this event of [key] is the release of a press that was consumed ([HeldKeys.releases]); the release of one
+ * that flipped also tells the machine, which settles from it (#430), once no other flip key is still down.
+ */
+private fun release(
+    key: Key,
+    type: KeyEventType,
+    held: HeldKeys,
+    send: (LiveCommand) -> Unit,
+): Boolean {
+    val pressed = held.consumedPress(key)
+    val release = held.releases(key, type)
+    // With rollover (Up held, Down pressed, Up let go) the flip is still held: only the last flip key's release counts.
+    val flipped = (pressed as? KeyAction.Send)?.command is LiveCommand.Flip
+    if (release && flipped && !held.flipHeld()) send(LiveCommand.FlipReleased)
+    return release
 }
 
 /** Left and Right over the actions banner move the focus between its buttons: the viewer is still at work there. */
