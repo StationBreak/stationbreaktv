@@ -23,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import java.text.NumberFormat
 
@@ -46,6 +47,7 @@ class FirstSyncScreenTest {
     }
 
     private fun press(keyCode: Int) {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
     }

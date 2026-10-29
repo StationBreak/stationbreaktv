@@ -53,6 +53,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
 import tv.stationbreak.feature.onboarding.typeWhenReady
@@ -124,6 +125,7 @@ class SignInScreenTest {
     }
 
     private fun press(keyCode: Int) {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
     }

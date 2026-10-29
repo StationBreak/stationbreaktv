@@ -46,6 +46,8 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
+import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
 import tv.stationbreak.feature.onboarding.trust.TrustTags
@@ -104,8 +106,21 @@ class ServerScreenTest {
     }
 
     private fun press(keyCode: Int) {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
+    }
+
+    /**
+     * A key for [expectedFocus]: wait until it is focused in a window that has input focus. Needed whenever a dialog
+     * opens or closes, since a dialog is a window of its own.
+     */
+    private fun press(
+        keyCode: Int,
+        expectedFocus: String,
+    ) {
+        awaitFocused(expectedFocus)
+        press(keyCode)
     }
 
     private fun typeAndTest(text: String = "jellyfin.example.test") {
@@ -275,7 +290,7 @@ class ServerScreenTest {
         launch()
         typeAndTest("http://jellyfin.example.test")
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
-        press(KeyEvent.KEYCODE_BACK)
+        press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertDoesNotExist()
         assertEquals(ServerPhase.Idle, viewModel.state.value.phase)
         assertTrue(continued.isEmpty())
@@ -309,9 +324,9 @@ class ServerScreenTest {
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsNotFocused()
         // One press right reaches Connect anyway and one left comes back: Cancel really is the left-most stop.
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_DPAD_LEFT, ServerTags.CLEARTEXT_CONFIRM)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
     }
 
@@ -322,15 +337,16 @@ class ServerScreenTest {
         launch()
         typeAndTest("http://jellyfin.example.test")
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
-        press(KeyEvent.KEYCODE_BACK)
+        press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertDoesNotExist()
         repeat(2) {
-            press(KeyEvent.KEYCODE_DPAD_DOWN)
+            // Closing the dialog puts focus back on Test, in the screen's window: wait for it there first.
+            press(KeyEvent.KEYCODE_DPAD_DOWN, ServerTags.TEST)
             press(KeyEvent.KEYCODE_DPAD_CENTER)
             Thread.sleep(SETTLE_MILLIS)
             compose.waitForIdle()
             compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
-            press(KeyEvent.KEYCODE_BACK)
+            press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         }
     }
 
@@ -348,9 +364,9 @@ class ServerScreenTest {
         server.fake.discoverResult = found(ServerAddress(Scheme.Http, "jellyfin.example.test", 80))
         launch()
         typeAndTest("http://jellyfin.example.test")
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, ServerTags.CLEARTEXT_CONFIRM)
         compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
         compose.onNodeWithTag(ServerTags.NOT_ENCRYPTED).assertExists()
         compose.onNodeWithText("Not encrypted (http)").assertExists()
@@ -375,7 +391,7 @@ class ServerScreenTest {
 
     /** The trust screen is a window of its own and a cold emulator is slow to focus it: wait before each key. */
     private fun awaitFocused(tag: String) {
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+        compose.awaitFocusedForKeys(tag, FOCUS_TIMEOUT_MS)
     }
 
     @Test

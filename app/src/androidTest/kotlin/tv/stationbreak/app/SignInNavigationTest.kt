@@ -147,6 +147,7 @@ class SignInNavigationTest {
     }
 
     private fun press(keyCode: Int) {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
     }
@@ -197,7 +198,7 @@ class SignInNavigationTest {
 
     /** The Test runs off the main thread; on a cold emulator its result can land after the idle check. */
     private fun awaitFocused(tag: String) {
-        compose.waitUntil(BACK_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+        compose.awaitFocusedForKeys(tag, BACK_TIMEOUT_MS)
     }
 
     @Test
@@ -344,6 +345,7 @@ class SignInNavigationTest {
 
         // The activity goes away, so nothing below may touch the compose rule again.
         val activity = compose.activity
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         val deadline = System.currentTimeMillis() + BACK_TIMEOUT_MS
         while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
