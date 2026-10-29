@@ -4,11 +4,14 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.model.UserId
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.TestTimeSource
 
 /**
  * Why a stay-current run that did nothing did nothing: the numbers-only `StayCurrentSkipped` line, one per exit, and
@@ -16,12 +19,32 @@ import kotlin.time.Duration.Companion.hours
  */
 class StayCurrentSkipLinesTest {
     private val lines = mutableListOf<String>()
-    private val rig = StayCurrentRig { lines += it }
+    private val time = TestTimeSource()
+    private val rig = StayCurrentRig(timeSource = time) { lines += it }
     private val server = rig.server
     private val both = SyncPlan(incremental = true, reconcile = true)
 
+    // Every line any test here produced: no fixture ID, address or user, and only letters, digits, = / and space.
     @After
-    fun close() = rig.close()
+    fun close() {
+        val secrets =
+            listOf(
+                ALICE.server.value,
+                ALICE.user.value,
+                BOB.user.value,
+                MOVIES.value,
+                SyncWorld.session.address.toString(),
+                SyncWorld.session.userId.value,
+            )
+        try {
+            for (line in lines) {
+                for (secret in secrets) assertFalse("$line leaks $secret", line.contains(secret))
+                assertTrue(line, line.all { it.isLetterOrDigit() || it == ' ' || it == '=' || it == '/' })
+            }
+        } finally {
+            rig.close()
+        }
+    }
 
     @Test
     fun anEmptyPlanSaysSo() =
@@ -43,8 +66,9 @@ class StayCurrentSkipLinesTest {
                 null
             }
 
-            rig.runner.run(both)
+            val verdict = rig.runner.run(both)
 
+            assertEquals(SyncVerdict.Success, verdict)
             assertEquals(1, lines.count { it == "StayCurrentSkipped plan=true/true reason=Busy" })
         }
 
@@ -60,17 +84,29 @@ class StayCurrentSkipLinesTest {
         }
 
     @Test
-    fun moreThanOneActiveAccountSaysSoWithTheCount() =
+    fun noActiveAccountSaysSoWithACountOfZero() =
         runBlocking {
-            val active =
-                rig.repository.dao
-                    .activeAccounts()
-                    .size
-            assertTrue(active != 1)
+            val bare = StayCurrentRig(signedIn = emptyList()) { lines += it }
+            try {
+                bare.runner.run(both)
+            } finally {
+                bare.close()
+            }
 
-            rig.runner.run(both)
+            assertEquals(listOf("StayCurrentSkipped plan=true/true reason=NoAccount accounts=0"), lines)
+        }
 
-            assertEquals(listOf("StayCurrentSkipped plan=true/true reason=NoAccount accounts=$active"), lines)
+    @Test
+    fun twoActiveAccountsSaysSoWithACountOfTwo() =
+        runBlocking {
+            val two = StayCurrentRig(signedIn = listOf(ALICE, BOB)) { lines += it }
+            try {
+                two.runner.run(both)
+            } finally {
+                two.close()
+            }
+
+            assertEquals(listOf("StayCurrentSkipped plan=true/true reason=NoAccount accounts=2"), lines)
         }
 
     @Test
@@ -129,5 +165,30 @@ class StayCurrentSkipLinesTest {
             assertEquals(1, lines.count { it.startsWith("StayCurrentDone ") })
             assertTrue(lines.toString(), "StayCurrentDone ms=0 outcome=Failed failure=Server" in lines)
             assertTrue(lines.none { it.contains("secret") })
+        }
+
+    @Test
+    fun aSessionForAnotherAccountSaysTheAccountChanged() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.fake.resumeResult = ServerResult.Success(SyncWorld.session.copy(userId = UserId(BOB.user.value)))
+
+            rig.runner.run(both)
+
+            assertEquals(listOf("StayCurrentSkipped plan=true/true reason=AccountChanged"), lines)
+        }
+
+    @Test
+    fun aStoppedRunReportsCancelledAndNeverFailed() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            server.respond = { throw kotlinx.coroutines.CancellationException("stopped") }
+
+            val stopped = runCatching { rig.runner.run(both) }.exceptionOrNull()
+
+            assertTrue(stopped is kotlinx.coroutines.CancellationException)
+            assertTrue(lines.toString(), "StayCurrentDone ms=0 outcome=Cancelled" in lines)
+            assertTrue(lines.toString(), lines.none { it.contains("Failed") })
         }
 }

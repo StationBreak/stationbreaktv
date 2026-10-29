@@ -114,9 +114,9 @@ class StayCurrentRunner(
     internal suspend fun outcome(plan: SyncPlan): SyncOutcome {
         val blocked =
             if (plan.isEmpty) {
-                "EmptyPlan"
+                Skip.EmptyPlan
             } else if (!gate.tryLock()) {
-                "Busy"
+                Skip.Busy
             } else {
                 null
             }
@@ -138,31 +138,32 @@ class StayCurrentRunner(
 
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun start(plan: SyncPlan): SyncOutcome {
-        val record = settings.load() ?: return report.skipped(plan, "NoServer")
-        val chosen = settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, "NoLibraries")
+        val record = settings.load() ?: return report.skipped(plan, Skip.NoServer)
+        val libraries = settings.loadLibraries()
+        val chosen = libraries?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
         val accounts = repository.dao.activeAccounts()
-        val active = accounts.singleOrNull() ?: return report.skipped(plan, "NoAccount", "accounts=${accounts.size}")
+        val active = accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
         val account = LibraryAccount(ServerId(active.serverId), UserId(active.userId))
         // The first sync has not ended: it owns the library, and nothing here is a "top up" yet.
         val firstSyncOpen = repository.lastSuccess(account) == null || repository.isFirstSyncRunning(account)
-        if (firstSyncOpen) return report.skipped(plan, "FirstSyncOpen")
+        if (firstSyncOpen) return report.skipped(plan, Skip.FirstSyncOpen)
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
                 safely(account) { passes(restored.session, account, chosen, plan) }
             }
 
             RestoreOutcome.SignedOut -> {
-                report.skipped(plan, "SignedOut")
+                report.skipped(plan, Skip.SignedOut)
             }
 
             is RestoreOutcome.Rejected -> {
-                report.skipped(plan, "SessionRejected")
+                report.skipped(plan, Skip.SessionRejected)
                 record(account, SyncFailure.SessionExpired)
             }
 
             is RestoreOutcome.Unavailable -> {
                 val failure = restored.error.toSyncFailure()
-                report.skipped(plan, "Unavailable", "failure=${failure.name}")
+                report.skipped(plan, Skip.Unavailable, "failure=${failure.name}")
                 record(account, failure)
             }
         }
@@ -176,7 +177,7 @@ class StayCurrentRunner(
     ): SyncOutcome {
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (session.server.id != account.server || session.userId != account.user) {
-            return report.skipped(plan, "AccountChanged")
+            return report.skipped(plan, Skip.AccountChanged)
         }
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
@@ -330,15 +331,29 @@ private fun SyncOutcome.label() =
         is SyncOutcome.Failed -> "outcome=Failed failure=${failure.name}"
     }
 
+// The reasons a run does nothing; the names are what the log line says.
+private enum class Skip {
+    EmptyPlan,
+    Busy,
+    NoServer,
+    NoLibraries,
+    NoAccount,
+    FirstSyncOpen,
+    SignedOut,
+    SessionRejected,
+    Unavailable,
+    AccountChanged,
+}
+
 // Why a run did nothing: the plan, a reason name and at most a count or an enum name, never an ID, an address or a
 // message. Always the Cancelled outcome, so a caller can return it.
 private fun ((String) -> Unit).skipped(
     plan: SyncPlan,
-    reason: String,
+    reason: Skip,
     detail: String = "",
 ): SyncOutcome {
     val extra = if (detail.isEmpty()) "" else " $detail"
-    say("StayCurrentSkipped plan=${plan.incremental}/${plan.reconcile} reason=$reason$extra")
+    say("StayCurrentSkipped plan=${plan.incremental}/${plan.reconcile} reason=${reason.name}$extra")
     return SyncOutcome.Cancelled
 }
 

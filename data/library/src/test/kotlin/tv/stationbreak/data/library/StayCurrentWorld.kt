@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequest
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
@@ -62,9 +63,10 @@ internal class RecordingEnqueuer :
 internal class StayCurrentRig(
     val clock: FakeClock = FakeClock(),
     timeSource: TimeSource = TimeSource.Monotonic,
+    signedIn: List<LibraryAccount> = TestLibraries.STANDARD_ACCOUNTS,
     report: (String) -> Unit = {},
 ) {
-    val repository = TestLibraries.inMemory(clock)
+    val repository = TestLibraries.inMemory(clock, signedIn = signedIn)
     val fake = FakeMediaServer()
     val library = SyncWorld.source("m", 300)
     val server = PagedMediaServer(listOf(SyncWorld.movies), mapOf(MOVIES to library), fake)
