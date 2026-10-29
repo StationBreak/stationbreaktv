@@ -125,6 +125,24 @@ class ScheduleWarmerTest {
             assertEquals(2, builds.size, "the following day is built within the hour of the end")
         }
 
+    // #434: WorkManager starts the process for the periodic sync with no screen; nothing in it needs a day built.
+    @Test
+    fun aWarmerBuildsNothingUntilTheAppFirstComesToTheForeground() =
+        runTest {
+            val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
+            advanceTimeBy(6.hours)
+            runCurrent()
+            assertEquals(0, builds.size, "a process with no screen builds no day")
+
+            warmer.foreground(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "the first foreground warms today")
+
+            warmer.foreground(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "a later foreground looks again and finds today built")
+        }
+
     @Test
     fun aNudgeThatArrivesWhileAWarmRunsIsDropped() =
         runTest {

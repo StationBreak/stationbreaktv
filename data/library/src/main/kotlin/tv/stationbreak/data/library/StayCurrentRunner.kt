@@ -2,6 +2,9 @@
 package tv.stationbreak.data.library
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
@@ -73,6 +76,7 @@ class StayCurrentRunner(
     private val report: (String) -> Unit = {},
 ) {
     private val gate = Mutex()
+    private val runningNow = MutableStateFlow(false)
 
     // What a walk could not find, kept across runs in this process.
     private val unfindable = UnfindableIds()
@@ -104,6 +108,13 @@ class StayCurrentRunner(
     /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
     val isRunning: Boolean get() = gate.isLocked
 
+    /**
+     * True from the moment a run takes the gate to the moment it lets it go, whatever ended it; a run that does nothing
+     * (an empty plan, or another run going) never sets it. The lineup refresher holds its triggers while it is true, so
+     * a run's several writes cost one lineup refresh, after the last of them (#434).
+     */
+    val running: StateFlow<Boolean> = runningNow.asStateFlow()
+
     /** Runs [plan] once and says how it ended for WorkManager. Never asks to be retried. */
     suspend fun run(plan: SyncPlan): SyncVerdict =
         when (outcome(plan)) {
@@ -121,9 +132,12 @@ class StayCurrentRunner(
                 null
             }
         if (blocked != null) return report.skipped(plan, blocked)
+        runningNow.value = true
         try {
             return guarded(plan)
         } finally {
+            // Before the gate opens, so a run that takes it next cannot have its own "true" overwritten.
+            runningNow.value = false
             gate.unlock()
         }
     }

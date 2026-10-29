@@ -18,7 +18,8 @@ import kotlin.time.Clock
  * Builds the schedule's days before anyone needs them (#392). The first tune after launch and the first flip after a
  * day boundary used to wait for a build of up to 26 s on the slowest reference device. Now the days at the current
  * moment are built in the background whenever the lineup is loaded or refreshed (a new revision), and the day after
- * is built within an hour of a channel's day ending ([BuiltInScheduleSource.warm]).
+ * is built within an hour of a channel's day ending ([BuiltInScheduleSource.warm]). All of it from the app's first
+ * time in the foreground on ([foreground]): a process with no screen builds nothing.
  *
  * The builds are the source's own, at the normal priority: a tune that needs a day already being built joins that
  * build (single flight) and must not wait on a slower one than it would have run itself. So the warmer decides only
@@ -43,16 +44,31 @@ class ScheduleWarmer(
         nudges.trySend(Unit)
     }
 
-    /** Starts following the active account in [scope]. A second call does nothing: one-shot, for the app's scope. */
+    /**
+     * The app has come to the foreground: the first time, start following the active account in [scope]; after that,
+     * [nudge]. Nothing is warmed before the first call, so a process WorkManager starts for a sync, with no screen,
+     * builds no day (#434): the days are only of use to a tune, and such a process is usually gone, with the days it
+     * kept in memory, before anyone opens the app. Waiting for the foreground costs a launch nothing: the first
+     * activity starts right after the process does, and a tune that needs a day before the warm begins builds it.
+     */
+    fun foreground(scope: CoroutineScope) {
+        if (!start(scope)) nudge()
+    }
+
+    /**
+     * Starts following the active account in [scope]; true if this call started it. A second call does nothing:
+     * one-shot, for the app's scope.
+     */
     @Synchronized
-    fun start(scope: CoroutineScope) {
-        if (started != null) return
+    fun start(scope: CoroutineScope): Boolean {
+        if (started != null) return false
         started =
             scope.launch {
                 library.activeAccount().distinctUntilChanged().collectLatest { account ->
                     if (account != null) follow(account)
                 }
             }
+        return true
     }
 
     private suspend fun follow(account: LibraryAccount) {

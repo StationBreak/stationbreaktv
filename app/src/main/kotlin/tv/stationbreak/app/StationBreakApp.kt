@@ -63,26 +63,28 @@ class StationBreakApp :
         val failed = lineupFailureHandler { Log.w(LINEUP_TAG, it) }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
         ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent.onOpen() })
-        // Coming back from standby: the warmer's waits do not run then, so it looks again now.
+        // The schedule's days are built ahead from the first time the app is in the foreground, not at process start:
+        // a process WorkManager starts for the periodic sync has no screen and needs no day (#434). Coming back from
+        // standby later, the warmer's waits did not run, so it looks again now.
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             ForegroundTrigger(scope) {
                 EntryPointAccessors
                     .fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
                     .scheduleWarmer()
-                    .nudge()
+                    .foreground(scope)
             },
         )
-        // The channel lineup follows the saved library: at start, and after each sync (spec 12). It reports its own
-        // failures, so nothing it does reaches this scope. Built off the main thread, like the rest of the graph.
+        // The channel lineup follows the saved library: at start, and after each sync (spec 12), once per quiet sync
+        // run, when it ends (#434). This runs in a sync-only process too, so the next open finds the lineup current
+        // and builds its day once. It reports its own failures, so nothing it does reaches this scope. Built off the
+        // main thread, like the rest of the graph.
         // A refresh is background work that takes seconds on a slow TV, so it runs with a concurrency of one: at most
         // one thread of the default pool at a time, not the whole pool. That limits how many cores it takes. It does
         // not lower the OS priority of the thread it runs on.
         val lineupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1) + failed)
         scope.launch {
             val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
-            graph.lineupRefresher().start(lineupScope)
-            // The schedule's days are built ahead, as the lineup loads and refreshes.
-            graph.scheduleWarmer().start(scope)
+            graph.lineupRefresher().start(lineupScope, stayCurrent.runner.running)
         }
         // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main
         // thread, so the first screen that plays finds it done (spec 13). It reports no failure of its own.

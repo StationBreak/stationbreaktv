@@ -9,6 +9,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -442,6 +443,80 @@ class LineupRefresherTest {
             library.delegate.noteContentChange(ACCOUNT)
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
             until("second success") { refreshes == before + 2 }
+        }
+
+    // #434: one stay-current run fired a refresh at its success and another at its collection pass, and its studios
+    // re-read wrote after both. Its triggers are held while it runs and checked once when it ends.
+    @Test
+    fun aSyncRunIsTakenInByOneRefreshWhenItEnds() =
+        runBlocking<Unit> {
+            val syncing = MutableStateFlow(false)
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = refreshes
+            refresher().start(scope, syncing)
+            settle()
+            assertEquals(before, refreshes, "current at start")
+
+            // One run: the incremental pass, then the collection pass, then the studios re-read, each writing rows.
+            syncing.value = true
+            library.delegate.noteContentChange(ACCOUNT)
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            val pass = Instant.parse("2026-10-19T10:01:00Z")
+            library.delegate.noteContentChange(ACCOUNT)
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            library.delegate.noteContentChange(ACCOUNT)
+            settle()
+            assertEquals(before, refreshes, "nothing is planned while the run writes")
+
+            syncing.value = false
+            until("refreshed when the run ended") { refreshes == before + 1 }
+            settle()
+
+            assertEquals(before + 1, refreshes, "one refresh for the whole run")
+            val generation = library.delegate.contentGeneration(ACCOUNT)
+            assertEquals(generation, savedMeta().plannedGeneration, "its last write too")
+            assertEquals(pass.toEpochMilliseconds(), savedMeta().collectionPassActedOn)
+        }
+
+    @Test
+    fun aSyncRunThatChangedNothingRefreshesNothingAndRecordsItsPass() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val before = refreshes
+            val syncing = MutableStateFlow(false)
+            relaunch().start(scope, syncing)
+            settle()
+
+            syncing.value = true
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
+            val pass = Instant.parse("2026-10-19T11:01:00Z")
+            library.delegate.completeCollectionPass(ACCOUNT, pass)
+            settle()
+            syncing.value = false
+            until("the pass recorded") { savedMeta().collectionPassActedOn == pass.toEpochMilliseconds() }
+            settle()
+
+            assertEquals(before, refreshes, "a run that wrote nothing needs no refresh")
+        }
+
+    @Test
+    fun aStartWhileASyncRunsWaitsForTheRunToEnd() =
+        runBlocking<Unit> {
+            // A process WorkManager started for the periodic run: the run is going when the refresher starts.
+            val syncing = MutableStateFlow(true)
+            refresher().start(scope, syncing)
+            settle()
+            assertEquals(0, refreshes, "the lineup is absent, but the run is still writing")
+
+            library.delegate.noteContentChange(ACCOUNT)
+            syncing.value = false
+            until("refreshed when the run ended") { refreshes >= 1 }
+            settle()
+
+            assertEquals(1, refreshes)
+            assertEquals(library.delegate.contentGeneration(ACCOUNT), savedMeta().plannedGeneration)
         }
 
     @Test

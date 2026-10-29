@@ -7,12 +7,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
@@ -54,6 +57,13 @@ import kotlin.time.Instant
  * without them (see [LineupService.refresh]), for an unfinalised lineup and for a finalised one waiting on a newer
  * catalog. Either is behind, so any trigger, or the next start, makes that refresh.
  *
+ * While a quiet sync run is going ([start]'s `syncing`, true from the run's start to its end) every trigger is held:
+ * one run moves the last success, completes a collection pass and may write again after both (the studios re-read), so
+ * acting on each would plan the lineup two or three times for one run, and still miss its last writes (#434). When the
+ * run ends, one check asks what a success and a pass would have asked together: refresh if the lineup is behind or has
+ * taken in no pass yet, otherwise record a new pass. A start check that finds the run already going waits for it too.
+ * A run that never ends (the process dies) leaves nothing undone: the generation is durable, so the next start sees it.
+ *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
  * ones or reaches the app scope. A trigger source that itself fails is reported the same way and listened to again
  * after a wait that starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no
@@ -71,15 +81,21 @@ class LineupRefresher(
     private val report: (LineupEvent) -> Unit,
 ) {
     private var started: Job? = null
+    private var syncing: Flow<Boolean> = flowOf(false)
 
     /**
      * Starts listening in [scope]. A second call does nothing: [started] is never cleared, so this is one-shot, meant
-     * for an app-scoped singleton.
+     * for an app-scoped singleton. [syncing] is true while a quiet sync run is writing the library (see the class
+     * comment); it must give its current value first, as a `StateFlow` does.
      */
     @Suppress("TooGenericExceptionCaught") // Whatever a refresh throws is reported, never allowed to reach the scope.
     @Synchronized
-    fun start(scope: CoroutineScope) {
+    fun start(
+        scope: CoroutineScope,
+        syncing: Flow<Boolean> = flowOf(false),
+    ) {
         if (started != null) return
+        this.syncing = syncing
         started =
             scope.launch {
                 try {
@@ -116,8 +132,15 @@ class LineupRefresher(
                 .drop(1)
                 .filterNotNull()
                 .map { Trigger.Success }
+        // A run that ends: the first value is where things stand, so only a change to "not running" is news.
+        val runEnds =
+            syncing
+                .distinctUntilChanged()
+                .drop(1)
+                .filter { !it }
+                .map { Trigger.SyncEnded }
         val backoff = Backoff(initialBackoffMs)
-        merge(start, passes, successes)
+        merge(start, passes, successes, runEnds)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
             // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
             .onEach { if (it !is Trigger.Start) backoff.reset() }
@@ -176,6 +199,8 @@ class LineupRefresher(
         trigger: Trigger,
     ) {
         try {
+            // Held until the run ends: its end is a trigger of its own, which checks everything this one would.
+            if (syncing.first()) return
             val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
             // The choice is the active account's. The account flow may not have delivered a change yet (nothing is
             // cancelled then), so ask the port again, directly, just before refreshing: if the account is no longer
@@ -187,7 +212,8 @@ class LineupRefresher(
             if (!worthRefreshing(trigger, account, held, chosen, pass)) {
                 // Nothing to plan, but the lineup does hold this pass's collections: say so, or the next start would
                 // find the pass new.
-                if (trigger == Trigger.Pass && pass != null) service.notePass(account, pass)
+                val pastPass = trigger == Trigger.Pass || trigger == Trigger.SyncEnded
+                if (pastPass && pass != null) service.notePass(account, pass)
                 return
             }
             service.refresh(account, chosen)
@@ -214,6 +240,11 @@ class LineupRefresher(
             Trigger.Pass -> {
                 // The lineup has taken in no pass yet: its collections are not in, whatever else is so.
                 pass != null && (held?.meta?.collectionPassActedOn == null || behind(account, held, chosen))
+            }
+
+            Trigger.SyncEnded -> {
+                // What the run's success and its pass would each have asked.
+                behind(account, held, chosen) || (pass != null && held?.meta?.collectionPassActedOn == null)
             }
         }
 
@@ -258,5 +289,7 @@ class LineupRefresher(
         data object Success : Trigger
 
         data object Pass : Trigger
+
+        data object SyncEnded : Trigger
     }
 }
