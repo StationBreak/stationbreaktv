@@ -31,6 +31,13 @@ class NameFoldTest {
     }
 
     @Test
+    fun aStudioNameIsTrimmedOfSpacesNoBreakSpacesAndIdeographicSpacesAtTheEndsOnly() {
+        val padded = chars(0xA0, 0x20, 0x3000) + "A" + chars(0xA0) + "B" + chars(0xA0)
+        assertEquals("A" + chars(0xA0) + "B", cleanStudioName(padded))
+        assertEquals("", cleanStudioName(chars(0xA0, 0x3000, 9)))
+    }
+
+    @Test
     fun aStudioNameKeepsJoinersAndMapsLineAndTabCharactersToASpace() {
         assertEquals("A" + chars(0x200D, 0x200C) + "B", cleanStudioName("A" + chars(0x200D, 0x200C) + "B"))
         assertEquals("A B  C", cleanStudioName("A" + chars(9) + "B" + chars(13, 10) + "C"))

@@ -81,6 +81,9 @@ class NameFolds {
     }
 }
 
+private const val LAST_ASCII_PRINTABLE = 0x7E
+private const val NO_BREAK_SPACE = 0xA0
+private const val IDEOGRAPHIC_SPACE = 0x3000
 private const val LINE_SEPARATOR = 0x2028
 private const val PARAGRAPH_SEPARATOR = 0x2029
 private const val FIRST_SUPPLEMENTARY = 0x10000
@@ -124,9 +127,12 @@ private val STRIPPED_CODE_POINTS =
  * A studio name as the sync now stores it, for names cached before that cleaning existed, so every TV matches the same
  * text whichever version wrote its cache. Removes C0 and C1 controls, format characters other than ZWJ and ZWNJ
  * (direction controls, the zero-width space, the byte order mark...) and a lone half of a surrogate pair; tab, CR, LF,
- * U+2028 and U+2029 become a space; then trims. Nothing else is collapsed. Idempotent, so a name cleaned at sync time
- * comes through unchanged. What is removed is a fixed table of code points, not the platform's character category, so
- * the answer is the same on every TV whatever Unicode data its Android version has.
+ * U+2028 and U+2029 become a space; then the ends lose any of U+0020, U+00A0 (no-break space) and U+3000 (ideographic
+ * space). Nothing else is collapsed. Idempotent, so a name cleaned at sync time comes through unchanged.
+ *
+ * Every set here (what is removed, what becomes a space, what is trimmed) is a fixed list of code points, never the
+ * platform's character category, whitespace or `trim()`, so the answer is exactly the same on every TV whatever
+ * Unicode data its Android version has.
  */
 fun cleanStudioName(text: String): String {
     val out = StringBuilder(text.length)
@@ -147,13 +153,24 @@ fun cleanStudioName(text: String): String {
         }
         i++
     }
-    return out.toString().trim()
+    return trimmed(out)
 }
 
 private fun isSpaced(code: Int) =
     code == '\t'.code || code == '\r'.code || code == '\n'.code || code == LINE_SEPARATOR || code == PARAGRAPH_SEPARATOR
 
-private fun isStripped(cp: Int) = STRIPPED_CODE_POINTS.any { cp in it }
+// The ASCII printable range is never stripped, so most characters skip the table.
+private fun isStripped(cp: Int) = cp !in ' '.code..LAST_ASCII_PRINTABLE && STRIPPED_CODE_POINTS.any { cp in it }
+
+private fun isTrimmed(ch: Char) = ch == ' ' || ch.code == NO_BREAK_SPACE || ch.code == IDEOGRAPHIC_SPACE
+
+private fun trimmed(text: StringBuilder): String {
+    var start = 0
+    var end = text.length
+    while (start < end && isTrimmed(text[start])) start++
+    while (end > start && isTrimmed(text[end - 1])) end--
+    return text.substring(start, end)
+}
 
 /** [names] cleaned ([cleanStudioName]) then folded ([foldNameAscii]), in order; a name left empty is dropped. */
 internal fun foldStudioNames(names: List<String>): List<String> =
