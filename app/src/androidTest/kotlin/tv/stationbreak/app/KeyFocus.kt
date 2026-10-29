@@ -33,6 +33,9 @@ internal fun ComposeTestRule.awaitWindowFocus(timeoutMs: Long = WINDOW_FOCUS_TIM
  * Waits until the node tagged [tag] is focused and its own window has input focus: the state in which the next key
  * event reaches that node. A dialog is a window of its own, so this also waits for a dialog's window, not just the
  * activity's.
+ *
+ * It needs the node's own window to have input focus, so waiting on a node in the activity's window while a dialog
+ * is open times out: wait on the dialog's focused node then, and on the screen's only once the dialog has closed.
  */
 internal fun ComposeTestRule.awaitFocusedForKeys(
     tag: String,

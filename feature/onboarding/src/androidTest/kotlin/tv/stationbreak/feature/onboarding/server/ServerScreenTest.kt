@@ -111,7 +111,10 @@ class ServerScreenTest {
         compose.waitForIdle()
     }
 
-    /** A key for a dialog: the dialog is a window of its own, so wait until [expectedFocus] can receive the key. */
+    /**
+     * A key for [expectedFocus]: wait until it is focused in a window that has input focus. Needed whenever a dialog
+     * opens or closes, since a dialog is a window of its own.
+     */
     private fun press(
         keyCode: Int,
         expectedFocus: String,
@@ -337,7 +340,8 @@ class ServerScreenTest {
         press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertDoesNotExist()
         repeat(2) {
-            press(KeyEvent.KEYCODE_DPAD_DOWN)
+            // Closing the dialog puts focus back on Test, in the screen's window: wait for it there first.
+            press(KeyEvent.KEYCODE_DPAD_DOWN, ServerTags.TEST)
             press(KeyEvent.KEYCODE_DPAD_CENTER)
             Thread.sleep(SETTLE_MILLIS)
             compose.waitForIdle()
