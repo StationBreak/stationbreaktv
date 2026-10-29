@@ -1,6 +1,6 @@
 # ADR-0020: The grown-up hold (spec 18)
 
-- **Status:** Accepted
+- **Status:** Accepted (§4 edited-starter row pending owner confirmation)
 - **Date:** 2026-10-29
 - **Decided by:** Rincewind (the mechanism), following the owner's decision that kids means made for kids (2026-10-27)
 - **Amends:** [ADR-0019](0019-kid-hold.md) §7 and §8, [ADR-0002](0002-determinism-scope.md) §2
@@ -55,7 +55,7 @@ app-side, like the kid hold.
 ## Consequences
 
 - Grown-up starters can get thinner. A finalised lineup is not re-ranked, so a starter that is On stays On even if
-  the hold leaves it little to air; it shows the existing hidden reason when empty. New lineups rank on the held pool.
+  the hold leaves it little to air; it shows `ChildrensRatingsOnly` when the hold empties it. New lineups rank on the held pool.
 - Where a dropped item lands. With both leftovers on (the default), Kids' Odds & Ends claims first, so a
   children's-rated item a grown-up starter drops lands on a kid channel or on Kids' Odds & Ends, where the kid hold
   admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say), or everything when Kids' Odds

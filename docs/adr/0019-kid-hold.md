@@ -97,10 +97,9 @@ The owner decisions of 2026-10-27:
    rating and to its series' rating. An episode whose series is unknown fails closed.
 7. **Catalog version 2.** Every recipe outside the Kids band excludes the same eight kids genre spellings as the gate
    (§5, built from `KidHold.KIDS_GENRES`, so a grown-up channel drops exactly what a kid channel would take), so
-   preschool shows stop appearing on grown-up channels.
-   Children's *ratings* are not a genre: see [ADR-0020](0020-grown-up-hold.md). A genre exclusion is checked against the episode's series
-   genres, and rules-format rule 3 fails it closed when the series is missing from the snapshot: grown-up starters now
-   also drop such episodes, which fall to Odds & Ends. These are rules-format v1 features, so the rule files stay at
+   preschool shows stop appearing on grown-up channels. Children's *ratings* are not a genre: see
+   [ADR-0020](0020-grown-up-hold.md). A genre exclusion is checked against the episode's series genres, and rules-format
+   rule 3 fails it closed when the series is missing from the snapshot: grown-up starters now also drop such episodes, which fall to Odds & Ends. These are rules-format v1 features, so the rule files stay at
    version 1. Kid recipes keep their theme sources, tags included, because the hold does the audience check and the
    themed channels do not go empty. Keys, numbers and `EVER_KID_SAFE_KEYS` do not change. A finalised lineup whose
    collection pass keeps failing also takes the catalog bump, after `GIVE_UP_AFTER` (2) failed passes, so the grown-up

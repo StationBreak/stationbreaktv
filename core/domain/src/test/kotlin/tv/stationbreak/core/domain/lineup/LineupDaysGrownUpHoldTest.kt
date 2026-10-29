@@ -121,7 +121,10 @@ class LineupDaysGrownUpHoldTest {
             val lineup = lineupOf(starterAt("drama", 150), leftovers("odds-and-ends", 199, null))
             store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
             service.refresh(ACCOUNT, LIBRARIES)
-            val odds = days(lineup).getValue(LineupIds.leftovers("odds-and-ends").value)
+            val odds =
+                source
+                    .channelDays(ACCOUNT, LIBRARIES, NOON)
+                    .first { it.channel.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(setOf(childrensItem), odds.ids())
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
         }

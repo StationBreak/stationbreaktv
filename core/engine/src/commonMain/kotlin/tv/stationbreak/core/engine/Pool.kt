@@ -29,7 +29,7 @@ data class Pool(
  *   [matchedBySource] over-counts when sources overlap, because an item is counted for each source it matched.
  * - Under a ceiling every unknown-series episode is blocked, so `blockedByCeiling - episodesWithUnknownSeries` is the
  *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is kids-only: a kids-only
- *   pool applies *   the kid rating table even with no ceiling.)
+ *   pool applies the kid rating table even with no ceiling.)
  * - [collectionsSynced] is a pass-through of the snapshot's flag.
  *
  * @property matchedBySource for each entry of `rules.sources`, in order, how many items of the snapshot matched it

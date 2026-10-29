@@ -230,7 +230,7 @@ object LineupPlanner {
         channels.sortedWith(compareBy<LineupChannel, Int?>(nullsLast()) { it.number }.thenBy { it.id.value })
 }
 
-/** What one call of [LineupPlanner.plan] works with. */
+/** What one call of [LineupPlanner.plan] works with. Internal only so LineupPlannerTest can call `ranked`. */
 internal class Planning(
     val serverId: CanonicalId,
     val offset: Int,
