@@ -2,10 +2,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
 # Tells an emulator or runner failure from a real test failure, so CI's `emulator` job can retry the first and never
-# the second. Three modes:
+# the second. Four modes:
+#
+#   instrumented-infra.sh prepare <dir>
+#       Calms the emulator before the tests: closes system dialogs, disables the crashing config updater, and gives
+#       logcat a 16M buffer with chatty pruning off, so a failure's window is still in the log (#444, #462).
+#       `run` calls it first, so both attempts get it. <dir> is unused. Every step tolerates failure: it never
+#       fails the job.
 #
 #   instrumented-infra.sh run <dir>
-#       Runs `./gradlew $CONNECTED_TASKS` (the action's script step). On failure it saves what classify needs into
+#       Runs `prepare`, then `./gradlew $CONNECTED_TASKS` (the action's script step). On failure it saves what classify needs into
 #       <dir>: logcat.txt (also copied to app/build/logcat.txt, where the reports upload has always looked),
 #       adb-state.txt (`adb get-state`) and emulator-state.txt (alive | gone: is a qemu process still running).
 #
@@ -14,7 +20,16 @@
 #       results-root (default .) is searched for the JUnit XML, **/build/outputs/androidTest-results/connected/**/TEST-*.xml.
 #       Only the first rule that matches applies:
 #         1. A <failure> or <error> with a message or a body is a genuine test failure: never retried, even if the
-#            logcat also looks bad, because a failed assertion is the result to report.
+#            logcat also looks bad, because a failed assertion is the result to report. Two known emulator
+#            signatures are the exception and count as infrastructure:
+#              a. `SecurityException: Injecting to another application requires INJECT_EVENTS permission`: a system
+#                 dialog took focus from the app, so the test's input was refused (#444).
+#              b. `IllegalStateException: No compose hierarchies found in the app`: the activity was not up when the test looked. A real bug
+#                 (the activity crashing on start) looks the same, and the diag logcat cannot tell the two apart
+#                 reliably (the default buffers carry no per-test "resumed" marker), so (b) counts only when EVERY
+#                 failure in the run is (b). Any other failure alongside it makes the run genuine.
+#            Matched on the failure's message (with no message, the start of its body), never deeper in a stack, so
+#            an assertion that merely mentions these words is still genuine.
 #         2. A <failure> or <error> that is empty (no message, no body): the process died under the test. Retry.
 #         3. The logcat shows a surfaceflinger or system_server crash. Retry.
 #         4. The emulator process is gone, or adb no longer sees a device (the files `run` saved). Retry.
@@ -35,7 +50,7 @@ set -uo pipefail
 mode="${1:-}"
 dir="${2:-}"
 if [ -z "$mode" ] || [ -z "$dir" ]; then
-  echo "usage: $0 run|classify|cleanup <dir> [results-root]" >&2
+  echo "usage: $0 prepare|run|classify|cleanup <dir> [results-root]" >&2
   exit 2
 fi
 
@@ -45,8 +60,21 @@ result_files() {
 }
 
 case "$mode" in
+  prepare)
+    # Best effort on a throwaway AVD: a missing package or an adb that rejects a size must not fail the job.
+    adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
+    # The updater crashes on the CI image and its crash dialog steals focus. "Unknown package" is fine.
+    adb shell pm disable-user --user 0 com.google.android.configupdater >/dev/null 2>&1 || true
+    # 16M first, 8M if the emulator refuses it. -P '' turns off chatty pruning (the "expire N lines" that ate the
+    # log in #462).
+    adb logcat -G 16M >/dev/null 2>&1 || adb logcat -G 8M >/dev/null 2>&1 || true
+    adb logcat -P '' >/dev/null 2>&1 || true
+    exit 0
+    ;;
+
   run)
     mkdir -p "$dir"
+    bash "${BASH_SOURCE[0]}" prepare "$dir" || true
     # Removed by nothing: if the step is killed, this is all that is left, and the missing emulator-state.txt below
     # tells classify the run never reached its failure handling.
     : >"$dir/started"
@@ -72,6 +100,8 @@ case "$mode" in
     root="${3:-.}"
     genuine=0
     empty=0
+    sig_inject=0
+    sig_nohier=0
     files=()
     while IFS= read -r f; do files+=("$f"); done < <(result_files "$root")
 
@@ -88,16 +118,38 @@ case "$mode" in
         if [[ "$attrs" != */ ]]; then body="${rest%%"</$tag>"*}"; fi
         # Blank if only whitespace.
         if [ -n "${message//[[:space:]]/}" ] || [ -n "${body//[[:space:]]/}" ]; then
-          genuine=$((genuine + 1))
+          # What the failure says: its message, or with none the start of its body.
+          head="$message"
+          if [ -z "${head//[[:space:]]/}" ]; then head="${body:0:300}"; fi
+          if [[ "$head" == *"SecurityException: Injecting to another application requires INJECT_EVENTS permission"* ]]; then
+            sig_inject=$((sig_inject + 1))
+          elif [[ "$head" == *"IllegalStateException: No compose hierarchies found in the app"* ]]; then
+            sig_nohier=$((sig_nohier + 1))
+          else
+            genuine=$((genuine + 1))
+          fi
         else
           empty=$((empty + 1))
         fi
       done
     done
 
+    # (b) is ambiguous on its own (see the header): it counts only when nothing else failed.
+    if [ "$sig_nohier" -gt 0 ] && { [ "$genuine" -gt 0 ] || [ "$sig_inject" -gt 0 ] || [ "$empty" -gt 0 ]; }; then
+      genuine=$((genuine + sig_nohier))
+      sig_nohier=0
+    fi
     if [ "$genuine" -gt 0 ]; then
       echo "genuine: $genuine test failure(s) with a message; not retrying"
       exit 1
+    fi
+    if [ "$sig_inject" -gt 0 ]; then
+      echo "infra: $sig_inject test failure(s) refused input injection (INJECT_EVENTS): a system dialog took focus"
+      exit 0
+    fi
+    if [ "$sig_nohier" -gt 0 ]; then
+      echo "infra: $sig_nohier test failure(s), all 'No compose hierarchies found' (the sole signature): the activity was not up"
+      exit 0
     fi
     if [ "$empty" -gt 0 ]; then
       echo "infra: $empty test failure(s) with an empty <failure>: the process died under the test"
@@ -161,7 +213,7 @@ case "$mode" in
     ;;
 
   *)
-    echo "usage: $0 run|classify|cleanup <dir> [results-root]" >&2
+    echo "usage: $0 prepare|run|classify|cleanup <dir> [results-root]" >&2
     exit 2
     ;;
 esac

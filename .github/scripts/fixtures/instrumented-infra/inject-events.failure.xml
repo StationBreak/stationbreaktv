@@ -1,0 +1,3 @@
+<failure message="java.lang.SecurityException: Injecting to another application requires INJECT_EVENTS permission" type="java.lang.SecurityException">java.lang.SecurityException: Injecting to another application requires INJECT_EVENTS permission
+	at android.os.Parcel.readException(Parcel.java:1620)
+	at androidx.test.uiautomator.UiDevice.click(UiDevice.java:1)</failure>

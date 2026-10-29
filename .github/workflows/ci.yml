@@ -778,7 +778,9 @@ jobs:
       # The emulator itself is the flaky part (a surfaceflinger crash, a boot that never finishes, a stalled run),
       # so a failed attempt is retried once, and only when .github/scripts/instrumented-infra.sh says the failure
       # was infrastructure: an empty <failure>, a system crash in the logcat, a dead emulator or adb, no results at
-      # all (a boot failure), or a step cut off by its timeout with a module's results missing. A failure with a
+      # all (a boot failure), a step cut off by its timeout with a module's results missing, or one of two known
+      # system-dialog signatures (INJECT_EVENTS refused; "No compose hierarchies found" as the only failure). Before
+      # each attempt `run` also calms the AVD and enlarges the logcat (its `prepare` step). A failure with any other
       # message is a real test failure and fails the job at once. Each attempt's own timeout is below the job's, so a stall to the limit can still be retried.
       - name: Instrumented tests (API 25 Android TV)
         id: tests

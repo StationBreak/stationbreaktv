@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# Tests for instrumented-infra.sh's classify and cleanup modes. Each case builds a results tree and the files `run`
+# Tests for instrumented-infra.sh's classify, prepare and cleanup modes. Each case builds a results tree and the files `run`
 # would have saved, in a temp dir.
 # Usage: bash .github/scripts/instrumented-infra.test.sh
 # No -e: a failing case must be reported and counted, not end the run.
@@ -95,6 +95,54 @@ expect "empty failure with a blank body" 0 "empty <failure>"
 new_case
 xml '<error message=""/>'
 expect "empty error" 0 "empty <failure>"
+
+# Known emulator signatures (#444, #462), from fixtures/instrumented-infra/.
+fx="$here/fixtures/instrumented-infra"
+
+new_case
+xml "$(cat "$fx/inject-events.failure.xml")"
+expect "INJECT_EVENTS refused (a system dialog took focus)" 0 "INJECT_EVENTS"
+
+new_case
+xml "$(cat "$fx/inject-events.failure.xml")$(cat "$fx/inject-events.failure.xml")"
+expect "two INJECT_EVENTS failures" 0 "2 test failure(s) refused"
+
+new_case
+xml "$(cat "$fx/inject-events.failure.xml")$(cat "$fx/compose-timeout.failure.xml")"
+expect "INJECT_EVENTS plus a real timeout" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")"
+expect "No compose hierarchies found, the only failure" 0 "sole signature"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")$(cat "$fx/no-compose-hierarchies.failure.xml")"
+expect "No compose hierarchies found twice, nothing else" 0 "all 'No compose hierarchies found'"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")<failure message=\"java.lang.AssertionError: expected:&lt;1&gt;\">trace</failure>"
+expect "No compose hierarchies found plus an assertion" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")$(cat "$fx/inject-events.failure.xml")"
+expect "No compose hierarchies found plus INJECT_EVENTS (not the sole signature)" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")<failure message=\"\"/>"
+expect "No compose hierarchies found plus an empty failure" 1 "genuine"
+
+# The strictness: a test's own timeout, or an assertion that merely quotes the words, stays genuine.
+new_case
+xml "$(cat "$fx/compose-timeout.failure.xml")"
+expect "ComposeTimeoutException from a test's own waitUntil" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/assertion-mentions-hierarchies.failure.xml")"
+expect "an assertion that quotes the hierarchies message" 1 "genuine"
+
+new_case
+xml '<failure message="java.lang.AssertionError: boom">java.lang.SecurityException: Injecting to another application requires INJECT_EVENTS permission</failure>'
+expect "INJECT_EVENTS only deep in an assertion's body" 1 "genuine"
 
 # Logcat: the system crashed.
 new_case
@@ -244,6 +292,25 @@ unset CONNECTED_TASKS
 # Usage errors.
 if bash "$script" >/dev/null 2>&1; then fail "usage" "no arguments exited 0"; else echo "ok   usage (no arguments fail)"; fi
 if bash "$script" nonsense "$work" >/dev/null 2>&1; then fail "usage" "unknown mode exited 0"; else echo "ok   usage (unknown mode fails)"; fi
+
+# prepare: every adb call is made, and none failing fails the step. adb is a stub that records its calls and fails.
+stub_prep="$work/stub-prep"
+mkdir -p "$stub_prep"
+printf '#!/usr/bin/env bash\necho "adb $*" >>"%s/calls"\nexit 1\n' "$stub_prep" >"$stub_prep/adb"
+chmod +x "$stub_prep/adb"
+PATH="$stub_prep:$PATH" bash "$script" prepare "$work/unused"
+got=$?
+calls="$(cat "$stub_prep/calls" 2>/dev/null)"
+if [ "$got" -eq 0 ] \
+  && grep -qF 'adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS' <<<"$calls" \
+  && grep -qF 'adb shell pm disable-user --user 0 com.google.android.configupdater' <<<"$calls" \
+  && grep -qF 'adb logcat -G 16M' <<<"$calls" \
+  && grep -qF 'adb logcat -G 8M' <<<"$calls" \
+  && grep -qF "adb logcat -P " <<<"$calls"; then
+  echo "ok   prepare (all adb calls made, exit 0 though each failed)"
+else
+  fail "prepare" "exit $got" "$calls"
+fi
 
 # cleanup: the attempt's results move into <dir>/results, and the emulator and adb are killed. pkill and adb are
 # stubs that record the call; the real ones would kill this machine's processes.
