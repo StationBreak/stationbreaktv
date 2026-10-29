@@ -468,6 +468,7 @@ jobs:
             {
               echo "benchmark-name=${benchmark}"
               echo "benchmark-path=dist-benchmark/${benchmark}"
+              echo "mapping-name=${benchmark%.apk}-mapping"
             } >> "$GITHUB_OUTPUT"
           fi
 
@@ -549,6 +550,19 @@ jobs:
           name: benchmark-apk-runner-key
           path: ${{ steps.apk.outputs.benchmark-path }}
           retention-days: 1
+          if-no-files-found: error
+
+      # Main only, with the benchmark APK. R8 inlines methods and rewrites line numbers even with -dontobfuscate, so a
+      # stack trace from that APK needs this file (#435). Named like the APK (same short SHA) and kept as long as the
+      # signed APK is (30 days). Uploaded here, not in `sign-debug`, which has no checkout. A missing file fails the job.
+      # CI uploads no release APK, so there is no release mapping to keep.
+      - name: Upload the benchmark R8 mapping
+        if: steps.apk.outputs.mapping-name != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.apk.outputs.mapping-name }}
+          path: app/build/outputs/mapping/githubBenchmark/mapping.txt
+          retention-days: 30
           if-no-files-found: error
 
   # ADR-0011 (amended 2026-10-18): Gradle signs the debug APK with the runner's own key; this job re-signs it with the
