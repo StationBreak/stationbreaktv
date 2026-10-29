@@ -707,7 +707,9 @@ class GuideScreenTest {
         const val PRESS_MS = 50L
         const val BODY = "body"
         const val LOG_TAG = "GuideScreenTest"
-        const val PIXEL_SLACK = 24
+
+        // Tight: an unfocused cell's fill (Cream at 8% over dark) is within 24 of Ink; a looser scan counted it.
+        const val PIXEL_SLACK = 8
         const val CELL_TEXT = "guide:cellText:"
         const val TICK_TIMEOUT_MS = 20_000L
 
