@@ -210,6 +210,8 @@ class GuideScreenTest {
 
     /** Back through the real input path: unconsumed, it reaches the activity's back dispatcher on the release. */
     private fun back() {
+        // A key sent before the window has input focus is lost on the slow emulator (#473).
+        compose.awaitWindowFocus()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val at = SystemClock.uptimeMillis()
         instrumentation.sendKeySync(KeyEvent(at, at, ACTION_DOWN, KEYCODE_BACK, 0))
@@ -347,7 +349,40 @@ class GuideScreenTest {
         press(Key.DirectionUp)
         cell(CH5, 60).assertIsSelected()
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
-        assertTrue(text(GuideTags.HINT).endsWith("Back Exit live TV"))
+        // Off the playing channel (7): Back goes back to it before it exits.
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To what's playing"))
+        press(Key.DirectionDown)
+        press(Key.DirectionUp)
+        press(Key.DirectionUp)
+        cell(CH7, 90).assertIsSelected()
+        press(Key.DirectionLeft)
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
+    }
+
+    @Test
+    fun backAwayFromThePlayingCellReturnsToItAndTheNextBackExits() {
+        showReady(CH7)
+        cell(CH7, 60).assertIsSelected()
+        // Away: down two rows and right, the grid scrolled to the right.
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        repeat(3) { press(Key.DirectionRight) }
+        cell(CH7, 60).assertIsNotSelected()
+        back()
+        cell(CH7, 60).assertIsSelected()
+        assertEquals("Test Movie 102", text(GuideTags.PANEL_TITLE))
+        assertEquals("Back Exit live TV", text(GuideTags.HINT).substringAfter("Watch  ", text(GuideTags.HINT)))
+        assertEquals(0, exits)
+        // On the playing cell: the same Back leaves live TV.
+        back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun backOnTheOpeningCellExitsAtOnce() {
+        showReady(CH5)
+        back()
+        assertEquals(1, exits)
     }
 
     /** How many pixels in the middle half of [tag]'s cell are within a small distance of [color]. */

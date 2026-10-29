@@ -51,6 +51,17 @@ internal fun GuideModel.initialFocus(
 }
 
 /**
+ * Whether the focus is off the cell [GuideModel.initialFocus] opens on for the [current] channel: false on that cell,
+ * and with no grid or focus (Back then leaves live TV). Compares the cell, not the anchor.
+ */
+internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
+    val ready = state as? GuideState.Ready
+    val at = focus
+    val playing = ready?.model?.initialFocus(current, ready.nowMs)
+    return at != null && playing != null && (at.channel != playing.channel || at.cellStartMs != playing.cellStartMs)
+}
+
+/**
  * One step of [direction] from [focus] at [nowMs] (the moment the grid shows); at an edge, or when the focused cell is
  * gone, the focus stays. Up and Down skip rows that have no cells, and stay put when no row in that direction has any.
  * They go by the focus's anchor, never earlier than now: an anchor kept from minutes ago would land on a program that

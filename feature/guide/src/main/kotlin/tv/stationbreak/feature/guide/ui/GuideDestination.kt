@@ -117,11 +117,14 @@ internal fun GuideRoot(
         }
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
-    // Back over the info overlay closes it; with none open, Back is the activity's and leaves live TV.
+    // Back over the info overlay closes it; with none open, Back returns the focus to what is
+    // playing, and from there it is the activity's and leaves live TV.
     BackHandler(enabled = info != null) { viewModel.closeInfo() }
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val back: (() -> Unit)? =
+        remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.backToPlaying()) d.onBackPressed() } } }
     // A move, inside its trace section ("guide move"): the step and its publish.
     val move = remember(viewModel) { { direction: GuideDirection -> traced(TRACE_MOVE) { viewModel.move(direction) } } }
     GuideScreen(
@@ -133,7 +136,7 @@ internal fun GuideRoot(
         modifier =
             modifier
                 .focusRequester(keys)
-                .onKeyEvent { guideKey(it, move, viewModel::select, backs?.let { d -> d::onBackPressed }) }
+                .onKeyEvent { guideKey(it, move, viewModel::select, back) }
                 .focusable(),
     )
 }
@@ -143,10 +146,10 @@ internal fun GuideRoot(
  * so holding a direction scrolls) and Select acts on the focused cell once per press. Their releases are consumed
  * too.
  *
- * Back is handed to the activity's [back] dispatcher on its release, as the activity itself would: the info overlay's
- * BackHandler closes it, and with none open the activity leaves live TV. Left unconsumed, Compose would spend it on
- * moving the focus out of the guide to live TV's root ("exit"), and the viewer would have to press Back twice. The
- * media keys are not the guide's.
+ * Back is handed to [back] on its release, as the activity itself would: the info overlay's BackHandler closes it,
+ * with none open the focus returns to what is playing, and from there the activity leaves live TV. Left unconsumed,
+ * Compose would spend it on moving the focus out of the guide to live TV's root ("exit"), and the viewer would have to
+ * press Back twice. The media keys are not the guide's.
  */
 internal fun guideKey(
     event: KeyEvent,

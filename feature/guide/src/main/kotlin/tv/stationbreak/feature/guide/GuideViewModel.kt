@@ -188,6 +188,24 @@ internal class GuideViewModel
             }
         }
 
+        /**
+         * Back with the info overlay closed: moves the focus to the cell on air now on the playing channel's row, with
+         * the grid back at now and that row at the top, as when the guide opened; true when it did. False when the
+         * focus is already there (or the overlay is open, or there is no grid), which is when Back leaves live TV.
+         */
+        fun backToPlaying(): Boolean =
+            synchronized(lock) {
+                val current = shownSnapshot.value
+                val ready = current.state as? GuideState.Ready
+                val target = ready?.model?.initialFocus(currentChannel, ready.nowMs)
+                if (ready == null || target == null || shownInfo.value != null) return false
+                if (!current.isAwayFrom(currentChannel)) return false
+                val viewport = viewportStartFor(target, ready.model, ready.model.originMs, direction = null)
+                val shown = ready.copy(viewportStartMs = viewport, firstVisibleRow = 0)
+                publish(shown.copy(firstVisibleRow = shown.openingRowFor(target)), target)
+                true
+            }
+
         /** Closes the info overlay; true when there was one to close (so Back stops there). */
         fun closeInfo(): Boolean =
             synchronized(lock) {

@@ -386,6 +386,44 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
+    fun backAwayFromThePlayingCellReturnsToItAtNowAndOnTheFirstRowThenStops() =
+        guideTest { vm ->
+            vm.open(CH5)
+            runCurrent()
+            val opened = vm.snapshot.value
+            assertFalse(opened.isAwayFrom(CH5))
+            // On the playing cell, Back is not the guide's: it leaves live TV.
+            assertFalse(vm.backToPlaying())
+
+            vm.move(GuideDirection.Down)
+            repeat(4) { vm.move(GuideDirection.Right) }
+            assertTrue(vm.snapshot.value.isAwayFrom(CH5))
+            assertTrue(vm.ready().viewportStartMs > vm.ready().model.originMs)
+
+            assertTrue(vm.backToPlaying())
+            assertEquals(CH5, vm.focused().channel)
+            assertEquals(min(60), vm.focused().cellStartMs)
+            assertEquals(opened.state.let { (it as GuideState.Ready).viewportStartMs }, vm.ready().viewportStartMs)
+            assertEquals((opened.state as GuideState.Ready).firstVisibleRow, vm.ready().firstVisibleRow)
+            assertFalse(vm.snapshot.value.isAwayFrom(CH5))
+            assertFalse(vm.backToPlaying())
+        }
+
+    @Test
+    fun backWithTheInfoOverlayOpenOrNoGridIsNotTheGuides() =
+        guideTest { vm ->
+            assertFalse(vm.backToPlaying())
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right)
+            vm.select()
+            runCurrent()
+            assertNotNull(vm.info.value)
+            assertFalse(vm.backToPlaying())
+        }
+
+    @Test
     fun tickKeepsViewportWhenScrolledRight() =
         guideTest { vm ->
             vm.open(CH7)
