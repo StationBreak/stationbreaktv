@@ -15,10 +15,10 @@ class GuideWrapTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH9)
             runCurrent()
-            vm.move(GuideDirection.Down)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             assertEquals(CH5, vm.focused().channel)
             assertEquals(0, vm.ready().firstVisibleRow)
-            vm.move(GuideDirection.Up)
+            vm.move(GuideDirection.Up, repeat = false, atMs = 0)
             assertEquals(CH9, vm.focused().channel)
         }
 
@@ -27,8 +27,8 @@ class GuideWrapTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Up)
-            vm.move(GuideDirection.Up)
+            vm.move(GuideDirection.Up, repeat = false, atMs = 0)
+            vm.move(GuideDirection.Up, repeat = false, atMs = 0)
             assertEquals(CH9, vm.focused().channel)
             assertTrue(vm.backToPlaying())
             assertEquals(CH7, vm.focused().channel)
@@ -39,7 +39,7 @@ class GuideWrapTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Down)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             assertEquals(CH9, vm.focused().channel)
             // The repeats that reach the end are held there for the wrap hold, counted from the first of them.
             vm.move(GuideDirection.Down, repeat = true, atMs = 1_000)

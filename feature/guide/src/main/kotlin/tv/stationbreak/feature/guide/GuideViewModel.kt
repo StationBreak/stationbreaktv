@@ -98,6 +98,7 @@ internal class GuideViewModel
         private var extendedFrom = NEVER
         private var scrollAsked: Pair<ChannelId, Long>? = null
         private var firstWindowMs = NO_MEASURE
+        private val wrapHold = WrapHold()
         private var asked = 0
         private var applied = 0
         private var tickLag = 0L
@@ -149,7 +150,7 @@ internal class GuideViewModel
         fun move(
             direction: GuideDirection,
             repeat: Boolean = false,
-            atMs: Long = 0,
+            atMs: Long,
         ) {
             synchronized(lock) {
                 val current = shownSnapshot.value
@@ -169,8 +170,6 @@ internal class GuideViewModel
                 session?.let { extendIfScrolledNearTheEnd(it, shown, to) }
             }
         }
-
-        private val wrapHold = WrapHold()
 
         /**
          * Select on the focused cell: tunes its channel when it is on air now (a slate too: that is changing channel),
@@ -235,6 +234,7 @@ internal class GuideViewModel
 
         // Ends the session and resets everything it published, including events it queued and nobody has taken yet.
         private fun endSession() {
+            wrapHold.reset()
             session?.coroutineContext?.get(Job)?.cancel()
             session = null
             window = null
@@ -621,7 +621,6 @@ internal class GuideViewModel
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L
             val WINDOW = 6.hours
-
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours
 

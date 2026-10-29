@@ -84,21 +84,10 @@ internal fun GuideModel.move(
     val (rowIndex, cellIndex) = indexOf(focus) ?: return focus
     val row = rows[rowIndex]
     return when (direction) {
-        GuideDirection.Left -> {
-            row.cells.getOrNull(cellIndex - 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        }
-
-        GuideDirection.Right -> {
-            row.cells.getOrNull(cellIndex + 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        }
-
-        GuideDirection.Up -> {
-            moveVertically(focus, (rowIndex - 1 downTo 0) + (rows.lastIndex downTo rowIndex + 1), nowMs)
-        }
-
-        GuideDirection.Down -> {
-            moveVertically(focus, (rowIndex + 1 until rows.size) + (0 until rowIndex), nowMs)
-        }
+        GuideDirection.Left -> row.cells.getOrNull(cellIndex - 1)?.let { focusOn(row, it, it.startMs) } ?: focus
+        GuideDirection.Right -> row.cells.getOrNull(cellIndex + 1)?.let { focusOn(row, it, it.startMs) } ?: focus
+        GuideDirection.Up -> moveVertically(focus, rowsUpFrom(rowIndex), nowMs)
+        GuideDirection.Down -> moveVertically(focus, rowsDownFrom(rowIndex), nowMs)
     }
 }
 

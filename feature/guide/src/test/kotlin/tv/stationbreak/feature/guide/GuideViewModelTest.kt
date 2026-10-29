@@ -123,11 +123,11 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             after(200)
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             after(200)
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             // Moves at 0, 200 and 400 ms: nothing is asked until 900.
             after(499)
             assertEquals(0, server.itemDetailsCalls.size)
@@ -151,9 +151,9 @@ class GuideViewModelTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             after(500)
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             after(500)
-            vm.move(GuideDirection.Left)
+            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
             // Back on the first cell, whose details the cache holds: no wait, no second request.
             val panel = checkNotNull(vm.panel.value)
             assertFalse(panel.loading)
@@ -178,9 +178,9 @@ class GuideViewModelTest : GuideRig() {
             assertEquals(1, server.itemDetailsCalls.size)
 
             // Focus leaves and comes back: that asks again, and this time the server answers.
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             after(10)
-            vm.move(GuideDirection.Left)
+            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
             server.itemDetailsResult = null
             after(500)
             assertEquals(2, server.itemDetailsCalls.count { it == ScheduleFixtures.itemOf(102) })
@@ -192,7 +192,7 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH9)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             after(1000)
             val panel = checkNotNull(vm.panel.value)
             assertEquals(CellKind.Slate, panel.cell.kind)
@@ -379,7 +379,7 @@ class GuideViewModelTest : GuideRig() {
             assertEquals(GuideFocus(CH7, min(60), min(60)), vm.focused())
 
             after(15 * MIN)
-            vm.move(GuideDirection.Down)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
 
             assertEquals(CH9, vm.focused().channel)
             assertEquals(min(75), vm.focused().cellStartMs)
@@ -396,8 +396,8 @@ class GuideViewModelTest : GuideRig() {
             // On the playing cell, Back is not the guide's: it leaves live TV.
             assertFalse(vm.backToPlaying())
 
-            vm.move(GuideDirection.Down)
-            repeat(4) { vm.move(GuideDirection.Right) }
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
+            repeat(4) { vm.move(GuideDirection.Right, repeat = false, atMs = 0) }
             assertTrue(vm.snapshot.value.isAwayFrom(CH5))
             assertTrue(vm.ready().viewportStartMs > vm.ready().model.originMs)
 
@@ -416,13 +416,13 @@ class GuideViewModelTest : GuideRig() {
             val gone = ChannelId("gone")
             vm.open(gone)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertFalse(vm.snapshot.value.isAwayFrom(gone))
             assertFalse(vm.backToPlaying())
             vm.close()
             vm.open(null)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertFalse(vm.snapshot.value.isAwayFrom(null))
             assertFalse(vm.backToPlaying())
         }
@@ -433,8 +433,8 @@ class GuideViewModelTest : GuideRig() {
             assertFalse(vm.backToPlaying())
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             vm.select()
             runCurrent()
             assertNotNull(vm.info.value)
@@ -446,7 +446,7 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            repeat(4) { vm.move(GuideDirection.Right) }
+            repeat(4) { vm.move(GuideDirection.Right, repeat = false, atMs = 0) }
             val scrolled = vm.ready().viewportStartMs
             assertTrue(scrolled > vm.ready().model.originMs)
 
@@ -464,7 +464,7 @@ class GuideViewModelTest : GuideRig() {
             lineup(untilMin = 120)
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertEquals(min(90), vm.focused().cellStartMs)
             schedule.onSchedule = { fake.channels.getValue(CH7).blocks = splitAround90(120) }
 
@@ -509,7 +509,7 @@ class GuideViewModelTest : GuideRig() {
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             val gate = CompletableDeferred<Unit>()
             server.itemDetailsGate = gate
 
@@ -536,7 +536,7 @@ class GuideViewModelTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             assertFalse(vm.closeInfo())
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             vm.select()
             runCurrent()
             assertNotNull(vm.info.value)
@@ -569,7 +569,7 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             vm.select()
             runCurrent()
             vm.close()
@@ -589,7 +589,7 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             vm.open(CH9)
             runCurrent()
             assertEquals(CH9, vm.focused().channel)
@@ -601,7 +601,7 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Down)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             assertEquals(CH9, vm.focused().channel)
             assertEquals(min(60), vm.ready().viewportStartMs)
             assertEquals(0, vm.ready().firstVisibleRow)
@@ -629,13 +629,13 @@ class GuideViewModelTest : GuideRig() {
         vm.open(CH7)
         runCurrent()
         look()
-        vm.move(GuideDirection.Right)
+        vm.move(GuideDirection.Right, repeat = false, atMs = 0)
         // A lineup change that drops the focused cell, and cells ending under the focus.
         schedule.onSchedule = { fake.channels.getValue(CH7).blocks = splitAround90(300) }
         repeat(400) {
             after(MIN / 2)
             look()
-            if (it % 40 == 0) vm.move(GuideDirection.Right)
+            if (it % 40 == 0) vm.move(GuideDirection.Right, repeat = false, atMs = 0)
         }
         assertTrue("the window was replaced during the run", fake.scheduleCalls.size >= 3)
     }
