@@ -81,28 +81,52 @@ class NameFolds {
     }
 }
 
-private const val LAST_C0 = 0x1F
-private const val DELETE = 0x7F
-private const val LAST_C1 = 0x9F
 private const val LINE_SEPARATOR = 0x2028
 private const val PARAGRAPH_SEPARATOR = 0x2029
-private const val ZWNJ = 0x200C
-private const val ZWJ = 0x200D
 private const val FIRST_SUPPLEMENTARY = 0x10000
 private const val HIGH_BASE = 0xD800
 private const val LOW_BASE = 0xDC00
 private const val SURROGATE_BITS = 10
 
-// The format characters outside the Basic Multilingual Plane (Unicode 15): shorthand-format and musical-symbol
-// controls and the tag characters. Named by range because common code has no code-point category lookup.
-private val SUPPLEMENTARY_FORMAT = listOf(0x1BCA0..0x1BCA3, 0x1D173..0x1D17A, 0xE0001..0xE0001, 0xE0020..0xE007F)
+// What a studio name loses: C0, DEL and C1 controls, and every format (Cf) code point of Unicode 15 except ZWJ (U+200D)
+// and ZWNJ (U+200C), which keep their place in scripts that need them. A fixed table, not the platform's character
+// category: the kid hold must give the same answer on every TV, whatever Unicode data its Android version carries.
+// Checked against Unicode 15.0 DerivedGeneralCategory: U+2065 is unassigned there, so it is not listed.
+private val STRIPPED_CODE_POINTS =
+    listOf(
+        0x0000..0x001F,
+        0x007F..0x009F,
+        0x00AD..0x00AD,
+        0x0600..0x0605,
+        0x061C..0x061C,
+        0x06DD..0x06DD,
+        0x070F..0x070F,
+        0x0890..0x0891,
+        0x08E2..0x08E2,
+        0x180E..0x180E,
+        0x200B..0x200B,
+        0x200E..0x200F,
+        0x202A..0x202E,
+        0x2060..0x2064,
+        0x2066..0x206F,
+        0xFEFF..0xFEFF,
+        0xFFF9..0xFFFB,
+        0x110BD..0x110BD,
+        0x110CD..0x110CD,
+        0x13430..0x1343F,
+        0x1BCA0..0x1BCA3,
+        0x1D173..0x1D17A,
+        0xE0001..0xE0001,
+        0xE0020..0xE007F,
+    )
 
 /**
  * A studio name as the sync now stores it, for names cached before that cleaning existed, so every TV matches the same
  * text whichever version wrote its cache. Removes C0 and C1 controls, format characters other than ZWJ and ZWNJ
  * (direction controls, the zero-width space, the byte order mark...) and a lone half of a surrogate pair; tab, CR, LF,
  * U+2028 and U+2029 become a space; then trims. Nothing else is collapsed. Idempotent, so a name cleaned at sync time
- * comes through unchanged.
+ * comes through unchanged. What is removed is a fixed table of code points, not the platform's character category, so
+ * the answer is the same on every TV whatever Unicode data its Android version has.
  */
 fun cleanStudioName(text: String): String {
     val out = StringBuilder(text.length)
@@ -112,14 +136,14 @@ fun cleanStudioName(text: String): String {
         val next = text.getOrNull(i + 1)
         if (ch.isHighSurrogate() && next != null && next.isLowSurrogate()) {
             val cp = FIRST_SUPPLEMENTARY + ((ch.code - HIGH_BASE) shl SURROGATE_BITS) + (next.code - LOW_BASE)
-            if (SUPPLEMENTARY_FORMAT.none { cp in it }) out.append(ch).append(next)
+            if (!isStripped(cp)) out.append(ch).append(next)
             i += 2
             continue
         }
         when {
             ch.isSurrogate() -> Unit
             isSpaced(ch.code) -> out.append(' ')
-            !isStripped(ch) -> out.append(ch)
+            !isStripped(ch.code) -> out.append(ch)
         }
         i++
     }
@@ -129,11 +153,7 @@ fun cleanStudioName(text: String): String {
 private fun isSpaced(code: Int) =
     code == '\t'.code || code == '\r'.code || code == '\n'.code || code == LINE_SEPARATOR || code == PARAGRAPH_SEPARATOR
 
-private fun isStripped(ch: Char): Boolean {
-    val code = ch.code
-    return code <= LAST_C0 || code in DELETE..LAST_C1 ||
-        (ch.category == CharCategory.FORMAT && code != ZWNJ && code != ZWJ)
-}
+private fun isStripped(cp: Int) = STRIPPED_CODE_POINTS.any { cp in it }
 
 /** [names] cleaned ([cleanStudioName]) then folded ([foldNameAscii]), in order; a name left empty is dropped. */
 internal fun foldStudioNames(names: List<String>): List<String> =

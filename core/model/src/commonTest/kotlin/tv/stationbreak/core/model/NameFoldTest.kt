@@ -21,6 +21,15 @@ class NameFoldTest {
         assertEquals("", cleanStudioName(chars(0x202E, 0x200B, 0x2066, 0xFEFF)))
     }
 
+    // The newer entries of the fixed table: a platform with older Unicode data must strip them too.
+    @Test
+    fun aStudioNameLosesTheNewerFormatCharactersFromTheFixedTable() {
+        val supplementary = charArrayOf(Char(0xD80D), Char(0xDC30)).concatToString()
+        assertEquals("ab", cleanStudioName("a" + chars(0x0890, 0x08E2, 0x180E) + "b"))
+        assertEquals("ab", cleanStudioName("a" + supplementary + "b"))
+        assertEquals("a" + chars(0x2065) + "b", cleanStudioName("a" + chars(0x2065) + "b"))
+    }
+
     @Test
     fun aStudioNameKeepsJoinersAndMapsLineAndTabCharactersToASpace() {
         assertEquals("A" + chars(0x200D, 0x200C) + "B", cleanStudioName("A" + chars(0x200D, 0x200C) + "B"))
