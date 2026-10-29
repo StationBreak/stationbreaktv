@@ -57,10 +57,10 @@ class ScheduleWarmer(
 
     /**
      * Starts following the active account in [scope]; true if this call started it. A second call does nothing:
-     * one-shot, for the app's scope.
+     * one-shot, for the app's scope. Only [foreground] (and tests) start it, so nothing warms before the app is seen.
      */
     @Synchronized
-    fun start(scope: CoroutineScope): Boolean {
+    internal fun start(scope: CoroutineScope): Boolean {
         if (started != null) return false
         started =
             scope.launch {

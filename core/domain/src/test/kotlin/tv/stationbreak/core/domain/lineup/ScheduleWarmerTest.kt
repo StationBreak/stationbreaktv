@@ -126,6 +126,8 @@ class ScheduleWarmerTest {
         }
 
     // #434: WorkManager starts the process for the periodic sync with no screen; nothing in it needs a day built.
+    // foreground() is the warmer's only public way in; that the app calls it from the process lifecycle's start and not
+    // from Application.onCreate is wiring, checked in review (the app has no Robolectric to run StationBreakApp).
     @Test
     fun aWarmerBuildsNothingUntilTheAppFirstComesToTheForeground() =
         runTest {

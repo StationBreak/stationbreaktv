@@ -27,6 +27,8 @@ import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
+import tv.stationbreak.core.domain.lineup.SyncActivity
+import tv.stationbreak.data.library.StayCurrentProvider
 import tv.stationbreak.data.settings.lineup.FileLineupStore
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -125,6 +127,16 @@ internal object LineupModule {
         library: LibraryRepository,
     ): ScheduleWarmer = ScheduleWarmer(source, service, library, Clock.System)
 
+    /**
+     * Whether a sync is writing the saved library (#434): the quiet stay-current runs of the process's one
+     * `StayCurrent`, which the `Application` holds. The first sync is not part of it yet; when it is, it joins here.
+     * Read only when the refresher starts listening, which only the app's own `Application` does.
+     */
+    @Provides
+    fun syncActivity(
+        @ApplicationContext context: Context,
+    ): SyncActivity = SyncActivity { (context as StayCurrentProvider).stayCurrent().runner.running }
+
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides
     @Singleton
@@ -132,8 +144,9 @@ internal object LineupModule {
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
+        sync: SyncActivity,
     ): LineupRefresher =
-        LineupRefresher(service, library, { settings.loadLibraries() }) {
+        LineupRefresher(service, library, { settings.loadLibraries() }, sync) {
             Log.i(TAG, it.name)
         }
 }

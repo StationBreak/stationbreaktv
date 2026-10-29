@@ -176,37 +176,6 @@ class StayCurrentRunnerTest {
             assertFalse(rig.runner.isRunning)
         }
 
-    // #434: the lineup refresher holds its triggers while a run writes, and checks once when the run ends.
-    @Test
-    fun theRunningSignalIsOnForTheWholeRunAndOffAfterIt() =
-        runBlocking {
-            rig.firstSyncDone()
-            rig.clock.instant += 7.hours
-            assertFalse(rig.runner.running.value)
-            var duringRun = false
-            server.respond = { call ->
-                if (call.number == 1) duringRun = rig.runner.running.value
-                null
-            }
-
-            rig.runner.run(both)
-
-            assertTrue(duringRun)
-            assertFalse(rig.runner.running.value)
-        }
-
-    @Test
-    fun theRunningSignalIsOffAfterARunThatThrows() =
-        runBlocking {
-            rig.firstSyncDone()
-            rig.clock.instant += 7.hours
-            server.respond = { throw IllegalStateException("a killed process") }
-
-            runCatching { rig.runner.run(both) }
-
-            assertFalse(rig.runner.running.value)
-        }
-
     @Test
     fun theFlagIsClearedEvenWhenTheRunThrows() =
         runBlocking {

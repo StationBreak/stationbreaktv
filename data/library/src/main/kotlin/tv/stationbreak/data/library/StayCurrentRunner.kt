@@ -105,13 +105,19 @@ class StayCurrentRunner(
     internal var purge: suspend (LibraryAccount, Instant?) -> PurgeOutcome =
         { account, reference -> repository.purgeHistory(account, reference) }
 
-    /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
+    /**
+     * True while a run holds the gate, from before it reads the settings to after it ends, writing or not. The trigger
+     * policy reads it so an open during a sync starts nothing. Compare [running].
+     */
     val isRunning: Boolean get() = gate.isLocked
 
     /**
-     * True from the moment a run takes the gate to the moment it lets it go, whatever ended it; a run that does nothing
-     * (an empty plan, or another run going) never sets it. The lineup refresher holds its triggers while it is true, so
-     * a run's several writes cost one lineup refresh, after the last of them (#434).
+     * True while a run is writing: from the moment its passes begin (settings read, session verified, the account still
+     * the one signed in) to the moment the run ends, whatever ended it. A run that stops before its passes (no server,
+     * no libraries, the first sync still open, signed out, the server unreachable) never sets it. That is how it
+     * differs from [isRunning], which covers the whole run: the lineup refresher holds the triggers a run's writes
+     * cause while this is true and checks once when it turns false, so a run that wrote nothing must not look like one
+     * that did (#434).
      */
     val running: StateFlow<Boolean> = runningNow.asStateFlow()
 
@@ -132,11 +138,11 @@ class StayCurrentRunner(
                 null
             }
         if (blocked != null) return report.skipped(plan, blocked)
-        runningNow.value = true
         try {
             return guarded(plan)
         } finally {
-            // Before the gate opens, so a run that takes it next cannot have its own "true" overwritten.
+            // Here, whatever ended the run, and before the gate opens, so a run that takes it next cannot have its own
+            // "true" overwritten.
             runningNow.value = false
             gate.unlock()
         }
@@ -193,6 +199,7 @@ class StayCurrentRunner(
         if (session.server.id != account.server || session.userId != account.user) {
             return report.skipped(plan, Skip.AccountChanged)
         }
+        runningNow.value = true
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val began = timeSource.markNow()

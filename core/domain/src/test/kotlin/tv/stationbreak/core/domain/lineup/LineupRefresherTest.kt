@@ -61,6 +61,10 @@ class LineupRefresherTest {
     private var offset = 0
     private var libraries: Set<ItemId>? = LIBRARIES
     private val job = Job()
+
+    // Whether a sync run is writing the library (#434): off unless a test says otherwise.
+    private val writing = MutableStateFlow(false)
+    private val sync = SyncActivity { writing }
     private val scope = CoroutineScope(job)
 
     private val clock =
@@ -78,7 +82,7 @@ class LineupRefresherTest {
     private fun refresher(
         lib: LibraryRepository = library,
         backoffMs: Long = LineupRefresher.INITIAL_BACKOFF_MS,
-    ) = LineupRefresher(service, lib, { libraries }, backoffMs) { events += it }
+    ) = LineupRefresher(service, lib, { libraries }, sync, backoffMs) { events += it }
 
     private val refreshes get() = library.snapshotCutoffs.size
 
@@ -228,7 +232,7 @@ class LineupRefresherTest {
     private fun relaunch(): LineupRefresher {
         // A new process: a new service over the same store and library, and a new refresher.
         val fresh = serviceOver(library)
-        return LineupRefresher(fresh, library, { libraries }) { events += it }
+        return LineupRefresher(fresh, library, { libraries }, sync) { events += it }
     }
 
     @Test
@@ -306,7 +310,7 @@ class LineupRefresherTest {
             lastRunSettled(earlier)
             val pass = Instant.parse("2026-10-19T12:00:00Z")
             val flaky = FailingPlanningRead(library)
-            LineupRefresher(serviceOver(flaky), flaky, { libraries }) { events += it }.start(scope)
+            LineupRefresher(serviceOver(flaky), flaky, { libraries }, sync) { events += it }.start(scope)
             settle()
 
             library.delegate.noteContentChange(ACCOUNT)
@@ -446,21 +450,20 @@ class LineupRefresherTest {
         }
 
     // #434: one stay-current run fired a refresh at its success and another at its collection pass, and its studios
-    // re-read wrote after both. Its triggers are held while it runs and checked once when it ends.
+    // re-read wrote after both. The triggers its writes cause are held while it writes and checked once at its end.
     @Test
     fun aSyncRunIsTakenInByOneRefreshWhenItEnds() =
         runBlocking<Unit> {
-            val syncing = MutableStateFlow(false)
             library.delegate.setCollectionsSynced(ACCOUNT, true)
             library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
             service.refresh(ACCOUNT, LIBRARIES)
             val before = refreshes
-            refresher().start(scope, syncing)
+            refresher().start(scope)
             settle()
             assertEquals(before, refreshes, "current at start")
 
             // One run: the incremental pass, then the collection pass, then the studios re-read, each writing rows.
-            syncing.value = true
+            writing.value = true
             library.delegate.noteContentChange(ACCOUNT)
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
             val pass = Instant.parse("2026-10-19T10:01:00Z")
@@ -470,7 +473,7 @@ class LineupRefresherTest {
             settle()
             assertEquals(before, refreshes, "nothing is planned while the run writes")
 
-            syncing.value = false
+            writing.value = false
             until("refreshed when the run ended") { refreshes == before + 1 }
             settle()
 
@@ -485,16 +488,15 @@ class LineupRefresherTest {
         runBlocking<Unit> {
             lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
             val before = refreshes
-            val syncing = MutableStateFlow(false)
-            relaunch().start(scope, syncing)
+            relaunch().start(scope)
             settle()
 
-            syncing.value = true
+            writing.value = true
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
             val pass = Instant.parse("2026-10-19T11:01:00Z")
             library.delegate.completeCollectionPass(ACCOUNT, pass)
             settle()
-            syncing.value = false
+            writing.value = false
             until("the pass recorded") { savedMeta().collectionPassActedOn == pass.toEpochMilliseconds() }
             settle()
 
@@ -502,21 +504,29 @@ class LineupRefresherTest {
         }
 
     @Test
-    fun aStartWhileASyncRunsWaitsForTheRunToEnd() =
+    fun aStartThatFindsTheLineupBehindRefreshesAtOnceEvenWhileASyncWrites() =
         runBlocking<Unit> {
-            // A process WorkManager started for the periodic run: the run is going when the refresher starts.
-            val syncing = MutableStateFlow(true)
-            refresher().start(scope, syncing)
-            settle()
-            assertEquals(0, refreshes, "the lineup is absent, but the run is still writing")
-
+            // An earlier process died before its end-of-run refresh: the stored lineup is behind the library.
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
+            service.refresh(ACCOUNT, LIBRARIES)
             library.delegate.noteContentChange(ACCOUNT)
-            syncing.value = false
-            until("refreshed when the run ended") { refreshes >= 1 }
-            settle()
+            val before = refreshes
 
-            assertEquals(1, refreshes)
-            assertEquals(library.delegate.contentGeneration(ACCOUNT), savedMeta().plannedGeneration)
+            // This process starts while its own run is already writing.
+            writing.value = true
+            relaunch().start(scope)
+            until("refreshed at start") { refreshes == before + 1 }
+
+            writing.value = false
+            settle()
+            assertEquals(before + 1, refreshes, "the run wrote nothing more: the end check finds the lineup current")
+
+            writing.value = true
+            library.delegate.noteContentChange(ACCOUNT)
+            settle()
+            writing.value = false
+            until("a run that wrote more refreshes at its end") { refreshes == before + 2 }
         }
 
     @Test
@@ -566,7 +576,7 @@ class LineupRefresherTest {
         runBlocking<Unit> {
             val slow = SlowLibrary(library)
             service.refresh(ACCOUNT, LIBRARIES)
-            LineupRefresher(serviceOver(slow), slow, { libraries }) { events += it }.start(scope)
+            LineupRefresher(serviceOver(slow), slow, { libraries }, sync) { events += it }.start(scope)
             settle()
 
             // Both signals at once: the two refreshes they ask for must not overlap.
@@ -621,7 +631,7 @@ class LineupRefresherTest {
             }
             // No libraries are chosen, so nothing is ever planned and the lineup stays stale: every resubscription
             // emits Start again; the collection-pass source always throws.
-            val refresher = LineupRefresher(service, AlwaysThrowingPasses(library), { libraries }, 1_000L, report)
+            val refresher = LineupRefresher(service, AlwaysThrowingPasses(library), { libraries }, sync, 1_000L, report)
 
             refresher.start(backgroundScope)
             testScheduler.advanceTimeBy(15_010L)
@@ -685,6 +695,7 @@ class LineupRefresherTest {
                     }
                     libraries
                 },
+                sync,
             ) { events += it }.start(scope)
             settle()
             throwOnce = true
@@ -711,7 +722,7 @@ class LineupRefresherTest {
                 entered.complete(Unit)
                 withContext(NonCancellable) { gate.await() }
                 otherLibraries
-            }) { events += it }.start(scope)
+            }, sync) { events += it }.start(scope)
             withTimeout(WAIT_MS) { entered.await() }
 
             library.delegate.useAccount(other)
@@ -727,7 +738,7 @@ class LineupRefresherTest {
     fun startingTwiceStartsOnce() =
         runBlocking<Unit> {
             val slow = SlowLibrary(library)
-            val refresher = LineupRefresher(serviceOver(slow), slow, { libraries }) { events += it }
+            val refresher = LineupRefresher(serviceOver(slow), slow, { libraries }, sync) { events += it }
             refresher.start(scope)
             refresher.start(scope)
             until("refreshed") { slow.completed.get() >= 1 }
@@ -745,7 +756,7 @@ class LineupRefresherTest {
             // The account flow the refresher listens to has not delivered the new account yet, but the port already
             // answers it when asked again, and the selection is already the new account's.
             val lagging = LaggingActiveAccount(seen, stale = ACCOUNT, now = other)
-            LineupRefresher(serviceOver(seen), lagging, { otherLibraries }) { events += it }.start(scope)
+            LineupRefresher(serviceOver(seen), lagging, { otherLibraries }, sync) { events += it }.start(scope)
             settle()
 
             assertEquals(emptyList(), seen.reads, "no refresh with the other account's libraries")
