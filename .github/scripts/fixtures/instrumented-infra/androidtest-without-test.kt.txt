@@ -1,0 +1,3 @@
+// Fixture for instrumented-infra.test.sh: androidTest source with helpers but no real tests (only an install annotation).
+@TestInstallIn(components = [SingletonComponent::class])
+class SampleTestRuleHelper : TestRule

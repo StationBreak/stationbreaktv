@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# Sourced by scripts/preflight.sh (and its test); defines the two rules preflight.sh uses to judge a run of the
-# connected (instrumented) test tasks. Runs nothing itself. Paths are relative to the repo root (the current directory).
+# Sourced by scripts/preflight.sh and .github/scripts/instrumented-infra.sh (and the tests); defines the two rules they
+# use to judge a run of the connected (instrumented) test tasks. It lives under .github/ so the CI gate's logic stays
+# inside the reviewed path (ADR-0012). Runs nothing itself. Paths are relative to the repo root (the current directory).
 #
 # Why (#482): when a module's APK does not install, AGP 9.4.1's Android test engine prints "AndroidTestRunner failed"
 # and the task still passes. Its test-result-exit-code.txt says 0, it writes no JUnit XML, and Gradle exits 0. Both a
@@ -24,20 +25,33 @@ connected_module() {
   esac
 }
 
-# tasks_without_results <since-file> <task...>: prints each task whose module has at least one @Test under
-# src/androidTest but wrote no TEST-*.xml under build/outputs/androidTest-results/connected/ after <since-file> was made.
-# A module with no tests is never expected to write any, so it is never listed.
+# tasks_without_results <since-file> <task...>: prints each task whose module has at least one real test under a
+# src/androidTest* source set but wrote no fresh result: a TEST-*.xml under build/outputs/androidTest-results/connected/
+# made after <since-file> that holds at least one <testcase> (an empty suite counts as no result). A module with no
+# tests is never expected to write any, so it is never listed. A name that is not a Gradle task path is skipped with a
+# note on stderr, as instrumented-infra.sh classify does.
 tasks_without_results() {
-  local since="$1" task module
+  local since="$1" task module dir has_tests
   shift
   for task in "$@"; do
-    module="$(connected_module "$task")"
-    # @Test itself, not @TestRule or @TestInstallIn.
-    if ! grep -rqsE '@Test([^A-Za-z0-9_]|$)' "$module/src/androidTest"; then
+    if ! [[ "$task" =~ ^:?[A-Za-z0-9_-]+(:[A-Za-z0-9_-]+)*$ ]]; then
+      echo "skipping task name that is not a task path: $task" >&2
       continue
     fi
-    if ! find "$module/build/outputs/androidTest-results/connected" -name 'TEST-*.xml' -newer "$since" 2>/dev/null |
-      grep -q .; then
+    module="$(connected_module "$task")"
+    # The @Test annotation itself (or @org.junit.Test), not @TestRule or @TestInstallIn.
+    has_tests=1
+    for dir in "$module"/src/androidTest*; do
+      if [ -d "$dir" ] && grep -rqsE '@(org\.junit\.)?Test([^A-Za-z0-9_.]|$)' "$dir"; then
+        has_tests=0
+        break
+      fi
+    done
+    if [ "$has_tests" -ne 0 ]; then
+      continue
+    fi
+    if ! find "$module/build/outputs/androidTest-results/connected" -name 'TEST-*.xml' -newer "$since" \
+      -exec grep -l '<testcase' {} + 2>/dev/null | grep -q .; then
       echo "$task"
     fi
   done

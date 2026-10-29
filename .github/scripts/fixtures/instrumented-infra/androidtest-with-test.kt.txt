@@ -1,0 +1,9 @@
+// Fixture for instrumented-infra.test.sh: a module's androidTest source with a real test.
+class SampleInstrumentedTest {
+    @get:Rule
+    val rule = createComposeRule()
+
+    @Test
+    fun opens() {
+    }
+}

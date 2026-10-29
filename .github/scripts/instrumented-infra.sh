@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
 # Tells an emulator or runner failure from a real test failure, so CI's `emulator` job can retry the first and never
-# the second. Four modes:
+# the second. Five modes:
 #
 #   instrumented-infra.sh prepare <dir>
 #       Calms the emulator before the tests: closes system dialogs, disables the crashing config updater, and gives
@@ -10,11 +10,21 @@
 #       prints the buffer sizes and prune list it ended up with. `run` calls it first, so both attempts get it.
 #       <dir> is unused. Every adb call is bounded by `timeout 20` and tolerates failure: it never fails the job.
 #
-#   instrumented-infra.sh run <dir>
-#       Runs `prepare`, then `./gradlew $CONNECTED_TASKS` (the action's script step). On failure it saves what
-#       classify needs into <dir>: logcat.txt (also copied to app/build/logcat.txt, where the reports upload has
+#   instrumented-infra.sh run <dir> [final]
+#       Runs `prepare`, then `./gradlew $CONNECTED_TASKS` (the action's script step). If Gradle passes it runs `verify`,
+#       and its exit status is the step's. `final` (the retry) makes a missing result an ::error::, not a ::warning::. On failure it saves what classify needs into <dir>: logcat.txt (also copied to app/build/logcat.txt, where the reports upload has
 #       always looked), adb-state.txt (`adb get-state`) and emulator-state.txt (alive | gone: is a qemu process
 #       still running).
+#
+#   instrumented-infra.sh verify <dir> [final]
+#       Run from the repo root after a Gradle run that passed (`run` calls it). AGP 9.4.1's test engine counts a failed or
+#       killed APK install as a pass: Gradle succeeds, the module writes no JUnit XML (#489, #482). So for every task in
+#       $CONNECTED_TASKS whose module has a real @Test under src/androidTest, it requires a TEST-*.xml newer than
+#       <dir>/started (the marker `run` makes just before Gradle, so a file left from an earlier attempt does not count).
+#       The rule is tasks_without_results in connected-results.sh next to this script, sourced so preflight.sh and CI
+#       cannot drift. If any module has none it writes their task names to <dir>/missing-results.txt, prints a
+#       `::warning::` naming them (an `::error::` if the second argument is `final`) and exits 1; else exit 0. It exits 2
+#       if connected-results.sh or its functions cannot be loaded, or <dir>/started is missing. A module with no real tests is never expected to write any.
 #
 #   instrumented-infra.sh classify <dir> [results-root]
 #       Exit 0: infrastructure failure, retry. Exit 1: not one, fail the job. Prints the reason either way.
@@ -41,6 +51,8 @@
 #         5. The step was cut off (its timeout) with a module still to report: `run` left its `started`
 #            marker but was killed before it saved emulator-state.txt, no result file has a failure, and a module in
 #            $CONNECTED_TASKS wrote no results (module :a:b writes under a/b/, the app under app/). Retry.
+#         5b. <dir>/missing-results.txt exists (written by `verify`: Gradle passed but a module wrote no results, a
+#            lost APK install). Retry. After the rules above, so a real failure is never reclassified by it.
 #         6. No result file at all: the emulator never booted, or the step was cut off (a step timeout kills `run`
 #            before it can save anything, so <dir> may be empty). Retry.
 #         7. Anything else: not infrastructure.
@@ -55,7 +67,7 @@ set -uo pipefail
 mode="${1:-}"
 dir="${2:-}"
 if [ -z "$mode" ] || [ -z "$dir" ]; then
-  echo "usage: $0 prepare|run|classify|cleanup <dir> [results-root]" >&2
+  echo "usage: $0 prepare|run|verify|classify|cleanup <dir> [results-root]" >&2
   exit 2
 fi
 
@@ -92,7 +104,10 @@ case "$mode" in
     # Split on spaces, never globbed.
     set -f
     if ./gradlew ${CONNECTED_TASKS:?CONNECTED_TASKS is not set}; then
-      exit 0
+      set +f
+      # A pass proves nothing if a module's APK never installed (#489): look for the results.
+      # If a module has none, fall through to the failure handling below (logcat and state saved, exit 1).
+      if bash "${BASH_SOURCE[0]}" verify "$dir" "${3:-}"; then exit 0; fi
     fi
     set +f
     adb logcat -d >"$dir/logcat.txt" 2>&1 || true
@@ -105,6 +120,39 @@ case "$mode" in
       echo gone >"$dir/emulator-state.txt"
     fi
     exit 1
+    ;;
+
+  verify)
+    # Fail closed: a verify that cannot load its rule must not pass.
+    # shellcheck source=connected-results.sh
+    . "$(dirname "${BASH_SOURCE[0]}")/connected-results.sh" || { echo "::error::cannot load connected-results.sh"; exit 2; }
+    declare -F tasks_without_results >/dev/null || { echo "::error::connected-results.sh lacks tasks_without_results"; exit 2; }
+    declare -F connected_module >/dev/null || { echo "::error::connected-results.sh lacks connected_module"; exit 2; }
+    since="$dir/started"
+    if [ ! -f "$since" ]; then
+      echo "verify: $since is missing (run makes it); cannot tell fresh results from stale" >&2
+      exit 2
+    fi
+    set -f
+    read -ra tasks <<<"${CONNECTED_TASKS:?CONNECTED_TASKS is not set}"
+    set +f
+    rm -f "$dir/missing-results.txt"
+    missing=()
+    while IFS= read -r task; do
+      [ -n "$task" ] && missing+=("$task")
+    done < <(tasks_without_results "$since" "${tasks[@]}")
+    if [ "${#missing[@]}" -gt 0 ]; then
+      printf '%s\n' "${missing[@]}" >"$dir/missing-results.txt"
+      modules=()
+      for task in "${missing[@]}"; do modules+=("$(connected_module "$task")"); done
+      # Attempt 1's miss is retried, so it is a warning; the final attempt's miss fails the job, so it is an error.
+      level=warning
+      if [ "${3:-}" = final ]; then level=error; fi
+      echo "::${level}::Gradle passed but these modules' instrumented tests wrote no results (the APK did not install?): ${modules[*]} (tasks: ${missing[*]})"
+      exit 1
+    fi
+    echo "verify: every module with instrumented tests wrote results"
+    exit 0
     ;;
 
   classify)
@@ -188,6 +236,11 @@ case "$mode" in
       echo "infra: adb no longer sees a device ($(tr '\n' ' ' <"$dir/adb-state.txt"))"
       exit 0
     fi
+    # Gradle passed but a module wrote no results (verify): its APK did not install.
+    if [ -s "$dir/missing-results.txt" ]; then
+      echo "infra: missing results for $(paste -sd' ' "$dir/missing-results.txt") (Gradle passed; the APK install failed or was killed)"
+      exit 0
+    fi
     # Cut off: started, never got to save its state. Needs CONNECTED_TASKS to know which modules should have reported.
     if [ -f "$dir/started" ] && [ ! -f "$dir/emulator-state.txt" ] && [ -n "${CONNECTED_TASKS:-}" ]; then
       missing=()
@@ -233,7 +286,7 @@ case "$mode" in
     ;;
 
   *)
-    echo "usage: $0 prepare|run|classify|cleanup <dir> [results-root]" >&2
+    echo "usage: $0 prepare|run|verify|classify|cleanup <dir> [results-root]" >&2
     exit 2
     ;;
 esac

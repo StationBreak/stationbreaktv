@@ -119,6 +119,10 @@ jobs:
       - name: Test the instrumented infra classifier
         run: bash .github/scripts/instrumented-infra.test.sh
 
+      # Which modules must write instrumented results (shared with scripts/preflight.sh).
+      - name: Test the instrumented results rule
+        run: bash .github/scripts/connected-results.test.sh
+
       # Which PRs also build the release variants (the `release` output above).
       - name: Test the release-scope classifier
         run: bash .github/scripts/release-scope.test.sh
@@ -792,7 +796,9 @@ jobs:
       # The emulator itself is the flaky part (a surfaceflinger crash, a boot that never finishes, a stalled run),
       # so a failed attempt is retried once, and only when .github/scripts/instrumented-infra.sh says the failure
       # was infrastructure: an empty <failure>, a system crash in the logcat, a dead emulator or adb, no results at
-      # all (a boot failure), a step cut off by its timeout with a module's results missing, or one of two known
+      # all (a boot failure), a step cut off by its timeout with a module's results missing, a pass in which a module
+      # with instrumented tests wrote no results (AGP counts a lost APK install as a pass, #489; `run` checks for it,
+      # and the retry's own check fails the job with an ::error:: naming the modules; attempt 1's miss is only a warning), or one of two known
       # system-dialog signatures (INJECT_EVENTS refused; "No compose hierarchies found" as the only failure). Before
       # each attempt `run` also calms the AVD and enlarges the logcat (its `prepare` step). A failure with any other
       # message is a real test failure and fails the job at once. Each attempt's own timeout is below the job's, so a stall to the limit can still be retried.
@@ -854,7 +860,7 @@ jobs:
           profile: tv_720p
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2
+          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2 final
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 

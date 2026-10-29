@@ -25,7 +25,7 @@
 # stalled install is stopped and its evidence saved in an install-stall-* directory of the run (#482). A module with
 # tests that wrote no test results (a stopped install, or any other failure to start its tests, which Gradle reports as
 # a pass) is run once more. The step fails on a failure in a module that wrote results, or on the re-run's failure, or
-# if a re-run module still has no results (scripts/connected-results.sh).
+# if a re-run module still has no results (.github/scripts/connected-results.sh).
 # Exit: 0 all passed, 1 a step failed, 2 usage error.
 set -euo pipefail
 
@@ -115,7 +115,7 @@ script_tests() {
   bash scripts/guard-tree.test.sh
   bash scripts/run-bounded.test.sh
   bash scripts/install-watchdog.test.sh
-  bash scripts/connected-results.test.sh
+  bash .github/scripts/connected-results.test.sh
   bash scripts/playback-matrix/playback-matrix.test.sh
 }
 
@@ -236,8 +236,8 @@ contract_tests() {
 source scripts/run-bounded.sh
 # shellcheck source=scripts/install-watchdog.sh
 source scripts/install-watchdog.sh
-# shellcheck source=scripts/connected-results.sh
-source scripts/connected-results.sh
+# shellcheck source=.github/scripts/connected-results.sh
+source .github/scripts/connected-results.sh
 
 emulator_image='system-images;android-25;android-tv;x86'
 emulator_port=5580
@@ -455,7 +455,7 @@ instrumented_tests() {
   done
   kill "$tee_pid" 2>/dev/null || true
   wait "$tee_pid" 2>/dev/null || true
-  # A module whose install was stopped or lost wrote no results, and Gradle still passed it (scripts/connected-results.sh).
+  # A module whose install was stopped or lost wrote no results, and Gradle still passed it (.github/scripts/connected-results.sh).
   # Each is run once more; connected_status then combines the two attempts.
   if [ "$status" -ne 124 ]; then
     mapfile -t retry < <(tasks_without_results "$since" "${tasks[@]}")
