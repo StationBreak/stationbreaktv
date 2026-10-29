@@ -93,6 +93,9 @@ internal class SnapshotCache(
     internal val reads: Int get() = started.get()
     internal val cancelledReads: Int get() = cancelled.get()
 
+    /** True when every one of [keys] is kept and not dropped by the garbage collector. Reads nothing. */
+    fun holdsAll(keys: List<Key>): Boolean = synchronized(lock) { keys.all { kept[it]?.get() != null } }
+
     /** What [claim] found: a kept snapshot, or the read to wait for. */
     private class Claim(
         val hit: Got?,

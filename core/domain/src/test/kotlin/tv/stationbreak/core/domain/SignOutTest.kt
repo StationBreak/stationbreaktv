@@ -88,6 +88,60 @@ class SignOutTest {
             assertEquals(listOf(account), cache.forgotten)
         }
 
+    /** The days on disk (#480), as the app composes them with the library: told after it. */
+    private class RecordingDays : AccountCache {
+        val used = mutableListOf<LibraryAccount>()
+        val forgotten = mutableListOf<LibraryAccount>()
+
+        override suspend fun useAccount(account: LibraryAccount) {
+            used += account
+        }
+
+        override suspend fun forget(account: LibraryAccount) {
+            forgotten += account
+        }
+    }
+
+    @Test
+    fun signingOutForgetsTheDaysOnDiskToo() =
+        runBlocking {
+            val cache = InMemoryLibraryRepository()
+            val days = RecordingDays()
+            val sessions = SessionRepository(store, server, AccountCaches(cache, days))
+            sessions.save(session)
+
+            sessions.signOut(session)
+
+            assertEquals(listOf(account), cache.forgotten)
+            assertEquals(listOf(account), days.forgotten)
+        }
+
+    @Test
+    fun signingInOrSwitchingAccountKeepsOnlyThatAccountsDays() =
+        runBlocking {
+            val days = RecordingDays()
+            val sessions = SessionRepository(store, server, AccountCaches(InMemoryLibraryRepository(), days))
+
+            sessions.save(session)
+            server.resumeResult = ServerResult.Success(session)
+            sessions.restore(address)
+
+            assertEquals(listOf(account, account), days.used)
+        }
+
+    @Test
+    fun theDaysAreForgottenEvenWhenTheLibraryCannotBe() =
+        runBlocking {
+            val days = RecordingDays()
+            val cache = InMemoryLibraryRepository().apply { failForget = true }
+            val sessions = SessionRepository(store, server, AccountCaches(cache, days))
+            sessions.save(session)
+
+            sessions.signOut(session)
+
+            assertEquals(listOf(account), days.forgotten)
+        }
+
     @Test
     fun signingOutStillFinishesWhenTheCacheCannotBeCleared() =
         runBlocking {

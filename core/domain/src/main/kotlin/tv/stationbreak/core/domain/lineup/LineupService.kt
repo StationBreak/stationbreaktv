@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
@@ -86,7 +88,12 @@ class LineupService internal constructor(
         report: (LineupEvent) -> Unit,
     ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams())
 
-    /** As above, and [timed] is told each completed refresh's wall time in milliseconds (a number, nothing else). */
+    /**
+     * As above, and [timed] is told each completed refresh's wall time in milliseconds (a number, nothing else).
+     * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
+     * too.
+     */
+    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and three numbers-only hooks.
     constructor(
         store: LineupStore,
         library: LibraryRepository,
@@ -94,7 +101,8 @@ class LineupService internal constructor(
         standardOffsetMinutes: () -> Int,
         report: (LineupEvent) -> Unit,
         timed: (Long) -> Unit,
-    ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed))
+        derived: DayStore? = null,
+    ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed, derived = derived))
 
     internal val catalog: StarterCatalogView get() = seams.catalog
 
@@ -244,7 +252,8 @@ class LineupService internal constructor(
     /**
      * Forgets [account]'s lineup, for an explicit user action only: the in-memory lineup goes first, then the stored
      * file, so a refresh afterwards plans from scratch and never saves the old lineup back. This is the only way to
-     * delete a lineup; nothing else may call `LineupStore.forget`. True when no stored lineup remains.
+     * delete a lineup; nothing else may call `LineupStore.forget`. What was built from it ([LineupSeams.derived]: the
+     * days on disk) is forgotten with it. True when no stored lineup remains.
      */
     internal suspend fun forget(account: LibraryAccount): Boolean {
         val owner = ownerOf(account) ?: return false
@@ -253,7 +262,20 @@ class LineupService internal constructor(
             entry.state.value = null
             entry.loaded = false
             entry.writable = false
-            store.forget(owner.key)
+            store.forget(owner.key).also { forgetDerived(owner.key) }
+        }
+    }
+
+    // The days built from the lineup go after it: only the days' own store, never an AccountCache that could reach the
+    // library, and a fault there (it never throws, but) cannot undo the lineup's delete. Cancellation goes through.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun forgetDerived(account: LibraryAccount) {
+        try {
+            seams.derived?.forget(account)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Best effort: the days are a cache, and their key no longer matches a lineup that is gone.
         }
     }
 
@@ -396,13 +418,14 @@ class LineupService internal constructor(
 internal const val GIVE_UP_AFTER = 2
 
 /**
- * What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, and where
- * timings go.
+ * What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, where
+ * timings go, and what is forgotten with a lineup.
  */
 internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
     val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,
     val timed: (Long) -> Unit = {},
+    val derived: DayStore? = null,
 )
 
 /** An account in canonical form, as the store keys it, with its IDs for the planner. */

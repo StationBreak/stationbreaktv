@@ -8,6 +8,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.AccountCache
+import tv.stationbreak.core.domain.AccountCaches
+import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
@@ -42,8 +44,15 @@ internal object LibraryModule {
     @Provides
     fun libraryRepository(repository: RoomLibraryRepository): LibraryRepository = repository
 
+    /**
+     * What sign-in and sign-out tell: the saved library first, then the built days on disk made from it (#480), so a
+     * signed-out or switched-away account's days go with its library.
+     */
     @Provides
-    fun accountCache(repository: RoomLibraryRepository): AccountCache = repository
+    fun accountCache(
+        repository: RoomLibraryRepository,
+        days: DayStore,
+    ): AccountCache = AccountCaches(repository, days)
 
     /**
      * The first sync of the signed-in account (spec 06, Unit 3) on WorkManager: the progress screen and launch routing
