@@ -57,13 +57,32 @@ class Media3VideoPlayer(
     }
 
     private val loadCounter = LoadCounter()
+    private val allocator = PlaybackBuffering.mediaAllocator()
     private val exo: ExoPlayer =
         ExoPlayer
             .Builder(context)
-            .setLoadControl(buffering.toLoadControl())
+            .setLoadControl(buffering.toLoadControl(allocator))
             .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
             .build()
     private val handler = Handler(exo.applicationLooper)
+
+    // The `SBLIVE mem` line every MEMORY_SAMPLE_MS while a play is on the player (diagnostics, OOM of 2026-10-29).
+    private val sampleMemory =
+        object : Runnable {
+            override fun run() {
+                if (current == null) return
+                val runtime = Runtime.getRuntime()
+                val line =
+                    memoryLine(
+                        heapUsedBytes = runtime.totalMemory() - runtime.freeMemory(),
+                        heapMaxBytes = runtime.maxMemory(),
+                        playerBufferBytes = allocator.totalBytesAllocated.toLong(),
+                        bufferedMs = exo.totalBufferedDuration,
+                    )
+                android.util.Log.i(MEMORY_LOG_TAG, line)
+                handler.postDelayed(this, MEMORY_SAMPLE_MS)
+            }
+        }
     private val flow =
         MutableSharedFlow<PlayerEvent>(
             extraBufferCapacity = EVENT_BUFFER,
@@ -126,6 +145,8 @@ class Media3VideoPlayer(
             exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
             exo.prepare()
             exo.playWhenReady = true
+            handler.removeCallbacks(sampleMemory)
+            handler.postDelayed(sampleMemory, MEMORY_SAMPLE_MS)
         }
         return generation
     }
@@ -144,6 +165,7 @@ class Media3VideoPlayer(
     override fun release() =
         onPlayerThread {
             current = null
+            handler.removeCallbacks(sampleMemory)
             exo.release()
         }
 
@@ -315,6 +337,10 @@ class Media3VideoPlayer(
 
     private companion object {
         const val EVENT_BUFFER = 64
+
+        /** The tag live TV's measurement lines use, so a device run collects this line with them. */
+        const val MEMORY_LOG_TAG = "SBLIVE"
+        const val MEMORY_SAMPLE_MS = 10_000L
 
         /** The Media3 sample MIME type of each codec name the server uses; unlisted codecs are not checked. */
         val CODEC_MIMES =
