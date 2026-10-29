@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# Tests scripts/connected-results.sh on fake module trees: which tasks count as having no results, and how the two
+# Tests .github/scripts/connected-results.sh on fake module trees: which tasks count as having no results, and how the two
 # attempts' statuses combine.
 set -euo pipefail
 
@@ -17,7 +17,7 @@ expect() { # <description> <expected> <actual>
   if [ "$2" = "$3" ]; then check "$1" 0; else check "$1 (expected '$2', got '$3')" 1; fi
 }
 
-# shellcheck source=scripts/connected-results.sh
+# shellcheck source=connected-results.sh
 source "$here/connected-results.sh"
 
 cd "$work"
@@ -34,7 +34,7 @@ module() { # <dir> <has-tests: yes|no>
 result() { # <dir> [old]: a JUnit XML in the module's connected results, made before the run started if "old"
   local dir="$1/build/outputs/androidTest-results/connected/debug"
   mkdir -p "$dir"
-  : >"$dir/TEST-dev.xml"
+  printf '<testsuite tests="1"><testcase name="t"/></testsuite>\n' >"$dir/TEST-dev.xml"
   if [ "${2:-}" = old ]; then touch -d '2000-01-01' "$dir/TEST-dev.xml"; fi
 }
 
@@ -59,6 +59,21 @@ expect "a module with old results, or none, is listed; one with new results or o
 rm -rf app/build
 expect "the app's unqualified task is checked under app/" "connectedGithubDebugAndroidTest" \
   "$(tasks_without_results since connectedGithubDebugAndroidTest)"
+
+# More cases for the test scan and the freshness rule.
+module core/junit yes
+printf 'class T {\n  @org.junit.Test fun t() {}\n}\n' >core/junit/src/androidTest/kotlin/T.kt
+module core/extra no
+mkdir -p core/extra/src/androidTestDebug/kotlin
+printf 'class T {\n  @Test fun t() {}\n}\n' >core/extra/src/androidTestDebug/kotlin/T.kt
+module core/emptysuite yes
+mkdir -p core/emptysuite/build/outputs/androidTest-results/connected/debug
+printf '<testsuite tests="0"/>\n' >core/emptysuite/build/outputs/androidTest-results/connected/debug/TEST-dev.xml
+expect "@org.junit.Test and a src/androidTestDebug source set count; an empty suite counts as no result" \
+  ":core:junit:connectedDebugAndroidTest :core:extra:connectedDebugAndroidTest :core:emptysuite:connectedDebugAndroidTest" \
+  "$(tasks_without_results since :core:junit:connectedDebugAndroidTest :core:extra:connectedDebugAndroidTest :core:emptysuite:connectedDebugAndroidTest | tr '\n' ' ' | sed 's/ $//')"
+expect "a name that is not a task path is skipped" "" \
+  "$(tasks_without_results since ':core/../x:connectedDebugAndroidTest' 2>/dev/null)"
 
 expect "connected_module maps :a:b to a/b" "feature/guide" "$(connected_module :feature:guide:connectedDebugAndroidTest)"
 

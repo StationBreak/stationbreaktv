@@ -424,7 +424,7 @@ new_repo() {
 
 # run_in <writes>: `run` with the stub gradle, which writes results for the listed module dirs.
 run_in() {
-  out="$(cd "$repo" && STUB_WRITES="$1" PATH="$repo/bin:$PATH" CONNECTED_TASKS="$tasks" bash "$script" run "$diag" 2>&1)"
+  out="$(cd "$repo" && STUB_WRITES="$1" PATH="$repo/bin:$PATH" CONNECTED_TASKS="$tasks" bash "$script" run "$diag" ${final:-} 2>&1)"
   got=$?
 }
 
@@ -448,7 +448,13 @@ expect_run "verify: a module with zero real tests is ignored" 0 "app core/ui dat
 if grep -q 'feature' <<<"$out"; then fail "zero-test module" "named in the output" "$out"; fi
 
 new_repo
-expect_run "verify: one module missing fails the run and names it" 1 "app data/lib" "::error::"
+expect_run "verify: attempt 1 missing a module is a warning, not an error" 1 "app data/lib" "::warning::"
+if grep -qF '::error::' <<<"$out"; then fail "attempt 1 level" "printed an ::error::" "$out"; fi
+if [ -f "$diag/logcat.txt" ] && [ "$(cat "$diag/emulator-state.txt" 2>/dev/null)" = alive ] && [ -f "$repo/app/build/logcat.txt" ]; then
+  echo "ok   verify failure saved logcat.txt and emulator-state.txt"
+else
+  fail "verify failure state" "logcat.txt / emulator-state.txt not saved" "$(ls "$diag")"
+fi
 if [ "$(cat "$diag/missing-results.txt")" = ":core:ui:connectedDebugAndroidTest" ] && ! grep -qF 'data/lib (' <<<"$out"; then
   echo "ok   verify lists only the missing module"
 else
@@ -484,7 +490,31 @@ new_repo
 run_in "app data/lib"
 (cd "$repo" && PATH="$repo/bin:$PATH" bash "$script" cleanup "$diag" >/dev/null 2>&1)
 diag="$repo/diag2"
-expect_run "retry still missing: fails, ::error:: names the module" 1 "app data/lib" "wrote no results (the APK did not install?): core/ui "
+final=final
+expect_run "retry still missing: fails, ::error:: names the module" 1 "app data/lib" "::error::Gradle passed but these modules' instrumented tests wrote no results (the APK did not install?): core/ui "
+final=
+
+# verify fails closed: no started marker, a missing rule file, or a renamed function is exit 2, never a pass.
+new_repo
+v_out="$(cd "$repo" && CONNECTED_TASKS="$tasks" bash "$script" verify "$repo/nodir" 2>&1)"
+v_got=$?
+if [ "$v_got" -eq 2 ]; then echo "ok   verify without a started marker exits 2"; else fail "verify no marker" "exit $v_got" "$v_out"; fi
+
+for breakage in remove rename; do
+  new_repo
+  cp "$script" "$repo/instrumented-infra.sh"
+  if [ "$breakage" = rename ]; then
+    sed 's/tasks_without_results/tasks_with_no_results/g' "$here/connected-results.sh" >"$repo/connected-results.sh"
+  fi
+  : >"$diag/started"
+  v_out="$(cd "$repo" && CONNECTED_TASKS="$tasks" bash "$repo/instrumented-infra.sh" verify "$diag" 2>&1)"
+  v_got=$?
+  if [ "$v_got" -eq 2 ] && grep -qF '::error::' <<<"$v_out"; then
+    echo "ok   verify with the rule file ${breakage}d exits 2"
+  else
+    fail "verify fail-closed ($breakage)" "exit $v_got" "$v_out"
+  fi
+done
 
 # A genuine failure is never reclassified by a missing-results file.
 new_case

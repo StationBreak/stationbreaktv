@@ -794,7 +794,7 @@ jobs:
       # was infrastructure: an empty <failure>, a system crash in the logcat, a dead emulator or adb, no results at
       # all (a boot failure), a step cut off by its timeout with a module's results missing, a pass in which a module
       # with instrumented tests wrote no results (AGP counts a lost APK install as a pass, #489; `run` checks for it,
-      # and the retry's own check fails the job with an ::error:: naming the modules), or one of two known
+      # and the retry's own check fails the job with an ::error:: naming the modules; attempt 1's miss is only a warning), or one of two known
       # system-dialog signatures (INJECT_EVENTS refused; "No compose hierarchies found" as the only failure). Before
       # each attempt `run` also calms the AVD and enlarges the logcat (its `prepare` step). A failure with any other
       # message is a real test failure and fails the job at once. Each attempt's own timeout is below the job's, so a stall to the limit can still be retried.
@@ -856,7 +856,7 @@ jobs:
           profile: tv_720p
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2
+          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2 final
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 
