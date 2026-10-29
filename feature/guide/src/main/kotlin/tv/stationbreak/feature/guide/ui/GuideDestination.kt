@@ -125,8 +125,7 @@ internal fun GuideRoot(
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val back: (() -> Unit)? =
         remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.backToPlaying()) d.onBackPressed() } } }
-    // A move, inside its trace section ("guide move"): the step and its publish.
-    val move = remember(viewModel) { { direction: GuideDirection -> traced(TRACE_MOVE) { viewModel.move(direction) } } }
+    val move = remember(viewModel) { viewModel.tracedMove() }
     GuideScreen(
         snapshot = viewModel.snapshot,
         panel = viewModel.panel,
@@ -143,8 +142,8 @@ internal fun GuideRoot(
 
 /**
  * The guide's keys, all consumed so the focus never leaves the grid: the D-pad moves the focus (auto-repeat included,
- * so holding a direction scrolls) and Select acts on the focused cell once per press. Their releases are consumed
- * too.
+ * so holding a direction scrolls; a held Up or Down pauses at the last or first row before it wraps) and Select acts
+ * on the focused cell once per press. Their releases are consumed too.
  *
  * Back is handed to [back] on its release, as the activity itself would: the info overlay's BackHandler closes it,
  * with none open the focus returns to what is playing, and from there the activity leaves live TV. Left unconsumed,
@@ -153,7 +152,7 @@ internal fun GuideRoot(
  */
 internal fun guideKey(
     event: KeyEvent,
-    move: (GuideDirection) -> Unit,
+    move: (GuideDirection, Boolean, Long) -> Unit,
     select: () -> Unit,
     back: (() -> Unit)? = null,
 ): Boolean {
@@ -174,7 +173,7 @@ internal fun guideKey(
         // which passes it, and only the release lands here. Waiting for a down the guide saw would swallow that press.
         event.key == Key.Back -> if (event.type == KeyEventType.KeyUp) back?.invoke()
 
-        direction != null -> if (down) move(direction)
+        direction != null -> if (down) with(event.nativeKeyEvent) { move(direction, repeatCount > 0, eventTime) }
 
         down && event.nativeKeyEvent.repeatCount == 0 -> select()
     }
@@ -191,3 +190,7 @@ private fun directionOf(key: Key): GuideDirection? =
         Key.DirectionRight -> GuideDirection.Right
         else -> null
     }
+
+// A move, inside its trace section ("guide move"): the step and its publish.
+private fun GuideViewModel.tracedMove(): (GuideDirection, Boolean, Long) -> Unit =
+    { direction, repeat, atMs -> traced(TRACE_MOVE) { move(direction, repeat, atMs) } }

@@ -73,7 +73,7 @@ class GuideSessionTest : GuideRig() {
             assertTrue("opened on about six hours", vm.ready().model.endMs < min(660))
 
             repeat(20) {
-                vm.move(GuideDirection.Right)
+                vm.move(GuideDirection.Right, repeat = false, atMs = 0)
                 runCurrent()
             }
 
@@ -99,7 +99,7 @@ class GuideSessionTest : GuideRig() {
             assertEquals(min(1440), vm.ready().model.endMs)
 
             repeat(20) {
-                vm.move(GuideDirection.Right)
+                vm.move(GuideDirection.Right, repeat = false, atMs = 0)
                 runCurrent()
             }
 
@@ -127,21 +127,21 @@ class GuideSessionTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             repeat(12) {
-                vm.move(GuideDirection.Right)
+                vm.move(GuideDirection.Right, repeat = false, atMs = 0)
                 runCurrent()
             }
             assertEquals(min(390), vm.focused().cellStartMs)
             val asked = fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly }
 
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             runCurrent()
             assertEquals(asked, fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly })
 
             fake.cachedUntilMs = null
             after(MIN)
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             runCurrent()
 
             assertTrue(fake.scheduleCalls.count { it.third == ScheduleBuild.CachedOnly } > asked)
@@ -179,8 +179,8 @@ class GuideSessionTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             assertEquals(min(0), vm.focused().cellStartMs)
-            vm.move(GuideDirection.Down)
-            vm.move(GuideDirection.Up)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
+            vm.move(GuideDirection.Up, repeat = false, atMs = 0)
             assertEquals(min(0), vm.focused().cellStartMs)
 
             after(5 * MIN)
@@ -195,8 +195,8 @@ class GuideSessionTest : GuideRig() {
             fake.channel(CH7, 7, listOf(program(0, 70, 1), program(70, 100, 2)) + halfHours(600, fromMin = 100))
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Right)
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertEquals(min(100), vm.focused().cellStartMs)
 
             after(5 * MIN)
@@ -255,7 +255,7 @@ class GuideSessionTest : GuideRig() {
             assertEquals(4, vm.ready().firstVisibleRow)
 
             // A later move keeps the rows where they are while the focus stays in view.
-            vm.move(GuideDirection.Down)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             assertEquals(4, vm.ready().firstVisibleRow)
         }
 
@@ -290,7 +290,7 @@ class GuideSessionTest : GuideRig() {
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
             vm.open(CH9)
             runCurrent()
-            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertEquals(min(150), vm.focused().cellStartMs)
 
             vm.select()

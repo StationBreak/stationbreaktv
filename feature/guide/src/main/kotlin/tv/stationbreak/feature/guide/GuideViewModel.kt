@@ -98,6 +98,7 @@ internal class GuideViewModel
         private var extendedFrom = NEVER
         private var scrollAsked: Pair<ChannelId, Long>? = null
         private var firstWindowMs = NO_MEASURE
+        private val wrapHold = WrapHold()
         private var asked = 0
         private var applied = 0
         private var tickLag = 0L
@@ -146,13 +147,18 @@ internal class GuideViewModel
          * what is loaded asks for more of what is already built, as the clock does; so does a key that cannot move on
          * at the end of a row, since more may have been built since.
          */
-        fun move(direction: GuideDirection) {
+        fun move(
+            direction: GuideDirection,
+            repeat: Boolean = false,
+            atMs: Long,
+        ) {
             synchronized(lock) {
                 val current = shownSnapshot.value
                 val ready = current.state as? GuideState.Ready
                 val from = current.focus
                 if (ready == null || from == null || shownInfo.value != null) return
                 val to = ready.model.move(from, direction, ready.nowMs)
+                if (!wrapHold.allows(ready.model.wrapped(from, to, direction), repeat, atMs)) return
                 val shown =
                     if (to == from) {
                         ready
@@ -228,6 +234,7 @@ internal class GuideViewModel
 
         // Ends the session and resets everything it published, including events it queued and nobody has taken yet.
         private fun endSession() {
+            wrapHold.reset()
             session?.coroutineContext?.get(Job)?.cancel()
             session = null
             window = null

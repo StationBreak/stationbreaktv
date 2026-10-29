@@ -70,10 +70,11 @@ internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
 internal fun GuideFocus.sameCellAs(o: GuideFocus): Boolean = channel == o.channel && cellStartMs == o.cellStartMs
 
 /**
- * One step of [direction] from [focus] at [nowMs] (the moment the grid shows); at an edge, or when the focused cell is
- * gone, the focus stays. Up and Down skip rows that have no cells, and stay put when no row in that direction has any.
- * They go by the focus's anchor, never earlier than now: an anchor kept from minutes ago would land on a program that
- * has ended since.
+ * One step of [direction] from [focus] at [nowMs] (the moment the grid shows); at the left or right edge of a row, or
+ * when the focused cell is gone, the focus stays. Up and Down skip rows that have no cells and wrap, as live TV's
+ * flipping does: Down past the last row goes to the first, Up past the first to the last. They stay put when no other
+ * row has any cells. They go by the focus's anchor, never earlier than now: an anchor kept from minutes ago would land
+ * on a program that has ended since.
  */
 internal fun GuideModel.move(
     focus: GuideFocus,
@@ -85,14 +86,14 @@ internal fun GuideModel.move(
     return when (direction) {
         GuideDirection.Left -> row.cells.getOrNull(cellIndex - 1)?.let { focusOn(row, it, it.startMs) } ?: focus
         GuideDirection.Right -> row.cells.getOrNull(cellIndex + 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        GuideDirection.Up -> moveVertically(focus, rowIndex - 1 downTo 0, nowMs)
-        GuideDirection.Down -> moveVertically(focus, rowIndex + 1 until rows.size, nowMs)
+        GuideDirection.Up -> moveVertically(focus, rowsUpFrom(rowIndex), nowMs)
+        GuideDirection.Down -> moveVertically(focus, rowsDownFrom(rowIndex), nowMs)
     }
 }
 
 private fun GuideModel.moveVertically(
     focus: GuideFocus,
-    candidates: IntProgression,
+    candidates: List<Int>,
     nowMs: Long,
 ): GuideFocus {
     val target = candidates.firstOrNull { rows[it].cells.isNotEmpty() }?.let { rows[it] }

@@ -375,6 +375,28 @@ class GuideScreenTest {
     }
 
     @Test
+    fun upOnTheFirstChannelWrapsToTheLastAndDownBackAndBackReturnsToWhatIsPlaying() {
+        showReady(CH5)
+        compose.awaitWindowFocus()
+        cell(CH5, 60).assertIsSelected()
+        press(Key.DirectionUp)
+        cell(ch3, 0).assertIsSelected()
+        // Up on the first channel (3) goes to the last (9), the time column kept.
+        press(Key.DirectionUp)
+        cell(CH9, 0).assertIsSelected()
+        assertEquals("Test Movie 300", text(GuideTags.PANEL_TITLE))
+        // Down on the last goes to the first.
+        press(Key.DirectionDown)
+        cell(ch3, 0).assertIsSelected()
+        press(Key.DirectionUp)
+        cell(CH9, 0).assertIsSelected()
+        // Back after a wrap returns to the playing channel before it exits.
+        back()
+        cell(CH5, 60).assertIsSelected()
+        assertEquals(0, exits)
+    }
+
+    @Test
     fun backOnTheOpeningCellExitsAtOnce() {
         showReady(CH5)
         back()
