@@ -1,8 +1,10 @@
 # ADR-0020: The grown-up hold (spec 18)
 
-- **Status:** Accepted (§4 edited-starter row pending owner confirmation)
+- **Status:** Accepted
 - **Date:** 2026-10-29
-- **Decided by:** Rincewind (the mechanism), following the owner's decision that kids means made for kids (2026-10-27)
+- **Decided by:** Rincewind (the mechanism), following the owner's decision that kids means made for kids (2026-10-27);
+  the owner (built-in channels are switched on or off, not re-filtered; customising means copying to a custom channel,
+  2026-10-29)
 - **Amends:** [ADR-0019](0019-kid-hold.md) §7 and §8, [ADR-0002](0002-determinism-scope.md) §2
 - **Informs:** spec 18, ASSUMPTIONS A-VER-1
 
@@ -37,9 +39,11 @@ app-side, like the kid hold.
    | A custom channel outside the Kids band | `Open` |
    | The grown-up leftovers (Odds & Ends) | `Open` |
 
-   An edited starter stays `GrownUp` (**pending owner confirmation**): the channel still carries a catalog name and the
-   same trust promise, so editing it does not lift the hold. A custom channel is the
-   user's own recipe and stays `Open`. The grown-up leftovers is `Open` on purpose: it is where items go that no other
+   A starter always keeps its policy (owner decision, 2026-10-29). Built-in channels can be switched on or off, and
+   channel management (F2.4) may renumber or hide them, but their filters are not edited in place. A viewer who wants
+   different filters copies the channel to a custom channel and changes the copy (F2.3). A custom channel is the
+   viewer's own recipe and stays `Open`: what they choose is what airs. A starter that is already marked edited keeps
+   `GrownUp`, like an unedited one. The grown-up leftovers is `Open` on purpose: it is where items go that no other
    channel will take. The kid hold refuses some items (unrated, TV-PG) and the grown-up hold drops others
    (children's-rated); if the grown-up leftovers dropped the second set too, an item no channel airs could air
    nowhere. Keeping it `Open` keeps "airing nowhere" at zero while both leftovers channels are on.
