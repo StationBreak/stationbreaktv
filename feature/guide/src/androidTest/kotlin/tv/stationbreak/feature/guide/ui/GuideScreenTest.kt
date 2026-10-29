@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -30,7 +31,6 @@ import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -355,9 +355,20 @@ class GuideScreenTest {
         tag: String,
         color: Color,
     ): Int {
-        val image = compose.onNodeWithTag(tag).captureToImage()
+        // captureToImage needs PixelCopy of a window (API 26+), so read the screen, as the trust screen's tests do. A
+        // node's bounds in its window plus the window's own place on the screen are screen pixels.
+        val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+        val origin =
+            IntArray(2).also {
+                compose.activity.window.decorView
+                    .getLocationOnScreen(it)
+            }
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val left = origin[0] + bounds.left.toInt()
+        val top = origin[1] + bounds.top.toInt()
+        val image = Bitmap.createBitmap(screen, left, top, bounds.width.toInt(), bounds.height.toInt())
         val pixels = IntArray(image.width * image.height)
-        image.readPixels(pixels)
+        image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
         val target = color.toArgb()
 
         fun near(
