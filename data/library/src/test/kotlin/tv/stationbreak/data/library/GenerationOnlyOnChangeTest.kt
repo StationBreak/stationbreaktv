@@ -127,6 +127,27 @@ class GenerationOnlyOnChangeTest {
             }
         }
 
+    // The tombstone is already in place, but the ID's member row is live again: ending it is the change. Pins the
+    // member count in tombstoneItems and tombstoneSeries, not only in the reconcile's write.
+    @Test
+    fun aTombstoneAlreadyInPlaceStillMovesItWhenTheIdsMemberRowIsLive() =
+        runBlocking {
+            world()
+            repository.tombstone(ALICE, listOf(film))
+            repository.tombstoneSeries(ALICE, listOf(show))
+            clock.stepMs(1_000)
+            still("both tombstones in place and no member left") {
+                repository.tombstone(ALICE, listOf(film))
+                repository.tombstoneSeries(ALICE, listOf(show))
+            }
+            repository.writeCollection(ALICE, box, "Box", stored)
+            clock.stepMs(1_000)
+
+            check("an item already deleted, its member row live") { repository.tombstone(ALICE, listOf(film)) }
+            check("a series already deleted, its member row live") { repository.tombstoneSeries(ALICE, listOf(show)) }
+            assertEquals(emptyList<String>(), repository.currentMembers(ALICE, box.value))
+        }
+
     @Test
     fun theFirstFullCollectionPassMovesItAndLaterPassesDoNot() =
         runBlocking {

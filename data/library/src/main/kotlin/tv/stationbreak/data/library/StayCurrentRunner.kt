@@ -277,6 +277,7 @@ class StayCurrentRunner(
     ) {
         val pending = repository.pendingOrNull(account)
         report.say("Backfill pending=${pending ?: "unknown"}")
+        val generationBefore = repository.generationOrNull(account)
         val began = timeSource.markNow()
         val result =
             try {
@@ -292,8 +293,11 @@ class StayCurrentRunner(
                 StayResult(SyncOutcome.Failed(SyncFailure.Server), PassSummary())
             }
         lastBackfill = result
-        if (pending == false) return
+        // After StayCurrentWrote, which covers only the passes: the re-read's own writes are told apart (#480).
         val read = result.summary
+        val moved = generationMoved(generationBefore, repository.generationOrNull(account))
+        report.say("BackfillWrote generation=$moved inserted=${read.inserted} updated=${read.updated}")
+        if (pending == false) return
         report.say(
             "BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} ${result.outcome.label()} " +
                 "inserted=${read.inserted} updated=${read.updated} unchanged=${read.unchanged} " +
@@ -357,7 +361,8 @@ private class Ran(
     val collections: CollectionSummary? = null,
 )
 
-// What a run wrote, numbers only (#480): how many times the content generation moved while it ran, and the counts
+// What a run's passes wrote, numbers only (#480): how many times the content generation moved while they ran (the
+// studios re-read after them logs its own BackfillWrote line), and the counts
 // behind it, so a device log shows which write moved it. The counts are inserted/updated for the incremental pass,
 // tombstoned/revived/fetched/seriesTombstoned/seriesRevived for the reconcile, and inserted/changed/revived/tombstoned
 // for the collection pass; a pass that did not run is `none`. A generation that could not be read is `unknown`, and
@@ -367,12 +372,7 @@ private fun wrote(
     after: Long?,
     ran: Ran,
 ): String {
-    val moved =
-        when {
-            before == null || after == null -> "unknown"
-            after < before -> "reset"
-            else -> (after - before).toString()
-        }
+    val moved = generationMoved(before, after)
     val passed = ran.passed?.let { "${it.inserted}/${it.updated}" } ?: NONE
     val reconciled =
         ran.reconciled?.let {
@@ -383,6 +383,18 @@ private fun wrote(
 }
 
 private const val NONE = "none"
+
+// How many times the generation moved between [before] and [after], for a log line: `unknown` when either could not
+// be read, `reset` when the row was made again meanwhile (a sign-out).
+private fun generationMoved(
+    before: Long?,
+    after: Long?,
+): String =
+    when {
+        before == null || after == null -> "unknown"
+        after < before -> "reset"
+        else -> (after - before).toString()
+    }
 
 // The outcome as a log field: the class name, and for a failure the SyncFailure name; never a message.
 private fun SyncOutcome.label() =

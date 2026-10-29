@@ -299,7 +299,9 @@ internal data class CollectionSyncEntity(
  * [contentGeneration] only goes up: every committed write that changes an item, series or collection row (a member
  * row included) or the chosen libraries bumps it in the same transaction, and so does the first full collection pass,
  * which turns `collectionsSynced` true without a row of content. A write that changes no row, and a rolled-back one, do
- * not (#480). A cache rebuild drops the table, so the generation then starts again from zero.
+ * not (#480). A row deleted with the account's data (a sign-out, another account) or by a cache rebuild is made again
+ * at `LibraryDao.generationSeed` (the clock, shifted), so the new generation starts above every value the old one
+ * reached.
  *
  * [failedPasses] counts the collection passes that ended without completing since the last completed one: a pass
  * records that it started ([passRunning]) and that it completed; one that ended some other way adds one, and so does a

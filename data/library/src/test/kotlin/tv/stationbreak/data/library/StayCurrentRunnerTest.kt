@@ -633,6 +633,29 @@ class StayCurrentRunnerTest {
             assertTrue(done, done.startsWith("BackfillDone ms=$ms outcome=Completed "))
             assertTrue(done, done.contains(" inserted=0 updated=0 unchanged=300 skipped=0 "))
             assertTrue(done, done.endsWith("stillPending=false"))
+            val wrote = lines.single { it.startsWith("BackfillWrote") }
+            assertEquals("BackfillWrote generation=0 inserted=0 updated=0", wrote)
+        }
+
+    // #480: the re-read runs after StayCurrentWrote, so what it writes is told on its own line, never on the passes'.
+    @Test
+    fun whatTheRereadWritesIsToldApartFromWhatThePassesWrote() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            // Changed on the server without a new save date: only the full re-read sees it.
+            rig.library.items[3] = rig.library.items[3].copy(studios = listOf("Another Studio"))
+            rig.clock.instant += 7.hours
+
+            rig.runner.run(both)
+
+            assertEquals(
+                "StayCurrentWrote generation=0 incremental=0/0 reconcile=0/0/0/0/0 collections=0/0/0/0",
+                lines.single { it.startsWith("StayCurrentWrote") },
+            )
+            val reread = lines.indexOfFirst { it.startsWith("BackfillWrote") }
+            assertEquals("BackfillWrote generation=1 inserted=0 updated=1", lines[reread])
+            assertTrue(lines.indexOfFirst { it.startsWith("StayCurrentWrote") } < reread)
         }
 
     @Test
