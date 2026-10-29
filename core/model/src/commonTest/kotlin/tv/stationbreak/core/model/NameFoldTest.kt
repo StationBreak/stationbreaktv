@@ -12,6 +12,30 @@ class NameFoldTest {
         assertEquals("\u00C9\u0130\u212A", foldNameAscii("\u00C9\u0130\u212A"))
     }
 
+    private fun chars(vararg codes: Int) = codes.joinToString("") { Char(it).toString() }
+
+    @Test
+    fun aStudioNameLosesControlsFormatCharactersAndLoneSurrogatesAndTrims() {
+        assertEquals("Pixar", cleanStudioName("Pix" + chars(0x202E, 0x200B, 7, 0x85, 0xFEFF, 0xD800) + "ar"))
+        assertEquals("Pixar", cleanStudioName(" " + chars(0x200B) + "Pixar" + chars(0xDC00) + " "))
+        assertEquals("", cleanStudioName(chars(0x202E, 0x200B, 0x2066, 0xFEFF)))
+    }
+
+    @Test
+    fun aStudioNameKeepsJoinersAndMapsLineAndTabCharactersToASpace() {
+        assertEquals("A" + chars(0x200D, 0x200C) + "B", cleanStudioName("A" + chars(0x200D, 0x200C) + "B"))
+        assertEquals("A B  C", cleanStudioName("A" + chars(9) + "B" + chars(13, 10) + "C"))
+        assertEquals("A  B", cleanStudioName("A" + chars(0x2029, 0x2028) + "B"))
+    }
+
+    @Test
+    fun aStudioNameKeepsAWellFormedSurrogatePairAndIsIdempotent() {
+        val pair = "x" + chars(0xD83C, 0xDFAC) + "y"
+        assertEquals(pair, cleanStudioName(pair))
+        val once = cleanStudioName(" A" + chars(0x200B, 9) + "B ")
+        assertEquals(once, cleanStudioName(once))
+    }
+
     @Test
     fun aTextWithNoCapitalIsReturnedAsItIs() {
         val text = "comedy"

@@ -538,6 +538,28 @@ class StayCurrentRunnerTest {
         }
 
     @Test
+    fun aReconcileFailingWhileAFirstSyncRunsEndsCancelledWithNoReread() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call ->
+                if (call.idsOnly) {
+                    runBlocking { rig.repository.beginFirstSync(ALICE) }
+                    MediaServerError.Timeout()
+                } else {
+                    null
+                }
+            }
+
+            val outcome = rig.runner.outcome(both)
+
+            assertEquals(SyncOutcome.Cancelled, outcome)
+            assertNull(rig.runner.lastBackfill)
+            assertTrue(server.calls.none { isBackfill(it) })
+        }
+
+    @Test
     fun aCancellationInTheReconcileStopsTheRunAndRunsNoReread() =
         runBlocking {
             rig.firstSyncDone()

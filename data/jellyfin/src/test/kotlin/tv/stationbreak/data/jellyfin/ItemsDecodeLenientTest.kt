@@ -180,18 +180,31 @@ class ItemsDecodeLenientTest {
         assertEquals(listOf("Zed Pictures", "a studio", "A  Studio"), studiosOfItem(studios))
     }
 
-    // The JSON escapes sit in raw strings, so they reach the decoder as escapes and the source holds no invisible text.
+    // JSON escapes built from numbers, so the source holds no invisible character for the formatter to rewrite.
+    private fun esc(vararg codes: Int) = codes.joinToString("") { "\\u" + it.toString(16).padStart(4, '0') }
+
+    private fun named(vararg names: String) =
+        names.joinToString(",", prefix = ""","Studios":[""", postfix = "]") {
+            """{"Name":"$it"}"""
+        }
+
     @Test
     fun aStudioNameLosesControlBidiAndZeroWidthCharactersButStillReadsAsItsName() {
-        val studios =
-            ""","Studios":[{"Name":"Pix‮ar"},{"Name":"Ani​mation\u0007"},{"Name":"\u0085Ghi\u009Fbli"}]"""
+        val studios = named("Pix${esc(0x202E)}ar", "Ani${esc(0x200B)}mation${esc(7)}", "${esc(0x85)}Ghi${esc(0x9F)}bli")
 
         assertEquals(listOf("Pixar", "Animation", "Ghibli"), studiosOfItem(studios))
     }
 
     @Test
+    fun aTabOrNewLineInAStudioNameBecomesASpaceNotAFusion() {
+        val studios = named("Cartoon${esc(9)}Network", "Nick${esc(10)}Jr", "A${esc(0x2028)}B${esc(0x2029)}C")
+
+        assertEquals(listOf("Cartoon Network", "Nick Jr", "A B C"), studiosOfItem(studios))
+    }
+
+    @Test
     fun aStudioNameKeepsZeroWidthJoinersAndLosesALoneSurrogate() {
-        val studios = ""","Studios":[{"Name":"A‍B‌C"},{"Name":"Lone\ud800 Name"}]"""
+        val studios = named("A${esc(0x200D)}B${esc(0x200C)}C", "Lone${esc(0xD800)} Name")
         val joined = "A" + String(Character.toChars(0x200D)) + "B" + String(Character.toChars(0x200C)) + "C"
 
         assertEquals(listOf(joined, "Lone Name"), studiosOfItem(studios))
@@ -199,9 +212,19 @@ class ItemsDecodeLenientTest {
 
     @Test
     fun aStudioNameOfOnlyFormatCharactersIsDropped() {
-        val studios = ""","Studios":[{"Name":"‮​⁦﻿"},{"Name":" ​ "},{"Name":"Kept"}]"""
+        val studios = named(esc(0x202E, 0x200B, 0x2066, 0xFEFF), " ${esc(0x200B)} ", "Kept")
 
         assertEquals(listOf("Kept"), studiosOfItem(studios))
+    }
+
+    // The 256 limit is on the name as sent: one that fits only once invisible characters are stripped is dropped.
+    @Test
+    fun theLengthLimitIsCheckedOnTheRawNameBeforeCleaning() {
+        val rawLong = "a".repeat(250) + esc(*IntArray(10) { 0x200B })
+        val fits = "a".repeat(250) + esc(*IntArray(6) { 0x200B })
+
+        assertEquals(listOf("Kept"), studiosOfItem(named(rawLong, "Kept")))
+        assertEquals(listOf("a".repeat(250)), studiosOfItem(named(fits)))
     }
 
     @Test

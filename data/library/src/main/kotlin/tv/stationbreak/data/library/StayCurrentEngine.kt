@@ -136,6 +136,10 @@ private sealed interface Decision {
  * The re-read has no skip cap, so a server or proxy that answers every index with unreadable content would otherwise
  * make it step one item at a time until WorkManager's window ended it, every run. More than this many pages in a row
  * ends the re-read as a failure that is not recorded in the account's sync state, with the flag left set.
+ *
+ * It is a bound against a proxy or server that sends garbage, not against a hostile server: one that interleaves good
+ * items, reports a false total or never ends a listing is not stopped by it. The accepted cost: a library that truly
+ * holds more than a page of undecodable items in a row keeps the flag set, and the re-read is tried again every run.
  */
 internal const val BACKFILL_MALFORMED_PAGES_MAX = 1
 
@@ -580,13 +584,15 @@ internal class StayCurrentEngine(
 
         // One item or series would not decode: past the limit that fails the pass. The backfill has no such limit, but
         // it gives up on more than a page's worth in a row, or on more skipped than the server said the listing holds:
-        // that is a server or proxy answering with nothing readable, not a few odd items.
+        // that is a proxy or server answering with garbage, not a few odd items. It does not guard against a server
+        // that means harm (see [BACKFILL_MALFORMED_PAGES_MAX]).
         private suspend fun skip(run: MalformedRun): SyncOutcome? {
             skipped += 1
             run.skip()
             if (!backfilling) {
                 return if (skipped > maxSkippedItems) fail(MediaServerError.NotJellyfin()) else null
             }
+            // The total is known only once page 0 of the walk decoded; until then only the in-a-row rule applies.
             val beyondTotal = run.total?.let { run.skipped > it } ?: false
             val stuck = run.inARow > pageSize * BACKFILL_MALFORMED_PAGES_MAX
             return if (stuck || beyondTotal) fail(MediaServerError.NotJellyfin()) else null

@@ -134,8 +134,8 @@ internal object ServerText {
     private const val HEX = 16
     private const val DELETE = 0x7F
     private const val LAST_C1 = 0x9F
-    private const val LINE_SEPARATOR = 0x2028
-    private const val PARAGRAPH_SEPARATOR = 0x2029
+    internal const val LINE_SEPARATOR = 0x2028
+    internal const val PARAGRAPH_SEPARATOR = 0x2029
     private const val ZWNJ = 0x200C
     private const val ZWJ = 0x200D
     private val EMBEDDINGS = 0x202A..0x202E
@@ -144,15 +144,26 @@ internal object ServerText {
 }
 
 /**
- * A studio name as safe text: controls, format characters (other than ZWJ and ZWNJ) and lone surrogates removed (the
- * same set [ServerText] strips), then trimmed. Null when nothing readable is left. Unlike a genre it is not cut,
- * markup is left alone (a name is matched, not drawn as markup), and the caller has already dropped a name that is too
- * long.
+ * A studio name as stored for matching: tab, CR, LF, U+2028 and U+2029 become a space; C0 and C1 controls, bidi
+ * controls and other format characters (except ZWJ and ZWNJ) and lone surrogates are removed (the code-point rule
+ * [ServerText] uses); then it is trimmed. Null when nothing is left. Nothing else is done: no markup removal, no
+ * entity decoding, no cap on combining marks, no collapsing of spaces, and the caller has already dropped a name that
+ * is too long. This is not the display rule: any future display of a studio name must still go through [ServerText]'s
+ * full rule. The kid hold applies the same cleaning when it reads names (`cleanStudioName` in core/model), so names
+ * cached before this existed match the same way.
  */
 internal fun studioName(raw: String): String? {
     val kept = StringBuilder(raw.length)
     raw.codePoints().forEach { cp ->
-        if (cp !in ServerText.SURROGATES && !ServerText.isInvisible(cp)) kept.appendCodePoint(cp)
+        when {
+            cp in ServerText.SURROGATES -> Unit
+            isLineOrTab(cp) -> kept.append(" ")
+            !ServerText.isInvisible(cp) -> kept.appendCodePoint(cp)
+        }
     }
     return kept.toString().trim().takeIf { it.isNotEmpty() }
 }
+
+private fun isLineOrTab(cp: Int) =
+    cp == '\t'.code || cp == '\r'.code || cp == '\n'.code ||
+        cp == ServerText.LINE_SEPARATOR || cp == ServerText.PARAGRAPH_SEPARATOR

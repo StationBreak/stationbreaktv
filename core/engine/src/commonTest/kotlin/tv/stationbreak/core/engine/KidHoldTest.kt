@@ -180,6 +180,32 @@ class KidHoldTest {
         assertFalse(KidHold.isMadeForKids(film(studios = listOf("DreamWorks Pictures")), null))
     }
 
+    // Names cached before the sync cleaned them may still hold stray characters; the hold reads the cleaned text.
+    // Code points are built from numbers so the source holds no invisible character.
+    private fun chars(vararg codes: Int) = codes.joinToString("") { Char(it).toString() }
+
+    @Test
+    fun aStudioWithEmbeddedControlOrFormatCharactersStillMatchesItsListedStudio() {
+        val override = Char(0x202E)
+        val zeroWidth = Char(0x200B)
+        assertTrue(KidHold.isMadeForKids(film(studios = listOf("Pix${override}ar Animation Studios")), null))
+        assertTrue(KidHold.isMadeForKids(film(studios = listOf("Nick${zeroWidth}elodeon")), null))
+        assertTrue(KidHold.isMadeForKids(film(studios = listOf(chars(9) + "Pixar" + chars(0x2029))), null))
+        assertTrue(KidHold.isMadeForKids(episodeOf(), show(studios = listOf("No${override}ggin"))))
+    }
+
+    @Test
+    fun aTabBetweenWordsIsASpaceNotAFusion() {
+        assertTrue(KidHold.isMadeForKids(film(studios = listOf("Cartoon" + chars(9) + "Network Studios")), null))
+        assertFalse(KidHold.isMadeForKids(film(studios = listOf("Cartoon" + chars(0x200B) + "NetworkStudios")), null))
+    }
+
+    @Test
+    fun aStudioNameOfOnlyFormatCharactersMatchesNothing() {
+        assertFalse(KidHold.isMadeForKids(film(studios = listOf(chars(0x202E, 0x200B, 0x2066, 0xFEFF))), null))
+        assertFalse(KidHold.isMadeForKids(film(studios = listOf(chars(0x200B), chars(9, 10))), null))
+    }
+
     // --- the frozen manifest ---
 
     // A change to either list is a new version name: the hold's behaviour is versioned by it.

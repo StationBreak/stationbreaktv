@@ -75,6 +75,12 @@ The owner decisions of 2026-10-27:
        stays off.
 
      The kids genres are unchanged, so catalog version 2 is unchanged.
+   - **Studio names are cleaned, and the name stays `kid-hold-2` (2026-10-28).** The sync strips controls, format
+     characters (except ZWJ and ZWNJ) and lone surrogates from a studio name before it is cached, turns tab and line
+     breaks into a space, and trims; the hold reads names through the same cleaning (`cleanStudioName`), so a cache
+     written before that matches the same way. The lists and the rating table are unchanged, so the version name is
+     too: it changes with the lists or the table, not with how input text is tidied. The only names whose match
+     changes are ones that carried stray invisible characters and so failed to match before.
 6. **The kid rating table.** A fixed table in the hold, not a change to `RatingLadder`:
 
    | Tier | Ratings |

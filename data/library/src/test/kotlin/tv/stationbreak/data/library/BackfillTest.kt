@@ -189,6 +189,21 @@ class BackfillTest {
         }
 
     @Test
+    fun moreThanAPagesWorthOfUndecodableSeriesInARowEndsTheBackfillToo() =
+        runBlocking {
+            firstSyncDone()
+            flagIsSet(true)
+            clock.instant += 1.hours
+            server.malformed = seriesSource.series.map { it.id }.toSet()
+
+            val result = StayCurrentEngine(repository, server, clock, pageSize = 1).backfill(session, ALICE, chosen)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertEquals(2, result.summary.skipped)
+            assertAccountStateUntouched()
+        }
+
+    @Test
     fun aGoodPageBetweenUndecodableRunsResetsTheCount() =
         runBlocking {
             firstSyncDone()
