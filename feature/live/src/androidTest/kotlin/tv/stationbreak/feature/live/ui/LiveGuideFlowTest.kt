@@ -150,7 +150,10 @@ class LiveGuideFlowTest {
         compose.waitForIdle()
     }
 
-    /** The guide opens and closes over ~400 ms, so a slow emulator is still mid-way right after the key. */
+    /**
+     * The fake guide appears and disappears in the same recomposition as the state flip, so this covers key delivery
+     * and recomposition latency on a slow emulator, not an animation.
+     */
     private fun awaitGuide(open: Boolean) =
         compose.waitUntil(WAIT_MS) {
             compose.onAllNodesWithTag(GUIDE).fetchSemanticsNodes().isNotEmpty() == open
@@ -200,7 +203,7 @@ class LiveGuideFlowTest {
         tap(KEYCODE_BACK)
         awaitGuide(open = true)
         tap(KEYCODE_GUIDE)
-        compose.waitForIdle()
+        awaitGuide(open = false)
         // Moved to the corner and back by its modifier only: the one surface lives on, never made again.
         assertEquals(listOf("created"), surfaces.toList())
     }
