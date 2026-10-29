@@ -17,6 +17,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ServerId
@@ -225,4 +226,6 @@ internal class CountingLibrary(
     fun seed(vararg items: RuleItem) = delegate.seedRule(ACCOUNT, *items)
 
     fun seed(items: List<RuleItem>) = delegate.seedRule(ACCOUNT, *items.toTypedArray())
+
+    fun seedSeries(vararg series: RuleSeries) = delegate.seedSeries(ACCOUNT, *series)
 }

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-29
 - **Decided by:** Rincewind (the mechanism), following the owner's decision that kids means made for kids (2026-10-27)
-- **Amends:** [ADR-0019](0019-kid-hold.md) §7
+- **Amends:** [ADR-0019](0019-kid-hold.md) §7 and §8, [ADR-0002](0002-determinism-scope.md) §2
 - **Informs:** spec 18, ASSUMPTIONS A-VER-1
 
 ## Context
@@ -37,16 +37,17 @@ app-side, like the kid hold.
    | A custom channel outside the Kids band | `Open` |
    | The grown-up leftovers (Odds & Ends) | `Open` |
 
-   An edited starter is `GrownUp` because the channel still carries a catalog name and the same trust promise; a
-   user who wants children's-rated shows there has the kid channels or a custom channel. A custom channel is the
+   An edited starter stays `GrownUp` (**pending owner confirmation**): the channel still carries a catalog name and the
+   same trust promise, so editing it does not lift the hold. A custom channel is the
    user's own recipe and stays `Open`. The grown-up leftovers is `Open` on purpose: it is where items go that no other
    channel will take. The kid hold refuses some items (unrated, TV-PG) and the grown-up hold drops others
    (children's-rated); if the grown-up leftovers dropped the second set too, an item no channel airs could air
    nowhere. Keeping it `Open` keeps "airing nowhere" at zero while both leftovers channels are on.
 
 5. **Counts and reasons.** `PoolCounts.childrensRatingOut` counts what the grown-up hold drops; `heldOut` stays the
-   kid hold's. A grown-up channel emptied by the hold is not "no matches": it reports the existing
-   `HiddenReason.AllExcluded`.
+   kid hold's. A grown-up channel emptied by the hold is not "no matches": it reports the new
+   `HiddenReason.ChildrensRatingsOnly` (when nothing was blocked by the ceiling; the other reasons keep their
+   precedence). `AllExcluded` still means the channel's own exclusions removed everything.
 6. **No catalog change.** Catalog version and manifest are unchanged. Every pool call site (the planner's ranking,
    ruled days, leftovers, and the withheld sets for hidden and opt-in channels) asks `policyOf`, and the pool cache key
    carries the policy.
@@ -55,5 +56,8 @@ app-side, like the kid hold.
 
 - Grown-up starters can get thinner. A finalised lineup is not re-ranked, so a starter that is On stays On even if
   the hold leaves it little to air; it shows the existing hidden reason when empty. New lineups rank on the held pool.
-- Children's-rated items a grown-up starter drops fall to the grown-up leftovers.
+- Where a dropped item lands. With both leftovers on (the default), Kids' Odds & Ends claims first, so a
+  children's-rated item a grown-up starter drops lands on a kid channel or on Kids' Odds & Ends, where the kid hold
+  admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say), or everything when Kids' Odds
+  & Ends is off, reach the grown-up Odds & Ends.
 - Mixed app versions can disagree on grown-up starters during an update, as for kid channels (A-VER-1).

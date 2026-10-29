@@ -618,4 +618,19 @@ class LineupPlannerTest {
         assertFalse(planOf(null, tvY, four).finalised)
         assertTrue(planOf(null, libraryOf(fills(catalog = four)), four).finalised)
     }
+
+    private fun rankedFor(snapshot: RuleSnapshot): List<String> {
+        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L)
+        val candidates = base.recipes.map { it to planning.resolve(it) }
+        return planning.ranked(candidates).map { it.key }
+    }
+
+    @Test
+    fun rankedLeavesOutAGrownUpRecipeWhoseWholePoolIsChildrensRatedAndKeepsItWhenRatedG() {
+        val rated = libraryOf(fills())
+        val tvY =
+            rated.copy(items = rated.items.map { if ("Kids" in it.genres) it else it.copy(officialRating = "TV-Y") })
+        assertEquals(listOf("tots"), rankedFor(tvY))
+        assertTrue(rankedFor(rated).containsAll(five.map { it.first }))
+    }
 }

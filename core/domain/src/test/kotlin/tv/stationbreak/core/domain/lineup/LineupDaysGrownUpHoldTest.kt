@@ -8,6 +8,8 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.RuleSeries
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -72,10 +74,10 @@ class LineupDaysGrownUpHoldTest {
     }
 
     @Test
-    fun aGrownUpStarterWhoseOnlyMatchesAreChildrensRatedIsAllExcludedNotNoMatches() {
+    fun aGrownUpStarterWhoseOnlyMatchesAreChildrensRatedIsChildrensRatingsOnlyNotNoMatches() {
         library.seed(movie(1, "Drama", rating = "TV-Y"))
         val drama = starterAt("drama", 150)
-        assertEquals(HiddenReason.AllExcluded, days(lineupOf(drama)).getValue(drama.id.value).hidden)
+        assertEquals(HiddenReason.ChildrensRatingsOnly, days(lineupOf(drama)).getValue(drama.id.value).hidden)
     }
 
     @Test
@@ -100,4 +102,38 @@ class LineupDaysGrownUpHoldTest {
             service.refresh(ACCOUNT, LIBRARIES)
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
         }
+
+    // A TV-PG episode of a TV-Y7 series: made for kids by its series, but above the kid table's PG cap.
+    private fun seedMixed() {
+        val show = id(0x90)
+        library.seedSeries(RuleSeries(show, "TV-Y7", listOf("Drama"), emptyList()))
+        val tvPg = movie(3, "Drama", rating = "TV-PG")
+        library.seed(
+            movie(1, "Drama", rating = "TV-Y"),
+            tvPg.copy(item = tvPg.item.copy(kind = ScheduleItemKind.Episode, seriesId = show)),
+        )
+    }
+
+    @Test
+    fun withKidsLeftoversOffTheGrownUpOddsAirsWhatTheStartersDropAndNothingAirsNowhere() =
+        runBlocking<Unit> {
+            seed()
+            val lineup = lineupOf(starterAt("drama", 150), leftovers("odds-and-ends", 199, null))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
+            service.refresh(ACCOUNT, LIBRARIES)
+            val odds = days(lineup).getValue(LineupIds.leftovers("odds-and-ends").value)
+            assertEquals(setOf(childrensItem), odds.ids())
+            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+        }
+
+    @Test
+    fun withBothLeftoversOnAChildrensRatedItemLandsOnTheKidSideAndTheTableRefusedOneOnGrownUpOdds() {
+        seedMixed()
+        val kids = leftovers("kids-odds-and-ends", 99, "PG")
+        val odds = leftovers("odds-and-ends", 199, null)
+        val days = days(lineupOf(starterAt("drama", 150), kids, odds))
+        assertEquals(emptySet(), days.getValue(LineupIds.starter("drama").value).ids())
+        assertEquals(setOf(id(1)), days.getValue(kids.id.value).ids())
+        assertEquals(setOf(id(3)), days.getValue(odds.id.value).ids())
+    }
 }

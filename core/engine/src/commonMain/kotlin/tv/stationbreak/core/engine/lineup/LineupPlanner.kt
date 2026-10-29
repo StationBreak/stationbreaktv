@@ -231,7 +231,7 @@ object LineupPlanner {
 }
 
 /** What one call of [LineupPlanner.plan] works with. */
-private class Planning(
+internal class Planning(
     val serverId: CanonicalId,
     val offset: Int,
     val snapshot: RuleSnapshot,

@@ -77,10 +77,18 @@ object Leftovers {
             entry: RuleItem,
             series: RuleSeries?,
         ) {
-            when {
-                policy == PoolPolicy.KidsOnly && !KidHold.isMadeForKids(entry, series) -> heldOut++
-                policy == PoolPolicy.GrownUp && KidHold.hasChildrensRating(entry, series) -> childrensRatingOut++
-                else -> admit(entry, series)
+            when (policy) {
+                PoolPolicy.Open -> {
+                    admit(entry, series)
+                }
+
+                PoolPolicy.KidsOnly -> {
+                    if (KidHold.isMadeForKids(entry, series)) admit(entry, series) else heldOut++
+                }
+
+                PoolPolicy.GrownUp -> {
+                    if (KidHold.hasChildrensRating(entry, series)) childrensRatingOut++ else admit(entry, series)
+                }
             }
         }
 
@@ -91,10 +99,9 @@ object Leftovers {
             val item = entry.item
             if (item.kind == ScheduleItemKind.Episode && item.seriesId != null && series == null) unknownSeries++
             val passes =
-                if (policy == PoolPolicy.KidsOnly) {
-                    KidHold.passesKidCeiling(entry, series, maxRating)
-                } else {
-                    passesCeiling(entry, series, maxRating)
+                when (policy) {
+                    PoolPolicy.KidsOnly -> KidHold.passesKidCeiling(entry, series, maxRating)
+                    PoolPolicy.Open, PoolPolicy.GrownUp -> passesCeiling(entry, series, maxRating)
                 }
             if (passes) kept.add(item) else blocked++
         }

@@ -15,9 +15,3 @@ sealed interface PoolPolicy {
     /** A grown-up channel: nothing with a children's rating ([KidHold.hasChildrensRating]); the ladder applies. */
     data object GrownUp : PoolPolicy
 }
-
-/** The grown-up hold (ADR-0020): the name of the version of its gate, frozen with [KidHold.CHILDRENS_RATINGS]. */
-object GrownUpHold {
-    /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-1"
-}

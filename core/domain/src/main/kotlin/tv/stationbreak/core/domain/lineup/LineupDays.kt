@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.Pool
+import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
@@ -93,8 +94,8 @@ internal class Scheduled(
  *
  * A kid channel ([KidStatus.isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
  * made-for-kids content (spec 18): every pool it gets, ruled, leftovers and withheld, is evaluated with the hold, and
- * its cache key says so. A hidden or opt-in kid channel withholds only what it would air if shown, so what the hold
- * keeps off it stays with the grown-up leftovers.
+ * its cache key carries the policy. A hidden or opt-in kid channel withholds only what it would air if shown, so what
+ * the hold keeps off it stays with the grown-up leftovers.
  *
  * Any other starter, edited or not, is grown-up (ADR-0020): it drops children's-rated items, with its own cache key.
  * A custom channel and the grown-up leftovers are open. [KidStatus.policyOf] decides all of this.
@@ -190,7 +191,8 @@ internal class LineupDays(
         private val withheldBy = HashMap<Long, Set<CanonicalId>>()
 
         // A pool depends only on the snapshot, the sources, the exclusions and the ceiling, so rules that agree on
-        // those (a recipe as resolved and as held, a hidden channel that is an unedited starter) are evaluated once.
+        // those (a recipe as resolved and as the lineup has it, a hidden channel that is an unedited starter) are
+        // evaluated once.
         private val evaluations = HashMap<EvaluationKey, Pool>()
 
         private fun evaluate(
@@ -305,7 +307,7 @@ internal class LineupDays(
         ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), policyOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
-        // held when it is a kid one: the resolved recipe by its recipe, the lineup's channel by its channel. The
+        // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
         // ceiling is as today.
         private fun optInRules(): List<PolicyRules> =
             catalog.recipes.filter { it.optIn }.flatMap { recipe ->
@@ -317,7 +319,7 @@ internal class LineupDays(
                 )
             }
 
-        // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling, held if a kid channel.
+        // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling and its own policy.
         private fun hiddenRules(): List<PolicyRules> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
                 rulesOf(channel)?.let { PolicyRules(it.copy(maxRating = ceilingOf(channel)), policyOf(channel)) }
@@ -405,20 +407,22 @@ internal fun hiddenReason(
 ): HiddenReason? {
     val counts = pool.counts
     val unresolved = counts.unresolvedSources.isNotEmpty() || counts.unresolvedExclusions.isNotEmpty()
+    val matched =
+        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.blockedByCeiling
     return when {
         day.isNotEmpty() -> null
-
         !counts.collectionsSynced && unresolved -> HiddenReason.CollectionsNotSynced
-
-        pool.items.size + counts.excluded + counts.heldOut +
-            counts.childrensRatingOut + counts.blockedByCeiling == 0 -> HiddenReason.NoMatches
-
-        pool.items.isEmpty() && counts.heldOut > 0 && counts.blockedByCeiling == 0 -> HiddenReason.NothingMadeForKids
-
-        pool.items.isEmpty() && counts.blockedByCeiling == 0 -> HiddenReason.AllExcluded
-
-        pool.items.isEmpty() -> HiddenReason.AllBlockedByCeiling
-
+        matched == 0 -> HiddenReason.NoMatches
+        pool.items.isEmpty() -> emptyPoolReason(counts)
         else -> HiddenReason.EmptyToday
     }
 }
+
+// Why a pool that matched something has nothing airable: the ceiling wins, then the holds, then the exclusions.
+private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
+    when {
+        counts.blockedByCeiling > 0 -> HiddenReason.AllBlockedByCeiling
+        counts.heldOut > 0 -> HiddenReason.NothingMadeForKids
+        counts.childrensRatingOut > 0 -> HiddenReason.ChildrensRatingsOnly
+        else -> HiddenReason.AllExcluded
+    }

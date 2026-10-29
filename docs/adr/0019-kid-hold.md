@@ -97,8 +97,8 @@ The owner decisions of 2026-10-27:
    rating and to its series' rating. An episode whose series is unknown fails closed.
 7. **Catalog version 2.** Every recipe outside the Kids band excludes the same eight kids genre spellings as the gate
    (§5, built from `KidHold.KIDS_GENRES`, so a grown-up channel drops exactly what a kid channel would take), so
-   preschool shows stop appearing on grown-up channels. Children's *ratings* are not a genre, so they are handled by the grown-up hold, see
-   [ADR-0020](0020-grown-up-hold.md). A genre exclusion is checked against the episode's series
+   preschool shows stop appearing on grown-up channels.
+   Children's *ratings* are not a genre: see [ADR-0020](0020-grown-up-hold.md). A genre exclusion is checked against the episode's series
    genres, and rules-format rule 3 fails it closed when the series is missing from the snapshot: grown-up starters now
    also drop such episodes, which fall to Odds & Ends. These are rules-format v1 features, so the rule files stay at
    version 1. Kid recipes keep their theme sources, tags included, because the hold does the audience check and the
@@ -107,7 +107,7 @@ The owner decisions of 2026-10-27:
    exclusions reach every household. Kid safety does not depend on that replan.
 8. **Amendment to ADR-0002 §2.** App-version limits may narrow what the rules allow, and never widen it. A kid
    channel's lineup is a function of rules, snapshot, seed, time **and app version**. ADR-0002 carries a dated note
-   pointing here.
+   pointing here; [ADR-0020](0020-grown-up-hold.md) widens it to grown-up starters.
 9. **Accepted assumption.** Every TV on an account runs the same app version. There is no `formatVersion` refusal to
    protect a TV on an older app, because the rules did not change. During an update, two TVs on different versions can
    disagree about a kid channel. Recorded as A-VER-1 in [ASSUMPTIONS.md](../ASSUMPTIONS.md).
