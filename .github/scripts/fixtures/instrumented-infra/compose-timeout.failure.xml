@@ -1,0 +1,2 @@
+<failure message="androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 5000 ms" type="androidx.compose.ui.test.ComposeTimeoutException">androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 5000 ms
+	at c.awaitFocused(C.kt:1)</failure>

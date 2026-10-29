@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# Tests for instrumented-infra.sh's classify and cleanup modes. Each case builds a results tree and the files `run`
+# Tests for instrumented-infra.sh's classify, prepare and cleanup modes. Each case builds a results tree and the files `run`
 # would have saved, in a temp dir.
 # Usage: bash .github/scripts/instrumented-infra.test.sh
 # No -e: a failing case must be reported and counted, not end the run.
@@ -95,6 +95,80 @@ expect "empty failure with a blank body" 0 "empty <failure>"
 new_case
 xml '<error message=""/>'
 expect "empty error" 0 "empty <failure>"
+
+# Known emulator signatures (#444, #462), from fixtures/instrumented-infra/.
+fx="$here/fixtures/instrumented-infra"
+
+new_case
+xml "$(cat "$fx/inject-events.failure.xml")"
+expect "INJECT_EVENTS refused (a system dialog took focus)" 0 "INJECT_EVENTS"
+
+new_case
+xml "$(cat "$fx/inject-events.failure.xml")$(cat "$fx/inject-events.failure.xml")"
+expect "two INJECT_EVENTS failures" 0 "2 test failure(s) refused"
+
+new_case
+xml "$(cat "$fx/inject-events.failure.xml")$(cat "$fx/compose-timeout.failure.xml")"
+expect "INJECT_EVENTS plus a real timeout" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")"
+expect "No compose hierarchies found, the only failure" 0 "sole signature"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")$(cat "$fx/no-compose-hierarchies.failure.xml")"
+expect "No compose hierarchies found twice, nothing else" 0 "all 'No compose hierarchies found'"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")<failure message=\"java.lang.AssertionError: expected:&lt;1&gt;\">trace</failure>"
+expect "No compose hierarchies found plus an assertion" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")$(cat "$fx/inject-events.failure.xml")"
+expect "No compose hierarchies found plus INJECT_EVENTS (not the sole signature)" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/no-compose-hierarchies.failure.xml")<failure message=\"\"/>"
+expect "No compose hierarchies found plus an empty failure" 1 "genuine"
+
+# The strictness: a test's own timeout, or an assertion that merely quotes the words, stays genuine.
+new_case
+xml "$(cat "$fx/compose-timeout.failure.xml")"
+expect "ComposeTimeoutException from a test's own waitUntil" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/assertion-mentions-hierarchies.failure.xml")"
+expect "an assertion that quotes the hierarchies message" 1 "genuine"
+
+# Real AGP connected-test XML has no message attribute: the body starts with the exception class.
+new_case
+xml "$(cat "$fx/body-inject-events.failure.xml")"
+expect "body-only INJECT_EVENTS" 0 "INJECT_EVENTS"
+
+new_case
+xml "$(cat "$fx/body-no-compose-hierarchies.failure.xml")"
+expect "body-only No compose hierarchies found, alone" 0 "sole signature"
+
+new_case
+xml "$(cat "$fx/body-compose-timeout.failure.xml")"
+expect "body-only ComposeTimeoutException" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-assertion-quotes-hierarchies.failure.xml")"
+expect "body-only assertion quoting the hierarchies message" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-assertion-caused-by-hierarchies.failure.xml")"
+expect "body-only assertion with the hierarchies message in a Caused by" 1 "genuine"
+
+# A type="" attribute that names another class is not the signature.
+new_case
+xml "$(cat "$fx/inject-events-wrong-type.failure.xml")"
+expect "INJECT_EVENTS message but another type" 1 "genuine"
+
+new_case
+xml '<failure message="java.lang.AssertionError: boom">java.lang.SecurityException: Injecting to another application requires INJECT_EVENTS permission</failure>'
+expect "INJECT_EVENTS only deep in an assertion's body" 1 "genuine"
 
 # Logcat: the system crashed.
 new_case
@@ -244,6 +318,64 @@ unset CONNECTED_TASKS
 # Usage errors.
 if bash "$script" >/dev/null 2>&1; then fail "usage" "no arguments exited 0"; else echo "ok   usage (no arguments fail)"; fi
 if bash "$script" nonsense "$work" >/dev/null 2>&1; then fail "usage" "unknown mode exited 0"; else echo "ok   usage (unknown mode fails)"; fi
+
+# prepare: every adb call is made, and none failing fails the step. adb is a stub that records its calls and fails.
+stub_prep="$work/stub-prep"
+mkdir -p "$stub_prep"
+printf '#!/usr/bin/env bash\necho "adb $*" >>"%s/calls"\nexit 1\n' "$stub_prep" >"$stub_prep/adb"
+chmod +x "$stub_prep/adb"
+out="$(PATH="$stub_prep:$PATH" bash "$script" prepare "$work/unused" 2>&1)"
+got=$?
+calls="$(cat "$stub_prep/calls" 2>/dev/null)"
+if [ "$got" -eq 0 ] \
+  && grep -qF 'adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS' <<<"$calls" \
+  && grep -qF 'adb shell pm disable-user --user 0 com.google.android.configupdater' <<<"$calls" \
+  && grep -qF 'adb logcat -G 16M' <<<"$calls" \
+  && grep -qF 'adb logcat -G 8M' <<<"$calls" \
+  && grep -qF "adb shell logcat -P ''" <<<"$calls" \
+  && grep -qF 'adb logcat -g' <<<"$calls" \
+  && grep -qF 'adb shell logcat -p' <<<"$calls" \
+  && grep -qF 'prepare: logcat buffers:' <<<"$out" \
+  && grep -qF 'prepare: logcat prune list:' <<<"$out"; then
+  echo "ok   prepare (all adb calls made and reported, exit 0 though each failed)"
+else
+  fail "prepare" "exit $got" "$calls" "$out"
+fi
+
+# prepare cannot hang the job: a stub adb that sleeps is cut off by `timeout`. timeout is a stub that records its
+# argument and runs the command with a 1 second limit instead of 20, so the test stays fast.
+stub_to="$work/stub-timeout"
+mkdir -p "$stub_to"
+printf '#!/usr/bin/env bash\necho "timeout $1" >>"%s/calls"\nshift\n' "$stub_to" >"$stub_to/timeout"
+printf 'exec /usr/bin/timeout 1 "$@"\n' >>"$stub_to/timeout"
+printf '#!/usr/bin/env bash\nsleep 30\n' >"$stub_to/adb"
+chmod +x "$stub_to/timeout" "$stub_to/adb"
+start=$SECONDS
+PATH="$stub_to:$PATH" bash "$script" prepare "$work/unused" >/dev/null 2>&1
+got=$?
+if [ "$got" -eq 0 ] && [ $((SECONDS - start)) -lt 25 ] && grep -qx 'timeout 20' "$stub_to/calls"; then
+  echo "ok   prepare (every adb call bounded by timeout 20; a hung adb does not hang or fail it)"
+else
+  fail "prepare timeout" "exit $got after $((SECONDS - start))s" "$(cat "$stub_to/calls" 2>/dev/null)"
+fi
+
+# run calls prepare before gradle. gradlew and adb are stubs that record their order.
+new_case
+stub_run="$work/stub-run"
+mkdir -p "$stub_run/bin"
+printf '#!/usr/bin/env bash\necho "adb $*" >>"%s/order"\n' "$stub_run" >"$stub_run/bin/adb"
+printf '#!/usr/bin/env bash\necho "gradlew $*" >>"%s/order"\n' "$stub_run" >"$stub_run/gradlew"
+chmod +x "$stub_run/bin/adb" "$stub_run/gradlew"
+(cd "$stub_run" && PATH="$stub_run/bin:$PATH" CONNECTED_TASKS="connectedDebugAndroidTest" \
+  bash "$script" run "$case_dir/diag" >/dev/null 2>&1)
+got=$?
+first_gradle="$(grep -n '^gradlew' "$stub_run/order" | head -1 | cut -d: -f1)"
+last_adb="$(grep -n '^adb' "$stub_run/order" | tail -1 | cut -d: -f1)"
+if [ "$got" -eq 0 ] && [ -n "$first_gradle" ] && [ -n "$last_adb" ] && [ "$last_adb" -lt "$first_gradle" ]; then
+  echo "ok   run calls prepare (all adb setup) before gradle"
+else
+  fail "run order" "exit $got" "$(cat "$stub_run/order" 2>/dev/null)"
+fi
 
 # cleanup: the attempt's results move into <dir>/results, and the emulator and adb are killed. pkill and adb are
 # stubs that record the call; the real ones would kill this machine's processes.
