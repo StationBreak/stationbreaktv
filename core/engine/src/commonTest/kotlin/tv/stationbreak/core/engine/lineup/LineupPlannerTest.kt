@@ -606,4 +606,31 @@ class LineupPlannerTest {
         assertEquals(lineup.channel("kids-odds").copy(source = kids.source), kids, "only the ceiling changes")
         assertEquals(lineup.channel("odds"), next.channel("odds"))
     }
+
+    @Test
+    fun aGrownUpRecipeWhoseWholePoolIsChildrensRatedRanksAsEmpty() {
+        val four = TestCatalog(five.take(4).map { (k, n) -> recipeOf(k, n) } + recipeOf("tots", 10))
+        val tvY =
+            libraryOf(fills(catalog = four)).let { lib ->
+                lib.copy(items = lib.items.map { if ("Kids" in it.genres) it else it.copy(officialRating = "TV-Y") })
+            }
+        // Only "tots" qualifies, so the lineup does not finalise; with G ratings the same library finalises.
+        assertFalse(planOf(null, tvY, four).finalised)
+        assertTrue(planOf(null, libraryOf(fills(catalog = four)), four).finalised)
+    }
+
+    private fun rankedFor(snapshot: RuleSnapshot): List<String> {
+        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L)
+        val candidates = base.recipes.map { it to planning.resolve(it) }
+        return planning.ranked(candidates).map { it.key }
+    }
+
+    @Test
+    fun rankedLeavesOutAGrownUpRecipeWhoseWholePoolIsChildrensRatedAndKeepsItWhenRatedG() {
+        val rated = libraryOf(fills())
+        val tvY =
+            rated.copy(items = rated.items.map { if ("Kids" in it.genres) it else it.copy(officialRating = "TV-Y") })
+        assertEquals(listOf("tots"), rankedFor(tvY))
+        assertTrue(rankedFor(rated).containsAll(five.map { it.first }))
+    }
 }

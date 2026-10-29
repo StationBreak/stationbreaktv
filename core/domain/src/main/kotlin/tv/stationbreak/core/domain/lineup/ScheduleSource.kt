@@ -31,6 +31,9 @@ enum class HiddenReason {
     /** A kid channel matched items but none is made for kids. */
     NothingMadeForKids,
 
+    /** A grown-up channel matched items but every one has a children's rating (the grown-up hold, ADR-0020). */
+    ChildrensRatingsOnly,
+
     /** Everything that matched was removed by the channel's exclusions. */
     AllExcluded,
 

@@ -25,11 +25,11 @@ data class Pool(
  * - `matchedBySource.size == rules.sources.size`, and every index in [unresolvedSources] and [unresolvedExclusions]
  *   refers to the `ChannelRules` that was passed to [PoolEvaluator.evaluate], not to any other.
  * - The number of distinct items that matched a source equals
- *   `items.size + excluded + heldOut + blockedByCeiling`. Summing
+ *   `items.size + excluded + heldOut + childrensRatingOut + blockedByCeiling`. Summing
  *   [matchedBySource] over-counts when sources overlap, because an item is counted for each source it matched.
  * - Under a ceiling every unknown-series episode is blocked, so `blockedByCeiling - episodesWithUnknownSeries` is the
- *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is held: a held pool applies
- *   the kid rating table even with no ceiling.)
+ *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is kids-only: a kids-only
+ *   pool applies the kid rating table even with no ceiling.)
  * - [collectionsSynced] is a pass-through of the snapshot's flag.
  *
  * @property matchedBySource for each entry of `rules.sources`, in order, how many items of the snapshot matched it
@@ -48,7 +48,9 @@ data class Pool(
  * @property collectionsSynced the snapshot's own flag, passed through: false means a collection missing from the
  *   snapshot may only not have been listed yet.
  * @property heldOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and were not
- *   made for kids, on a held channel. Always 0 when the pool is not held.
+ *   made for kids, on a kids-only channel. Always 0 under any other policy.
+ * @property childrensRatingOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and
+ *   had a children's rating, on a grown-up channel (ADR-0020). Always 0 under any other policy.
  */
 data class PoolCounts(
     val matchedBySource: List<Int>,
@@ -59,6 +61,7 @@ data class PoolCounts(
     val unresolvedExclusions: List<Int>,
     val collectionsSynced: Boolean,
     val heldOut: Int = 0,
+    val childrensRatingOut: Int = 0,
 ) {
     init {
         require(unresolvedSources.all { it in matchedBySource.indices }) { "An unresolved source is a source" }

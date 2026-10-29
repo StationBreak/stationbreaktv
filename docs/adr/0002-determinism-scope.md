@@ -21,7 +21,8 @@ It also isn't desirable: the kids' Boomerang shouldn't air MASH.
    and library/tag scopes. Account limits (Jellyfin parental controls) can only narrow this further.
    They are never bypassed.
    *Amended 2026-10-28 by [ADR-0019](0019-kid-hold.md): app-version limits may also narrow what the rules allow,
-   and never widen it. A kid channel's lineup is a function of rules, snapshot, seed, time and app version.*
+   and never widen it. A starter channel's lineup, kid or grown-up, is a function of rules, snapshot, seed, time and
+   app version (see also [ADR-0020](0020-grown-up-hold.md)).*
 3. **Hash-keyed ordering** (replaces plain Fisher–Yates for `SHUFFLE` and series selection in
    `RANDOM_IN_ORDER`, keyed on series ID): sort items by `key = splitmix64(seed_n + fnv1a64(canonicalId))`,
    compared **unsigned**, with ties broken by canonical ID bytes. Canonical ID = 32 lowercase hex chars, no

@@ -2,11 +2,13 @@
 package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.Pool
+import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolEvaluator
+import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
-import tv.stationbreak.core.engine.lineup.KidStatus.isKidRecipe
+import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -92,8 +94,11 @@ internal class Scheduled(
  *
  * A kid channel ([KidStatus.isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
  * made-for-kids content (spec 18): every pool it gets, ruled, leftovers and withheld, is evaluated with the hold, and
- * its cache key says so. A hidden or opt-in kid channel withholds only what it would air if shown, so what the hold
- * keeps off it stays with the grown-up leftovers.
+ * its cache key carries the policy. A hidden or opt-in kid channel withholds only what it would air if shown, so what
+ * the hold keeps off it stays with the grown-up leftovers.
+ *
+ * Any other starter, edited or not, is grown-up (ADR-0020): it drops children's-rated items, with its own cache key.
+ * A custom channel and the grown-up leftovers are open. [KidStatus.policyOf] decides all of this.
  *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
@@ -186,18 +191,19 @@ internal class LineupDays(
         private val withheldBy = HashMap<Long, Set<CanonicalId>>()
 
         // A pool depends only on the snapshot, the sources, the exclusions and the ceiling, so rules that agree on
-        // those (a recipe as resolved and as held, a hidden channel that is an unedited starter) are evaluated once.
+        // those (a recipe as resolved and as the lineup has it, a hidden channel that is an unedited starter) are
+        // evaluated once.
         private val evaluations = HashMap<EvaluationKey, Pool>()
 
         private fun evaluate(
             rules: ChannelRules,
             cutoff: Long,
-            held: Boolean,
+            policy: PoolPolicy,
         ): Pool {
-            val key = EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.maxRating, held)
+            val key = EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.maxRating, policy)
             evaluations[key]?.let { return it }
             evaluated()
-            return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff), held).also { evaluations[key] = it }
+            return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff), policy).also { evaluations[key] = it }
         }
 
         // Leftovers channels that claim in turn: ceilinged first, then by number and ID. Shelved ones claim nothing.
@@ -247,7 +253,7 @@ internal class LineupDays(
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            return dayOf(s, evaluate(rules, s.cutoffMs, isKidChannel(s.channel)))
+            return dayOf(s, evaluate(rules, s.cutoffMs, policyOf(s.channel)))
         }
 
         private fun leftoversDay(
@@ -282,7 +288,7 @@ internal class LineupDays(
         fun withheld(cutoff: Long): Set<CanonicalId> =
             withheldBy.getOrPut(cutoff) {
                 val rules = optInRules() + hiddenRules()
-                rules.flatMapTo(HashSet()) { (r, held) -> evaluate(r, cutoff, held).items.map { it.id } }
+                rules.flatMapTo(HashSet()) { (r, policy) -> evaluate(r, cutoff, policy).items.map { it.id } }
             }
 
         /** What the hidden leftovers channels would air from the [cutoff]'s snapshot: held back on purpose too. */
@@ -298,44 +304,44 @@ internal class LineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), isKidChannel(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), policyOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
-        // held when it is a kid one: the resolved recipe by its recipe, the lineup's channel by its channel. The
+        // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
         // ceiling is as today.
-        private fun optInRules(): List<HeldRules> =
+        private fun optInRules(): List<PolicyRules> =
             catalog.recipes.filter { it.optIn }.flatMap { recipe ->
                 val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
-                    HeldRules(resolved, isKidRecipe(recipe)),
-                    inLineup?.let(::rulesOf)?.let { HeldRules(it, isKidChannel(inLineup)) },
+                    PolicyRules(resolved, policyOf(recipe)),
+                    inLineup?.let(::rulesOf)?.let { PolicyRules(it, policyOf(inLineup)) },
                 )
             }
 
-        // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling, held if a kid channel.
-        private fun hiddenRules(): List<HeldRules> =
+        // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling and its own policy.
+        private fun hiddenRules(): List<PolicyRules> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
-                rulesOf(channel)?.let { HeldRules(it.copy(maxRating = ceilingOf(channel)), isKidChannel(channel)) }
+                rulesOf(channel)?.let { PolicyRules(it.copy(maxRating = ceilingOf(channel)), policyOf(channel)) }
             }
     }
 
-    /** Rules to evaluate, and whether the pool is held to made-for-kids content. */
-    private data class HeldRules(
+    /** Rules to evaluate, and the policy the pool is narrowed by (ADR-0019, ADR-0020). */
+    private data class PolicyRules(
         val rules: ChannelRules,
-        val held: Boolean,
+        val policy: PoolPolicy,
     )
 
     /**
      * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions and ceiling, and
-     * whether it is held, so a held and an unheld channel with the same rules never share a pool.
+     * its policy, so channels under different policies with the same rules never share a pool.
      */
     private data class EvaluationKey(
         val cutoffMs: Long,
         val sources: List<Source>,
         val exclusions: List<Source>,
         val maxRating: String?,
-        val held: Boolean,
+        val policy: PoolPolicy,
     )
 
     /**
@@ -401,13 +407,22 @@ internal fun hiddenReason(
 ): HiddenReason? {
     val counts = pool.counts
     val unresolved = counts.unresolvedSources.isNotEmpty() || counts.unresolvedExclusions.isNotEmpty()
+    val matched =
+        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.blockedByCeiling
     return when {
         day.isNotEmpty() -> null
         !counts.collectionsSynced && unresolved -> HiddenReason.CollectionsNotSynced
-        pool.items.size + counts.excluded + counts.heldOut + counts.blockedByCeiling == 0 -> HiddenReason.NoMatches
-        pool.items.isEmpty() && counts.heldOut > 0 && counts.blockedByCeiling == 0 -> HiddenReason.NothingMadeForKids
-        pool.items.isEmpty() && counts.blockedByCeiling == 0 -> HiddenReason.AllExcluded
-        pool.items.isEmpty() -> HiddenReason.AllBlockedByCeiling
+        matched == 0 -> HiddenReason.NoMatches
+        pool.items.isEmpty() -> emptyPoolReason(counts)
         else -> HiddenReason.EmptyToday
     }
 }
+
+// Why a pool that matched something has nothing airable: the ceiling wins, then the holds, then the exclusions.
+private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
+    when {
+        counts.blockedByCeiling > 0 -> HiddenReason.AllBlockedByCeiling
+        counts.heldOut > 0 -> HiddenReason.NothingMadeForKids
+        counts.childrensRatingOut > 0 -> HiddenReason.ChildrensRatingsOnly
+        else -> HiddenReason.AllExcluded
+    }

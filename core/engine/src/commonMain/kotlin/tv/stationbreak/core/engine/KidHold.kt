@@ -95,6 +95,12 @@ object KidHold {
             "DHX Media",
         )
 
+    /**
+     * The ratings that mean made for children, after `RatingLadder.normalise` (TV Parental Guidelines). Frozen under
+     * both [VERSION_NAME] and `GrownUpHold.VERSION_NAME`: a change to it is a new version name of each.
+     */
+    val CHILDRENS_RATINGS: Set<String> = setOf("TV-Y", "TV-Y7", "TV-Y7-FV")
+
     private const val TIER_PG = 2
     private const val TIER_TV_PG = 3
     private const val TIER_ABOVE = 4
@@ -115,20 +121,28 @@ object KidHold {
     ): Boolean =
         anyMatch(genreSet, entry.foldedGenres) ||
             anyMatch(studioSet, entry.foldedStudios) ||
-            isChildrensRating(entry.officialRating) ||
+            hasChildrensRating(entry, series) ||
             (
                 series != null &&
                     (
                         anyMatch(genreSet, series.foldedGenres) ||
-                            anyMatch(studioSet, series.foldedStudios) ||
-                            isChildrensRating(series.officialRating)
+                            anyMatch(studioSet, series.foldedStudios)
                     )
             )
 
+    /**
+     * Whether [entry]'s rating, or the known [series]' rating, is a children's one ([CHILDRENS_RATINGS]). This is the
+     * one predicate behind both [isMadeForKids]'s ratings rule and the grown-up hold (ADR-0020), so the two gates
+     * cannot drift. A null [series] contributes nothing.
+     */
+    fun hasChildrensRating(
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean = isChildrensRating(entry.officialRating) || (series != null && isChildrensRating(series.officialRating))
+
     private fun isChildrensRating(rating: String?): Boolean {
         if (rating == null) return false
-        val name = RatingLadder.normalise(rating)
-        return name == "TV-Y" || name == "TV-Y7" || name == "TV-Y7-FV"
+        return RatingLadder.normalise(rating) in CHILDRENS_RATINGS
     }
 
     /**

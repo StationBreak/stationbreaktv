@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.episode
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.movie
@@ -21,7 +22,7 @@ class LeftoversTest {
                 items = listOf(episode(idOf(1), show), episode(idOf(2), show)),
                 series = listOf(series(show)),
             )
-        val pool = Leftovers.pool(snap, emptySet(), null, held = false)
+        val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.Open)
         assertEquals(listOf(idOf(1), idOf(2)), pool.items.map { it.id })
         assertEquals(emptyList(), pool.counts.matchedBySource)
     }
@@ -29,14 +30,14 @@ class LeftoversTest {
     @Test
     fun claimedItemsAreLeftOut() {
         val snap = snapshot(items = listOf(movie(idOf(1)), movie(idOf(2)), movie(idOf(3))))
-        val pool = Leftovers.pool(snap, setOf(idOf(2)), null, held = false)
+        val pool = Leftovers.pool(snap, setOf(idOf(2)), null, policy = PoolPolicy.Open)
         assertEquals(listOf(idOf(1), idOf(3)), pool.items.map { it.id })
     }
 
     @Test
     fun nothingLeftGivesEmptyPool() {
         val snap = snapshot(items = listOf(movie(idOf(1)), movie(idOf(2))), collectionsSynced = false)
-        val pool = Leftovers.pool(snap, setOf(idOf(1), idOf(2)), "PG", held = false)
+        val pool = Leftovers.pool(snap, setOf(idOf(1), idOf(2)), "PG", policy = PoolPolicy.Open)
         assertEquals(emptyList(), pool.items)
         assertEquals(0, pool.counts.blockedByCeiling)
         assertEquals(false, pool.counts.collectionsSynced)
@@ -53,7 +54,7 @@ class LeftoversTest {
                         movie(idOf(3), rating = "G"),
                     ),
             )
-        val pool = Leftovers.pool(snap, emptySet(), "PG", held = false)
+        val pool = Leftovers.pool(snap, emptySet(), "PG", policy = PoolPolicy.Open)
         assertEquals(listOf(idOf(3)), pool.items.map { it.id })
         assertEquals(2, pool.counts.blockedByCeiling)
     }
@@ -61,16 +62,18 @@ class LeftoversTest {
     @Test
     fun episodeOfUnknownSeriesBlockedUnderCeiling() {
         val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "G")))
-        val under = Leftovers.pool(snap, emptySet(), "PG", held = false)
+        val under = Leftovers.pool(snap, emptySet(), "PG", policy = PoolPolicy.Open)
         assertEquals(emptyList(), under.items)
         assertEquals(1, under.counts.blockedByCeiling)
         assertEquals(1, under.counts.episodesWithUnknownSeries)
-        assertEquals(1, Leftovers.pool(snap, emptySet(), null, held = false).items.size)
+        assertEquals(1, Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.Open).items.size)
     }
 
     @Test
     fun aCeilingOffTheLadderIsRefusedLikeThePoolEvaluator() {
-        assertFailsWith<IllegalArgumentException> { Leftovers.pool(snapshot(), emptySet(), "XX", held = false) }
+        assertFailsWith<IllegalArgumentException> {
+            Leftovers.pool(snapshot(), emptySet(), "XX", policy = PoolPolicy.Open)
+        }
     }
 
     @Test
@@ -85,11 +88,11 @@ class LeftoversTest {
                         movie(idOf(4), rating = "G", genres = listOf("Kids")),
                     ),
             )
-        val pool = Leftovers.pool(snap, setOf(idOf(4)), "PG", held = true)
+        val pool = Leftovers.pool(snap, setOf(idOf(4)), "PG", policy = PoolPolicy.KidsOnly)
         assertEquals(listOf(idOf(1)), pool.items.map { it.id })
         assertEquals(1, pool.counts.heldOut)
         assertEquals(1, pool.counts.blockedByCeiling)
-        val unheld = Leftovers.pool(snap, setOf(idOf(4)), "PG", held = false)
+        val unheld = Leftovers.pool(snap, setOf(idOf(4)), "PG", policy = PoolPolicy.Open)
         assertEquals(0, unheld.counts.heldOut)
         assertEquals(listOf(idOf(1), idOf(2), idOf(3)), unheld.items.map { it.id })
     }
@@ -97,9 +100,26 @@ class LeftoversTest {
     @Test
     fun aHeldLeftoversEpisodeOfAnUnknownSeriesIsHeldOutAndNotCountedUnknown() {
         val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "G")))
-        val pool = Leftovers.pool(snap, emptySet(), "PG", held = true)
+        val pool = Leftovers.pool(snap, emptySet(), "PG", policy = PoolPolicy.KidsOnly)
         assertEquals(1, pool.counts.heldOut)
         assertEquals(0, pool.counts.episodesWithUnknownSeries)
         assertEquals(0, pool.counts.blockedByCeiling)
+    }
+
+    @Test
+    fun aGrownUpLeftoversPolicyDropsChildrensRatedItemsAndCountsThemApart() {
+        val snap =
+            snapshot(
+                items =
+                    listOf(
+                        movie(idOf(1), rating = "TV-Y"),
+                        movie(idOf(2), rating = "PG"),
+                        movie(idOf(3), rating = null),
+                    ),
+            )
+        val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)
+        assertEquals(listOf(idOf(2), idOf(3)), pool.items.map { it.id })
+        assertEquals(1, pool.counts.childrensRatingOut)
+        assertEquals(0, pool.counts.heldOut)
     }
 }

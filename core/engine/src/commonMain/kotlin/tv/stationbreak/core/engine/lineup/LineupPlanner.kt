@@ -230,8 +230,8 @@ object LineupPlanner {
         channels.sortedWith(compareBy<LineupChannel, Int?>(nullsLast()) { it.number }.thenBy { it.id.value })
 }
 
-/** What one call of [LineupPlanner.plan] works with. */
-private class Planning(
+/** What one call of [LineupPlanner.plan] works with. Internal only so LineupPlannerTest can call `ranked`. */
+internal class Planning(
     val serverId: CanonicalId,
     val offset: Int,
     val snapshot: RuleSnapshot,
@@ -249,7 +249,7 @@ private class Planning(
     fun ranked(candidates: List<Pair<Recipe, ChannelRules>>): List<Recipe> =
         candidates
             .mapNotNull { (recipe, rules) ->
-                val pool = PoolEvaluator.evaluate(rules, snapshot, held = KidStatus.isKidRecipe(recipe))
+                val pool = PoolEvaluator.evaluate(rules, snapshot, KidStatus.policyOf(recipe))
                 val runtime = airableRuntimeMs(pool.items, rules.toSchedulerSettings())
                 if (runtime >= LineupDefaults.MIN_AIRABLE_RUNTIME_MS) recipe to runtime else null
             }.sortedWith(compareByDescending<Pair<Recipe, Long>> { it.second }.thenBy { it.first.key })
