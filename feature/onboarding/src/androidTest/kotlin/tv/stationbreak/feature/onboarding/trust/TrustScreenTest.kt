@@ -26,6 +26,7 @@ import org.junit.runner.RunWith
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
 
 /**
  * The trust screen on the API 25 emulator, driven with real key events (spec 05, Unit 3): Don't trust has default
@@ -62,7 +63,7 @@ class TrustScreenTest {
     }
 
     private fun awaitFocused(tag: String) {
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+        compose.awaitFocusedForKeys(tag, FOCUS_TIMEOUT_MS)
     }
 
     /** A key goes to the node that should have focus by then, never to whatever focus has reached so far. */

@@ -46,6 +46,8 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
+import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
 import tv.stationbreak.feature.onboarding.trust.TrustTags
@@ -104,6 +106,7 @@ class ServerScreenTest {
     }
 
     private fun press(keyCode: Int) {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
     }
@@ -375,7 +378,7 @@ class ServerScreenTest {
 
     /** The trust screen is a window of its own and a cold emulator is slow to focus it: wait before each key. */
     private fun awaitFocused(tag: String) {
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+        compose.awaitFocusedForKeys(tag, FOCUS_TIMEOUT_MS)
     }
 
     @Test

@@ -5,7 +5,6 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -28,6 +27,7 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
 import tv.stationbreak.feature.onboarding.signin.SignInResult
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
@@ -69,7 +69,7 @@ class SignedInScreenTest {
     }
 
     private fun awaitFocused(tag: String) {
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+        compose.awaitFocusedForKeys(tag, FOCUS_TIMEOUT_MS)
     }
 
     private fun press(
