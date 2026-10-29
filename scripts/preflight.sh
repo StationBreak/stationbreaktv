@@ -17,9 +17,14 @@
 # Toolchain: JAVA_HOME and ANDROID_HOME are used if set. Otherwise $HOME/.local/share/stationbreak-toolchain/jdk-17
 # and /android-sdk are used if they exist.
 # Instrumented tests are bounded: PREFLIGHT_INSTRUMENTED_TIMEOUT seconds (default 1200; a normal run takes 3-5
-# minutes). On a timeout it saves logcat, the foreground activity, the device's processes and a Gradle client thread
-# dump and fails the step. The logcat is kept for every --emulator run, in a per-run directory under
+# minutes). On a timeout it saves logcat, the foreground activity, the device's processes and packages, the host's adb
+# and Java processes, and thread dumps of the Gradle client and the Android test engine, and fails the step. The logcat
+# is kept for every --emulator run, in a per-run directory under
 # ${XDG_CACHE_HOME:-$HOME/.cache}/stationbreak/preflight-runs/ (the last 10 are kept); the path is printed at the end.
+# Each APK install is bounded too: PREFLIGHT_INSTALL_TIMEOUT seconds (default 120; one normally takes under 10). A
+# stalled install is stopped and its evidence saved in an install-stall-* directory of the run (#482). A module that
+# wrote no test results (a stopped install, or any other failure to start its tests, which Gradle reports as a pass) is
+# run once more; if it still has none, the step fails.
 # Exit: 0 all passed, 1 a step failed, 2 usage error.
 set -euo pipefail
 
@@ -108,6 +113,7 @@ script_tests() {
   bash .github/scripts/release-scope.test.sh
   bash scripts/guard-tree.test.sh
   bash scripts/run-bounded.test.sh
+  bash scripts/install-watchdog.test.sh
   bash scripts/playback-matrix/playback-matrix.test.sh
 }
 
@@ -226,18 +232,25 @@ contract_tests() {
 
 # shellcheck source=scripts/run-bounded.sh
 source scripts/run-bounded.sh
+# shellcheck source=scripts/install-watchdog.sh
+source scripts/install-watchdog.sh
 
 emulator_image='system-images;android-25;android-tv;x86'
 emulator_port=5580
 emulator_lock_fd=""
 emulator_pid=""
 logcat_pid=""
+watchdog_pid=""
 avd_home=""
 # Per run, outside the repo and the AVD directory: cleanup deletes the AVD, and something removed a repo-root build/
 # directory after a run (2026-10), taking the logcat with it.
 preflight_out=""
 
 emulator_cleanup() {
+  if [ -n "$watchdog_pid" ]; then
+    kill "$watchdog_pid" 2>/dev/null || true
+    wait "$watchdog_pid" 2>/dev/null || true
+  fi
   if [ -n "$logcat_pid" ]; then
     kill "$logcat_pid" 2>/dev/null || true
     wait "$logcat_pid" 2>/dev/null || true
@@ -270,15 +283,65 @@ emulator_prereqs() {
 # the Gradle client's pid, before anything is killed. Every adb call is itself bounded: adb stalling is one of the
 # things this has to tell apart, and a stalled call here must not hang the diagnosis. Best effort throughout.
 save_hang_evidence() {
-  local client_pid="$1" adb="$ANDROID_HOME/platform-tools/adb"
+  local client_pid="$1"
   echo "Saving hang evidence to $preflight_out" >&2
-  timeout 20 "$adb" shell dumpsys activity activities 2>&1 | head -n 200 >"$preflight_out/activities.txt" || true
-  # API 25 has `ps` with no -A; newer images want it.
-  { timeout 20 "$adb" shell ps -A 2>/dev/null || timeout 20 "$adb" shell ps 2>&1; } >"$preflight_out/ps.txt" || true
-  timeout 20 "$adb" devices -l >"$preflight_out/adb-devices.txt" 2>&1 || true
+  save_device_state "$preflight_out"
   if command -v jstack >/dev/null 2>&1; then
     timeout 30 jstack "$client_pid" >"$preflight_out/gradle-client-threads.txt" 2>&1 || true
   fi
+}
+
+# save_device_state <dir>: the device's and the host's side of a stuck run, as save_hang_evidence describes.
+save_device_state() {
+  local dir="$1" adb="$ANDROID_HOME/platform-tools/adb" pid
+  timeout 20 "$adb" shell dumpsys activity activities 2>&1 | head -n 200 >"$dir/activities.txt" || true
+  # API 25 has `ps` with no -A; newer images want it.
+  { timeout 20 "$adb" shell ps -A 2>/dev/null || timeout 20 "$adb" shell ps 2>&1; } >"$dir/ps.txt" || true
+  timeout 20 "$adb" devices -l >"$dir/adb-devices.txt" 2>&1 || true
+  timeout 20 "$adb" shell pm list packages 2>&1 | grep -i stationbreak >"$dir/packages.txt" || true
+  # The host side: every adb client with its age in seconds (a stuck `adb install` shows here), and the JVMs.
+  ps -u "$(id -u)" -o pid=,ppid=,etimes=,args= | awk '$4 ~ /(^|\/)(adb|java)$/' >"$dir/host-processes.txt" || true
+  # The Gradle client only waits on its daemon. The connected task's work is done by the Android test engine, a JVM the
+  # daemon starts per task, and it runs the adb commands; its threads show which one it is waiting on.
+  if command -v jstack >/dev/null 2>&1; then
+    for pid in $(pgrep -u "$(id -u)" -f 'android-test\.adb-path' || true); do
+      echo "=== test engine JVM $pid"
+      timeout 30 jstack "$pid" 2>&1 || true
+    done >"$dir/test-engine-threads.txt"
+  fi
+}
+
+# The on-stall command for install_watchdog: the evidence of one stalled install, taken while it is still running.
+install_stalled() {
+  local pid="$1" dir
+  dir="$preflight_out/install-stall-$(date +%H%M%S)-$pid"
+  mkdir -p "$dir"
+  echo "Saving install-stall evidence to $dir" >&2
+  ps -o etimes=,args= -p "$pid" >"$dir/install-command.txt" 2>&1 || true
+  save_device_state "$dir"
+}
+
+# tasks_without_results <since-file> <task...>: prints each connected task whose module wrote no JUnit XML after
+# <since-file> was made. Gradle counts a module whose tests never started (its APK did not install, say) as a pass, with
+# only an "AndroidTestRunner failed" line in its output; a missing result file is what gives it away. The app's task
+# (no project path) writes under app/, :a:b's under a/b/.
+tasks_without_results() {
+  local since="$1" task module
+  shift
+  for task in "$@"; do
+    case "$task" in
+      :*:connected*)
+        module="${task%:*}"
+        module="${module#:}"
+        module="${module//://}"
+        ;;
+      *) module=app ;;
+    esac
+    if ! find "$module/build/outputs/androidTest-results/connected" -name 'TEST-*.xml' -newer "$since" 2>/dev/null |
+      grep -q .; then
+      echo "$task"
+    fi
+  done
 }
 
 instrumented_tests() {
@@ -368,17 +431,68 @@ instrumented_tests() {
   # together on the one emulator, one of them never reported and the run hung for its full hour (2026-10).
   # Bounded, because hangs here have run to the outer hour (most recently :feature:onboarding). The limit is well over a
   # normal 3-5 minute run.
-  local limit="${PREFLIGHT_INSTRUMENTED_TIMEOUT:-1200}" status=0
+  local limit="${PREFLIGHT_INSTRUMENTED_TIMEOUT:-1200}" install_limit="${PREFLIGHT_INSTALL_TIMEOUT:-120}" status=0
   case "$limit" in
     '' | *[!0-9]*)
       echo "PREFLIGHT_INSTRUMENTED_TIMEOUT must be a number of seconds, not '$limit'." >&2
       return 1
       ;;
   esac
-  # shellcheck disable=SC2086
-  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel $connected || status=$?
+  case "$install_limit" in
+    '' | *[!0-9]*)
+      echo "PREFLIGHT_INSTALL_TIMEOUT must be a number of seconds, not '$install_limit'." >&2
+      return 1
+      ;;
+  esac
+  local tasks=() retry=() still=() since retry_status=0 pkg
+  read -ra tasks <<<"$connected"
+  timeout 20 "$adb" devices -l >"$preflight_out/adb-devices-start.txt" 2>&1 || true
+
+  # Each APK install bounded (#482): the connected tasks install with `adb -s <serial> install` and wait on it with no
+  # limit, and here that install has sometimes never finished. See scripts/install-watchdog.sh.
+  install_watchdog "$ANDROID_SERIAL" "$install_limit" install_stalled &
+  watchdog_pid=$!
+
+  # --continue: every module runs even if one fails, so the results check below sees them all.
+  since="$preflight_out/attempt1.start"
+  : >"$since"
+  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${tasks[@]}" || status=$?
+  if [ "$status" -ne 124 ]; then
+    mapfile -t retry < <(tasks_without_results "$since" "${tasks[@]}")
+  fi
+  if [ "${#retry[@]}" -gt 0 ]; then
+    echo "No test results from: ${retry[*]}. Their tests never ran (a stopped install, or the test runner failed" >&2
+    echo "to start; Gradle still reports these as passed). Running them once more." >&2
+    # A stopped install can still leave its package on the device, and the next `adb install` (it has no -r) then fails
+    # with INSTALL_FAILED_ALREADY_EXISTS. The emulator is this run's own, so every StationBreak package on it is ours.
+    for pkg in $(timeout 20 "$adb" shell pm list packages 2>/dev/null | tr -d '\r' |
+      sed -n 's/^package:\(tv\.stationbreak\..*\)$/\1/p'); do
+      timeout 60 "$adb" uninstall "$pkg" >/dev/null 2>&1 || true
+    done
+    since="$preflight_out/attempt2.start"
+    : >"$since"
+    run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${retry[@]}" || retry_status=$?
+    if [ "$retry_status" -eq 124 ]; then
+      status=124
+    else
+      mapfile -t still < <(tasks_without_results "$since" "${retry[@]}")
+      if [ "${#still[@]}" -gt 0 ]; then
+        echo "Still no test results from: ${still[*]}." >&2
+        retry_status=1
+      fi
+      # A real failure in the first attempt stands; a module the retry fixed does not hide it.
+      if [ "$status" -eq 0 ]; then status="$retry_status"; fi
+    fi
+  fi
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+  watchdog_pid=""
+
+  if compgen -G "$preflight_out/install-stall-*" >/dev/null; then
+    echo "An install stalled and was stopped; its evidence is in $preflight_out/install-stall-*" >&2
+  fi
   if [ "$status" -eq 124 ]; then
-    echo "The instrumented tests hung: no result after ${limit}s. Evidence (logcat, activities, ps, thread dump) is in:" >&2
+    echo "The instrumented tests hung: no result after ${limit}s. Evidence (logcat, device and host state, thread dumps) is in:" >&2
     echo "  $preflight_out" >&2
     echo "The Gradle client was stopped and the emulator is shut down next. Gradle's daemon is asked to cancel the build but" >&2
     echo "may stay busy a while if a task is stuck in adb; it was not stopped, as that would stop other builds too." >&2
