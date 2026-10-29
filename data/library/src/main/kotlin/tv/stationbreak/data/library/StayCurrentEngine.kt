@@ -132,6 +132,35 @@ private sealed interface Decision {
 }
 
 /**
+ * How many pages' worth of items in a row the studios re-read may find undecodable before it gives up (spec 18, #460).
+ * The re-read has no skip cap, so a server or proxy that answers every index with unreadable content would otherwise
+ * make it step one item at a time until WorkManager's window ended it, every run. More than this many pages in a row
+ * ends the re-read as a failure that is not recorded in the account's sync state, with the flag left set.
+ *
+ * It is a bound against a proxy or server that sends garbage, not against a hostile server: one that interleaves good
+ * items, reports a false total or never ends a listing is not stopped by it. The accepted cost: a library that truly
+ * holds more than a page of undecodable items in a row keeps the flag set, and the re-read is tried again every run.
+ */
+internal const val BACKFILL_MALFORMED_PAGES_MAX = 1
+
+/** What one walk has seen of undecodable items: the run since the last good page, the total, and the server's count. */
+private class MalformedRun {
+    var inARow = 0
+    var skipped = 0
+    var total: Int? = null
+
+    fun page(totalCount: Int?) {
+        inARow = 0
+        if (totalCount != null) total = totalCount
+    }
+
+    fun skip() {
+        inARow += 1
+        skipped += 1
+    }
+}
+
+/**
  * Keeps the saved library current after the first sync (spec 06, Unit 4): the incremental pass picks up what changed on
  * the server, quietly. Nothing here shows a screen or a message; the outcome is state in the saved library only.
  *
@@ -463,6 +492,7 @@ internal class StayCurrentEngine(
             onPage: suspend (List<MediaItem>) -> Boolean,
         ): SyncOutcome? {
             val limit = PageLimit(pageSize)
+            val run = MalformedRun()
             var next = 0
             while (true) {
                 when (val fetched = server.fetchPage(session, library, next, since, limit)) {
@@ -471,12 +501,13 @@ internal class StayCurrentEngine(
                     }
 
                     Fetched.Malformed -> {
-                        skip()?.let { return it }
+                        skip(run)?.let { return it }
                         onMalformed(next)
                         next += 1
                     }
 
                     is Fetched.Page -> {
+                        run.page(fetched.totalCount)
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
                         if (!onPage(fetched.items)) return null
@@ -494,6 +525,7 @@ internal class StayCurrentEngine(
             if (missing.isEmpty()) return null
             val wanted = missing.toMutableSet()
             val limit = PageLimit(pageSize)
+            val run = MalformedRun()
             var next = 0
             while (wanted.isNotEmpty()) {
                 when (val fetched = server.fetchSeriesPage(session, library, next, null, limit)) {
@@ -502,11 +534,12 @@ internal class StayCurrentEngine(
                     }
 
                     Fetched.Malformed -> {
-                        skip()?.let { return it }
+                        skip(run)?.let { return it }
                         next += 1
                     }
 
                     is Fetched.Page -> {
+                        run.page(fetched.totalCount)
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
                         val found = fetched.items.filter { it.id in wanted }
@@ -526,6 +559,7 @@ internal class StayCurrentEngine(
             since: Instant?,
         ): SyncOutcome? {
             val limit = PageLimit(pageSize)
+            val run = MalformedRun()
             var next = 0
             while (true) {
                 when (val fetched = server.fetchSeriesPage(session, library, next, since, limit)) {
@@ -534,11 +568,12 @@ internal class StayCurrentEngine(
                     }
 
                     Fetched.Malformed -> {
-                        skip()?.let { return it }
+                        skip(run)?.let { return it }
                         next += 1
                     }
 
                     is Fetched.Page -> {
+                        run.page(fetched.totalCount)
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
                         repository.upsertSeries(account, library.id, fetched.items)
@@ -547,10 +582,20 @@ internal class StayCurrentEngine(
             }
         }
 
-        // One item or series would not decode: past the limit that fails the pass, except in the backfill.
-        private suspend fun skip(): SyncOutcome? {
+        // One item or series would not decode: past the limit that fails the pass. The backfill has no such limit, but
+        // it gives up on more than a page's worth in a row, or on more skipped than the server said the listing holds:
+        // that is a proxy or server answering with garbage, not a few odd items. It does not guard against a server
+        // that means harm (see [BACKFILL_MALFORMED_PAGES_MAX]).
+        private suspend fun skip(run: MalformedRun): SyncOutcome? {
             skipped += 1
-            return if (!backfilling && skipped > maxSkippedItems) fail(MediaServerError.NotJellyfin()) else null
+            run.skip()
+            if (!backfilling) {
+                return if (skipped > maxSkippedItems) fail(MediaServerError.NotJellyfin()) else null
+            }
+            // The total is known only once page 0 of the walk decoded; until then only the in-a-row rule applies.
+            val beyondTotal = run.total?.let { run.skipped > it } ?: false
+            val stuck = run.inARow > pageSize * BACKFILL_MALFORMED_PAGES_MAX
+            return if (stuck || beyondTotal) fail(MediaServerError.NotJellyfin()) else null
         }
 
         private suspend fun suspect(): SyncOutcome = failed(SyncFailure.Suspect)
@@ -560,7 +605,7 @@ internal class StayCurrentEngine(
         // Recorded for the account, unless a first sync started meanwhile (its state is left alone) or this is the
         // backfill, whose failure is only returned.
         private suspend fun failed(failure: SyncFailure): SyncOutcome {
-            if (!backfilling) repository.failStayCurrent(account, failure)
+            if (!backfilling && !repository.failStayCurrent(account, failure)) return SyncOutcome.Cancelled
             return SyncOutcome.Failed(failure)
         }
     }

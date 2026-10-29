@@ -69,15 +69,15 @@ data class RuleItem(
     val foldedTags: List<String>
         get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
 
-    /** [studios] folded, as [foldedGenres]. */
+    /** [studios] cleaned ([cleanStudioName]) and folded, as [foldedGenres]. */
     val foldedStudios: List<String>
-        get() = foldedStudiosCache ?: foldNames(studios).also { foldedStudiosCache = it }
+        get() = foldedStudiosCache ?: foldStudioNames(studios).also { foldedStudiosCache = it }
 
     /** Sets [foldedGenres], [foldedTags] and [foldedStudios] from [folds], shared with the rest of the snapshot. */
     fun primeFolds(folds: NameFolds) {
         foldedGenresCache = folds.of(genres)
         foldedTagsCache = folds.of(tags)
-        foldedStudiosCache = folds.of(studios)
+        foldedStudiosCache = folds.ofStudios(studios)
     }
 }
 
@@ -103,15 +103,15 @@ data class RuleSeries(
     val foldedTags: List<String>
         get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
 
-    /** [studios] folded, as [foldedGenres]. */
+    /** [studios] cleaned ([cleanStudioName]) and folded, as [foldedGenres]. */
     val foldedStudios: List<String>
-        get() = foldedStudiosCache ?: foldNames(studios).also { foldedStudiosCache = it }
+        get() = foldedStudiosCache ?: foldStudioNames(studios).also { foldedStudiosCache = it }
 
     /** Sets [foldedGenres], [foldedTags] and [foldedStudios] from [folds], shared with the rest of the snapshot. */
     fun primeFolds(folds: NameFolds) {
         foldedGenresCache = folds.of(genres)
         foldedTagsCache = folds.of(tags)
-        foldedStudiosCache = folds.of(studios)
+        foldedStudiosCache = folds.ofStudios(studios)
     }
 }
 

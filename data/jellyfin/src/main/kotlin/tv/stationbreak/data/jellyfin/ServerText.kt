@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin
 
+import tv.stationbreak.core.model.cleanStudioName
+
 /**
  * Makes free text from the server safe to draw (it is untrusted input). The input is cut to a multiple of the cap
  * first, so no later step does unbounded work. Then markup is removed (`<br>`, `</p>`, `</div>`, `</li>` and `<li>`
@@ -98,6 +100,11 @@ internal object ServerText {
             else -> String(Character.toChars(cp))
         }
 
+    /**
+     * True for a code point that is never kept in text from the server: a C0 or C1 control, a bidi control, or a
+     * format character other than the joiners ZWJ and ZWNJ. (A surrogate is handled by the caller: it is a half, not
+     * a character.)
+     */
     private fun isInvisible(cp: Int): Boolean =
         cp < ' '.code || cp in DELETE..LAST_C1 || isBidi(cp) ||
             (Character.getType(cp) == Character.FORMAT.toInt() && cp != ZWNJ && cp != ZWJ)
@@ -137,3 +144,13 @@ internal object ServerText {
     private val ISOLATES = 0x2066..0x2069
     private val SURROGATES = 0xD800..0xDFFF
 }
+
+/**
+ * A studio name as stored for matching: [cleanStudioName] (core/model), the one rule the kid hold also applies when it
+ * reads names, so a name cached by any version matches the same way. In short: C0 and C1 controls, bidi controls and
+ * other format characters (except ZWJ and ZWNJ) and lone surrogates are removed, tab and line breaks become a space,
+ * the ends are trimmed. Null when nothing is left. Nothing else is done: no markup removal, no entity decoding, no cap
+ * on combining marks, no collapsing of spaces, and the caller has already dropped a name that is too long. This is not
+ * the display rule: any future display of a studio name must still go through [ServerText]'s full rule.
+ */
+internal fun studioName(raw: String): String? = cleanStudioName(raw).takeIf { it.isNotEmpty() }
