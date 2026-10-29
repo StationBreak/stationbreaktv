@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import tv.stationbreak.core.domain.AccountCache
+import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
@@ -100,7 +101,7 @@ class LineupService internal constructor(
         standardOffsetMinutes: () -> Int,
         report: (LineupEvent) -> Unit,
         timed: (Long) -> Unit,
-        derived: AccountCache = AccountCache.None,
+        derived: DayStore? = null,
     ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed, derived = derived))
 
     internal val catalog: StarterCatalogView get() = seams.catalog
@@ -261,8 +262,20 @@ class LineupService internal constructor(
             entry.state.value = null
             entry.loaded = false
             entry.writable = false
-            seams.derived.forget(owner.key)
-            store.forget(owner.key)
+            store.forget(owner.key).also { forgetDerived(owner.key) }
+        }
+    }
+
+    // The days built from the lineup go after it: only the days' own store, never an AccountCache that could reach the
+    // library, and a fault there (it never throws, but) cannot undo the lineup's delete. Cancellation goes through.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun forgetDerived(account: LibraryAccount) {
+        try {
+            seams.derived?.forget(account)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Best effort: the days are a cache, and their key no longer matches a lineup that is gone.
         }
     }
 
@@ -412,7 +425,7 @@ internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
     val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,
     val timed: (Long) -> Unit = {},
-    val derived: AccountCache = AccountCache.None,
+    val derived: DayStore? = null,
 )
 
 /** An account in canonical form, as the store keys it, with its IDs for the planner. */

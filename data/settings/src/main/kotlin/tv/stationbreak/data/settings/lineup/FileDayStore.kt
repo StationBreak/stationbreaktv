@@ -23,7 +23,9 @@ import java.io.IOException
  * account. A path is built only from IDs that are already canonical and a name of lower-case letters, digits, `_` and
  * `-` (at most `DayStore.MAX_NAME` long), so nothing can name a path outside its account's directory; any other
  * account or name gets no file. As an `AccountCache` it deletes a signed-out account's directory ([forget]) and every
- * account's but the signed-in one's ([useAccount]).
+ * account's but the signed-in one's ([useAccount]), and from then on refuses writes for any account but the signed-in
+ * one (any account is written until [useAccount] names one) and for a forgotten one, so a late save cannot bring them
+ * back.
  *
  * A write goes to `<name>.new`, is synced, is renamed over `<name>`, and then the directory is synced, as the lineup's
  * files are ([DiskLineupFiles]): a power cut leaves the old file or the new one, never a torn one, and an orphan
@@ -41,6 +43,12 @@ class FileDayStore internal constructor(
     constructor(context: Context) : this(File(context.filesDir, DIR_NAME))
 
     private val lock = Mutex()
+
+    // Under [lock]: the signed-in account's directory, once [useAccount] has said, and the directories of accounts
+    // [forget] has cleared in this process. Neither may be written to by a save that finishes late (a build that began
+    // before the sign-out or the switch): that would bring a signed-out account's days back.
+    private var active: File? = null
+    private val forgotten = HashSet<File>()
 
     override suspend fun read(
         account: LibraryAccount,
@@ -71,8 +79,11 @@ class FileDayStore internal constructor(
         bytes: ByteArray,
     ): Boolean {
         val file = fileOf(account, name)
-        if (file == null || bytes.size > maxBytes) return false
+        val directory = directoryOf(account)
+        if (file == null || directory == null || bytes.size > maxBytes) return false
         return locked {
+            val current = active
+            if (directory in forgotten || (current != null && current != directory)) return@locked false
             val staged = File(file.path + NEW)
             try {
                 file.parentFile?.let(::ensureDirectory)
@@ -117,16 +128,25 @@ class FileDayStore internal constructor(
         return locked { !file.exists() || file.delete() }
     }
 
-    /** [account] signed out: its directory of days goes. Never throws. */
+    /** [account] signed out: its directory of days goes, and nothing is written to it again in this process. */
     override suspend fun forget(account: LibraryAccount) {
         val directory = directoryOf(account) ?: return
-        locked { quietly { directory.deleteRecursively() } }
+        locked {
+            forgotten += directory
+            if (active == directory) active = null
+            quietly { directory.deleteRecursively() }
+        }
     }
 
-    /** [account] is the one signed in now: every other account's directory of days goes. Never throws. */
+    /**
+     * [account] is the one signed in now: every other account's directory of days goes, and only this account's days
+     * are written from now on. Never throws.
+     */
     override suspend fun useAccount(account: LibraryAccount) {
         val own = directoryOf(account)
         locked {
+            active = own
+            own?.let { forgotten -= it }
             quietly {
                 root.listFiles()?.forEach { server ->
                     server.listFiles()?.filter { it != own }?.forEach { it.deleteRecursively() }

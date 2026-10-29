@@ -149,6 +149,30 @@ class FileDayStoreTest {
     }
 
     @Test
+    fun aSaveThatFinishesAfterSignOutDoesNotBringTheAccountBack() {
+        write()
+        runBlocking { store.forget(one) }
+        assertFalse(write())
+        assertFalse(directory.exists())
+        // Signed in again: its days are written as before.
+        runBlocking { store.useAccount(one) }
+        assertTrue(write())
+    }
+
+    @Test
+    fun onlyTheSignedInAccountIsWrittenOnceOneIsNamed() {
+        assertTrue("before any sign-in is known, any account is written", write(two))
+        runBlocking { store.useAccount(one) }
+        assertFalse(write(two))
+        assertEquals(StoredBytes.Absent, stored(two))
+        assertTrue(write())
+        // A switch: the other account is now the one written.
+        runBlocking { store.useAccount(two) }
+        assertTrue(write(two))
+        assertFalse(write())
+    }
+
+    @Test
     fun clearingAnAccountWithNoDaysIsFine() {
         runBlocking {
             store.forget(one)

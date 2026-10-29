@@ -299,10 +299,36 @@ class PersistedDaysTest {
     }
 
     /** A file of [body] under the saved header, its checksum made to match, so that the body itself is what is read. */
-    private fun forged(body: String): ByteArray {
-        val header = savedParts().first
-        val crc = CRC32().apply { update(body.encodeToByteArray()) }.value
+    private fun forged(
+        body: String,
+        header: String = savedParts().first,
+    ): ByteArray {
+        // The checksum covers the key's JSON (the end of the header line) and then the body.
+        val key = header.substringAfter("\"key\":").dropLast(1)
+        val crc =
+            CRC32()
+                .apply {
+                    update(key.encodeToByteArray())
+                    update(body.encodeToByteArray())
+                }.value
         return "${header.replace(Regex("\"crc\":[0-9]+"), "\"crc\":$crc")}\n$body".encodeToByteArray()
+    }
+
+    @Test
+    fun aFlippedDigitInTheKeyFailsTheChecksumRatherThanMissingAsAnotherKey() {
+        save()
+        val (where, _) = store.only()
+        val (header, body) = savedParts()
+        val generation = "\"generation\":$GENERATION"
+        assertTrue(generation in header)
+        val flipped = header.replace(generation, "\"generation\":${GENERATION + 1}")
+        store.files[where] = "$flipped\n$body".encodeToByteArray()
+        assertNull(load())
+        assertEquals(DaySnapshotMiss.Unreadable, lastMiss(), "corruption, not a library change")
+        // With a checksum made for it, the same header is read, and is another generation.
+        store.files[where] = forged(body, flipped)
+        assertNull(load())
+        assertEquals(DaySnapshotMiss.Generation, lastMiss())
     }
 
     @Test

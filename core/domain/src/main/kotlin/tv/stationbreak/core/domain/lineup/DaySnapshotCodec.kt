@@ -60,10 +60,15 @@ internal data class DayKey(
 }
 
 /**
- * The file of one set of built days: a header line (compact JSON: the format, the CRC-32 of the body's bytes and the
- * [DayKey]), a newline, and the body (compact JSON). The header is read and compared first, so a file for other inputs
- * is never decoded; the body is decoded only once its bytes match the checksum, so a flipped digit (a runtime, a date,
- * a bit of a pool) is a miss and never a different schedule.
+ * The file of one set of built days: a header line (compact JSON: the format, a CRC-32 and the [DayKey]), a newline,
+ * and the body (compact JSON). The checksum covers the key (as this codec writes it) and the body's bytes, and is
+ * checked before the key is compared or the body decoded, so a flipped digit anywhere (a generation, a runtime, a
+ * date, a bit of a pool) is an unreadable file, never another key's match or a different schedule. A file for other
+ * inputs is never decoded.
+ *
+ * What guards the code is the key's `app` part (the install, see [PersistedDays]): no build of the app reads another's
+ * files. [VERSION] and the holds' versions in the key change only with the code, so they never decide alone; they are
+ * there so that a miss says which of them moved.
  *
  * The body holds one table of the distinct [ScheduleItem]s of all the pools, in canonical-ID order, and per scheduled
  * channel in the key's order its day pool (`EpochPool.build`'s items, in order) and why the day is empty if it is. A
@@ -73,7 +78,7 @@ internal data class DayKey(
  * index into a table of them. Nothing else of a day is kept: the channel, its name, settings, epoch and ceiling come
  * from the lineup, which the key pins.
  *
- * **Any** change to what is written bumps [VERSION]; a file of another version is a miss, never read.
+ * **Any** change to what is written still bumps [VERSION], so the miss is reported as `Format`.
  *
  * The stream reads and writes are kotlinx.serialization's experimental API. They keep a file of a few megabytes from
  * ever also being one string in memory (twice its size on Android), which matters on a 1.5 GB TV; the format is
@@ -103,42 +108,49 @@ internal object DaySnapshotCodec {
         val body = ByteArrayOutputStream(INITIAL_BYTES)
         json.encodeToStream(BodyV2.serializer(), bodyOf(days), body)
         val out = ByteArrayOutputStream(body.size() + INITIAL_HEADER)
-        json.encodeToStream(HeaderV2.serializer(), HeaderV2(VERSION, crcOf(body.toByteArray()), key), out)
+        val crc = crcOf(keyBytes(key), body.toByteArray(), 0)
+        json.encodeToStream(HeaderV2.serializer(), HeaderV2(VERSION, crc, key), out)
         out.write(NEWLINE)
         body.writeTo(out)
         return out.toByteArray()
     }
 
-    /** What the header of a file says, where its body starts and the checksum of the body's bytes. */
+    /** What the header of a file says, and where its body starts. */
     sealed interface Header {
         class Read(
             val key: DayKey,
             val bodyAt: Int,
-            val crc: Long,
         ) : Header
 
         /** Written by another version of this format. */
         data object OtherFormat : Header
     }
 
-    /** Reads the header line of [file]. Throws for a header that cannot be read (torn, corrupt or too long). */
+    /**
+     * Reads the header line of [file] and checks the checksum over its key and the body. Throws for a header that
+     * cannot be read (torn, corrupt or too long) and for a file that does not match its checksum.
+     */
     fun header(file: ByteArray): Header {
-        var end = 0
-        while (end < file.size && file[end] != NEWLINE.toByte()) {
-            if (end >= MAX_HEADER) throw IOException("The header is too long")
-            end++
-        }
-        if (end >= file.size) throw IOException("No end to the header")
+        val end = headerEnd(file)
         val root = json.parseToJsonElement(file.decodeToString(0, end, throwOnInvalidSequence = true))
         val format = ((root as? JsonObject)?.get("format") as? JsonPrimitive)?.content
         if (format != VERSION.toString()) return Header.OtherFormat
         val header = json.decodeFromJsonElement(HeaderV2.serializer(), root)
-        return Header.Read(header.key, end + 1, header.crc)
+        val crc = crcOf(keyBytes(header.key), file, end + 1)
+        return if (crc == header.crc) Header.Read(header.key, end + 1) else throw IOException("Fails its checksum")
+    }
+
+    // Where the header line ends (its newline). Throws for a file with no newline within MAX_HEADER bytes.
+    private fun headerEnd(file: ByteArray): Int {
+        var end = 0
+        while (end < file.size && file[end] != NEWLINE.toByte() && end < MAX_HEADER) end++
+        if (end >= file.size || file[end] != NEWLINE.toByte()) throw IOException("No end to the header")
+        return end
     }
 
     /**
-     * Reads the body of [file] after [header]: each channel's day pool and empty reason, in the key's order. Throws for
-     * a body whose bytes do not match the header's checksum, that cannot be read, or that does not hold [count] days.
+     * Reads the body of [file] after [header] (which checked it): each channel's day pool and empty reason, in the
+     * key's order. Throws for a body that cannot be read, or that does not hold [count] days.
      */
     fun body(
         file: ByteArray,
@@ -146,7 +158,6 @@ internal object DaySnapshotCodec {
         count: Int,
     ): List<Pair<List<ScheduleItem>, HiddenReason?>> {
         val at = header.bodyAt
-        if (crcOf(file, at) != header.crc) throw IOException("The body does not match its checksum")
         val body = json.decodeFromStream(BodyV2.serializer(), ByteArrayInputStream(file, at, file.size - at))
         if (body.days.size != count) throw IOException("The body holds another number of days")
         val series = body.series.map(::idOf)
@@ -155,10 +166,20 @@ internal object DaySnapshotCodec {
         return body.days.map { day -> poolOf(day, items) to day.hidden }
     }
 
+    // The key as this codec writes it: compact JSON, its fields in declaration order.
+    private fun keyBytes(key: DayKey): ByteArray = json.encodeToString(DayKey.serializer(), key).encodeToByteArray()
+
+    // The CRC-32 of [key] and then [file] from [from] on.
     private fun crcOf(
-        bytes: ByteArray,
-        from: Int = 0,
-    ): Long = CRC32().apply { update(bytes, from, bytes.size - from) }.value
+        key: ByteArray,
+        file: ByteArray,
+        from: Int,
+    ): Long =
+        CRC32()
+            .apply {
+                update(key)
+                update(file, from, file.size - from)
+            }.value
 
     private fun poolOf(
         day: DayV2,
