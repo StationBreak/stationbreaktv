@@ -26,9 +26,11 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -55,6 +57,11 @@ import java.time.ZoneId
 private val CellInset = 1.dp
 private val MinCellWidth = 20.dp
 private val CompactBelow = 80.dp
+
+/** The narrowest cell that has room for a "…": the glyph (about 16 dp at 16 sp bold) and 4 dp either side of it. */
+internal val EllipsisFrom = 28.dp
+private val EllipsisInset = 4.dp
+private const val ELLIPSIS = "…"
 private val EpisodeFrom = 160.dp
 private val RingWidth = 3.dp
 private val TextStart = 10.dp
@@ -96,6 +103,12 @@ internal class CellPlace(
      * ring when focused. The details panel names it; nothing is drawn over its neighbours.
      */
     val compact: Boolean = width < CompactBelow
+
+    /**
+     * A compact cell wide enough ([EllipsisFrom]) to say "…": something airs here, though no part of its title fits.
+     * Decided from the width alone, so it needs no text measurement; narrower cells stay blank.
+     */
+    val showsEllipsis: Boolean = compact && width >= EllipsisFrom
 
     /**
      * Compact with the viewport at [viewportStartMs]: [compact], or so little of the cell in view (a long program
@@ -160,7 +173,7 @@ internal data class CellMarks(
  * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
  * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the ring and the
  * chevrons). Fill, ring, slate dashes and chevrons are drawn; nothing animates or scales. A compact cell writes
- * nothing, focused or not: the details panel names the focused cell.
+ * no title, focused or not (the details panel names the focused cell), only a "…" if it has room ([EllipsisFrom]).
  */
 @Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
 @Composable
@@ -200,9 +213,14 @@ internal fun GuideCellView(
             }.testTag(GuideTags.cell(channel, cell.startMs)),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (!place.compact && title.isNotEmpty()) {
+        if (title.isEmpty()) return@Box
+        if (!place.compact) {
             val tag = Modifier.testTag(GuideTags.cellText(channel, cell.startMs))
             CellText(cell, title, place, focused, tag.stickyText(place, viewportOf))
+        } else if (place.showsEllipsis) {
+            // The cell's own description carries the title; this mark is only for the eye, so it says nothing itself.
+            val tag = Modifier.clearAndSetSemantics { testTag = GuideTags.cellEllipsis(channel, cell.startMs) }
+            CellText(cell, ELLIPSIS, place, focused, tag.padding(horizontal = EllipsisInset))
         }
     }
 }
@@ -277,7 +295,7 @@ private fun CellText(
             },
         maxLines = 1,
         softWrap = false,
-        overflow = TextOverflow.Ellipsis,
+        overflow = if (place.compact) TextOverflow.Clip else TextOverflow.Ellipsis,
     )
 }
 

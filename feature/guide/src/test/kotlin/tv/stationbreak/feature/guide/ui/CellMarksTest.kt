@@ -83,6 +83,17 @@ class CellMarksTest {
     }
 
     @Test
+    fun aCompactCellWithRoomForOneShowsAnEllipsis() {
+        // 8 dp a minute: 5 minutes is 40 dp (compact, room for "…"); 3 minutes is 24 dp, under the 28 dp it needs, and
+        // 2 minutes is raised to the 20 dp minimum; 10 minutes (80 dp) is wide enough for its title.
+        assertTrue(place(70, 75).showsEllipsis)
+        assertTrue(place(0, 4).showsEllipsis)
+        assertFalse(place(70, 73).showsEllipsis)
+        assertFalse(place(70, 72).showsEllipsis)
+        assertFalse(place(60, 70).showsEllipsis)
+    }
+
+    @Test
     fun aCompactCellDrawsNothingButItsFill() {
         // Five minutes, and a 4-minute sliver at the left edge: no text, no tick, no chevrons; the gap between cells
         // is their divider.

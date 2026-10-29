@@ -348,15 +348,21 @@ class GuideScreenTest {
     @Test
     fun compactCellShowsItsTitleInThePanelOnly() {
         showReady(ch3)
-        // Five minutes is too narrow for a title: nothing is written in the cell, focused or not, and nothing floats
-        // over its neighbours. The panel names it.
+        // Five minutes is too narrow for a title: no title is written in the cell, focused or not, and nothing floats
+        // over its neighbours; a "…" says something airs there. The panel names it.
+        cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
+        assertEquals("…", text(GuideTags.cellEllipsis(ch3, min(70))))
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
+        assertEquals("…", text(GuideTags.cellEllipsis(ch3, min(70))))
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
         compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
-        // The neighbour it used to float over is still there to read.
-        compose.onNodeWithTag(GuideTags.cellText(ch3, min(75)), useUnmergedTree = true).assertExists()
+        // The cell's semantics still carry the full title, not the mark.
+        cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
+        // The neighbour it used to float over is still there to read, with its title and no "…".
+        assertEquals("Test Movie 402", text(GuideTags.cellText(ch3, min(75))))
+        compose.onNodeWithTag(GuideTags.cellEllipsis(ch3, min(75)), useUnmergedTree = true).assertDoesNotExist()
     }
 
     // Far right on channel 7, then the guide closed: what a reopen must not come back to.
