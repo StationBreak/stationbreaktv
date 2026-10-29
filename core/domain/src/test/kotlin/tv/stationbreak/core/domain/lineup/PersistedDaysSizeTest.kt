@@ -96,6 +96,7 @@ class PersistedDaysSizeTest {
         val (buildMs, buildBytes) = best { lineupDays.days(lineup, scheduled, snapshots) }
         val (readMs, readBytes) = best { runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) } }
         val read = runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) }
+        val (encodeMs, encodeBytes) = best { DaySnapshotCodec.encode(key, built) }
 
         val fileBytes = store.only().second.size
         val poolEntries = built.sumOf { it.pool.size }
@@ -104,7 +105,7 @@ class PersistedDaysSizeTest {
             "PersistedDaysSize channels=${scheduled.size} items=$ITEMS poolEntries=$poolEntries " +
                 "distinctItems=$distinct " +
                 "fileKb=${fileBytes / KB} buildMs=$buildMs buildAllocKb=${buildBytes / KB} readMs=$readMs " +
-                "readAllocKb=${readBytes / KB}",
+                "readAllocKb=${readBytes / KB} encodeMs=$encodeMs encodeAllocKb=${encodeBytes / KB}",
         )
         assertEquals(describe(built), describe(checkNotNull(read)))
         assertTrue(fileBytes < CAP_BYTES, "the file is $fileBytes bytes")

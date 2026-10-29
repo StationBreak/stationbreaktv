@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.BitSet
+import java.util.zip.CRC32
 import kotlin.io.encoding.Base64
 
 /**
@@ -59,8 +60,10 @@ internal data class DayKey(
 }
 
 /**
- * The file of one set of built days: a header line (the [DayKey], compact JSON), a newline, and the body (compact
- * JSON). The header is read and compared first, so a file for other inputs costs one short line and not the days.
+ * The file of one set of built days: a header line (compact JSON: the format, the CRC-32 of the body's bytes and the
+ * [DayKey]), a newline, and the body (compact JSON). The header is read and compared first, so a file for other inputs
+ * is never decoded; the body is decoded only once its bytes match the checksum, so a flipped digit (a runtime, a date,
+ * a bit of a pool) is a miss and never a different schedule.
  *
  * The body holds one table of the distinct [ScheduleItem]s of all the pools, in canonical-ID order, and per scheduled
  * channel in the key's order its day pool (`EpochPool.build`'s items, in order) and why the day is empty if it is. A
@@ -78,14 +81,17 @@ internal data class DayKey(
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
-    const val VERSION = 1
+    const val VERSION = 2
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024
     private const val NEWLINE = '\n'.code
 
-    /** Where the encoding of a file starts: a 50-channel day is about 1.7 MB. */
+    /** Where the encoding of a body starts: a 50-channel day is about 1.7 MB. */
     private const val INITIAL_BYTES = 256 * 1024
+
+    /** Room for the header line besides the body. */
+    private const val INITIAL_HEADER = 16 * 1024
 
     private val json = Json
 
@@ -94,18 +100,21 @@ internal object DaySnapshotCodec {
         key: DayKey,
         days: List<ChannelDay>,
     ): ByteArray {
-        val out = ByteArrayOutputStream(INITIAL_BYTES)
-        json.encodeToStream(DayKey.serializer(), key, out)
+        val body = ByteArrayOutputStream(INITIAL_BYTES)
+        json.encodeToStream(BodyV2.serializer(), bodyOf(days), body)
+        val out = ByteArrayOutputStream(body.size() + INITIAL_HEADER)
+        json.encodeToStream(HeaderV2.serializer(), HeaderV2(VERSION, crcOf(body.toByteArray()), key), out)
         out.write(NEWLINE)
-        json.encodeToStream(BodyV1.serializer(), bodyOf(days), out)
+        body.writeTo(out)
         return out.toByteArray()
     }
 
-    /** What the header of a file says, and where its body starts. */
+    /** What the header of a file says, where its body starts and the checksum of the body's bytes. */
     sealed interface Header {
         class Read(
             val key: DayKey,
             val bodyAt: Int,
+            val crc: Long,
         ) : Header
 
         /** Written by another version of this format. */
@@ -123,19 +132,22 @@ internal object DaySnapshotCodec {
         val root = json.parseToJsonElement(file.decodeToString(0, end, throwOnInvalidSequence = true))
         val format = ((root as? JsonObject)?.get("format") as? JsonPrimitive)?.content
         if (format != VERSION.toString()) return Header.OtherFormat
-        return Header.Read(json.decodeFromJsonElement(DayKey.serializer(), root), end + 1)
+        val header = json.decodeFromJsonElement(HeaderV2.serializer(), root)
+        return Header.Read(header.key, end + 1, header.crc)
     }
 
     /**
-     * Reads the body of [file] from [at] (`Header.Read.bodyAt`): each channel's day pool and empty reason, in the key's
-     * order. Throws for a body that cannot be read, or that does not hold [count] days.
+     * Reads the body of [file] after [header]: each channel's day pool and empty reason, in the key's order. Throws for
+     * a body whose bytes do not match the header's checksum, that cannot be read, or that does not hold [count] days.
      */
     fun body(
         file: ByteArray,
-        at: Int,
+        header: Header.Read,
         count: Int,
     ): List<Pair<List<ScheduleItem>, HiddenReason?>> {
-        val body = json.decodeFromStream(BodyV1.serializer(), ByteArrayInputStream(file, at, file.size - at))
+        val at = header.bodyAt
+        if (crcOf(file, at) != header.crc) throw IOException("The body does not match its checksum")
+        val body = json.decodeFromStream(BodyV2.serializer(), ByteArrayInputStream(file, at, file.size - at))
         if (body.days.size != count) throw IOException("The body holds another number of days")
         val series = body.series.map(::idOf)
         // An item is made once, however many pools hold it.
@@ -143,14 +155,19 @@ internal object DaySnapshotCodec {
         return body.days.map { day -> poolOf(day, items) to day.hidden }
     }
 
+    private fun crcOf(
+        bytes: ByteArray,
+        from: Int = 0,
+    ): Long = CRC32().apply { update(bytes, from, bytes.size - from) }.value
+
     private fun poolOf(
-        day: DayV1,
+        day: DayV2,
         items: List<ScheduleItem>,
     ): List<ScheduleItem> {
         val rows = day.rows
         val bits = day.bits
         return when {
-            rows != null && bits == null -> rows.map { items[it] }
+            rows != null && bits == null -> rows.map { items[rowIn(it, items.size)] }
             bits != null && rows == null -> rowsOf(BitSet.valueOf(Base64.decode(bits)), items)
             else -> throw IOException("A day is written one way")
         }
@@ -170,7 +187,7 @@ internal object DaySnapshotCodec {
         return pool
     }
 
-    private fun bodyOf(days: List<ChannelDay>): BodyV1 {
+    private fun bodyOf(days: List<ChannelDay>): BodyV2 {
         // The distinct items in canonical-ID order (an ID held at two cut-offs in two versions keeps both).
         val distinct = LinkedHashSet<ScheduleItem>()
         days.forEach { distinct += it.pool }
@@ -183,17 +200,17 @@ internal object DaySnapshotCodec {
                 if (isAscending(rows)) {
                     val set = BitSet(table.size)
                     rows.forEach(set::set)
-                    DayV1(bits = Base64.encode(set.toByteArray()), hidden = day.hidden)
+                    DayV2(bits = Base64.encode(set.toByteArray()), hidden = day.hidden)
                 } else {
-                    DayV1(rows = rows, hidden = day.hidden)
+                    DayV2(rows = rows, hidden = day.hidden)
                 }
             }
         val series = LinkedHashMap<CanonicalId, Int>()
         val rows =
             table.map { item ->
-                ItemV1(
+                ItemV2(
                     id = item.id.value,
-                    episode = item.kind == ScheduleItemKind.Episode,
+                    kind = kindCode(item.kind),
                     runtimeMs = item.runtimeMs,
                     createdAtMs = item.createdAtMs,
                     deletedAtMs = item.deletedAtMs,
@@ -204,23 +221,34 @@ internal object DaySnapshotCodec {
                     episodeNumber = item.episodeNumber,
                 )
             }
-        return BodyV1(series.keys.map { it.value }, rows, pools)
+        return BodyV2(series.keys.map { it.value }, rows, pools)
     }
 }
 
+/** The header line: the format first (read before anything else), the body's CRC-32, and the key. */
 @Serializable
-private class BodyV1(
-    val series: List<String>,
-    val items: List<ItemV1>,
-    val days: List<DayV1>,
+private class HeaderV2(
+    val format: Int,
+    val crc: Long,
+    val key: DayKey,
 )
 
-/** One distinct [ScheduleItem]. Short names and no nulls written: there are thousands of these. */
+@Serializable
+private class BodyV2(
+    val series: List<String>,
+    val items: List<ItemV2>,
+    val days: List<DayV2>,
+)
+
+/**
+ * One distinct [ScheduleItem]. Short names and no nulls written: there are thousands of these. Its kind is a code
+ * ([kindCode], [kindOf]), mapped one for one both ways, so a new kind fails the build here rather than being misread.
+ */
 @Suppress("LongParameterList")
 @Serializable
-private class ItemV1(
+private class ItemV2(
     @SerialName("i") val id: String,
-    @SerialName("e") val episode: Boolean = false,
+    @SerialName("k") val kind: Int = MOVIE,
     @SerialName("r") val runtimeMs: Long,
     @SerialName("c") val createdAtMs: Long,
     @SerialName("d") val deletedAtMs: Long? = null,
@@ -233,13 +261,13 @@ private class ItemV1(
     fun item(seriesIds: List<CanonicalId>) =
         ScheduleItem(
             id = idOf(id),
-            kind = if (episode) ScheduleItemKind.Episode else ScheduleItemKind.Movie,
+            kind = kindOf(kind),
             runtimeMs = runtimeMs,
             createdAtMs = createdAtMs,
             deletedAtMs = deletedAtMs,
             premiereDate = premiereDate,
             productionYear = productionYear,
-            seriesId = series?.let { seriesIds[it] },
+            seriesId = series?.let { seriesIds[rowIn(it, seriesIds.size)] },
             seasonNumber = season,
             episodeNumber = episodeNumber,
         )
@@ -247,11 +275,33 @@ private class ItemV1(
 
 /** One channel's day: its pool as a bitset of table rows (Base64) or as row numbers, and its empty reason. */
 @Serializable
-private class DayV1(
+private class DayV2(
     val bits: String? = null,
     val rows: IntArray? = null,
     val hidden: HiddenReason? = null,
 )
+
+private const val MOVIE = 0
+private const val EPISODE = 1
+
+private fun kindCode(kind: ScheduleItemKind): Int =
+    when (kind) {
+        ScheduleItemKind.Movie -> MOVIE
+        ScheduleItemKind.Episode -> EPISODE
+    }
+
+private fun kindOf(code: Int): ScheduleItemKind =
+    when (code) {
+        MOVIE -> ScheduleItemKind.Movie
+        EPISODE -> ScheduleItemKind.Episode
+        else -> throw IOException("Not an item kind")
+    }
+
+// A row of a table of [size] rows, or a fault: never a negative or past-the-end index.
+private fun rowIn(
+    row: Int,
+    size: Int,
+): Int = if (row in 0 until size) row else throw IOException("A row the table lacks")
 
 private fun isAscending(rows: IntArray): Boolean {
     for (i in 1 until rows.size) {

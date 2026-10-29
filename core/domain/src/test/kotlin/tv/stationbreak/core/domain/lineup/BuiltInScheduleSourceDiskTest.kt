@@ -35,7 +35,7 @@ class BuiltInScheduleSourceDiskTest {
     ) {
         val builds: MutableList<DayBuild> = Collections.synchronizedList(mutableListOf())
         val events: MutableList<DaySnapshotEvent> = Collections.synchronizedList(mutableListOf())
-        val service = LineupService(lineups, library, clock, { 0 }, {}, TestCatalog)
+        val service = LineupService(lineups, library, clock, { 0 }, {}, LineupSeams(TestCatalog, derived = disk))
         val source =
             BuiltInScheduleSource(
                 service,
@@ -150,6 +150,71 @@ class BuiltInScheduleSourceDiskTest {
         val other = setOf(ItemId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
         runBlocking { next.source.channelDays(ACCOUNT, other, NOON) }
         assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Libraries), next.events.first())
+    }
+
+    private fun fresh(process: Process): List<ChannelDay> {
+        val fresh = BuiltInScheduleSource(process.service, library) { LIBRARIES }
+        return runBlocking { fresh.channelDays(ACCOUNT, LIBRARIES, NOON) }
+    }
+
+    @Test
+    fun aFileWithAFlippedDigitBuildsAgainAndGivesTheFreshDays() {
+        firstProcess()
+        val (where, bytes) = disk.only()
+        val text = bytes.decodeToString()
+        val at =
+            Regex("\"r\":([0-9])")
+                .find(text.substringAfter('\n'))!!
+                .groups[1]!!
+                .range.first
+        val flippedAt = text.indexOf('\n') + 1 + at
+        disk.files[where] =
+            text
+                .toCharArray()
+                .also { it[flippedAt] = if (it[flippedAt] == '1') '2' else '1' }
+                .concatToString()
+                .encodeToByteArray()
+
+        val next = Process()
+        val days = next.days()
+
+        assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Unreadable), next.events.first())
+        assertEquals("miss", next.builds.single().snapshot)
+        assertEquals(describe(fresh(next)), describe(days))
+    }
+
+    @Test
+    fun aBuildOfTheSameCutoffsInTheSameProcessDoesNotReadTheDiskAgainButIsWritten() {
+        val first = Process()
+        runBlocking { first.service.refresh(ACCOUNT, LIBRARIES) }
+        first.days()
+        val reads = disk.reads
+        // A new revision (a lineup edit, say): the days are built again from the snapshots this process holds.
+        runBlocking { first.service.refresh(ACCOUNT, LIBRARIES) }
+        first.days()
+
+        assertEquals(reads, disk.reads, "the disk was not read again")
+        assertEquals(listOf(true, false), first.builds.map { it.diskMs >= 0 }, "only the first build looked")
+        assertEquals(2, first.events.count { it is DaySnapshotEvent.Saved }, "both builds were written")
+    }
+
+    @Test
+    fun aDiskHitReportsItsTimeAsDiskMs() {
+        firstProcess()
+        val next = Process()
+        next.days()
+        val hit = next.builds.single()
+        assertEquals(hit.ms, hit.diskMs)
+        assertEquals(0, hit.snapshotsMs)
+        assertEquals(0, hit.poolsMs)
+    }
+
+    @Test
+    fun forgettingTheLineupForgetsItsDays() {
+        firstProcess()
+        val next = Process()
+        runBlocking { next.service.forget(ACCOUNT) }
+        assertTrue(disk.files.isEmpty())
     }
 
     private companion object {

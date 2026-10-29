@@ -6,10 +6,14 @@ package tv.stationbreak.core.domain
  * the day it built last time instead of building it cold. It knows nothing of their format; the lineup code reads and
  * writes them. They are a cache: losing one only costs a build, so nothing here is precious.
  *
- * A file name is chosen by the caller from digits, `_` and `-` only; the store refuses any other name, and an account
- * whose server or user ID is not canonical (32 lower-case hexadecimal characters) has no files.
+ * It is an [AccountCache], composed with the saved library's ([AccountCaches]): [forget] deletes the account's files,
+ * and [useAccount] deletes every other account's, so sign-out and a switch of account clear them with the library.
+ *
+ * A file name is chosen by the caller from lower-case letters, digits, `_` and `-` only, at most [MAX_NAME] long; the
+ * store refuses any other name, and an account whose server or user ID is not canonical (32 lower-case hexadecimal
+ * characters) has no files.
  */
-interface DayStore {
+interface DayStore : AccountCache {
     /**
      * The file's bytes, [StoredBytes.Absent] when there is no such file (or the name or account is refused), or
      * [StoredBytes.Failed] when it is there but cannot be read or is over the store's size cap.
@@ -37,4 +41,9 @@ interface DayStore {
         account: LibraryAccount,
         name: String,
     ): Boolean
+
+    companion object {
+        /** The longest file name a caller may use: far inside any file system's limit. */
+        const val MAX_NAME = 64
+    }
 }

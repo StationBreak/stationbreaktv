@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.model.ServerId
@@ -117,8 +118,54 @@ class FileDayStoreTest {
     }
 
     @Test
+    fun aStagedCopyLeftByAnInterruptedWriteIsGoneAfterTheNextWrite() {
+        write()
+        directory.resolve("$NAME.new").writeBytes(bytes)
+        directory.resolve("other_1_ab.new").writeBytes(bytes)
+        assertTrue(write(name = "1_2_abcdef"))
+        assertEquals(listOf(NAME, "1_2_abcdef").sorted(), directory.list()!!.sorted())
+    }
+
+    @Test
+    fun forgetDeletesOnlyThatAccountsDays() {
+        write()
+        write(two)
+        runBlocking { store.forget(one) }
+        assertFalse(directory.exists())
+        assertArrayEquals(bytes, read(two))
+    }
+
+    @Test
+    fun useAccountDeletesEveryOtherAccountsDays() {
+        val elsewhere = LibraryAccount(ServerId("b".repeat(ID_LENGTH)), UserId(userOne))
+        write()
+        write(two)
+        write(elsewhere)
+        runBlocking { store.useAccount(one) }
+        assertArrayEquals(bytes, read())
+        assertEquals(StoredBytes.Absent, stored(two))
+        assertEquals(StoredBytes.Absent, stored(elsewhere))
+        assertEquals(listOf(server), root.list()!!.toList())
+    }
+
+    @Test
+    fun clearingAnAccountWithNoDaysIsFine() {
+        runBlocking {
+            store.forget(one)
+            store.useAccount(one)
+        }
+        val odd = LibraryAccount(ServerId("../$server"), UserId(userOne))
+        runBlocking { store.forget(odd) }
+        assertEquals(emptyList<String>(), root.list()!!.toList())
+    }
+
+    @Test
     fun aNameOrAnAccountThatCouldLeaveTheDirectoryIsRefused() {
-        for (name in listOf("../x", "a/b", "", ".", "x.new", "1 2")) {
+        assertTrue(write(name = "1_2_${"a".repeat(DayStore.MAX_NAME - 4)}"))
+        assertFalse(write(name = "1_2_${"a".repeat(DayStore.MAX_NAME - 3)}"))
+        root.deleteRecursively()
+        root.mkdirs()
+        for (name in listOf("../x", "a/b", "", ".", "x.new", "1 2", "ABC")) {
             assertFalse(name, write(name = name))
             assertEquals(name, StoredBytes.Absent, stored(name = name))
         }

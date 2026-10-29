@@ -83,6 +83,31 @@ interface AccountCache {
 }
 
 /**
+ * Several [AccountCache]s told as one, in order: the saved library first, then what is derived from it (the built days
+ * on disk, #480). Each is told even if one before it throws; the first throw is rethrown after all have been told.
+ */
+class AccountCaches(
+    private vararg val caches: AccountCache,
+) : AccountCache {
+    override suspend fun useAccount(account: LibraryAccount) = each { it.useAccount(account) }
+
+    override suspend fun forget(account: LibraryAccount) = each { it.forget(account) }
+
+    @Suppress("TooGenericExceptionCaught") // Rethrown once every cache has been told.
+    private suspend fun each(tell: suspend (AccountCache) -> Unit) {
+        var first: Throwable? = null
+        for (cache in caches) {
+            try {
+                tell(cache)
+            } catch (e: Throwable) {
+                if (first == null) first = e
+            }
+        }
+        first?.let { throw it }
+    }
+}
+
+/**
  * The saved copy of the user's chosen libraries (F0.6): what the scheduler reads and what the sync keeps current. No
  * database, Room, WorkManager or Jellyfin type appears here (ADR-0004); `data:library` implements it. Nothing throws
  * for a missing account: an account with nothing saved reads as empty.

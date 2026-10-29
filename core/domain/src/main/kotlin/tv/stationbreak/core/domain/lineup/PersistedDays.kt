@@ -10,7 +10,9 @@ import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.SchedulerSettings
 import java.security.MessageDigest
+import java.util.Collections
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
@@ -64,32 +66,45 @@ enum class DaySnapshotMiss {
  * ([DaySnapshotCodec]). The days are a pure function of the lineup, the library snapshots at their cut-offs and the
  * code (ADR-0002), so a file is used only when its [DayKey] equals the key of the build it replaces, and that key holds
  * every one of them:
- * - the cache's own [DaySnapshotCodec.VERSION];
- * - [appBuild], which must change with every install of the app (the app gives its version code and install time,
- *   since the version code alone does not move between builds), so new code never reads days that old code built;
- * - the kids' and grown-up holds' versions ([HOLDS]), which are code too but are named for the record;
+ * - [appBuild] is the guard for the code: it must change with every install of the app (the app gives its version code
+ *   and install time, since the version code alone does not move between builds), so no build of the app ever reads
+ *   days that another build made, whatever changed in the catalog, the holds, the evaluator or the scheduler;
  * - the account, the chosen libraries, the content generation and the last completed collection pass: as for
  *   `SnapshotCache`, these two numbers cover everything `ruleSnapshot` returns, and they are read before the build;
  * - the catalog version, the lineup's UTC offset and a SHA-256 of the whole stored lineup (every channel's rules,
  *   state, number and name);
  * - the cut-offs and every scheduled channel with its epoch number (which day).
  *
- * Anything that does not match, a missing, torn or corrupt file, or a read fault, is a miss: the caller builds as
- * usual, and [report] is told why. Files are named by their cut-offs and kept only for the [KEEP] latest sets of
- * cut-offs per account (today's and the next day's); writing one deletes the rest. A file holds item IDs, runtimes,
- * dates, years and episode numbers, the account's IDs, the chosen library IDs and a hash: no title, name, token or URL.
+ * The key also names the cache's own [DaySnapshotCodec.VERSION] and the holds' versions ([HOLDS]). Both change only
+ * with the code, so [appBuild] already covers them; they are there so that a miss says which of them moved.
+ *
+ * Anything that does not match, a missing, torn, corrupt or checksum-failing file, or a read fault, is a miss: the
+ * caller builds as usual, and [report] is told why. A key whose write failed once (too big, or a fault) is not encoded
+ * again in this process.
+ *
+ * A file is named by its earliest and latest cut-off and a short hash of them all, so a name stays short however many
+ * day starts a lineup has. Writing one deletes the account's files of sets that are no longer wanted: all but the
+ * [KEEP] latest (today's and the next day's), and any whose earliest cut-off lies further ahead of the set just written
+ * than a day can be ([FUTURE_MS]: a clock that was wrong when it was written). A file holds item IDs, runtimes, dates,
+ * years and episode numbers, the account's IDs, the chosen library IDs and hashes: no title, name, token or URL.
+ *
+ * [disabled] keeps nothing and finds nothing: the app uses it when it cannot tell its own install apart.
  */
 class PersistedDays internal constructor(
     private val store: DayStore,
     private val appBuild: String,
     private val report: (DaySnapshotEvent) -> Unit,
     private val holds: List<String>,
+    internal val enabled: Boolean = true,
 ) {
     constructor(
         store: DayStore,
         appBuild: String,
         report: (DaySnapshotEvent) -> Unit = {},
     ) : this(store, appBuild, report, HOLDS)
+
+    // The keys whose write failed in this process: they are not encoded again.
+    private val failed: MutableSet<DayKey> = Collections.synchronizedSet(HashSet())
 
     @Suppress("LongParameterList") // One argument per input of the days.
     internal fun keyOf(
@@ -128,6 +143,7 @@ class PersistedDays internal constructor(
         scheduled: List<Scheduled>,
         restore: (Scheduled, List<ScheduleItem>, HiddenReason?) -> ChannelDay,
     ): List<ChannelDay>? {
+        if (!enabled) return null
         val began = TimeSource.Monotonic.markNow()
         val stored = attempt { store.read(account, nameOf(key)) }
         val outcome =
@@ -156,23 +172,31 @@ class PersistedDays internal constructor(
         key: DayKey,
         days: List<ChannelDay>,
     ): Boolean {
+        if (!enabled || key in failed) return false
         val began = TimeSource.Monotonic.markNow()
         val bytes = attempt { DaySnapshotCodec.encode(key, days) }
-        if (bytes == null || attempt { store.write(account, nameOf(key), bytes) } != true) {
+        val written = bytes != null && attempt { store.write(account, nameOf(key), bytes) } == true
+        if (written) {
+            report(DaySnapshotEvent.Saved(bytes.size.toLong(), began.elapsedNow().inWholeMilliseconds))
+            attempt { evict(account, key) }
+        } else {
+            failed += key
             report(DaySnapshotEvent.SaveFailed)
-            return false
         }
-        report(DaySnapshotEvent.Saved(bytes.size.toLong(), began.elapsedNow().inWholeMilliseconds))
-        attempt { evict(account) }
-        return true
+        return written
     }
 
-    // Keeps the KEEP latest sets of cut-offs (today's and the next day's). A name that is not a set of cut-offs goes.
-    private suspend fun evict(account: LibraryAccount) {
+    // Keeps the KEEP latest sets (today's and the next day's), leaving out sets dated too far ahead of [saved] and
+    // names that are not this cache's.
+    private suspend fun evict(
+        account: LibraryAccount,
+        saved: DayKey,
+    ) {
         val names = store.names(account)
-        val days = names.mapNotNull { name -> cutoffsOf(name)?.let { name to it } }
-        val kept = days.sortedWith { a, b -> compareCutoffs(a.second, b.second) }.takeLast(KEEP).map { it.first }
-        (names - kept.toSet()).forEach { store.delete(account, it) }
+        val limit = saved.cutoffs.last() + FUTURE_MS
+        val sets = names.mapNotNull { name -> spanOf(name)?.let { name to it } }.filter { it.second.first <= limit }
+        val kept = sets.sortedWith(compareBy({ it.second.second }, { it.second.first })).takeLast(KEEP)
+        (names - kept.map { it.first }.toSet()).forEach { store.delete(account, it) }
     }
 
     private sealed interface Read {
@@ -195,7 +219,7 @@ class PersistedDays internal constructor(
         val header = DaySnapshotCodec.header(file) as? DaySnapshotCodec.Header.Read
         val moved = if (header == null) DaySnapshotMiss.Format else header.key.firstDifference(key)
         if (header == null || moved != null) return Read.Missed(moved ?: DaySnapshotMiss.Format)
-        val body = DaySnapshotCodec.body(file, header.bodyAt, scheduled.size)
+        val body = DaySnapshotCodec.body(file, header, scheduled.size)
         return Read.Loaded(scheduled.mapIndexed { i, s -> restore(s, body[i].first, body[i].second) })
     }
 
@@ -213,35 +237,42 @@ class PersistedDays internal constructor(
             null
         }
 
-    internal companion object {
+    companion object {
         /** The holds a kid and a grown-up channel's pools are narrowed by (ADR-0019, ADR-0020). */
-        val HOLDS: List<String> = listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME)
+        internal val HOLDS: List<String> = listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME)
 
         /**
          * How many sets of cut-offs are kept per account: today's and the next day's. With one day start that is two
          * sets; a lineup with a custom channel on a second day start has two "next" sets ahead of today's (each day
          * start turns over on its own), so three are kept, and today's is never pushed out by the days ahead of it.
          */
-        const val KEEP = 3
+        internal const val KEEP = 3
 
-        /** A file is named by its cut-offs: digits and `_` only. */
-        fun nameOf(key: DayKey): String = key.cutoffs.joinToString("_")
+        /**
+         * How far ahead of a set just written another set's earliest cut-off can be and still be a real day: the
+         * longest epoch and the longest grace. A set further ahead was written under a clock that was wrong.
+         */
+        internal const val FUTURE_MS = SchedulerSettings.MAX_EPOCH_MS + SchedulerSettings.MAX_GRACE_MS
 
-        private fun cutoffsOf(name: String): List<Long>? =
-            name
-                .split('_')
-                .map { it.toLongOrNull() ?: return null }
-                .takeIf { it.isNotEmpty() }
+        private const val NAME_HASH = 16
+        private const val NAME_PARTS = 3
 
-        // Later days are greater: by the latest cut-off, then the earliest, then the rest in turn.
-        private fun compareCutoffs(
-            a: List<Long>,
-            b: List<Long>,
-        ): Int {
-            val byLast = a.last().compareTo(b.last())
-            val byEach = a.zip(b).map { (x, y) -> x.compareTo(y) }.firstOrNull { it != 0 }
-            return if (byLast != 0) byLast else byEach ?: a.size.compareTo(b.size)
+        /** A file's name: `<earliest>_<latest>_<hash of all the cut-offs>`, never longer than `DayStore.MAX_NAME`. */
+        internal fun nameOf(key: DayKey): String {
+            val hash = sha256(key.cutoffs.joinToString(",").encodeToByteArray()).take(NAME_HASH)
+            return "${key.cutoffs.first()}_${key.cutoffs.last()}_$hash"
         }
+
+        /** The earliest and latest cut-off a file name gives, or null for a name that is not one of [nameOf]'s. */
+        private fun spanOf(name: String): Pair<Long, Long>? {
+            val parts = name.split('_')
+            val first = parts.getOrNull(0)?.toLongOrNull()
+            val last = parts.getOrNull(1)?.toLongOrNull()
+            return if (parts.size == NAME_PARTS && first != null && last != null) first to last else null
+        }
+
+        /** Keeps nothing and finds nothing. */
+        fun disabled(): PersistedDays = PersistedDays(NoDays, "", {}, HOLDS, enabled = false)
 
         private const val HEX = "0123456789abcdef"
         private const val NIBBLE = 4
@@ -255,4 +286,29 @@ class PersistedDays internal constructor(
                 }
             }
     }
+}
+
+/** The store of [PersistedDays.disabled]: nothing is there, and nothing is kept. */
+private object NoDays : DayStore {
+    override suspend fun read(
+        account: LibraryAccount,
+        name: String,
+    ): StoredBytes = StoredBytes.Absent
+
+    override suspend fun write(
+        account: LibraryAccount,
+        name: String,
+        bytes: ByteArray,
+    ): Boolean = false
+
+    override suspend fun names(account: LibraryAccount): List<String> = emptyList()
+
+    override suspend fun delete(
+        account: LibraryAccount,
+        name: String,
+    ): Boolean = true
+
+    override suspend fun useAccount(account: LibraryAccount) = Unit
+
+    override suspend fun forget(account: LibraryAccount) = Unit
 }

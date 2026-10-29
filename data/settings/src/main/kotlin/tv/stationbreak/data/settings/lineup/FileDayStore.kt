@@ -20,14 +20,18 @@ import java.io.IOException
 
 /**
  * The [DayStore] on files under `filesDir/days/<server>/<user>/<name>` (#480): app-private storage, one directory per
- * account. A path is built only from IDs that are already canonical and a name of digits, `_` and `-`, so nothing can
- * name a path outside its account's directory; any other account or name gets no file.
+ * account. A path is built only from IDs that are already canonical and a name of lower-case letters, digits, `_` and
+ * `-` (at most `DayStore.MAX_NAME` long), so nothing can name a path outside its account's directory; any other
+ * account or name gets no file. As an `AccountCache` it deletes a signed-out account's directory ([forget]) and every
+ * account's but the signed-in one's ([useAccount]).
  *
  * A write goes to `<name>.new`, is synced, is renamed over `<name>`, and then the directory is synced, as the lineup's
  * files are ([DiskLineupFiles]): a power cut leaves the old file or the new one, never a torn one, and an orphan
- * `<name>.new` is never read or listed. Neither a write nor a read goes past [maxBytes]: a bigger file reads as
- * [StoredBytes.Failed]. Faults never throw. One file operation at a time, on [io].
+ * `<name>.new` is never read or listed, and is deleted before the account's next write. Neither a write nor a read
+ * goes past [maxBytes]: a bigger file reads as [StoredBytes.Failed]. Faults never throw. One file operation at a time,
+ * on [io].
  */
+@Suppress("TooManyFunctions") // The port's six operations, each with the file work it needs.
 class FileDayStore internal constructor(
     private val root: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
@@ -72,6 +76,11 @@ class FileDayStore internal constructor(
             val staged = File(file.path + NEW)
             try {
                 file.parentFile?.let(::ensureDirectory)
+                // A staged copy left by a write the process died in is never read: it goes before the next write.
+                file.parentFile
+                    ?.listFiles()
+                    ?.filter { it.name.endsWith(NEW) }
+                    ?.forEach { it.delete() }
                 FileOutputStream(staged).use { out ->
                     out.write(bytes)
                     out.flush()
@@ -106,6 +115,36 @@ class FileDayStore internal constructor(
     ): Boolean {
         val file = fileOf(account, name) ?: return false
         return locked { !file.exists() || file.delete() }
+    }
+
+    /** [account] signed out: its directory of days goes. Never throws. */
+    override suspend fun forget(account: LibraryAccount) {
+        val directory = directoryOf(account) ?: return
+        locked { quietly { directory.deleteRecursively() } }
+    }
+
+    /** [account] is the one signed in now: every other account's directory of days goes. Never throws. */
+    override suspend fun useAccount(account: LibraryAccount) {
+        val own = directoryOf(account)
+        locked {
+            quietly {
+                root.listFiles()?.forEach { server ->
+                    server.listFiles()?.filter { it != own }?.forEach { it.deleteRecursively() }
+                    // A server directory with no account left in it goes too.
+                    if (server.list()?.isEmpty() == true) server.delete()
+                }
+            }
+        }
+    }
+
+    // Clearing a cache is best effort: a file that won't go is only disk use, and a sign-out must not fail on it.
+    @Suppress("TooGenericExceptionCaught")
+    private fun quietly(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: Exception) {
+            // Best effort.
+        }
     }
 
     // A constant: nothing about the contents may reach a log through this.
@@ -158,6 +197,6 @@ class FileDayStore internal constructor(
         /** The largest file of days written or read: a realistic 50-channel day is under 2 MiB. */
         const val MAX_BYTES = 16 * 1024 * 1024
 
-        private val NAME = Regex("[0-9_-]+")
+        private val NAME = Regex("[0-9a-z_-]{1,${DayStore.MAX_NAME}}")
     }
 }

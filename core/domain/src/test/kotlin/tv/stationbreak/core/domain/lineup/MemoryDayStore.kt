@@ -18,6 +18,7 @@ internal class MemoryDayStore : DayStore {
         account: LibraryAccount,
         name: String,
     ): StoredBytes {
+        reads++
         val bytes = files[account to name] ?: return StoredBytes.Absent
         return if (failReads) StoredBytes.Failed else StoredBytes.Present(bytes)
     }
@@ -44,6 +45,16 @@ internal class MemoryDayStore : DayStore {
     ): Boolean {
         files.remove(account to name)
         return true
+    }
+
+    @Volatile var reads = 0
+
+    override suspend fun useAccount(account: LibraryAccount) {
+        files.keys.removeAll { it.first != account }
+    }
+
+    override suspend fun forget(account: LibraryAccount) {
+        files.keys.removeAll { it.first == account }
     }
 
     fun only(): Pair<Pair<LibraryAccount, String>, ByteArray> = files.entries.single().let { it.key to it.value }

@@ -2,25 +2,6 @@
 package tv.stationbreak.core.domain
 
 /**
- * What the store holds for an account: nothing, the bytes exactly as they were saved, or a file that couldn't be read.
- * A caller must never save over a [Failed] load: the file is still there and may be fine on the next read.
- */
-sealed interface StoredBytes {
-    /** No lineup file exists for the account. */
-    data object Absent : StoredBytes
-
-    /** A lineup file exists but could not be read (an I/O fault). It is neither absent nor known to be bad data. */
-    data object Failed : StoredBytes
-
-    class Present(
-        val bytes: ByteArray,
-    ) : StoredBytes {
-        // A constant: the bytes are the user's lineup and must not reach a log through this.
-        override fun toString(): String = "StoredBytes.Present"
-    }
-}
-
-/**
  * The port to the stored channel lineup, one opaque byte blob per account (spec 12). It knows nothing of the lineup
  * format; the codec reads and writes the bytes. Nothing here throws for a storage fault: a read that can't be answered
  * is [StoredBytes.Failed] (never [StoredBytes.Absent], which means there is no file), and a write reports whether it
