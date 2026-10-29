@@ -55,6 +55,7 @@ import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.indexOf
+import tv.stationbreak.feature.guide.isAwayFrom
 import java.time.ZoneId
 import kotlin.math.abs
 
@@ -151,7 +152,7 @@ internal fun GuideScreen(
                 Spacer(Modifier.height(TopGap))
                 GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
                 Spacer(Modifier.height(HintGap))
-                HintRow(snapshotOf)
+                HintRow(snapshotOf, current)
             }
             info?.let { GuideInfoOverlay(it, nowOf) }
         }
@@ -274,16 +275,23 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
 
 /**
  * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to
- * its channel), "OK Info" on a later program, nothing for OK on a later slate, and always "Back Exit live TV", since
- * leaving from the guide is the one thing no one would guess. Key names in Cream, what they do in Ground. Recomposes
+ * its channel), "OK Info" on a later program, nothing for OK on a later slate, and "Back Exit live TV", since
+ * leaving from the guide is the one thing no one would guess, which becomes "Back To what's playing" while the focus
+ * is off the playing channel's cell. Key names in Cream, what they do in Ground. Recomposes
  * only when the kind of the focused cell changes.
  */
 @Composable
-private fun HintRow(snapshotOf: () -> GuideSnapshot) {
+private fun HintRow(
+    snapshotOf: () -> GuideSnapshot,
+    current: ChannelId?,
+) {
     val kind by remember(snapshotOf) { derivedStateOf { hintKindOf(snapshotOf()) } }
+    // Away from the playing channel's cell, Back goes there before it exits; read like the kind, so it recomposes only
+    // when the answer changes.
+    val away by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAwayFrom(current) } }
     val ok = stringResource(R.string.guide_key_ok)
     val back = stringResource(R.string.guide_key_back)
-    val exit = stringResource(R.string.guide_hint_exit)
+    val exit = stringResource(if (away) R.string.guide_hint_playing else R.string.guide_hint_exit)
     val action =
         when (kind) {
             HintKind.Watch -> stringResource(R.string.guide_hint_watch)

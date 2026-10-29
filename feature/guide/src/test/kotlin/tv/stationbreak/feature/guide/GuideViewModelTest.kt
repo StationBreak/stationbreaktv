@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.ui.ProgramText
 
@@ -383,6 +384,61 @@ class GuideViewModelTest : GuideRig() {
             assertEquals(CH9, vm.focused().channel)
             assertEquals(min(75), vm.focused().cellStartMs)
             assertTrue(vm.focused().anchorMs >= vm.ready().nowMs)
+        }
+
+    @Test
+    fun backAwayFromThePlayingCellReturnsToItAtNowAndOnTheFirstRowThenStops() =
+        guideTest { vm ->
+            vm.open(CH5)
+            runCurrent()
+            val opened = vm.snapshot.value
+            assertFalse(opened.isAwayFrom(CH5))
+            // On the playing cell, Back is not the guide's: it leaves live TV.
+            assertFalse(vm.backToPlaying())
+
+            vm.move(GuideDirection.Down)
+            repeat(4) { vm.move(GuideDirection.Right) }
+            assertTrue(vm.snapshot.value.isAwayFrom(CH5))
+            assertTrue(vm.ready().viewportStartMs > vm.ready().model.originMs)
+
+            assertTrue(vm.backToPlaying())
+            assertEquals(CH5, vm.focused().channel)
+            assertEquals(min(60), vm.focused().cellStartMs)
+            assertEquals(opened.state.let { (it as GuideState.Ready).viewportStartMs }, vm.ready().viewportStartMs)
+            assertEquals((opened.state as GuideState.Ready).firstVisibleRow, vm.ready().firstVisibleRow)
+            assertFalse(vm.snapshot.value.isAwayFrom(CH5))
+            assertFalse(vm.backToPlaying())
+        }
+
+    @Test
+    fun backWithAPlayingChannelThatIsNotOnTheGridIsNotTheGuides() =
+        guideTest { vm ->
+            val gone = ChannelId("gone")
+            vm.open(gone)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            assertFalse(vm.snapshot.value.isAwayFrom(gone))
+            assertFalse(vm.backToPlaying())
+            vm.close()
+            vm.open(null)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            assertFalse(vm.snapshot.value.isAwayFrom(null))
+            assertFalse(vm.backToPlaying())
+        }
+
+    @Test
+    fun backWithTheInfoOverlayOpenOrNoGridIsNotTheGuides() =
+        guideTest { vm ->
+            assertFalse(vm.backToPlaying())
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            vm.move(GuideDirection.Right)
+            vm.select()
+            runCurrent()
+            assertNotNull(vm.info.value)
+            assertFalse(vm.backToPlaying())
         }
 
     @Test
