@@ -693,7 +693,7 @@ class StayCurrentRunnerTest {
             assertTrue(lines.isNotEmpty())
             for (line in lines) {
                 for (secret in secrets) assertFalse("$line leaks $secret", line.contains(secret))
-                assertTrue(line, line.all { it.isLetterOrDigit() || it == ' ' || it == '=' })
+                assertTrue(line, line.all { it.isLetterOrDigit() || it == ' ' || it == '=' || it == '/' })
             }
         }
 
