@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -68,15 +69,18 @@ internal fun GuideGrid(
     modifier: Modifier = Modifier,
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
+    val ellipsis = rememberEllipsisMarks()
     Box(modifier.testTag(GuideTags.GRID).tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE)) {
-        Column {
-            ClockStrip(nowOf, viewportOf, geometry)
-            for (index in firstVisibleRow until last) {
-                val row = model.rows[index]
-                key(row.channel) {
-                    Row(Modifier.height(RowHeight)) {
-                        ChannelCell(row.number, row.name, playing = row.channel == current)
-                        GuideRowCells(row.channel, row.cells, model.originMs, geometry, focusOf, viewportOf, nowOf)
+        CompositionLocalProvider(LocalEllipsisMarks provides ellipsis) {
+            Column {
+                ClockStrip(nowOf, viewportOf, geometry)
+                for (index in firstVisibleRow until last) {
+                    val row = model.rows[index]
+                    key(row.channel) {
+                        Row(Modifier.height(RowHeight)) {
+                            ChannelCell(row.number, row.name, playing = row.channel == current)
+                            GuideRowCells(row.channel, row.cells, model.originMs, geometry, focusOf, viewportOf, nowOf)
+                        }
                     }
                 }
             }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -19,6 +20,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
@@ -70,6 +73,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ProgramInfoTags
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -79,6 +83,7 @@ import tv.stationbreak.feature.guide.GuideViewModel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -345,18 +350,63 @@ class GuideScreenTest {
         assertTrue(text(GuideTags.HINT).endsWith("Back Exit live TV"))
     }
 
+    /** How many pixels in the middle half of [tag]'s cell are within a small distance of [color]. */
+    private fun pixelsNear(
+        tag: String,
+        color: Color,
+    ): Int {
+        // captureToImage needs PixelCopy of a window (API 26+), so read the screen, as the trust screen's tests do. A
+        // node's bounds in its window plus the window's own place on the screen are screen pixels.
+        val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+        val origin =
+            IntArray(2).also {
+                compose.activity.window.decorView
+                    .getLocationOnScreen(it)
+            }
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val left = origin[0] + bounds.left.toInt()
+        val top = origin[1] + bounds.top.toInt()
+        val image = Bitmap.createBitmap(screen, left, top, bounds.width.toInt(), bounds.height.toInt())
+        val pixels = IntArray(image.width * image.height)
+        image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
+        val target = color.toArgb()
+
+        fun near(
+            a: Int,
+            shift: Int,
+        ) = abs(((a shr shift) and 0xFF) - ((target shr shift) and 0xFF)) <= PIXEL_SLACK
+        var count = 0
+        for (y in image.height / 4 until image.height * 3 / 4) {
+            for (x in image.width / 4 until image.width * 3 / 4) {
+                val pixel = pixels[y * image.width + x]
+                if (near(pixel, 16) && near(pixel, 8) && near(pixel, 0)) count++
+            }
+        }
+        return count
+    }
+
     @Test
-    fun compactCellShowsItsTitleInThePanelOnly() {
+    fun compactCellDrawsAnEllipsisAndNamesItsTitleInThePanelOnly() {
         showReady(ch3)
-        // Five minutes is too narrow for a title: nothing is written in the cell, focused or not, and nothing floats
-        // over its neighbours. The panel names it.
+        val short = GuideTags.cell(ch3, min(70))
+        // Five minutes is too narrow for a title: no title is written in the cell, focused or not, and nothing floats
+        // over its neighbours. A "\u2026" is drawn, not a text node, so a screen reader hears only the cell's
+        // description, which carries the full title; the panel names it when it is focused.
+        compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
+        compose.onAllNodesWithText("\u2026", useUnmergedTree = true).assertCountEquals(0)
+        cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
+        assertTrue("an ellipsis in Cream", pixelsNear(short, BroadcastColors.Cream) > 0)
+        // Negative control: the scan is for the mark's own colour, not just any drawing; unfocused, nothing is Ink.
+        assertEquals("no Ink in an unfocused cell", 0, pixelsNear(short, BroadcastColors.Ink))
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
+        assertTrue("an ellipsis in Ink, focused", pixelsNear(short, BroadcastColors.Ink) > 0)
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
         compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
-        // The neighbour it used to float over is still there to read.
-        compose.onNodeWithTag(GuideTags.cellText(ch3, min(75)), useUnmergedTree = true).assertExists()
+        cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
+        // The neighbour it used to float over is still there to read, with its title.
+        assertEquals("Test Movie 402", text(GuideTags.cellText(ch3, min(75))))
     }
 
     // Far right on channel 7, then the guide closed: what a reopen must not come back to.
@@ -657,6 +707,9 @@ class GuideScreenTest {
         const val PRESS_MS = 50L
         const val BODY = "body"
         const val LOG_TAG = "GuideScreenTest"
+
+        // Tight: an unfocused cell's fill (Cream at 8% over dark) is within 24 of Ink; a looser scan counted it.
+        const val PIXEL_SLACK = 8
         const val CELL_TEXT = "guide:cellText:"
         const val TICK_TIMEOUT_MS = 20_000L
 

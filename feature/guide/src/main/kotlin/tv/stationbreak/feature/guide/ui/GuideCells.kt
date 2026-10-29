@@ -21,25 +21,31 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
@@ -55,6 +61,42 @@ import java.time.ZoneId
 private val CellInset = 1.dp
 private val MinCellWidth = 20.dp
 private val CompactBelow = 80.dp
+
+/**
+ * The least of a cell in view that has room for a "…". Budget: the glyph is about 16 dp wide at 16 sp, up to about
+ * 24 dp at the largest font scale (1.5), and the cell's own 1 dp inset takes 2 dp, so 32 dp leaves it clear of both
+ * edges even then.
+ */
+internal val EllipsisFrom = 32.dp
+internal const val ELLIPSIS = "…"
+private val ProgramStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
+private val SlateStyle = TextStyle(fontSize = 16.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal)
+
+/**
+ * The "…" laid out once for the whole grid (a program's style and a slate's), so a cell only draws it, in its own
+ * colour, and measures nothing.
+ */
+@Immutable
+internal class EllipsisMarks(
+    val program: TextLayoutResult,
+    val slate: TextLayoutResult,
+)
+
+/** Provided by the grid; without it (null) no cell draws a "…". */
+internal val LocalEllipsisMarks = staticCompositionLocalOf<EllipsisMarks?> { null }
+
+/** The grid's [EllipsisMarks], measured once for the current font and density. */
+@Composable
+internal fun rememberEllipsisMarks(): EllipsisMarks {
+    val measurer = rememberTextMeasurer()
+    val base = LocalTextStyle.current
+    val density = LocalDensity.current
+    return remember(measurer, base, density) {
+        fun mark(style: TextStyle) = measurer.measure(ELLIPSIS, base.merge(style), softWrap = false, density = density)
+        EllipsisMarks(program = mark(ProgramStyle), slate = mark(SlateStyle))
+    }
+}
+
 private val EpisodeFrom = 160.dp
 private val RingWidth = 3.dp
 private val TextStart = 10.dp
@@ -96,6 +138,19 @@ internal class CellPlace(
      * ring when focused. The details panel names it; nothing is drawn over its neighbours.
      */
     val compact: Boolean = width < CompactBelow
+
+    /**
+     * Where a "…" goes with the viewport at [viewportStartMs], as the span of the cell in view (from the cell's left
+     * edge): when no part of the title fits ([compactIn]) but [EllipsisFrom] of the cell is in view, so something is
+     * seen to air there. Null otherwise: the title fits, or too little shows even for a "…". Plain arithmetic, read
+     * while drawing, so paging composes and measures nothing.
+     */
+    fun ellipsisIn(viewportStartMs: Long): ClosedRange<Dp>? {
+        if (!compactIn(viewportStartMs)) return null
+        val from = visibleLeft(viewportStartMs)
+        val to = visibleRight(viewportStartMs)
+        return if (to - from >= EllipsisFrom) from..to else null
+    }
 
     /**
      * Compact with the viewport at [viewportStartMs]: [compact], or so little of the cell in view (a long program
@@ -160,7 +215,7 @@ internal data class CellMarks(
  * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
  * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the ring and the
  * chevrons). Fill, ring, slate dashes and chevrons are drawn; nothing animates or scales. A compact cell writes
- * nothing, focused or not: the details panel names the focused cell.
+ * no title, focused or not (the details panel names the focused cell), only a "…" if it has room ([EllipsisFrom]).
  */
 @Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
 @Composable
@@ -187,13 +242,15 @@ internal fun GuideCellView(
         }.value
     val resources = LocalResources.current
     val is24h = is24Hour()
+    val marks = LocalEllipsisMarks.current
+    val mark = if (cell.kind == CellKind.Slate) marks?.slate else marks?.program
     Box(
         Modifier
             .offset(x = place.x)
             .width(place.width)
             .fillMaxHeight()
             .padding(CellInset)
-            .cellLook(cell.kind == CellKind.Slate, place, viewportOf) { focused }
+            .cellLook(cell.kind == CellKind.Slate, place, viewportOf, mark.takeIf { title.isNotEmpty() }) { focused }
             .semantics {
                 selected = focused
                 contentDescription = cellDescription(resources, cell, title, onNow, is24h)
@@ -269,12 +326,7 @@ private fun CellText(
         text = text,
         modifier = modifier,
         color = main,
-        style =
-            if (slate) {
-                TextStyle(fontSize = 16.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal)
-            } else {
-                TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            },
+        style = if (slate) SlateStyle else ProgramStyle,
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Ellipsis,
@@ -304,16 +356,31 @@ private fun cellDescription(
     return if (onNow) resources.getString(R.string.guide_cell_on_now, described) else described
 }
 
+/** Draws [ellipsis] in [color], centred on [span] (the part of the cell in view, from its outer edge) if any. */
+private fun DrawScope.drawEllipsis(
+    ellipsis: TextLayoutResult,
+    span: ClosedRange<Dp>?,
+    color: Color,
+    inset: Float,
+) {
+    if (span == null) return
+    val centre = (span.start.toPx() + span.endInclusive.toPx()) / 2 - inset
+    val top = (size.height - ellipsis.size.height) / 2
+    drawText(ellipsis, color, Offset(centre - ellipsis.size.width / 2, top))
+}
+
 /**
  * The cell's look, drawn: Cream at 8% (a slate: a dashed Ground border instead), or when [focused] Accent with a 3 dp
  * White ring inside the part of the cell in view, so the row's clip can never cut it. Chevrons mark a program running
  * on past either edge of the viewport, at that edge, unless it is focused; they read [viewportOf] while drawing. A
- * compact cell has none.
+ * compact cell has no chevrons; one with no title in view draws [ellipsis] (a "…" laid out once, null for a cell with
+ * no title) centred in the part in view.
  */
 private fun Modifier.cellLook(
     slate: Boolean,
     place: CellPlace,
     viewportOf: () -> Long,
+    ellipsis: TextLayoutResult?,
     focused: () -> Boolean,
 ): Modifier =
     drawWithCache {
@@ -375,5 +442,8 @@ private fun Modifier.cellLook(
             val to = place.visibleRight(at).toPx() - inset
             if (marks.earlier) translate(left = from) { drawPath(left, mark, style = chevron) }
             if (marks.later) translate(left = to) { drawPath(right, mark, style = chevron) }
+            // As the cell's title would be: Ink focused, a slate's Ground, else Cream.
+            val ellipsisColor = if (slate && !isFocused) BroadcastColors.Ground else mark
+            if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), ellipsisColor, inset)
         }
     }
