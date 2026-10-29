@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
@@ -14,6 +15,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
@@ -62,6 +65,11 @@ import kotlin.time.TimeSource
  * holds the start, which it works out if needed. A following day whose layout is not yet worked out counts as not
  * cached, so the window comes back incomplete rather than slow.
  *
+ * With [persisted], the days outlive the process (#480): a build first looks for them on disk under a key of everything
+ * they depend on (see [PersistedDays]), and takes them from there when it matches (`DayBuild` says `snapshot=disk`,
+ * and no snapshot is read). A cold build writes its days there afterwards, in this source's scope, without holding up
+ * the callers. A miss of any kind is an ordinary build.
+ *
  * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
  * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
  */
@@ -77,6 +85,7 @@ class BuiltInScheduleSource(
     laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val probes: BuildProbes = BuildProbes(),
+    private val persisted: PersistedDays? = null,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
     private data class Key(
@@ -103,6 +112,12 @@ class BuiltInScheduleSource(
 
     // Snapshots outlive the lineup revision they were first read for: see [SnapshotCache].
     private val snapshots = SnapshotCache(buildScope)
+
+    // The writes of built days to disk still running; each removes itself when done.
+    private val saves = HashSet<Job>()
+
+    /** For tests: waits for the writes of built days to disk started so far. */
+    internal suspend fun awaitSaves() = synchronized(lock) { saves.toList() }.joinAll()
 
     /** For tests: how many snapshot reads the cache has started. */
     internal fun snapshotReads(): Int = snapshots.reads
@@ -505,8 +520,17 @@ class BuiltInScheduleSource(
             }
             val before = Probed(probes)
             val allocBefore = Reading(probes.allocatedBytes())
+            // Both numbers are read before any snapshot (see [SnapshotCache]) and before the disk is looked at.
+            val generation = library.contentGeneration(account)
+            val pass = library.collectionPassCompleted(account).first()
+            val disk = persisted?.keyOf(account, key.libraries, generation, pass, lineup, catalogVersion(), scheduled)
+            fromDisk(account, disk, scheduled, checkpoint)?.let { restored ->
+                keep(key, restored)
+                reportDisk(scheduled, began.elapsedNow().inWholeMilliseconds, restored.size, before, allocBefore)
+                return restored
+            }
             val outcomes = ArrayList<SnapshotCache.Found>()
-            val read = snapshotsFor(account, key, checkpoint, outcomes)
+            val read = snapshotsFor(account, key, generation, pass, checkpoint, outcomes)
             val afterSnapshots = Probed(probes)
             val snapshotsMs = began.elapsedNow().inWholeMilliseconds
             checkpoint()
@@ -516,10 +540,8 @@ class BuiltInScheduleSource(
             val result = days.days(lineup, scheduled, read, checkpoint) { evaluations++ }
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
-            synchronized(lock) {
-                kept[key] = result
-                while (kept.size > KEPT) kept.remove(kept.keys.first())
-            }
+            keep(key, result)
+            if (persisted != null && disk != null) save(account, persisted, disk, result)
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
             val allocated = Reading(probes.allocatedBytes()) - allocBefore
@@ -553,16 +575,84 @@ class BuiltInScheduleSource(
         }
     }
 
+    private fun catalogVersion() = service.catalog.version
+
+    /**
+     * The days of [disk] from [persisted], or null for none (no store, or a miss of any kind). A build that went stale
+     * while the file was read stops at [checkpoint], as any other.
+     */
+    private suspend fun fromDisk(
+        account: LibraryAccount,
+        disk: DayKey?,
+        scheduled: List<Scheduled>,
+        checkpoint: () -> Unit,
+    ): List<ChannelDay>? {
+        if (persisted == null || disk == null) return null
+        val restored = persisted.load(account, disk, scheduled, days::restore)
+        if (restored != null) checkpoint()
+        return restored
+    }
+
+    private fun keep(
+        key: Key,
+        result: List<ChannelDay>,
+    ) = synchronized(lock) {
+        kept[key] = result
+        while (kept.size > KEPT) kept.remove(kept.keys.first())
+    }
+
+    // Written in the source's scope, so a caller is never held up by it and a cancelled caller does not stop it.
+    private fun save(
+        account: LibraryAccount,
+        persisted: PersistedDays,
+        disk: DayKey,
+        result: List<ChannelDay>,
+    ) {
+        val job = buildScope.launch(start = CoroutineStart.LAZY) { persisted.save(account, disk, result) }
+        synchronized(lock) { saves += job }
+        job.invokeOnCompletion { synchronized(lock) { saves -= job } }
+        job.start()
+    }
+
+    // A disk hit, reported as a build: the whole time is the file's read, and there was no pool work.
+    private fun reportDisk(
+        scheduled: List<Scheduled>,
+        ms: Long,
+        channels: Int,
+        before: Probed,
+        allocBefore: Reading,
+    ) {
+        val after = Probed(probes)
+        val allocated = Reading(probes.allocatedBytes()) - allocBefore
+        built(
+            DayBuild(
+                scheduled.firstOrNull()?.n ?: -1,
+                ms,
+                ms,
+                0,
+                channels,
+                poolsCpuMs = 0,
+                snapshotsProcCpuMs = after.cpuMs - before.cpuMs,
+                poolsProcCpuMs = 0,
+                gcCount = after.gcCount - before.gcCount,
+                gcBlockMs = after.gcBlockMs - before.gcBlockMs,
+                snapshot = DISK,
+                evaluations = 0,
+                allocKb = if (allocated < 0) -1 else allocated / BYTES_PER_KB,
+            ),
+        )
+    }
+
     /** One snapshot per cut-off of [key], from [snapshots] when the library has not changed since it was read. */
+    @Suppress("LongParameterList") // The build's state, passed down.
     private suspend fun snapshotsFor(
         account: LibraryAccount,
         key: Key,
+        generation: Long,
+        pass: Instant?,
         checkpoint: () -> Unit,
         outcomes: MutableList<SnapshotCache.Found>,
     ): Map<Long, RuleSnapshot> {
-        // Both numbers are read before any snapshot: see [SnapshotCache].
-        val generation = library.contentGeneration(account)
-        val pass = library.collectionPassCompleted(account).first()
         val read = HashMap<Long, RuleSnapshot>()
         for (cutoff in key.cutoffs) {
             checkpoint()
@@ -588,6 +678,9 @@ class BuiltInScheduleSource(
          */
         const val WARM_AHEAD_MS = 60 * 60 * 1000L
 
+        /** `DayBuild.snapshot` for days read from disk ([PersistedDays]). */
+        const val DISK = "disk"
+
         const val NANOS_PER_MS = 1_000_000L
         const val BYTES_PER_KB = 1024L
     }
@@ -608,7 +701,9 @@ class BuiltInScheduleSource(
  * - [gcCount] and [gcBlockMs] are the collections and the milliseconds the app was blocked by collections across the
  *   whole build, process-wide.
  * - [snapshot] is where the snapshots came from: `hit` (all kept), `miss` (some read or joined a read) or `cleared`
- *   (some were kept but the garbage collector had dropped them), the worst of the cut-offs of the build.
+ *   (some were kept but the garbage collector had dropped them), the worst of the cut-offs of the build. `disk` is a
+ *   build that read the days themselves from disk ([PersistedDays]): no snapshot was read and no pool worked out, so
+ *   [ms] and [snapshotsMs] are the file's read, and [poolsMs], [poolsCpuMs], [poolsProcCpuMs] and [evaluations] are 0.
  * - [evaluations] is how many times `PoolEvaluator.evaluate` ran in the build, and [allocKb] the kilobytes the app
  *   allocated across the build (`art.gc.bytes-allocated`, process-wide), -1 when unknown.
  */

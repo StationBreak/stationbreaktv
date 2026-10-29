@@ -132,6 +132,21 @@ internal class LineupDays(
     ): List<ChannelDay> = Build(lineup, snapshots, evaluated).days(scheduled, beforeChannel)
 
     /**
+     * The day of [s] whose day pool is [pool] and whose empty reason is [hidden]: what [days] gives once it has worked
+     * those out, and what a day kept on disk ([PersistedDays]) is made back into. Everything else of the day comes from
+     * [s] and the catalog.
+     */
+    fun restore(
+        s: Scheduled,
+        pool: List<ScheduleItem>,
+        hidden: HiddenReason?,
+    ): ChannelDay {
+        val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
+        val name = s.channel.displayName(catalog)
+        return ChannelDay(s.channel, name, s.settings, s.n, pool, hidden, ceilingRank, laidOut)
+    }
+
+    /**
      * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no day
      * pool, and not held back on purpose (opt-in recipes, hidden channels). Zero while the leftovers channels are on.
      */
@@ -279,9 +294,7 @@ internal class LineupDays(
             pool: Pool,
         ): ChannelDay {
             val day = EpochPool.build(s.settings, pool.items, s.n)
-            val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
-            val name = s.channel.displayName(catalog)
-            return ChannelDay(s.channel, name, s.settings, s.n, day, hiddenReason(pool, day), ceilingRank, laidOut)
+            return restore(s, day, hiddenReason(pool, day))
         }
 
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */

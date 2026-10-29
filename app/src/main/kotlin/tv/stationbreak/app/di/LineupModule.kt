@@ -2,6 +2,7 @@
 package tv.stationbreak.app.di
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Debug
 import android.os.Process
 import android.util.Log
@@ -15,6 +16,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import tv.stationbreak.app.BuildConfig
+import tv.stationbreak.app.appBuildOf
+import tv.stationbreak.app.daySnapshotLine
 import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.LibraryRepository
@@ -25,10 +28,12 @@ import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
+import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SyncActivity
 import tv.stationbreak.data.library.StayCurrentProvider
+import tv.stationbreak.data.settings.lineup.FileDayStore
 import tv.stationbreak.data.settings.lineup.FileLineupStore
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -82,6 +87,7 @@ internal object LineupModule {
     @Provides
     @Singleton
     fun builtInScheduleSource(
+        @ApplicationContext context: Context,
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
@@ -110,6 +116,7 @@ internal object LineupModule {
                     gcBlockMs = { runtimeStat("art.gc.blocking-gc-time") },
                     allocatedBytes = { runtimeStat("art.gc.bytes-allocated") },
                 ),
+            persisted = persistedDays(context),
         ) { settings.loadLibraries() }
 
     @Provides
@@ -149,6 +156,21 @@ internal object LineupModule {
         LineupRefresher(service, library, { settings.loadLibraries() }, sync) {
             Log.i(TAG, it.name)
         }
+}
+
+/**
+ * The built days kept on disk, so that a new process starts from the day the last one built (#480). Keyed on this
+ * install, so an app update never reads days that older code built; none when the install cannot be told.
+ */
+private fun persistedDays(context: Context): PersistedDays? {
+    val installed =
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        }
+    val app = appBuildOf(BuildConfig.VERSION_CODE, installed) ?: return null
+    return PersistedDays(FileDayStore(context), app) { Log.i(TAG, daySnapshotLine(it)) }
 }
 
 /** A number from ART's runtime statistics, or -1 where the runtime does not give it (or not as a number). */
