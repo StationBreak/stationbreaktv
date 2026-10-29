@@ -98,7 +98,12 @@ internal object ServerText {
             else -> String(Character.toChars(cp))
         }
 
-    private fun isInvisible(cp: Int): Boolean =
+    /**
+     * True for a code point that is never kept in text from the server: a C0 or C1 control, a bidi control, or a
+     * format character other than the joiners ZWJ and ZWNJ. (A surrogate is handled by the caller: it is a half, not
+     * a character.) Shared with [studioName], so every kind of server text strips the same set.
+     */
+    internal fun isInvisible(cp: Int): Boolean =
         cp < ' '.code || cp in DELETE..LAST_C1 || isBidi(cp) ||
             (Character.getType(cp) == Character.FORMAT.toInt() && cp != ZWNJ && cp != ZWJ)
 
@@ -135,5 +140,19 @@ internal object ServerText {
     private const val ZWJ = 0x200D
     private val EMBEDDINGS = 0x202A..0x202E
     private val ISOLATES = 0x2066..0x2069
-    private val SURROGATES = 0xD800..0xDFFF
+    internal val SURROGATES = 0xD800..0xDFFF
+}
+
+/**
+ * A studio name as safe text: controls, format characters (other than ZWJ and ZWNJ) and lone surrogates removed (the
+ * same set [ServerText] strips), then trimmed. Null when nothing readable is left. Unlike a genre it is not cut,
+ * markup is left alone (a name is matched, not drawn as markup), and the caller has already dropped a name that is too
+ * long.
+ */
+internal fun studioName(raw: String): String? {
+    val kept = StringBuilder(raw.length)
+    raw.codePoints().forEach { cp ->
+        if (cp !in ServerText.SURROGATES && !ServerText.isInvisible(cp)) kept.appendCodePoint(cp)
+    }
+    return kept.toString().trim().takeIf { it.isNotEmpty() }
 }

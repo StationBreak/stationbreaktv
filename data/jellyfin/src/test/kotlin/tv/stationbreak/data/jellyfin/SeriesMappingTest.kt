@@ -86,8 +86,26 @@ class SeriesMappingTest {
         val studios = series(body).getOrNull()?.series?.map { it.studios }
 
         assertEquals(
-            listOf(listOf("One", " Two "), (1..16).map { "S$it" }, emptyList(), emptyList()),
+            listOf(listOf("One", "Two"), (1..16).map { "S$it" }, emptyList(), emptyList()),
             studios,
+        )
+    }
+
+    // The JSON escapes sit in a raw string, so the source holds no invisible text.
+    @Test
+    fun aSeriesStudioNameIsCleanedAndOneOfOnlyFormatCharactersIsDropped() {
+        val body =
+            """{"Items":[{"Id":"s1","Name":"A","Type":"Series",
+            "Studios":[{"Name":"Pix\u202Ear"},{"Name":"\u200B\u202E"},{"Name":"Ani\u200Bmation"}]}],
+            "TotalRecordCount":1}"""
+
+        assertEquals(
+            listOf("Pixar", "Animation"),
+            series(body)
+                .getOrNull()
+                ?.series
+                ?.single()
+                ?.studios,
         )
     }
 

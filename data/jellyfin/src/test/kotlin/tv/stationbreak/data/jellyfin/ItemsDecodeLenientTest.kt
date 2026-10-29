@@ -174,10 +174,34 @@ class ItemsDecodeLenientTest {
     }
 
     @Test
-    fun studiosAreReadByNameAndKeepTheirOrderAndSpelling() {
-        val studios = ""","Studios":[{"Name":"Zed Pictures","Id":"x"},{"Name":" a studio "},{"Name":"A Studio"}]"""
+    fun studiosAreReadByNameAndKeepTheirOrderSpellingAndInnerSpaces() {
+        val studios = ""","Studios":[{"Name":"Zed Pictures","Id":"x"},{"Name":" a studio "},{"Name":"A  Studio"}]"""
 
-        assertEquals(listOf("Zed Pictures", " a studio ", "A Studio"), studiosOfItem(studios))
+        assertEquals(listOf("Zed Pictures", "a studio", "A  Studio"), studiosOfItem(studios))
+    }
+
+    // The JSON escapes sit in raw strings, so they reach the decoder as escapes and the source holds no invisible text.
+    @Test
+    fun aStudioNameLosesControlBidiAndZeroWidthCharactersButStillReadsAsItsName() {
+        val studios =
+            ""","Studios":[{"Name":"Pix‮ar"},{"Name":"Ani​mation\u0007"},{"Name":"\u0085Ghi\u009Fbli"}]"""
+
+        assertEquals(listOf("Pixar", "Animation", "Ghibli"), studiosOfItem(studios))
+    }
+
+    @Test
+    fun aStudioNameKeepsZeroWidthJoinersAndLosesALoneSurrogate() {
+        val studios = ""","Studios":[{"Name":"A‍B‌C"},{"Name":"Lone\ud800 Name"}]"""
+        val joined = "A" + String(Character.toChars(0x200D)) + "B" + String(Character.toChars(0x200C)) + "C"
+
+        assertEquals(listOf(joined, "Lone Name"), studiosOfItem(studios))
+    }
+
+    @Test
+    fun aStudioNameOfOnlyFormatCharactersIsDropped() {
+        val studios = ""","Studios":[{"Name":"‮​⁦﻿"},{"Name":" ​ "},{"Name":"Kept"}]"""
+
+        assertEquals(listOf("Kept"), studiosOfItem(studios))
     }
 
     @Test
