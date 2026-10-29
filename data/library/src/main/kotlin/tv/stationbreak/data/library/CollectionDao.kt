@@ -116,7 +116,7 @@ internal abstract class CollectionDao {
      * Ends the current rows of [memberIds] in EVERY collection of the account at [stamp]: the member was deleted from
      * the server, which does not bump its collections (spec 10, ADR-0015). A row first seen at or after [stamp] (a
      * clock that went back) ends one millisecond after it began, so no interval is ever empty. A later revival of the
-     * member re-adds nothing: the next collection read decides.
+     * member re-adds nothing: the next collection read decides. Returns the rows it ended (#480).
      */
     @Query(
         "UPDATE collection_member SET supersededAtMs = " +
@@ -128,9 +128,10 @@ internal abstract class CollectionDao {
         userId: String,
         memberIds: List<String>,
         stamp: Long,
-    )
+    ): Int
 
-    // Marks collections deleted. An existing tombstone keeps its time, and no version is added.
+    // Marks collections deleted. An existing tombstone keeps its time, and no version is added. Returns the rows it
+    // tombstoned (#480).
     @Query(
         "UPDATE collection SET deletedAtMs = :atMs WHERE serverId = :serverId AND userId = :userId " +
             "AND collectionId IN (:ids) AND deletedAtMs IS NULL",
@@ -140,7 +141,7 @@ internal abstract class CollectionDao {
         userId: String,
         ids: List<String>,
         atMs: Long,
-    )
+    ): Int
 
     // The purge: plain DELETEs scoped to the account and driven by the purge indexes. As for items and series, a
     // tombstone also needs seenFromMs < cutoff, because the cascade would take versions and members superseded inside
@@ -469,9 +470,8 @@ internal abstract class CollectionDao {
         userId: String,
     ): CollectionSyncEntity?
 
-    // Half of the key of a cached rule snapshot (with the content generation): it must move whenever the snapshot's
-    // collectionsSynced can change, which holds as both are written in the one row (RuleSnapshotKeyContractTest).
-    // The start of the last whole pass: null with no row. Written only by recordCollectionPass, after a pass succeeded.
+    // The start of the last whole pass: null with no row. Written only by recordCollectionPass, after a pass succeeded,
+    // with lastRelistMs in the same row; the first lastRelistMs also moves the content generation (#480).
     @Query("SELECT collectionsSinceMs FROM collection_sync WHERE serverId = :serverId AND userId = :userId")
     abstract fun observeSyncSince(
         serverId: String,

@@ -208,13 +208,14 @@ interface LibraryRepository : AccountCache {
      * `cutoff >= now - 72 h`**, the same documented contract (Vimes L-1) and not a `require`: an older cut-off degrades
      * to the newest copy and does not throw.
      *
-     * **Cache contract (#392).** The result depends only on [account], [libraries], [cutoff] and the state of the
-     * saved library, and every change to that state moves [contentGeneration] or [collectionPassCompleted] (a write to
-     * an item, series or collection, or to the chosen libraries, moves the first; the collection pass that turns
-     * `collectionsSynced` true moves the second). A caller may therefore keep a snapshot under the key
-     * (account, libraries, cutoff, generation, pass), both numbers read *before* the snapshot, and reuse it while
-     * that key holds. Anything new that this result comes to depend on must move one of the two, or the cache of the
-     * day build serves it stale; `RuleSnapshotKeyContractTest` pins this for the Room implementation.
+     * **Cache contract (#392, #480).** The result depends only on [account], [libraries], [cutoff] and the state of
+     * the saved library, and every change to that state moves [contentGeneration]: a write to an item, series or
+     * collection, or to the chosen libraries, and the collection pass that turns `collectionsSynced` true (it writes no
+     * row, but changes the result). A caller may therefore keep a snapshot under the key (account, libraries, cutoff,
+     * generation), the generation read *before* the snapshot, and reuse it while that key holds; adding
+     * [collectionPassCompleted] to the key only makes it finer. Anything new that this result comes to depend on must
+     * move the generation, or the caches of the day build serve it stale; `RuleSnapshotKeyContractTest` pins this for
+     * the Room implementation.
      *
      * A **planning read** (spec 12: choosing which channels a lineup holds) may pass `cutoff = now`, which is inside
      * the safe range. Such a snapshot is never used to build a day: a day is built only from the `S - G` cut-off.
@@ -264,23 +265,24 @@ interface LibraryRepository : AccountCache {
      * last one it acted on, and never compares the value with `lastSuccess` or with now as an end time. The sync engine
      * finishes the items (and so [status]'s `lastSuccess` moves) *before* it runs the collection pass, so a reader that
      * needs the collections waits for this and not for `lastSuccess`. A pass that stops part-way does not signal.
-     * With [contentGeneration] it is the other half of the key a cached [ruleSnapshot] stands on (see there): it
-     * moves with `collectionsSynced`, which can turn true with no row written.
+     * It moves with every completed pass, one that changed nothing included, so it is no measure of change: a key
+     * that must survive a quiet pass uses [contentGeneration] alone (see [ruleSnapshot]).
      */
     fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?>
 
     /**
      * [account]'s content generation: a number kept with the saved library that goes up for that account and never
      * repeats a value the account held before. It changes exactly when a committed write changed that account's
-     * library rows (an item, series or collection that is new, edited, deleted or back, or the chosen libraries): the
-     * bump is in the same transaction as the write, so a write that rolls back or finds everything as stored leaves
-     * it alone, and another account's writes never move it. Because it is durable it can be compared across process
+     * library rows (an item, series or collection that is new, edited, deleted or back, a member added or removed, or
+     * the chosen libraries), or when the first full collection pass turns `collectionsSynced` true: the bump is in the
+     * same transaction as the write, so a write that rolls back or finds everything as stored leaves it alone, and
+     * another account's writes never move it. Because it is durable it can be compared across process
      * restarts: a reader keeps the value it planned from and finds the library changed since when the two differ,
      * even if the process died before it could act. When the account's saved data is dropped (a sign-out, another
      * account, a cache rebuild) the number starts again from the clock, shifted so that it lies above anything the
      * old data reached, so a value a reader kept never matches a different library state. It says the library
-     * differs, never how. A suspend read and not a flow, since the reader decides at a trigger or at start. With
-     * [collectionPassCompleted] it is the key a cached [ruleSnapshot] stands on (see there).
+     * differs, never how. A suspend read and not a flow, since the reader decides at a trigger or at start. It is the
+     * key a cached [ruleSnapshot] stands on (see there).
      */
     suspend fun contentGeneration(account: LibraryAccount): Long
 

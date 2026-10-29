@@ -536,7 +536,6 @@ class BuiltInScheduleSource(
                     account,
                     key.libraries,
                     generation,
-                    pass,
                     lineup,
                     service.catalog.version,
                     scheduled,

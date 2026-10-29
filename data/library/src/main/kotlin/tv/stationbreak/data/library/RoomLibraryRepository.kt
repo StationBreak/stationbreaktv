@@ -188,8 +188,8 @@ class RoomLibraryRepository internal constructor(
             .observeSyncSince(account.server.value, account.user.value)
             .map { ms -> ms?.let(Instant::fromEpochMilliseconds) }
 
-    // Part of the key of cached rule snapshots with collectionPassCompleted (see LibraryRepository.ruleSnapshot): every
-    // change to what ruleSnapshot returns moves this or the pass signal, pinned by RuleSnapshotKeyContractTest.
+    // The key of cached rule snapshots (see LibraryRepository.ruleSnapshot): every change to what ruleSnapshot returns
+    // moves it, the first full collection pass included, pinned by RuleSnapshotKeyContractTest.
     // A suspend read, not a Flow: the one reader decides at a trigger or at start, and nothing needs pushing to it.
     override suspend fun contentGeneration(account: LibraryAccount): Long {
         val (server, user) = account.keys()

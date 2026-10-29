@@ -20,7 +20,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Instant
 
 /**
  * The built days kept on disk (#480): a file gives back exactly the days it was written from, and only while every
@@ -107,10 +106,9 @@ class PersistedDaysTest {
         account: LibraryAccount = ACCOUNT,
         libraries: Set<ItemId> = LIBRARIES,
         generation: Long = GENERATION,
-        pass: Instant? = PASS,
         of: Lineup = lineup,
         catalog: Int = TestCatalog.version,
-    ) = days.keyOf(account, libraries, generation, pass, of, catalog, scheduled)
+    ) = days.keyOf(account, libraries, generation, of, catalog, scheduled)
 
     private fun save(
         days: PersistedDays = persisted(),
@@ -197,16 +195,6 @@ class PersistedDaysTest {
         val days = persisted()
         assertNull(load(days, keyOf(days, generation = GENERATION + 1)))
         assertEquals(DaySnapshotMiss.Generation, lastMiss())
-    }
-
-    @Test
-    fun aLaterCollectionPassMisses() {
-        save()
-        val days = persisted()
-        assertNull(load(days, keyOf(days, pass = Instant.parse("2026-10-19T11:00:00Z"))))
-        assertEquals(DaySnapshotMiss.CollectionPass, lastMiss())
-        assertNull(load(days, keyOf(days, pass = null)))
-        assertEquals(DaySnapshotMiss.CollectionPass, lastMiss())
     }
 
     @Test
@@ -524,7 +512,6 @@ class PersistedDaysTest {
         const val GENERATION = 7L
         const val INSTALLED = 1_767_225_600_000L
         val APP = "1:$INSTALLED"
-        val PASS: Instant = Instant.parse("2026-10-19T10:00:00Z")
     }
 }
 

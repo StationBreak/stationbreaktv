@@ -13,7 +13,6 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import java.security.MessageDigest
 import java.util.Collections
-import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 /** What became of one read or write of the days on disk. Numbers and a closed reason only: safe to log. */
@@ -49,7 +48,6 @@ enum class DaySnapshotMiss {
     Account,
     Libraries,
     Generation,
-    CollectionPass,
     Catalog,
     Offset,
     Lineup,
@@ -69,8 +67,10 @@ enum class DaySnapshotMiss {
  * - [appBuild] is the guard for the code: it must change with every install of the app (the app gives its version code
  *   and install time, since the version code alone does not move between builds), so no build of the app ever reads
  *   days that another build made, whatever changed in the catalog, the holds, the evaluator or the scheduler;
- * - the account, the chosen libraries, the content generation and the last completed collection pass: as for
- *   `SnapshotCache`, these two numbers cover everything `ruleSnapshot` returns, and they are read before the build;
+ * - the account, the chosen libraries and the content generation, read before the build: the generation moves with
+ *   every change to what `ruleSnapshot` returns, the first full collection pass (which turns `collectionsSynced` true)
+ *   included. The start of the last collection pass is not in the key: every open runs a pass, and one that changed
+ *   nothing must not cost the next process its days (#480);
  * - the catalog version, the lineup's UTC offset and a SHA-256 of the whole stored lineup (every channel's rules,
  *   state, number and name);
  * - the cut-offs and every scheduled channel with its epoch number (which day).
@@ -111,7 +111,6 @@ class PersistedDays internal constructor(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         generation: Long,
-        collectionPass: Instant?,
         lineup: Lineup,
         catalogVersion: Int,
         scheduled: List<Scheduled>,
@@ -124,7 +123,6 @@ class PersistedDays internal constructor(
             user = account.user.value,
             libraries = libraries.map { it.value }.sorted(),
             generation = generation,
-            collectionPass = collectionPass?.toString(),
             catalog = catalogVersion,
             utcOffsetMinutes = lineup.utcOffsetMinutes,
             lineup = sha256(LineupCodec.encode(lineup)),

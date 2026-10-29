@@ -497,4 +497,24 @@ class InMemoryLibraryRepositoryTest {
 
             assertEquals(epoch, repository.collectionPassCompleted(alice).first())
         }
+
+    // As the Room repository (#480): the pass that turns collectionsSynced true changes a snapshot, so it moves the
+    // generation; a pass that finds it already true does not.
+    @Test
+    fun collectionsSyncedTurningTrueOrFalseMovesTheGenerationAndStayingPutDoesNot() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val start = repository.contentGeneration(alice)
+
+            repository.setCollectionsSynced(alice, true)
+            val synced = repository.contentGeneration(alice)
+            assertTrue(synced > start)
+
+            repository.setCollectionsSynced(alice, true)
+            repository.completeCollectionPass(alice, epoch)
+            assertEquals(synced, repository.contentGeneration(alice))
+
+            repository.setCollectionsSynced(alice, false)
+            assertTrue(repository.contentGeneration(alice) > synced)
+        }
 }

@@ -18,9 +18,10 @@ import kotlin.time.Instant
  * need not read it again.
  *
  * What the library holds is told by two numbers the key carries: the account's `contentGeneration` (it moves exactly
- * when a committed write changes an item, series or collection row, or the chosen libraries) and the start of its last
- * completed collection pass (the snapshot's `collectionsSynced` can turn true without any row changing). That these
- * two cover everything `ruleSnapshot` returns is the contract written on `LibraryRepository.ruleSnapshot`. A sync
+ * when a committed write changes an item, series or collection row, or the chosen libraries, and when the first full
+ * collection pass turns `collectionsSynced` true) and the start of its last completed collection pass. The generation
+ * alone covers everything `ruleSnapshot` returns (the contract written on `LibraryRepository.ruleSnapshot`); the pass
+ * only makes the key finer, at the cost of a read again after a pass that changed nothing. A sync
  * therefore never finds a stale snapshot: its key is simply not asked for again. Both numbers are read *before* the
  * snapshot, so a write that lands in between leaves the snapshot filed under the older key, which no later build asks
  * for, and never the other way round.

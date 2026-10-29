@@ -104,6 +104,41 @@ class BuiltInScheduleSourceDiskTest {
         assertTrue(next.events.last() is DaySnapshotEvent.Saved, "and the new days replace the file")
     }
 
+    // #480: every open runs the reconcile and the collection pass, and a pass that completes records its own start
+    // even when it changed nothing. Only a change to the library may make the next process build again.
+    @Test
+    fun aSyncThatChangedNothingBetweenProcessesStillFindsTheDaysOnDisk() {
+        val cold = firstProcess()
+        val generation = runBlocking { library.contentGeneration(ACCOUNT) }
+        val aMinuteLater = Instant.fromEpochMilliseconds(NOON.toEpochMilliseconds() + 60_000)
+        library.delegate.completeCollectionPass(ACCOUNT, aMinuteLater)
+        assertEquals(generation, runBlocking { library.contentGeneration(ACCOUNT) }, "the pass wrote nothing")
+
+        val next = Process()
+        val warm = next.days()
+
+        assertEquals("disk", next.builds.single().snapshot)
+        assertTrue(next.events.single() is DaySnapshotEvent.Hit)
+        assertEquals(describe(cold), describe(warm))
+    }
+
+    @Test
+    fun theFirstFullCollectionPassBetweenProcessesBuildsAgain() {
+        val first = Process()
+        runBlocking { first.service.refresh(ACCOUNT, LIBRARIES) }
+        // The days are built before any full collection pass has succeeded, and saved.
+        library.delegate.setCollectionsSynced(ACCOUNT, false)
+        first.days()
+        assertTrue(first.events.any { it is DaySnapshotEvent.Saved })
+        library.delegate.setCollectionsSynced(ACCOUNT, true)
+
+        val next = Process()
+        next.days()
+
+        assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Generation), next.events.first())
+        assertEquals("miss", next.builds.single().snapshot)
+    }
+
     @Test
     fun anAppUpdateBuildsAgain() {
         firstProcess()
