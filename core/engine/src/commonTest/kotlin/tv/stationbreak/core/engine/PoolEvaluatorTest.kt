@@ -516,7 +516,7 @@ class PoolEvaluatorTest {
     @Test
     fun anUnheldEvaluationIsTodaysPoolWithNothingHeldOut() {
         val r = libraryRules(maxRating = "PG-13")
-        val pool = PoolEvaluator.evaluate(r, heldSnapshot(), held = false)
+        val pool = PoolEvaluator.evaluate(r, heldSnapshot(), policy = PoolPolicy.Open)
         assertEquals(0, pool.counts.heldOut)
         assertEquals(PoolEvaluator.evaluate(r, heldSnapshot()), pool)
     }
@@ -532,7 +532,7 @@ class PoolEvaluatorTest {
 
     @Test
     fun aHeldPgChannelKeepsOnlyKidsContentUnderTheKidTable() {
-        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), heldSnapshot(), held = true)
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), heldSnapshot(), policy = PoolPolicy.KidsOnly)
         // The TV-Y episode counts as made for kids by its children's rating, whatever its series' genre.
         assertEquals(listOf(idOf(1), idOf(6)), pool.items.map { it.id })
         // The Fantasy movie and the episode of an unknown series (rated G, a Drama) are not made for kids.
@@ -545,7 +545,8 @@ class PoolEvaluatorTest {
     @Test
     fun anEpisodeOfAMissingSeriesThatFailsTheGateIsHeldOutNotCountedUnknown() {
         val ep = episode(idOf(1), goneShow, rating = "G")
-        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snapshot(items = listOf(ep)), held = true)
+        val snap = snapshot(items = listOf(ep))
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snap, policy = PoolPolicy.KidsOnly)
         assertEquals(emptyList(), pool.items)
         assertEquals(1, pool.counts.heldOut)
         assertEquals(0, pool.counts.episodesWithUnknownSeries)
@@ -555,7 +556,8 @@ class PoolEvaluatorTest {
     @Test
     fun anEpisodeOfAMissingSeriesThatPassesTheGateOnItsOwnNamesIsCountedUnknownAndBlocked() {
         val ep = episode(idOf(1), goneShow, rating = "G", genres = listOf("Kids"))
-        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snapshot(items = listOf(ep)), held = true)
+        val snap = snapshot(items = listOf(ep))
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snap, policy = PoolPolicy.KidsOnly)
         assertEquals(emptyList(), pool.items)
         assertEquals(0, pool.counts.heldOut)
         assertEquals(1, pool.counts.episodesWithUnknownSeries)
@@ -565,7 +567,7 @@ class PoolEvaluatorTest {
     @Test
     fun exclusionsComeBeforeTheHold() {
         val r = libraryRules(exclusions = listOf(Source.Genre("fantasy")), maxRating = "PG")
-        val pool = PoolEvaluator.evaluate(r, heldSnapshot(), held = true)
+        val pool = PoolEvaluator.evaluate(r, heldSnapshot(), policy = PoolPolicy.KidsOnly)
         // The Fantasy movie, and the episode whose series is missing (a genre exclusion fails closed on it).
         assertEquals(2, pool.counts.excluded)
         // Nothing else is held out: the TV-Y episode is made for kids by its rating.
@@ -576,9 +578,101 @@ class PoolEvaluatorTest {
     fun aHeldPoolsCountsAddUpToWhatMatched() {
         val snap = heldSnapshot()
         for (exclusions in listOf(null, listOf(Source.Genre("fantasy")))) {
-            val pool = PoolEvaluator.evaluate(libraryRules(exclusions, "PG"), snap, held = true)
+            val pool = PoolEvaluator.evaluate(libraryRules(exclusions, "PG"), snap, policy = PoolPolicy.KidsOnly)
             val c = pool.counts
             assertEquals(snap.items.size, pool.items.size + c.excluded + c.heldOut + c.blockedByCeiling)
+        }
+    }
+
+    // The grown-up policy (ADR-0020).
+
+    private val kidsSeries = idOf(0x50)
+    private val pgSeries = idOf(0x51)
+
+    private fun grownUpSnapshot() =
+        snapshot(
+            items =
+                listOf(
+                    movie(idOf(1), rating = "TV-Y"),
+                    movie(idOf(2), rating = "PG"),
+                    movie(idOf(3), rating = "TV-PG"),
+                    movie(idOf(4), rating = null),
+                    episode(idOf(5), kidsSeries, rating = "TV-PG"),
+                    episode(idOf(6), pgSeries, rating = "TV-PG"),
+                    movie(idOf(7), rating = "TV-Y7-FV"),
+                ),
+            series = listOf(series(kidsSeries, rating = "TV-Y7"), series(pgSeries, rating = "TV-PG")),
+        )
+
+    @Test
+    fun aGrownUpPoolDropsAnItemRatedTvYAndCountsItApart() {
+        val pool = PoolEvaluator.evaluate(libraryRules(), grownUpSnapshot(), PoolPolicy.GrownUp)
+        assertEquals(
+            listOf(2, 3, 4, 6),
+            pool.items.map {
+                (
+                    it.id.value
+                        .takeLast(2)
+                        .toInt(16)
+                )
+            },
+        )
+        // TV-Y movie, the episode of a TV-Y7 series, and the TV-Y7-FV movie.
+        assertEquals(3, pool.counts.childrensRatingOut)
+        assertEquals(0, pool.counts.heldOut)
+        assertEquals(0, pool.counts.blockedByCeiling)
+    }
+
+    @Test
+    fun aGrownUpPoolDropsAnEpisodeWhoseSeriesIsChildrensThoughTheEpisodeIsTvPg() {
+        val ep = episode(idOf(1), kidsSeries, rating = "TV-PG")
+        val snap = snapshot(items = listOf(ep), series = listOf(series(kidsSeries, rating = "TV-Y7")))
+        val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
+        assertEquals(emptyList(), pool.items)
+        assertEquals(1, pool.counts.childrensRatingOut)
+    }
+
+    @Test
+    fun aGrownUpPoolKeepsPgTvPgAndUnratedItems() {
+        val snap =
+            snapshot(items = listOf(movie(idOf(1), rating = "PG"), movie(idOf(2), rating = "TV-PG"), movie(idOf(3))))
+        val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
+        assertEquals(3, pool.items.size)
+        assertEquals(0, pool.counts.childrensRatingOut)
+    }
+
+    @Test
+    fun aGrownUpPoolStillAppliesTheLadderCeilingToWhatItKeeps() {
+        val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), grownUpSnapshot(), PoolPolicy.GrownUp)
+        // TV-PG is on the PG step of the ladder; the unrated movie is blocked by the ceiling.
+        assertEquals(3, pool.counts.childrensRatingOut)
+        assertEquals(listOf(idOf(2), idOf(3), idOf(6)), pool.items.map { it.id })
+        assertEquals(1, pool.counts.blockedByCeiling)
+    }
+
+    @Test
+    fun openAndKidsOnlyAreUnchangedByTheGrownUpPolicy() {
+        val snap = grownUpSnapshot()
+        val open = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.Open)
+        assertEquals(7, open.items.size)
+        assertEquals(0, open.counts.childrensRatingOut)
+        assertEquals(open, PoolEvaluator.evaluate(libraryRules(), snap))
+        val kids = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snap, PoolPolicy.KidsOnly)
+        assertEquals(0, kids.counts.childrensRatingOut)
+    }
+
+    @Test
+    fun aGrownUpPoolsCountsAddUpToWhatMatched() {
+        val snap = grownUpSnapshot()
+        for (exclusions in listOf(null, listOf(Source.Genre("fantasy")))) {
+            for (ceiling in listOf(null, "PG")) {
+                val pool = PoolEvaluator.evaluate(libraryRules(exclusions, ceiling), snap, PoolPolicy.GrownUp)
+                val c = pool.counts
+                assertEquals(
+                    snap.items.size,
+                    pool.items.size + c.excluded + c.heldOut + c.childrensRatingOut + c.blockedByCeiling,
+                )
+            }
         }
     }
 }

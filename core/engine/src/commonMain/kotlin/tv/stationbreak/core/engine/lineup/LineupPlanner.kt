@@ -249,7 +249,7 @@ private class Planning(
     fun ranked(candidates: List<Pair<Recipe, ChannelRules>>): List<Recipe> =
         candidates
             .mapNotNull { (recipe, rules) ->
-                val pool = PoolEvaluator.evaluate(rules, snapshot, held = KidStatus.isKidRecipe(recipe))
+                val pool = PoolEvaluator.evaluate(rules, snapshot, KidStatus.policyOf(recipe))
                 val runtime = airableRuntimeMs(pool.items, rules.toSchedulerSettings())
                 if (runtime >= LineupDefaults.MIN_AIRABLE_RUNTIME_MS) recipe to runtime else null
             }.sortedWith(compareByDescending<Pair<Recipe, Long>> { it.second }.thenBy { it.first.key })

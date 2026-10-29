@@ -3,9 +3,11 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolEvaluator
+import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -146,7 +148,7 @@ internal class LegacyLineupDays(
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs), isKidChannel(s.channel))
+            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs), KidStatus.policyOf(s.channel))
             return dayOf(s, pool)
         }
 
@@ -181,8 +183,8 @@ internal class LegacyLineupDays(
             withheldBy.getOrPut(cutoff) {
                 val snapshot = snapshots.getValue(cutoff)
                 val rules = optInRules() + hiddenRules()
-                rules.flatMapTo(HashSet()) { (r, held) ->
-                    PoolEvaluator.evaluate(r, snapshot, held).items.map { it.id }
+                rules.flatMapTo(HashSet()) { (r, policy) ->
+                    PoolEvaluator.evaluate(r, snapshot, policy).items.map { it.id }
                 }
             }
 
@@ -199,19 +201,22 @@ internal class LegacyLineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), isKidChannel(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), KidStatus.policyOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
-        private fun optInRules(): List<Pair<ChannelRules, Boolean>> =
+        private fun optInRules(): List<Pair<ChannelRules, PoolPolicy>> =
             catalog.recipes.filter { it.optIn }.flatMap { recipe ->
                 val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
-                val held = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }?.let(::rulesOf)
-                listOfNotNull(resolved, held).map { it to (recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS) }
+                val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
+                listOfNotNull(
+                    resolved to KidStatus.policyOf(recipe),
+                    inLineup?.let(::rulesOf)?.let { it to KidStatus.policyOf(inLineup) },
+                )
             }
 
-        private fun hiddenRules(): List<Pair<ChannelRules, Boolean>> =
+        private fun hiddenRules(): List<Pair<ChannelRules, PoolPolicy>> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
-                rulesOf(channel)?.let { it.copy(maxRating = ceilingOf(channel)) to isKidChannel(channel) }
+                rulesOf(channel)?.let { it.copy(maxRating = ceilingOf(channel)) to KidStatus.policyOf(channel) }
             }
     }
 

@@ -299,4 +299,35 @@ class KidHoldTest {
         /** The studios `kid-hold-1` already had; the animation studios of `kid-hold-2` come after them. */
         const val CHANNEL_AND_LABEL_STUDIOS = 38
     }
+
+    // --- the children's-rating predicate, shared with the grown-up hold ---
+
+    // A change to the set is a new version name of BOTH holds: this test names both.
+    @Test
+    fun theChildrensRatingsAreFrozenUnderBothHoldVersions() {
+        assertEquals("kid-hold-2", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-1", GrownUpHold.VERSION_NAME)
+        assertEquals(setOf("TV-Y", "TV-Y7", "TV-Y7-FV"), KidHold.CHILDRENS_RATINGS)
+    }
+
+    @Test
+    fun hasChildrensRatingReadsTheItemAndItsKnownSeries() {
+        assertTrue(KidHold.hasChildrensRating(film(rating = "TV-Y"), null))
+        assertTrue(KidHold.hasChildrensRating(film(rating = "TV-Y7"), null))
+        assertTrue(KidHold.hasChildrensRating(film(rating = "TV-Y7-FV"), null))
+        assertTrue(KidHold.hasChildrensRating(episodeOf(rating = "TV-PG"), show(rating = "TV-Y7")))
+        assertFalse(KidHold.hasChildrensRating(episodeOf(rating = "TV-PG"), null))
+        for (rating in listOf("TV-G", "G", "PG", "TV-PG", "TV-14", "PG-13", "R", "NR", "Approved", "", null)) {
+            assertFalse(KidHold.hasChildrensRating(film(rating = rating), null), "rating $rating")
+        }
+    }
+
+    @Test
+    fun theMadeForKidsRatingsRuleIsTheSharedPredicate() {
+        for (rating in listOf("TV-Y", "TV-Y7", "TV-Y7-FV", "TV-G", "PG", null)) {
+            val item = film(rating = rating)
+            assertEquals(KidHold.hasChildrensRating(item, null), KidHold.isMadeForKids(item, null))
+        }
+        assertTrue(KidHold.isMadeForKids(episodeOf(rating = "TV-PG"), show(rating = "TV-Y")))
+    }
 }
