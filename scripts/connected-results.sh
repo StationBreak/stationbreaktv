@@ -32,7 +32,8 @@ tasks_without_results() {
   shift
   for task in "$@"; do
     module="$(connected_module "$task")"
-    if ! grep -rqs '@Test' "$module/src/androidTest"; then
+    # @Test itself, not @TestRule or @TestInstallIn.
+    if ! grep -rqsE '@Test([^A-Za-z0-9_]|$)' "$module/src/androidTest"; then
       continue
     fi
     if ! find "$module/build/outputs/androidTest-results/connected" -name 'TEST-*.xml' -newer "$since" 2>/dev/null |

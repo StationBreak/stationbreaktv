@@ -26,7 +26,9 @@ module() { # <dir> <has-tests: yes|no>
   if [ "$2" = yes ]; then
     printf 'class T {\n  @Test fun t() {}\n}\n' >"$1/src/androidTest/kotlin/T.kt"
   else
-    printf 'class Helper\n' >"$1/src/androidTest/kotlin/Helper.kt"
+    # Helpers only: annotations that start with @Test but are not tests.
+    printf '@TestInstallIn(components = [X::class])\nclass Helper {\n  @get:Rule val r = 1 // @TestRule\n}\n' \
+      >"$1/src/androidTest/kotlin/Helper.kt"
   fi
 }
 result() { # <dir> [old]: a JUnit XML in the module's connected results, made before the run started if "old"
@@ -46,11 +48,11 @@ touch -d '2001-01-01' since
 result app
 result core/ui old
 result data/settings
-# feature/guide: no results at all. core/empty: none, and no tests.
+# feature/guide: no results at all. core/empty: none, and only helpers (no @Test).
 
 all=(connectedGithubDebugAndroidTest :core:ui:connectedDebugAndroidTest :feature:guide:connectedDebugAndroidTest
   :data:settings:connectedDebugAndroidTest :core:empty:connectedDebugAndroidTest)
-expect "a module with old results, or none, is listed; one with new results or no tests is not" \
+expect "a module with old results, or none, is listed; one with new results or only helpers is not" \
   ":core:ui:connectedDebugAndroidTest :feature:guide:connectedDebugAndroidTest" \
   "$(tasks_without_results since "${all[@]}" | tr '\n' ' ' | sed 's/ $//')"
 

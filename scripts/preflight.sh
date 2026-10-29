@@ -448,6 +448,12 @@ instrumented_tests() {
   run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${tasks[@]}" >&"$tee_fd" 2>&1 ||
     status=$?
   exec {tee_fd}>&-
+  # Bounded: a leftover descendant of Gradle still holding the pipe would keep tee from ending.
+  for _ in $(seq 30); do
+    kill -0 "$tee_pid" 2>/dev/null || break
+    sleep 1
+  done
+  kill "$tee_pid" 2>/dev/null || true
   wait "$tee_pid" 2>/dev/null || true
   # A module whose install was stopped or lost wrote no results, and Gradle still passed it (scripts/connected-results.sh).
   # Each is run once more; connected_status then combines the two attempts.
