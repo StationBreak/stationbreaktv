@@ -142,6 +142,8 @@ class LiveGuideFlowTest {
     }
 
     private fun tap(code: Int) {
+        // A key sent before the test's window has input focus goes to the launcher (#473).
+        compose.awaitWindowFocus()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val at = SystemClock.uptimeMillis()
         instrumentation.sendKeySync(KeyEvent(at, at, ACTION_DOWN, code, 0))
