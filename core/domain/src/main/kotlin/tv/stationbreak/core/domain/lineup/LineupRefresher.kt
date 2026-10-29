@@ -10,6 +10,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -54,6 +55,15 @@ import kotlin.time.Instant
  * without them (see [LineupService.refresh]), for an unfinalised lineup and for a finalised one waiting on a newer
  * catalog. Either is behind, so any trigger, or the next start, makes that refresh.
  *
+ * While a sync run is writing the library ([sync]) the triggers its own writes cause, a success and a pass, are held:
+ * one run moves the last success, completes a collection pass and may write again after both (the studios re-read), so
+ * acting on each would plan the lineup two or three times for one run, and still miss its last writes (#434). When the
+ * writing ends, one check asks what a success and a pass would have asked together: refresh if the lineup is behind or
+ * has taken in no pass yet, otherwise record a new pass. The start check is not held: a lineup already behind when the
+ * process starts (an earlier process died before its end-of-run refresh) is refreshed at once, as before, and the end
+ * check then finds it current unless the run wrote more. A run that never ends (the process dies) leaves nothing
+ * undone: the generation is durable, so the next start sees it.
+ *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
  * ones or reaches the app scope. A trigger source that itself fails is reported the same way and listened to again
  * after a wait that starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no
@@ -67,6 +77,7 @@ class LineupRefresher(
     private val service: LineupService,
     private val library: LibraryRepository,
     private val libraries: suspend () -> Set<ItemId>?,
+    private val sync: SyncActivity,
     private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
     private val report: (LineupEvent) -> Unit,
 ) {
@@ -116,8 +127,16 @@ class LineupRefresher(
                 .drop(1)
                 .filterNotNull()
                 .map { Trigger.Success }
+        // A run that ends: the first value is where things stand, so only a change to "not running" is news.
+        val runEnds =
+            sync
+                .writing()
+                .distinctUntilChanged()
+                .drop(1)
+                .filter { !it }
+                .map { Trigger.SyncEnded }
         val backoff = Backoff(initialBackoffMs)
-        merge(start, passes, successes)
+        merge(start, passes, successes, runEnds)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
             // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
             .onEach { if (it !is Trigger.Start) backoff.reset() }
@@ -176,6 +195,10 @@ class LineupRefresher(
         trigger: Trigger,
     ) {
         try {
+            // A run's own success or pass is held until it stops writing: its end is a trigger of its own, which
+            // checks everything these would. A start is not: what it finds behind was there before this run.
+            val ownWrite = trigger == Trigger.Success || trigger == Trigger.Pass
+            if (ownWrite && sync.writing().first()) return
             val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
             // The choice is the active account's. The account flow may not have delivered a change yet (nothing is
             // cancelled then), so ask the port again, directly, just before refreshing: if the account is no longer
@@ -187,7 +210,8 @@ class LineupRefresher(
             if (!worthRefreshing(trigger, account, held, chosen, pass)) {
                 // Nothing to plan, but the lineup does hold this pass's collections: say so, or the next start would
                 // find the pass new.
-                if (trigger == Trigger.Pass && pass != null) service.notePass(account, pass)
+                val pastPass = trigger == Trigger.Pass || trigger == Trigger.SyncEnded
+                if (pastPass && pass != null) service.notePass(account, pass)
                 return
             }
             service.refresh(account, chosen)
@@ -214,6 +238,11 @@ class LineupRefresher(
             Trigger.Pass -> {
                 // The lineup has taken in no pass yet: its collections are not in, whatever else is so.
                 pass != null && (held?.meta?.collectionPassActedOn == null || behind(account, held, chosen))
+            }
+
+            Trigger.SyncEnded -> {
+                // What the run's success and its pass would each have asked.
+                behind(account, held, chosen) || (pass != null && held?.meta?.collectionPassActedOn == null)
             }
         }
 
@@ -258,5 +287,7 @@ class LineupRefresher(
         data object Success : Trigger
 
         data object Pass : Trigger
+
+        data object SyncEnded : Trigger
     }
 }

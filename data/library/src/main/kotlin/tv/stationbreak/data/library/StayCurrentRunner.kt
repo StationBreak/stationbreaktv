@@ -2,6 +2,9 @@
 package tv.stationbreak.data.library
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
@@ -73,6 +76,7 @@ class StayCurrentRunner(
     private val report: (String) -> Unit = {},
 ) {
     private val gate = Mutex()
+    private val runningNow = MutableStateFlow(false)
 
     // What a walk could not find, kept across runs in this process.
     private val unfindable = UnfindableIds()
@@ -101,8 +105,21 @@ class StayCurrentRunner(
     internal var purge: suspend (LibraryAccount, Instant?) -> PurgeOutcome =
         { account, reference -> repository.purgeHistory(account, reference) }
 
-    /** True while a run is going. The trigger policy reads it so an open during a sync starts nothing. */
+    /**
+     * True while a run holds the gate, from before it reads the settings to after it ends, writing or not. The trigger
+     * policy reads it so an open during a sync starts nothing. Compare [running].
+     */
     val isRunning: Boolean get() = gate.isLocked
+
+    /**
+     * True while a run is writing: from the moment its passes begin (settings read, session verified, the account still
+     * the one signed in) to the moment the run ends, whatever ended it. A run that stops before its passes (no server,
+     * no libraries, the first sync still open, signed out, the server unreachable) never sets it. That is how it
+     * differs from [isRunning], which covers the whole run: the lineup refresher holds the triggers a run's writes
+     * cause while this is true and checks once when it turns false, so a run that wrote nothing must not look like one
+     * that did (#434).
+     */
+    val running: StateFlow<Boolean> = runningNow.asStateFlow()
 
     /** Runs [plan] once and says how it ended for WorkManager. Never asks to be retried. */
     suspend fun run(plan: SyncPlan): SyncVerdict =
@@ -124,6 +141,9 @@ class StayCurrentRunner(
         try {
             return guarded(plan)
         } finally {
+            // Here, whatever ended the run, and before the gate opens, so a run that takes it next cannot have its own
+            // "true" overwritten.
+            runningNow.value = false
             gate.unlock()
         }
     }
@@ -179,6 +199,7 @@ class StayCurrentRunner(
         if (session.server.id != account.server || session.userId != account.user) {
             return report.skipped(plan, Skip.AccountChanged)
         }
+        runningNow.value = true
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val began = timeSource.markNow()
