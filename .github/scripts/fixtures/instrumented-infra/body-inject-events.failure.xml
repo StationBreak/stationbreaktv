@@ -1,0 +1,2 @@
+<failure>java.lang.SecurityException: Injecting to another application requires INJECT_EVENTS permission
+	at android.os.Parcel.readException(Parcel.java:1620)</failure>

@@ -1,0 +1,2 @@
+<failure>java.lang.AssertionError: expected overlay, got java.lang.IllegalStateException: No compose hierarchies found in the app
+	at c.bad(C.kt:1)</failure>
