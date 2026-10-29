@@ -82,15 +82,53 @@ class CellMarksTest {
         assertTrue(place(0, 120).marks(at(0), false).later)
     }
 
+    private val sec = 1_000L
+
+    private fun placeMs(
+        fromMs: Long,
+        toMs: Long,
+    ) = CellPlace(origin + fromMs, origin + toMs, origin, geometry)
+
     @Test
-    fun aCompactCellWithRoomForOneShowsAnEllipsis() {
-        // 8 dp a minute: 5 minutes is 40 dp (compact, room for "…"); 3 minutes is 24 dp, under the 28 dp it needs, and
-        // 2 minutes is raised to the 20 dp minimum; 10 minutes (80 dp) is wide enough for its title.
-        assertTrue(place(70, 75).showsEllipsis)
-        assertTrue(place(0, 4).showsEllipsis)
-        assertFalse(place(70, 73).showsEllipsis)
-        assertFalse(place(70, 72).showsEllipsis)
-        assertFalse(place(60, 70).showsEllipsis)
+    fun aCompactCellWithRoomForOneShowsAnEllipsisAcrossItsWidth() {
+        // 8 dp a minute: 5 minutes is 40 dp, compact, with room for a "…" over all of it.
+        val range = place(70, 75).ellipsisIn(at(60))
+        assertDp(0.dp, range!!.start)
+        assertDp(40.dp, range.endInclusive)
+    }
+
+    @Test
+    fun theEllipsisNeedsAtLeast32DpOfTheCell() {
+        // 4 minutes is exactly 32 dp, the least; a second short of it is not enough, a second over is.
+        assertTrue(place(70, 74).ellipsisIn(at(60)) != null)
+        assertTrue(placeMs(70 * minute, 74 * minute + sec).ellipsisIn(at(60)) != null)
+        assertNull(placeMs(70 * minute, 74 * minute - sec).ellipsisIn(at(60)))
+        // 3 minutes (24 dp) and the 20 dp minimum (a 2-minute cell) are too narrow even for it.
+        assertNull(place(70, 73).ellipsisIn(at(60)))
+        assertNull(place(70, 72).ellipsisIn(at(60)))
+    }
+
+    @Test
+    fun aCellWithRoomForItsTitleHasNoEllipsis() {
+        // 10 minutes is 80 dp, the least that has a title.
+        assertNull(place(60, 70).ellipsisIn(at(60)))
+        assertNull(place(60, 120).ellipsisIn(at(60)))
+    }
+
+    @Test
+    fun aLongCellScrolledToASliverHasTheEllipsisInThePartInView() {
+        // From 0 to 33 minutes with the viewport at 30: only 3 minutes (24 dp) show, too few even for a "…".
+        assertNull(place(0, 33).ellipsisIn(at(30)))
+        // From 0 to 35: 5 minutes (40 dp) show: the cell's last 40 dp, from 240 dp to its end at 280 dp.
+        val range = place(0, 35).ellipsisIn(at(30))!!
+        assertDp(240.dp, range.start)
+        assertDp(280.dp, range.endInclusive)
+        // The same at the other edge: a cell from 85 to 120 with the viewport at 0 (90 minutes) shows its first 5.
+        val right = place(85, 120).ellipsisIn(at(0))!!
+        assertDp(0.dp, right.start)
+        assertDp(40.dp, right.endInclusive)
+        // Before it is cut that far, its title shows instead.
+        assertNull(place(0, 35).ellipsisIn(at(20)))
     }
 
     @Test

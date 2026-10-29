@@ -33,10 +33,4 @@ object GuideTags {
         channel: ChannelId,
         startMs: Long,
     ) = "guide:cellText:${channel.value}:$startMs"
-
-    /** The "…" written in a compact cell that has room for it, in place of a title that has none. */
-    fun cellEllipsis(
-        channel: ChannelId,
-        startMs: Long,
-    ) = "guide:cellEllipsis:${channel.value}:$startMs"
 }
