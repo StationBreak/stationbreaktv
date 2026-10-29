@@ -111,6 +111,15 @@ class ServerScreenTest {
         compose.waitForIdle()
     }
 
+    /** A key for a dialog: the dialog is a window of its own, so wait until [expectedFocus] can receive the key. */
+    private fun press(
+        keyCode: Int,
+        expectedFocus: String,
+    ) {
+        awaitFocused(expectedFocus)
+        press(keyCode)
+    }
+
     private fun typeAndTest(text: String = "jellyfin.example.test") {
         compose.runOnIdle { viewModel.onInputChange(text) }
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -278,7 +287,7 @@ class ServerScreenTest {
         launch()
         typeAndTest("http://jellyfin.example.test")
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
-        press(KeyEvent.KEYCODE_BACK)
+        press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertDoesNotExist()
         assertEquals(ServerPhase.Idle, viewModel.state.value.phase)
         assertTrue(continued.isEmpty())
@@ -312,9 +321,9 @@ class ServerScreenTest {
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsNotFocused()
         // One press right reaches Connect anyway and one left comes back: Cancel really is the left-most stop.
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_DPAD_LEFT, ServerTags.CLEARTEXT_CONFIRM)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
     }
 
@@ -325,7 +334,7 @@ class ServerScreenTest {
         launch()
         typeAndTest("http://jellyfin.example.test")
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
-        press(KeyEvent.KEYCODE_BACK)
+        press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertDoesNotExist()
         repeat(2) {
             press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -333,7 +342,7 @@ class ServerScreenTest {
             Thread.sleep(SETTLE_MILLIS)
             compose.waitForIdle()
             compose.onNodeWithTag(ServerTags.CLEARTEXT_CANCEL).assertIsFocused()
-            press(KeyEvent.KEYCODE_BACK)
+            press(KeyEvent.KEYCODE_BACK, ServerTags.CLEARTEXT_CANCEL)
         }
     }
 
@@ -351,9 +360,9 @@ class ServerScreenTest {
         server.fake.discoverResult = found(ServerAddress(Scheme.Http, "jellyfin.example.test", 80))
         launch()
         typeAndTest("http://jellyfin.example.test")
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT, ServerTags.CLEARTEXT_CANCEL)
         compose.onNodeWithTag(ServerTags.CLEARTEXT_CONFIRM).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, ServerTags.CLEARTEXT_CONFIRM)
         compose.onNodeWithTag(ServerTags.CONTINUE).assertIsFocused()
         compose.onNodeWithTag(ServerTags.NOT_ENCRYPTED).assertExists()
         compose.onNodeWithText("Not encrypted (http)").assertExists()

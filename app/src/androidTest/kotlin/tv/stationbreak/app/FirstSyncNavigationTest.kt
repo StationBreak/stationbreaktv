@@ -4,7 +4,6 @@ package tv.stationbreak.app
 import android.content.Context
 import android.view.KeyEvent
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.isFocusable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -201,10 +200,11 @@ class FirstSyncNavigationTest {
     }
 
     private fun awaitFocused(tag: String) {
-        compose.waitUntil(TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
+        compose.awaitFocusedForKeys(tag, TIMEOUT_MS)
     }
 
     private fun press(keyCode: Int) {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
     }
@@ -214,6 +214,7 @@ class FirstSyncNavigationTest {
      * presses where the rest of the app takes one, which is why the guide's hint row says so.
      */
     private fun assertBackOpensTheGuideThenLeavesTheApp() {
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         awaitExists(GuideTags.SCREEN)
         assertFalse("the first Back only opens the guide", compose.activity.isFinishing)
@@ -223,6 +224,7 @@ class FirstSyncNavigationTest {
     private fun assertBackLeavesTheApp() {
         // The activity goes away, so nothing below may touch the compose rule again.
         val activity = compose.activity
+        compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         val deadline = System.currentTimeMillis() + TIMEOUT_MS
         while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)

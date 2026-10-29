@@ -14,6 +14,9 @@ import androidx.compose.ui.test.onNodeWithTag
  * slow API 25 TV emulator "Displayed" came up to a second after the activity resumed, the launcher kept input focus
  * until then, and a key sent in that gap went to the launcher and was lost (#473). These waits hold a key back until
  * a window of the test has input focus.
+ *
+ * The same file is in feature/onboarding and app androidTest, as TypeWhenReady is: there is no shared Android test
+ * module (core:testing is common-only and core:domain test fixtures are JVM-only). Keep the two copies in step.
  */
 
 private const val WINDOW_FOCUS_TIMEOUT_MS = 10_000L
