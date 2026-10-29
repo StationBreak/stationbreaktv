@@ -385,6 +385,8 @@ class GuideScreenTest {
         compose.onAllNodesWithText("\u2026", useUnmergedTree = true).assertCountEquals(0)
         cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
         assertTrue("an ellipsis in Cream", pixelsNear(short, BroadcastColors.Cream) > 0)
+        // Negative control: the scan is for the mark's own colour, not just any drawing; unfocused, nothing is Ink.
+        assertEquals("no Ink in an unfocused cell", 0, pixelsNear(short, BroadcastColors.Ink))
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()

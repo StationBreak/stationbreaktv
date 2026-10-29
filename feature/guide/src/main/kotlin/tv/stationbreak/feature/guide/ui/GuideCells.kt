@@ -442,6 +442,8 @@ private fun Modifier.cellLook(
             val to = place.visibleRight(at).toPx() - inset
             if (marks.earlier) translate(left = from) { drawPath(left, mark, style = chevron) }
             if (marks.later) translate(left = to) { drawPath(right, mark, style = chevron) }
-            if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), mark, inset)
+            // As the cell's title would be: Ink focused, a slate's Ground, else Cream.
+            val ellipsisColor = if (slate && !isFocused) BroadcastColors.Ground else mark
+            if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), ellipsisColor, inset)
         }
     }
