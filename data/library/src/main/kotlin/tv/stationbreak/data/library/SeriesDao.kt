@@ -87,12 +87,13 @@ internal abstract class SeriesDao {
         "UPDATE series SET deletedAtMs = :atMs WHERE serverId = :serverId AND userId = :userId " +
             "AND seriesId IN (:ids) AND deletedAtMs IS NULL",
     )
+    // The rows it tombstoned: an ID already a tombstone, or not held, is not counted (#480).
     abstract suspend fun tombstone(
         serverId: String,
         userId: String,
         ids: List<String>,
         atMs: Long,
-    )
+    ): Int
 
     // The purge: plain DELETEs scoped to the account and driven by the two purge indexes. As for items, a tombstone
     // also needs seenFromMs < cutoff, because the cascade would take versions superseded inside the retention.

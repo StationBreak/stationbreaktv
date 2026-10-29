@@ -234,12 +234,13 @@ internal abstract class LibraryDao {
         "UPDATE item SET deletedAtMs = :atMs WHERE serverId = :serverId AND userId = :userId " +
             "AND itemId IN (:ids) AND deletedAtMs IS NULL",
     )
+    // The rows it tombstoned: an ID already a tombstone, or not held, is not counted (#480).
     abstract suspend fun tombstone(
         serverId: String,
         userId: String,
         ids: List<String>,
         atMs: Long,
-    )
+    ): Int
 
     // The purge (spec 09, Unit 3). Plain DELETEs scoped to the account and driven by the two purge indexes; the
     // foreign keys take the genres, tags, studios and versions of a deleted item with it. A tombstone also needs

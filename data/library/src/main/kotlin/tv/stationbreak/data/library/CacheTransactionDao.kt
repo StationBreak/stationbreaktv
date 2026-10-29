@@ -132,9 +132,8 @@ internal abstract class CacheTransactionDao(
         atMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        tombstoneSeriesIn(serverId, userId, ids, atMs)
-        supersedeMembersIn(serverId, userId, ids, atMs)
-        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
+        val changed = tombstoneSeriesIn(serverId, userId, ids, atMs) + supersedeMembersIn(serverId, userId, ids, atMs)
+        if (changed > 0) library.bumpGeneration(serverId, userId)
     }
 
     /**
@@ -151,9 +150,20 @@ internal abstract class CacheTransactionDao(
         atMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, atMs)
-        supersedeMembersIn(serverId, userId, ids, atMs)
-        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
+        val changed = tombstoneItemsIn(serverId, userId, ids, atMs) + supersedeMembersIn(serverId, userId, ids, atMs)
+        if (changed > 0) library.bumpGeneration(serverId, userId)
+    }
+
+    // The items of [ids] that were live, now tombstoned at [atMs]: how many.
+    private suspend fun tombstoneItemsIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        atMs: Long,
+    ): Int {
+        var changed = 0
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) changed += library.tombstone(serverId, userId, chunk, atMs)
+        return changed
     }
 
     private suspend fun supersedeMembersIn(
@@ -161,12 +171,14 @@ internal abstract class CacheTransactionDao(
         userId: String,
         memberIds: List<String>,
         stamp: Long,
-    ) {
+    ): Int {
         // Items and series are stored as the server sent their IDs, members in canonical form (Vimes M1).
         val canonical = memberIds.mapNotNull { CanonicalId.parseOrNull(it)?.value }.distinct()
+        var ended = 0
         for (chunk in canonical.chunked(LibraryDao.MAX_VARIABLES)) {
-            collections.supersedeMember(serverId, userId, chunk, stamp)
+            ended += collections.supersedeMember(serverId, userId, chunk, stamp)
         }
+        return ended
     }
 
     /**
@@ -181,8 +193,7 @@ internal abstract class CacheTransactionDao(
         nowMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        reviveSeriesIn(serverId, userId, ids, nowMs)
-        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
+        if (reviveSeriesIn(serverId, userId, ids, nowMs) > 0) library.bumpGeneration(serverId, userId)
     }
 
     private suspend fun tombstoneSeriesIn(
@@ -190,8 +201,10 @@ internal abstract class CacheTransactionDao(
         userId: String,
         ids: List<String>,
         atMs: Long,
-    ) {
-        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) series.tombstone(serverId, userId, chunk, atMs)
+    ): Int {
+        var changed = 0
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) changed += series.tombstone(serverId, userId, chunk, atMs)
+        return changed
     }
 
     private suspend fun reviveSeriesIn(
@@ -199,14 +212,17 @@ internal abstract class CacheTransactionDao(
         userId: String,
         ids: List<String>,
         nowMs: Long,
-    ) {
+    ): Int {
+        var revived = 0
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
             val rows = series.byIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
             if (rows.isEmpty()) continue
             val plan = series.planRevival(rows, nowMs)
             series.insertVersions(plan.versions)
             series.update(plan.revived)
+            revived += plan.revived.size
         }
+        return revived
     }
 
     /**
@@ -222,8 +238,7 @@ internal abstract class CacheTransactionDao(
         nowMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        reviveItemsIn(serverId, userId, ids, nowMs)
-        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
+        if (reviveItemsIn(serverId, userId, ids, nowMs) > 0) library.bumpGeneration(serverId, userId)
     }
 
     private suspend fun reviveItemsIn(
@@ -231,7 +246,8 @@ internal abstract class CacheTransactionDao(
         userId: String,
         ids: List<String>,
         nowMs: Long,
-    ) {
+    ): Int {
+        var revived = 0
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
             val rows = library.itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
             if (rows.isEmpty()) continue
@@ -240,7 +256,9 @@ internal abstract class CacheTransactionDao(
             val plan = history.planRevival(rows, names, nowMs)
             history.insertVersions(plan.versions)
             library.updateItems(plan.revived)
+            revived += plan.revived.size
         }
+        return revived
     }
 
     /**
@@ -263,15 +281,15 @@ internal abstract class CacheTransactionDao(
         betweenTombstonesAndRevives: (() -> Unit)?,
     ) {
         library.requireActive(serverId, userId)
-        for (chunk in itemsGone.chunked(LibraryDao.MAX_VARIABLES)) library.tombstone(serverId, userId, chunk, nowMs)
-        tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
+        var changed = tombstoneItemsIn(serverId, userId, itemsGone, nowMs)
+        changed += tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
         // Before the seam, so a fault there rolls back the tombstones and the cascade together.
-        supersedeMembersIn(serverId, userId, itemsGone + seriesGone, nowMs)
+        changed += supersedeMembersIn(serverId, userId, itemsGone + seriesGone, nowMs)
         betweenTombstonesAndRevives?.invoke()
-        reviveItemsIn(serverId, userId, itemsReturning, nowMs)
-        reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
-        val items = itemsGone.isNotEmpty() || itemsReturning.isNotEmpty()
-        if (items || seriesGone.isNotEmpty() || seriesReturning.isNotEmpty()) library.bumpGeneration(serverId, userId)
+        changed += reviveItemsIn(serverId, userId, itemsReturning, nowMs)
+        changed += reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
+        // Only rows that changed count: a decision already in place (another pass got there first) moves nothing.
+        if (changed > 0) library.bumpGeneration(serverId, userId)
     }
 
     /**
@@ -370,8 +388,11 @@ internal abstract class CacheTransactionDao(
         atMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) collections.tombstone(serverId, userId, chunk, atMs)
-        if (ids.isNotEmpty()) library.bumpGeneration(serverId, userId)
+        var changed = 0
+        for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
+            changed += collections.tombstone(serverId, userId, chunk, atMs)
+        }
+        if (changed > 0) library.bumpGeneration(serverId, userId)
     }
 
     /**
@@ -421,6 +442,9 @@ internal abstract class CacheTransactionDao(
         // together, which the day build's snapshot cache relies on (RuleSnapshotKeyContractTest). Never split them.
         val relistMs = if (relisted) startedMs else before?.lastRelistMs
         collections.saveSyncRow(CollectionSyncEntity(serverId, userId, startedMs, relistMs))
+        // The first full re-list turns collectionsSynced true, which changes every snapshot with no row written: it is
+        // a change of content, so the generation alone keys a snapshot (#480). A later pass leaves it true.
+        if (before?.lastRelistMs == null && relistMs != null) library.bumpGeneration(serverId, userId)
     }
 
     /**

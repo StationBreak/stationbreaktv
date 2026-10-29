@@ -623,9 +623,10 @@ class StayCurrentRunnerTest {
                 listOf(
                     "StayCurrent incremental=true reconcile=true",
                     "StayCurrentDone ms=${100 * server.calls.count { it.idsOnly }} outcome=Completed",
+                    "StayCurrentWrote generation=0 incremental=0/0 reconcile=0/0/0/0/0 collections=0/0/0/0",
                     "Backfill pending=true",
                 ),
-                lines.take(3),
+                lines.take(4),
             )
             val done = lines.single { it.startsWith("BackfillDone ") }
             val ms = 250 * server.calls.count { isBackfill(it) }

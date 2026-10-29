@@ -33,7 +33,6 @@ internal data class DayKey(
     val user: String,
     val libraries: List<String>,
     val generation: Long,
-    val collectionPass: String?,
     val catalog: Int,
     val utcOffsetMinutes: Int,
     val lineup: String,
@@ -50,7 +49,6 @@ internal data class DayKey(
             DaySnapshotMiss.Account to (server == other.server && user == other.user),
             DaySnapshotMiss.Libraries to (libraries == other.libraries),
             DaySnapshotMiss.Generation to (generation == other.generation),
-            DaySnapshotMiss.CollectionPass to (collectionPass == other.collectionPass),
             DaySnapshotMiss.Catalog to (catalog == other.catalog),
             DaySnapshotMiss.Offset to (utcOffsetMinutes == other.utcOffsetMinutes),
             DaySnapshotMiss.Lineup to (lineup == other.lineup),
@@ -86,7 +84,7 @@ internal data class DayKey(
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
-    const val VERSION = 2
+    const val VERSION = 3
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024

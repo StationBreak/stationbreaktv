@@ -88,7 +88,7 @@ class PersistedDaysSizeTest {
         repeat(2) { lineupDays.days(lineup, scheduled, snapshots) }
         val store = MemoryDayStore()
         val persisted = PersistedDays(store, "1:1")
-        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1, null, lineup, TestCatalog.version, scheduled)
+        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1, lineup, TestCatalog.version, scheduled)
         val built = lineupDays.days(lineup, scheduled, snapshots)
         runBlocking { persisted.save(ACCOUNT, key, built) }
         repeat(2) { runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) } }

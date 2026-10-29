@@ -212,12 +212,16 @@ class InMemoryLibraryRepository : LibraryRepository {
         failedPasses[account] = count
     }
 
-    /** Says whether a full collection pass has succeeded for [account], which `RuleSnapshot.collectionsSynced` shows. */
+    /**
+     * Says whether a full collection pass has succeeded for [account], which `RuleSnapshot.collectionsSynced` shows. A
+     * change moves [contentGeneration], as the Room repository's first full pass does (#480).
+     */
     fun setCollectionsSynced(
         account: LibraryAccount,
         synced: Boolean,
     ) {
-        if (synced) collectionsSynced += account else collectionsSynced -= account
+        val changed = if (synced) collectionsSynced.add(account) else collectionsSynced.remove(account)
+        if (changed) noteContentChange(account)
     }
 
     /** Sets what [status] reports for [account]. */

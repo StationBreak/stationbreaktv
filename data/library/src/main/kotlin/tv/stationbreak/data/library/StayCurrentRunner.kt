@@ -202,10 +202,12 @@ class StayCurrentRunner(
         runningNow.value = true
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
+        val generationBefore = repository.generationOrNull(account)
         val began = timeSource.markNow()
         val ran = report.timed(began) { stayCurrent(engine, session, account, chosen, plan) }
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
+        report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
@@ -221,20 +223,25 @@ class StayCurrentRunner(
     ): Ran {
         // The incremental pass records a new success; the purge's clock guard needs the one from before this run.
         val reference = repository.lastSuccess(account)
+        var passed: PassSummary? = null
         if (plan.incremental) {
-            val incremental = engine.incremental(session, account, chosen).outcome
-            if (incremental != SyncOutcome.Completed) return Ran(incremental, incrementalCompleted = false)
+            val incremental = engine.incremental(session, account, chosen)
+            passed = incremental.summary
+            if (incremental.outcome != SyncOutcome.Completed) {
+                return Ran(incremental.outcome, incrementalCompleted = false, passed = passed)
+            }
         }
         if (!plan.reconcile) {
-            collections(engine, session, account)
-            return Ran(SyncOutcome.Completed, incrementalCompleted = plan.incremental)
+            val pass = collections(engine, session, account)
+            return Ran(SyncOutcome.Completed, plan.incremental, passed, collections = pass.summary)
         }
-        val reconciled = engine.reconcile(session, account, chosen).outcome
-        if (reconciled == SyncOutcome.Completed) {
-            collections(engine, session, account)
+        val reconciled = engine.reconcile(session, account, chosen)
+        var pass: CollectionResult? = null
+        if (reconciled.outcome == SyncOutcome.Completed) {
+            pass = collections(engine, session, account)
             purgeHistory(account, reference)
         }
-        return Ran(reconciled, incrementalCompleted = plan.incremental)
+        return Ran(reconciled.outcome, plan.incremental, passed, reconciled.summary, pass?.summary)
     }
 
     // The collection pass follows the item passes. Its failure is kept for the record and never fails the run;
@@ -244,8 +251,8 @@ class StayCurrentRunner(
         engine: StayCurrentEngine,
         session: Session,
         account: LibraryAccount,
-    ) {
-        lastCollectionPass =
+    ): CollectionResult {
+        val result =
             try {
                 engine.collections(session, account)
             } catch (cancelled: CancellationException) {
@@ -255,6 +262,8 @@ class StayCurrentRunner(
             } catch (_: Exception) {
                 CollectionResult(SyncOutcome.Failed(SyncFailure.Server), CollectionSummary())
             }
+        lastCollectionPass = result
+        return result
     }
 
     // The studios re-read, after everything else. Its result is kept for the record and never changes the run's;
@@ -338,11 +347,42 @@ class StayCurrentRunner(
     }
 }
 
-// How the passes of a run ended, and whether the incremental pass was in the plan and completed (the re-read's cue).
+// How the passes of a run ended, whether the incremental pass was in the plan and completed (the re-read's cue), and
+// what each pass that ran wrote (null for one that did not run).
 private class Ran(
     val outcome: SyncOutcome,
     val incrementalCompleted: Boolean,
+    val passed: PassSummary? = null,
+    val reconciled: ReconcileSummary? = null,
+    val collections: CollectionSummary? = null,
 )
+
+// What a run wrote, numbers only (#480): how many times the content generation moved while it ran, and the counts
+// behind it, so a device log shows which write moved it. The counts are inserted/updated for the incremental pass,
+// tombstoned/revived/fetched/seriesTombstoned/seriesRevived for the reconcile, and inserted/changed/revived/tombstoned
+// for the collection pass; a pass that did not run is `none`. A generation that could not be read is `unknown`, and
+// one whose row was made again meanwhile (a sign-out) is `reset`.
+private fun wrote(
+    before: Long?,
+    after: Long?,
+    ran: Ran,
+): String {
+    val moved =
+        when {
+            before == null || after == null -> "unknown"
+            after < before -> "reset"
+            else -> (after - before).toString()
+        }
+    val passed = ran.passed?.let { "${it.inserted}/${it.updated}" } ?: NONE
+    val reconciled =
+        ran.reconciled?.let {
+            "${it.tombstoned}/${it.revived}/${it.fetched}/${it.seriesTombstoned}/${it.seriesRevived}"
+        } ?: NONE
+    val collections = ran.collections?.let { "${it.inserted}/${it.changed}/${it.revived}/${it.tombstoned}" } ?: NONE
+    return "StayCurrentWrote generation=$moved incremental=$passed reconcile=$reconciled collections=$collections"
+}
+
+private const val NONE = "none"
 
 // The outcome as a log field: the class name, and for a failure the SyncFailure name; never a message.
 private fun SyncOutcome.label() =
@@ -405,6 +445,18 @@ private suspend fun ((String) -> Unit).timed(
 private suspend fun RoomLibraryRepository.pendingOrNull(account: LibraryAccount): Boolean? =
     try {
         backfillPending(account)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+
+// The account's content generation for the log only: null when it cannot be read, so a logging read never fails the
+// run.
+@Suppress("TooGenericExceptionCaught")
+private suspend fun RoomLibraryRepository.generationOrNull(account: LibraryAccount): Long? =
+    try {
+        contentGeneration(account)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
