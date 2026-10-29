@@ -61,6 +61,8 @@ class PlaybackBufferingTest {
             DefaultLoadControl.DEFAULT_MUXED_BUFFER_SIZE,
             PlaybackBuffering.targetBufferBytesFor(4_096 * mib),
         )
+        // The default is wired to this process's own heap limit: on the test JVM that is usually clamped to the
+        // ceiling, so this pins the wiring, not a number.
         assertEquals(
             PlaybackBuffering.targetBufferBytesFor(Runtime.getRuntime().maxMemory()),
             PlaybackBuffering().targetBufferBytes,
@@ -73,7 +75,8 @@ class PlaybackBufferingTest {
         val control = PlaybackBuffering(targetBufferBytes = 4 * segment).prepared()
         val allocator = control.getAllocator(PlayerId.UNSET)
         repeat(3) { allocator.allocate() }
-        // 10 s buffered is far below the 50 s minimum: only the byte target can stop the load.
+        // 10 s buffered is far below the 50 s minimum: only the byte target can stop the load, and only while
+        // prioritizeTimeOverSizeThresholds stays false (with true, Media3 would keep loading to the minimum).
         assertTrue(control.shouldContinueLoading(parameters(bufferedMs = 10_000, rebuffering = false)))
         allocator.allocate()
         assertFalse(control.shouldContinueLoading(parameters(bufferedMs = 10_000, rebuffering = false)))

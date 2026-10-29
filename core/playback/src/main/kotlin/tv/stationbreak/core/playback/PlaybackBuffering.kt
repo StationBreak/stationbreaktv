@@ -35,6 +35,15 @@ import androidx.media3.exoplayer.upstream.DefaultAllocator
  * the heap. It is kept between Media3's own floor (`DEFAULT_MIN_BUFFER_SIZE`) and the target Media3 would pick for
  * video, audio and text (`DEFAULT_MUXED_BUFFER_SIZE`). Loading stops at whichever of [maxBufferMs] and
  * [targetBufferBytes] is reached first.
+ *
+ * What the cap does not cover. It holds below [minBufferMs] only because `prioritizeTimeOverSizeThresholds` stays at
+ * Media3's `false` for network playback: with `true`, Media3 keeps loading past the byte target until [minBufferMs]
+ * (the unit test pins this). The load control is asked between loads, so a load already started finishes first: a
+ * direct-play read checks back every 1 MiB, but an HLS segment is read to its end, so a transcode can go one segment
+ * over (the server's segment length, about 6 s by Jellyfin's default: about 29 MiB at 40 Mbit/s). The allocator also
+ * keeps pieces the drained media gave back, up to the target, so the buffer's heap share stays at the target once it
+ * has been reached. With the HTTP/2 window, the realistic worst case on a 192 MiB heap is the 48 MiB cap plus one
+ * segment plus 16 MiB, about 93 MiB at 40 Mbit/s and much less at common bitrates, against about 154 MiB before.
  */
 @UnstableApi
 data class PlaybackBuffering(
