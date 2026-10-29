@@ -398,6 +398,109 @@ else
   fail "cleanup" "exit $got, saved $saved, left $left" "$(cat "$stub/calls" 2>/dev/null)"
 fi
 
+# verify and the missing-results rule (#489): Gradle passed, but a module's APK never installed, so it wrote no XML.
+# A repo tree in a temp dir: app, :core:ui and :data:lib have androidTest sources with a real @Test; :feature:none has
+# only helpers. gradlew is a stub that copies a passing result file into each module dir listed in $STUB_WRITES.
+new_repo() {
+  n=$((n + 1))
+  repo="$work/repo$n"
+  diag="$repo/diag"
+  mkdir -p "$diag" "$repo/bin"
+  for m in app core/ui data/lib feature/none; do mkdir -p "$repo/$m/src/androidTest/kotlin"; done
+  for m in app core/ui data/lib; do cp "$fx/androidtest-with-test.kt.txt" "$repo/$m/src/androidTest/kotlin/T.kt"; done
+  cp "$fx/androidtest-without-test.kt.txt" "$repo/feature/none/src/androidTest/kotlin/H.kt"
+  printf '#!/usr/bin/env bash\nfor m in $STUB_WRITES; do d="$m/build/outputs/androidTest-results/connected/debug"; mkdir -p "$d"; cp "%s" "$d/TEST-device.xml"; done\n' \
+    "$fx/connected-pass.result.xml" >"$repo/gradlew"
+  chmod +x "$repo/gradlew"
+  tasks="connectedGithubDebugAndroidTest :core:ui:connectedDebugAndroidTest :data:lib:connectedDebugAndroidTest :feature:none:connectedDebugAndroidTest"
+  # Stubs, so `run` never touches this machine's emulator.
+  for tool in adb pgrep timeout; do
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/bin/$tool"
+    chmod +x "$repo/bin/$tool"
+  done
+  # A live device, so classify reaches the missing-results rule rather than the adb-state ones.
+  printf '#!/usr/bin/env bash\n[ "$1" = get-state ] && echo device\nexit 0\n' >"$repo/bin/adb"
+}
+
+# run_in <writes>: `run` with the stub gradle, which writes results for the listed module dirs.
+run_in() {
+  out="$(cd "$repo" && STUB_WRITES="$1" PATH="$repo/bin:$PATH" CONNECTED_TASKS="$tasks" bash "$script" run "$diag" 2>&1)"
+  got=$?
+}
+
+# expect_run <name> <want exit> <writes> [text]
+expect_run() {
+  run_in "$3"
+  if [ "$got" -ne "$2" ]; then
+    fail "$1" "exit $got, want $2" "$out"
+  elif [ -n "${4:-}" ] && ! grep -qF -- "$4" <<<"$out"; then
+    fail "$1" "output lacks '$4'" "$out"
+  else
+    echo "ok   $1 (exit $got)"
+  fi
+}
+
+new_repo
+expect_run "verify: every module with tests wrote fresh results" 0 "app core/ui data/lib" "every module with instrumented tests wrote results"
+
+new_repo
+expect_run "verify: a module with zero real tests is ignored" 0 "app core/ui data/lib"
+if grep -q 'feature' <<<"$out"; then fail "zero-test module" "named in the output" "$out"; fi
+
+new_repo
+expect_run "verify: one module missing fails the run and names it" 1 "app data/lib" "::error::"
+if [ "$(cat "$diag/missing-results.txt")" = ":core:ui:connectedDebugAndroidTest" ] && ! grep -qF 'data/lib (' <<<"$out"; then
+  echo "ok   verify lists only the missing module"
+else
+  fail "verify lists" "missing-results.txt: $(cat "$diag/missing-results.txt" 2>/dev/null)" "$out"
+fi
+
+new_repo
+expect_run "verify: the app missing is named as app" 1 "core/ui data/lib" "wrote no results (the APK did not install?): app "
+
+# XML from before this attempt counts as missing.
+new_repo
+stale="$repo/core/ui/build/outputs/androidTest-results/connected/debug"
+mkdir -p "$stale"
+cp "$fx/connected-pass.result.xml" "$stale/TEST-old.xml"
+touch -d '2 hours ago' "$stale/TEST-old.xml"
+expect_run "verify: stale XML from before the attempt counts as missing" 1 "app data/lib" "core/ui"
+
+# A verify failure is infrastructure (retry); a retry that fills the hole passes; one that does not fails the job
+# with the error. Each attempt has its own diag dir, as in ci.yml.
+new_repo
+run_in "app data/lib"
+c_out="$(bash "$script" classify "$diag" "$repo" 2>&1)"
+c_got=$?
+if [ "$c_got" -eq 0 ] && grep -qF "missing results for :core:ui:connectedDebugAndroidTest" <<<"$c_out"; then
+  echo "ok   classify: missing results are infrastructure (retry)"
+else
+  fail "classify missing" "exit $c_got" "$c_out"
+fi
+(cd "$repo" && PATH="$repo/bin:$PATH" bash "$script" cleanup "$diag" >/dev/null 2>&1)
+diag="$repo/diag2"
+expect_run "retry fills the hole: passes" 0 "app core/ui data/lib"
+new_repo
+run_in "app data/lib"
+(cd "$repo" && PATH="$repo/bin:$PATH" bash "$script" cleanup "$diag" >/dev/null 2>&1)
+diag="$repo/diag2"
+expect_run "retry still missing: fails, ::error:: names the module" 1 "app data/lib" "wrote no results (the APK did not install?): core/ui "
+
+# A genuine failure is never reclassified by a missing-results file.
+new_case
+xml '<failure message="expected true">trace</failure>'
+echo ':core:ui:connectedDebugAndroidTest' >"$case_dir/diag/missing-results.txt"
+expect "genuine failure beats missing-results.txt" 1 "genuine"
+
+new_case
+xml '<failure message=""/>'
+echo ':core:ui:connectedDebugAndroidTest' >"$case_dir/diag/missing-results.txt"
+expect "empty failure plus missing-results.txt is infra" 0 "infra"
+
+new_case
+rm -f "$results"
+expect "no results and no missing-results.txt keeps the old message" 0 "no test results at all"
+
 if [ "$failures" -ne 0 ]; then
   echo "$failures test(s) failed"
   exit 1
