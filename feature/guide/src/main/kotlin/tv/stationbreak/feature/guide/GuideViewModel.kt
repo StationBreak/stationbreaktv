@@ -146,13 +146,18 @@ internal class GuideViewModel
          * what is loaded asks for more of what is already built, as the clock does; so does a key that cannot move on
          * at the end of a row, since more may have been built since.
          */
-        fun move(direction: GuideDirection) {
+        fun move(
+            direction: GuideDirection,
+            repeat: Boolean = false,
+            atMs: Long = 0,
+        ) {
             synchronized(lock) {
                 val current = shownSnapshot.value
                 val ready = current.state as? GuideState.Ready
                 val from = current.focus
                 if (ready == null || from == null || shownInfo.value != null) return
                 val to = ready.model.move(from, direction, ready.nowMs)
+                if (!wrapHold.allows(ready.model.wrapped(from, to, direction), repeat, atMs)) return
                 val shown =
                     if (to == from) {
                         ready
@@ -164,6 +169,8 @@ internal class GuideViewModel
                 session?.let { extendIfScrolledNearTheEnd(it, shown, to) }
             }
         }
+
+        private val wrapHold = WrapHold()
 
         /**
          * Select on the focused cell: tunes its channel when it is on air now (a slate too: that is changing channel),
@@ -614,6 +621,7 @@ internal class GuideViewModel
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L
             val WINDOW = 6.hours
+
             val EXTEND_BY = 6.hours
             val EXTEND_WITHIN = 2.hours
 

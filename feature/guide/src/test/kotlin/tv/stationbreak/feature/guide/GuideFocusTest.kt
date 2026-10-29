@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -179,11 +180,14 @@ class GuideFocusTest {
     }
 
     @Test
-    fun noWrapAtEdges() {
+    fun upAndDownWrapRoundTheRowsButLeftAndRightStopAtTheEdges() {
         val top = focusAt(0, 1)
-        assertEquals(top, model.move(top, GuideDirection.Up))
+        assertEquals(CH9, model.move(top, GuideDirection.Up).channel)
         val bottom = focusAt(2, 1)
-        assertEquals(bottom, model.move(bottom, GuideDirection.Down))
+        assertEquals(CH5, model.move(bottom, GuideDirection.Down).channel)
+        assertTrue(model.wrapped(bottom, model.move(bottom, GuideDirection.Down), GuideDirection.Down))
+        assertTrue(model.wrapped(top, model.move(top, GuideDirection.Up), GuideDirection.Up))
+        assertFalse(model.wrapped(top, model.move(top, GuideDirection.Down), GuideDirection.Down))
         val last = focusAt(0, 2)
         assertEquals(last, model.move(last, GuideDirection.Right))
     }
@@ -384,8 +388,8 @@ class GuideFocusTest {
         val down = m.move(top, GuideDirection.Down)
         assertEquals(CH9, down.channel)
         assertEquals(top, m.move(down, GuideDirection.Up))
-        // Nothing with cells beyond: the focus stays.
-        assertEquals(down, m.move(down, GuideDirection.Down))
+        // Nothing with cells beyond: Down wraps to the first row that has any, skipping the empty one.
+        assertEquals(top, m.move(down, GuideDirection.Down))
     }
 
     @Test
