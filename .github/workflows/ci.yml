@@ -119,6 +119,10 @@ jobs:
       - name: Test the instrumented infra classifier
         run: bash .github/scripts/instrumented-infra.test.sh
 
+      # Which modules must write instrumented results (shared with scripts/preflight.sh).
+      - name: Test the instrumented results rule
+        run: bash .github/scripts/connected-results.test.sh
+
       # Which PRs also build the release variants (the `release` output above).
       - name: Test the release-scope classifier
         run: bash .github/scripts/release-scope.test.sh
