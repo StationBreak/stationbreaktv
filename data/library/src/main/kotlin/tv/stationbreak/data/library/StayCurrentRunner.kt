@@ -47,10 +47,11 @@ data class SyncPlan(
  * The purge is housekeeping: a purge that fails, or is skipped for a clock that looks wrong, is kept in [lastPurge] and
  * never fails the run.
  *
- * Last of all, in a run with the incremental pass whose passes completed, it runs the studios re-read while one is
- * pending (spec 18, ruling R9; see [StayCurrentEngine.backfill]). It goes after everything else, so a re-read that is
- * stopped by WorkManager's window or fails never costs the other passes; its result is kept in [lastBackfill] and never
- * changes how the run ended.
+ * Last of all, in a run with the incremental pass that completed, it runs the studios re-read while one is pending
+ * (spec 18, ruling R9; see [StayCurrentEngine.backfill]). A reconcile that failed does not stop it (a library that is
+ * now legitimately empty fails every reconcile), but one that was cancelled does. It goes after everything else, so a
+ * re-read that is stopped by WorkManager's window or fails never costs the other passes; its result is kept in
+ * [lastBackfill] and never changes how the run ended.
  *
  * It reports timings through [report], numbers, flags and outcome names only (never a title, a name, an ID, an
  * address or a message), so a device log shows whether the re-read ran and how long it took. Durations come from
@@ -154,7 +155,7 @@ class StayCurrentRunner(
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val began = timeSource.markNow()
-        val outcome =
+        val ran =
             try {
                 stayCurrent(engine, session, account, chosen, plan)
             } catch (stopped: CancellationException) {
@@ -164,8 +165,10 @@ class StayCurrentRunner(
                 report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
                 throw signedOut
             }
+        val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
-        if (plan.incremental && outcome == SyncOutcome.Completed) backfill(engine, session, account, chosen)
+        // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
+        if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
     }
 
@@ -176,23 +179,23 @@ class StayCurrentRunner(
         account: LibraryAccount,
         chosen: Set<ItemId>,
         plan: SyncPlan,
-    ): SyncOutcome {
+    ): Ran {
         // The incremental pass records a new success; the purge's clock guard needs the one from before this run.
         val reference = repository.lastSuccess(account)
         if (plan.incremental) {
             val incremental = engine.incremental(session, account, chosen).outcome
-            if (incremental != SyncOutcome.Completed) return incremental
+            if (incremental != SyncOutcome.Completed) return Ran(incremental, incrementalCompleted = false)
         }
         if (!plan.reconcile) {
             collections(engine, session, account)
-            return SyncOutcome.Completed
+            return Ran(SyncOutcome.Completed, incrementalCompleted = plan.incremental)
         }
         val reconciled = engine.reconcile(session, account, chosen).outcome
         if (reconciled == SyncOutcome.Completed) {
             collections(engine, session, account)
             purgeHistory(account, reference)
         }
-        return reconciled
+        return Ran(reconciled, incrementalCompleted = plan.incremental)
     }
 
     // The collection pass follows the item passes. Its failure is kept for the record and never fails the run;
@@ -291,10 +294,16 @@ class StayCurrentRunner(
         account: LibraryAccount,
         failure: SyncFailure,
     ): SyncOutcome {
-        repository.failStayCurrent(account, failure)
+        if (!repository.failStayCurrent(account, failure)) return SyncOutcome.Cancelled
         return SyncOutcome.Failed(failure)
     }
 }
+
+// How the passes of a run ended, and whether the incremental pass was in the plan and completed (the re-read's cue).
+private class Ran(
+    val outcome: SyncOutcome,
+    val incrementalCompleted: Boolean,
+)
 
 // The outcome as a log field: the class name, and for a failure the SyncFailure name; never a message.
 private fun SyncOutcome.label() =

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -9,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PagedCall
@@ -468,6 +470,115 @@ class StayCurrentRunnerTest {
             assertNull(rig.runner.lastBackfill)
             assertTrue(server.calls.none { isBackfill(it) })
             assertTrue(rig.repository.backfillPending(ALICE))
+        }
+
+    // #460: a reconcile that failed does not stop the re-read; one that was cancelled (or a sign-out) stops everything.
+
+    @Test
+    fun aFailedReconcileDoesNotStopTheRereadAndLeavesTheRunsVerdictAlone() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call -> if (call.idsOnly) MediaServerError.Timeout() else null }
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Failure, verdict)
+            assertEquals(SyncOutcome.Completed, rig.runner.lastBackfill?.outcome)
+            assertFalse(rig.repository.backfillPending(ALICE))
+            assertEquals(
+                SyncState.LastSyncFailed(SyncFailure.Network),
+                rig.repository
+                    .activeStatus()
+                    .first()!!
+                    .state,
+            )
+        }
+
+    @Test
+    fun aSuspectEmptyLibraryFailsTheReconcileButTheRereadStillRuns() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            // The ID listing comes back empty for a library that has rows: rejected as suspect. The library is back by
+            // the time the re-read lists its items by page.
+            val rows = rig.library.items.toList()
+            server.respond = { call ->
+                if (call.idsOnly) rig.library.items.clear()
+                if (isBackfill(call) && rig.library.items.isEmpty()) rig.library.items.addAll(rows)
+                null
+            }
+
+            val outcome = rig.runner.outcome(both)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), outcome)
+            assertTrue(server.calls.any { isBackfill(it) })
+            assertEquals(SyncOutcome.Completed, rig.runner.lastBackfill?.outcome)
+            assertFalse(rig.repository.backfillPending(ALICE))
+        }
+
+    @Test
+    fun aCancelledReconcileRunsNoReread() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call ->
+                if (call.idsOnly) runBlocking { rig.repository.forget(ALICE) }
+                null
+            }
+
+            val outcome = rig.runner.outcome(both)
+
+            assertEquals(SyncOutcome.Cancelled, outcome)
+            assertNull(rig.runner.lastBackfill)
+            assertTrue(server.calls.none { isBackfill(it) })
+        }
+
+    @Test
+    fun aCancellationInTheReconcileStopsTheRunAndRunsNoReread() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call -> if (call.idsOnly) throw CancellationException("stopped") else null }
+
+            try {
+                rig.runner.run(both)
+                fail("the cancellation should pass through")
+            } catch (_: CancellationException) {
+                // The stop.
+            }
+
+            assertNull(rig.runner.lastBackfill)
+            assertTrue(server.calls.none { isBackfill(it) })
+        }
+
+    @Test
+    fun aRereadOfNothingButUndecodableItemsEndsFailedUnrecordedAndSaysSo() =
+        runBlocking {
+            rig.firstSyncDone()
+            backfillIsPending()
+            rig.clock.instant += 7.hours
+            server.respond = { call -> if (isBackfill(call)) MediaServerError.NotJellyfin() else null }
+
+            val verdict = rig.runner.run(both)
+
+            assertEquals(SyncVerdict.Success, verdict)
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), rig.runner.lastBackfill?.outcome)
+            assertTrue(rig.repository.backfillPending(ALICE))
+            assertEquals(
+                SyncState.Idle,
+                rig.repository
+                    .activeStatus()
+                    .first()!!
+                    .state,
+            )
+            val done = lines.single { it.startsWith("BackfillDone ") }
+            assertTrue(done, done.contains("outcome=Failed failure=Server "))
+            assertTrue(done, done.endsWith("stillPending=true"))
         }
 
     // The numbers-only timing lines (logged under "Sync"): what ran, how long, how it ended.

@@ -584,13 +584,16 @@ class RoomLibraryRepository internal constructor(
         dao.failSync(server, user, failure.ordinal)
     }
 
-    /** A stay-current pass stopped for [failure] (see [LibraryDao.failStayCurrent]); a running first sync is kept. */
+    /**
+     * A stay-current pass stopped for [failure] (see [LibraryDao.failStayCurrent]); a running first sync is kept, and
+     * false is returned then, because nothing was written.
+     */
     internal suspend fun failStayCurrent(
         account: LibraryAccount,
         failure: SyncFailure,
-    ) {
+    ): Boolean {
         val (server, user) = account.keys()
-        dao.failStayCurrent(server, user, failure.ordinal)
+        return dao.failStayCurrent(server, user, failure.ordinal)
     }
 
     /**

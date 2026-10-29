@@ -164,6 +164,66 @@ class BackfillTest {
             assertFalse(repository.backfillPending(ALICE))
         }
 
+    private suspend fun assertAccountStateUntouched() {
+        val state = state()
+        assertEquals(AccountStateEntity.STATE_IDLE, state?.state)
+        assertNull(state?.failure)
+        assertEquals(EPOCH.toEpochMilliseconds(), state?.lastSuccessMs)
+        assertTrue(repository.backfillPending(ALICE))
+    }
+
+    @Test
+    fun moreThanAPagesWorthOfUndecodableItemsInARowEndsTheBackfillUnrecordedWithTheFlagSet() =
+        runBlocking {
+            firstSyncDone()
+            flagIsSet(true)
+            clock.instant += 1.hours
+            server.malformed = films.items.map { it.id }.toSet()
+
+            val result = StayCurrentEngine(repository, server, clock, pageSize = 10).backfill(session, ALICE, chosen)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            // One page's worth is allowed; the next item in a row is the one that ends it.
+            assertEquals(11, result.summary.skipped)
+            assertAccountStateUntouched()
+        }
+
+    @Test
+    fun aGoodPageBetweenUndecodableRunsResetsTheCount() =
+        runBlocking {
+            firstSyncDone()
+            flagIsSet(true)
+            clock.instant += 1.hours
+            server.malformed = (films.items.take(10) + films.items.drop(20)).map { it.id }.toSet()
+
+            val result = StayCurrentEngine(repository, server, clock, pageSize = 10).backfill(session, ALICE, chosen)
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(20, result.summary.skipped)
+            assertFalse(repository.backfillPending(ALICE))
+        }
+
+    @Test
+    fun moreSkippedThanTheServerSaidTheListingHoldsEndsTheBackfillUnrecordedWithTheFlagSet() =
+        runBlocking {
+            firstSyncDone()
+            flagIsSet(true)
+            clock.instant += 1.hours
+            // The first page carries the total (30) but holds five; every index after it then fails to decode.
+            server.hiddenFromItems =
+                films.items
+                    .drop(5)
+                    .map { it.id }
+                    .toSet()
+            server.respond = { call -> if (call.startIndex >= 5) MediaServerError.NotJellyfin() else null }
+
+            val result = StayCurrentEngine(repository, server, clock, pageSize = 50).backfill(session, ALICE, chosen)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), result.outcome)
+            assertEquals(31, result.summary.skipped)
+            assertAccountStateUntouched()
+        }
+
     @Test
     fun aKillAfterTheFirstLibraryKeepsTheFlagAndTheResumeWritesEachChangeOnce() =
         runBlocking {
@@ -268,8 +328,10 @@ class BackfillTest {
                 }
             }
 
-            stay().incremental(session, ALICE, chosen)
+            val result = stay().incremental(session, ALICE, chosen)
 
+            // Nothing was written, so it is not a failure to report: the pass was stood down.
+            assertEquals(SyncOutcome.Cancelled, result.outcome)
             val state = state()
             assertEquals(AccountStateEntity.STATE_FIRST_RUNNING, state?.state)
             assertNull(state?.failure)
