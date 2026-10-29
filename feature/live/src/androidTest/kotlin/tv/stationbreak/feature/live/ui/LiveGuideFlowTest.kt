@@ -30,7 +30,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -142,6 +142,8 @@ class LiveGuideFlowTest {
     }
 
     private fun tap(code: Int) {
+        // A key sent before the test's window has input focus goes to the launcher (#473).
+        compose.awaitWindowFocus()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val at = SystemClock.uptimeMillis()
         instrumentation.sendKeySync(KeyEvent(at, at, ACTION_DOWN, code, 0))
@@ -150,11 +152,20 @@ class LiveGuideFlowTest {
         compose.waitForIdle()
     }
 
+    /**
+     * The fake guide appears and disappears in the same recomposition as the state flip, so this covers key delivery
+     * and recomposition latency on a slow emulator, not an animation.
+     */
+    private fun awaitGuide(open: Boolean) =
+        compose.waitUntil(WAIT_MS) {
+            compose.onAllNodesWithTag(GUIDE).fetchSemanticsNodes().isNotEmpty() == open
+        }
+
     @Test
     fun backOpensGuideThenExits() {
         show(LiveState.Watching(null))
         tap(KEYCODE_BACK)
-        compose.onNodeWithTag(GUIDE).assertExists()
+        awaitGuide(open = true)
         // The release of the press that opened the guide did not reach the activity.
         assertEquals(0, exits)
         tap(KEYCODE_BACK)
@@ -166,7 +177,7 @@ class LiveGuideFlowTest {
     fun backWithTuneBannerOpensGuide() {
         show(LiveState.Watching(tuneBanner))
         tap(KEYCODE_BACK)
-        compose.onNodeWithTag(GUIDE).assertExists()
+        awaitGuide(open = true)
         assertEquals(0, exits)
         assertEquals(emptyList<LiveCommand>(), sent.toList())
     }
@@ -175,9 +186,9 @@ class LiveGuideFlowTest {
     fun guideKeyOpensAndClosesTheGuide() {
         show(LiveState.Watching(tuneBanner))
         tap(KEYCODE_GUIDE)
-        compose.onNodeWithTag(GUIDE).assertExists()
+        awaitGuide(open = true)
         tap(KEYCODE_GUIDE)
-        compose.onNodeWithTag(GUIDE).assertDoesNotExist()
+        awaitGuide(open = false)
         assertEquals(0, exits)
     }
 
@@ -188,13 +199,13 @@ class LiveGuideFlowTest {
         }
         compose.waitUntil(WAIT_MS) { "created" in surfaces }
         tap(KEYCODE_BACK)
-        compose.onNodeWithTag(GUIDE).assertExists()
+        awaitGuide(open = true)
         tap(KEYCODE_GUIDE)
-        compose.onNodeWithTag(GUIDE).assertDoesNotExist()
+        awaitGuide(open = false)
         tap(KEYCODE_BACK)
-        compose.onNodeWithTag(GUIDE).assertExists()
+        awaitGuide(open = true)
         tap(KEYCODE_GUIDE)
-        compose.waitForIdle()
+        awaitGuide(open = false)
         // Moved to the corner and back by its modifier only: the one surface lives on, never made again.
         assertEquals(listOf("created"), surfaces.toList())
     }
@@ -203,9 +214,9 @@ class LiveGuideFlowTest {
     fun selectNowCellTunesAndClosesGuide() {
         show(LiveState.Watching(null))
         tap(KEYCODE_BACK)
-        compose.onNodeWithTag(GUIDE).assertExists()
+        awaitGuide(open = true)
         tap(KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(GUIDE).assertDoesNotExist()
+        awaitGuide(open = false)
         assertEquals(listOf<LiveCommand>(LiveCommand.Tune(PICKED)), sent.toList())
         assertEquals(0, exits)
     }
