@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
@@ -111,7 +112,15 @@ class StayCurrentRunner(
         }
 
     internal suspend fun outcome(plan: SyncPlan): SyncOutcome {
-        if (plan.isEmpty || !gate.tryLock()) return SyncOutcome.Cancelled
+        val blocked =
+            if (plan.isEmpty) {
+                "EmptyPlan"
+            } else if (!gate.tryLock()) {
+                "Busy"
+            } else {
+                null
+            }
+        if (blocked != null) return report.skipped(plan, blocked)
         try {
             return guarded(plan)
         } finally {
@@ -129,18 +138,33 @@ class StayCurrentRunner(
 
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun start(plan: SyncPlan): SyncOutcome {
-        val record = settings.load() ?: return SyncOutcome.Cancelled
-        val chosen = settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return SyncOutcome.Cancelled
-        val active = repository.dao.activeAccounts().singleOrNull() ?: return SyncOutcome.Cancelled
+        val record = settings.load() ?: return report.skipped(plan, "NoServer")
+        val chosen = settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, "NoLibraries")
+        val accounts = repository.dao.activeAccounts()
+        val active = accounts.singleOrNull() ?: return report.skipped(plan, "NoAccount", "accounts=${accounts.size}")
         val account = LibraryAccount(ServerId(active.serverId), UserId(active.userId))
         // The first sync has not ended: it owns the library, and nothing here is a "top up" yet.
         val firstSyncOpen = repository.lastSuccess(account) == null || repository.isFirstSyncRunning(account)
-        if (firstSyncOpen) return SyncOutcome.Cancelled
+        if (firstSyncOpen) return report.skipped(plan, "FirstSyncOpen")
         return when (val restored = sessions.verify(record.address)) {
-            is RestoreOutcome.Restored -> safely(account) { passes(restored.session, account, chosen, plan) }
-            RestoreOutcome.SignedOut -> SyncOutcome.Cancelled
-            is RestoreOutcome.Rejected -> record(account, SyncFailure.SessionExpired)
-            is RestoreOutcome.Unavailable -> record(account, restored.error.toSyncFailure())
+            is RestoreOutcome.Restored -> {
+                safely(account) { passes(restored.session, account, chosen, plan) }
+            }
+
+            RestoreOutcome.SignedOut -> {
+                report.skipped(plan, "SignedOut")
+            }
+
+            is RestoreOutcome.Rejected -> {
+                report.skipped(plan, "SessionRejected")
+                record(account, SyncFailure.SessionExpired)
+            }
+
+            is RestoreOutcome.Unavailable -> {
+                val failure = restored.error.toSyncFailure()
+                report.skipped(plan, "Unavailable", "failure=${failure.name}")
+                record(account, failure)
+            }
         }
     }
 
@@ -151,20 +175,13 @@ class StayCurrentRunner(
         plan: SyncPlan,
     ): SyncOutcome {
         // Signed out, or another account in, while the server was answering: nothing to sync.
-        if (session.server.id != account.server || session.userId != account.user) return SyncOutcome.Cancelled
+        if (session.server.id != account.server || session.userId != account.user) {
+            return report.skipped(plan, "AccountChanged")
+        }
         val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val began = timeSource.markNow()
-        val ran =
-            try {
-                stayCurrent(engine, session, account, chosen, plan)
-            } catch (stopped: CancellationException) {
-                report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
-                throw stopped
-            } catch (signedOut: AccountNotActiveException) {
-                report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
-                throw signedOut
-            }
+        val ran = report.timed(began) { stayCurrent(engine, session, account, chosen, plan) }
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
@@ -312,6 +329,40 @@ private fun SyncOutcome.label() =
         SyncOutcome.Cancelled -> "outcome=Cancelled"
         is SyncOutcome.Failed -> "outcome=Failed failure=${failure.name}"
     }
+
+// Why a run did nothing: the plan, a reason name and at most a count or an enum name, never an ID, an address or a
+// message. Always the Cancelled outcome, so a caller can return it.
+private fun ((String) -> Unit).skipped(
+    plan: SyncPlan,
+    reason: String,
+    detail: String = "",
+): SyncOutcome {
+    val extra = if (detail.isEmpty()) "" else " $detail"
+    say("StayCurrentSkipped plan=${plan.incremental}/${plan.reconcile} reason=$reason$extra")
+    return SyncOutcome.Cancelled
+}
+
+// Runs the passes and says how they ended when they did not return: stopped or signed out is Cancelled, anything else
+// is the server failure [StayCurrentRunner.safely] records. The exception goes on; the line has no message.
+@Suppress("TooGenericExceptionCaught", "ThrowsCount")
+private suspend fun ((String) -> Unit).timed(
+    began: TimeMark,
+    block: suspend () -> Ran,
+): Ran {
+    val done = { label: String -> say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} $label") }
+    try {
+        return block()
+    } catch (stopped: CancellationException) {
+        done("outcome=Cancelled")
+        throw stopped
+    } catch (signedOut: AccountNotActiveException) {
+        done("outcome=Cancelled")
+        throw signedOut
+    } catch (unexpected: Exception) {
+        done("outcome=Failed failure=${SyncFailure.Server.name}")
+        throw unexpected
+    }
+}
 
 // The re-read flag for the log only: null when it cannot be read, so a logging read never fails the run.
 @Suppress("TooGenericExceptionCaught")
