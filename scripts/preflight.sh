@@ -22,9 +22,10 @@
 # is kept for every --emulator run, in a per-run directory under
 # ${XDG_CACHE_HOME:-$HOME/.cache}/stationbreak/preflight-runs/ (the last 10 are kept); the path is printed at the end.
 # Each APK install is bounded too: PREFLIGHT_INSTALL_TIMEOUT seconds (default 120; one normally takes under 10). A
-# stalled install is stopped and its evidence saved in an install-stall-* directory of the run (#482). A module that
-# wrote no test results (a stopped install, or any other failure to start its tests, which Gradle reports as a pass) is
-# run once more; if it still has none, the step fails.
+# stalled install is stopped and its evidence saved in an install-stall-* directory of the run (#482). A module with
+# tests that wrote no test results (a stopped install, or any other failure to start its tests, which Gradle reports as
+# a pass) is run once more. The step fails on a failure in a module that wrote results, or on the re-run's failure, or
+# if a re-run module still has no results (scripts/connected-results.sh).
 # Exit: 0 all passed, 1 a step failed, 2 usage error.
 set -euo pipefail
 
@@ -114,6 +115,7 @@ script_tests() {
   bash scripts/guard-tree.test.sh
   bash scripts/run-bounded.test.sh
   bash scripts/install-watchdog.test.sh
+  bash scripts/connected-results.test.sh
   bash scripts/playback-matrix/playback-matrix.test.sh
 }
 
@@ -234,6 +236,8 @@ contract_tests() {
 source scripts/run-bounded.sh
 # shellcheck source=scripts/install-watchdog.sh
 source scripts/install-watchdog.sh
+# shellcheck source=scripts/connected-results.sh
+source scripts/connected-results.sh
 
 emulator_image='system-images;android-25;android-tv;x86'
 emulator_port=5580
@@ -304,7 +308,9 @@ save_device_state() {
   # The Gradle client only waits on its daemon. The connected task's work is done by the Android test engine, a JVM the
   # daemon starts per task, and it runs the adb commands; its threads show which one it is waiting on.
   if command -v jstack >/dev/null 2>&1; then
-    for pid in $(pgrep -u "$(id -u)" -f 'android-test\.adb-path' || true); do
+    local engines=()
+    mapfile -t engines < <(pgrep -u "$(id -u)" -f 'android-test\.adb-path' || true)
+    for pid in "${engines[@]}"; do
       echo "=== test engine JVM $pid"
       timeout 30 jstack "$pid" 2>&1 || true
     done >"$dir/test-engine-threads.txt"
@@ -319,29 +325,6 @@ install_stalled() {
   echo "Saving install-stall evidence to $dir" >&2
   ps -o etimes=,args= -p "$pid" >"$dir/install-command.txt" 2>&1 || true
   save_device_state "$dir"
-}
-
-# tasks_without_results <since-file> <task...>: prints each connected task whose module wrote no JUnit XML after
-# <since-file> was made. Gradle counts a module whose tests never started (its APK did not install, say) as a pass, with
-# only an "AndroidTestRunner failed" line in its output; a missing result file is what gives it away. The app's task
-# (no project path) writes under app/, :a:b's under a/b/.
-tasks_without_results() {
-  local since="$1" task module
-  shift
-  for task in "$@"; do
-    case "$task" in
-      :*:connected*)
-        module="${task%:*}"
-        module="${module#:}"
-        module="${module//://}"
-        ;;
-      *) module=app ;;
-    esac
-    if ! find "$module/build/outputs/androidTest-results/connected" -name 'TEST-*.xml' -newer "$since" 2>/dev/null |
-      grep -q .; then
-      echo "$task"
-    fi
-  done
 }
 
 instrumented_tests() {
@@ -444,46 +427,55 @@ instrumented_tests() {
       return 1
       ;;
   esac
-  local tasks=() retry=() still=() since retry_status=0 pkg
+  local tasks=() retry=() still=() since first_log retry_status=0 pkgs=() pkg tee_pid tee_fd
   read -ra tasks <<<"$connected"
   timeout 20 "$adb" devices -l >"$preflight_out/adb-devices-start.txt" 2>&1 || true
 
   # Each APK install bounded (#482): the connected tasks install with `adb -s <serial> install` and wait on it with no
-  # limit, and here that install has sometimes never finished. See scripts/install-watchdog.sh.
-  install_watchdog "$ANDROID_SERIAL" "$install_limit" install_stalled &
+  # limit, and here that install has sometimes never finished. See scripts/install-watchdog.sh. $$ is this script: the
+  # watchdog ends with it even if this script is killed before its cleanup runs.
+  install_watchdog "$ANDROID_SERIAL" "$install_limit" install_stalled "$$" &
   watchdog_pid=$!
 
-  # --continue: every module runs even if one fails, so the results check below sees them all.
+  # --continue: every module runs even if one fails, so the results check below sees them all. The output is kept for
+  # connected_status, which reads the failed tasks from it.
   since="$preflight_out/attempt1.start"
+  first_log="$preflight_out/attempt1-gradle.log"
   : >"$since"
-  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${tasks[@]}" || status=$?
+  # tee on its own descriptor, so its pid is known and the log is complete before it is read.
+  exec {tee_fd}> >(tee "$first_log")
+  tee_pid=$!
+  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${tasks[@]}" >&"$tee_fd" 2>&1 ||
+    status=$?
+  exec {tee_fd}>&-
+  wait "$tee_pid" 2>/dev/null || true
+  # A module whose install was stopped or lost wrote no results, and Gradle still passed it (scripts/connected-results.sh).
+  # Each is run once more; connected_status then combines the two attempts.
   if [ "$status" -ne 124 ]; then
     mapfile -t retry < <(tasks_without_results "$since" "${tasks[@]}")
   fi
   if [ "${#retry[@]}" -gt 0 ]; then
     echo "No test results from: ${retry[*]}. Their tests never ran (a stopped install, or the test runner failed" >&2
-    echo "to start; Gradle still reports these as passed). Running them once more." >&2
+    echo "to start, which Gradle reports as a pass). Running them once more." >&2
     # A stopped install can still leave its package on the device, and the next `adb install` (it has no -r) then fails
     # with INSTALL_FAILED_ALREADY_EXISTS. The emulator is this run's own, so every StationBreak package on it is ours.
-    for pkg in $(timeout 20 "$adb" shell pm list packages 2>/dev/null | tr -d '\r' |
-      sed -n 's/^package:\(tv\.stationbreak\..*\)$/\1/p'); do
-      timeout 60 "$adb" uninstall "$pkg" >/dev/null 2>&1 || true
+    mapfile -t pkgs < <(timeout 20 "$adb" -s "$ANDROID_SERIAL" shell pm list packages 2>/dev/null | tr -d '\r' |
+      sed -n 's/^package:\(tv\.stationbreak\..*\)$/\1/p')
+    for pkg in "${pkgs[@]}"; do
+      timeout 60 "$adb" -s "$ANDROID_SERIAL" uninstall "$pkg" >/dev/null 2>&1 || true
     done
     since="$preflight_out/attempt2.start"
     : >"$since"
     run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${retry[@]}" || retry_status=$?
-    if [ "$retry_status" -eq 124 ]; then
-      status=124
-    else
+    if [ "$retry_status" -ne 124 ]; then
       mapfile -t still < <(tasks_without_results "$since" "${retry[@]}")
       if [ "${#still[@]}" -gt 0 ]; then
         echo "Still no test results from: ${still[*]}." >&2
-        retry_status=1
+        if [ "$retry_status" -eq 0 ]; then retry_status=1; fi
       fi
-      # A real failure in the first attempt stands; a module the retry fixed does not hide it.
-      if [ "$status" -eq 0 ]; then status="$retry_status"; fi
     fi
   fi
+  status="$(connected_status "$status" "$first_log" "$retry_status" "${retry[@]}")"
   kill "$watchdog_pid" 2>/dev/null || true
   wait "$watchdog_pid" 2>/dev/null || true
   watchdog_pid=""

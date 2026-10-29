@@ -3,10 +3,11 @@
 #
 # Sourced by scripts/preflight.sh (and its test); defines install_watchdog and runs nothing itself.
 #
-# install_watchdog <serial> <seconds> <on-stall-command>: runs until it is killed. Every INSTALL_WATCHDOG_POLL seconds
-# (default 5) it looks for this user's `adb -s <serial> install ...` processes that have run for <seconds> or more. For
-# each one it runs `<on-stall-command> <pid>` while the process is STILL ALIVE, then stops it: SIGTERM, and SIGKILL if
-# it is still there on the next look.
+# install_watchdog <serial> <seconds> <on-stall-command> <parent-pid>: runs until it is killed or <parent-pid> is gone.
+# Every INSTALL_WATCHDOG_POLL seconds (default 5) it looks for this user's `adb -s <serial> install ...` processes that
+# have run for <seconds> or more. For each one it runs `<on-stall-command> <pid>` while the process is STILL ALIVE, then
+# stops it: SIGTERM, and SIGKILL if it is still there on the next look. Ending with its parent matters: a parent killed
+# with SIGKILL never runs its cleanup, and a watchdog left behind would stop the next run's installs on the same serial.
 #
 # Why (#482): Gradle's connected test tasks (AGP 9.4's Android test engine) install each APK by running
 # `adb -s <serial> install ...` and wait for it with no time limit. AGP's installApkTimeout option does not reach the
@@ -18,8 +19,8 @@
 # Only an adb client whose first arguments are exactly `-s <serial> install` (or install-multiple) is matched, so a
 # run on another device or emulator, or any other adb command on this one, is never touched.
 install_watchdog() {
-  local serial="$1" limit="$2" on_stall="$3" pid age stopped=" "
-  while :; do
+  local serial="$1" limit="$2" on_stall="$3" parent="$4" pid age stopped=" "
+  while kill -0 "$parent" 2>/dev/null; do
     while read -r pid age; do
       if [[ "$stopped" == *" $pid "* ]]; then
         # Still there after SIGTERM: the next look is the grace period.
