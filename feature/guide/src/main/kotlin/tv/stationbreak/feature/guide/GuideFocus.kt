@@ -51,15 +51,23 @@ internal fun GuideModel.initialFocus(
 }
 
 /**
- * Whether the focus is off the cell [GuideModel.initialFocus] opens on for the [current] channel: false on that cell,
- * and with no grid or focus (Back then leaves live TV). Compares the cell, not the anchor.
+ * The cell on air now on the [current] channel, which Back returns to; null when [current] is unknown or not on the
+ * grid (the guide then opens on the first row, which is not what is playing).
  */
-internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
+internal fun GuideSnapshot.playingFocus(current: ChannelId?): GuideFocus? {
     val ready = state as? GuideState.Ready
-    val at = focus
-    val playing = ready?.model?.initialFocus(current, ready.nowMs)
-    return at != null && playing != null && (at.channel != playing.channel || at.cellStartMs != playing.cellStartMs)
+    return ready?.model?.initialFocus(current, ready.nowMs)?.takeIf { it.channel == current }
 }
+
+/** Whether the focus is off the cell [playingFocus] names (cell, not anchor); false when there is nothing playing. */
+internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
+    val at = focus
+    val playing = playingFocus(current)
+    return at != null && playing != null && !at.sameCellAs(playing)
+}
+
+/** Whether both name the same cell (the anchor, the time Up and Down keep, does not count). */
+internal fun GuideFocus.sameCellAs(o: GuideFocus): Boolean = channel == o.channel && cellStartMs == o.cellStartMs
 
 /**
  * One step of [direction] from [focus] at [nowMs] (the moment the grid shows); at an edge, or when the focused cell is

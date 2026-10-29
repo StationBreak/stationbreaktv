@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.ui.ProgramText
 
@@ -406,6 +407,23 @@ class GuideViewModelTest : GuideRig() {
             assertEquals(opened.state.let { (it as GuideState.Ready).viewportStartMs }, vm.ready().viewportStartMs)
             assertEquals((opened.state as GuideState.Ready).firstVisibleRow, vm.ready().firstVisibleRow)
             assertFalse(vm.snapshot.value.isAwayFrom(CH5))
+            assertFalse(vm.backToPlaying())
+        }
+
+    @Test
+    fun backWithAPlayingChannelThatIsNotOnTheGridIsNotTheGuides() =
+        guideTest { vm ->
+            val gone = ChannelId("gone")
+            vm.open(gone)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            assertFalse(vm.snapshot.value.isAwayFrom(gone))
+            assertFalse(vm.backToPlaying())
+            vm.close()
+            vm.open(null)
+            runCurrent()
+            vm.move(GuideDirection.Right)
+            assertFalse(vm.snapshot.value.isAwayFrom(null))
             assertFalse(vm.backToPlaying())
         }
 

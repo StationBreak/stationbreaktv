@@ -340,6 +340,7 @@ class GuideScreenTest {
     fun dpadMovesFocusAndPanelFollows() {
         showReady(CH7)
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
         press(Key.DirectionRight)
         cell(CH7, 90).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()
@@ -351,12 +352,6 @@ class GuideScreenTest {
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
         // Off the playing channel (7): Back goes back to it before it exits.
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To what's playing"))
-        press(Key.DirectionDown)
-        press(Key.DirectionUp)
-        press(Key.DirectionUp)
-        cell(CH7, 90).assertIsSelected()
-        press(Key.DirectionLeft)
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
     }
 
     @Test
@@ -368,10 +363,11 @@ class GuideScreenTest {
         press(Key.DirectionDown)
         repeat(3) { press(Key.DirectionRight) }
         cell(CH7, 60).assertIsNotSelected()
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To what's playing"))
         back()
         cell(CH7, 60).assertIsSelected()
         assertEquals("Test Movie 102", text(GuideTags.PANEL_TITLE))
-        assertEquals("Back Exit live TV", text(GuideTags.HINT).substringAfter("Watch  ", text(GuideTags.HINT)))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
         assertEquals(0, exits)
         // On the playing cell: the same Back leaves live TV.
         back()
@@ -381,6 +377,16 @@ class GuideScreenTest {
     @Test
     fun backOnTheOpeningCellExitsAtOnce() {
         showReady(CH5)
+        back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun backWithNoPlayingChannelOnTheGridExitsAndSaysSo() {
+        // The guide opens on the first row, which is not what is playing: nothing to go back to.
+        showReady(null)
+        press(Key.DirectionRight)
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
         back()
         assertEquals(1, exits)
     }
@@ -493,8 +499,8 @@ class GuideScreenTest {
         val slate = text(GuideTags.cellText(CH9, min(150)))
         assertTrue(slate, slate.startsWith("Off air until "))
         assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off air until "))
-        // Nothing to watch or read about: the hint only says how to leave.
-        assertEquals("Back Exit live TV", text(GuideTags.HINT))
+        // Nothing to watch or read about: the hint only says what Back does (here, back to the playing channel).
+        assertEquals("Back To what's playing", text(GuideTags.HINT))
     }
 
     @Test
@@ -507,7 +513,10 @@ class GuideScreenTest {
         back()
         compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
         assertEquals(0, exits)
-        // The overlay is gone: the next Back is the activity's, and leaves live TV.
+        // The overlay is gone: the next Back returns to the playing cell, and the one after is the activity's.
+        back()
+        cell(CH7, 60).assertIsSelected()
+        assertEquals(0, exits)
         back()
         assertEquals(1, exits)
     }
