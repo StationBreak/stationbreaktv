@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
+import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -271,5 +272,30 @@ class BehindPauseTest {
             assertEquals(1, server.calls.count { it.kind == "start" })
             assertEquals(listOf(210_000L, 240_000L), after.filter { it.kind == "progress" }.map { it.atMs })
             assertTrue(after.all { it.kind == "progress" && !it.paused && it.posMs == start.posMs })
+        }
+
+    @Test
+    fun aFailedPlayWhileBehindIsReportedAndRetunesLive() =
+        runTest {
+            // Interim behaviour until Task 10 (one retry at the place): the failure is reported, and the sitting
+            // tunes what is on now, at its live position.
+            val r = Rig(this, startMin = 10)
+            r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 13 * MIN)
+            r.tune.script(itemOf(1), r.tune.playsThenEnds(5.minutes, failed))
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
+            r.atMin(1)
+            keys.trySend(LiveCommand.PlayPause)
+            r.atMin(2)
+            keys.trySend(LiveCommand.PlayPause)
+            r.at(5 * MIN + 1_000)
+            assertTrue(r.reports.any { it is TuneReport.HeldFailed && it.end == failed })
+            val retune = r.tunes.last()
+            assertEquals(2, r.tunes.size)
+            assertEquals(itemOf(1), retune.item)
+            assertEquals(15 * MIN, retune.start.inWholeMilliseconds)
+            assertNull(r.live.transport.value)
+            assertTrue(r.state is LiveState.Watching)
         }
 }
