@@ -20,7 +20,6 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
-import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -123,7 +122,6 @@ internal class BehindPlay(
     private val timings = sitting.timings
     private val aheadMs = timings.stepAhead.inWholeMilliseconds
     private val rearmMinMs = timings.holdRearmMin.inWholeMilliseconds
-    private val landingSlackMs = timings.seekLandingSlack.inWholeMilliseconds
     private val goLiveWaitMs = timings.goLiveWait.inWholeMilliseconds
 
     /** Paused or playing behind: Play/Pause is resolved against this, not against the player's last event. */
@@ -148,28 +146,8 @@ internal class BehindPlay(
     /** The steps' target and when it settles into one seek (the flip's rule). */
     private val steps = StepSettle(timings, ::nowMs)
 
-    /** The target of the latest seek sent and not yet done; null when none is in flight. */
-    @Volatile
-    private var seekingToMs: Long? = null
-
-    /** True once the player's `Seeking` for [seekingToMs] has come: the next `SeekDone` is that seek's. */
-    @Volatile
-    private var seekStarted = false
-
-    /** The number of the latest seek sent (1, 2, …), and of the seek back to live while one is under way. */
-    @Volatile
-    private var seekSeq = 0L
-
-    @Volatile
-    private var liveSeq: Long? = null
-
-    /**
-     * True from a seek's `seeking` report until its `seeked` one: the visit's watched time is stopped meanwhile, so a
-     * seek whose `SeekDone` never comes is closed at the best-known place by the next `Paused` or `Playing`, or when
-     * the behind play ends, never left open.
-     */
-    @Volatile
-    private var seekOpen = false
+    /** Which SeekDone is the latest seek's, and whether the visit's watched time is stopped for one. */
+    private val seeks = SeekTracker(timings.seekLandingSlack.inWholeMilliseconds)
 
     /** Set while the seek back to live is in flight: once it is done, the viewer is live. */
     @Volatile
@@ -200,7 +178,7 @@ internal class BehindPlay(
             } finally {
                 linger?.cancel()
                 // A seek still open is closed at the best-known place, so the visit's watched time runs on after us.
-                closeSeek(null)
+                seeks.close(knownMs)?.let { visiting?.seeked(it) }
                 sitting.state.transport.value = null
                 coroutineContext.cancelChildren()
             }
@@ -221,7 +199,7 @@ internal class BehindPlay(
         if (first != null) {
             act(first)
             // A first op that changed nothing (a step the play cannot take) leaves the viewer live.
-            val still = !paused && steps.target == null && seekingToMs == null && goingLive == null
+            val still = !paused && steps.target == null && !seeks.inFlight && goingLive == null
             if (still) return BehindEnd.Live(play)
         }
         val ended = within.async { play.end.firstOrNull() ?: PlaybackEnd.Ended }
@@ -303,6 +281,7 @@ internal class BehindPlay(
 
     private suspend fun pause() {
         goingLive = null
+        seeks.cancelLive()
         read()
         play.control.pause()
         paused = true
@@ -327,6 +306,7 @@ internal class BehindPlay(
         if (!play.control.seekable()) return
         if (!steps.key(op.repeat, op.atMs)) return
         goingLive = null
+        seeks.cancelLive()
         val fromMs = steps.target?.toMs ?: read()
         val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
         val toMs =
@@ -370,7 +350,6 @@ internal class BehindPlay(
         if (liveMs >= cutMs) return false
         steps.drop()
         linger?.cancel()
-        liveSeq = null
         goingLive = CompletableDeferred()
         sitting.state.transport.value = null
         seek(liveMs, live = true)
@@ -394,12 +373,7 @@ internal class BehindPlay(
     ) {
         val fromMs = play.control.position()?.inWholeMilliseconds
         visiting?.seeking(fromMs)
-        seekOpen = true
-        val seq = seekSeq + 1
-        seekingToMs = toMs
-        seekStarted = false
-        seekSeq = seq
-        if (live) liveSeq = seq
+        seeks.sent(toMs, live)
         play.control.seekTo(toMs.milliseconds)
         known(toMs)
     }
@@ -462,7 +436,7 @@ internal class BehindPlay(
             is PlayerEvent.Paused -> {
                 val at = event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN }
                 at?.let(::known)
-                closeSeek(at)
+                seeks.close(at ?: knownMs)?.let { visiting?.seeked(it) }
                 visiting?.paused(at)
                 publish()
             }
@@ -473,13 +447,13 @@ internal class BehindPlay(
                 visiting?.unpaused()
             }
 
-            // A play that plays on is past any seek: its SeekDone comes before Playing, so one still open was lost.
+            // A play that plays on is past a seek it began: its SeekDone comes first, so one still open was lost.
             is PlayerEvent.Playing -> {
-                closeSeek(event.position.inWholeMilliseconds)
+                seeks.closeOnPlaying(event.position.inWholeMilliseconds)?.let { visiting?.seeked(it) }
             }
 
             is PlayerEvent.Seeking -> {
-                if (event.toMs == seekingToMs) seekStarted = true
+                seeks.onSeeking(event.toMs)
             }
 
             is PlayerEvent.SeekDone -> {
@@ -490,35 +464,13 @@ internal class BehindPlay(
         }
     }
 
-    /**
-     * A `SeekDone` at [at] (null: not known). It is the latest seek's when that seek's `Seeking` came before it, or,
-     * with no `Seeking` seen (the player folded the seek into one already pending), when it lands within
-     * [LiveTimings.seekLandingSlack] of the target. Any other is an earlier seek's, still buffered when the latest went
-     * out: it is dropped, so it can neither report the landing nor end the way back to live early. Only the latest
-     * seek's is reported, where it landed (else where it was sent).
-     */
+    /** A `SeekDone` at [at] (null: not known): reported, and the way back to live ended, only when it is the latest. */
     private fun seekDone(at: Long?) {
-        val toMs = seekingToMs ?: return
-        // A SeekDone with no position can only be matched by its Seeking: without one, an earlier seek's is as likely.
-        val mine = seekStarted || (at != null && abs(at - toMs) <= landingSlackMs)
-        if (!mine) return
-        at?.let(::known)
-        if (seekOpen) visiting?.seeked(at ?: toMs)
-        seekOpen = false
-        seekingToMs = null
-        seekStarted = false
-        if (seekSeq == liveSeq) goingLive?.complete(Unit)
+        val landing = seeks.onSeekDone(at) ?: return
+        landing.positionMs?.let(::known)
+        if (landing.report) visiting?.seeked(landing.atMs)
+        if (landing.live) goingLive?.complete(Unit)
         publish()
-    }
-
-    /**
-     * Closes a seek whose SeekDone has not come, at [atMs] when known, else the best-known place: the visit's watched
-     * time never stays stopped. Matching is left as it is, so the seek's own SeekDone can still end the way to live.
-     */
-    private fun closeSeek(atMs: Long?) {
-        if (!seekOpen) return
-        seekOpen = false
-        visiting?.seeked(atMs ?: knownMs)
     }
 
     /** Logs a stepped target that was never sought, because the cut or the play's end came first. */
@@ -544,7 +496,7 @@ internal class BehindPlay(
         sitting.state.transport.value =
             TransportView(
                 paused = paused,
-                seeking = seekingToMs != null,
+                seeking = seeks.inFlight,
                 seekable = play.control.seekable(),
                 visible = visible || paused,
                 mediaMs = knownMs,
