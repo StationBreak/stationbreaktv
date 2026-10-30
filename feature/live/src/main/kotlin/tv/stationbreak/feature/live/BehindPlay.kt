@@ -445,6 +445,8 @@ internal class BehindPlay(
         read()
         play.control.pause()
         paused = true
+        // A resume still waiting for its Playing is over: no picture was attributed to it.
+        flushResume()
         pausedAtMs = nowMs()
         linger?.cancel()
         visible = true
@@ -515,7 +517,7 @@ internal class BehindPlay(
         val fromMs = read()
         if (fromMs < cutMs) {
             val to = minOf(toMs, cutMs)
-            seek(to, direction = directionOf(toLive, to, fromMs))
+            seek(directionOf(toLive, to, fromMs), to)
             show()
         } else {
             dropped("transport-lost-at-cut")
@@ -533,7 +535,7 @@ internal class BehindPlay(
         steps.drop()
         linger?.cancel()
         host.publishTransport(null)
-        seek(liveMs, live = true, direction = DIR_LIVE)
+        seek(DIR_LIVE, liveMs, live = true)
         liveSinceMs = nowMs()
         if (paused) {
             play.control.resume()
@@ -549,15 +551,15 @@ internal class BehindPlay(
      * whose SeekDone ends the way back to live.
      */
     private suspend fun seek(
+        direction: String,
         toMs: Long,
         live: Boolean = false,
-        direction: String,
     ) {
         dropCatchUp()
         val fromMs = play.control.position()?.inWholeMilliseconds
         visiting?.seeking(fromMs)
         seeks.sent(toMs, live)
-        // A seek folded into one pending gets the one answer: the earlier one's line is closed as lost.
+        // A seek folded into one pending gets the one answer: the earlier one's line is closed as lost (-1).
         seekLine?.let { host.report(it.lost()) }
         seekLine = SeekLine(direction, toMs, nowMs(), play.timings.route)
         play.control.seekTo(toMs.milliseconds)
@@ -615,6 +617,9 @@ internal class BehindPlay(
         // The unsubscribe above took the events that came; a seek line still waiting is lost with the play.
         seekLine?.let { host.report(it.lost()) }
         seekLine = null
+        // A resume that never showed a picture before the play failed: -1. A pause carries on (the retry is paused
+        // again at once, see carryOn), so its held time keeps running and is not reset.
+        flushResume()
         liveSinceMs = null
         dropCatchUp()
         return when {
@@ -837,7 +842,14 @@ internal class BehindPlay(
         val since = pausedAtMs ?: return
         pausedAtMs = null
         val now = nowMs()
+        flushResume()
         resumeLine = ResumeLine(now - since, now)
+    }
+
+    /** A resume still waiting for its `Playing` is told with `resumeMs=-1`: no picture was attributed to it. */
+    private fun flushResume() {
+        resumeLine?.let { host.report(TuneReport.Pause(it.heldMs, -1)) }
+        resumeLine = null
     }
 
     /** The latest seek's `SeekDone`: its line goes out with the time it took. */
@@ -859,8 +871,7 @@ internal class BehindPlay(
     private fun reportUnfinished() {
         seekLine?.let { host.report(it.lost()) }
         seekLine = null
-        resumeLine?.let { host.report(TuneReport.Pause(it.heldMs, -1)) }
-        resumeLine = null
+        flushResume()
         pausedAtMs?.let { host.report(TuneReport.Pause(nowMs() - it, -1)) }
         pausedAtMs = null
     }
@@ -902,7 +913,10 @@ internal class BehindPlay(
         )
     }
 
-    /** A seek sent, whose line is told once the player answers. */
+    /**
+     * A seek sent, whose line is told once the player answers. [TuneReport.Seek.toPlayingMs] is -1 when no answer was
+     * attributed to it: the play ended or was retried first, or a later seek was folded into it by the player.
+     */
     private class SeekLine(
         val direction: String,
         val targetMs: Long,
