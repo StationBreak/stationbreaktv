@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -91,5 +92,24 @@ class LiveChannelReanchorTest {
             assertEquals(10.minutes + 500.milliseconds, r.tunes.last().start)
             assertTrue(r.seen.any { it is LiveState.Tuning })
             assertIs<LiveState.Watching>(r.state)
+        }
+
+    @Test
+    fun aSittingReplacedInTheSameRunHasItsInboxClosed() =
+        runTest {
+            val r = Rig(this)
+            r.ordinaryDay()
+            r.tune.script(itemOf(1), {
+                kotlinx.coroutines.delay(1_000)
+                TuneOutcome.Cancelled
+            })
+            r.start()
+            r.at(500)
+            val old = checkNotNull(r.live.currentSitting())
+            r.at(3_000)
+            val now = checkNotNull(r.live.currentSitting())
+            assertTrue(now !== old)
+            // A press for the replaced sitting can never be queued for it.
+            assertFalse(old.commands.offer(Tagged(old.sittingId, 0, TransportOp.Toggle)))
         }
 }

@@ -253,6 +253,8 @@ class LiveChannel(
                     saved = id
                     val next = newSitting(session, first, flip, neighbours, reporter)
                     flip = null
+                    // The sitting this one replaces takes no more presses: its inbox is closed with it.
+                    sitting?.commands?.close()
                     sitting = next
                     current = next
                     val exit = next.follow(first)
