@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import tv.stationbreak.core.domain.lineup.AiringBlock
@@ -47,10 +48,13 @@ internal class SittingCommands(
     /** False (dropped) when [command] is for another sitting, or this inbox is closed. */
     fun offer(command: Tagged): Boolean = command.sittingId == sittingId && inbox.trySend(command).isSuccess
 
-    /** The next op tagged for the block that started at [blockStartMs]; ops tagged for another block are skipped. */
+    /**
+     * The next op tagged for the block that started at [blockStartMs]; ops tagged for another block are skipped. Once
+     * the inbox is closed the sitting is ending, so this waits to be cancelled with it; it never throws.
+     */
     suspend fun receive(blockStartMs: Long): TransportOp {
         while (true) {
-            val next = inbox.receive()
+            val next = inbox.receiveCatching().getOrNull() ?: awaitCancellation()
             if (next.blockStartMs == blockStartMs) return next.op
         }
     }

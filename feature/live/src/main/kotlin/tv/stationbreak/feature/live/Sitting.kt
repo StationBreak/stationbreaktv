@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
@@ -455,11 +456,18 @@ private suspend fun Sitting.endOrOp(
         val ended = async { Woke.End(end.firstOrNull() ?: PlaybackEnd.Ended) }
         if (blockStartMs == null) return@coroutineScope ended.await()
         val op = async { takeLiveOp(control, blockStartMs) }
-        val woke =
-            select {
-                ended.onAwait { it }
-                op.onAwait { it }
+        val woke: Woke =
+            try {
+                select<Woke> {
+                    ended.onAwait { it }
+                    op.onAwait { it }
+                }
+            } catch (cut: TimeoutCancellationException) {
+                // The block's end cut the hold: an op it had already taken goes with it.
+                reportLostOp(op, "transport-lost-at-cut")
+                throw cut
             }
+        if (woke is Woke.End) reportLostOp(op, "transport-lost-at-end")
         coroutineContext[Job]?.cancelChildren()
         woke
     }

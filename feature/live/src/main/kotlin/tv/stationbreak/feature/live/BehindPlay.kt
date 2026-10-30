@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -15,6 +16,7 @@ import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
 
@@ -50,6 +52,18 @@ internal suspend fun Sitting.holdProgram(
             is BehindEnd.Exit -> return Held.Exited(ended.exit)
         }
     }
+}
+
+/**
+ * A transport op already taken from the inbox when the play's end or the cut won: it is dropped, with a line
+ * (`press dropped reason=<reason>`), so no press vanishes without a trace.
+ */
+internal fun Sitting.reportLostOp(
+    taken: Deferred<*>,
+    reason: String,
+) {
+    if (!taken.isCompleted || taken.isCancelled) return
+    report(TuneReport.PressDropped(reason, state.value.javaClass.logName()))
 }
 
 /** How a [BehindPlay] ended. */
@@ -119,7 +133,13 @@ internal class BehindPlay(
             // The one subscription, made before the first transport call: the events carry no replay.
             launch(start = CoroutineStart.UNDISPATCHED) { play.control.events.collect(::onEvent) }
             try {
-                if (from != null) known(from.mediaMs) else read()
+                if (from != null) {
+                    known(from.mediaMs)
+                } else {
+                    // Live until now: if the player cannot say where it is, the live position is the place.
+                    known(TransportMath.liveMs(block, sitting.vnowMs()))
+                    read()
+                }
                 sitting.watchNotes(play.notes, sitting.reporter.takeIf { visiting != null }, { playEnded }) {
                     loop(this, first)
                 }
@@ -152,15 +172,22 @@ internal class BehindPlay(
             // Media left to the cut, re-read each time round: a hold that fired early (playback slower than the
             // clock) waits again for what is left. None while paused: the picture holds as long as the viewer likes.
             val leftMs = if (paused) null else cutMs - read()
-            if (leftMs != null && leftMs <= 0) return BehindEnd.ItemEnd(null)
+            if (leftMs != null && leftMs <= 0) {
+                sitting.reportLostOp(next, "transport-lost-at-cut")
+                return BehindEnd.ItemEnd(null)
+            }
             val woke =
                 select {
                     ended.onAwait { Wake.End(it) }
                     next.onAwait { Wake.Op(it) }
-                    if (leftMs != null) onTimeout(leftMs) { Wake.Due }
+                    // A floor on the wait, so a hold that runs short near the cut never spins.
+                    if (leftMs != null) onTimeout(maxOf(leftMs, MIN_REARM_MS)) { Wake.Due }
                 }
             // Wake.Due: round again, where the position is read afresh.
-            if (woke is Wake.End) return playEnd(woke.end)
+            if (woke is Wake.End) {
+                sitting.reportLostOp(next, "transport-lost-at-end")
+                return playEnd(woke.end)
+            }
             if (woke is Wake.Op) {
                 act(woke.op)
                 next = nextOp()
@@ -228,11 +255,16 @@ internal class BehindPlay(
         return BehindEnd.ItemEnd(null)
     }
 
-    /** The exact position now, or the last known one when the player cannot say (never 0, never the live position). */
+    /**
+     * The exact position now. When the player cannot say, the last known place (seeded with the live position the
+     * behind play started from, never the in-point), moved on by the clock while playing so the hold still reaches the
+     * cut.
+     */
     private suspend fun read(): Long {
-        val now = play.control.position()?.inWholeMilliseconds ?: return knownMs
-        known(now)
-        return now
+        val exact = play.control.position()?.inWholeMilliseconds
+        val ms = exact ?: if (paused) knownMs else knownMs + (sitting.clock.now().toEpochMilliseconds() - knownAtMs)
+        known(ms)
+        return ms
     }
 
     private fun known(ms: Long) {
@@ -276,6 +308,11 @@ internal class BehindPlay(
                 cutMs = cutMs,
                 driftMs = sitting.driftMs,
             )
+    }
+
+    private companion object {
+        /** The shortest media-time wait: a hold that fires a little early waits at least this long again. */
+        const val MIN_REARM_MS = 250L
     }
 
     /** What woke the behind loop. */

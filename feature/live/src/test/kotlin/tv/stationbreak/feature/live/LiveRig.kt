@@ -274,16 +274,16 @@ class FakePlayControl(
     private fun known(ms: Long) = if (positionUnknown) PlayerEvent.NOT_KNOWN else ms
 
     override fun pause() {
-        if (!playing) return
         calls += "pause"
+        if (!playing) return
         rebase()
         playing = false
         events.tryEmit(PlayerEvent.Paused(generation, now(), known(baseMs)))
     }
 
     override fun resume() {
-        if (playing) return
         calls += "resume"
+        if (playing) return
         rebase()
         playing = true
         events.tryEmit(PlayerEvent.Resumed(generation, now()))
@@ -308,7 +308,14 @@ class FakePlayControl(
         }
     }
 
-    override suspend fun position(): Duration? = if (positionUnknown) null else positionMs().milliseconds
+    /** How many times [position] was read. */
+    var positionReads = 0
+        private set
+
+    override suspend fun position(): Duration? {
+        positionReads++
+        return if (positionUnknown) null else positionMs().milliseconds
+    }
 
     override fun seekable(): Boolean = seekableValue
 }

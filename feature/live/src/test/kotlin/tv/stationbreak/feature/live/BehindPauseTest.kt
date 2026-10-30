@@ -158,14 +158,49 @@ class BehindPauseTest {
     fun anUnknownPositionKeepsTheLastKnownPlace() =
         runTest {
             val k = keys()
+            // The player cannot say where it is from before the pause: the place is the live position it paused at.
+            k.control.positionUnknown = true
             k.r.atMin(1)
             k.press(LiveCommand.PlayPause)
-            k.control.positionUnknown = true
             k.r.atMin(2)
             val behind = checkNotNull(checkNotNull(k.r.live.currentSitting()).behind)
             val place = checkNotNull(behind.pausedPlace())
             assertEquals(11 * MIN, place.mediaMs)
             assertEquals(CH7, place.channel)
+        }
+
+    @Test
+    fun anUnknownPositionAfterPlayStillReachesTheCutOnTime() =
+        runTest {
+            val k = keys()
+            k.r.atMin(1)
+            k.press(LiveCommand.PlayPause)
+            k.r.atMin(11)
+            k.press(LiveCommand.PlayPause)
+            k.control.positionUnknown = true
+            val reads = k.control.positionReads
+            // 49 minutes of media left from minute 11: the cut is at minute 60, worked out from the last known place.
+            k.r.at(60 * MIN - 1_000)
+            assertEquals(1, k.r.tuneCount())
+            k.r.at(60 * MIN + 1_000)
+            assertEquals(2, k.r.tuneCount())
+            // No spin: a handful of reads, not one per millisecond near the cut.
+            assertTrue(k.control.positionReads - reads < 10)
+        }
+
+    @Test
+    fun aSlowHoldNearTheCutDoesNotSpin() =
+        runTest {
+            val k = keys()
+            k.r.atMin(1)
+            k.press(LiveCommand.PlayPause)
+            k.r.atMin(11)
+            k.control.rate = 0.9
+            val reads = k.control.positionReads
+            k.press(LiveCommand.PlayPause)
+            k.r.atMin(11 + 55)
+            assertEquals(2, k.r.tuneCount())
+            assertTrue("reads=${k.control.positionReads - reads}", k.control.positionReads - reads < 20)
         }
 
     @Test
@@ -207,8 +242,18 @@ class BehindPauseTest {
             assertEquals(1, server.calls.count { it.kind == "start" })
             k.press(LiveCommand.PlayPause)
             k.r.at(200_000)
+            val start = server.calls.single { it.kind == "start" }
             val progress = server.calls.filter { it.kind == "progress" }
             assertTrue(progress.isNotEmpty())
             assertTrue(progress.all { it.paused })
+            // Paused check-ins stay at the safe position, never the real one.
+            assertTrue(progress.all { it.posMs == start.posMs })
+            k.press(LiveCommand.PlayPause)
+            k.r.at(260_000)
+            // Play within pauseReportMax: no second Playing, and the check-ins say playing again.
+            val after = server.calls.drop(server.calls.indexOf(progress.last()) + 1)
+            assertEquals(1, server.calls.count { it.kind == "start" })
+            assertEquals(listOf(210_000L, 240_000L), after.filter { it.kind == "progress" }.map { it.atMs })
+            assertTrue(after.all { it.kind == "progress" && !it.paused && it.posMs == start.posMs })
         }
 }

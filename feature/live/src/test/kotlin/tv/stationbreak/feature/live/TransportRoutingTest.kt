@@ -122,5 +122,44 @@ class TransportRoutingTest {
             keys.trySend(LiveCommand.PlayPause)
             runCurrent()
             assertEquals(listOf("press dropped reason=transport-refused state=Watching"), r.dropped())
+            // A closed inbox means the sitting is ending: nothing breaks and nothing is tuned again meanwhile.
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertTrue(r.reports.none { it is TuneReport.Failed })
+            assertEquals(1, r.tunes.size)
+        }
+
+    @Test
+    fun anInboxClosedUnderTheLiveHoldBreaksNothing() =
+        runTest {
+            val r = Rig(this)
+            r.schedule.channel(CH7, 7, listOf(program(0, 600, 1)))
+            r.start()
+            advanceTimeBy(5.seconds)
+            runCurrent()
+            checkNotNull(r.live.currentSitting()).commands.close()
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertTrue(r.reports.none { it is TuneReport.Failed })
+            assertEquals(1, r.tunes.size)
+            assertTrue(r.state is LiveState.Watching)
+        }
+
+    @Test
+    fun anInboxClosedUnderTheBehindPlayBreaksNothing() =
+        runTest {
+            val r = Rig(this)
+            r.schedule.channel(CH7, 7, listOf(program(0, 600, 1)))
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
+            advanceTimeBy(5.seconds)
+            keys.trySend(LiveCommand.PlayPause)
+            runCurrent()
+            checkNotNull(r.live.currentSitting()).commands.close()
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertTrue(r.reports.none { it is TuneReport.Failed })
+            assertEquals(1, r.tunes.size)
+            assertTrue(checkNotNull(r.live.transport.value).paused)
         }
 }
