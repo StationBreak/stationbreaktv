@@ -38,6 +38,30 @@ class NameFoldTest {
     }
 
     @Test
+    fun aStudioNameIsTrimmedOfEveryUnicodeSpaceSeparatorAtTheEnds() {
+        assertEquals("Pixar", cleanStudioName(chars(0x2003) + "Pixar" + chars(0x2003)))
+        assertEquals(cleanStudioName("Pixar"), cleanStudioName(chars(0x2003, 0x2009) + "Pixar" + chars(0x200A)))
+        assertEquals("Pixar", cleanStudioName(chars(0x202F, 0x1680) + "Pixar" + chars(0x1680, 0x202F, 0x205F)))
+        val zs = intArrayOf(0x20, 0xA0, 0x1680, 0x202F, 0x205F, 0x3000) + (0x2000..0x200A).toList().toIntArray()
+        for (code in zs) {
+            assertEquals("A", cleanStudioName(chars(code) + "A" + chars(code)), "U+" + code.toString(16))
+            assertEquals("", cleanStudioName(chars(code, code)), "U+" + code.toString(16))
+        }
+    }
+
+    @Test
+    fun aStudioNameOfOnlySpaceSeparatorsIsBlankAndDropped() {
+        assertEquals("", cleanStudioName(chars(0x2003, 0x2003)))
+        assertEquals(listOf("pixar"), foldStudioNames(listOf(chars(0x2003), "Pixar", chars(0x202F, 0x1680))))
+    }
+
+    @Test
+    fun aSpaceSeparatorInTheMiddleOfAStudioNameIsKept() {
+        val inside = "A" + chars(0x2003, 0x202F, 0x1680, 0xA0) + "B"
+        assertEquals(inside, cleanStudioName(chars(0x2003) + inside + chars(0x2003)))
+    }
+
+    @Test
     fun aStudioNameKeepsJoinersAndMapsLineAndTabCharactersToASpace() {
         assertEquals("A" + chars(0x200D, 0x200C) + "B", cleanStudioName("A" + chars(0x200D, 0x200C) + "B"))
         assertEquals("A B  C", cleanStudioName("A" + chars(9) + "B" + chars(13, 10) + "C"))
