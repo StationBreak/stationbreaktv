@@ -68,6 +68,14 @@ internal class MediaCalls(
             }
         }
 
+    // Every view ID, hidden ones included and of any kind: only whether a chosen library still exists is asked.
+    suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>> =
+        calls.send(session, Endpoint.get("UserViews", listOf("includeHidden" to "true"))).flatMap { text ->
+            Wire.parse(text, ViewsDto.serializer()).flatMap { views ->
+                convert { views.items.map { ItemId(it.id) }.toSet() }
+            }
+        }
+
     suspend fun items(
         session: Session,
         library: Library,

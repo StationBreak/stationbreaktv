@@ -260,6 +260,48 @@ abstract class ContractSuite {
     }
 
     @Test
+    fun aLibraryTheViewerHidesIsStillInTheRemovalCheck() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val token = harnessToken()
+            val userId = session.userId.value
+            val config = server.http.expectOk("read config", server.http.get("Users/$userId", token)).obj()
+            val original = config.getValue("Configuration").jsonObject
+            val hiddenTv =
+                JsonObject(original + ("MyMediaExcludes" to JsonArray(listOf(JsonPrimitive(server.seeded.tvLibrary)))))
+            try {
+                server.http.expectOk(
+                    "hide the TV library",
+                    server.http.post("Users/Configuration", hiddenTv.toString(), token, listOf("userId" to userId)),
+                )
+
+                val listed =
+                    adapter
+                        .libraries(session)
+                        .getOrNull()
+                        ?.map { it.id.value }
+                        .orEmpty()
+                val checked =
+                    adapter
+                        .libraryIdsForRemovalCheck(session)
+                        .getOrNull()
+                        ?.map { it.value }
+                        .orEmpty()
+
+                assertTrue(server.seeded.tvLibrary !in listed, "the hidden library is still in the listing")
+                assertTrue(server.seeded.tvLibrary in checked, "the hidden library is missing from the removal check")
+                assertTrue(listed.all { it in checked }, "the removal check lacks a listed library")
+            } finally {
+                server.http.expectOk(
+                    "restore config",
+                    server.http.post("Users/Configuration", original.toString(), token, listOf("userId" to userId)),
+                )
+            }
+        }
+    }
+
+    @Test
     fun itemsPageThroughALibrary() {
         runBlocking {
             val adapter = adapter()

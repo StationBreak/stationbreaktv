@@ -47,6 +47,7 @@ class FakeMediaServer : MediaServer {
     var revokeResult: ServerResult<Unit> = ServerResult.Success(Unit)
     var quickConnectStates: List<QuickConnectState> = emptyList()
     var librariesResult: ServerResult<List<Library>> = ServerResult.Failure(MediaServerError.Unknown())
+    var libraryIdsResult: ServerResult<Set<ItemId>> = ServerResult.Failure(MediaServerError.Unknown())
     var itemsResult: ServerResult<ItemPage> = ServerResult.Failure(MediaServerError.Unknown())
     var libraryItemsResult: ServerResult<LibraryItemsPage> = ServerResult.Failure(MediaServerError.Unknown())
     var libraryItemIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
@@ -183,6 +184,8 @@ class FakeMediaServer : MediaServer {
         librariesCalls += session
         return librariesResult
     }
+
+    override suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>> = libraryIdsResult
 
     override suspend fun items(
         session: Session,

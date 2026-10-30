@@ -191,4 +191,65 @@ class LibraryMappingTest {
             assertIs<MediaServerError.NotJellyfin>(error)
         }
     }
+
+    @Test
+    fun theRemovalCheckAsksForHiddenViewsAndKeepsEveryKind() {
+        runBlocking {
+            jellyfin.on("GET", "/UserViews") {
+                views(
+                    view("r1", "Films", "movies"),
+                    view("r2", "Playlists", "playlists"),
+                    view("r3", "Future", "somethingfromthefuture"),
+                    view("r4", "Everything", null),
+                )
+            }
+
+            val ids = testAdapter().libraryIdsForRemovalCheck(testSession(jellyfin.address)).getOrNull()
+
+            assertEquals(setOf("r1", "r2", "r3", "r4"), ids?.map { it.value }?.toSet())
+            val request = jellyfin.requests("/UserViews").single()
+            assertEquals("GET", request.method)
+            assertEquals("true", request.url.queryParameter("includeHidden"))
+        }
+    }
+
+    @Test
+    fun theLibraryListingStillAsksWithoutIncludeHidden() {
+        runBlocking {
+            jellyfin.on("GET", "/UserViews") { views() }
+
+            testAdapter().libraries(testSession(jellyfin.address))
+
+            assertEquals(
+                null,
+                jellyfin
+                    .requests("/UserViews")
+                    .single()
+                    .url
+                    .queryParameter("includeHidden"),
+            )
+        }
+    }
+
+    @Test
+    fun aRejectedTokenOnTheRemovalCheckIsSessionExpired() {
+        runBlocking {
+            jellyfin.on("GET", "/UserViews") { jellyfin.status(401) }
+
+            val error = testAdapter().libraryIdsForRemovalCheck(testSession(jellyfin.address)).errorOrNull()
+
+            assertIs<MediaServerError.SessionExpired>(error)
+        }
+    }
+
+    @Test
+    fun aRemovalCheckAnswerThatIsNotJellyfinIsNotJellyfin() {
+        runBlocking {
+            jellyfin.on("GET", "/UserViews") { jellyfin.json("<html>hello</html>") }
+
+            val error = testAdapter().libraryIdsForRemovalCheck(testSession(jellyfin.address)).errorOrNull()
+
+            assertIs<MediaServerError.NotJellyfin>(error)
+        }
+    }
 }

@@ -121,6 +121,14 @@ interface MediaServer {
     suspend fun libraries(session: Session): ServerResult<List<Library>>
 
     /**
+     * The ID of every view the server has for the user (`GET /UserViews?includeHidden=true`), with no filter on kind:
+     * the libraries [libraries] leaves out (hidden ones, kinds the app does not use) are in it. It answers one
+     * question only, whether a chosen library still exists on the server, so a library counts as removed only if its
+     * ID is absent here. It is not a list to pick libraries from.
+     */
+    suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>>
+
+    /**
      * One page of [library]'s direct children, from [startIndex] (at least 0) with at most [limit] items (1 to
      * [MAX_PAGE_SIZE]). The total count is the whole library's, so a caller can page. Throws
      * [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the caller, not a server problem.

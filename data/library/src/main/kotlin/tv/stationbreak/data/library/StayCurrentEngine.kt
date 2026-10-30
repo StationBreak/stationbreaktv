@@ -114,6 +114,17 @@ private sealed interface IdsRead {
     ) : IdsRead
 }
 
+/** How one read of the view IDs ended: [Sound] with the IDs, or [Failed] with the outcome the pass ends as. */
+private sealed interface ViewIds {
+    class Sound(
+        val ids: Set<ItemId>,
+    ) : ViewIds
+
+    class Failed(
+        val outcome: SyncOutcome,
+    ) : ViewIds
+}
+
 /** One page of an ID listing, from a start index and a count: the item listing or the series listing. */
 private typealias IdLister = suspend (start: Int, count: Int) -> ServerResult<ItemIdPage>
 
@@ -288,6 +299,10 @@ internal class StayCurrentEngine(
         private var passed = PassSummary()
         private var reconciled = ReconcileSummary()
 
+        // The item and series IDs the listed libraries' complete lists held in this pass.
+        private val listedItems = HashSet<ItemId>()
+        private val listedSeries = HashSet<ItemId>()
+
         suspend fun incremental(
             chosen: Set<ItemId>,
             last: Instant,
@@ -343,20 +358,20 @@ internal class StayCurrentEngine(
         private fun counted() = passed.copy(skipped = skipped)
 
         suspend fun reconcile(chosen: Set<ItemId>): StayResult<ReconcileSummary> {
-            val listing =
+            val libraries =
                 when (val listed = server.libraries(session)) {
-                    is ServerResult.Success -> listed.value
+                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), reconciled)
                 }
-            val libraries = listing.filter { it.id in chosen }
-            // A chosen library the server does not list may have been deleted there (#495).
-            val removed = chosen - libraries.map { it.id }.toSet()
-            if (removed.isNotEmpty()) {
-                val failed = tombstoneRemoved(chosen, removed, listing)
-                if (failed != null) return StayResult(failed, reconciled)
-            }
             for (library in libraries) {
                 val failed = reconcile(library)
+                if (failed != null) return StayResult(failed, reconciled)
+            }
+            // A chosen library the listing lacks may have been deleted on the server (#495). This runs only once every
+            // listed library was reconciled, so it knows which IDs those libraries still hold.
+            val removed = chosen - libraries.map { it.id }.toSet()
+            if (removed.isNotEmpty()) {
+                val failed = tombstoneRemoved(chosen, removed)
                 if (failed != null) return StayResult(failed, reconciled)
             }
             currentCoroutineContext().ensureActive()
@@ -364,14 +379,16 @@ internal class StayCurrentEngine(
             return StayResult(SyncOutcome.Completed, reconciled)
         }
 
-        // A chosen library the listing lacks is tombstoned (items and series, revivable), but only on a listing that
-        // looks sound: an empty one, or one with none of the chosen libraries, is more likely a server fault (suspect).
-        // Like the ID reconcile, only what a second read also lacks is gone. The library stays chosen, so if it comes
-        // back its rows revive in the ordinary reconcile. One with no live rows has nothing to tombstone.
+        // A chosen library the listing lacks is tombstoned (items and series, revivable), but only if the server's view
+        // IDs, hidden ones and every kind included, also lack it. The check is made on a read that looks sound: an
+        // empty one, or one with none of the chosen libraries, is more likely a server fault (suspect). Like the ID
+        // reconcile, only what a second read also lacks is gone; the two reads are back to back, so a server that is
+        // briefly wrong for both is the accepted risk. The library stays chosen, so if it comes back its rows revive
+        // in the ordinary reconcile. An item or series that a listed library still holds (rows have one library, items
+        // can belong to two) is left live. A library with no live rows has nothing to tombstone.
         private suspend fun tombstoneRemoved(
             chosen: Set<ItemId>,
             removed: Set<ItemId>,
-            listing: List<Library>,
         ): SyncOutcome? {
             // The cache first, then the server, as in the ID reconcile.
             val live =
@@ -379,28 +396,38 @@ internal class StayCurrentEngine(
                     .associateWith { repository.liveItemIds(account, it) to repository.liveSeriesIds(account, it) }
                     .filterValues { (items, series) -> items.isNotEmpty() || series.isNotEmpty() }
             if (live.isEmpty()) return null
-            if (!soundListing(chosen, listing)) return suspect()
-            val again =
-                when (val read = server.libraries(session)) {
-                    is ServerResult.Success -> read.value
-                    is ServerResult.Failure -> return fail(read.error)
+            val first =
+                when (val read = viewIds(chosen)) {
+                    is ViewIds.Failed -> return read.outcome
+                    is ViewIds.Sound -> read.ids
                 }
-            if (!soundListing(chosen, again)) return suspect()
-            val listedAgain = again.map { it.id }.toSet()
-            for ((library, rows) in live) {
-                if (library in listedAgain) continue
-                val (items, series) = rows
+            val missing = live.filterKeys { it !in first }
+            if (missing.isEmpty()) return null
+            val again =
+                when (val read = viewIds(chosen)) {
+                    is ViewIds.Failed -> return read.outcome
+                    is ViewIds.Sound -> read.ids
+                }
+            for (rows in missing.filterKeys { it !in again }.values) {
+                val items = rows.first.filterNot { it in listedItems }
+                val series = rows.second.filterNot { it in listedSeries }
                 repository.applyReconcile(account, items, emptySet(), series, emptySet())
                 reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
             }
             return null
         }
 
-        // Neither empty nor missing every chosen library.
-        private fun soundListing(
-            chosen: Set<ItemId>,
-            listing: List<Library>,
-        ) = listing.any { it.id in chosen }
+        // One read of the view IDs: a failure, or an empty answer or one with no chosen library (suspect), stops.
+        private suspend fun viewIds(chosen: Set<ItemId>): ViewIds =
+            when (val read = server.libraryIdsForRemovalCheck(session)) {
+                is ServerResult.Failure -> {
+                    ViewIds.Failed(fail(read.error))
+                }
+
+                is ServerResult.Success -> {
+                    if (read.value.any { it in chosen }) ViewIds.Sound(read.value) else ViewIds.Failed(suspect())
+                }
+            }
 
         private suspend fun reconcile(library: Library): SyncOutcome? {
             // The cache first, then the server: whatever another pass saves while the list is read is not "gone".
@@ -415,10 +442,12 @@ internal class StayCurrentEngine(
                 }
             // The series are a separate pass with their own sets (Vimes M3), read after the items'. If it stops, the
             // items' decision is still written, and the pass ends with the series' outcome.
+            listedItems += items.list.ids
             val seriesLive = repository.liveSeriesIds(account, library.id).toSet()
             val seriesTombstoned = repository.tombstonedSeriesIds(account, library.id).toSet()
             val seriesIds: IdLister = { start, count -> server.librarySeriesIds(session, library, start, count) }
             val series = decide(seriesLive, seriesTombstoned, seriesIds)
+            (series as? Decision.Ready)?.let { listedSeries += it.list.ids }
             val seriesGone = (series as? Decision.Ready)?.gone.orEmpty()
             val seriesReturning = (series as? Decision.Ready)?.returning.orEmpty()
             // One transaction for both (the item reconcile and the series reconcile).
