@@ -82,14 +82,26 @@ class NameFolds {
 }
 
 private const val LAST_ASCII_PRINTABLE = 0x7E
-private const val NO_BREAK_SPACE = 0xA0
-private const val IDEOGRAPHIC_SPACE = 0x3000
 private const val LINE_SEPARATOR = 0x2028
 private const val PARAGRAPH_SEPARATOR = 0x2029
 private const val FIRST_SUPPLEMENTARY = 0x10000
 private const val HIGH_BASE = 0xD800
 private const val LOW_BASE = 0xDC00
 private const val SURROGATE_BITS = 10
+
+// The ends of a studio name lose any Unicode space separator (Zs): U+0020, U+00A0, U+1680, U+2000 to U+200A, U+202F,
+// U+205F and U+3000. A fixed list, all in the BMP and unchanged since Unicode 6.3, not the platform's character
+// category.
+private val TRIMMED_CODE_POINTS =
+    listOf(
+        0x0020..0x0020,
+        0x00A0..0x00A0,
+        0x1680..0x1680,
+        0x2000..0x200A,
+        0x202F..0x202F,
+        0x205F..0x205F,
+        0x3000..0x3000,
+    )
 
 // What a studio name loses: C0, DEL and C1 controls, and every format (Cf) code point of Unicode 15 except ZWJ (U+200D)
 // and ZWNJ (U+200C), which keep their place in scripts that need them. A fixed table, not the platform's character
@@ -127,8 +139,9 @@ private val STRIPPED_CODE_POINTS =
  * A studio name as the sync now stores it, for names cached before that cleaning existed, so every TV matches the same
  * text whichever version wrote its cache. Removes C0 and C1 controls, format characters other than ZWJ and ZWNJ
  * (direction controls, the zero-width space, the byte order mark...) and a lone half of a surrogate pair; tab, CR, LF,
- * U+2028 and U+2029 become a space; then the ends lose any of U+0020, U+00A0 (no-break space) and U+3000 (ideographic
- * space). Nothing else is collapsed. Idempotent, so a name cleaned at sync time comes through unchanged.
+ * U+2028 and U+2029 become a space; then the ends lose any Unicode space separator (Zs): U+0020, U+00A0 (no-break
+ * space), U+1680, U+2000 to U+200A (en and em spaces...), U+202F, U+205F and U+3000 (ideographic space). Nothing else
+ * is collapsed. Idempotent, so a name cleaned at sync time comes through unchanged.
  *
  * Every set here (what is removed, what becomes a space, what is trimmed) is a fixed list of code points, never the
  * platform's character category, whitespace or `trim()`, so the answer is exactly the same on every TV whatever
@@ -162,7 +175,7 @@ private fun isSpaced(code: Int) =
 // The ASCII printable range is never stripped, so most characters skip the table.
 private fun isStripped(cp: Int) = cp !in ' '.code..LAST_ASCII_PRINTABLE && STRIPPED_CODE_POINTS.any { cp in it }
 
-private fun isTrimmed(ch: Char) = ch == ' ' || ch.code == NO_BREAK_SPACE || ch.code == IDEOGRAPHIC_SPACE
+private fun isTrimmed(ch: Char) = TRIMMED_CODE_POINTS.any { ch.code in it }
 
 private fun trimmed(text: StringBuilder): String {
     var start = 0
