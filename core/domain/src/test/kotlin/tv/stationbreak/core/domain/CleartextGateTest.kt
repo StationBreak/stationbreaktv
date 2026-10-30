@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.PlaybackRequest
@@ -93,16 +94,25 @@ class CleartextGateTest {
                 kotlin.time.Instant::class.java,
                 // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.
                 SpkiPin::class.java,
-                // existingLibraryIds takes the library IDs to ask about: plain values, no acknowledgement.
-                Set::class.java,
                 Int::class.javaPrimitiveType,
                 // reportStopped takes whether the end was a failure: a plain flag, never an acknowledgement.
                 Boolean::class.javaPrimitiveType,
                 kotlin.coroutines.Continuation::class.java,
             )
         for (method in MediaServer::class.java.methods.filterNot { it.isSynthetic }) {
-            val unexpected = method.parameterTypes.filterNot { it in allowed }
+            // existingLibraryIds takes the library IDs to ask about: a Set is allowed only as a Set of ItemId.
+            val unexpected =
+                method.parameterTypes.indices
+                    .filterNot { i ->
+                        val type = method.parameterTypes[i]
+                        type in allowed || (type == Set::class.java && isSetOfItemId(method.genericParameterTypes[i]))
+                    }.map { method.parameterTypes[it] }
             assertEquals(emptyList(), unexpected, method.name)
         }
+    }
+
+    private fun isSetOfItemId(type: java.lang.reflect.Type): Boolean {
+        val argument = (type as? java.lang.reflect.ParameterizedType)?.actualTypeArguments?.singleOrNull()
+        return argument == ItemId::class.java
     }
 }

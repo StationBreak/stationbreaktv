@@ -384,7 +384,9 @@ internal class StayCurrentEngine(
 
         // A chosen library the listing lacks is tombstoned (items and series, revivable), but only if the server, asked
         // about the library IDs themselves (not the user's views, which hide and group), also says it is gone. The
-        // answer must look sound: one with none of the chosen libraries is more likely a server fault (suspect). Like
+        // answer must look sound: one with none of the chosen libraries is more likely a server fault (suspect). That
+        // is a deliberate fail-safe, and it also covers every chosen library being truly deleted: the pass then fails
+        // as suspect on every run and tombstones nothing (follow-up #507). Like
         // the ID reconcile, only what a second read also lacks is gone; the two reads are back to back, so a server
         // that is briefly wrong for both is the accepted risk. The library stays chosen, so if it comes back its rows
         // revive in the ordinary reconcile. An item or series that a listed library still holds (rows have one
@@ -432,7 +434,10 @@ internal class StayCurrentEngine(
                 }
 
                 is ServerResult.Success -> {
-                    if (read.value.any { it in chosen }) Existing.Sound(read.value) else Existing.Failed(suspect())
+                    // Tested against the chosen IDs, not just for emptiness, to defend against an adapter that
+                    // returns IDs that were not asked about.
+                    val sound = read.value.any { it in chosen }
+                    if (sound) Existing.Sound(read.value) else Existing.Failed(suspect())
                 }
             }
 

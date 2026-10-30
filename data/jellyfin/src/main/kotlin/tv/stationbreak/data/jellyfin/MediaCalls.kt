@@ -85,7 +85,7 @@ internal class MediaCalls(
                 "enableUserData" to "false",
             )
         return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
-            Wire.parse(text, ViewsDto.serializer()).flatMap { found ->
+            Wire.parse(text, IdsDto.serializer()).flatMap { found ->
                 convert {
                     found.items
                         .map { ItemId(it.id) }
