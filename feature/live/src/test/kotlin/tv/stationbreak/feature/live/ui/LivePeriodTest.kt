@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -20,6 +22,7 @@ import tv.stationbreak.feature.live.Rig
 import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Leaving live TV (#431): the player is stopped and released, and the Stopped report sent, the moment the screen
@@ -92,5 +95,29 @@ class LivePeriodTest {
             assertEquals(2, server.count("start"))
             assertEquals(1, server.count("stopped"))
             assertEquals("stopped", server.calls.filter { it.kind != "userdata" }[1].kind)
+        }
+
+    @Test
+    fun theGuardedPlayerForwardsTransportUntilLeft() =
+        runTest {
+            val inner = RecordingPlayer()
+            val period = LivePeriod(inner, Job())
+
+            period.player.pause(3)
+            assertEquals(listOf("pause:3"), inner.log)
+            period.player.resume(3)
+            period.player.seekTo(3, 5.seconds)
+            assertEquals(listOf("pause:3", "resume:3", "seek:3:5000"), inner.log)
+            assertEquals(1.seconds, period.player.position(3))
+            assertTrue(period.player.seekable(3))
+
+            period.leave()
+            val afterLeave = inner.log.toList()
+            period.player.pause(3)
+            period.player.resume(3)
+            period.player.seekTo(3, 5.seconds)
+            assertEquals(afterLeave, inner.log)
+            assertNull(period.player.position(3))
+            assertFalse(period.player.seekable(3))
         }
 }

@@ -85,6 +85,34 @@ sealed interface PlayerEvent {
         val bufferedMs: Long = NOT_KNOWN,
     ) : PlayerEvent
 
+    /** [VideoPlayer.pause] paused the play at [positionMs]. */
+    data class Paused(
+        override val generation: Long,
+        val atMs: Long,
+        val positionMs: Long,
+    ) : PlayerEvent
+
+    /** The play was asked to play on after a pause; [PlayerEvent.Playing] follows when it does. */
+    data class Resumed(
+        override val generation: Long,
+        val atMs: Long,
+    ) : PlayerEvent
+
+    /** [VideoPlayer.seekTo] moved the play from [fromMs] towards [toMs]. */
+    data class Seeking(
+        override val generation: Long,
+        val atMs: Long,
+        val fromMs: Long,
+        val toMs: Long,
+    ) : PlayerEvent
+
+    /** The player is ready at the seek target again (playing or paused). Exactly one per [Seeking]. */
+    data class SeekDone(
+        override val generation: Long,
+        val atMs: Long,
+        val positionMs: Long,
+    ) : PlayerEvent
+
     companion object {
         /** A number the player could not give. */
         const val NOT_KNOWN = -1L
@@ -112,4 +140,26 @@ interface VideoPlayer {
     fun attach(surface: SurfaceView?)
 
     fun release()
+
+    /** Pauses the play [generation]; nothing when it is not the play on the player. Emits [PlayerEvent.Paused]. */
+    fun pause(generation: Long)
+
+    /** Plays on from where [generation] paused; nothing otherwise. Emits [PlayerEvent.Resumed], then Playing. */
+    fun resume(generation: Long)
+
+    /** Seeks [generation] to [position] in the stream, playing or paused as it was. Emits Seeking, then SeekDone. */
+    fun seekTo(
+        generation: Long,
+        position: Duration,
+    )
+
+    /**
+     * The position of [generation]; null when it is not the play on the player (a newer play, or after [stop]) or the
+     * player cannot say. On the player's looper it is read now; from any other thread it is the last value the player
+     * published (refreshed on every event and every transport call), because Media3 must not be read off its thread.
+     */
+    fun position(generation: Long): Duration?
+
+    /** True when [generation] is on the player and its media can seek; false otherwise, after [stop], or unknown. */
+    fun seekable(generation: Long): Boolean
 }

@@ -9,6 +9,7 @@ import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.feature.live.LiveChannel
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration
 
 /**
  * One STARTED period's player and machine, and the way out of it that cannot wait (#431). [leave] runs on the caller's
@@ -52,6 +53,25 @@ internal class LivePeriod(
         override fun stop() {
             if (!left.get()) inner.stop()
         }
+
+        override fun pause(generation: Long) {
+            if (!left.get()) inner.pause(generation)
+        }
+
+        override fun resume(generation: Long) {
+            if (!left.get()) inner.resume(generation)
+        }
+
+        override fun seekTo(
+            generation: Long,
+            position: Duration,
+        ) {
+            if (!left.get()) inner.seekTo(generation, position)
+        }
+
+        override fun position(generation: Long): Duration? = if (left.get()) null else inner.position(generation)
+
+        override fun seekable(generation: Long): Boolean = !left.get() && inner.seekable(generation)
 
         override fun attach(surface: SurfaceView?) {
             if (!left.get()) inner.attach(surface)

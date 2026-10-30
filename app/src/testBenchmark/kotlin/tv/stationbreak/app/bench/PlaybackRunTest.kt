@@ -70,6 +70,19 @@ private class ScriptedPlayer(
         }
     }
 
+    override fun pause(generation: Long) = Unit
+
+    override fun resume(generation: Long) = Unit
+
+    override fun seekTo(
+        generation: Long,
+        position: Duration,
+    ) = Unit
+
+    override fun position(generation: Long): Duration? = null
+
+    override fun seekable(generation: Long): Boolean = false
+
     override fun attach(surface: SurfaceView?) = Unit
 
     override fun release() = Unit
