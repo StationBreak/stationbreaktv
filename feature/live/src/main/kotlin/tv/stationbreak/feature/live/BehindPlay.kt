@@ -122,6 +122,9 @@ internal class BehindPlay(
     private val cutMs = TransportMath.cutMs(block)
     private val timings = sitting.timings
     private val aheadMs = timings.stepAhead.inWholeMilliseconds
+    private val rearmMinMs = timings.holdRearmMin.inWholeMilliseconds
+    private val landingSlackMs = timings.seekLandingSlack.inWholeMilliseconds
+    private val goLiveWaitMs = timings.goLiveWait.inWholeMilliseconds
 
     /** Paused or playing behind: Play/Pause is resolved against this, not against the player's last event. */
     @Volatile
@@ -193,7 +196,7 @@ internal class BehindPlay(
     @Volatile
     private var goingLive: CompletableDeferred<Unit>? = null
 
-    /** The clock time (epoch ms) the seek back to live went out: it is waited for [GO_LIVE_WAIT_MS] at most. */
+    /** The clock time (epoch ms) the seek back to live went out: it is waited for [LiveTimings.goLiveWait] at most. */
     private var liveSinceMs = 0L
 
     /** Runs from the live play's [first] op (or a kept [from] place, Task 12) until the item ends, live, or an exit. */
@@ -260,10 +263,10 @@ internal class BehindPlay(
             }
             // The first wait is the exact media left, so the cut is on time. Only once a wait has fired short is a
             // floor put under it, so a hold that keeps running short near the cut never spins.
-            val dueMs = leftMs?.let { if (firedShort) maxOf(it, MIN_REARM_MS) else it }
+            val dueMs = leftMs?.let { if (firedShort) maxOf(it, rearmMinMs) else it }
             val settleMs = settleAtMs?.let { maxOf(0L, it - nowMs()) }
             val landed = goingLive
-            val liveMs = landed?.let { maxOf(0L, liveSinceMs + GO_LIVE_WAIT_MS - nowMs()) }
+            val liveMs = landed?.let { maxOf(0L, liveSinceMs + goLiveWaitMs - nowMs()) }
             val waitMs = listOfNotNull(dueMs, settleMs, liveMs).minOrNull()
             val woke =
                 select {
@@ -386,19 +389,17 @@ internal class BehindPlay(
         targetIsLive = false
         settleAtMs = null
         if (toMs == null) return
-        when {
-            toLive && !paused && goLive() -> {}
-
-            // The block ended before the settle (live is the next item, Task 9): the clamp holds while the play is
-            // still on its block.
-            read() < cutMs -> {
-                seek(minOf(toMs, cutMs))
-                show()
-            }
-
-            else -> {
-                dropped("transport-lost-at-cut")
-            }
+        if (toLive && !paused) {
+            val wentLive = goLive()
+            if (wentLive) return
+        }
+        // Not live: the target itself. Or the block ended before the settle (live is the next item, Task 9), and the
+        // clamp holds while the play is still on its block.
+        if (read() < cutMs) {
+            seek(minOf(toMs, cutMs))
+            show()
+        } else {
+            dropped("transport-lost-at-cut")
         }
     }
 
@@ -466,7 +467,7 @@ internal class BehindPlay(
     /** What a timed-out wait was for: the live seek's wait first, then the settle, else the media-time hold. */
     private fun timedOut(): Wake =
         when {
-            goingLive != null && nowMs() >= liveSinceMs + GO_LIVE_WAIT_MS -> Wake.LiveUnmatched
+            goingLive != null && nowMs() >= liveSinceMs + goLiveWaitMs -> Wake.LiveUnmatched
             settleDue() -> Wake.Settle
             else -> Wake.Due
         }
@@ -539,14 +540,14 @@ internal class BehindPlay(
     /**
      * A `SeekDone` at [at] (null: not known). It is the latest seek's when that seek's `Seeking` came before it, or,
      * with no `Seeking` seen (the player folded the seek into one already pending), when it lands within
-     * [LANDING_SLACK_MS] of the target. Any other is an earlier seek's, still buffered when the latest went out: it is
-     * dropped, so it can neither report the landing nor end the way back to live early. Only the latest seek's is
-     * reported, where it landed (else where it was sent).
+     * [LiveTimings.seekLandingSlack] of the target. Any other is an earlier seek's, still buffered when the latest went
+     * out: it is dropped, so it can neither report the landing nor end the way back to live early. Only the latest
+     * seek's is reported, where it landed (else where it was sent).
      */
     private fun seekDone(at: Long?) {
         val toMs = seekingToMs ?: return
         // A SeekDone with no position can only be matched by its Seeking: without one, an earlier seek's is as likely.
-        val mine = seekStarted || (at != null && abs(at - toMs) <= LANDING_SLACK_MS)
+        val mine = seekStarted || (at != null && abs(at - toMs) <= landingSlackMs)
         if (!mine) return
         at?.let(::known)
         if (seekOpen) visiting?.seeked(at ?: toMs)
@@ -604,20 +605,6 @@ internal class BehindPlay(
             )
     }
 
-    private companion object {
-        /** The shortest re-armed media-time wait: a hold that fired short waits at least this long again. */
-        const val MIN_REARM_MS = 250L
-
-        /** How far from its target a `SeekDone` with no `Seeking` seen may land and still be that seek's. */
-        const val LANDING_SLACK_MS = 2_000L
-
-        /**
-         * The longest wait for the seek back to live to be done, as the player's own seek watchdog
-         * (`TuneController.PLAYING_TIMEOUT`, 20 s): past it, live at the known place.
-         */
-        const val GO_LIVE_WAIT_MS = 20_000L
-    }
-
     /** What woke the behind loop. */
     private sealed interface Wake {
         data class End(
@@ -637,7 +624,7 @@ internal class BehindPlay(
         /** The seek back to live is done. */
         data object Landed : Wake
 
-        /** The seek back to live was not done within [GO_LIVE_WAIT_MS]. */
+        /** The seek back to live was not done within [LiveTimings.goLiveWait]. */
         data object LiveUnmatched : Wake
     }
 }
