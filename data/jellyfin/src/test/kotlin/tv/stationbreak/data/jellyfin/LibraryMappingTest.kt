@@ -191,4 +191,91 @@ class LibraryMappingTest {
             assertIs<MediaServerError.NotJellyfin>(error)
         }
     }
+
+    private fun candidates(vararg raw: String) = raw.map(::ItemId).toSet()
+
+    @Test
+    fun existingLibraryIdsAsksForTheItemsByIdAsTheUserAndKeepsOnlyCandidates() {
+        runBlocking {
+            val token = fake("token")
+            jellyfin.on("GET", "/Items") {
+                // The server answers with what exists, whatever the kind, and may return something not asked for.
+                views(
+                    view("r1", "Films", "movies"),
+                    view("r2", "Playlists", "playlists"),
+                    view("r3", "Future", "somethingfromthefuture"),
+                    view("zz", "Stray", "movies"),
+                )
+            }
+            val session = testSession(jellyfin.address, token)
+
+            val found = testAdapter().existingLibraryIds(session, candidates("r1", "r2", "r3", "gone")).getOrNull()
+
+            assertEquals(setOf("r1", "r2", "r3"), found?.map { it.value }?.toSet())
+            val request = jellyfin.requests("/Items").single()
+            assertEquals("GET", request.method)
+            assertEquals(session.userId.value, request.url.queryParameter("userId"))
+            assertEquals(
+                setOf("r1", "r2", "r3", "gone"),
+                request.url
+                    .queryParameter("ids")
+                    ?.split(",")
+                    ?.toSet(),
+            )
+            assertEquals("4", request.url.queryParameter("limit"))
+            assertTrue(request.headers["Authorization"]!!.contains("Token=\"$token\""))
+            assertTrue(token !in request.url.toString())
+        }
+    }
+
+    @Test
+    fun existingLibraryIdsOfNoCandidatesAsksNothing() {
+        runBlocking {
+            val found = testAdapter().existingLibraryIds(testSession(jellyfin.address), emptySet())
+
+            assertEquals(ServerResult.Success(emptySet()), found)
+            assertEquals(emptyList(), jellyfin.requests("/Items"))
+        }
+    }
+
+    @Test
+    fun theLibraryListingDoesNotUseTheItemsEndpoint() {
+        runBlocking {
+            jellyfin.on("GET", "/UserViews") { views() }
+
+            testAdapter().libraries(testSession(jellyfin.address))
+
+            assertEquals(emptyList(), jellyfin.requests("/Items"))
+            assertEquals(
+                null,
+                jellyfin
+                    .requests("/UserViews")
+                    .single()
+                    .url
+                    .queryParameter("includeHidden"),
+            )
+        }
+    }
+
+    @Test
+    fun aRejectedTokenOnExistingLibraryIdsIsSessionExpired() {
+        runBlocking {
+            jellyfin.on("GET", "/Items") { jellyfin.status(401) }
+
+            val error = testAdapter().existingLibraryIds(testSession(jellyfin.address), candidates("a")).errorOrNull()
+
+            assertIs<MediaServerError.SessionExpired>(error)
+        }
+    }
+
+    @Test
+    fun existingLibraryIdsAnswerThatIsNotJellyfinIsNotJellyfin() {
+        runBlocking {
+            jellyfin.on("GET", "/Items") { jellyfin.json("<html>hello</html>") }
+
+            val error = testAdapter().existingLibraryIds(testSession(jellyfin.address), candidates("a")).errorOrNull()
+
+            assertIs<MediaServerError.NotJellyfin>(error)
+        }
+    }
 }

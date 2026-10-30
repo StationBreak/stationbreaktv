@@ -154,6 +154,24 @@ class PagedMediaServer(
         return ServerResult.Success(libraries)
     }
 
+    /** Libraries that exist but [libraries] does not list (hidden, grouped, or of a kind the app does not use). */
+    var extraExistingLibraryIds: Set<ItemId> = emptySet()
+
+    /** What [existingLibraryIds] answers when it should fail; the listing's own failure fails it too. */
+    var existingLibraryIdsFailure: MediaServerError? = null
+
+    /** The candidates of every [existingLibraryIds] call, in order. */
+    val existingLibraryIdsCalls = mutableListOf<Set<ItemId>>()
+
+    override suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>> {
+        existingLibraryIdsCalls += candidates
+        (existingLibraryIdsFailure ?: librariesFailure)?.let { return ServerResult.Failure(it) }
+        return ServerResult.Success(candidates intersect (libraries.map { it.id }.toSet() + extraExistingLibraryIds))
+    }
+
     override suspend fun libraryItems(
         session: Session,
         library: Library,

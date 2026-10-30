@@ -50,6 +50,7 @@ import tv.stationbreak.data.jellyfin.QuickConnectLimits
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -256,6 +257,161 @@ abstract class ContractSuite {
                     .first { it.getValue("Id").jsonPrimitive.content == seeded.mixedLibrary }
             val type = mixed["CollectionType"]
             assertTrue(type == null || type is JsonNull, "mixed content has a collection type")
+        }
+    }
+
+    // The cases below change the shared viewer's configuration or policy and put it back in `finally`, so the other
+    // cases (which run against the same server) see the viewer as it was seeded.
+    private suspend fun withViewerConfiguration(
+        change: (JsonObject) -> JsonObject,
+        check: suspend (JellyfinMediaServer, Session) -> Unit,
+    ) {
+        val adapter = adapter()
+        val session = session(adapter)
+        val token = harnessToken()
+        val userId = session.userId.value
+        val user = server.http.expectOk("read viewer", server.http.get("Users/$userId", token)).obj()
+        val original = user.getValue("Configuration").jsonObject
+        try {
+            server.http.expectOk(
+                "change viewer configuration",
+                server.http.post("Users/Configuration", change(original).toString(), token, listOf("userId" to userId)),
+            )
+            check(adapter, session)
+        } finally {
+            server.http.expectOk(
+                "restore viewer configuration",
+                server.http.post("Users/Configuration", original.toString(), token, listOf("userId" to userId)),
+            )
+        }
+    }
+
+    private fun ids(vararg raw: String) = raw.map(::ItemId).toSet()
+
+    @Test
+    fun aLibraryTheViewerHidesStillExists() {
+        runBlocking {
+            val tv = server.seeded.tvLibrary
+            val hidden = JsonArray(listOf(JsonPrimitive(tv)))
+            withViewerConfiguration({ JsonObject(it + ("MyMediaExcludes" to hidden)) }) { adapter, session ->
+                val listed =
+                    adapter
+                        .libraries(session)
+                        .getOrNull()
+                        ?.map { it.id.value }
+                        .orEmpty()
+                val found = adapter.existingLibraryIds(session, ids(tv)).getOrNull()
+
+                assertTrue(tv !in listed, "the hidden library is still in the listing")
+                assertEquals(ids(tv), found)
+            }
+        }
+    }
+
+    @Test
+    fun aLibraryTheViewerGroupsStillExists() {
+        runBlocking {
+            val movies = server.seeded.moviesLibrary
+            val mixed = server.seeded.mixedLibrary
+            val grouped = JsonArray(listOf(JsonPrimitive(movies), JsonPrimitive(mixed)))
+            withViewerConfiguration({ JsonObject(it + ("GroupedFolders" to grouped)) }) { adapter, session ->
+                val found = adapter.existingLibraryIds(session, ids(movies, mixed)).getOrNull()
+
+                assertEquals(ids(movies, mixed), found)
+            }
+        }
+    }
+
+    // A library deleted through `DELETE /Library/VirtualFolders` stops existing for the check, but not at once: it is
+    // polled, bounded. Observed on both 12.1 and 12.2: it kept answering as existing for the first 60 s of polling and
+    // dropped within about a second of the triggered `Library/Refresh` (about 60.6 to 60.9 s in all, refresh used). So
+    // a deletion is seen after the next library scan, not at the delete call.
+    @Test
+    fun aLibraryDeletedOnTheServerNoLongerExists() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            ChurnLibrary(server).use { churn ->
+                churn.create(listOf("Gone"))
+                val churned = ids(churn.id)
+                val before = adapter.existingLibraryIds(session, churned).getOrNull()
+                assertEquals(churned, before, "the new library is missing")
+                val deleted =
+                    server.http.delete("Library/VirtualFolders", churn.admin, listOf("name" to "Churn"))
+                server.http.expectOk("delete the churn library", deleted)
+                val started = System.nanoTime()
+
+                var gone = false
+                var refreshed = false
+                while (!gone && System.nanoTime() - started < DELETION_BOUND_NS) {
+                    gone = adapter.existingLibraryIds(session, churned).getOrNull()?.isEmpty() == true
+                    if (!gone) {
+                        // One triggered refresh once half the bound has passed, in case only a scan drops it.
+                        if (!refreshed && System.nanoTime() - started > DELETION_BOUND_NS / 2) {
+                            churn.refresh()
+                            refreshed = true
+                        }
+                        delay(DELETION_POLL_MS)
+                    }
+                }
+                val millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+                println("deleted library dropped from existingLibraryIds after $millis ms (refresh=$refreshed)")
+
+                assertTrue(gone, "the deleted library still exists after $millis ms (refresh triggered: $refreshed)")
+            }
+        }
+    }
+
+    @Test
+    fun aLibraryIdTheServerDoesNotHaveDoesNotExist() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val unknown = UUID.randomUUID().toString().replace("-", "")
+
+            val found = adapter.existingLibraryIds(session, ids(unknown, server.seeded.moviesLibrary)).getOrNull()
+
+            assertEquals(ids(server.seeded.moviesLibrary), found)
+        }
+    }
+
+    @Test
+    fun aLibraryTheViewerLostAccessToIsStillReportedAsExisting() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+            val userId = session.userId.value
+            val user = server.http.expectOk("read viewer", server.http.get("Users/$userId", admin)).obj()
+            val original = user.getValue("Policy").jsonObject
+            val tv = server.seeded.tvLibrary
+            val movies = server.seeded.moviesLibrary
+            val restricted =
+                JsonObject(
+                    original +
+                        mapOf(
+                            "EnableAllFolders" to JsonPrimitive(false),
+                            "EnabledFolders" to JsonArray(listOf(JsonPrimitive(movies))),
+                        ),
+                )
+            try {
+                server.http.expectOk(
+                    "restrict viewer",
+                    server.http.post("Users/$userId/Policy", restricted.toString(), admin),
+                )
+
+                // Observed on 12.1 and 12.2: `GET /Items?ids=` answers for a library folder the user may no longer
+                // enter. A revoked folder is therefore not detected (the removal is never wrongly made, only
+                // missed). If a later server stops answering, this fails and the port's text is then true as written.
+                val found = adapter.existingLibraryIds(session, ids(tv, movies)).getOrNull()
+
+                assertEquals(ids(tv, movies), found)
+            } finally {
+                server.http.expectOk(
+                    "restore viewer policy",
+                    server.http.post("Users/$userId/Policy", original.toString(), admin),
+                )
+            }
         }
     }
 
@@ -1228,6 +1384,10 @@ abstract class ContractSuite {
 
     private companion object {
         const val CHURN_FILES = 3
+
+        // How long a deleted library may keep answering as existing: 60 s, then one triggered refresh and 60 s more.
+        const val DELETION_BOUND_NS = 120_000_000_000L
+        const val DELETION_POLL_MS = 500L
         const val CHURN_WAIT_SECONDS = 120
         const val CHURN_POLL_MS = 2_000L
         const val SUPPORTED_MAJOR = 12

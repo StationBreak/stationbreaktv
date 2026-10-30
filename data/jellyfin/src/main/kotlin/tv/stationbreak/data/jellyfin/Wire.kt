@@ -80,6 +80,17 @@ internal class ViewsDto(
     @SerialName("Items") val items: List<ViewDto> = emptyList(),
 )
 
+/** An answer read only for the IDs in it (the existence check of `GET /Items?ids=`). */
+@Serializable
+internal class IdsDto(
+    @SerialName("Items") val items: List<IdDto> = emptyList(),
+)
+
+@Serializable
+internal class IdDto(
+    @SerialName("Id") val id: String,
+)
+
 @Serializable
 internal class ViewDto(
     @SerialName("Id") val id: String,

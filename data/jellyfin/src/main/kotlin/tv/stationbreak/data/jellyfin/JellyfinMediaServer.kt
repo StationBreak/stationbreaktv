@@ -192,6 +192,11 @@ class JellyfinMediaServer internal constructor(
 
     override suspend fun libraries(session: Session): ServerResult<List<Library>> = media.libraries(session)
 
+    override suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>> = media.existingLibraryIds(session, candidates)
+
     override suspend fun items(
         session: Session,
         library: Library,

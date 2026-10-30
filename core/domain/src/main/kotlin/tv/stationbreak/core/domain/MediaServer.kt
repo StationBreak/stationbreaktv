@@ -121,6 +121,18 @@ interface MediaServer {
     suspend fun libraries(session: Session): ServerResult<List<Library>>
 
     /**
+     * Which of the library IDs in [candidates] still exist and are reachable for the signed-in user, whatever their
+     * kind or the user's display settings (hidden or grouped views). It asks about the IDs themselves, not the user's
+     * list of views, so it answers one question only: whether a chosen library is gone. It is not a list to pick
+     * libraries from. Jellyfin still answers for a library folder the user has lost access to, so that case reads as
+     * existing (the contract suite pins it).
+     */
+    suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>>
+
+    /**
      * One page of [library]'s direct children, from [startIndex] (at least 0) with at most [limit] items (1 to
      * [MAX_PAGE_SIZE]). The total count is the whole library's, so a caller can page. Throws
      * [IllegalArgumentException] for a bad [startIndex] or [limit]: that is a bug in the caller, not a server problem.

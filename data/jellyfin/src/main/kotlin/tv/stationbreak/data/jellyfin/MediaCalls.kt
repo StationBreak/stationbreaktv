@@ -68,6 +68,34 @@ internal class MediaCalls(
             }
         }
 
+    // Asks for the items with these IDs, as the signed-in user: a library that exists and is reachable comes back
+    // whatever its kind and however the user's views are set up. Nothing else is read from the answer but the IDs.
+    suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>> {
+        if (candidates.isEmpty()) return ServerResult.Success(emptySet())
+        val query =
+            listOf(
+                "userId" to session.userId.value,
+                "ids" to candidates.joinToString(",") { it.value },
+                "limit" to candidates.size.toString(),
+                "enableTotalRecordCount" to "false",
+                "enableImages" to "false",
+                "enableUserData" to "false",
+            )
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, IdsDto.serializer()).flatMap { found ->
+                convert {
+                    found.items
+                        .map { ItemId(it.id) }
+                        .filter { it in candidates }
+                        .toSet()
+                }
+            }
+        }
+    }
+
     suspend fun items(
         session: Session,
         library: Library,

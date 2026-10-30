@@ -47,6 +47,9 @@ class FakeMediaServer : MediaServer {
     var revokeResult: ServerResult<Unit> = ServerResult.Success(Unit)
     var quickConnectStates: List<QuickConnectState> = emptyList()
     var librariesResult: ServerResult<List<Library>> = ServerResult.Failure(MediaServerError.Unknown())
+
+    /** Library IDs [existingLibraryIds] reports as existing although [librariesResult] does not list them. */
+    var extraExistingLibraryIds: Set<ItemId> = emptySet()
     var itemsResult: ServerResult<ItemPage> = ServerResult.Failure(MediaServerError.Unknown())
     var libraryItemsResult: ServerResult<LibraryItemsPage> = ServerResult.Failure(MediaServerError.Unknown())
     var libraryItemIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
@@ -90,6 +93,7 @@ class FakeMediaServer : MediaServer {
     val resumeCalls = mutableListOf<StoredSession>()
     val revokeCalls = mutableListOf<Session>()
     val librariesCalls = mutableListOf<Session>()
+    val existingLibraryIdsCalls = mutableListOf<Set<ItemId>>()
 
     /** The library, start index and limit of each [items] call. */
     val itemsCalls = mutableListOf<Triple<Library, Int, Int>>()
@@ -182,6 +186,22 @@ class FakeMediaServer : MediaServer {
     override suspend fun libraries(session: Session): ServerResult<List<Library>> {
         librariesCalls += session
         return librariesResult
+    }
+
+    override suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>> {
+        existingLibraryIdsCalls += candidates
+        return when (val listed = librariesResult) {
+            is ServerResult.Failure -> {
+                ServerResult.Failure(listed.error)
+            }
+
+            is ServerResult.Success -> {
+                ServerResult.Success(candidates intersect (listed.value.map { it.id }.toSet() + extraExistingLibraryIds))
+            }
+        }
     }
 
     override suspend fun items(
