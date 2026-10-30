@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.SubtitleDelivery
@@ -34,17 +35,18 @@ class PlaybackResolverTest {
     private var caps: DeviceCapabilities = insigniaLike()
     private val resolver = PlaybackResolver(server) { caps }
 
-    private fun answer(media: MediaSource) {
+    private fun answer(vararg media: MediaSource) {
         server.playbackInfoResult =
-            ServerResult.Success(PlaybackInfo(item, PlaySessionId("ps1"), listOf(media), urls))
+            ServerResult.Success(PlaybackInfo(item, PlaySessionId("ps1"), media.toList(), urls))
     }
 
     private suspend fun resolve(
         start: Duration = Duration.ZERO,
         override: TrackOverride? = null,
         force: Boolean = false,
+        prefer: MediaSourceId? = null,
     ): ResolvedPlayback {
-        val result = resolver.resolve(PlaybackTestData.session, item, start, override, force)
+        val result = resolver.resolve(PlaybackTestData.session, item, start, override, force, prefer)
         return assertIs<ServerResult.Success<ResolvedPlayback>>(result).value
     }
 
@@ -365,5 +367,134 @@ class PlaybackResolverTest {
             server.playbackInfoResult = ServerResult.Success(PlaybackInfo(item, null, emptyList(), urls))
             val result = resolver.resolve(PlaybackTestData.session, item, 1.minutes, null)
             assertIs<MediaServerError.NotFound>(assertIs<ServerResult.Failure>(result).error)
+        }
+
+    private fun sized(
+        id: String,
+        width: Int?,
+        height: Int?,
+    ) = source(streams = listOf(video(width = 1, height = 1).copy(width = width, height = height), audio()))
+        .copy(id = MediaSourceId(id))
+
+    private fun version(
+        id: String,
+        directPlay: Boolean = true,
+        width: Int = 1920,
+        height: Int = 1080,
+        codec: String = Codecs.H264,
+    ) = source(
+        directPlay = directPlay,
+        streams = listOf(video(codec = codec, width = width, height = height), audio()),
+    ).copy(id = MediaSourceId(id))
+
+    @Test
+    fun theVersionThatDirectPlaysIsChosenOverAFirstOneThatDoesNot() =
+        runTest {
+            answer(version("a", directPlay = false), version("b"))
+            val played = resolve()
+            assertEquals(MediaSourceId("b"), played.media.id)
+            assertEquals(Route.DIRECT_PLAY, played.route)
+            assertEquals("https://media.example.com/original/b", played.source.url)
+        }
+
+    @Test
+    fun aVersionTooBigForTheDecoderLosesToOneThatFits() =
+        runTest {
+            // The first is 4K H.264, past the 1080p decoder limit; the second is 1080p.
+            answer(version("uhd", width = 3840, height = 2160), version("hd"))
+            val played = resolve()
+            assertEquals(MediaSourceId("hd"), played.media.id)
+        }
+
+    @Test
+    fun theBiggestPictureThatFitsIsChosen() =
+        runTest {
+            answer(version("sd", width = 1280, height = 720), version("hd"), version("hd2"))
+            assertEquals(MediaSourceId("hd"), resolve().media.id)
+        }
+
+    @Test
+    fun withNoDirectPlayVersionTheFirstIsTranscodedByTheUsualRoute() =
+        runTest {
+            answer(version("a", directPlay = false), version("b", directPlay = false))
+            val played = resolve()
+            assertEquals(MediaSourceId("a"), played.media.id)
+            assertEquals(Route.DIRECT_STREAM, played.route)
+            assertEquals("https://media.example.com/hls/a", played.source.url)
+        }
+
+    @Test
+    fun aForcedTranscodeKeepsJellyfinsOrder() =
+        runTest {
+            answer(version("a", directPlay = false), version("b"))
+            val played = resolve(force = true)
+            assertEquals(MediaSourceId("a"), played.media.id)
+            assertEquals(Route.TRANSCODE, played.route)
+        }
+
+    @Test
+    fun aVersionWhoseAudioThisDeviceCannotPlayIsNotADirectPlayVersion() =
+        runTest {
+            val dts = source(streams = listOf(video(), audio(codec = Codecs.DTS))).copy(id = MediaSourceId("dts"))
+            answer(dts, version("aac"))
+            assertEquals(MediaSourceId("aac"), resolve().media.id)
+        }
+
+    @Test
+    fun anItemWithNoVersionIsNotFound() =
+        runTest {
+            answer()
+            assertTrue(resolver.resolve(PlaybackTestData.session, item, Duration.ZERO, null) is ServerResult.Failure)
+        }
+
+    @Test
+    fun aPreferredVersionIsChosenEvenWhenAnotherDirectPlays() =
+        runTest {
+            answer(version("a"), version("b", directPlay = false))
+            assertEquals(MediaSourceId("b"), resolve(prefer = MediaSourceId("b")).media.id)
+        }
+
+    @Test
+    fun aPreferredVersionThatIsNotInTheAnswerFallsBackToTheNormalChoice() =
+        runTest {
+            answer(version("a", directPlay = false), version("b"))
+            assertEquals(MediaSourceId("b"), resolve(prefer = MediaSourceId("x")).media.id)
+        }
+
+    @Test
+    fun aSingleVersionIsChosen() =
+        runTest {
+            answer(version("only", directPlay = false))
+            assertEquals(MediaSourceId("only"), resolve().media.id)
+        }
+
+    @Test
+    fun aVersionWithNoSizeFitsButLosesToAKnownSize() =
+        runTest {
+            answer(sized("unknown", null, null), version("hd"))
+            assertEquals(MediaSourceId("hd"), resolve().media.id)
+            answer(sized("unknown", null, null))
+            assertEquals(MediaSourceId("unknown"), resolve().media.id)
+        }
+
+    @Test
+    fun aBurnedInDefaultSubtitleMakesEveryVersionTranscodeSoTheFirstWins() =
+        runTest {
+            fun burned(id: String) =
+                source(
+                    streams = listOf(video(), audio(1), subtitle(3, "pgssub", SubtitleDelivery.BURNED_IN)),
+                    defaultSubtitle = 3,
+                ).copy(id = MediaSourceId(id))
+            answer(burned("a"), burned("b"))
+            val played = resolve()
+            assertEquals(MediaSourceId("a"), played.media.id)
+            assertEquals(Route.TRANSCODE, played.route)
+        }
+
+    @Test
+    fun aForcedTranscodeWithNoPriorChoiceUsesTheFirstVersion() =
+        runTest {
+            answer(version("uhd", directPlay = false), version("hd"))
+            assertEquals(MediaSourceId("uhd"), resolve(force = true).media.id)
         }
 }

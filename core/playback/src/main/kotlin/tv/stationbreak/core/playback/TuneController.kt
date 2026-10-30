@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
 import java.util.Collections
@@ -400,7 +401,7 @@ class TuneController(
             fallback = Fallback(checkNotNull(attempt.resolved).route, attempt.fallbackCause())
             // A stop or supersede here must not lose the first attempt's encode: it is issued before the next step.
             abandonEncode(session)
-            val next = attempt(session, item, start, override, true, began)
+            val next = attempt(session, item, start, override, true, began, attempt.resolved?.media?.id)
             // A fallback that could not even resolve leaves the first attempt's route on record.
             attempt = if (next is Broke && next.resolved == null) next.copy(resolved = attempt.resolved) else next
         }
@@ -529,16 +530,17 @@ class TuneController(
         val broke: Broke? = null,
     )
 
-    @Suppress("TooGenericExceptionCaught") // Any failure of the resolver becomes a stable name, never a message.
+    @Suppress("TooGenericExceptionCaught", "LongParameterList") // A resolver failure becomes a stable name.
     private suspend fun resolve(
         session: Session,
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
         forceTranscode: Boolean,
+        prefer: MediaSourceId? = null,
     ): Resolution =
         try {
-            when (val answer = resolver.resolve(session, item, start, override, forceTranscode)) {
+            when (val answer = resolver.resolve(session, item, start, override, forceTranscode, prefer)) {
                 is ServerResult.Failure -> {
                     val error = answer.error
                     Resolution(null, Broke(null, TuneFailure.SERVER, error.stableName(), error.refusesSession()))
@@ -564,8 +566,9 @@ class TuneController(
         override: TrackOverride?,
         forceTranscode: Boolean,
         began: Long,
+        prefer: MediaSourceId? = null,
     ): Attempt {
-        val resolution = resolve(session, item, start, override, forceTranscode)
+        val resolution = resolve(session, item, start, override, forceTranscode, prefer)
         val resolved = resolution.resolved ?: return checkNotNull(resolution.broke)
         // A stop or a newer tune during the resolve must not be followed by a play.
         currentCoroutineContext().ensureActive()
