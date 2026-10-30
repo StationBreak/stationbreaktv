@@ -172,7 +172,7 @@ class LiveChannel(
                     }
                 refresher = flipper::refresh
                 lineup = flipper::lineup
-                launch { flipper.follow(commands) { onCommand(it, this@coroutineScope) } }
+                follow(this, commands, flipper)
                 try {
                     requests.receiveAsFlow().collectLatest { request ->
                         if (sit(session, request, neighbours, reporter)) throw RunEnded()
@@ -299,30 +299,47 @@ class LiveChannel(
         }
     }
 
-    /** What the overlays and the transport inbox do with each command, beside the flipper. */
-    private fun onCommand(
-        command: LiveCommand,
+    /**
+     * Follows the viewer's [commands] in [scope]: transport presses go to the sitting's inbox as they come, never
+     * queued behind the flipper's work (ADR-0021, 9); everything else goes on to the flipper (and the overlays), in
+     * order.
+     */
+    private fun follow(
         scope: CoroutineScope,
+        commands: Flow<LiveCommand>,
+        flipper: Flipper,
     ) {
-        overlays.handle(command, scope)
-        routeTransport(command)
+        val toFlipper = Channel<LiveCommand>(Channel.UNLIMITED)
+        scope.launch {
+            try {
+                commands.collect { command ->
+                    val op = transportOp(command)
+                    if (op != null) routeTransport(op) else toFlipper.send(command)
+                }
+            } finally {
+                toFlipper.close()
+            }
+        }
+        scope.launch { flipper.follow(toFlipper.receiveAsFlow()) { overlays.handle(it, scope) } }
     }
 
+    /** The sitting's op for a transport press; null for any other command (the flipper's or an overlay's). */
+    private fun transportOp(command: LiveCommand): TransportOp? =
+        when (command) {
+            LiveCommand.PlayPause -> TransportOp.Toggle
+            LiveCommand.Play -> TransportOp.Play
+            LiveCommand.Pause -> TransportOp.Pause
+            is LiveCommand.Seek -> TransportOp.Step(command.direction, command.repeat, command.atMs)
+            LiveCommand.SeekReleased -> TransportOp.StepReleased
+            LiveCommand.GoLive -> TransportOp.GoLive
+            else -> null
+        }
+
     /**
-     * Hands a transport press to the running sitting's inbox, tagged with the sitting and the block whose picture is
+     * Hands a transport [op] to the running sitting's inbox, tagged with the sitting and the block whose picture is
      * up. Dropped, with a line, unless the picture plays: snow, a number being chosen and every card drop it.
      */
-    private fun routeTransport(command: LiveCommand) {
-        val op =
-            when (command) {
-                LiveCommand.PlayPause -> TransportOp.Toggle
-                LiveCommand.Play -> TransportOp.Play
-                LiveCommand.Pause -> TransportOp.Pause
-                is LiveCommand.Seek -> TransportOp.Step(command.direction, command.repeat, command.atMs)
-                LiveCommand.SeekReleased -> TransportOp.StepReleased
-                LiveCommand.GoLive -> TransportOp.GoLive
-                else -> return
-            }
+    private fun routeTransport(op: TransportOp) {
         val state = screen.flow.value
         val sitting = current
         val held = sitting?.heldBlockStartMs
