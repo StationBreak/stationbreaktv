@@ -168,7 +168,8 @@ internal object LineupModule {
 
     /**
      * Whether a sync is writing the saved library (#434, #480): the first sync, or the quiet stay-current runs of the
-     * process's one `StayCurrent`. One signal, so the refresher's one rule covers both.
+     * process's one `StayCurrent`. One signal, so the refresher's one rule covers both. Both flows must be the
+     * runners' own, the same instances the workers run: a copy would never turn on.
      */
     @Provides
     fun syncActivity(

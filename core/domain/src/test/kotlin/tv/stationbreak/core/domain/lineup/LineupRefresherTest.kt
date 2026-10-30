@@ -547,8 +547,9 @@ class LineupRefresherTest {
             stayCurrent.value = false
             watching.cancel()
 
-            assertEquals(listOf(true, false), seen.distinct(), "on from the start, off only when both stopped")
-            assertEquals(false, seen.last())
+            // Repeats collapse (each change emits again); a drop to false between the runners would show.
+            val changes = seen.filterIndexed { i, on -> i == 0 || on != seen[i - 1] }
+            assertEquals(listOf(true, false), changes, "on from the start, off only when both stopped")
         }
 
     // A current lineup and a refresher listening to [firstSync] and [stayCurrent]; returns the refreshes so far.

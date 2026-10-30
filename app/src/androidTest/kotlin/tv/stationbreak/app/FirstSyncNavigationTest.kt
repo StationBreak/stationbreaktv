@@ -62,7 +62,6 @@ import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
-import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.feature.guide.ui.GuideTags
 import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncTags
@@ -151,14 +150,6 @@ class FirstSyncNavigationTest {
             server: MediaServer,
             repository: RoomLibraryRepository,
         ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
-
-        // The lineup refresher's sync signal reads its runner.
-        @Provides
-        @Singleton
-        fun stayCurrent(
-            @ApplicationContext context: Context,
-            firstSync: FirstSyncRunner,
-        ): StayCurrent = StayCurrent.create(context, firstSync)
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))

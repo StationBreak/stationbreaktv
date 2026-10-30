@@ -5,10 +5,14 @@ import androidx.test.core.app.ApplicationProvider
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.SyncActivity
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.StayCurrent
 import javax.inject.Inject
@@ -27,6 +31,8 @@ class StayCurrentInstanceTest {
 
     @Inject lateinit var firstSync: FirstSyncRunner
 
+    @Inject lateinit var sync: SyncActivity
+
     @Before
     fun inject() = hilt.inject()
 
@@ -42,4 +48,12 @@ class StayCurrentInstanceTest {
         assertSame(injected.runner, graph.stayCurrent().runner)
         assertSame(firstSync, graph.firstSyncRunner())
     }
+
+    // The production binding reads the runners' own flows: at rest it is off. (Neither runner's flag can be set from
+    // outside, so the on state is covered by the runners' own tests and the refresher's.)
+    @Test
+    fun theSyncSignalTheRefresherReadsIsOffAtRest() =
+        runBlocking {
+            assertFalse(sync.writing().first())
+        }
 }
