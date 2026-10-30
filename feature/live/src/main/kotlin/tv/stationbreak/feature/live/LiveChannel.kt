@@ -91,6 +91,10 @@ class LiveChannel(
     // The sitting that is running, for the transport presses to reach; set and cleared by [sit].
     private var current: Sitting? = null
 
+    /** The sitting that is running, for tests that look at its transport state. */
+    @VisibleForTesting
+    internal fun currentSitting(): Sitting? = current
+
     // The running run's reporter, so that [leave] can end its reporting before the run's own teardown gets to it.
     @Volatile
     @VisibleForTesting
@@ -326,7 +330,10 @@ class LiveChannel(
             report(TuneReport.PressDropped("transport-not-watching", state.javaClass.logName()))
             return
         }
-        sitting.commands.offer(Tagged(sitting.sittingId, held, op))
+        // Refused when the inbox is closed (the sitting is ending) or is another sitting's.
+        if (!sitting.commands.offer(Tagged(sitting.sittingId, held, op))) {
+            report(TuneReport.PressDropped("transport-refused", state.javaClass.logName()))
+        }
     }
 
     /**

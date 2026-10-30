@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
@@ -42,8 +44,10 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.PlayerEvent
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /** One thing the machine asked the port to do, and when (milliseconds since the test began). */
@@ -101,6 +105,18 @@ class FakeTune(
     /** What every play tells the reporter about its route (null: nothing, so nothing is reported). */
     var reportFacts: ReportFacts? = null
 
+    /** Where a [FakePlayControl] runs its delayed seek ends; the rig sets it to the test's background scope. */
+    var controlScope: CoroutineScope? = null
+
+    /** Each play's transport handle, with the item it plays, in tune order (a script's own control is not here). */
+    val controls = mutableListOf<Pair<ItemId, FakePlayControl>>()
+
+    /** The transport handle of the last play the port answered. */
+    val lastControl: FakePlayControl? get() = controls.lastOrNull()?.second
+
+    /** The transport handle of the last play of [item]. */
+    fun controlOf(item: ItemId): FakePlayControl? = controls.lastOrNull { it.first == item }?.second
+
     fun script(
         item: ItemId,
         vararg steps: suspend () -> TuneOutcome,
@@ -123,13 +139,20 @@ class FakeTune(
             )
         }
 
-    private suspend fun outcomeFor(item: ItemId): TuneOutcome {
+    /** The scripted outcome; a play gets the rig's report facts and, unless it has its own, a [FakePlayControl]. */
+    private suspend fun outcomeFor(
+        item: ItemId,
+        start: Duration,
+    ): TuneOutcome {
         val outcome = scripts[item]?.removeFirstOrNull()?.invoke() ?: plays()
-        return if (outcome is TuneOutcome.Playing && outcome.report == null) {
-            outcome.copy(report = reportFacts)
-        } else {
-            outcome
-        }
+        if (outcome !is TuneOutcome.Playing) return outcome
+        val control =
+            if (outcome.control == PlayControl.None) {
+                FakePlayControl(now, start.inWholeMilliseconds, controlScope).also { controls += item to it }
+            } else {
+                outcome.control
+            }
+        return outcome.copy(control = control, report = outcome.report ?: reportFacts)
     }
 
     override suspend fun tune(
@@ -138,7 +161,7 @@ class FakeTune(
         start: Duration,
     ): TuneOutcome {
         calls += Call.Tune(item, start, now())
-        return outcomeFor(item)
+        return outcomeFor(item, start)
     }
 
     override suspend fun preResolve(
@@ -157,7 +180,7 @@ class FakeTune(
     ): TuneOutcome {
         val p = next.token as Prepared
         calls += Call.TuneHandle(p.item, start ?: p.start, now())
-        return outcomeFor(p.item)
+        return outcomeFor(p.item, start ?: p.start)
     }
 
     override suspend fun discard(
@@ -206,6 +229,88 @@ class FakeTune(
 
         fun playing(): suspend () -> TuneOutcome = { plays() }
     }
+}
+
+/**
+ * A [PlayControl] on the virtual clock [now]: the position starts at [startMs] and moves with the clock (at [rate])
+ * while playing. It records its calls (`pause`, `resume`, `seek:<ms>`) and sends the events a player would.
+ */
+class FakePlayControl(
+    private val now: () -> Long,
+    startMs: Long,
+    private val scope: CoroutineScope? = null,
+) : PlayControl {
+    override val generation: Long = 1L
+    val calls = mutableListOf<String>()
+
+    /** When true, [position] answers null (the play is no longer on the player) and events carry no position. */
+    var positionUnknown = false
+    var seekableValue = true
+
+    /** How long a seek takes to be done; 0 sends `SeekDone` at once. A delay needs the control's scope. */
+    var seekDelayMs = 0L
+
+    override val events = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
+
+    private var baseMs = startMs
+    private var sinceMs = now()
+    private var playing = true
+
+    /** How fast the media runs against the clock while playing (1.0: real time). */
+    var rate: Double = 1.0
+        set(value) {
+            rebase()
+            field = value
+        }
+
+    /** The true media position now. */
+    fun positionMs(): Long = if (playing) baseMs + ((now() - sinceMs) * rate).toLong() else baseMs
+
+    private fun rebase() {
+        baseMs = positionMs()
+        sinceMs = now()
+    }
+
+    private fun known(ms: Long) = if (positionUnknown) PlayerEvent.NOT_KNOWN else ms
+
+    override fun pause() {
+        if (!playing) return
+        calls += "pause"
+        rebase()
+        playing = false
+        events.tryEmit(PlayerEvent.Paused(generation, now(), known(baseMs)))
+    }
+
+    override fun resume() {
+        if (playing) return
+        calls += "resume"
+        rebase()
+        playing = true
+        events.tryEmit(PlayerEvent.Resumed(generation, now()))
+        events.tryEmit(PlayerEvent.Playing(now(), baseMs.milliseconds, generation))
+    }
+
+    override fun seekTo(position: Duration) {
+        val from = positionMs()
+        val to = position.inWholeMilliseconds
+        calls += "seek:$to"
+        baseMs = to
+        sinceMs = now()
+        events.tryEmit(PlayerEvent.Seeking(generation, now(), from, to))
+        val delayed = scope
+        if (seekDelayMs <= 0 || delayed == null) {
+            events.tryEmit(PlayerEvent.SeekDone(generation, now(), known(to)))
+        } else {
+            delayed.launch {
+                delay(seekDelayMs)
+                events.emit(PlayerEvent.SeekDone(generation, now(), known(to)))
+            }
+        }
+    }
+
+    override suspend fun position(): Duration? = if (positionUnknown) null else positionMs().milliseconds
+
+    override fun seekable(): Boolean = seekableValue
 }
 
 class CountingLastChannel(
@@ -261,7 +366,7 @@ class Rig(
             override fun now(): Instant = Instant.fromEpochMilliseconds(nowMs())
         }
     val schedule = FakeSchedule()
-    val tune = FakeTune { scope.currentTime }
+    val tune = FakeTune { scope.currentTime }.also { it.controlScope = scope.backgroundScope }
     val lastChannel = CountingLastChannel()
     val channels = FakeChannels()
     val library = InMemoryLibraryRepository()

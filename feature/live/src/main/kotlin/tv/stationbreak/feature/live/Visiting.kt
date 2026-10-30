@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.CoroutineScope
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.ItemId
@@ -65,10 +66,13 @@ internal class Visiting(
 }
 
 /**
- * [Sitting.hold] for a scheduled program that plays: the reporter is told of the visit (non-suspending, so nothing here
- * waits on the server). Slates, idents and stand-ins never come here. The caller leaves [visiting] when the block ends.
+ * [Sitting.holdProgram] for a scheduled program that plays: the reporter is told of the visit (non-suspending, so
+ * nothing here waits on the server). Slates, idents and stand-ins never come here. The caller leaves [visiting] when
+ * the block ends.
  */
+@Suppress("LongParameterList") // The block's scope, the block and its program, the play, the visit and its start.
 internal suspend fun Sitting.holdReporting(
+    scope: CoroutineScope,
     block: AiringBlock,
     program: Airing.Program,
     outcome: TuneOutcome.Playing,
@@ -76,11 +80,11 @@ internal suspend fun Sitting.holdReporting(
     fromMs: Long,
 ): Held {
     val facts = outcome.report
-    if (reporter == null || facts == null) return hold(block.endMs, outcome.end, outcome.notes)
+    if (reporter == null || facts == null) return holdProgram(scope, block, outcome, null)
     val item = ItemId(program.itemId.value)
     val target = ReportTarget(item, facts.sourceId, facts.playSessionId, facts.playMethod, facts.runtime)
     visiting.playing(fromMs) { it.visit(sittingId, AiringKey(channel, block.startMs, item), target, fromMs) }
-    val held = hold(block.endMs, outcome.end, outcome.notes, reporting = true)
-    if (held == Held.Failed) visiting.failedPlay(failedPositionMs)
+    val held = holdProgram(scope, block, outcome, visiting)
+    if (held is Held.Failed) visiting.failedPlay(held.positionMs ?: -1)
     return held
 }

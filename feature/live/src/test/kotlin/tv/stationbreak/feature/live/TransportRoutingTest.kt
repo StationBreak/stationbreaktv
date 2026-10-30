@@ -7,11 +7,17 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
+import tv.stationbreak.core.playback.PlaybackEnd
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** A transport press acts only on a picture that plays; on snow, a number or a card it is dropped with a line. */
@@ -53,5 +59,68 @@ class TransportRoutingTest {
             keys.trySend(LiveCommand.GoLive)
             runCurrent()
             assertEquals(listOf("press dropped reason=transport-not-watching state=Ident"), r.dropped())
+        }
+
+    @Test
+    fun aTransportPressOnAPictureReachesTheSitting() =
+        runTest {
+            val r = Rig(this)
+            r.schedule.channel(CH7, 7, listOf(program(0, 600, 1)))
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
+            advanceTimeBy(5.seconds)
+            keys.trySend(LiveCommand.PlayPause)
+            runCurrent()
+            assertEquals(emptyList<String>(), r.dropped())
+            assertEquals(listOf("pause"), checkNotNull(r.tune.lastControl).calls)
+        }
+
+    @Test
+    fun pressesLeftInTheInboxAreDroppedAtTheNextTune() =
+        runTest {
+            val r = Rig(this)
+            // A dead item 9 with 50 minutes left: a stand-in plays, and its hold takes no presses yet.
+            r.schedule.channel(CH7, 7, listOf(program(0, 60, 9, info = null), program(60, 120, 2)))
+            r.schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 7, 0)) }
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
+            r.atMin(2)
+            assertTrue(r.state is LiveState.Watching)
+            keys.trySend(LiveCommand.PlayPause)
+            keys.trySend(LiveCommand.PlayPause)
+            runCurrent()
+            r.atMin(51)
+            assertEquals(listOf("press dropped reason=transport-at-tune n=2 state=Watching"), r.dropped())
+            assertTrue(checkNotNull(r.tune.controlOf(itemOf(2))).calls.isEmpty())
+        }
+
+    @Test
+    fun theHeldBlockIsClearedWhenACardShows() =
+        runTest {
+            val r = Rig(this)
+            r.schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
+            r.tune.script(itemOf(1), r.tune.playsThenEnds(1.minutes, PlaybackEnd.Ended))
+            r.start()
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertEquals(T0, checkNotNull(r.live.currentSitting()).heldBlockStartMs)
+            r.atMin(2)
+            assertTrue(r.state is LiveState.Ident)
+            assertNull(checkNotNull(r.live.currentSitting()).heldBlockStartMs)
+        }
+
+    @Test
+    fun aPressTheInboxRefusesIsDroppedWithALine() =
+        runTest {
+            val r = Rig(this)
+            r.schedule.channel(CH7, 7, listOf(program(0, 600, 1)))
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
+            advanceTimeBy(5.seconds)
+            runCurrent()
+            checkNotNull(r.live.currentSitting()).commands.close()
+            keys.trySend(LiveCommand.PlayPause)
+            runCurrent()
+            assertEquals(listOf("press dropped reason=transport-refused state=Watching"), r.dropped())
         }
 }
