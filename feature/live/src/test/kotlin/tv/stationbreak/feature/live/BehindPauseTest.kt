@@ -279,10 +279,9 @@ class BehindPauseTest {
         }
 
     @Test
-    fun aFailedPlayWhileBehindIsReportedAndRetunesLive() =
+    fun aFailedPlayWhileBehindIsReportedAndRetriedAtThePlace() =
         runTest {
-            // Interim behaviour until Task 10 (one retry at the place): the failure is reported, and the sitting
-            // tunes what is on now, at its live position.
+            // ADR-0021 4 and 6: the failure is reported, and the item is tuned again once, at the place it failed at.
             val r = Rig(this, startMin = 10)
             r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
             val failed = PlaybackEnd.Failed("Boom", positionMs = 13 * MIN)
@@ -298,8 +297,9 @@ class BehindPauseTest {
             val retune = r.tunes.last()
             assertEquals(2, r.tunes.size)
             assertEquals(itemOf(1), retune.item)
-            assertEquals(15 * MIN, retune.start.inWholeMilliseconds)
-            assertNull(r.live.transport.value)
+            assertEquals(13 * MIN, retune.start.inWholeMilliseconds)
+            // Still behind: the place is two minutes behind the clock's 15:00.
+            assertFalse(checkNotNull(r.live.transport.value).paused)
             assertTrue(r.state is LiveState.Watching)
         }
 }

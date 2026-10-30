@@ -288,7 +288,9 @@ internal class Sitting(
                 when (outcome) {
                     is TuneOutcome.Playing -> {
                         val from = asked.inWholeMilliseconds
-                        when (val held = holdReporting(block, program, outcome, visiting, from)) {
+                        val item = ItemId(program.itemId.value)
+                        val retune = retuneAt(scope, onAir, block, item, BannerLabel.TuningIn)
+                        when (val held = holdReporting(block, program, outcome, visiting, from, retune)) {
                             Held.Boundary -> {
                                 return null
                             }
@@ -413,9 +415,9 @@ internal class Sitting(
      * stalls in [notes] are reported as they come (and to the reporter when [reporting]);
      * a failure is reported with its numbers (#392).
      *
-     * With a [blockStartMs] (a program's block), it also takes the viewer's transport ops for that block: Play/Pause
-     * and Pause return [LiveHold.Transport], as does a back step when [control] can seek; the rest mean nothing while
-     * live. Without one (stand-ins, until Task 10) it takes no ops.
+     * It also takes the viewer's transport ops for the block (or stand-in piece) that started at [blockStartMs]:
+     * Play/Pause and Pause return [LiveHold.Transport], as does a back step when [control] can seek; the rest mean
+     * nothing while live.
      */
     @Suppress("LongParameterList") // The play's three flows and handle, the block's end and its tag.
     suspend fun hold(
@@ -424,7 +426,7 @@ internal class Sitting(
         notes: Flow<PlayNote>,
         reporting: Boolean,
         control: PlayControl,
-        blockStartMs: Long?,
+        blockStartMs: Long,
     ): LiveHold {
         val left = untilMs - vnowMs()
         val woke =
@@ -512,11 +514,10 @@ private fun Sitting.reportLostOp(
 private suspend fun Sitting.endOrOp(
     end: Flow<PlaybackEnd>,
     control: PlayControl,
-    blockStartMs: Long?,
+    blockStartMs: Long,
 ): Woke =
     coroutineScope {
         val ended = async { Woke.End(end.firstOrNull() ?: PlaybackEnd.Ended) }
-        if (blockStartMs == null) return@coroutineScope ended.await()
         val op = async { takeLiveOp(control, blockStartMs) }
         val woke: Woke =
             try {
