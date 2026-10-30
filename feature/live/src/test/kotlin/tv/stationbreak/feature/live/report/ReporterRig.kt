@@ -42,6 +42,7 @@ internal data class Call(
     val item: String,
     val posMs: Long = -1,
     val failed: Boolean = false,
+    val paused: Boolean = false,
 )
 
 internal class RecordingServer(
@@ -67,7 +68,8 @@ internal class RecordingServer(
         session: Session,
         report: PlaybackReport,
     ): ServerResult<Unit> {
-        calls += Call("progress", now(), report.itemId.value, report.position.inWholeMilliseconds)
+        calls +=
+            Call("progress", now(), report.itemId.value, report.position.inWholeMilliseconds, paused = report.isPaused)
         if (progressHangs) awaitCancellation()
         return progressResult
     }

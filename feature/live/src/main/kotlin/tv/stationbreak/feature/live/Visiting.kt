@@ -30,10 +30,30 @@ internal class Visiting(
         open = true
     }
 
-    /** The play failed: the time until the next play (or the leave) is not watched time. */
-    fun failedPlay() {
-        if (open && !failed) reporter?.stall()
+    /**
+     * The play failed: the time until the next play (or the leave) is not watched time. [positionMs] is where the
+     * player says it failed (negative when it could not say); a known one closes the interval exactly there.
+     */
+    fun failedPlay(positionMs: Long = -1) {
+        if (open && !failed) reporter?.stall(positionMs.takeIf { it >= 0 })
         if (open) failed = true
+    }
+
+    /** The viewer paused at [positionMs] when known (forwarded while a visit is open). */
+    fun paused(positionMs: Long?) {
+        if (open) reporter?.paused(positionMs)
+    }
+
+    fun unpaused() {
+        if (open) reporter?.unpaused()
+    }
+
+    fun seeking() {
+        if (open) reporter?.seeking()
+    }
+
+    fun seeked(toMs: Long) {
+        if (open) reporter?.seeked(toMs)
     }
 
     /** The block is left for good (also safe to call twice). */
@@ -61,6 +81,6 @@ internal suspend fun Sitting.holdReporting(
     val target = ReportTarget(item, facts.sourceId, facts.playSessionId, facts.playMethod, facts.runtime)
     visiting.playing(fromMs) { it.visit(sittingId, AiringKey(channel, block.startMs, item), target, fromMs) }
     val held = hold(block.endMs, outcome.end, outcome.notes, reporting = true)
-    if (held == Held.Failed) visiting.failedPlay()
+    if (held == Held.Failed) visiting.failedPlay(failedPositionMs)
     return held
 }

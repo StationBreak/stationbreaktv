@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.report
 
+import tv.stationbreak.feature.live.LiveTimings
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -15,6 +16,8 @@ import kotlin.time.Duration.Companion.seconds
  *   the calls queued behind it for long.
  * @property userDataAttempts how many times one visit may try to read the item's user data before it gives up.
  * @property markAttempts how many times marking one airing played may be tried before it gives up.
+ * @property pauseReportMax how long a pause is reported as paused before check-ins go silent (spec 20); the live run
+ *   copies it from [LiveTimings.pauseReportMax].
  */
 data class ReportingConfig(
     val startAfter: Duration = 30.seconds,
@@ -23,6 +26,7 @@ data class ReportingConfig(
     val callTimeout: Duration = 5.seconds,
     val userDataAttempts: Int = 3,
     val markAttempts: Int = 3,
+    val pauseReportMax: Duration = LiveTimings.DEFAULT_PAUSE_REPORT_MAX,
 ) {
     init {
         require(startAfter >= Duration.ZERO) { "startAfter must not be negative" }
@@ -34,6 +38,7 @@ data class ReportingConfig(
         require(startAfter > callTimeout * DRAIN_CALLS) { "startAfter must be longer than three call timeouts" }
         require(userDataAttempts >= 1) { "At least one user-data read must be tried" }
         require(markAttempts >= 1) { "At least one mark-played must be tried" }
+        require(pauseReportMax >= Duration.ZERO) { "pauseReportMax must not be negative" }
     }
 
     companion object {

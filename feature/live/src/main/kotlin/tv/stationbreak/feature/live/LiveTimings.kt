@@ -35,6 +35,9 @@ import kotlin.time.Duration.Companion.seconds
  * @property keyRepeatTimeout the device's key-repeat timeout, `ViewConfiguration.getKeyRepeatTimeout()`: a held key's
  *   first auto-repeat comes about this long after its press (480 ms on the Insignia). The app passes the device's own
  *   ([forKeyRepeatTimeout]); Android's default stands in for it elsewhere (JVM tests).
+ * @property pauseReportMax how long a pause keeps being reported to the server as paused (spec 20, ADR-0021): check-ins
+ *   carry `IsPaused` for this long, then go silent, so a long pause does not hold a server session open. The next Play
+ *   sends a fresh Playing.
  * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
@@ -52,6 +55,7 @@ data class LiveTimings(
     val flipReleaseFallback: Duration = 1.seconds,
     val flipLogSize: Int = 50,
     val keyRepeatTimeout: Duration = DEFAULT_KEY_REPEAT_TIMEOUT,
+    val pauseReportMax: Duration = DEFAULT_PAUSE_REPORT_MAX,
 ) {
     init {
         require(flipReleaseFallback > keyRepeatTimeout) { "flipReleaseFallback must outlast the key-repeat timeout" }
@@ -59,9 +63,13 @@ data class LiveTimings(
         require(standInAttempts >= 1) { "At least one stand-in must be tried" }
         require(flipRepeatDelay >= Duration.ZERO) { "flipRepeatDelay must not be negative" }
         require(flipRepeatEvery > Duration.ZERO) { "flipRepeatEvery must be positive" }
+        require(pauseReportMax >= Duration.ZERO) { "pauseReportMax must not be negative" }
     }
 
     companion object {
+        /** How long a pause is reported as paused before the reporter goes silent. */
+        val DEFAULT_PAUSE_REPORT_MAX: Duration = 5.minutes
+
         /** Android's default key-repeat timeout (the long-press timeout): 500 ms. */
         val DEFAULT_KEY_REPEAT_TIMEOUT: Duration = 500.milliseconds
 

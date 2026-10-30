@@ -6,6 +6,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** The held-key fallback must outlast the device's own key-repeat timeout (#430), which the app passes in. */
@@ -36,5 +37,16 @@ class LiveTimingsTest {
         val timings = LiveTimings.forKeyRepeatTimeout(1_500.milliseconds)
         assertEquals(1_500.milliseconds, timings.keyRepeatTimeout)
         assertTrue(timings.flipReleaseFallback > 1_500.milliseconds)
+    }
+
+    @Test
+    fun pauseReportMaxDefaultsToFiveMinutes() {
+        assertEquals(5.minutes, LiveTimings().pauseReportMax)
+        assertEquals(5.minutes, LiveTimings.DEFAULT_PAUSE_REPORT_MAX)
+    }
+
+    @Test
+    fun aNegativePauseReportMaxIsRefused() {
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(pauseReportMax = (-1).seconds) }
     }
 }

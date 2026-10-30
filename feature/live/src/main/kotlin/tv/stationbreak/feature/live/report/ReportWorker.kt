@@ -38,6 +38,24 @@ internal sealed interface ReportEvent {
         val fromMs: Long?,
     ) : ReportEvent
 
+    data class Paused(
+        val at: Instant,
+        val positionMs: Long?,
+    ) : ReportEvent
+
+    data class Unpaused(
+        val at: Instant,
+    ) : ReportEvent
+
+    data class Seeking(
+        val at: Instant,
+    ) : ReportEvent
+
+    data class Seeked(
+        val at: Instant,
+        val toMs: Long,
+    ) : ReportEvent
+
     data class Leave(
         val at: Instant,
     ) : ReportEvent
@@ -86,15 +104,24 @@ internal class ReportWorker(
         var userPlayed = false
         var started = false
 
-        fun report(position: Duration) =
-            PlaybackReport(
-                itemId = key.itemId,
-                sourceId = target.sourceId,
-                playSessionId = target.playSessionId,
-                position = position,
-                playMethod = target.playMethod,
-                canSeek = false,
-            )
+        /** When the viewer paused, while paused. */
+        var pausedAt: Instant? = null
+
+        /** True once the pause has outlasted `pauseReportMax` and check-ins have stopped. */
+        var silent = false
+
+        fun report(
+            position: Duration,
+            paused: Boolean = false,
+        ) = PlaybackReport(
+            itemId = key.itemId,
+            sourceId = target.sourceId,
+            playSessionId = target.playSessionId,
+            position = position,
+            playMethod = target.playMethod,
+            isPaused = paused,
+            canSeek = false,
+        )
 
         /** The item's resume position, or 0 once it is played or the app has marked it played (R7). */
         fun safePosition(marked: Boolean): Duration = if (userPlayed || marked) Duration.ZERO else resume
@@ -136,6 +163,10 @@ internal class ReportWorker(
                 ledger.resumed(event.at, event.fromMs)
             }
 
+            is ReportEvent.Paused, is ReportEvent.Unpaused, is ReportEvent.Seeking, is ReportEvent.Seeked -> {
+                onTransport(event)
+            }
+
             is ReportEvent.Leave -> {
                 endVisit(event.at)
             }
@@ -164,6 +195,38 @@ internal class ReportWorker(
         }
     }
 
+    /** The viewer's pause and seek keys, for the open visit (none: nothing to do). */
+    private fun onTransport(event: ReportEvent) {
+        val v = visit ?: return
+        when (event) {
+            is ReportEvent.Paused -> {
+                ledger.pause(event.at, event.positionMs)
+                if (v.pausedAt == null) v.pausedAt = event.at
+            }
+
+            is ReportEvent.Unpaused -> {
+                ledger.unpause(event.at)
+                // After the silence the server has let the session go: a fresh Playing now, then the cadence.
+                if (v.silent) {
+                    v.started = false
+                    post(ReportEvent.Tick(v.id, event.at))
+                }
+                v.pausedAt = null
+                v.silent = false
+            }
+
+            is ReportEvent.Seeking -> {
+                ledger.seeking(event.at)
+            }
+
+            is ReportEvent.Seeked -> {
+                ledger.seeked(event.at, event.toMs)
+            }
+
+            else -> {}
+        }
+    }
+
     private suspend fun tickLoop(
         id: Long,
         dwell: Duration,
@@ -181,8 +244,26 @@ internal class ReportWorker(
             v.timer?.cancel()
         } else if (v != null) {
             markIfDue(v, event.at)
-            if (!calls.halted && (v.userRead || readUserData(v))) checkIn(v)
+            if (!calls.halted && !quiet(v, event.at)) checkIn(v)
         }
+    }
+
+    /**
+     * True when this tick sends nothing because the viewer is paused: before the first Playing (no Playing while
+     * paused), or once the pause has outlasted `pauseReportMax`, which also sets [OpenVisit.silent] and logs it once.
+     */
+    private fun quiet(
+        v: OpenVisit,
+        at: Instant,
+    ): Boolean {
+        val since = v.pausedAt
+        val paused = if (since == null) Duration.ZERO else at - since
+        val outlasted = v.started && !v.silent && paused >= config.pauseReportMax
+        if (outlasted) {
+            v.silent = true
+            log("report silent afterMs=${paused.inWholeMilliseconds}")
+        }
+        return since != null && (!v.started || v.silent)
     }
 
     /** One read of the item's user data, within the per-visit budget. True when [v] now knows its resume position. */
@@ -204,9 +285,11 @@ internal class ReportWorker(
 
     /** Playing on the first check-in that gets through, Progress after. Always at the safe position. */
     private suspend fun checkIn(v: OpenVisit) {
+        if (!v.userRead && !readUserData(v)) return
         val position = v.safePosition(ledger.isMarked(v.key))
         if (v.started) {
-            if (calls.call { server.reportProgress(session, v.report(position)) } != null) {
+            val paused = v.pausedAt != null
+            if (calls.call { server.reportProgress(session, v.report(position, paused)) } != null) {
                 log("report progress pos=${position.inWholeMilliseconds}")
             }
         } else if (calls.call { server.reportStart(session, v.report(position)) } != null) {

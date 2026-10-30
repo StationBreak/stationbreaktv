@@ -89,7 +89,8 @@ class LiveChannel(
 
     // The running run's reporter, so that [leave] can end its reporting before the run's own teardown gets to it.
     @Volatile
-    private var reporting: PlaybackReporter? = null
+    internal var reporting: PlaybackReporter? = null
+        private set
 
     val state: StateFlow<LiveState> = screen.flow
 
@@ -140,7 +141,13 @@ class LiveChannel(
         val reporterScope = CoroutineScope(currentCoroutineContext().minusKey(Job) + SupervisorJob())
         val reporter =
             server?.let {
-                PlaybackReporter(reporterScope, it, session, clock, reportingConfig) { line ->
+                PlaybackReporter(
+                    reporterScope,
+                    it,
+                    session,
+                    clock,
+                    reportingConfig.copy(pauseReportMax = timings.pauseReportMax),
+                ) { line ->
                     report(TuneReport.Reported(line))
                 }
             }

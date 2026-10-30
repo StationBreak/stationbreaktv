@@ -155,4 +155,39 @@ class WatchLedgerTest {
         l.leave(min(2))
         assertEquals(1.minutes, l.watched(a, min(2)))
     }
+
+    @Test
+    fun `an exact position below where the span began drops the span and never over-counts`() {
+        val l = ledger()
+        l.enterAt(a, 0, 30)
+        l.stall(min(5), media(20.0))
+        l.leave(min(6))
+        assertEquals(0.minutes, l.watched(a, min(6)))
+    }
+
+    @Test
+    fun `a seek during a pause counts only the time played before and after`() {
+        val l = ledger()
+        l.enterAt(a, 0, 0)
+        l.pause(min(4), media(4.0))
+        l.seeking(min(5))
+        l.seeked(min(6), media(20.0))
+        l.unpause(min(7))
+        l.leave(min(10))
+        // 0-4 before the pause, then 20-23 after the seek and the unpause: the pause and seek time count nothing.
+        assertEquals(7.minutes, l.watched(a, min(10)))
+    }
+
+    @Test
+    fun `a stall during a seek then resumed runs from where the seek landed`() {
+        val l = ledger()
+        l.enterAt(a, 0, 0)
+        l.seeking(min(2))
+        l.stall(min(3), null)
+        l.seeked(min(4), media(10.0))
+        l.resumed(min(5), null)
+        l.leave(min(8))
+        // 0-2 before the seek, then 10-13 once the stall is over.
+        assertEquals(5.minutes, l.watched(a, min(8)))
+    }
 }
