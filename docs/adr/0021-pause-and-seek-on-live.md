@@ -74,7 +74,7 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    | File ends early while behind | Once the clock has passed the block: straight to catch-up, no ident fill. While the clock is still inside the block: the ident holds to the block's end, as on the live path |
    | File runs long while behind | Cut at the block's end, then catch up (the schedule wins, Q-SCH-3) |
    | Item's schedule slot ends while paused | Nothing; Play continues it |
-   | Dead item while behind | One retry at the place, then treated as the item's end; no 30-minute stand-in |
+   | Dead item or source error while behind | One retry at the place, from the block's single retry budget, which is shared with the live path. If still dead (or no retry is left): while the clock is inside the block, the existing dead-item handling (slate, then stand-in); once the block has ended by the clock, treated as the item's end and caught up, with no stand-in |
    | Stand-in | Can be paused and sought like a program |
    | Split item | "The item" is the block; Back stops at its in-point |
    | Flip, Previous or guide tune to another channel | Behind state dropped; coming back joins live |
