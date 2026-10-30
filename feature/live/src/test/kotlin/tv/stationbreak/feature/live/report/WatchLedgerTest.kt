@@ -190,4 +190,14 @@ class WatchLedgerTest {
         // 0-2 before the seek, then 1-4 once the stall is over: 1-2 is already watched, so 4 in all.
         assertEquals(4.minutes, l.watched(a, min(8)))
     }
+
+    @Test
+    fun anExactPositionAheadOfTheDerivedOneIsClamped() {
+        val l = ledger()
+        l.enterAt(a, 0, 0)
+        l.stall(min(5), positionMs = media(7.0))
+        l.leave(min(6))
+        // Never over-count: the player cannot have played more than the wall time since the span began.
+        assertEquals(5.minutes, l.watched(a, min(6)))
+    }
 }

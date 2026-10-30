@@ -443,11 +443,15 @@ abstract class ReportingContractSuite {
             v.start(RESUME)
             val first: Instant
             val second: Instant
+            val third: Instant
             try {
                 first = lastPlayed(itemId)
                 delay(LAST_PLAYED_GAP)
                 v.progress(RESUME)
                 second = lastPlayed(itemId)
+                delay(LAST_PLAYED_GAP)
+                v.progress(RESUME, paused = true)
+                third = lastPlayed(itemId)
             } finally {
                 v.stop(RESUME, failed = true)
             }
@@ -455,12 +459,17 @@ abstract class ReportingContractSuite {
             when (version) {
                 V12_1 -> {
                     assertEquals(first, second, "12.1 moved LastPlayedDate on a check-in (#511)")
+                    assertEquals(second, third, "12.1 moved LastPlayedDate on a paused check-in (#511)")
                 }
 
                 V12_2 -> {
                     assertTrue(
                         second.isAfter(first),
                         "12.2 moves LastPlayedDate on a check-in (#511): if this fails, recheck #511",
+                    )
+                    assertTrue(
+                        third.isAfter(second),
+                        "12.2 moves LastPlayedDate on a paused check-in (#511): if this fails, recheck #511",
                     )
                 }
 

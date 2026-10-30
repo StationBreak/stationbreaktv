@@ -298,7 +298,10 @@ internal class Sitting(
         return playing
     }
 
-    /** Where the player says the last [hold] failed, in media ms; negative when it did not fail or could not say. */
+    /**
+     * Where the player says the last [hold] failed, in media ms; negative when it did not fail or could not say.
+     * Temporary: Task 8a replaces it with `Held.Failed(positionMs)`.
+     */
     var failedPositionMs: Long = -1
         private set
 

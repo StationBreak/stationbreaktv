@@ -127,6 +127,27 @@ class PausedReportingTest {
         }
 
     @Test
+    fun aPauseAfterAFailedFreshPlayingSendsNothingUntilPlay() =
+        runTest {
+            val rig = Rig(this)
+            rig.playing()
+            rig.reporter.paused()
+            rig.at(465_000)
+            rig.server.startResult = ServerResult.Failure(MediaServerError.Timeout())
+            rig.reporter.unpaused()
+            rig.at(465_000)
+            rig.reporter.paused()
+            val before = rig.calls.size
+            rig.at(900_000)
+            assertEquals(before, rig.calls.size)
+            rig.server.startResult = ServerResult.Success(Unit)
+            rig.reporter.unpaused()
+            rig.at(900_000)
+            // The second pause outlasted pauseReportMax too, so the Play sends the fresh Playing at once.
+            assertEquals(Call("start", 900_000, "a", 7_000), rig.calls.last())
+        }
+
+    @Test
     fun aPausedCheckInLogsOnlyLabelsAndNumbers() =
         runTest {
             val rig = Rig(this)

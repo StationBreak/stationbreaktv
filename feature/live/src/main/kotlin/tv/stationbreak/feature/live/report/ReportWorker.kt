@@ -268,7 +268,7 @@ internal class ReportWorker(
             v.silent = true
             log("report silent afterMs=${paused.inWholeMilliseconds}")
         }
-        return since != null && (!v.started || v.silent)
+        return since != null && (!v.started || v.silent || v.needsFreshStart)
     }
 
     /** One read of the item's user data, within the per-visit budget. True when [v] now knows its resume position. */

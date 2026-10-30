@@ -16,8 +16,8 @@ import kotlin.time.Duration.Companion.seconds
  *   the calls queued behind it for long.
  * @property userDataAttempts how many times one visit may try to read the item's user data before it gives up.
  * @property markAttempts how many times marking one airing played may be tried before it gives up.
- * @property pauseReportMax how long a pause is reported as paused before check-ins go silent (spec 20); the live run
- *   copies it from [LiveTimings.pauseReportMax].
+ * @property pauseReportMax how long a pause is reported as paused before check-ins go silent (spec 20).
+ *   `LiveChannel` overrides it from [LiveTimings.pauseReportMax].
  */
 data class ReportingConfig(
     val startAfter: Duration = 30.seconds,

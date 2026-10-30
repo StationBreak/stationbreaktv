@@ -211,14 +211,17 @@ internal class WatchLedger(
 
     private fun entry(key: AiringKey): Entry = entries.getOrPut(key) { Entry() }
 
-    /** While the open airing runs, closes its span at [positionMs] (or the derived position) and stops it. */
+    /** While the open airing runs, closes its span at [positionMs] (never past the derived position) and stops it. */
     private fun stop(
         at: Instant,
         positionMs: Long?,
     ) {
         val key = open ?: return
         val from = since ?: return
-        val end = positionMs ?: (fromMs + (at - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds)
+        val derived = fromMs + (at - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds
+        // An exact position may only shorten the span: the player can land ahead of where it was asked, and keeps
+        // playing before the span's clock is stamped, so it could read ahead of the wall time. Never over-count.
+        val end = if (positionMs == null) derived else minOf(positionMs, derived)
         val entry = entry(key)
         entry.spans = merge(entry.spans, MediaSpan(fromMs, end))
         fromMs = end
