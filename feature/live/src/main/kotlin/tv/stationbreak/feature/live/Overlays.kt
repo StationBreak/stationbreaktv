@@ -34,10 +34,18 @@ internal class Overlays(
     ) {
         when (command) {
             LiveCommand.ShowBanner -> showBanner(scope)
+
             LiveCommand.ShowInfo -> showInfo(scope)
+
             LiveCommand.DismissOverlay -> dismiss(scope)
+
             is LiveCommand.Flip -> keepActions(scope)
+
             LiveCommand.Previous, is LiveCommand.Tune, LiveCommand.FlipReleased -> Unit
+
+            LiveCommand.PlayPause, LiveCommand.Play, LiveCommand.Pause, is LiveCommand.Seek,
+            LiveCommand.SeekReleased, LiveCommand.GoLive,
+            -> Unit
         }
     }
 

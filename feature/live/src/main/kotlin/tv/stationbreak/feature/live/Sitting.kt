@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
@@ -72,12 +73,18 @@ internal class Sitting(
     /** The run's playback reporter (spec 16), null where reporting is off, and this sitting's id in it. */
     internal val reporter: PlaybackReporter? = null,
     internal val sittingId: Long = 0,
+    /** This sitting's inbox for the viewer's transport presses (spec 20); the run closes it with the sitting. */
+    internal val commands: SittingCommands = SittingCommands(sittingId),
     /**
      * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
      * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
      */
     internal val onSettled: (CoroutineScope) -> Unit = {},
 ) {
+    /** The start of the block (or stand-in piece) whose picture is up; null before a tune plays or on a card. */
+    @Volatile
+    internal var heldBlockStartMs: Long? = null
+
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
 
@@ -251,6 +258,9 @@ internal class Sitting(
         onAir: ChannelOnAir? = null,
         tune: suspend () -> TuneOutcome,
     ): TuneOutcome {
+        // A press made before this cut or retune must not act on what plays after it.
+        val stale = commands.drain()
+        if (stale > 0) report(TuneReport.PressDropped("transport-at-tune", state.value.javaClass.logName(), stale))
         if (snow) state.value = LiveState.Tuning(banner)
         val began = clock.now()
         // The committed item's own first tune only: a stand-in comes after the slate's hold, which is not hand-over.
@@ -270,6 +280,7 @@ internal class Sitting(
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
+            heldBlockStartMs = what.block.startMs
             val playing = showWatching(scope, banner, what.block.airing.itemId())
             // The banner's "Next" came from the blocks already read; with no program among them, look wider, now that
             // the picture is up and the tune no longer waits for it.
@@ -355,6 +366,7 @@ internal class Sitting(
         // Worked out before the stop: the card must follow the stop at once, not after a look at the schedule.
         val up = upNext(onAir)
         tuner.stop(session)
+        heldBlockStartMs = null
         state.value = LiveState.Ident(up, onAir.tag())
         // A card with no picture also looks ahead, so a flip off it is not a fresh tune (#392).
         onSettled(scope)
@@ -364,6 +376,7 @@ internal class Sitting(
     }
 
     fun expired(): Exit {
+        heldBlockStartMs = null
         state.value = LiveState.SignedOut
         return Exit.SignedOut
     }

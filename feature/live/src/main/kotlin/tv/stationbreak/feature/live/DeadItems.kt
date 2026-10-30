@@ -26,6 +26,7 @@ internal suspend fun Sitting.deadItem(
     tuner.stop(session)
     val remaining = block.endMs - vnowMs()
     if (remaining <= 0) return null
+    heldBlockStartMs = null
     state.value = LiveState.TechnicalDifficulties(up, onAir.tag())
     onSettled(scope)
     delay(timings.slateHold)

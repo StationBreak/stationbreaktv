@@ -38,6 +38,9 @@ import kotlin.time.Duration.Companion.seconds
  * @property pauseReportMax how long a pause keeps being reported to the server as paused (spec 20, ADR-0021): check-ins
  *   carry `IsPaused` for this long, then go silent, so a long pause does not hold a server session open. The next Play
  *   sends a fresh Playing.
+ * @property stepBack how far one press of the back key moves the picture (spec 20).
+ * @property stepAhead how far one press of the ahead key moves the picture (spec 20).
+ * @property pauseHoldMax the longest a pause is held before the sitting plays on (spec 20, ADR-0021).
  * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
@@ -56,6 +59,9 @@ data class LiveTimings(
     val flipLogSize: Int = 50,
     val keyRepeatTimeout: Duration = DEFAULT_KEY_REPEAT_TIMEOUT,
     val pauseReportMax: Duration = DEFAULT_PAUSE_REPORT_MAX,
+    val stepBack: Duration = 10.seconds,
+    val stepAhead: Duration = 30.seconds,
+    val pauseHoldMax: Duration = 60.minutes,
 ) {
     init {
         require(flipReleaseFallback > keyRepeatTimeout) { "flipReleaseFallback must outlast the key-repeat timeout" }
@@ -64,6 +70,9 @@ data class LiveTimings(
         require(flipRepeatDelay >= Duration.ZERO) { "flipRepeatDelay must not be negative" }
         require(flipRepeatEvery > Duration.ZERO) { "flipRepeatEvery must be positive" }
         require(pauseReportMax >= Duration.ZERO) { "pauseReportMax must not be negative" }
+        require(stepBack > Duration.ZERO) { "stepBack must be positive" }
+        require(stepAhead > Duration.ZERO) { "stepAhead must be positive" }
+        require(pauseHoldMax > Duration.ZERO) { "pauseHoldMax must be positive" }
     }
 
     companion object {

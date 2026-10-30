@@ -88,6 +88,9 @@ class LiveChannel(
     private var flipLog: List<TuneReport.Flip> = emptyList()
     private var sittings = 0L
 
+    // The sitting that is running, for the transport presses to reach; set and cleared by [sit].
+    private var current: Sitting? = null
+
     // The running run's reporter, so that [leave] can end its reporting before the run's own teardown gets to it.
     @Volatile
     @VisibleForTesting
@@ -98,6 +101,9 @@ class LiveChannel(
 
     /** The program info overlay (spec 17) while one is open: closed by a tune, a boundary or a flip. */
     val info: StateFlow<LiveInfo?> = screen.info
+
+    /** What the screen shows of the transport while the viewer is behind or paused; null while live (spec 20). */
+    val transport: StateFlow<TransportView?> = screen.transport
 
     /** The channel tuned last (the one playing, or being tuned); null before the first. The guide opens on it. */
     val playingChannel: ChannelId? get() = tuned.playing?.id
@@ -162,7 +168,7 @@ class LiveChannel(
                     }
                 refresher = flipper::refresh
                 lineup = flipper::lineup
-                launch { flipper.follow(commands) { overlays.handle(it, this@coroutineScope) } }
+                launch { flipper.follow(commands) { onCommand(it, this@coroutineScope) } }
                 try {
                     requests.receiveAsFlow().collectLatest { request ->
                         if (sit(session, request, neighbours, reporter)) throw RunEnded()
@@ -244,6 +250,7 @@ class LiveChannel(
                     val next = newSitting(session, first, flip, neighbours, reporter)
                     flip = null
                     sitting = next
+                    current = next
                     val exit = next.follow(first)
                     if (exit == Exit.SignedOut) return true
                     closeFlip(next, null, "abandoned")
@@ -279,11 +286,47 @@ class LiveChannel(
         } finally {
             // A newer commit waiting means this sitting was replaced; else the run is ending.
             closeFlip(sitting, flip, if (unstarted != null) "superseded" else "abandoned")
+            sitting?.commands?.close()
+            current = null
             withContext(NonCancellable) {
                 sitting?.release()
                 tuner.stop(session)
             }
         }
+    }
+
+    /** What the overlays and the transport inbox do with each command, beside the flipper. */
+    private fun onCommand(
+        command: LiveCommand,
+        scope: CoroutineScope,
+    ) {
+        overlays.handle(command, scope)
+        routeTransport(command)
+    }
+
+    /**
+     * Hands a transport press to the running sitting's inbox, tagged with the sitting and the block whose picture is
+     * up. Dropped, with a line, unless the picture plays: snow, a number being chosen and every card drop it.
+     */
+    private fun routeTransport(command: LiveCommand) {
+        val op =
+            when (command) {
+                LiveCommand.PlayPause -> TransportOp.Toggle
+                LiveCommand.Play -> TransportOp.Play
+                LiveCommand.Pause -> TransportOp.Pause
+                is LiveCommand.Seek -> TransportOp.Step(command.direction, command.repeat, command.atMs)
+                LiveCommand.SeekReleased -> TransportOp.StepReleased
+                LiveCommand.GoLive -> TransportOp.GoLive
+                else -> return
+            }
+        val state = screen.flow.value
+        val sitting = current
+        val held = sitting?.heldBlockStartMs
+        if (state !is LiveState.Watching || sitting == null || held == null) {
+            report(TuneReport.PressDropped("transport-not-watching", state.javaClass.logName()))
+            return
+        }
+        sitting.commands.offer(Tagged(sitting.sittingId, held, op))
     }
 
     /**
@@ -331,6 +374,7 @@ class LiveChannel(
             lead,
             reporter,
             sittingId,
+            SittingCommands(sittingId),
         ) { scope ->
             lookAhead(scope, neighbours, first.channel)
         }

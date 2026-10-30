@@ -226,10 +226,19 @@ internal class Flipper(
                 overlay(command)
                 when (command) {
                     is LiveCommand.Flip -> flip(command)
+
                     LiveCommand.FlipReleased -> released()
+
                     LiveCommand.Previous -> recall()
+
                     is LiveCommand.Tune -> tune(command.channel)
+
                     LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
+
+                    // The sitting's inbox takes these (LiveChannel.routeTransport), not the flipper.
+                    LiveCommand.PlayPause, LiveCommand.Play, LiveCommand.Pause, is LiveCommand.Seek,
+                    LiveCommand.SeekReleased, LiveCommand.GoLive,
+                    -> Unit
                 }
             } catch (e: CancellationException) {
                 throw e

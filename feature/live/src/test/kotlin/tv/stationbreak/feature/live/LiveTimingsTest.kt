@@ -49,4 +49,18 @@ class LiveTimingsTest {
     fun aNegativePauseReportMaxIsRefused() {
         assertThrows(IllegalArgumentException::class.java) { LiveTimings(pauseReportMax = (-1).seconds) }
     }
+
+    @Test
+    fun theTransportDefaultsAreTenBackThirtyAheadAndAnHourHeld() {
+        assertEquals(10.seconds, LiveTimings().stepBack)
+        assertEquals(30.seconds, LiveTimings().stepAhead)
+        assertEquals(60.minutes, LiveTimings().pauseHoldMax)
+    }
+
+    @Test
+    fun aTransportTimeThatIsNotPositiveIsRefused() {
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(stepBack = 0.seconds) }
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(stepAhead = 0.seconds) }
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(pauseHoldMax = 0.seconds) }
+    }
 }

@@ -34,6 +34,9 @@ internal class Screen(
     private var playing: Playing? = null
     private val infoOut = MutableStateFlow<LiveInfo?>(null)
 
+    /** What the screen shows of the transport while the viewer is behind or paused; null while live. */
+    val transport = MutableStateFlow<TransportView?>(null)
+
     /** What the screen shows, [LiveState.Choosing] included. */
     val flow: StateFlow<LiveState> = out.asStateFlow()
 
