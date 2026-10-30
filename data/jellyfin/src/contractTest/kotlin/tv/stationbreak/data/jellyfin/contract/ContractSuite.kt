@@ -259,43 +259,116 @@ abstract class ContractSuite {
         }
     }
 
-    @Test
-    fun aLibraryTheViewerHidesIsStillInTheRemovalCheck() {
-        runBlocking {
-            val adapter = adapter()
-            val session = session(adapter)
-            val token = harnessToken()
-            val userId = session.userId.value
-            val config = server.http.expectOk("read config", server.http.get("Users/$userId", token)).obj()
-            val original = config.getValue("Configuration").jsonObject
-            val hiddenTv =
-                JsonObject(original + ("MyMediaExcludes" to JsonArray(listOf(JsonPrimitive(server.seeded.tvLibrary)))))
-            try {
-                server.http.expectOk(
-                    "hide the TV library",
-                    server.http.post("Users/Configuration", hiddenTv.toString(), token, listOf("userId" to userId)),
-                )
+    // The cases below change the shared viewer's configuration or policy and put it back in `finally`, so the other
+    // cases (which run against the same server) see the viewer as it was seeded.
+    private suspend fun withViewerConfiguration(
+        change: (JsonObject) -> JsonObject,
+        check: suspend (JellyfinMediaServer, Session) -> Unit,
+    ) {
+        val adapter = adapter()
+        val session = session(adapter)
+        val token = harnessToken()
+        val userId = session.userId.value
+        val user = server.http.expectOk("read viewer", server.http.get("Users/$userId", token)).obj()
+        val original = user.getValue("Configuration").jsonObject
+        try {
+            server.http.expectOk(
+                "change viewer configuration",
+                server.http.post("Users/Configuration", change(original).toString(), token, listOf("userId" to userId)),
+            )
+            check(adapter, session)
+        } finally {
+            server.http.expectOk(
+                "restore viewer configuration",
+                server.http.post("Users/Configuration", original.toString(), token, listOf("userId" to userId)),
+            )
+        }
+    }
 
+    private fun ids(vararg raw: String) = raw.map(::ItemId).toSet()
+
+    @Test
+    fun aLibraryTheViewerHidesStillExists() {
+        runBlocking {
+            val tv = server.seeded.tvLibrary
+            val hidden = JsonArray(listOf(JsonPrimitive(tv)))
+            withViewerConfiguration({ JsonObject(it + ("MyMediaExcludes" to hidden)) }) { adapter, session ->
                 val listed =
                     adapter
                         .libraries(session)
                         .getOrNull()
                         ?.map { it.id.value }
                         .orEmpty()
-                val checked =
-                    adapter
-                        .libraryIdsForRemovalCheck(session)
-                        .getOrNull()
-                        ?.map { it.value }
-                        .orEmpty()
+                val found = adapter.existingLibraryIds(session, ids(tv)).getOrNull()
 
-                assertTrue(server.seeded.tvLibrary !in listed, "the hidden library is still in the listing")
-                assertTrue(server.seeded.tvLibrary in checked, "the hidden library is missing from the removal check")
-                assertTrue(listed.all { it in checked }, "the removal check lacks a listed library")
+                assertTrue(tv !in listed, "the hidden library is still in the listing")
+                assertEquals(ids(tv), found)
+            }
+        }
+    }
+
+    @Test
+    fun aLibraryTheViewerGroupsStillExists() {
+        runBlocking {
+            val movies = server.seeded.moviesLibrary
+            val mixed = server.seeded.mixedLibrary
+            val grouped = JsonArray(listOf(JsonPrimitive(movies), JsonPrimitive(mixed)))
+            withViewerConfiguration({ JsonObject(it + ("GroupedFolders" to grouped)) }) { adapter, session ->
+                val found = adapter.existingLibraryIds(session, ids(movies, mixed)).getOrNull()
+
+                assertEquals(ids(movies, mixed), found)
+            }
+        }
+    }
+
+    @Test
+    fun aLibraryIdTheServerDoesNotHaveDoesNotExist() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val unknown = UUID.randomUUID().toString().replace("-", "")
+
+            val found = adapter.existingLibraryIds(session, ids(unknown, server.seeded.moviesLibrary)).getOrNull()
+
+            assertEquals(ids(server.seeded.moviesLibrary), found)
+        }
+    }
+
+    @Test
+    fun aLibraryTheViewerLostAccessToIsStillReportedAsExisting() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+            val userId = session.userId.value
+            val user = server.http.expectOk("read viewer", server.http.get("Users/$userId", admin)).obj()
+            val original = user.getValue("Policy").jsonObject
+            val tv = server.seeded.tvLibrary
+            val movies = server.seeded.moviesLibrary
+            val restricted =
+                JsonObject(
+                    original +
+                        mapOf(
+                            "EnableAllFolders" to JsonPrimitive(false),
+                            "EnabledFolders" to JsonArray(listOf(JsonPrimitive(movies))),
+                        ),
+                )
+            try {
+                server.http.expectOk(
+                    "restrict viewer",
+                    server.http.post("Users/$userId/Policy", restricted.toString(), admin),
+                )
+
+                // Observed on 12.1 and 12.2: `GET /Items?ids=` answers for a library folder the user may no longer
+                // enter. A revoked folder is therefore not detected (the removal is never wrongly made, only
+                // missed). If a later server stops answering, this fails and the port's text is then true as written.
+                val found = adapter.existingLibraryIds(session, ids(tv, movies)).getOrNull()
+
+                assertEquals(ids(tv, movies), found)
             } finally {
                 server.http.expectOk(
-                    "restore config",
-                    server.http.post("Users/Configuration", original.toString(), token, listOf("userId" to userId)),
+                    "restore viewer policy",
+                    server.http.post("Users/$userId/Policy", original.toString(), admin),
                 )
             }
         }

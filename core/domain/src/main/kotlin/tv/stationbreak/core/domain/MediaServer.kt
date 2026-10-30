@@ -121,12 +121,16 @@ interface MediaServer {
     suspend fun libraries(session: Session): ServerResult<List<Library>>
 
     /**
-     * The ID of every view the server has for the user (`GET /UserViews?includeHidden=true`), with no filter on kind:
-     * the libraries [libraries] leaves out (hidden ones, kinds the app does not use) are in it. It answers one
-     * question only, whether a chosen library still exists on the server, so a library counts as removed only if its
-     * ID is absent here. It is not a list to pick libraries from.
+     * Which of the library IDs in [candidates] still exist and are reachable for the signed-in user, whatever their
+     * kind or the user's display settings (hidden or grouped views). It asks about the IDs themselves, not the user's
+     * list of views, so it answers one question only: whether a chosen library is gone. It is not a list to pick
+     * libraries from. Jellyfin still answers for a library folder the user has lost access to, so that case reads as
+     * existing (the contract suite pins it).
      */
-    suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>>
+    suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>>
 
     /**
      * One page of [library]'s direct children, from [startIndex] (at least 0) with at most [limit] items (1 to

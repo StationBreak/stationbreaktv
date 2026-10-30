@@ -114,15 +114,15 @@ private sealed interface IdsRead {
     ) : IdsRead
 }
 
-/** How one read of the view IDs ended: [Sound] with the IDs, or [Failed] with the outcome the pass ends as. */
-private sealed interface ViewIds {
+/** How one read of which libraries exist ended: [Sound] with the IDs, or [Failed] with the outcome the pass ends as. */
+private sealed interface Existing {
     class Sound(
         val ids: Set<ItemId>,
-    ) : ViewIds
+    ) : Existing
 
     class Failed(
         val outcome: SyncOutcome,
-    ) : ViewIds
+    ) : Existing
 }
 
 /** One page of an ID listing, from a start index and a count: the item listing or the series listing. */
@@ -303,6 +303,9 @@ internal class StayCurrentEngine(
         private val listedItems = HashSet<ItemId>()
         private val listedSeries = HashSet<ItemId>()
 
+        // Set when a listed library's ID list was not trusted (its size did not match what the server said).
+        private var untrusted = false
+
         suspend fun incremental(
             chosen: Set<ItemId>,
             last: Instant,
@@ -379,53 +382,57 @@ internal class StayCurrentEngine(
             return StayResult(SyncOutcome.Completed, reconciled)
         }
 
-        // A chosen library the listing lacks is tombstoned (items and series, revivable), but only if the server's view
-        // IDs, hidden ones and every kind included, also lack it. The check is made on a read that looks sound: an
-        // empty one, or one with none of the chosen libraries, is more likely a server fault (suspect). Like the ID
-        // reconcile, only what a second read also lacks is gone; the two reads are back to back, so a server that is
-        // briefly wrong for both is the accepted risk. The library stays chosen, so if it comes back its rows revive
-        // in the ordinary reconcile. An item or series that a listed library still holds (rows have one library, items
-        // can belong to two) is left live. A library with no live rows has nothing to tombstone.
+        // A chosen library the listing lacks is tombstoned (items and series, revivable), but only if the server, asked
+        // about the library IDs themselves (not the user's views, which hide and group), also says it is gone. The
+        // answer must look sound: one with none of the chosen libraries is more likely a server fault (suspect). Like
+        // the ID reconcile, only what a second read also lacks is gone; the two reads are back to back, so a server
+        // that is briefly wrong for both is the accepted risk. The library stays chosen, so if it comes back its rows
+        // revive in the ordinary reconcile. An item or series that a listed library still holds (rows have one
+        // library, items can belong to two) is left live, and a library whose rows are all so held costs no request.
+        // Skipped when a listed library's ID list could not be trusted, as then what it holds is not known. Every
+        // removed library is written in one transaction, so the generation moves once.
         private suspend fun tombstoneRemoved(
             chosen: Set<ItemId>,
             removed: Set<ItemId>,
         ): SyncOutcome? {
+            if (untrusted) return null
             // The cache first, then the server, as in the ID reconcile.
             val live =
                 removed
-                    .associateWith { repository.liveItemIds(account, it) to repository.liveSeriesIds(account, it) }
-                    .filterValues { (items, series) -> items.isNotEmpty() || series.isNotEmpty() }
+                    .associateWith {
+                        repository.liveItemIds(account, it).filterNot { id -> id in listedItems } to
+                            repository.liveSeriesIds(account, it).filterNot { id -> id in listedSeries }
+                    }.filterValues { (items, series) -> items.isNotEmpty() || series.isNotEmpty() }
             if (live.isEmpty()) return null
             val first =
-                when (val read = viewIds(chosen)) {
-                    is ViewIds.Failed -> return read.outcome
-                    is ViewIds.Sound -> read.ids
+                when (val read = existing(chosen)) {
+                    is Existing.Failed -> return read.outcome
+                    is Existing.Sound -> read.ids
                 }
             val missing = live.filterKeys { it !in first }
             if (missing.isEmpty()) return null
             val again =
-                when (val read = viewIds(chosen)) {
-                    is ViewIds.Failed -> return read.outcome
-                    is ViewIds.Sound -> read.ids
+                when (val read = existing(chosen)) {
+                    is Existing.Failed -> return read.outcome
+                    is Existing.Sound -> read.ids
                 }
-            for (rows in missing.filterKeys { it !in again }.values) {
-                val items = rows.first.filterNot { it in listedItems }
-                val series = rows.second.filterNot { it in listedSeries }
-                repository.applyReconcile(account, items, emptySet(), series, emptySet())
-                reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
-            }
+            val gone = missing.filterKeys { it !in again }.values
+            val items = gone.flatMap { it.first }
+            val series = gone.flatMap { it.second }
+            repository.applyReconcile(account, items, emptySet(), series, emptySet())
+            reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
             return null
         }
 
-        // One read of the view IDs: a failure, or an empty answer or one with no chosen library (suspect), stops.
-        private suspend fun viewIds(chosen: Set<ItemId>): ViewIds =
-            when (val read = server.libraryIdsForRemovalCheck(session)) {
+        // One read of which chosen libraries exist: a failure, or an answer with none of them (suspect), stops.
+        private suspend fun existing(chosen: Set<ItemId>): Existing =
+            when (val read = server.existingLibraryIds(session, chosen)) {
                 is ServerResult.Failure -> {
-                    ViewIds.Failed(fail(read.error))
+                    Existing.Failed(fail(read.error))
                 }
 
                 is ServerResult.Success -> {
-                    if (read.value.any { it in chosen }) ViewIds.Sound(read.value) else ViewIds.Failed(suspect())
+                    if (read.value.any { it in chosen }) Existing.Sound(read.value) else Existing.Failed(suspect())
                 }
             }
 
@@ -443,11 +450,15 @@ internal class StayCurrentEngine(
             // The series are a separate pass with their own sets (Vimes M3), read after the items'. If it stops, the
             // items' decision is still written, and the pass ends with the series' outcome.
             listedItems += items.list.ids
+            if (!items.list.trusted) untrusted = true
             val seriesLive = repository.liveSeriesIds(account, library.id).toSet()
             val seriesTombstoned = repository.tombstonedSeriesIds(account, library.id).toSet()
             val seriesIds: IdLister = { start, count -> server.librarySeriesIds(session, library, start, count) }
             val series = decide(seriesLive, seriesTombstoned, seriesIds)
-            (series as? Decision.Ready)?.let { listedSeries += it.list.ids }
+            (series as? Decision.Ready)?.let {
+                listedSeries += it.list.ids
+                if (!it.list.trusted) untrusted = true
+            }
             val seriesGone = (series as? Decision.Ready)?.gone.orEmpty()
             val seriesReturning = (series as? Decision.Ready)?.returning.orEmpty()
             // One transaction for both (the item reconcile and the series reconcile).

@@ -93,6 +93,8 @@ class CleartextGateTest {
                 kotlin.time.Instant::class.java,
                 // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.
                 SpkiPin::class.java,
+                // existingLibraryIds takes the library IDs to ask about: plain values, no acknowledgement.
+                Set::class.java,
                 Int::class.javaPrimitiveType,
                 // reportStopped takes whether the end was a failure: a plain flag, never an acknowledgement.
                 Boolean::class.javaPrimitiveType,

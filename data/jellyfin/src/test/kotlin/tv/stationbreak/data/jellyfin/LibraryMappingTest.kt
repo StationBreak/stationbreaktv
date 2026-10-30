@@ -192,34 +192,60 @@ class LibraryMappingTest {
         }
     }
 
+    private fun candidates(vararg raw: String) = raw.map(::ItemId).toSet()
+
     @Test
-    fun theRemovalCheckAsksForHiddenViewsAndKeepsEveryKind() {
+    fun existingLibraryIdsAsksForTheItemsByIdAsTheUserAndKeepsOnlyCandidates() {
         runBlocking {
-            jellyfin.on("GET", "/UserViews") {
+            val token = fake("token")
+            jellyfin.on("GET", "/Items") {
+                // The server answers with what exists, whatever the kind, and may return something not asked for.
                 views(
                     view("r1", "Films", "movies"),
                     view("r2", "Playlists", "playlists"),
                     view("r3", "Future", "somethingfromthefuture"),
-                    view("r4", "Everything", null),
+                    view("zz", "Stray", "movies"),
                 )
             }
+            val session = testSession(jellyfin.address, token)
 
-            val ids = testAdapter().libraryIdsForRemovalCheck(testSession(jellyfin.address)).getOrNull()
+            val found = testAdapter().existingLibraryIds(session, candidates("r1", "r2", "r3", "gone")).getOrNull()
 
-            assertEquals(setOf("r1", "r2", "r3", "r4"), ids?.map { it.value }?.toSet())
-            val request = jellyfin.requests("/UserViews").single()
+            assertEquals(setOf("r1", "r2", "r3"), found?.map { it.value }?.toSet())
+            val request = jellyfin.requests("/Items").single()
             assertEquals("GET", request.method)
-            assertEquals("true", request.url.queryParameter("includeHidden"))
+            assertEquals(session.userId.value, request.url.queryParameter("userId"))
+            assertEquals(
+                setOf("r1", "r2", "r3", "gone"),
+                request.url
+                    .queryParameter("ids")
+                    ?.split(",")
+                    ?.toSet(),
+            )
+            assertEquals("4", request.url.queryParameter("limit"))
+            assertTrue(request.headers["Authorization"]!!.contains("Token=\"$token\""))
+            assertTrue(token !in request.url.toString())
         }
     }
 
     @Test
-    fun theLibraryListingStillAsksWithoutIncludeHidden() {
+    fun existingLibraryIdsOfNoCandidatesAsksNothing() {
+        runBlocking {
+            val found = testAdapter().existingLibraryIds(testSession(jellyfin.address), emptySet())
+
+            assertEquals(ServerResult.Success(emptySet()), found)
+            assertEquals(emptyList(), jellyfin.requests("/Items"))
+        }
+    }
+
+    @Test
+    fun theLibraryListingDoesNotUseTheItemsEndpoint() {
         runBlocking {
             jellyfin.on("GET", "/UserViews") { views() }
 
             testAdapter().libraries(testSession(jellyfin.address))
 
+            assertEquals(emptyList(), jellyfin.requests("/Items"))
             assertEquals(
                 null,
                 jellyfin
@@ -232,22 +258,22 @@ class LibraryMappingTest {
     }
 
     @Test
-    fun aRejectedTokenOnTheRemovalCheckIsSessionExpired() {
+    fun aRejectedTokenOnExistingLibraryIdsIsSessionExpired() {
         runBlocking {
-            jellyfin.on("GET", "/UserViews") { jellyfin.status(401) }
+            jellyfin.on("GET", "/Items") { jellyfin.status(401) }
 
-            val error = testAdapter().libraryIdsForRemovalCheck(testSession(jellyfin.address)).errorOrNull()
+            val error = testAdapter().existingLibraryIds(testSession(jellyfin.address), candidates("a")).errorOrNull()
 
             assertIs<MediaServerError.SessionExpired>(error)
         }
     }
 
     @Test
-    fun aRemovalCheckAnswerThatIsNotJellyfinIsNotJellyfin() {
+    fun existingLibraryIdsAnswerThatIsNotJellyfinIsNotJellyfin() {
         runBlocking {
-            jellyfin.on("GET", "/UserViews") { jellyfin.json("<html>hello</html>") }
+            jellyfin.on("GET", "/Items") { jellyfin.json("<html>hello</html>") }
 
-            val error = testAdapter().libraryIdsForRemovalCheck(testSession(jellyfin.address)).errorOrNull()
+            val error = testAdapter().existingLibraryIds(testSession(jellyfin.address), candidates("a")).errorOrNull()
 
             assertIs<MediaServerError.NotJellyfin>(error)
         }

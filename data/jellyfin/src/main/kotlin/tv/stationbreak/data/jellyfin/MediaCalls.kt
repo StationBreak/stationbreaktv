@@ -68,13 +68,33 @@ internal class MediaCalls(
             }
         }
 
-    // Every view ID, hidden ones included and of any kind: only whether a chosen library still exists is asked.
-    suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>> =
-        calls.send(session, Endpoint.get("UserViews", listOf("includeHidden" to "true"))).flatMap { text ->
-            Wire.parse(text, ViewsDto.serializer()).flatMap { views ->
-                convert { views.items.map { ItemId(it.id) }.toSet() }
+    // Asks for the items with these IDs, as the signed-in user: a library that exists and is reachable comes back
+    // whatever its kind and however the user's views are set up. Nothing else is read from the answer but the IDs.
+    suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>> {
+        if (candidates.isEmpty()) return ServerResult.Success(emptySet())
+        val query =
+            listOf(
+                "userId" to session.userId.value,
+                "ids" to candidates.joinToString(",") { it.value },
+                "limit" to candidates.size.toString(),
+                "enableTotalRecordCount" to "false",
+                "enableImages" to "false",
+                "enableUserData" to "false",
+            )
+        return calls.send(session, Endpoint.get("Items", query)).flatMap { text ->
+            Wire.parse(text, ViewsDto.serializer()).flatMap { found ->
+                convert {
+                    found.items
+                        .map { ItemId(it.id) }
+                        .filter { it in candidates }
+                        .toSet()
+                }
             }
         }
+    }
 
     suspend fun items(
         session: Session,

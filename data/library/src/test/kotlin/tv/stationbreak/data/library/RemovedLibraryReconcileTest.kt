@@ -11,7 +11,10 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemIdPage
+import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.data.library.SyncWorld.home
 import tv.stationbreak.data.library.SyncWorld.movies
@@ -117,7 +120,7 @@ class RemovedLibraryReconcileTest {
         }
 
     @Test
-    fun anEmptyListingTombstonesNothingAndFailsAsSuspect() =
+    fun noLibraryExistingIsSuspectNotAWipe() =
         runBlocking {
             firstSyncDone()
             server.libraries = emptyList()
@@ -130,7 +133,7 @@ class RemovedLibraryReconcileTest {
         }
 
     @Test
-    fun aListingWithNoChosenLibraryTombstonesNothingAndFailsAsSuspect() =
+    fun noChosenLibraryExistingIsSuspectNotAWipe() =
         runBlocking {
             firstSyncDone()
             server.libraries = listOf(home)
@@ -148,7 +151,10 @@ class RemovedLibraryReconcileTest {
     ) : MediaServer by server {
         var calls = 0
 
-        override suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>> {
+        override suspend fun existingLibraryIds(
+            session: Session,
+            candidates: Set<ItemId>,
+        ): ServerResult<Set<ItemId>> {
             calls += 1
             return reads[minOf(calls, reads.size) - 1]
         }
@@ -206,7 +212,7 @@ class RemovedLibraryReconcileTest {
             firstSyncDone()
             // The listing leaves out a hidden (or unrecognised) view; the removal check still sees it.
             server.libraries = listOf(movies)
-            server.unlistedLibraryIds = setOf(SHOWS)
+            server.extraExistingLibraryIds = setOf(SHOWS)
 
             val outcome = reconcile()
 
@@ -284,7 +290,7 @@ class RemovedLibraryReconcileTest {
             assertEquals(SyncOutcome.Failed(SyncFailure.Network), outcome)
             assertEquals(0, tombstonedIn(SHOWS))
             assertEquals(0, tombstonedSeries())
-            assertEquals(0, server.libraryIdsCalls)
+            assertEquals(0, server.existingLibraryIdsCalls.size)
         }
 
     @Test
@@ -298,5 +304,77 @@ class RemovedLibraryReconcileTest {
 
             assertEquals(30, tombstonedIn(SHOWS))
             assertEquals(ReconcileSummary(), summary)
+        }
+
+    @Test
+    fun twoRemovedLibrariesAreTombstonedInOneTransaction() =
+        runBlocking {
+            val everything = setOf(MOVIES, SHOWS, home.id)
+            server.libraries = listOf(movies, shows, home)
+            repository.useAccount(ALICE)
+            val first = SyncWorld.engine(repository, server, clock).run(session, ALICE, everything)
+            assertEquals(SyncOutcome.Completed, first)
+            clock.instant += 1.hours
+            server.libraries = listOf(movies)
+            val before = repository.contentGeneration(ALICE)
+            val engine = StayCurrentEngine(repository, server, clock, pageSize = 100)
+
+            val result = engine.reconcile(session, ALICE, everything)
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(ReconcileSummary(tombstoned = 40, seriesTombstoned = 5), result.summary)
+            assertEquals(30, tombstonedIn(SHOWS))
+            assertEquals(10, tombstonedIn(home.id))
+            assertEquals(before + 1, repository.contentGeneration(ALICE))
+            // Both reads ask about the chosen IDs.
+            assertEquals(listOf(everything, everything), server.existingLibraryIdsCalls)
+        }
+
+    @Test
+    fun aRemovedLibraryWhoseRowsAreAllHeldByAListedOneCostsNoRequest() =
+        runBlocking {
+            val both = setOf(MOVIES, home.id)
+            // The same IDs in both libraries: the row ends up in the one synced last (home), which is then removed.
+            val heldTwice = SyncWorld.source("m", 40, home.id)
+            val world = SyncWorld.server(movies to SyncWorld.source("m", 40), home to heldTwice)
+            world.libraries = listOf(movies, home)
+            repository.useAccount(ALICE)
+            assertEquals(SyncOutcome.Completed, SyncWorld.engine(repository, world, clock).run(session, ALICE, both))
+            assertEquals(40, repository.stored(ALICE).count { it.library == home.id })
+            clock.instant += 1.hours
+            world.libraries = listOf(movies)
+
+            val result = StayCurrentEngine(repository, world, clock, pageSize = 100).reconcile(session, ALICE, both)
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(ReconcileSummary(), result.summary)
+            assertEquals(0, world.existingLibraryIdsCalls.size)
+            assertEquals(0, tombstonedIn(home.id))
+        }
+
+    @Test
+    fun aListedLibraryWhoseIdListCouldNotBeTrustedSkipsTheRemoval() =
+        runBlocking {
+            firstSyncDone()
+            server.libraries = listOf(movies)
+            val lying =
+                object : MediaServer by server {
+                    override suspend fun libraryItemIds(
+                        session: Session,
+                        library: Library,
+                        startIndex: Int,
+                        limit: Int,
+                    ): ServerResult<ItemIdPage> =
+                        server.libraryItemIds(session, library, startIndex, limit).map { page ->
+                            if (startIndex == 0) page.copy(totalCount = page.totalCount?.plus(1)) else page
+                        }
+                }
+
+            val outcome = reconcile(lying)
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertEquals(0, tombstonedIn(SHOWS))
+            assertEquals(0, tombstonedSeries())
+            assertEquals(0, server.existingLibraryIdsCalls.size)
         }
 }

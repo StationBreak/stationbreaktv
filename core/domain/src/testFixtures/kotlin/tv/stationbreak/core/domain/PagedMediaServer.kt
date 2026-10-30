@@ -154,20 +154,22 @@ class PagedMediaServer(
         return ServerResult.Success(libraries)
     }
 
-    /** Views the server has that [libraries] does not list (hidden, or of a kind the app does not use). */
-    var unlistedLibraryIds: Set<ItemId> = emptySet()
+    /** Libraries that exist but [libraries] does not list (hidden, grouped, or of a kind the app does not use). */
+    var extraExistingLibraryIds: Set<ItemId> = emptySet()
 
-    /** What [libraryIdsForRemovalCheck] answers when it should fail; the listing's own failure fails it too. */
-    var libraryIdsFailure: MediaServerError? = null
+    /** What [existingLibraryIds] answers when it should fail; the listing's own failure fails it too. */
+    var existingLibraryIdsFailure: MediaServerError? = null
 
-    /** How many removal-check reads were made. */
-    var libraryIdsCalls = 0
-        private set
+    /** The candidates of every [existingLibraryIds] call, in order. */
+    val existingLibraryIdsCalls = mutableListOf<Set<ItemId>>()
 
-    override suspend fun libraryIdsForRemovalCheck(session: Session): ServerResult<Set<ItemId>> {
-        libraryIdsCalls += 1
-        (libraryIdsFailure ?: librariesFailure)?.let { return ServerResult.Failure(it) }
-        return ServerResult.Success(libraries.map { it.id }.toSet() + unlistedLibraryIds)
+    override suspend fun existingLibraryIds(
+        session: Session,
+        candidates: Set<ItemId>,
+    ): ServerResult<Set<ItemId>> {
+        existingLibraryIdsCalls += candidates
+        (existingLibraryIdsFailure ?: librariesFailure)?.let { return ServerResult.Failure(it) }
+        return ServerResult.Success(candidates intersect (libraries.map { it.id }.toSet() + extraExistingLibraryIds))
     }
 
     override suspend fun libraryItems(
