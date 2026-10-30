@@ -18,9 +18,9 @@ import tv.stationbreak.data.library.StayCurrent
 import javax.inject.Inject
 
 /**
- * #480: the graph owns the one `StayCurrent`. What the `Application` hands the worker (through its entry point) and what
- * the graph injects (the lineup refresher's sync signal) are the same object, so there is one runner, and one gate, in
- * the process. The first-sync runner the signal reads is the graph's one too.
+ * #480: the graph owns the one `StayCurrent`. What the `Application` hands the worker (through its entry point) and
+ * what the graph injects (the lineup refresher's sync signal) are the same object, so there is one runner, and one
+ * gate, in the process. The first-sync runner the signal reads is the graph's one too.
  */
 @HiltAndroidTest
 class StayCurrentInstanceTest {
