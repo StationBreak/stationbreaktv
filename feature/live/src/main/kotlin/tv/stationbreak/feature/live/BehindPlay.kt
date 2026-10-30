@@ -145,29 +145,8 @@ internal class BehindPlay(
     /** Set when the play's own end came (not a cut): its last notes are waited for. */
     private var playEnded = false
 
-    // DESIGN(#383): placeholder, held-step pace. A held Back or Ahead steps at the flip's pace: at 4 steps a second,
-    // held Back takes about 45 s to go back 30 minutes, so how a viewer reaches the start of a long item (start-over
-    // reachability) is for the design partner.
-    private val pace = HeldFlip(timings.flipRepeatDelay, timings.flipRepeatEvery)
-
-    /** Where the steps so far add up to, until it settles; null when no step is pending. */
-    @Volatile
-    private var targetMs: Long? = null
-
-    /** True when the pending target is the live position: an Ahead step's clamp hit it. */
-    private var targetIsLive = false
-
-    /**
-     * The clock time (epoch ms) the pending target settles at: the release fallback while the key is down, then the
-     * later of the last press or repeat plus [LiveTimings.flipSettle], and the release (#430, R55).
-     */
-    private var settleAtMs: Long? = null
-
-    /** True from a Back or Ahead press until its release: nothing settles at [LiveTimings.flipSettle] meanwhile. */
-    private var keyDown = false
-
-    /** The clock time (epoch ms) of the last Back or Ahead press or repeat. */
-    private var lastKeyAtMs = 0L
+    /** The steps' target and when it settles into one seek (the flip's rule). */
+    private val steps = StepSettle(timings, ::nowMs)
 
     /** The target of the latest seek sent and not yet done; null when none is in flight. */
     @Volatile
@@ -242,7 +221,7 @@ internal class BehindPlay(
         if (first != null) {
             act(first)
             // A first op that changed nothing (a step the play cannot take) leaves the viewer live.
-            val still = !paused && targetMs == null && seekingToMs == null && goingLive == null
+            val still = !paused && steps.target == null && seekingToMs == null && goingLive == null
             if (still) return BehindEnd.Live(play)
         }
         val ended = within.async { play.end.firstOrNull() ?: PlaybackEnd.Ended }
@@ -264,7 +243,7 @@ internal class BehindPlay(
             // The first wait is the exact media left, so the cut is on time. Only once a wait has fired short is a
             // floor put under it, so a hold that keeps running short near the cut never spins.
             val dueMs = leftMs?.let { if (firedShort) maxOf(it, rearmMinMs) else it }
-            val settleMs = settleAtMs?.let { maxOf(0L, it - nowMs()) }
+            val settleMs = steps.dueAtMs?.let { maxOf(0L, it - nowMs()) }
             val landed = goingLive
             val liveMs = landed?.let { maxOf(0L, liveSinceMs + goLiveWaitMs - nowMs()) }
             val waitMs = listOfNotNull(dueMs, settleMs, liveMs).minOrNull()
@@ -346,49 +325,27 @@ internal class BehindPlay(
      */
     private suspend fun step(op: TransportOp.Step) {
         if (!play.control.seekable()) return
-        // While the key is down only the release fallback settles, so a held key seeks once, when it comes up, even
-        // where the remote's first auto-repeat comes after flipSettle (480 ms on older hardware).
-        keyDown = true
-        lastKeyAtMs = nowMs()
-        settleAtMs = lastKeyAtMs + timings.flipReleaseFallback.inWholeMilliseconds
-        val atMs = op.atMs ?: nowMs()
-        if (op.repeat) {
-            if (!pace.repeatSteps(atMs)) return
-        } else {
-            pace.press(atMs)
-        }
+        if (!steps.key(op.repeat, op.atMs)) return
         goingLive = null
-        val fromMs = targetMs ?: read()
+        val fromMs = steps.target?.toMs ?: read()
         val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
         val toMs =
             when (op.direction) {
                 SeekDirection.Back -> TransportMath.back(fromMs - timings.stepBack.inWholeMilliseconds, inPointMs)
                 SeekDirection.Ahead -> TransportMath.ahead(fromMs + aheadMs, liveMs, cutMs)
             }
-        targetMs = toMs
-        targetIsLive = op.direction == SeekDirection.Ahead && TransportMath.reachesLive(toMs, liveMs, cutMs)
+        steps.aim(toMs, op.direction == SeekDirection.Ahead && TransportMath.reachesLive(toMs, liveMs, cutMs))
         show()
     }
 
-    /**
-     * The Back or Ahead key came up (R55, as for a flip): the target settles at the later of the last press or repeat
-     * plus the settle, and now. A tap settles at its press plus the settle, so quick taps add up to one seek.
-     */
+    /** The Back or Ahead key came up: the target settles now, or when [StepSettle] says. */
     private suspend fun released() {
-        if (!keyDown) return
-        keyDown = false
-        settleAtMs = maxOf(lastKeyAtMs + timings.flipSettle.inWholeMilliseconds, nowMs())
-        if (settleDue()) settle()
+        if (steps.released()) settle()
     }
 
     /** The pending target settles: one seek to it, or back to live when it is the live position and the play runs. */
     private suspend fun settle() {
-        val toMs = targetMs
-        val toLive = targetIsLive
-        targetMs = null
-        targetIsLive = false
-        settleAtMs = null
-        if (toMs == null) return
+        val (toMs, toLive) = steps.take() ?: return
         if (toLive && !paused) {
             val wentLive = goLive()
             if (wentLive) return
@@ -411,9 +368,7 @@ internal class BehindPlay(
     private suspend fun goLive(): Boolean {
         val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
         if (liveMs >= cutMs) return false
-        targetMs = null
-        targetIsLive = false
-        settleAtMs = null
+        steps.drop()
         linger?.cancel()
         liveSeq = null
         goingLive = CompletableDeferred()
@@ -462,13 +417,11 @@ internal class BehindPlay(
             }
     }
 
-    private fun settleDue(): Boolean = settleAtMs?.let { nowMs() >= it } == true
-
     /** What a timed-out wait was for: the live seek's wait first, then the settle, else the media-time hold. */
     private fun timedOut(): Wake =
         when {
             goingLive != null && nowMs() >= liveSinceMs + goLiveWaitMs -> Wake.LiveUnmatched
-            settleDue() -> Wake.Settle
+            steps.isDue() -> Wake.Settle
             else -> Wake.Due
         }
 
@@ -570,8 +523,7 @@ internal class BehindPlay(
 
     /** Logs a stepped target that was never sought, because the cut or the play's end came first. */
     private fun dropTarget(reason: String) {
-        if (targetMs == null) return
-        targetMs = null
+        if (steps.drop() == null) return
         dropped(reason)
     }
 
@@ -596,7 +548,7 @@ internal class BehindPlay(
                 seekable = play.control.seekable(),
                 visible = visible || paused,
                 mediaMs = knownMs,
-                targetMs = targetMs,
+                targetMs = steps.target?.toMs,
                 asOfMs = knownAtMs,
                 blockStartMs = block.startMs,
                 inPointMs = inPointMs,
