@@ -34,7 +34,9 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SyncActivity
-import tv.stationbreak.data.library.StayCurrentProvider
+import tv.stationbreak.core.domain.lineup.eitherWriting
+import tv.stationbreak.data.library.FirstSyncRunner
+import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.settings.lineup.FileDayStore
 import tv.stationbreak.data.settings.lineup.FileLineupStore
 import javax.inject.Provider
@@ -165,14 +167,15 @@ internal object LineupModule {
     ): ScheduleWarmer = ScheduleWarmer(source, service, library, Clock.System)
 
     /**
-     * Whether a sync is writing the saved library (#434): the quiet stay-current runs of the process's one
-     * `StayCurrent`, which the `Application` holds. The first sync is not part of it yet; when it is, it joins here.
-     * Read only when the refresher starts listening, which only the app's own `Application` does.
+     * Whether a sync is writing the saved library (#434, #480): the first sync, or the quiet stay-current runs of the
+     * process's one `StayCurrent`. One signal, so the refresher's one rule covers both. Both flows must be the
+     * runners' own, the same instances the workers run: a copy would never turn on.
      */
     @Provides
     fun syncActivity(
-        @ApplicationContext context: Context,
-    ): SyncActivity = SyncActivity { (context as StayCurrentProvider).stayCurrent().runner.running }
+        firstSync: FirstSyncRunner,
+        stayCurrent: StayCurrent,
+    ): SyncActivity = eitherWriting(firstSync.running, stayCurrent.runner.running)
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides

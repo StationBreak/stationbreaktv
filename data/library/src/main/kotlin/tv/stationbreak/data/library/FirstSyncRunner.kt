@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -26,6 +29,19 @@ class FirstSyncRunner(
     internal val repository: RoomLibraryRepository,
     internal val clock: Clock = Clock.System,
 ) {
+    private val writingNow = MutableStateFlow(false)
+
+    // Runs in flight, not a flag: a retry that replaces the work may start before the run it cancelled has unwound.
+    private var writers = 0
+
+    /**
+     * True while a run is writing: from the moment its session is verified and the account is still the one signed in
+     * to the moment the run ends, whatever ended it. A run that stops before that (nothing stored, nobody signed in,
+     * the server unreachable) never sets it. The same signal as [StayCurrentRunner.running], so the lineup refresher
+     * holds the triggers a first sync's writes cause and checks once when it stops (#434, #480).
+     */
+    val running: StateFlow<Boolean> = writingNow.asStateFlow()
+
     /** Runs the first sync once and says what WorkManager should do next. [attempt] is the run's retry count. */
     suspend fun run(attempt: Int): SyncVerdict = SyncRetryPolicy.verdict(outcome(), attempt)
 
@@ -42,7 +58,7 @@ class FirstSyncRunner(
                 if (active != listOf(ActiveAccountEntity(account.server.value, account.user.value))) {
                     SyncOutcome.Cancelled
                 } else {
-                    FirstSyncEngine(repository, server, clock).run(session, account, chosen)
+                    writing { FirstSyncEngine(repository, server, clock).run(session, account, chosen) }
                 }
             }
 
@@ -54,6 +70,21 @@ class FirstSyncRunner(
                 unavailable(restored.error)
             }
         }
+    }
+
+    private suspend fun writing(run: suspend () -> SyncOutcome): SyncOutcome {
+        count(+1)
+        try {
+            return run()
+        } finally {
+            count(-1)
+        }
+    }
+
+    @Synchronized
+    private fun count(change: Int) {
+        writers += change
+        writingNow.value = writers > 0
     }
 
     // The server could not be asked: the signed-in account keeps what it has, and the screen can say why.
