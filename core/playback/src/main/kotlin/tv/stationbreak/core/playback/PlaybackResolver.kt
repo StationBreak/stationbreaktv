@@ -18,8 +18,9 @@ import kotlin.time.Duration
 
 /**
  * Decides how to play an item from the server's answer and the device's [capabilities]. It asks the server once,
- * takes its first source, and picks the cheapest route the client agrees with. The client overrules the server's
- * `SupportsDirectPlay` where the chosen audio could not be decoded here or the subtitle is burned in (ADR-0016, 8).
+ * chooses one of its sources (see [choose]), and picks the cheapest route the client agrees with. The client overrules
+ * the server's `SupportsDirectPlay` where the chosen audio could not be decoded here or the subtitle is burned in
+ * (ADR-0016, 8).
  */
 class PlaybackResolver(
     private val server: MediaServer,
@@ -47,7 +48,51 @@ class PlaybackResolver(
         override: TrackOverride?,
         forceTranscode: Boolean,
     ): ServerResult<ResolvedPlayback> {
-        val media = info.sources.firstOrNull() ?: return ServerResult.Failure(MediaServerError.NotFound())
+        val candidates = info.sources.map { resolveSource(info, it, limits, start, override, forceTranscode) }
+        val resolved = choose(candidates, limits)
+        return resolved?.let { ServerResult.Success(it) } ?: ServerResult.Failure(MediaServerError.NotFound())
+    }
+
+    /**
+     * An item can have several versions (issue #496). Each is resolved on its own, so the choice sees the route the
+     * client would really take. In order: a version this device can direct-play, the biggest picture among those that
+     * fit its decoder, else Jellyfin's order (the first). The URL and the report both carry the chosen version's id,
+     * because they are built from the one [ResolvedPlayback.media].
+     */
+    private fun choose(
+        candidates: List<ResolvedPlayback>,
+        limits: DeviceCapabilities,
+    ): ResolvedPlayback? {
+        val direct = candidates.filter { it.route == Route.DIRECT_PLAY }
+        val fitting = direct.filter { it.media.fits(limits) }
+        // maxByOrNull keeps the first of equal pictures, so a tie is Jellyfin's order.
+        return fitting.maxByOrNull { it.media.pixels() } ?: direct.firstOrNull() ?: candidates.firstOrNull()
+    }
+
+    private fun MediaSource.video(): MediaStreamInfo? = streams.firstOrNull { it.kind == StreamKind.VIDEO }
+
+    private fun MediaSource.pixels(): Long {
+        val video = video() ?: return 0L
+        return (video.width ?: 0).toLong() * (video.height ?: 0)
+    }
+
+    /** True unless the video is bigger than its codec's decoder allows; an unreported size is let be. */
+    private fun MediaSource.fits(limits: DeviceCapabilities): Boolean {
+        val video = video()
+        val support = limits.videoCodecs.firstOrNull { it.codec == Codecs.normalize(video?.codec) }
+        return video == null || support == null ||
+            ((video.width ?: 0) <= support.maxWidth && (video.height ?: 0) <= support.maxHeight)
+    }
+
+    @Suppress("LongParameterList") // The facts of one resolve, passed on unchanged.
+    private fun resolveSource(
+        info: PlaybackInfo,
+        media: MediaSource,
+        limits: DeviceCapabilities,
+        start: Duration,
+        override: TrackOverride?,
+        forceTranscode: Boolean,
+    ): ResolvedPlayback {
         // An override replaces the server's choice; its null subtitle means "off", its null audio "the server's".
         // Only a real audio track of this source is ever chosen: an index it lacks, or one that is not audio, falls
         // back to the server's default, then the first audio track. What is chosen is what the URL and the check see.
@@ -100,8 +145,7 @@ class PlaybackResolver(
                 audioPick = audio?.pick(),
                 subtitlePick = subtitle?.takeIf { it.delivery == SubtitleDelivery.IN_STREAM }?.pick(),
             )
-        val resolved = ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start)
-        return ServerResult.Success(resolved)
+        return ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start)
     }
 
     private fun route(
