@@ -304,7 +304,7 @@ class BehindStepTest {
         }
 
     @Test
-    fun aLiveAheadTargetWhoseBlockEndsBeforeTheSettleSeeksToItsClamp() =
+    fun aLiveAheadTargetWhoseBlockEndsBeforeTheSettleCatchesUp() =
         runTest {
             val k = keys()
             // 20 s behind, 5 s before the block ends (minute 50 of the clock, media 60 minutes).
@@ -318,7 +318,13 @@ class BehindStepTest {
             k.press(ahead())
             k.press(LiveCommand.SeekReleased)
             k.r.at(50 * MIN + settleMs)
-            assertEquals(listOf("seek:${from - 20_000}", "seek:${60 * MIN - 200}"), k.control.calls)
+            // Live is now item 2: the item ends at the settle, with no seek to item 1's clamp.
+            assertEquals(listOf("seek:${from - 20_000}"), k.control.calls)
+            val next =
+                k.r.tune.calls
+                    .last { it is Call.Tune || it is Call.TuneHandle }
+            assertEquals(itemOf(2), (next as? Call.Tune)?.item ?: (next as Call.TuneHandle).item)
+            assertEquals(50 * MIN - 200 + settleMs, next.at)
         }
 
     @Test
@@ -340,18 +346,21 @@ class BehindStepTest {
         }
 
     @Test
-    fun goLiveAfterTheBlockEndedDoesNothing() =
+    fun goLiveAfterTheBlockEndedCatchesUp() =
         runTest {
             val k = keys()
             k.r.atMin(1)
             k.press(LiveCommand.PlayPause)
-            // Item 1's block ends at minute 50 of the clock.
+            // Item 1's block ends at minute 50 of the clock: live is item 2, five minutes in.
             k.r.atMin(55)
             k.press(LiveCommand.GoLive)
             k.r.atMin(56)
             assertEquals(listOf("pause"), k.control.calls)
-            assertTrue(checkNotNull(k.r.live.transport.value).paused)
-            assertEquals(1, k.r.tuneCount())
+            assertEquals(2, k.r.tuneCount())
+            val next = k.r.tunes.last()
+            assertEquals(itemOf(2), next.item)
+            assertEquals(5 * MIN, next.start.inWholeMilliseconds)
+            assertNull(k.r.live.transport.value)
         }
 
     @Test

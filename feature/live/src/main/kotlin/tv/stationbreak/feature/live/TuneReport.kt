@@ -32,6 +32,9 @@ enum class TuneKind(
 
     /** The second try of a show whose first try failed. */
     Retry("retry"),
+
+    /** A behind play's item ended: what is on now, from a handle resolved ahead on media time (spec 20). */
+    CatchUp("catchup"),
 }
 
 /**
@@ -238,7 +241,7 @@ internal fun Sitting.reportTune(
     val block = what.block
     val mediaAtStart = block.positionAt(block.startMs) ?: Duration.ZERO
     val lagMs = (vnowMs() - block.startMs) - (what.position - mediaAtStart).inWholeMilliseconds
-    val cached = what.kind == TuneKind.Prepared || what.kind == TuneKind.Neighbour
+    val cached = what.kind == TuneKind.Prepared || what.kind == TuneKind.Neighbour || what.kind == TuneKind.CatchUp
     val resolveMs = if (cached) 0L else TuneReport.NOT_SEPARATE
     report(
         TuneReport.Tune(

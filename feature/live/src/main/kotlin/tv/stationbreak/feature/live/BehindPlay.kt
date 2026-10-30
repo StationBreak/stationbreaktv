@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.playback.PlaybackEnd
@@ -51,22 +53,38 @@ internal suspend fun Sitting.holdProgram(
                 behind = null
             }
         when (ended) {
-            is BehindEnd.Live -> play = ended.play
-            is BehindEnd.ItemEnd -> return Held.CaughtUp(ended.catchUp)
-            BehindEnd.EndedInBlock -> return Held.EndedInBlock
-            is BehindEnd.Exit -> return Held.Exited(ended.exit)
+            // Live again: the block's look-ahead, dropped while behind, is started again for the boundary's cut.
+            is BehindEnd.Live -> {
+                rearmBoundaryLookAhead()
+                play = ended.play
+            }
+
+            is BehindEnd.ItemEnd -> {
+                return Held.CaughtUp(ended.catchUp)
+            }
+
+            BehindEnd.EndedInBlock -> {
+                return Held.EndedInBlock
+            }
+
+            is BehindEnd.Exit -> {
+                return Held.Exited(ended.exit)
+            }
         }
     }
 }
 
 /** How a [BehindPlay] ended. */
 internal sealed interface BehindEnd {
-    /** The item reached its end (the cut, or the file's end): catch up with what is on now ([catchUp], Task 9). */
+    /**
+     * The item reached its end (the cut, the file's end past its block, or live once the block has ended): catch up
+     * with what is on now, from [catchUp] when it was resolved ahead and is still held.
+     */
     data class ItemEnd(
         val catchUp: Pending.CatchUp?,
     ) : BehindEnd
 
-    /** The file ended early and the clock is still inside the block (Task 9). */
+    /** The file ended early and the clock is still inside the block: the ident holds to its end. */
     data object EndedInBlock : BehindEnd
 
     /** Back at the live position on the same item, still on air: the live hold carries on with [play]. */
@@ -85,6 +103,12 @@ internal sealed interface BehindEnd {
  * and 9). It is either paused or playing behind; how far behind is derived from the media position, never stored. It
  * holds on media time, not wall time: it waits for the media left to the block's cut while playing, and not at all
  * while paused, so the block's slot may end meanwhile and Play carries on with it.
+ *
+ * Catch-up (ADR-0021 4): once behind, the block's wall-clock look-ahead is dropped. With [LiveTimings.preResolveLead]
+ * of media left, what will be on at the cut (the sitting's time now plus the media left) is resolved ahead; a pause or
+ * a seek lets that handle go and arms again. At the cut, at the file's end past its block, or at live once the block
+ * has ended by the clock, the item ends with the handle. A file that ends with the clock still inside its block holds
+ * the ident instead.
  *
  * It owns the seek target: Back and Ahead steps add up there, clamped at the block's in-point and at the lesser of the
  * live position and the cut, and one absolute seek settles them as a flip does: never while the key is down, on its
@@ -113,6 +137,7 @@ internal class BehindPlay(
     private val aheadMs = timings.stepAhead.inWholeMilliseconds
     private val rearmMinMs = timings.holdRearmMin.inWholeMilliseconds
     private val goLiveWaitMs = timings.goLiveWait.inWholeMilliseconds
+    private val leadMs = timings.preResolveLead.inWholeMilliseconds
 
     /** Paused or playing behind: Play/Pause is resolved against this, not against the player's last event. */
     @Volatile
@@ -145,6 +170,9 @@ internal class BehindPlay(
     /** The play's events, forwarded by their one collector for the loop to take in order. */
     private val events = Channel<PlayerEvent>(Channel.UNLIMITED)
 
+    /** What is on at the cut, resolving or resolved ahead on media time; null until armed and after a pause or seek. */
+    private var catchUpAhead: Deferred<Pending.CatchUp?>? = null
+
     /** The scope of [run]: the banner's linger runs in it, so it ends with the behind play. */
     private var runScope: CoroutineScope? = null
 
@@ -174,6 +202,8 @@ internal class BehindPlay(
                 while (true) onEvent(events.tryReceive().getOrNull() ?: break)
                 // A seek still open is closed at the best-known place, so the visit's watched time runs on after us.
                 seeks.close(knownMs)?.let { visiting?.seeked(it) }
+                // Not handed to a catch-up (live again, or an exit): let it go.
+                dropCatchUp()
                 host.publishTransport(null)
                 coroutineContext.cancelChildren()
             }
@@ -192,11 +222,13 @@ internal class BehindPlay(
         first: TransportOp?,
     ): BehindEnd {
         if (first != null) {
-            act(first)
+            act(first)?.let { return it }
             // A first op that changed nothing (a step the play cannot take) leaves the viewer live.
             val still = !paused && steps.target == null && !seeks.inFlight && liveSinceMs == null
             if (still) return BehindEnd.Live(play)
         }
+        // Behind: the next block's wall-clock resolve is not what follows this item, nor held through a pause.
+        host.dropBoundaryLookAhead()
         val ended = within.async { play.end.firstOrNull() ?: PlaybackEnd.Ended }
         val nextOp = { within.async { host.receive(block.startMs) } }
         var next = nextOp()
@@ -211,11 +243,12 @@ internal class BehindPlay(
                 // target never sought. Each is a press the viewer made that did nothing.
                 lostOp(next, "transport-lost-at-cut")
                 dropTarget("transport-lost-at-cut")
-                return BehindEnd.ItemEnd(null)
+                return itemEnd()
             }
+            val holdMs = leftMs?.let { holdFor(within, it) }
             // The first wait is the exact media left, so the cut is on time. Only once a wait has fired short is a
             // floor put under it, so a hold that keeps running short near the cut never spins.
-            val dueMs = leftMs?.let { if (firedShort) maxOf(it, rearmMinMs) else it }
+            val dueMs = holdMs?.let { if (firedShort) maxOf(it, rearmMinMs) else it }
             val settleMs = steps.dueAtMs?.let { maxOf(0L, it - nowMs()) }
             val liveMs = liveSinceMs?.let { maxOf(0L, it + goLiveWaitMs - nowMs()) }
             val waitMs = listOfNotNull(dueMs, settleMs, liveMs).minOrNull()
@@ -235,12 +268,12 @@ internal class BehindPlay(
                 }
 
                 is Wake.Op -> {
-                    act(woke.op)
+                    act(woke.op)?.let { return it }
                     next = nextOp()
                 }
 
                 Wake.Settle -> {
-                    settle()
+                    settle()?.let { return it }
                 }
 
                 // The live seek's own SeekDone: live.
@@ -264,19 +297,52 @@ internal class BehindPlay(
         }
     }
 
-    /** Does [op]. Play/Pause follows this play's state; steps add up to the target, which settles in one seek. */
-    private suspend fun act(op: TransportOp) {
+    /**
+     * Does [op]. Play/Pause follows this play's state; steps add up to the target, which settles in one seek. Non-null
+     * when it ends the item: live once the block has ended by the clock is what is on now.
+     */
+    private suspend fun act(op: TransportOp): BehindEnd? =
         when (op) {
-            TransportOp.Toggle -> if (paused) resume() else pause()
-            TransportOp.Play -> if (paused) resume()
-            TransportOp.Pause -> if (!paused) pause()
-            is TransportOp.Step -> step(op)
             TransportOp.StepReleased -> released()
-            TransportOp.GoLive -> goLive()
+            TransportOp.GoLive -> liveOrItemEnd()
+            else -> null.also { playOrStep(op) }
+        }
+
+    /** Play/Pause follows this play's state; a step moves the target. */
+    private suspend fun playOrStep(op: TransportOp) {
+        when (op) {
+            TransportOp.Toggle -> {
+                if (paused) resume() else pause()
+            }
+
+            TransportOp.Play -> {
+                if (paused) resume()
+            }
+
+            TransportOp.Pause -> {
+                if (!paused) pause()
+            }
+
+            is TransportOp.Step -> {
+                step(op)
+            }
+
+            TransportOp.StepReleased, TransportOp.GoLive -> {}
         }
     }
 
+    /** GoLive: back to live while the block is on air; once it has ended by the clock, the item ends (non-null). */
+    private suspend fun liveOrItemEnd(): BehindEnd? {
+        if (!blockEnded()) {
+            goLive()
+            return null
+        }
+        steps.drop()
+        return itemEnd()
+    }
+
     private suspend fun pause() {
+        dropCatchUp()
         liveSinceMs = null
         seeks.cancelLive()
         read()
@@ -315,20 +381,24 @@ internal class BehindPlay(
         show()
     }
 
-    /** The Back or Ahead key came up: the target settles now, or when [StepSettle] says. */
-    private suspend fun released() {
-        if (steps.released()) settle()
+    /** The Back or Ahead key came up: the target settles now, or when [StepSettle] says (non-null: the item ends). */
+    private suspend fun released(): BehindEnd? = if (steps.released()) settle() else null
+
+    /**
+     * The pending target settles: one seek to it, or back to live when it is the live position and the play runs. A
+     * target at live or at the cut once the block has ended by the clock ends the item (non-null): live is what is on
+     * now, and no seek is made to reach it.
+     */
+    private suspend fun settle(): BehindEnd? {
+        val (toMs, toLive) = steps.take() ?: return null
+        val wentLive = !paused && toLive && goLive()
+        val ends = !wentLive && !paused && (toLive || toMs >= cutMs) && blockEnded()
+        if (!wentLive && !ends) seekToTarget(toMs)
+        return if (ends) itemEnd() else null
     }
 
-    /** The pending target settles: one seek to it, or back to live when it is the live position and the play runs. */
-    private suspend fun settle() {
-        val (toMs, toLive) = steps.take() ?: return
-        if (toLive && !paused) {
-            val wentLive = goLive()
-            if (wentLive) return
-        }
-        // Not live: the target itself. Or the block ended before the settle (live is the next item, Task 9), and the
-        // clamp holds while the play is still on its block.
+    /** Not live: the target itself, clamped at the cut while the play is still on its block. */
+    private suspend fun seekToTarget(toMs: Long) {
         if (read() < cutMs) {
             seek(minOf(toMs, cutMs))
             show()
@@ -339,8 +409,8 @@ internal class BehindPlay(
 
     /**
      * Back to live while the block is still on air: one seek to the live position, then play; the transport view goes,
-     * and the viewer is live once that seek's own SeekDone comes. Once the block has ended, live is the next item (Task
-     * 9): false, and nothing is done.
+     * and the viewer is live once that seek's own SeekDone comes. Once the block has ended, live is what is on now (the
+     * caller ends the item): false, and nothing is done.
      */
     private suspend fun goLive(): Boolean {
         val liveMs = TransportMath.liveMs(block, host.vnowMs())
@@ -366,6 +436,7 @@ internal class BehindPlay(
         toMs: Long,
         live: Boolean = false,
     ) {
+        dropCatchUp()
         val fromMs = play.control.position()?.inWholeMilliseconds
         visiting?.seeking(fromMs)
         seeks.sent(toMs, live)
@@ -397,16 +468,76 @@ internal class BehindPlay(
     private fun nowMs(): Long = host.nowMs()
 
     /**
-     * The item's end through the play's own end. A failure is reported as the live hold reports it, and its place
-     * closes the visit's watched time; Task 9 tells an early end inside the block apart, and Task 10 retries a failure.
+     * The item's end through the play's own end. With the clock still inside the block, the ident holds to its end;
+     * past it, straight to the catch-up with no ident. A failure is reported as the live hold reports it, and its place
+     * closes the visit's watched time; until Task 10 retries it, the sitting then tunes what is on now.
      */
-    private fun playEnd(end: PlaybackEnd): BehindEnd {
+    private suspend fun playEnd(end: PlaybackEnd): BehindEnd {
         playEnded = true
         if (end is PlaybackEnd.Failed) {
             host.report(TuneReport.HeldFailed(end))
             visiting?.failedPlay(end.positionMs)
         }
-        return BehindEnd.ItemEnd(null)
+        val inBlock = end !is PlaybackEnd.Failed && host.onAir(host.vnowMs())?.now?.startMs == block.startMs
+        return when {
+            end is PlaybackEnd.Failed -> BehindEnd.ItemEnd(null).also { dropCatchUp() }
+            inBlock -> BehindEnd.EndedInBlock.also { dropCatchUp() }
+            else -> itemEnd()
+        }
+    }
+
+    /** True once the block has ended by the sitting's clock: live is no longer on this item. */
+    private fun blockEnded(): Boolean = TransportMath.liveMs(block, host.vnowMs()) >= cutMs
+
+    /** The item ends: catch up, with the handle resolved ahead when it is ready (one still resolving is let go). */
+    private suspend fun itemEnd(): BehindEnd.ItemEnd {
+        val ahead = catchUpAhead
+        catchUpAhead = null
+        val ready =
+            withContext(NonCancellable) {
+                ahead?.takeIf { it.isCompleted && !it.isCancelled }?.await()
+            }
+        if (ready == null) ahead?.cancel()
+        return BehindEnd.ItemEnd(ready)
+    }
+
+    /**
+     * How long the media-time hold waits with [leftMs] of media left to the cut. With [LiveTimings.preResolveLead] or
+     * less left, the catch-up is armed (once); until then the hold wakes first at the lead before the cut, to arm it.
+     */
+    private fun holdFor(
+        within: CoroutineScope,
+        leftMs: Long,
+    ): Long {
+        if (leftMs <= leadMs && catchUpAhead == null) armCatchUp(within, leftMs)
+        return if (catchUpAhead == null) leftMs - leadMs else leftMs
+    }
+
+    /**
+     * Resolves ahead what will be on at the cut, [leftMs] of media from now: the block on the channel at the sitting's
+     * time then, at its position then. The schedule is read as it is; the tune is made from the position at the cut.
+     */
+    private fun armCatchUp(
+        within: CoroutineScope,
+        leftMs: Long,
+    ) {
+        val atMs = host.vnowMs() + leftMs
+        catchUpAhead =
+            within.async {
+                val onAir = host.onAir(atMs) ?: return@async null
+                host.resolveCatchUp(onAir.now, atMs)
+            }
+    }
+
+    /** Lets the catch-up resolved ahead go (a pause or a seek moves the cut): a handle is ended, a resolve stopped. */
+    private suspend fun dropCatchUp() {
+        val ahead = catchUpAhead ?: return
+        catchUpAhead = null
+        withContext(NonCancellable) {
+            val done = ahead.takeIf { it.isCompleted && !it.isCancelled }?.await()
+            ahead.cancel()
+            done?.let { host.discard(it) }
+        }
     }
 
     /**

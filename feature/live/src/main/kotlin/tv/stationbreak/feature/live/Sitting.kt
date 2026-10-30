@@ -82,12 +82,12 @@ internal sealed interface Held {
         val positionMs: Long?,
     ) : Held
 
-    /** A behind play reached its item's end: catch up (Task 9 fills [catchUp]; null until then). */
+    /** A behind play reached its item's end: catch up with what is on now, from [catchUp] when it was resolved. */
     data class CaughtUp(
         val catchUp: Pending.CatchUp?,
     ) : Held
 
-    /** A behind play's file ended early while the clock is still inside its block: hold the ident (Task 9). */
+    /** A behind play's file ended early while the clock is still inside its block: hold the ident. */
     data object EndedInBlock : Held
 
     /** The behind play ended the sitting (a retry that signed out or was stopped, Task 10). */
@@ -153,8 +153,11 @@ internal class Sitting(
     /** [ChannelOnAir.builtUntilMs] as of the last anchor; a drift that reaches it re-anchors (ADR-0017). */
     private var limitMs = Long.MAX_VALUE
 
-    private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
+    internal val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
+
+    /** This block's wall-clock look-ahead at the next block: dropped while behind, started again at live. */
+    internal val boundary = BoundaryLookAhead(nextUp)
 
     /** The wide look for the banner's "Next", kept for the block it was made in: the ident card reuses it. */
     internal var widenedNext: Pair<Long, AiringBlock>? = null
@@ -197,7 +200,7 @@ internal class Sitting(
     private suspend fun inBlock(onAir: ChannelOnAir): Exit? =
         coroutineScope {
             val handle = nextUp.takeFor(onAir.now)
-            val ahead = nextUp.prepare(this, onAir)
+            boundary.start(this, onAir)
             try {
                 when (val airing = onAir.now.airing) {
                     Airing.Slate -> {
@@ -221,7 +224,7 @@ internal class Sitting(
                 }
             } finally {
                 handle?.let { nextUp.discard(it) }
-                nextUp.keep(ahead)
+                boundary.keep()
                 coroutineContext[Job]?.cancelChildren()
             }
         }
@@ -254,12 +257,14 @@ internal class Sitting(
                 when {
                     use is Pending.AtBoundary -> TuneKind.Prepared
                     use is Pending.Retarget -> TuneKind.Neighbour
+                    use is Pending.CatchUp -> TuneKind.CatchUp
                     failures > 0 -> TuneKind.Retry
                     else -> TuneKind.Fresh
                 }
             val asked = if (use is Pending.AtBoundary) use.start else position
-            // Only a cut at a block boundary has no snow: a flip shows it on every route (one decode at a time).
-            val snow = use !is Pending.AtBoundary
+            // Only a cut at a block boundary, or a behind play's catch-up on the same channel, has no snow: a flip
+            // shows it on every route (one decode at a time).
+            val snow = use !is Pending.AtBoundary && use !is Pending.CatchUp
             val outcome =
                 tuneAndShow(scope, banner, snow = snow, what = TuneWhat(kind, block, asked), onAir = onAir) {
                     use?.consumed = true
@@ -275,12 +280,26 @@ internal class Sitting(
                     is TuneOutcome.Playing -> {
                         val from = asked.inWholeMilliseconds
                         when (val held = holdReporting(block, program, outcome, visiting, from)) {
-                            // Caught up: the visit is left (by the caller) and the sitting follows what is on now.
-                            Held.Boundary, is Held.CaughtUp -> {
+                            Held.Boundary -> {
                                 return null
                             }
 
-                            Held.Ended, Held.EndedInBlock -> {
+                            // Caught up: the visit is left (by the caller) and the sitting follows what is on now, with
+                            // the handle resolved for it.
+                            is Held.CaughtUp -> {
+                                held.catchUp?.let { nextUp.catchUp(it) }
+                                return null
+                            }
+
+                            Held.Ended -> {
+                                visiting.leave()
+                                return holdIdent(scope, onAir, block.endMs)
+                            }
+
+                            // Behind, the file ended early with the clock still in its block: the ident holds to the
+                            // block's end, as on the live path, and the next block is resolved ahead again.
+                            Held.EndedInBlock -> {
+                                rearmBoundaryLookAhead()
                                 visiting.leave()
                                 return holdIdent(scope, onAir, block.endMs)
                             }
@@ -456,6 +475,15 @@ internal class Sitting(
         const val WINDOW = 3
     }
 }
+
+/**
+ * Cancels this block's wall-clock look-ahead at the next block and discards its handle: a behind play's next item is
+ * what is on at its cut, not the next block, and a resolve or encode is not held through a pause (spec 20).
+ */
+internal suspend fun Sitting.dropBoundaryLookAhead() = boundary.drop()
+
+/** Starts this block's look-ahead again after a drop, once the play is live (or on the ident) again. */
+internal fun Sitting.rearmBoundaryLookAhead() = boundary.rearm()
 
 /**
  * A transport op already taken from the inbox when the play's end or the cut won: it is dropped, with a line

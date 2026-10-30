@@ -40,8 +40,8 @@ internal sealed class Pending(
     ) : Pending(handle, item, blockStartMs)
 
     /**
-     * The block on air when a behind play's item ends, resolved ahead; played from the schedule's position at the cut.
-     * Declared for the catch-up (spec 20); Task 9 makes and plays it.
+     * The block on air when a behind play's item ends, resolved ahead on media time; played from the schedule's
+     * position at the cut (spec 20, ADR-0021 4).
      */
     class CatchUp(
         handle: NextHandle,
@@ -64,6 +64,9 @@ internal class NextUp(
     private var lead: Pending.Retarget? = null,
 ) {
     private var pending: Pending.AtBoundary? = null
+
+    /** A behind play's catch-up, held for the next [takeFor]. */
+    private var caughtUp: Pending.CatchUp? = null
 
     /** Starts resolving [onAir]'s next block [LiveTimings.preResolveLead] before this one ends, if it is a program. */
     fun prepare(
@@ -90,8 +93,50 @@ internal class NextUp(
         }
     }
 
-    /** The handle prepared for [block] when it is still exactly right; a stale or mismatched one is discarded. */
+    /**
+     * Ends what [prepare] started, unused: a finished handle is discarded and a resolve still running is cancelled
+     * (the controller ends its encode). Safe when the caller is cancelled.
+     */
+    suspend fun drop(ahead: Deferred<Pending.AtBoundary?>) {
+        withContext(NonCancellable) {
+            val done = ahead.takeIf { it.isCompleted && !it.isCancelled }?.await()
+            ahead.cancel()
+            done?.let { discard(it) }
+        }
+    }
+
+    /**
+     * Resolves the program of [block] (what will be on at [atMs], the sitting's time of a behind play's cut) for its
+     * position then; null when it is not a program the library has, or the resolve gave nothing.
+     */
+    suspend fun resolveCatchUp(
+        block: AiringBlock,
+        atMs: Long,
+    ): Pending.CatchUp? {
+        val program = (block.airing as? Airing.Program)?.takeIf { it.info != null }
+        val start = block.positionAt(atMs)
+        if (program == null || start == null) return null
+        return tuner.preResolve(session, ItemId(program.itemId.value), start)?.let {
+            Pending.CatchUp(it, program.itemId, block.startMs)
+        }
+    }
+
+    /** Holds a behind play's [handle] for the next [takeFor]; one already held is discarded. */
+    suspend fun catchUp(handle: Pending.CatchUp) {
+        caughtUp?.let { discard(it) }
+        caughtUp = handle
+    }
+
+    /**
+     * The handle for [block] when it is still exactly right; a stale or mismatched one is discarded. A held catch-up
+     * comes first: it is for what is on now, played from the schedule's position at the tune.
+     */
     suspend fun takeFor(block: AiringBlock): Pending? {
+        takeCatchUp(block)?.let { caught ->
+            pending?.let { discard(it) }
+            pending = null
+            return caught
+        }
         val held = pending
         pending = null
         val program = block.airing as? Airing.Program
@@ -104,6 +149,16 @@ internal class NextUp(
                 now() - block.startMs <= CUT_SLACK_MS
         if (held != null && !fits) discard(held)
         return held?.takeIf { fits } ?: takeLead(block)
+    }
+
+    /** The held catch-up when it is for this block, which is still on; otherwise it is ended. */
+    private suspend fun takeCatchUp(block: AiringBlock): Pending.CatchUp? {
+        val held = caughtUp ?: return null
+        caughtUp = null
+        val program = block.airing as? Airing.Program
+        val fits = program?.itemId == held.item && block.startMs == held.blockStartMs && now() < block.endMs
+        if (!fits) discard(held)
+        return held.takeIf { fits }
     }
 
     /** The lead handle when it is for exactly this block and the block is still on; otherwise it is ended. */
@@ -123,14 +178,58 @@ internal class NextUp(
 
     /** Ends what is held. The caller stops the tuner. */
     suspend fun release() {
-        val all = listOfNotNull(pending, lead)
+        val all = listOfNotNull(pending, lead, caughtUp)
         pending = null
         lead = null
+        caughtUp = null
         all.forEach { discard(it) }
     }
 
     private companion object {
         /** How far past a block's start a prepared cut may still happen (the spec's +-2 s offset error). */
         const val CUT_SLACK_MS = 2_000L
+    }
+}
+
+/**
+ * One block's wall-clock look-ahead at the next block ([NextUp.prepare]). A behind play drops it (spec 20): what
+ * follows its item is what is on at its cut, and no resolve or encode is held through a pause. Back at live, or on the
+ * ident after an early end, it is started again for the same block.
+ */
+internal class BoundaryLookAhead(
+    private val nextUp: NextUp,
+) {
+    private var ahead: Deferred<Pending.AtBoundary?>? = null
+    private var startedFor: Pair<CoroutineScope, ChannelOnAir>? = null
+
+    /** Starts the look-ahead for [onAir]'s next block, in [scope] (the block's). */
+    fun start(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+    ) {
+        startedFor = scope to onAir
+        ahead = nextUp.prepare(scope, onAir)
+    }
+
+    /** Cancels a resolve still running, and discards a handle already made. */
+    suspend fun drop() {
+        val dropped = ahead ?: return
+        ahead = null
+        nextUp.drop(dropped)
+    }
+
+    /** Starts it again after a [drop]; nothing when it is running, or the block is over. */
+    fun rearm() {
+        if (ahead != null) return
+        val (scope, onAir) = startedFor ?: return
+        ahead = nextUp.prepare(scope, onAir)
+    }
+
+    /** The block is over: [NextUp.keep] holds what finished for the next block. Safe when the caller is cancelled. */
+    suspend fun keep() {
+        val kept = ahead
+        ahead = null
+        startedFor = null
+        nextUp.keep(kept)
     }
 }

@@ -125,8 +125,12 @@ class BehindPauseTest {
             assertEquals(1, k.r.tuneCount())
             k.r.at(61 * MIN + 49 * MIN + 1_000)
             assertEquals(2, k.r.tuneCount())
-            // Wall minute 120 (10 + 110): what is on now is item 3, from its start.
-            val next = k.r.tunes.last()
+            // Wall minute 120 (10 + 110): what is on now is item 3, from its start, from the handle resolved ahead.
+            val next =
+                assertIs<Call.TuneHandle>(
+                    k.r.tune.calls
+                        .last { it is Call.Tune || it is Call.TuneHandle },
+                )
             assertEquals(itemOf(3), next.item)
             assertEquals(0L, next.start.inWholeMilliseconds)
             assertNull(k.r.live.transport.value)
@@ -147,12 +151,12 @@ class BehindPauseTest {
             assertTrue(k.control.positionMs() < 60 * MIN)
             k.r.atMin(11 + 55)
             assertEquals(2, k.r.tuneCount())
-            assertEquals(
-                itemOf(2),
-                k.r.tunes
-                    .last()
-                    .item,
-            )
+            val next =
+                assertIs<Call.TuneHandle>(
+                    k.r.tune.calls
+                        .last { it is Call.Tune || it is Call.TuneHandle },
+                )
+            assertEquals(itemOf(2), next.item)
         }
 
     @Test
