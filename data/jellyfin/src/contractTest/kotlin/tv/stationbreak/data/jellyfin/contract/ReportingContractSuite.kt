@@ -44,9 +44,10 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * F1.5 (ADR-0018): reporting a live sitting at a safe position leaves the user's data alone, on the real server.
- * Every case reports through the adapter's own calls and reads the user data back through `userData()`. Each case has
- * an item of its own, because the server keeps the state per item and the cases run in any order. Failure messages
- * name the step only: a body or a URL may carry a token.
+ * Every case reports through the adapter's own calls and reads the user data back through `userData()`. The server
+ * keeps the state per item and the cases run in any order, and the seed has only six items, so cases share an item
+ * only where every case's end state is independent of order (an unwatched, resume-pointed or played item stays so;
+ * counts are compared before and after). Failure messages name the step only: a body or a URL may carry a token.
  */
 @Suppress("TooManyFunctions") // One function per contract case, plus the helpers they share.
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -278,26 +279,15 @@ abstract class ReportingContractSuite {
         v: Visit,
         itemId: String,
     ) {
-        run {
-            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
-            val reply = server.http.expectOk("read sessions", server.http.get("Sessions", admin))
-            val mine =
-                reply
-                    .json()
-                    .jsonArray
-                    .map { it.jsonObject }
-                    .filter { it["DeviceId"]?.jsonPrimitive?.content == v.deviceId }
-            assertEquals(1, mine.size, "the viewer's device should have one session")
-            val playing = mine.single()["NowPlayingItem"]
-            assertNotNull(playing, "the session shows nothing playing")
-            assertEquals(
-                itemId.plain(),
-                playing.jsonObject
-                    .getValue("Id")
-                    .jsonPrimitive.content
-                    .plain(),
-            )
-        }
+        val playing = dashboardSession(v)["NowPlayingItem"]
+        assertNotNull(playing, "the session shows nothing playing")
+        assertEquals(
+            itemId.plain(),
+            playing.jsonObject
+                .getValue("Id")
+                .jsonPrimitive.content
+                .plain(),
+        )
     }
 
     /**
@@ -334,11 +324,10 @@ abstract class ReportingContractSuite {
         }
     }
 
-    /**
-     * Spec 20 (ADR-0021): a paused sitting is checked in with `IsPaused = true` and must leave the user's data alone,
-     * the same as a playing one. The items are shared with the cases above where the outcome does not depend on the
-     * item's earlier state (an unwatched, a resume-pointed or a played item stays that way through any case).
-     */
+    // Spec 20 (ADR-0021): a paused sitting is checked in with `IsPaused = true` and must leave the user's data alone,
+    // the same as a playing one.
+
+    /** Paused check-ins between playing ones leave an unwatched item unwatched. */
     @Test
     fun pausedCheckInsLeaveAnUnwatchedItemUnwatched() {
         runBlocking {
@@ -446,18 +435,24 @@ abstract class ReportingContractSuite {
     @Test
     fun lastPlayedDateAfterACheckInMatchesTheKnownBehaviour() {
         runBlocking {
+            val version = serverVersion()
             val itemId = server.seeded.movieIds[1]
             seedResume(itemId, RESUME)
             val v = visit(itemId)
 
             v.start(RESUME)
-            val first = lastPlayed(itemId)
-            delay(LAST_PLAYED_GAP)
-            v.progress(RESUME)
-            val second = lastPlayed(itemId)
-            v.stop(RESUME, failed = true)
+            val first: Instant
+            val second: Instant
+            try {
+                first = lastPlayed(itemId)
+                delay(LAST_PLAYED_GAP)
+                v.progress(RESUME)
+                second = lastPlayed(itemId)
+            } finally {
+                v.stop(RESUME, failed = true)
+            }
 
-            when (serverVersion()) {
+            when (version) {
                 V12_1 -> {
                     assertEquals(first, second, "12.1 moved LastPlayedDate on a check-in (#511)")
                 }
@@ -496,8 +491,11 @@ abstract class ReportingContractSuite {
                 .obj()
                 .getValue("Version")
                 .jsonPrimitive.content
-        val parts = version.split('.')
-        return Pair(parts[0].toInt(), parts[1].toInt())
+        val parts = version.split('.').map { it.toIntOrNull() }
+        val major = parts.getOrNull(0)
+        val minor = parts.getOrNull(1)
+        if (major == null || minor == null) fail("read server version: not a version number")
+        return Pair(major, minor)
     }
 
     /** The viewer device's one session on the dashboard. */
