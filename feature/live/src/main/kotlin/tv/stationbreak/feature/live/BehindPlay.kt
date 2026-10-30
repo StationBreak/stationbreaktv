@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -19,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * A program's play while it is live: [hold] until the play ends or the block does, and when the viewer pauses or
@@ -76,7 +78,7 @@ internal sealed interface BehindEnd {
     /** The file ended early and the clock is still inside the block (Task 9). */
     data object EndedInBlock : BehindEnd
 
-    /** Back at the live position on the same item, still on air: the live hold carries on with [play] (Task 8b). */
+    /** Back at the live position on the same item, still on air: the live hold carries on with [play]. */
     data class Live(
         val play: TuneOutcome.Playing,
     ) : BehindEnd
@@ -93,10 +95,15 @@ internal sealed interface BehindEnd {
  * holds on media time, not wall time: it waits for the media left to the block's cut while playing, and not at all
  * while paused, so the block's slot may end meanwhile and Play carries on with it.
  *
+ * It owns the seek target: Back and Ahead steps add up there, clamped at the block's in-point and at the lesser of the
+ * live position and the cut, and one absolute seek settles them on the key's release or [LiveTimings.flipSettle] after
+ * the last press or repeat. A settled target at the live position, while the block is still on air, is live again.
+ *
  * It holds the one subscription to the play's events, which drive the [visiting] reports. [visiting] is null when the
  * play is not reported (or, from Task 10, for a stand-in). [route] is the play's route, for the seek line (Task 11).
  */
-@Suppress("LongParameterList") // The sitting, the block's scope, the block and its play, its visit and route.
+@Suppress("LongParameterList", "TooManyFunctions") // The sitting, the block's scope, the block and its play, its visit
+// and route; one function per transport op and state change.
 internal class BehindPlay(
     private val sitting: Sitting,
     private val scope: CoroutineScope,
@@ -107,6 +114,8 @@ internal class BehindPlay(
 ) {
     private val inPointMs = TransportMath.inPointMs(block)
     private val cutMs = TransportMath.cutMs(block)
+    private val timings = sitting.timings
+    private val aheadMs = timings.stepAhead.inWholeMilliseconds
 
     /** Paused or playing behind: Play/Pause is resolved against this, not against the player's last event. */
     @Volatile
@@ -117,12 +126,34 @@ internal class BehindPlay(
     private var knownMs = inPointMs
     private var knownAtMs = 0L
 
-    /** Whether the transport view shows: while paused, and for [LiveTimings.bannerLinger] after Play. */
+    /** Whether the transport view shows: while paused, and for [LiveTimings.bannerLinger] after Play or a step. */
     private var visible = true
     private var linger: Job? = null
 
     /** Set when the play's own end came (not a cut): its last notes are waited for. */
     private var playEnded = false
+
+    // DESIGN(#383): placeholder, held-step pace. A held Back or Ahead steps at the flip's pace: at 4 steps a second,
+    // held Back takes about 45 s to go back 30 minutes, so how a viewer reaches the start of a long item (start-over
+    // reachability) is for the design partner.
+    private val pace = HeldFlip(timings.flipRepeatDelay, timings.flipRepeatEvery)
+
+    /** Where the steps so far add up to, until it settles; null when no step is pending. */
+    private var targetMs: Long? = null
+
+    /** True when the pending target is the live position: an Ahead step's clamp hit it. */
+    private var targetIsLive = false
+
+    /** The clock time (epoch ms) the pending target settles at if the key is not released first. */
+    private var settleAtMs: Long? = null
+
+    /** The target of the seek sent and not yet done; null when none is in flight. */
+    @Volatile
+    private var seekingToMs: Long? = null
+
+    /** Set while the seek back to live is in flight: once it is done, the viewer is live. */
+    @Volatile
+    private var goingLive: CompletableDeferred<Unit>? = null
 
     /** Runs from the live play's [first] op (or a kept [from] place, Task 12) until the item ends, live, or an exit. */
     suspend fun run(
@@ -156,17 +187,22 @@ internal class BehindPlay(
         return if (paused && onProgram) Place(sitting.channel, block, knownMs) else null
     }
 
-    @Suppress("ReturnCount") // Each return is one way the behind play ends.
-    @OptIn(ExperimentalCoroutinesApi::class) // select's onTimeout: the media-time hold.
+    @Suppress("ReturnCount", "CyclomaticComplexMethod") // Each return is one way the behind play ends.
+    @OptIn(ExperimentalCoroutinesApi::class) // select's onTimeout: the media-time hold and the settle.
     private suspend fun loop(
         within: CoroutineScope,
         first: TransportOp?,
     ): BehindEnd {
-        // Steps arrive in Task 8b: until then a step that started this play changes nothing, so it is still live.
-        if (first != null && !act(first)) return BehindEnd.Live(play)
+        if (first != null) {
+            act(first)
+            // A first op that changed nothing (a step the play cannot take) leaves the viewer live.
+            val still = !paused && targetMs == null && seekingToMs == null && goingLive == null
+            if (still) return BehindEnd.Live(play)
+        }
         val ended = within.async { play.end.firstOrNull() ?: PlaybackEnd.Ended }
         val nextOp = { within.async { sitting.commands.receive(block.startMs) } }
         var next = nextOp()
+        var firedShort = false
         while (true) {
             publish()
             // Media left to the cut, re-read each time round: a hold that fired early (playback slower than the
@@ -176,49 +212,60 @@ internal class BehindPlay(
                 sitting.reportLostOp(next, "transport-lost-at-cut")
                 return BehindEnd.ItemEnd(null)
             }
+            // The first wait is the exact media left, so the cut is on time. Only once a wait has fired short is a
+            // floor put under it, so a hold that keeps running short near the cut never spins.
+            val dueMs = leftMs?.let { if (firedShort) maxOf(it, MIN_REARM_MS) else it }
+            val settleMs = settleAtMs?.let { maxOf(0L, it - nowMs()) }
+            val waitMs = listOfNotNull(dueMs, settleMs).minOrNull()
+            val landed = goingLive
             val woke =
                 select {
                     ended.onAwait { Wake.End(it) }
                     next.onAwait { Wake.Op(it) }
-                    // A floor on the wait, so a hold that runs short near the cut never spins.
-                    if (leftMs != null) onTimeout(maxOf(leftMs, MIN_REARM_MS)) { Wake.Due }
+                    landed?.onAwait { Wake.Landed }
+                    if (waitMs != null) onTimeout(waitMs) { if (settleDue()) Wake.Settle else Wake.Due }
                 }
-            // Wake.Due: round again, where the position is read afresh.
-            if (woke is Wake.End) {
-                sitting.reportLostOp(next, "transport-lost-at-end")
-                return playEnd(woke.end)
-            }
-            if (woke is Wake.Op) {
-                act(woke.op)
-                next = nextOp()
+            firedShort = woke is Wake.Due
+            when (woke) {
+                is Wake.End -> {
+                    sitting.reportLostOp(next, "transport-lost-at-end")
+                    return playEnd(woke.end)
+                }
+
+                is Wake.Op -> {
+                    act(woke.op)
+                    next = nextOp()
+                }
+
+                Wake.Settle -> {
+                    settle()
+                }
+
+                Wake.Landed -> {
+                    sitting.reportLostOp(next, "transport-lost-at-live")
+                    return BehindEnd.Live(play)
+                }
+
+                // Round again, where the position is read afresh.
+                Wake.Due -> {}
             }
         }
     }
 
-    /** Does [op]; false when it means nothing here (a step, until Task 8b). Play/Pause follows this play's state. */
-    private suspend fun act(op: TransportOp): Boolean =
+    /** Does [op]. Play/Pause follows this play's state; steps add up to the target, which settles in one seek. */
+    private suspend fun act(op: TransportOp) {
         when (op) {
-            TransportOp.Toggle -> {
-                if (paused) resume() else pause()
-                true
-            }
-
-            TransportOp.Play -> {
-                if (paused) resume()
-                true
-            }
-
-            TransportOp.Pause -> {
-                if (!paused) pause()
-                true
-            }
-
-            is TransportOp.Step, TransportOp.StepReleased, TransportOp.GoLive -> {
-                false
-            }
+            TransportOp.Toggle -> if (paused) resume() else pause()
+            TransportOp.Play -> if (paused) resume()
+            TransportOp.Pause -> if (!paused) pause()
+            is TransportOp.Step -> step(op)
+            TransportOp.StepReleased -> settle()
+            TransportOp.GoLive -> goLive()
         }
+    }
 
     private suspend fun pause() {
+        goingLive = null
         read()
         play.control.pause()
         paused = true
@@ -231,16 +278,100 @@ internal class BehindPlay(
         read()
         play.control.resume()
         paused = false
+        show()
+    }
+
+    /**
+     * One Back or Ahead press or repeat. It moves only the target: from the pending one, or the position for the first
+     * step. Every press or repeat puts the settle off; a repeat steps only when the held pace is due one. Nothing on a
+     * play that cannot seek. Paused stays paused.
+     */
+    private suspend fun step(op: TransportOp.Step) {
+        if (!play.control.seekable()) return
+        settleAtMs = nowMs() + timings.flipSettle.inWholeMilliseconds
+        val atMs = op.atMs ?: nowMs()
+        if (op.repeat) {
+            if (!pace.repeatSteps(atMs)) return
+        } else {
+            pace.press(atMs)
+        }
+        goingLive = null
+        val fromMs = targetMs ?: read()
+        val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
+        val toMs =
+            when (op.direction) {
+                SeekDirection.Back -> TransportMath.back(fromMs - timings.stepBack.inWholeMilliseconds, inPointMs)
+                SeekDirection.Ahead -> TransportMath.ahead(fromMs + aheadMs, liveMs, cutMs)
+            }
+        targetMs = toMs
+        targetIsLive = op.direction == SeekDirection.Ahead && TransportMath.reachesLive(toMs, liveMs, cutMs)
+        show()
+    }
+
+    /** The pending target settles: one seek to it, or back to live when it is the live position and the play runs. */
+    private suspend fun settle() {
+        val toMs = targetMs
+        val toLive = targetIsLive
+        targetMs = null
+        targetIsLive = false
+        settleAtMs = null
+        if (toMs == null) return
+        if (toLive && !paused) {
+            goLive()
+        } else {
+            seek(toMs)
+            show()
+        }
+    }
+
+    /**
+     * Back to live while the block is still on air: one seek to the live position, then play; the transport view goes,
+     * and the viewer is live once the seek is done. Once the block has ended, live is the next item (Task 9).
+     */
+    private suspend fun goLive() {
+        val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
+        if (liveMs >= cutMs) return
+        targetMs = null
+        targetIsLive = false
+        settleAtMs = null
+        linger?.cancel()
+        goingLive = CompletableDeferred()
+        sitting.state.transport.value = null
+        seek(liveMs)
+        if (paused) {
+            play.control.resume()
+            paused = false
+        }
+    }
+
+    /**
+     * One absolute seek to [toMs]. The watched span closes at the player's own position, read just before, so both
+     * ends of the seek are in the player's coordinates; its SeekDone reports where it landed.
+     */
+    private suspend fun seek(toMs: Long) {
+        val fromMs = play.control.position()?.inWholeMilliseconds
+        visiting?.seeking(fromMs)
+        seekingToMs = toMs
+        play.control.seekTo(toMs.milliseconds)
+        known(toMs)
+    }
+
+    /** Shows the transport view, and hides it again [LiveTimings.bannerLinger] later unless paused. */
+    private fun show() {
         visible = true
         publish()
         linger?.cancel()
         linger =
             scope.launch {
-                delay(sitting.timings.bannerLinger)
+                delay(timings.bannerLinger)
                 visible = false
                 publish()
             }
     }
+
+    private fun settleDue(): Boolean = settleAtMs?.let { nowMs() >= it } == true
+
+    private fun nowMs(): Long = sitting.clock.now().toEpochMilliseconds()
 
     /**
      * The item's end through the play's own end. A failure is reported as the live hold reports it, and its place
@@ -262,14 +393,14 @@ internal class BehindPlay(
      */
     private suspend fun read(): Long {
         val exact = play.control.position()?.inWholeMilliseconds
-        val ms = exact ?: if (paused) knownMs else knownMs + (sitting.clock.now().toEpochMilliseconds() - knownAtMs)
+        val ms = exact ?: if (paused) knownMs else knownMs + (nowMs() - knownAtMs)
         known(ms)
         return ms
     }
 
     private fun known(ms: Long) {
         knownMs = ms
-        knownAtMs = sitting.clock.now().toEpochMilliseconds()
+        knownAtMs = nowMs()
     }
 
     private fun onEvent(event: PlayerEvent) {
@@ -286,7 +417,13 @@ internal class BehindPlay(
             }
 
             is PlayerEvent.SeekDone -> {
-                event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN }?.let(::known)
+                val at = event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN }
+                at?.let(::known)
+                // Only a seek this play sent is reported done; where it landed, else where it was sent.
+                seekingToMs?.let { visiting?.seeked(at ?: it) }
+                seekingToMs = null
+                goingLive?.complete(Unit)
+                publish()
             }
 
             else -> {}
@@ -294,14 +431,16 @@ internal class BehindPlay(
     }
 
     private fun publish() {
+        // Going back to live: the view is gone, and stays gone.
+        if (goingLive != null) return
         sitting.state.transport.value =
             TransportView(
                 paused = paused,
-                seeking = false,
+                seeking = seekingToMs != null,
                 seekable = play.control.seekable(),
                 visible = visible || paused,
                 mediaMs = knownMs,
-                targetMs = null,
+                targetMs = targetMs,
                 asOfMs = knownAtMs,
                 blockStartMs = block.startMs,
                 inPointMs = inPointMs,
@@ -311,7 +450,7 @@ internal class BehindPlay(
     }
 
     private companion object {
-        /** The shortest media-time wait: a hold that fires a little early waits at least this long again. */
+        /** The shortest re-armed media-time wait: a hold that fired short waits at least this long again. */
         const val MIN_REARM_MS = 250L
     }
 
@@ -325,6 +464,13 @@ internal class BehindPlay(
             val op: TransportOp,
         ) : Wake
 
+        /** The media-time hold is due: the position is read again. */
         data object Due : Wake
+
+        /** The pending target's settle time came with the key still down. */
+        data object Settle : Wake
+
+        /** The seek back to live is done. */
+        data object Landed : Wake
     }
 }

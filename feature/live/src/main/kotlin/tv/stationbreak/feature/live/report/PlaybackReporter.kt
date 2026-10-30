@@ -121,9 +121,9 @@ class PlaybackReporter(
         events.trySend(ReportEvent.Unpaused(clock.now()))
     }
 
-    /** A seek began: the time until [seeked] is not watched time. */
-    fun seeking() {
-        events.trySend(ReportEvent.Seeking(clock.now()))
+    /** A seek began from [positionMs] when known: the time until [seeked] is not watched time. */
+    fun seeking(positionMs: Long? = null) {
+        events.trySend(ReportEvent.Seeking(clock.now(), positionMs))
     }
 
     /** The seek is done at media position [toMs]: watched time runs on from there. */

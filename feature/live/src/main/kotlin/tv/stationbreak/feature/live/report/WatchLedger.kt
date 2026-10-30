@@ -140,10 +140,16 @@ internal class WatchLedger(
         runIfClear(at)
     }
 
-    /** A seek began: counting stops at the derived position until [seeked]. */
-    fun seeking(at: Instant) {
+    /**
+     * A seek began from [positionMs], the player's exact position just before it when known (else the derived one):
+     * counting stops there until [seeked], so both ends of the seek are in the player's coordinates.
+     */
+    fun seeking(
+        at: Instant,
+        positionMs: Long? = null,
+    ) {
         if (open == null) return
-        stop(at, null)
+        stop(at, positionMs)
         seeking = true
     }
 

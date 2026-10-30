@@ -49,8 +49,9 @@ internal class Visiting(
         if (open) reporter?.unpaused()
     }
 
-    fun seeking() {
-        if (open) reporter?.seeking()
+    /** A seek begins from [positionMs], the player's exact position when known. */
+    fun seeking(positionMs: Long?) {
+        if (open) reporter?.seeking(positionMs)
     }
 
     fun seeked(toMs: Long) {

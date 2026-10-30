@@ -155,6 +155,22 @@ class BehindPauseTest {
         }
 
     @Test
+    fun theCutLandsOnTimeWhenTheFirstReadIsExact() =
+        runTest {
+            val k = keys()
+            // Paused 100 ms of media before the cut (item 1's block ends at minute 50 of the clock).
+            k.r.at(50 * MIN - 100)
+            k.press(LiveCommand.PlayPause)
+            k.r.atMin(51)
+            k.press(LiveCommand.PlayPause)
+            // The first wait is the exact 100 ms left, with no floor: the cut is not late.
+            k.r.at(51 * MIN + 99)
+            assertEquals(1, k.r.tuneCount())
+            k.r.at(51 * MIN + 100)
+            assertEquals(2, k.r.tuneCount())
+        }
+
+    @Test
     fun anUnknownPositionKeepsTheLastKnownPlace() =
         runTest {
             val k = keys()
