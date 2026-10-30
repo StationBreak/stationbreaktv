@@ -241,3 +241,27 @@ encode is still stopped once and a failed stop is still ignored.
   live channel's run ends).
 - The stops run on a separate scope the controller owns. It is never cancelled and borrows only the dispatcher of the
   watch scope (Dispatchers.Default when the controller makes its own scope).
+
+## Update 2026-10-30: the choice among an item's versions
+
+An item can have several media sources (versions), and the player used to take the first (issues #496, #499).
+`PlaybackResolver` now resolves every source in memory (no extra server calls) and chooses one.
+
+- **Order.** A version the device can direct-play comes first. Among those, the largest picture within the decoder's
+  width and height limits wins. If none qualifies, Jellyfin's order applies (the first). A tie on size also keeps
+  Jellyfin's order.
+- **Unknown size.** A version whose size is not reported counts as fitting, but loses to one with a known size.
+- **The chosen version stays chosen.** The stream URL, the subtitle URL and playback reporting all come from that one
+  source. The transcode fallback passes `prefer` (the current `media.id`), which narrows every route to that source, so
+  a fallback transcodes the version that just failed, not the first (which may be the heaviest). A prepared play falls
+  back the same way. A future `TrackOverride` re-tune (track switching, #497) must pass `prefer` too, so the override's
+  stream indices keep meaning the same tracks; today only the benchmark builds an override.
+- **What `fits` checks.** Only the video's width and height against its codec's decoder limits. Level, profile and bit
+  depth are left to the server's `SupportsDirectPlay` for our `DeviceProfile`. **Revisit:** if versions that pass `fits`
+  keep failing on a device, `fits` needs the codec level or bit depth.
+- **The schedule is unchanged.** It keeps the item's `RunTimeTicks`; ADR-0017's cut and catch-up rules cover versions
+  of different lengths.
+- **Auth rules are unchanged.** The token goes only in the Authorization header, and `TranscodingUrl` is never used.
+- **Not done here.** When no direct-play version fits the decoder, the first direct-play one is still tried and may
+  cost an attempt before the transcode fallback. Preferring a transcode of a fitting version needs a measurement on
+  older hardware first (#499).

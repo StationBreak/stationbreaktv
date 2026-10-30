@@ -49,4 +49,23 @@ class TuneControllerSourceChoiceTest {
             assertEquals(MediaSourceId("hd"), outcome.resolved.media.id)
             assertEquals("https://media.example.com/hls/hd", player.played.last().url)
         }
+
+    @Test
+    fun aPreparedPlayOfTheSecondVersionThatFailsFallsBackToTranscodeThatSameVersion() =
+        runTest {
+            player.script =
+                listOf(
+                    listOf(Step { PlayerEvent.Failed("ERROR_CODE_IO_BAD_HTTP_STATUS", 500, it) }),
+                    listOf(
+                        Step { PlayerEvent.FirstFrame(1_950, it) },
+                        Step { PlayerEvent.Playing(2_000, Duration.ZERO, it) },
+                    ),
+                )
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO))
+            val outcome = controller.tune(session, prepared, null) as TuneResult.Played
+            assertEquals(Route.DIRECT_PLAY, outcome.fallback?.from)
+            assertEquals(Route.TRANSCODE, outcome.resolved.route)
+            assertEquals(MediaSourceId("hd"), outcome.resolved.media.id)
+            assertEquals("https://media.example.com/hls/hd", player.played.last().url)
+        }
 }

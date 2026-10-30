@@ -44,25 +44,22 @@ class PlaybackResolver(
     ): ServerResult<ResolvedPlayback> {
         val limits = capabilities()
         val request = PlaybackRequest(limits, start, override?.audioIndex, override?.subtitleIndex, forceTranscode)
+        val inputs = ResolveInputs(limits, start, override, forceTranscode)
         return when (val answer = server.playbackInfo(session, item, request)) {
             is ServerResult.Failure -> answer
-            is ServerResult.Success -> resolveAnswer(answer.value, limits, start, override, forceTranscode, prefer)
+            is ServerResult.Success -> resolveAnswer(answer.value, inputs, prefer)
         }
     }
 
-    @Suppress("LongParameterList") // One call's context.
     private fun resolveAnswer(
         info: PlaybackInfo,
-        limits: DeviceCapabilities,
-        start: Duration,
-        override: TrackOverride?,
-        forceTranscode: Boolean,
+        inputs: ResolveInputs,
         prefer: MediaSourceId?,
     ): ServerResult<ResolvedPlayback> {
         val preferred = if (prefer != null) info.sources.filter { it.id == prefer } else emptyList()
         val sources = preferred.ifEmpty { info.sources }
-        val candidates = sources.map { resolveSource(info, it, limits, start, override, forceTranscode) }
-        val resolved = choose(candidates, limits)
+        val candidates = sources.map { resolveSource(info, it, inputs) }
+        val resolved = choose(candidates, inputs.limits)
         return resolved?.let { ServerResult.Success(it) } ?: ServerResult.Failure(MediaServerError.NotFound())
     }
 
@@ -97,15 +94,13 @@ class PlaybackResolver(
             ((video.width ?: 0) <= support.maxWidth && (video.height ?: 0) <= support.maxHeight)
     }
 
-    @Suppress("LongParameterList") // The facts of one resolve, passed on unchanged.
     private fun resolveSource(
         info: PlaybackInfo,
         media: MediaSource,
-        limits: DeviceCapabilities,
-        start: Duration,
-        override: TrackOverride?,
-        forceTranscode: Boolean,
+        inputs: ResolveInputs,
     ): ResolvedPlayback {
+        val (limits, start, override) = inputs
+        val forceTranscode = inputs.forceTranscode
         // An override replaces the server's choice; its null subtitle means "off", its null audio "the server's".
         // Only a real audio track of this source is ever chosen: an index it lacks, or one that is not audio, falls
         // back to the server's default, then the first audio track. What is chosen is what the URL and the check see.
@@ -205,3 +200,11 @@ internal fun audioPlays(
         else -> false
     }
 }
+
+/** The facts of one resolve call, passed on unchanged to every source's resolution. */
+private data class ResolveInputs(
+    val limits: DeviceCapabilities,
+    val start: Duration,
+    val override: TrackOverride?,
+    val forceTranscode: Boolean,
+)
