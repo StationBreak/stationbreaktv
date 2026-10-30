@@ -84,9 +84,9 @@ internal fun Sitting.behindHost(): BehindHost {
         override suspend fun resolveCatchUp(
             block: AiringBlock,
             atMs: Long,
-        ): Pending.CatchUp? = sitting.nextUp.resolveCatchUp(block, atMs)
+        ): Pending.CatchUp? = sitting.resolveCatchUp(block, atMs)
 
-        override suspend fun discard(handle: Pending.CatchUp) = sitting.nextUp.discard(handle)
+        override suspend fun discard(handle: Pending.CatchUp) = sitting.discardCatchUp(handle)
 
         override fun dropped(reason: String) =
             sitting.report(

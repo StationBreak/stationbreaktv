@@ -6,7 +6,6 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.playback.PlaybackEnd
@@ -303,33 +301,34 @@ internal class BehindPlay(
      */
     private suspend fun act(op: TransportOp): BehindEnd? =
         when (op) {
-            TransportOp.StepReleased -> released()
-            TransportOp.GoLive -> liveOrItemEnd()
-            else -> null.also { playOrStep(op) }
-        }
-
-    /** Play/Pause follows this play's state; a step moves the target. */
-    private suspend fun playOrStep(op: TransportOp) {
-        when (op) {
             TransportOp.Toggle -> {
                 if (paused) resume() else pause()
+                null
             }
 
             TransportOp.Play -> {
                 if (paused) resume()
+                null
             }
 
             TransportOp.Pause -> {
                 if (!paused) pause()
+                null
             }
 
             is TransportOp.Step -> {
                 step(op)
+                null
             }
 
-            TransportOp.StepReleased, TransportOp.GoLive -> {}
+            TransportOp.StepReleased -> {
+                released()
+            }
+
+            TransportOp.GoLive -> {
+                liveOrItemEnd()
+            }
         }
-    }
 
     /** GoLive: back to live while the block is on air; once it has ended by the clock, the item ends (non-null). */
     private suspend fun liveOrItemEnd(): BehindEnd? {
@@ -493,12 +492,7 @@ internal class BehindPlay(
     private suspend fun itemEnd(): BehindEnd.ItemEnd {
         val ahead = catchUpAhead
         catchUpAhead = null
-        val ready =
-            withContext(NonCancellable) {
-                ahead?.takeIf { it.isCompleted && !it.isCancelled }?.await()
-            }
-        if (ready == null) ahead?.cancel()
-        return BehindEnd.ItemEnd(ready)
+        return BehindEnd.ItemEnd(ahead.finishedOrCancel())
     }
 
     /**
@@ -531,13 +525,9 @@ internal class BehindPlay(
 
     /** Lets the catch-up resolved ahead go (a pause or a seek moves the cut): a handle is ended, a resolve stopped. */
     private suspend fun dropCatchUp() {
-        val ahead = catchUpAhead ?: return
+        val ahead = catchUpAhead
         catchUpAhead = null
-        withContext(NonCancellable) {
-            val done = ahead.takeIf { it.isCompleted && !it.isCancelled }?.await()
-            ahead.cancel()
-            done?.let { host.discard(it) }
-        }
+        ahead.finishedOrCancel()?.let { host.discard(it) }
     }
 
     /**

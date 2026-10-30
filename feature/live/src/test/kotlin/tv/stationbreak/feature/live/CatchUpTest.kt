@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.TestScope
@@ -20,7 +21,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Catch-up (spec 20, ADR-0021 4): when a behind play's item ends, the channel plays what is on now, at its schedule
@@ -36,7 +39,22 @@ class CatchUpTest {
     private class Keys(
         val r: Rig,
         val keys: Channel<LiveCommand>,
+        val job: Job,
     ) {
+        /** Ends the run, then checks every handle made was tuned or discarded, exactly once. */
+        fun finish() {
+            job.cancel()
+            r.scope.testScheduler.runCurrent()
+            r.assertEveryPreResolveEndsOnce()
+        }
+
+        fun discards(item: ItemId) = r.tune.calls.count { it is Call.Discard && it.item == item }
+
+        fun resolves(item: ItemId) =
+            r.tune.calls
+                .filterIsInstance<Call.PreResolve>()
+                .filter { it.item == item }
+
         fun press(command: LiveCommand) {
             keys.trySend(command)
             r.scope.testScheduler.runCurrent()
@@ -68,18 +86,18 @@ class CatchUpTest {
             }
         }
 
-    /** CH7 with item 1 from minute 0 to 30, item 2 to 60 and item 3 to 90 (plus [more]), joined at [startMin]. */
+    /** CH7 with [blocks] (item 1 from minute 0 to 30, item 2 to 60 and item 3 to 90), joined at [startMin]. */
     private suspend fun TestScope.keys(
         startMin: Long = 10,
         setup: Rig.() -> Unit = {},
-        vararg more: AiringBlock,
+        blocks: List<AiringBlock> = listOf(program(0, 30, 1), program(30, 60, 2), program(60, 90, 3)),
     ): Keys {
         val r = Rig(this, startMin = startMin)
-        r.schedule.channel(CH7, 7, listOf(program(0, 30, 1), program(30, 60, 2), program(60, 90, 3)) + more)
+        r.schedule.channel(CH7, 7, blocks)
         r.setup()
         val keys = Channel<LiveCommand>(Channel.UNLIMITED)
-        r.start(commands = keys.receiveAsFlow())
-        return Keys(r, keys)
+        val job = r.start(commands = keys.receiveAsFlow())
+        return Keys(r, keys, job)
     }
 
     private fun assertNear(
@@ -103,6 +121,7 @@ class CatchUpTest {
             assertEquals(2, k.r.tuned().size)
             assertEquals(itemOf(2), next.item)
             assertNear(10 * MIN, next.startMs)
+            k.finish()
         }
 
     @Test
@@ -118,6 +137,8 @@ class CatchUpTest {
             val next = k.r.tuned().last()
             assertEquals(itemOf(2), next.item)
             assertNear(8 * MIN, next.startMs)
+            assertTrue(next.handle)
+            k.finish()
         }
 
     @Test
@@ -132,6 +153,7 @@ class CatchUpTest {
             assertEquals(2, k.r.tuned().size)
             assertEquals(itemOf(3), next.item)
             assertNear(10 * MIN, next.startMs)
+            k.finish()
         }
 
     @Test
@@ -149,6 +171,7 @@ class CatchUpTest {
             assertEquals(listOf("pause", "resume"), control.calls)
             assertFalse(checkNotNull(k.r.live.transport.value).paused)
             assertTrue(k.r.state is LiveState.Watching)
+            k.finish()
         }
 
     @Test
@@ -171,6 +194,7 @@ class CatchUpTest {
             assertEquals(0L, next.startMs)
             assertNear(20 * MIN, next.at)
             assertTrue(next.handle)
+            k.finish()
         }
 
     @Test
@@ -190,6 +214,7 @@ class CatchUpTest {
             assertEquals(itemOf(2), next.item)
             assertNear(23 * MIN, next.at, 10)
             assertNear(3 * MIN, next.startMs)
+            k.finish()
         }
 
     @Test
@@ -207,11 +232,13 @@ class CatchUpTest {
             assertEquals(itemOf(2), next.item)
             assertNear(23 * MIN, next.at)
             assertNear(3 * MIN, next.startMs)
+            assertTrue(next.handle)
             assertTrue(
                 k.r.seen
                     .dropWhile { it !is LiveState.Watching }
                     .none { it is LiveState.Ident },
             )
+            k.finish()
         }
 
     @Test
@@ -242,6 +269,7 @@ class CatchUpTest {
                     .line()
             // Resolved ahead: no resolve inside the tune.
             assertTrue(line, line.startsWith("tune kind=catchup resolveMs=0 "))
+            k.finish()
         }
 
     @Test
@@ -295,6 +323,7 @@ class CatchUpTest {
                 k.r.tune.calls
                     .count { it is Call.Discard },
             )
+            k.finish()
         }
 
     @Test
@@ -310,6 +339,7 @@ class CatchUpTest {
                     .none { it is Call.PreResolve },
             )
             assertEquals(1, k.r.tuned().size)
+            k.finish()
         }
 
     @Test
@@ -334,6 +364,8 @@ class CatchUpTest {
             val vnowAtCut = T0 + 25 * MIN + next.at + driftMs
             assertNear(vnowAtCut - (T0 + 60 * MIN), next.startMs)
             assertNear(2 * MIN, next.startMs)
+            assertTrue(next.handle)
+            k.finish()
         }
 
     @Test
@@ -353,6 +385,7 @@ class CatchUpTest {
             val next = k.r.tuned().last()
             assertEquals(itemOf(9), next.item)
             assertEquals(2, k.r.tuned().size)
+            k.finish()
         }
 
     @Test
@@ -368,6 +401,7 @@ class CatchUpTest {
             assertEquals(5 * MIN, next.startMs)
             val control = checkNotNull(k.r.tune.controlOf(itemOf(1)))
             assertEquals(listOf("pause"), control.calls)
+            k.finish()
         }
 
     @Test
@@ -385,6 +419,7 @@ class CatchUpTest {
             assertNear(5 * MIN, next.startMs)
             val control = checkNotNull(k.r.tune.controlOf(itemOf(1)))
             assertTrue(control.calls.none { it.startsWith("seek:") })
+            k.finish()
         }
 
     @Test
@@ -410,5 +445,171 @@ class CatchUpTest {
                 )
             assertEquals(itemOf(2), cut.item)
             assertEquals(0L, cut.start.inWholeMilliseconds)
+            k.finish()
+        }
+
+    @Test
+    fun aResolveStillRunningAtTheCutIsCancelledAndTunedFresh() =
+        runTest {
+            // The server takes a minute to resolve: longer than the lead.
+            val k = keys(setup = { tune.preResolveDelayMs = 60_000 })
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(10 * MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(30 * MIN - leadMs + 1_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            k.r.at(30 * MIN + 1_000)
+            // Cancelled at the cut: no handle was made, and the tune resolves for itself, under the snow.
+            assertTrue(
+                k.r.tune.handleFates
+                    .isEmpty(),
+            )
+            val next = k.r.tuned().last()
+            assertEquals(itemOf(2), next.item)
+            assertFalse(next.handle)
+            assertEquals(30 * MIN, next.at)
+            val firstWatching = k.r.seen.indexOfFirst { it is LiveState.Watching }
+            assertTrue(
+                k.r.seen
+                    .drop(firstWatching)
+                    .any { it is LiveState.Tuning },
+            )
+            k.finish()
+        }
+
+    @Test
+    fun aSeekInsideTheLeadDiscardsTheHandleAndArmsAgain() =
+        runTest {
+            val k = keys()
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(10 * MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(30 * MIN - 30_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            // Back 10 s inside the lead: the cut moves, so the handle is let go and resolved again for the new cut.
+            k.press(LiveCommand.Seek(SeekDirection.Back, false, null))
+            k.press(LiveCommand.SeekReleased)
+            k.r.at(30 * MIN - 29_000)
+            assertEquals(1, k.discards(itemOf(2)))
+            val resolves = k.resolves(itemOf(2))
+            assertEquals(2, resolves.size)
+            val discardAt =
+                k.r.tune.calls
+                    .single { it is Call.Discard }
+                    .at
+            assertTrue(resolves.last().at >= discardAt)
+            k.r.at(30 * MIN + 11_000)
+            val next = k.r.tuned().last()
+            assertEquals(itemOf(2), next.item)
+            assertTrue(next.handle)
+            assertEquals(1, k.discards(itemOf(2)))
+            k.finish()
+        }
+
+    @Test
+    fun aHandleForAnotherBlockIsDiscardedAndTunedFresh() =
+        runTest {
+            // Item 2 runs to minute 41 of the clock, item 3 from there.
+            val blocks = listOf(program(0, 30, 1), program(30, 41, 2), program(41, 90, 3))
+            val k = keys(blocks = blocks)
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            // Ten minutes 40 behind: the cut is due at minute 40:40 of the clock, inside item 2's slot.
+            k.pressAt(10 * MIN + 41_000, LiveCommand.PlayPause)
+            k.r.at(30 * MIN - 4_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            // Then the media runs at half speed: the cut comes at minute 41:24, in item 3's slot.
+            checkNotNull(k.r.tune.controlOf(itemOf(1))).rate = 0.5
+            k.r.at(31 * MIN + 30_000)
+            assertEquals(1, k.discards(itemOf(2)))
+            val next = k.r.tuned().last()
+            assertEquals(itemOf(3), next.item)
+            assertFalse(next.handle)
+            assertNear(24_000, next.startMs, 2_000)
+            k.finish()
+        }
+
+    @Test
+    fun aFileThatEndsInsideItsBlockWithAHandleArmedDiscardsIt() =
+        runTest {
+            // Ten seconds behind, the file ends at media 29:40 (minute 29:50 of the clock, test 19:50), 20 s before
+            // its cut: the catch-up was armed at media 29:15.
+            val end = 19.minutes + 50.seconds
+            val k = keys(setup = { tune.script(itemOf(1), tune.playsThenEnds(end, PlaybackEnd.Ended)) })
+            k.pressAt(MIN, LiveCommand.PlayPause)
+            k.pressAt(MIN + 10_000, LiveCommand.PlayPause)
+            k.r.at(end.inWholeMilliseconds - 1_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            k.r.at(end.inWholeMilliseconds + 1_000)
+            assertTrue(k.r.state is LiveState.Ident)
+            assertEquals(1, k.discards(itemOf(2)))
+            // The ident holds to the block's end; item 2 is resolved ahead again for its start, and cut in then.
+            k.r.at(20 * MIN + 1_000)
+            val next = k.r.tuned().last()
+            assertEquals(itemOf(2), next.item)
+            assertEquals(0L, next.startMs)
+            assertTrue(next.handle)
+            k.finish()
+        }
+
+    @Test
+    fun aFlipWhileArmedDiscardsTheHandle() =
+        runTest {
+            val k = keys(setup = { schedule.channel(CH9, 9, listOf(program(0, 90, 9))) })
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(10 * MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(30 * MIN - 30_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            k.press(LiveCommand.Flip(FlipDirection.Up))
+            k.press(LiveCommand.FlipReleased)
+            k.r.at(30 * MIN - 25_000)
+            assertEquals(
+                itemOf(9),
+                k.r
+                    .tuned()
+                    .last()
+                    .item,
+            )
+            assertEquals(1, k.discards(itemOf(2)))
+            k.finish()
+        }
+
+    @Test
+    fun theSittingEndingWhileArmedDiscardsTheHandle() =
+        runTest {
+            val k = keys()
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(10 * MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(30 * MIN - 30_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            k.finish()
+            assertEquals(1, k.discards(itemOf(2)))
+        }
+
+    @Test
+    fun theSittingEndingWhileTheCatchUpIsHeldDiscardsIt() =
+        runTest {
+            val k = keys()
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(10 * MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(30 * MIN - 10_000)
+            assertEquals(1, k.resolves(itemOf(2)).size)
+            // A slow look at what is on now: the handle is held for it when the run ends.
+            k.r.schedule.onAirDelayMs = 5_000
+            k.r.at(30 * MIN + 2_000)
+            assertEquals(1, k.r.tuned().size)
+            k.finish()
+            assertEquals(1, k.discards(itemOf(2)))
+        }
+
+    @Test
+    fun theCatchUpReportsTheCutsGap() =
+        runTest {
+            val k = keys(setup = { tune.script(itemOf(2), FakeTune.playsAfter(500.milliseconds)) })
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(10 * MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(30 * MIN + 1_000)
+            val tune = k.r.reports.indexOfLast { it is TuneReport.Tune }
+            assertEquals(TuneKind.CatchUp, (k.r.reports[tune] as TuneReport.Tune).kind)
+            // The gap from the item's end to the next picture: the tune's 500 ms.
+            assertEquals(TuneReport.Cut(500, 0, 500), k.r.reports.getOrNull(tune + 1))
+            k.finish()
         }
 }

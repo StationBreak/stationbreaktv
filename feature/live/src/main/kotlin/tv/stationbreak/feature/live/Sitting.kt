@@ -114,7 +114,7 @@ private sealed interface Woke {
  *
  * Dead items are handled in `DeadItems.kt`; choosing the channel is [LiveChannel]'s.
  */
-@Suppress("LongParameterList") // The machine's ports and clock, one for one.
+@Suppress("LongParameterList", "TooManyFunctions") // Ports one for one; a function per step, plus 2 catch-up wrappers.
 internal class Sitting(
     val session: Session,
     val channel: ChannelId,
@@ -153,7 +153,7 @@ internal class Sitting(
     /** [ChannelOnAir.builtUntilMs] as of the last anchor; a drift that reaches it re-anchors (ADR-0017). */
     private var limitMs = Long.MAX_VALUE
 
-    internal val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
+    private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
 
     /** This block's wall-clock look-ahead at the next block: dropped while behind, started again at live. */
@@ -196,6 +196,15 @@ internal class Sitting(
 
     /** Ends what the sitting holds: a pre-resolved handle nobody used. The caller stops the tuner. */
     suspend fun release() = nextUp.release()
+
+    /** A behind play's catch-up, resolved ahead for [block] at its position at [atMs] ([NextUp.resolveCatchUp]). */
+    internal suspend fun resolveCatchUp(
+        block: AiringBlock,
+        atMs: Long,
+    ): Pending.CatchUp? = nextUp.resolveCatchUp(block, atMs)
+
+    /** Ends a behind play's catch-up handle that will not be played. */
+    internal suspend fun discardCatchUp(handle: Pending.CatchUp) = nextUp.discard(handle)
 
     private suspend fun inBlock(onAir: ChannelOnAir): Exit? =
         coroutineScope {
@@ -288,6 +297,8 @@ internal class Sitting(
                             // the handle resolved for it.
                             is Held.CaughtUp -> {
                                 held.catchUp?.let { nextUp.catchUp(it) }
+                                // The item's end is the cut: the catch-up's tune reports its gap from here.
+                                cutFrom = clock.now()
                                 return null
                             }
 
@@ -482,7 +493,7 @@ internal class Sitting(
  */
 internal suspend fun Sitting.dropBoundaryLookAhead() = boundary.drop()
 
-/** Starts this block's look-ahead again after a drop, once the play is live (or on the ident) again. */
+/** Starts this block's look-ahead again after a drop, once the play is live (or on the ident) again; true if it did. */
 internal fun Sitting.rearmBoundaryLookAhead() = boundary.rearm()
 
 /**

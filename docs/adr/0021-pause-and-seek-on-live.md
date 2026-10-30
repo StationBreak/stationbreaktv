@@ -65,6 +65,8 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
 4. **Catch-up rule.** When a behind play reaches its item's end (the cut at the block's end, or the file's end, whichever
    comes first), the sitting looks up what is on the air now and plays it at its schedule position. This is a straight cut
    on the same channel, with no snow, and is not a flip. The next item is pre-resolved from the time remaining.
+   A catch-up is a straight cut when the next item was resolved within `preResolveLead` of the cut; a file that ends
+   early past its block, by more than the lead before its cut, tunes fresh with the usual snow.
 
    | Case | Result |
    |---|---|

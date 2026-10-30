@@ -93,7 +93,8 @@ what the screen does then, and the few structural choices that go with it.
   handle then holds an encode, so `Neighbours` must stop holding handles and resolve at commit instead.
 - **Retargeted.** A handle waits, so it is played from the schedule's position at the commit, not the one it was
   resolved for (`TuneController.tune(prepared, override, start)`); a flip's tune is reported as kind `neighbour`.
-  A flip still shows the snow, whatever route it takes.
+  A flip still shows the snow, whatever route it takes. A behind play's catch-up (spec 20, ADR-0021 4) is played the
+  same way, from the schedule's position at its tune, and is reported as kind `catchup`.
 
 ## Decision 2026-10-24: flipping channels (spec 15, F1.4)
 

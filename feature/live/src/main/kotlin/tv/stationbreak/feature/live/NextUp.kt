@@ -87,10 +87,7 @@ internal class NextUp(
 
     /** Holds what [prepare] finished with (nothing if it had not finished). Safe when the caller is cancelled. */
     suspend fun keep(ahead: Deferred<Pending.AtBoundary?>?) {
-        withContext(NonCancellable) {
-            pending = ahead?.takeIf { it.isCompleted && !it.isCancelled }?.await()
-            ahead?.cancel()
-        }
+        pending = ahead.finishedOrCancel()
     }
 
     /**
@@ -98,11 +95,7 @@ internal class NextUp(
      * (the controller ends its encode). Safe when the caller is cancelled.
      */
     suspend fun drop(ahead: Deferred<Pending.AtBoundary?>) {
-        withContext(NonCancellable) {
-            val done = ahead.takeIf { it.isCompleted && !it.isCancelled }?.await()
-            ahead.cancel()
-            done?.let { discard(it) }
-        }
+        ahead.finishedOrCancel()?.let { discard(it) }
     }
 
     /**
@@ -192,9 +185,27 @@ internal class NextUp(
 }
 
 /**
+ * What this resolve finished with, or null when it had not (or failed); it is cancelled either way, and a resolve
+ * cancelled before it returns is the controller's to end. Safe when the caller is cancelled: a finished handle is
+ * never lost to a cancellation here.
+ */
+internal suspend fun <T : Pending> Deferred<T?>?.finishedOrCancel(): T? {
+    val ahead = this ?: return null
+    return withContext(NonCancellable) {
+        val done = ahead.takeIf { it.isCompleted && !it.isCancelled }?.await()
+        ahead.cancel()
+        done
+    }
+}
+
+/**
  * One block's wall-clock look-ahead at the next block ([NextUp.prepare]). A behind play drops it (spec 20): what
  * follows its item is what is on at its cut, and no resolve or encode is held through a pause. Back at live, or on the
  * ident after an early end, it is started again for the same block.
+ *
+ * Its lifecycle is one block's, inside one `inBlock`: [start], then any number of [drop] and [rearm], then [keep].
+ * Outside it (before [start], after [keep]) there is no block to look ahead from: [rearm] is a no-op that says so
+ * (false), and [drop] has nothing to drop.
  */
 internal class BoundaryLookAhead(
     private val nextUp: NextUp,
@@ -218,11 +229,14 @@ internal class BoundaryLookAhead(
         nextUp.drop(dropped)
     }
 
-    /** Starts it again after a [drop]; nothing when it is running, or the block is over. */
-    fun rearm() {
-        if (ahead != null) return
-        val (scope, onAir) = startedFor ?: return
-        ahead = nextUp.prepare(scope, onAir)
+    /**
+     * Starts it again after a [drop]; true when it did. False when it is still running, or outside its lifecycle
+     * (before [start] or after [keep]), where it does nothing.
+     */
+    fun rearm(): Boolean {
+        val made = startedFor?.takeIf { ahead == null } ?: return false
+        ahead = nextUp.prepare(made.first, made.second)
+        return true
     }
 
     /** The block is over: [NextUp.keep] holds what finished for the next block. Safe when the caller is cancelled. */
