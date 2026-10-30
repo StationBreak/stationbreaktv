@@ -69,7 +69,7 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    | Case | Result |
    |---|---|
    | Behind longer than the next item | Lands on whatever is on now |
-   | File ends early while behind | Straight to catch-up, no ident fill |
+   | File ends early while behind | Once the clock has passed the block: straight to catch-up, no ident fill. While the clock is still inside the block: the ident holds to the block's end, as on the live path |
    | File runs long while behind | Cut at the block's end, then catch up (the schedule wins, Q-SCH-3) |
    | Item's schedule slot ends while paused | Nothing; Play continues it |
    | Dead item while behind | One retry at the place, then treated as the item's end; no 30-minute stand-in |
@@ -176,7 +176,7 @@ The items above are planned for the SP-7 re-run before the contract matrix moves
 - **ADR-0017, 2.** A retune still works the position out from the clock, with one exception: a return within
   `pauseHoldMax` resumes at the kept place. If the place's block has not started by the clock (possible after
   ahead-drift), the place is dropped and the viewer joins live. A place ahead of the clock's live position (paused in
-  an ahead-drifted sitting) is clamped to the live position, so the viewer is Live and never ahead of the schedule. A
+  an ahead-drifted sitting) is clamped to the live position, so the viewer is never ahead of the schedule; a paused viewer is still paused there. A
   block that has already ended by the clock is fine: the viewer is behind and catches up at the next item.
 - **ADR-0018.** Added to 1: while paused, progress check-ins carry `IsPaused=true` at the safe position, for up to
   `pauseReportMax`, then stop; Play sends a fresh `Playing`. Added to 4: a resume after the silence starts a new
