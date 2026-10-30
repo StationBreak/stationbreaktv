@@ -135,7 +135,8 @@ sealed interface TuneResult {
      * seek position; both are null when the player could not say (diagnostics only). [loads] is what the media loads
      * before the tracks cost (count, time, bytes, container), also diagnostics only. [notes] are the play's stalls and
      * their ends (at most [MAX_STALL_NOTES] stalls), and complete when [end] does; diagnostics only.
-     * [av] times the audio and video start-up steps (diagnostics only).
+     * [av] times the audio and video start-up steps (diagnostics only). [control] is the transport of this play (pause,
+     * resume, seek, position); it acts on this play's generation only, so it can never touch a newer play.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -143,6 +144,7 @@ sealed interface TuneResult {
         val playingMs: Long,
         val positionError: Duration?,
         val fallback: Fallback?,
+        val control: PlayControl,
         val end: Flow<PlaybackEnd> = emptyFlow(),
         val tracksMs: Long? = null,
         val skippedFrames: Long? = null,
@@ -415,6 +417,7 @@ class TuneController(
                     attempt.playingMs,
                     attempt.positionError,
                     fallback,
+                    attempt.control,
                     attempt.end,
                     attempt.tracksMs,
                     attempt.skippedFrames,
@@ -504,6 +507,7 @@ class TuneController(
         val playingMs: Long,
         val positionError: Duration?,
         override val canFallBack: Boolean,
+        val control: PlayControl,
         val end: Flow<PlaybackEnd>,
         val tracksMs: Long?,
         val skippedFrames: Long?,
@@ -625,6 +629,7 @@ class TuneController(
             playingMs = landing.playing.atMs - began,
             positionError = missed?.error,
             canFallBack = missed != null && !forced,
+            control = landing.control,
             end = landing.end,
             tracksMs = landing.tracksMs,
             skippedFrames = landing.skippedFrames,
@@ -645,6 +650,7 @@ class TuneController(
         class Landed(
             val firstFrameAtMs: Long?,
             val playing: PlayerEvent.Playing,
+            val control: PlayControl,
             val end: Flow<PlaybackEnd>,
             val tracksMs: Long?,
             val skippedFrames: Long?,
@@ -696,7 +702,8 @@ class TuneController(
             var landed = false
             try {
                 val playCalledAt = clock()
-                generation.complete(player.play(source))
+                val mine = player.play(source)
+                generation.complete(mine)
                 val wait =
                     when (val event = withTimeoutOrNull(PLAYING_TIMEOUT) { outcome.await() }) {
                         is PlayerEvent.Playing -> {
@@ -707,6 +714,7 @@ class TuneController(
                             Wait.Landed(
                                 frame?.atMs,
                                 event,
+                                GenerationControl(player, mine),
                                 watch.flow,
                                 tracksMs,
                                 skipped,
@@ -746,6 +754,7 @@ class TuneController(
      * [PlayerEvent.Stalled] that no [PlayerEvent.Playing] follows within [PLAYING_TIMEOUT]. The result is kept, so a
      * collector that comes late still gets it. Subscribing is not dispatched, so no event after this call is missed.
      */
+    @Suppress("LongMethod") // One collector with its two timers, kept together.
     private fun watchEnd(generation: CompletableDeferred<Long>): Watch {
         val result = CompletableDeferred<PlaybackEnd?>()
         val notes = Channel<PlayNote>(Channel.UNLIMITED)
@@ -754,6 +763,7 @@ class TuneController(
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 val watcher = currentCoroutineContext()[Job]
                 var stall: Job? = null
+                var seek: Job? = null
                 val held = HeldPlay()
                 player.events.collect { event ->
                     if (event.generation != generation.await()) return@collect
@@ -771,17 +781,39 @@ class TuneController(
                         }
 
                         event is PlayerEvent.Stalled -> {
-                            stall?.cancel()
-                            stall =
-                                launch {
-                                    delay(PLAYING_TIMEOUT)
-                                    result.complete(held.timedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
-                                    watcher?.cancel()
-                                }
+                            // Paused, or mid-seek: no stall to time; the seek has its own timer.
+                            if (held.timesStalls) {
+                                stall?.cancel()
+                                stall =
+                                    launch {
+                                        delay(PLAYING_TIMEOUT)
+                                        result.complete(held.timedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
+                                        watcher?.cancel()
+                                    }
+                            }
                         }
 
                         event is PlayerEvent.Playing -> {
                             stall?.cancel()
+                            seek?.cancel()
+                        }
+
+                        event is PlayerEvent.Paused -> {
+                            stall?.cancel()
+                        }
+
+                        event is PlayerEvent.Seeking -> {
+                            seek?.cancel()
+                            seek =
+                                launch {
+                                    delay(PLAYING_TIMEOUT)
+                                    result.complete(held.seekTimedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
+                                    watcher?.cancel()
+                                }
+                        }
+
+                        event is PlayerEvent.SeekDone -> {
+                            seek?.cancel()
                         }
                     }
                 }
@@ -802,6 +834,12 @@ class TuneController(
         private var playedAt = NO_TIME
         private var stallAt = NO_TIME
         private var stalls = 0
+        private var paused = false
+        private var resuming = false
+        private var seeking = false
+
+        /** False while paused or mid-seek: a [PlayerEvent.Stalled] then is no stall to time. */
+        val timesStalls get() = !paused && !seeking
 
         fun see(
             event: PlayerEvent,
@@ -810,21 +848,57 @@ class TuneController(
             when (event) {
                 is PlayerEvent.Playing -> {
                     if (playedAt == NO_TIME) playedAt = event.atMs
-                    if (stallAt != NO_TIME) notes.trySend(PlayNote.Resumed(event.atMs - stallAt))
-                    stallAt = NO_TIME
+                    closeStall(event.atMs, notes)
+                    paused = false
+                    resuming = false
+                }
+
+                is PlayerEvent.Paused -> {
+                    // A pause closes an open stall, so the reporter's stall flag clears (paused time is not counted).
+                    closeStall(event.atMs, notes)
+                    paused = true
+                }
+
+                is PlayerEvent.Resumed -> {
+                    paused = false
+                    resuming = true
+                }
+
+                is PlayerEvent.Seeking -> {
+                    seeking = true
+                }
+
+                is PlayerEvent.SeekDone -> {
+                    seeking = false
                 }
 
                 is PlayerEvent.Stalled -> {
-                    if (playedAt != NO_TIME && ++stalls <= MAX_STALL_NOTES) {
-                        stallAt = if (event.atMs < 0) NO_TIME else event.atMs
-                        notes.trySend(PlayNote.Stall(event.positionMs, event.bufferedMs, since(event.atMs)))
-                    }
+                    // A slow first segment after a resume (ADR-0021, 7) and a seek's buffering are normal, not stalls.
+                    if (timesStalls && !resuming) noteStall(event, notes)
                 }
 
                 else -> {
                     Unit
                 }
             }
+        }
+
+        private fun noteStall(
+            event: PlayerEvent.Stalled,
+            notes: Channel<PlayNote>,
+        ) {
+            if (playedAt != NO_TIME && ++stalls <= MAX_STALL_NOTES) {
+                stallAt = if (event.atMs < 0) NO_TIME else event.atMs
+                notes.trySend(PlayNote.Stall(event.positionMs, event.bufferedMs, since(event.atMs)))
+            }
+        }
+
+        private fun closeStall(
+            atMs: Long,
+            notes: Channel<PlayNote>,
+        ) {
+            if (stallAt != NO_TIME) notes.trySend(PlayNote.Resumed(atMs - stallAt))
+            stallAt = NO_TIME
         }
 
         fun failed(event: PlayerEvent.Failed) =
@@ -847,6 +921,19 @@ class TuneController(
             since(stall.atMs).let { if (it < 0) it else it + waitedMs },
             stall.positionMs,
             stall.bufferedMs,
+            stalls,
+        )
+
+        /** The failure of a seek that [Seeking] began and no SeekDone or Playing ended within [waitedMs]. */
+        fun seekTimedOut(
+            seek: PlayerEvent.Seeking,
+            waitedMs: Long,
+        ) = PlaybackEnd.Failed(
+            SEEK_TIMEOUT,
+            -1,
+            since(seek.atMs).let { if (it < 0) it else it + waitedMs },
+            seek.fromMs,
+            -1,
             stalls,
         )
 
@@ -902,6 +989,7 @@ class TuneController(
         val FIRST_FRAME_WAIT = 2.seconds
         const val TIMEOUT = "Timeout"
         const val STALLED = "StallTimeout"
+        const val SEEK_TIMEOUT = "SeekTimeout"
         const val MAX_STALL_NOTES = 20
         const val UNEXPECTED = "Unexpected"
         const val HTTP_UNAUTHORIZED = 401
