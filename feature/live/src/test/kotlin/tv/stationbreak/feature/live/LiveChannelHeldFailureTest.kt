@@ -9,6 +9,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 
@@ -69,6 +70,7 @@ class LiveChannelHeldFailureTest {
                             delay(12_000)
                             emit(failure)
                         },
+                        PlayControl.None,
                     )
                 },
             )
@@ -91,7 +93,7 @@ class LiveChannelHeldFailureTest {
                     delay(1_500)
                     emit(PlayNote.Resumed(1_500))
                 }
-            r.tune.script(itemOf(1), { TuneOutcome.Playing(flow { delay(600_000) }, notes = notes) })
+            r.tune.script(itemOf(1), { TuneOutcome.Playing(flow { delay(600_000) }, PlayControl.None, notes = notes) })
             r.start()
             r.at(10_000)
 

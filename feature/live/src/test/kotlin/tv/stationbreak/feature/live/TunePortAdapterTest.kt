@@ -249,6 +249,16 @@ class TunePortAdapterTest {
         }
 
     @Test
+    fun aPlayedTuneCarriesTheControllersControl() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer()
+            rig.player.answerAt = 30.seconds
+            val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
+            assertEquals(rig.player.generation, playing.control.generation)
+        }
+
+    @Test
     fun aPlayingTuneCarriesItsTimings() =
         kotlinx.coroutines.test.runTest {
             val rig = Rig(this)
