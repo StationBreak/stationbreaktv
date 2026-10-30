@@ -52,7 +52,7 @@ import kotlin.time.TimeSource
  * for the others, and for the cache. A build that fails is not kept; the next caller builds again.
  *
  * The snapshots are kept apart from the days ([SnapshotCache]): a new lineup revision builds its days again but reads
- * the library only if it changed (its content generation or collection pass moved). A build whose revision is no
+ * the library only if it changed (its content generation moved). A build whose revision is no
  * longer the account's current one stops at its next channel and does not report; the callers that joined it ask again
  * and get the current revision's days.
  *
@@ -528,9 +528,8 @@ class BuiltInScheduleSource(
             }
             val before = Probed(probes)
             val allocBefore = Reading(probes.allocatedBytes())
-            // Both numbers are read before any snapshot (see [SnapshotCache]) and before the disk is looked at.
+            // The generation is read before any snapshot (see [SnapshotCache]) and before the disk is looked at.
             val generation = library.contentGeneration(account)
-            val pass = library.collectionPassCompleted(account).first()
             val disk =
                 persisted?.takeIf { it.enabled }?.keyOf(
                     account,
@@ -540,7 +539,7 @@ class BuiltInScheduleSource(
                     service.catalog.version,
                     scheduled,
                 )
-            val look = disk != null && shouldLook(account, key, generation, pass)
+            val look = disk != null && shouldLook(account, key, generation)
             val restored = if (look) fromDisk(account, disk, scheduled, checkpoint) else null
             val diskMs = if (look) began.elapsedNow().inWholeMilliseconds else -1L
             if (restored != null) {
@@ -550,7 +549,7 @@ class BuiltInScheduleSource(
             }
             val snapshotsBegan = TimeSource.Monotonic.markNow()
             val outcomes = ArrayList<SnapshotCache.Found>()
-            val read = snapshotsFor(account, key, generation, pass, checkpoint, outcomes)
+            val read = snapshotsFor(account, key, generation, checkpoint, outcomes)
             val afterSnapshots = Probed(probes)
             val snapshotsMs = snapshotsBegan.elapsedNow().inWholeMilliseconds
             checkpoint()
@@ -606,11 +605,10 @@ class BuiltInScheduleSource(
         account: LibraryAccount,
         key: Key,
         generation: Long,
-        pass: Instant?,
     ): Boolean {
         val first = synchronized(lock) { diskLooked.add(Triple(account, key.libraries, key.cutoffs)) }
         return first ||
-            !snapshots.holdsAll(key.cutoffs.map { SnapshotCache.Key(account, key.libraries, it, generation, pass) })
+            !snapshots.holdsAll(key.cutoffs.map { SnapshotCache.Key(account, key.libraries, it, generation) })
     }
 
     /**
@@ -688,7 +686,6 @@ class BuiltInScheduleSource(
         account: LibraryAccount,
         key: Key,
         generation: Long,
-        pass: Instant?,
         checkpoint: () -> Unit,
         outcomes: MutableList<SnapshotCache.Found>,
     ): Map<Long, RuleSnapshot> {
@@ -697,7 +694,7 @@ class BuiltInScheduleSource(
             checkpoint()
             val at = Instant.fromEpochMilliseconds(cutoff)
             val got =
-                snapshots.get(SnapshotCache.Key(account, key.libraries, cutoff, generation, pass)) {
+                snapshots.get(SnapshotCache.Key(account, key.libraries, cutoff, generation)) {
                     library.ruleSnapshot(account, key.libraries, at)
                 }
             outcomes += got.found

@@ -26,7 +26,7 @@ class SnapshotCacheTest {
     @AfterEach
     fun stop() = scope.cancel()
 
-    private fun key(generation: Long) = SnapshotCache.Key(ACCOUNT, LIBRARIES, 0L, generation, null)
+    private fun key(generation: Long) = SnapshotCache.Key(ACCOUNT, LIBRARIES, 0L, generation)
 
     private fun snapshot() = RuleSnapshot(0L, setOf(LIBRARY_ID), emptyList(), emptyMap(), emptyMap(), true)
 
@@ -148,6 +148,21 @@ class SnapshotCacheTest {
 
             assertEquals(SnapshotCache.Found.Miss, cache.get(key(1)) { snapshot() }.found)
             assertEquals(3, cache.reads)
+        }
+
+    // #487: a pass that changed nothing moves the pass instant and not the generation, and the key has no pass.
+    @Test
+    fun aKeyOfTheSameGenerationIsAHitAndAMovedGenerationIsAMiss() =
+        runBlocking {
+            val kept = snapshot()
+            assertEquals(SnapshotCache.Found.Miss, cache.get(key(5)) { kept }.found)
+
+            val quiet = cache.get(key(5)) { error("a quiet pass moves no generation, so the snapshot is kept") }
+            assertEquals(SnapshotCache.Found.Hit, quiet.found)
+            assertSame(kept, quiet.snapshot)
+
+            assertEquals(SnapshotCache.Found.Miss, cache.get(key(6)) { snapshot() }.found)
+            assertEquals(2, cache.reads)
         }
 
     private companion object {
