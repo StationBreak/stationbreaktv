@@ -304,6 +304,70 @@ class BehindStepTest {
         }
 
     @Test
+    fun aLiveAheadTargetWhoseBlockEndsBeforeTheSettleSeeksToItsClamp() =
+        runTest {
+            val k = keys()
+            // 20 s behind, 5 s before the block ends (minute 50 of the clock, media 60 minutes).
+            k.r.at(50 * MIN - 5_000)
+            val from = k.liveMs()
+            k.press(back())
+            k.press(back())
+            k.press(LiveCommand.SeekReleased)
+            k.r.at(50 * MIN - 200)
+            // Ahead hits live; the block ends before it settles 400 ms later.
+            k.press(ahead())
+            k.press(LiveCommand.SeekReleased)
+            k.r.at(50 * MIN + settleMs)
+            assertEquals(listOf("seek:${from - 20_000}", "seek:${60 * MIN - 200}"), k.control.calls)
+        }
+
+    @Test
+    fun aheadToTheCapWhilePausedStaysPausedAtTheClamp() =
+        runTest {
+            val k = keys()
+            k.r.atMin(1)
+            k.press(LiveCommand.PlayPause)
+            k.r.at(MIN + 10_000)
+            val live = TransportMath.liveMs(program(0, 60, 1), k.r.nowMs())
+            k.press(ahead())
+            k.press(LiveCommand.SeekReleased)
+            k.r.at(MIN + 10_000 + settleMs)
+            assertEquals(listOf("pause", "seek:$live"), k.control.calls)
+            val view = checkNotNull(k.r.live.transport.value)
+            assertTrue(view.paused)
+            assertEquals(live, view.mediaMs)
+            assertTrue(checkNotNull(k.r.live.currentSitting()).behind != null)
+        }
+
+    @Test
+    fun goLiveAfterTheBlockEndedDoesNothing() =
+        runTest {
+            val k = keys()
+            k.r.atMin(1)
+            k.press(LiveCommand.PlayPause)
+            // Item 1's block ends at minute 50 of the clock.
+            k.r.atMin(55)
+            k.press(LiveCommand.GoLive)
+            k.r.atMin(56)
+            assertEquals(listOf("pause"), k.control.calls)
+            assertTrue(checkNotNull(k.r.live.transport.value).paused)
+            assertEquals(1, k.r.tuneCount())
+        }
+
+    @Test
+    fun aStraySeekReleasedDoesNothing() =
+        runTest {
+            val k = keys()
+            k.r.atMin(1)
+            k.press(LiveCommand.PlayPause)
+            val before = k.r.live.transport.value
+            k.press(LiveCommand.SeekReleased)
+            k.r.at(MIN + 5_000)
+            assertEquals(listOf("pause"), k.control.calls)
+            assertEquals(before, k.r.live.transport.value)
+        }
+
+    @Test
     fun aTargetNotYetSoughtIsLoggedWhenTheCutComes() =
         runTest {
             val k = keys()

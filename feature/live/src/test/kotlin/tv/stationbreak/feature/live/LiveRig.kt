@@ -256,6 +256,12 @@ class FakePlayControl(
     /** When true, a seek is folded into one already pending: no `Seeking`, only its `SeekDone`. */
     var coalesces = false
 
+    /** When true, a seek never lands: no `SeekDone` comes for it. */
+    var dropsSeekDone = false
+
+    /** How long the next [position] read suspends (once), as a read on the player's looper can; 0: at once. */
+    var nextPositionDelayMs = 0L
+
     override val events = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
 
     private var baseMs = startMs
@@ -306,6 +312,7 @@ class FakePlayControl(
         staleDoneMs = null
         if (!coalesces) events.tryEmit(PlayerEvent.Seeking(generation, now(), from, to))
         val delayed = scope
+        if (dropsSeekDone) return
         if (seekDelayMs <= 0 || delayed == null) {
             events.tryEmit(PlayerEvent.SeekDone(generation, now(), known(to)))
         } else {
@@ -321,6 +328,9 @@ class FakePlayControl(
         private set
 
     override suspend fun position(): Duration? {
+        val wait = nextPositionDelayMs
+        nextPositionDelayMs = 0
+        if (wait > 0) delay(wait)
         positionReads++
         return if (positionUnknown) null else positionMs().milliseconds
     }
