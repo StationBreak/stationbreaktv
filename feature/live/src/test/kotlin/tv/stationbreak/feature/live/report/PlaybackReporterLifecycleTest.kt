@@ -112,10 +112,10 @@ class PlaybackReporterLifecycleTest {
     fun `entering a later block of a channel drops its earlier blocks`() {
         val ledger = WatchLedger(ReportingConfig())
         val t0 = Instant.fromEpochMilliseconds(0)
-        ledger.enter(AiringKey(ChannelId("c1"), 0, ItemId("a")), t0)
-        ledger.enter(AiringKey(ChannelId("c2"), 0, ItemId("a")), t0)
+        ledger.enter(AiringKey(ChannelId("c1"), 0, ItemId("a")), t0, 0)
+        ledger.enter(AiringKey(ChannelId("c2"), 0, ItemId("a")), t0, 0)
         assertEquals(2, ledger.size)
-        ledger.enter(AiringKey(ChannelId("c1"), 1, ItemId("b")), t0)
+        ledger.enter(AiringKey(ChannelId("c1"), 1, ItemId("b")), t0, 0)
         assertEquals(2, ledger.size)
         assertEquals(0.seconds, ledger.watched(AiringKey(ChannelId("c1"), 0, ItemId("a")), t0))
     }
@@ -124,7 +124,7 @@ class PlaybackReporterLifecycleTest {
     fun `the ledger never holds more than its cap`() {
         val ledger = WatchLedger(ReportingConfig())
         val t0 = Instant.fromEpochMilliseconds(0)
-        repeat(WatchLedger.MAX_ENTRIES + 50) { ledger.enter(AiringKey(ChannelId("c$it"), 0, ItemId("a")), t0) }
+        repeat(WatchLedger.MAX_ENTRIES + 50) { ledger.enter(AiringKey(ChannelId("c$it"), 0, ItemId("a")), t0, 0) }
         assertEquals(WatchLedger.MAX_ENTRIES, ledger.size)
     }
 }

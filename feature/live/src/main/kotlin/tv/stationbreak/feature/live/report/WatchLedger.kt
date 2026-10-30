@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live.report
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -16,17 +17,28 @@ data class AiringKey(
     val itemId: ItemId,
 )
 
+/** A stretch of media that was played: [startMs] up to, not including, [endMs]. */
+data class MediaSpan(
+    val startMs: Long,
+    val endMs: Long,
+)
+
 /**
- * What the viewer actually watched, per airing, for the life of one `LiveChannel.run` (spec 16, R3/R4/R5/R7). Pure:
- * every method is told the time, so virtual time drives it. Not thread-safe; the reporter uses it from one coroutine.
+ * What the viewer actually watched, per airing, for the life of one `LiveChannel.run` (spec 16, R3/R4/R5/R7; spec 20).
+ * Pure: every method is told the time, so virtual time drives it. Not thread-safe; the reporter uses it from one
+ * coroutine.
  *
- * Watched time is the time an airing is open minus its stalls; it adds up across flips away and back.
+ * Watched time is the length of the union of the media spans played, so a rewatch counts once and a skip counts
+ * nothing; it adds up across flips away and back. The open airing runs only while it is not stalled, not paused and
+ * not seeking; its media position then advances at 1x from [fromMs].
  */
+@Suppress("TooManyFunctions") // One pure ledger: each transport state is one method on the same open interval.
 internal class WatchLedger(
     private val config: ReportingConfig,
 ) {
     private class Entry {
-        var watched: Duration = Duration.ZERO
+        /** Sorted, disjoint, half-open, and not touching. */
+        var spans: List<MediaSpan> = emptyList()
         var marked = false
         var markFailures = 0
     }
@@ -40,8 +52,14 @@ internal class WatchLedger(
     private var sittingStart: Instant? = null
     private var open: AiringKey? = null
 
-    /** When the open airing's current counting span began; null while it is stalled or none is open. */
+    /** The open airing's media position when it last stopped or was positioned. */
+    private var fromMs: Long = 0
+
+    /** When the open airing began running from [fromMs]; null while it does not run or none is open. */
     private var since: Instant? = null
+    private var stalled = false
+    private var paused = false
+    private var seeking = false
 
     fun sittingStarted(
         id: Long,
@@ -65,46 +83,107 @@ internal class WatchLedger(
     }
 
     /**
-     * Starts counting [key]; any airing still open is closed first. Earlier blocks of the same channel are over, so
-     * their entries are dropped; the map is also capped, oldest first, so a long run cannot grow it without bound.
+     * Starts counting [key] from media position [fromMs]; any airing still open is closed first. Earlier blocks of
+     * the same channel are over, so their entries are dropped; the map is also capped, oldest first, so a long run
+     * cannot grow it without bound.
      */
     fun enter(
         key: AiringKey,
         at: Instant,
+        fromMs: Long,
     ) {
         leave(at)
         entries.keys.removeAll { it.channelId == key.channelId && it.blockStartMs < key.blockStartMs }
         entry(key)
         while (entries.size > MAX_ENTRIES) entries.remove(entries.keys.first { it != key })
         open = key
+        this.fromMs = fromMs
+        stalled = false
+        paused = false
+        seeking = false
         since = at
     }
 
-    fun stall(at: Instant) {
-        val key = open ?: return
-        val from = since ?: return
-        entry(key).watched += (at - from).coerceAtLeast(Duration.ZERO)
-        since = null
+    /** Media stops (a stall or a failed play) at [positionMs] when known, else at the derived position. */
+    fun stall(
+        at: Instant,
+        positionMs: Long? = null,
+    ) {
+        if (open == null) return
+        stop(at, positionMs)
+        stalled = true
     }
 
-    fun resumed(at: Instant) {
-        if (open != null && since == null) since = at
+    /** Media runs again from where it stopped, or from [fromMs] (a retry at the place). */
+    fun resumed(
+        at: Instant,
+        fromMs: Long? = null,
+    ) {
+        if (open == null || !stalled) return
+        stalled = false
+        if (fromMs != null) this.fromMs = fromMs
+        runIfClear(at)
     }
 
-    /** Closes the open airing; an open stall is simply not counted. */
+    fun pause(
+        at: Instant,
+        positionMs: Long? = null,
+    ) {
+        if (open == null) return
+        stop(at, positionMs)
+        paused = true
+    }
+
+    fun unpause(at: Instant) {
+        if (open == null || !paused) return
+        paused = false
+        runIfClear(at)
+    }
+
+    /** A seek began: counting stops at the derived position until [seeked]. */
+    fun seeking(at: Instant) {
+        if (open == null) return
+        stop(at, null)
+        seeking = true
+    }
+
+    /** The seek is done at [toMs] (the player's `SeekDone.positionMs`): counting may run again from there. */
+    fun seeked(
+        at: Instant,
+        toMs: Long,
+    ) {
+        if (open == null || !seeking) return
+        seeking = false
+        fromMs = toMs
+        runIfClear(at)
+    }
+
+    /** Closes the open airing; time while it was stopped is simply not counted. */
     fun leave(at: Instant) {
-        stall(at)
+        if (open == null) return
+        stop(at, null)
         open = null
         since = null
+        stalled = false
+        paused = false
+        seeking = false
     }
 
+    /** The total length of the union of what was played, the open interval included. */
     fun watched(
         key: AiringKey,
         at: Instant,
     ): Duration {
-        val base = entries[key]?.watched ?: Duration.ZERO
+        val closed = entries[key]?.spans.orEmpty()
         val from = since
-        return if (key == open && from != null) base + (at - from).coerceAtLeast(Duration.ZERO) else base
+        val spans =
+            if (key == open && from != null) {
+                val end = fromMs + (at - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds
+                merge(closed, MediaSpan(fromMs, end))
+            } else {
+                closed
+            }
+        return spans.sumOf { it.endMs - it.startMs }.milliseconds
     }
 
     /** True when [key] was watched for at least the threshold of [runtime] and is not yet marked (R5, R6). */
@@ -131,6 +210,54 @@ internal class WatchLedger(
     fun isMarked(key: AiringKey): Boolean = entries[key]?.marked == true
 
     private fun entry(key: AiringKey): Entry = entries.getOrPut(key) { Entry() }
+
+    /** While the open airing runs, closes its span at [positionMs] (or the derived position) and stops it. */
+    private fun stop(
+        at: Instant,
+        positionMs: Long?,
+    ) {
+        val key = open ?: return
+        val from = since ?: return
+        val end = positionMs ?: (fromMs + (at - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds)
+        val entry = entry(key)
+        entry.spans = merge(entry.spans, MediaSpan(fromMs, end))
+        fromMs = end
+        since = null
+    }
+
+    private fun runIfClear(at: Instant) {
+        if (!stalled && !paused && !seeking) since = at
+    }
+
+    /** [spans] plus [add] (clipped at 0), joined where they overlap or touch. */
+    private fun merge(
+        spans: List<MediaSpan>,
+        add: MediaSpan,
+    ): List<MediaSpan> {
+        val start = maxOf(add.startMs, 0L)
+        if (add.endMs <= start) return spans
+        var from = start
+        var to = add.endMs
+        val result = mutableListOf<MediaSpan>()
+        for (span in spans) {
+            when {
+                span.endMs < from -> {
+                    result += span
+                }
+
+                span.startMs > to -> {
+                    result += span
+                }
+
+                else -> {
+                    from = minOf(from, span.startMs)
+                    to = maxOf(to, span.endMs)
+                }
+            }
+        }
+        result += MediaSpan(from, to)
+        return result.sortedBy { it.startMs }
+    }
 
     companion object {
         /** The most airings remembered: far more than a viewer can flip through, small enough to stay tiny. */

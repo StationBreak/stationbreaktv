@@ -139,13 +139,15 @@ internal fun target(
     runtime: Duration? = 45.minutes,
 ) = ReportTarget(ItemId(item), MediaSourceId("src-$item"), PlaySessionId("ps"), PlayMethod.DirectPlay, runtime)
 
+@Suppress("LongParameterList") // Test helper: every default is one thing a test may vary.
 internal fun Rig.visit(
     sitting: Long,
     item: String,
     block: Long = 0,
     runtime: Duration? = 45.minutes,
     channel: String = "ch1",
-) = reporter.visit(sitting, key(item, block, channel), target(item, runtime))
+    fromMs: Long = 0,
+) = reporter.visit(sitting, key(item, block, channel), target(item, runtime), fromMs)
 
 internal val SESSION =
     Session(

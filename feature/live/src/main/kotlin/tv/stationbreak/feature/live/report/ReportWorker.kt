@@ -25,14 +25,17 @@ internal sealed interface ReportEvent {
         val key: AiringKey,
         val target: ReportTarget,
         val at: Instant,
+        val fromMs: Long,
     ) : ReportEvent
 
     data class Stall(
         val at: Instant,
+        val positionMs: Long?,
     ) : ReportEvent
 
     data class Resumed(
         val at: Instant,
+        val fromMs: Long?,
     ) : ReportEvent
 
     data class Leave(
@@ -126,11 +129,11 @@ internal class ReportWorker(
             }
 
             is ReportEvent.Stall -> {
-                ledger.stall(event.at)
+                ledger.stall(event.at, event.positionMs)
             }
 
             is ReportEvent.Resumed -> {
-                ledger.resumed(event.at)
+                ledger.resumed(event.at, event.fromMs)
             }
 
             is ReportEvent.Leave -> {
@@ -153,7 +156,7 @@ internal class ReportWorker(
             open.target = event.target
         } else {
             endVisit(event.at)
-            ledger.enter(event.key, event.at)
+            ledger.enter(event.key, event.at, event.fromMs)
             val dwell = ledger.dwell(event.sittingId, event.at)
             val id = ++visitCounter
             val timer = if (calls.halted) null else scope.launch { tickLoop(id, dwell) }

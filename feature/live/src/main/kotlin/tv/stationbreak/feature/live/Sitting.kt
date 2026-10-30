@@ -203,7 +203,7 @@ internal class Sitting(
             val dead =
                 when (outcome) {
                     is TuneOutcome.Playing -> {
-                        when (holdReporting(block, program, outcome, visiting)) {
+                        when (holdReporting(block, program, outcome, visiting, asked.inWholeMilliseconds)) {
                             Held.Boundary -> {
                                 return null
                             }

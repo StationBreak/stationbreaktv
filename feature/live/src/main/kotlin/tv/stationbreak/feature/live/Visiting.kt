@@ -19,9 +19,12 @@ internal class Visiting(
     private var failed = false
 
     /** The visit begins, or (after a failed play) goes on: the time between the failure and now was not watched. */
-    fun playing(visit: (PlaybackReporter) -> Unit) {
+    fun playing(
+        fromMs: Long,
+        visit: (PlaybackReporter) -> Unit,
+    ) {
         val r = reporter ?: return
-        if (failed) r.resumed()
+        if (failed) r.resumed(fromMs)
         failed = false
         visit(r)
         open = true
@@ -50,12 +53,13 @@ internal suspend fun Sitting.holdReporting(
     program: Airing.Program,
     outcome: TuneOutcome.Playing,
     visiting: Visiting,
+    fromMs: Long,
 ): Held {
     val facts = outcome.report
     if (reporter == null || facts == null) return hold(block.endMs, outcome.end, outcome.notes)
     val item = ItemId(program.itemId.value)
     val target = ReportTarget(item, facts.sourceId, facts.playSessionId, facts.playMethod, facts.runtime)
-    visiting.playing { it.visit(sittingId, AiringKey(channel, block.startMs, item), target) }
+    visiting.playing(fromMs) { it.visit(sittingId, AiringKey(channel, block.startMs, item), target, fromMs) }
     val held = hold(block.endMs, outcome.end, outcome.notes, reporting = true)
     if (held == Held.Failed) visiting.failedPlay()
     return held

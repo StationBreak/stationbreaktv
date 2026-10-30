@@ -84,22 +84,29 @@ class PlaybackReporter(
         events.trySend(ReportEvent.Sitting(sittingId, clock.now()))
     }
 
-    /** The viewer is now on [airing] playing [target]. The same airing again in the same sitting continues it. */
+    /**
+     * The viewer is now on [airing] playing [target] from media position [fromMs]. The same airing again in the same
+     * sitting continues it.
+     */
     fun visit(
         sittingId: Long,
         airing: AiringKey,
         target: ReportTarget,
+        fromMs: Long,
     ) {
-        events.trySend(ReportEvent.Visit(sittingId, airing, target, clock.now()))
+        events.trySend(ReportEvent.Visit(sittingId, airing, target, clock.now(), fromMs))
     }
 
-    /** The picture stalled; the time until [resumed] (or [leave]) is not watched time. */
-    fun stall() {
-        events.trySend(ReportEvent.Stall(clock.now()))
+    /**
+     * The picture stalled at [positionMs] when known; the time until [resumed] (or [leave]) is not watched time.
+     */
+    fun stall(positionMs: Long? = null) {
+        events.trySend(ReportEvent.Stall(clock.now(), positionMs))
     }
 
-    fun resumed() {
-        events.trySend(ReportEvent.Resumed(clock.now()))
+    /** The picture runs again from where it stopped, or from [fromMs] (a retry at the place). */
+    fun resumed(fromMs: Long? = null) {
+        events.trySend(ReportEvent.Resumed(clock.now(), fromMs))
     }
 
     /**
