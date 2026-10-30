@@ -222,6 +222,18 @@ internal class BoundaryLookAhead(
         ahead = nextUp.prepare(scope, onAir)
     }
 
+    /**
+     * Starts the lifecycle for [onAir] as if dropped at once: nothing is resolved now, and a [rearm] (back at live, or
+     * on the ident) starts it. A return to a kept paused place begins so (spec 20): the viewer is behind.
+     */
+    fun startDropped(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+    ) {
+        startedFor = scope to onAir
+        ahead = null
+    }
+
     /** Cancels a resolve still running, and discards a handle already made. */
     suspend fun drop() {
         val dropped = ahead ?: return

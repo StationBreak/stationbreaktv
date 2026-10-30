@@ -57,6 +57,7 @@ data class ReportTarget(
  *
  * Log lines hold only labels and numbers: `report start|progress|stop|played|silent afterMs=<n>|error kind=<label>`.
  */
+@Suppress("TooManyFunctions") // One method per event the sittings queue, and the kept place's snapshot and seed.
 class PlaybackReporter(
     scope: CoroutineScope,
     server: MediaServer,
@@ -68,17 +69,28 @@ class PlaybackReporter(
     private val events = Channel<ReportEvent>(Channel.UNLIMITED)
     private val limitDefault = config.callTimeout * ReportingConfig.DRAIN_CALLS
     private val worker: Job
+    private val reportWorker: ReportWorker
 
     init {
         val calls = ReportCalls(config, log)
-        val reportWorker =
-            ReportWorker(scope, server, session, clock, config, calls, log) { events.trySend(it) }
+        reportWorker = ReportWorker(scope, server, session, clock, config, calls, log) { events.trySend(it) }
         worker =
             scope.launch {
                 for (event in events) {
                     if (!reportWorker.handle(event)) break
                 }
             }
+    }
+
+    /**
+     * The open airing's watched time, for a kept place (spec 20): the worker's last published state, its running
+     * interval closed at the clock now. Never suspends or waits on the worker; null when no airing is open.
+     */
+    fun snapshot(): WatchSnapshot? = reportWorker.published?.at(clock.now())
+
+    /** Watched time from before a screen stop, united into its airing's ledger entry; queue it before any [visit]. */
+    fun seed(snapshot: WatchSnapshot) {
+        events.trySend(ReportEvent.Seed(snapshot))
     }
 
     /** A new sitting began (a tune or a flip lands). Older than `startAfter`, it reports each item at once. */

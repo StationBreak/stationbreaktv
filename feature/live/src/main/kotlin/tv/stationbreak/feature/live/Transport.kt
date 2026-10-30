@@ -6,6 +6,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.live.report.WatchSnapshot
 
 /** Which way a seek key steps (spec 20): back by `LiveTimings.stepBack`, ahead by `LiveTimings.stepAhead`. */
 enum class SeekDirection { Back, Ahead }
@@ -81,6 +82,28 @@ data class Place(
     val block: AiringBlock,
     val mediaMs: Long,
 )
+
+/** A paused place and the watched time of its airing, kept across a screen stop (ADR-0021 5). Plain data. */
+data class Kept(
+    val place: Place,
+    val watched: WatchSnapshot?,
+)
+
+/**
+ * The place to return to at [nowMs] (a fresh sitting: no drift), or null to join live (ADR-0017, 2 as amended). A block
+ * not yet started by the clock, or a place at its cut, is dropped; a place ahead of the clock's live position is
+ * clamped there (never ahead of the schedule); a block already ended by the clock keeps the place (behind, caught up at
+ * the item's end).
+ */
+internal fun returnTo(
+    place: Place,
+    nowMs: Long,
+): Place? {
+    val block = place.block
+    if (nowMs < block.startMs || place.mediaMs >= TransportMath.cutMs(block)) return null
+    val liveMs = TransportMath.liveMs(block, nowMs)
+    return if (place.mediaMs > liveMs) place.copy(mediaMs = liveMs) else place
+}
 
 /**
  * What the screen shows of the transport while the viewer is behind or paused; null while live. [mediaMs] is the media

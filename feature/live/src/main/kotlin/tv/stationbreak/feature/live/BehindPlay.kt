@@ -74,32 +74,44 @@ internal fun Sitting.retuneAt(
  * viewer pauses or steps back, a [BehindPlay] until its item ends, it ends the sitting, or it is back at live (then
  * the live hold carries on with the play it hands back). [visiting] is the block's visit, told of pauses and seeks;
  * null when the play is not reported (a stand-in is never). [retune] is the behind play's retry at the place, made
- * only while [retries] still holds the block's one retry.
+ * only while [retries] still holds the block's one retry. Given a kept [from] place (spec 20, its play already paused),
+ * it starts with the behind play, paused there.
  */
-@Suppress("ReturnCount") // Each return is one way the program's play ends; a return to live goes round again.
+@Suppress("ReturnCount", "LongParameterList") // Each return is one way the play ends; live goes round again.
 internal suspend fun Sitting.holdProgram(
     block: AiringBlock,
     first: TuneOutcome.Playing,
     visiting: Visiting?,
     retune: Retune,
     retries: BlockRetries,
+    from: Place? = null,
 ): Held {
     var play = first
+    // A kept place starts behind, paused there: no live hold before its behind play.
+    var resume = from
     while (true) {
-        val held =
-            when (val live = hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)) {
+        val live =
+            if (resume == null) {
+                hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)
+            } else {
+                null
+            }
+        val op =
+            when (live) {
+                null -> null
                 LiveHold.Boundary -> return Held.Boundary
                 LiveHold.Ended -> return Held.Ended
                 is LiveHold.Failed -> return Held.Failed(live.positionMs)
-                is LiveHold.Transport -> live
+                is LiveHold.Transport -> live.op
             }
         val behindPlay = BehindPlay(behindHost(), block, play, visiting, retune, retries)
         behind = behindPlay
         val ended =
             try {
-                behindPlay.run(held.op)
+                behindPlay.run(op, resume)
             } finally {
                 behind = null
+                resume = null
             }
         when (ended) {
             // Live again: the block's look-ahead, dropped while behind, is started again for the boundary's cut.
@@ -259,8 +271,8 @@ internal class BehindPlay(
     private var runScope: CoroutineScope? = null
 
     /**
-     * Runs from the live play's [first] op (or a kept [from] place, Task 12) until the item ends, live, or an exit.
-     * Each play's notes are watched while it plays: the first's, then the retry's.
+     * Runs from the live play's [first] op, or paused at a kept [from] place (its play already paused), until the item
+     * ends, live, or an exit. Each play's notes are watched while it plays: the first's, then the retry's.
      */
     suspend fun run(
         first: TransportOp?,
@@ -271,7 +283,11 @@ internal class BehindPlay(
             subscribe()
             try {
                 if (from != null) {
+                    // A kept place: its tune was paused on the first frame, before the picture showed (ADR-0021 5).
                     known(from.mediaMs)
+                    paused = true
+                    pausedAtMs = nowMs()
+                    visiting?.paused(from.mediaMs)
                 } else {
                     // Live until now: if the player cannot say where it is, the live position is the place.
                     known(TransportMath.liveMs(block, host.vnowMs()))

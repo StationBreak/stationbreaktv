@@ -2,6 +2,8 @@
 package tv.stationbreak.feature.live.ui
 
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
@@ -12,11 +14,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.feature.live.Kept
+import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
 import tv.stationbreak.feature.live.report.RecordingServer
@@ -119,5 +124,58 @@ class LivePeriodTest {
             assertEquals(afterLeave, inner.log)
             assertNull(period.player.position(3))
             assertFalse(period.player.seekable(3))
+        }
+
+    /** CH7 joined at minute 10 and paused [pauseAtMs] in ([before] runs just before the pause); the rig and run. */
+    private suspend fun TestScope.pausedRig(
+        pauseAtMs: Long,
+        before: (Rig) -> Unit = {},
+    ): Pair<Rig, Job> {
+        val r = Rig(this, startMin = 10)
+        r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
+        val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+        val job = r.start(commands = keys.receiveAsFlow())
+        r.at(pauseAtMs)
+        before(r)
+        keys.trySend(LiveCommand.PlayPause)
+        runCurrent()
+        return r to job
+    }
+
+    @Test
+    fun leaveReadsTheKeptPlaceBeforeStoppingThePlayer() =
+        runTest {
+            val (r, job) = pausedRig(45_000)
+            r.at(5 * 60_000)
+            val inner = RecordingPlayer()
+            var kept: Kept? = null
+            val period =
+                LivePeriod(inner, job) {
+                    inner.log += "kept"
+                    kept = it
+                }.also { it.machine = r.live }
+
+            assertTrue(period.leave())
+
+            assertEquals(listOf("kept", "stop", "attach(null)", "release"), inner.log)
+            // The paused player's own place: 10:45 of item 1, read before the teardown, not null.
+            val place = checkNotNull(kept).place
+            assertEquals(CH7, place.channel)
+            assertEquals(program(0, 60, 1), place.block)
+            assertEquals(checkNotNull(r.tune.controlOf(itemOf(1))).positionMs(), place.mediaMs)
+            assertEquals(10 * 60_000L + 45_000L, place.mediaMs)
+            assertFalse("a second leave keeps nothing again", period.leave())
+            assertEquals(1, inner.log.count { it == "kept" })
+        }
+
+    @Test
+    fun leaveWithAnUnknownPositionKeepsTheLastKnownPlace() =
+        runTest {
+            // The player cannot say where it is: the pause carries no position, so the place is the last one known.
+            val (r, job) = pausedRig(45_000) { checkNotNull(it.tune.controlOf(itemOf(1))).positionUnknown = true }
+            r.at(5 * 60_000)
+            var kept: Kept? = null
+            LivePeriod(RecordingPlayer(), job) { kept = it }.also { it.machine = r.live }.leave()
+            assertEquals(10 * 60_000L + 45_000L, checkNotNull(kept).place.mediaMs)
         }
 }
