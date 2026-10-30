@@ -203,7 +203,7 @@ internal class Sitting(
             val dead =
                 when (outcome) {
                     is TuneOutcome.Playing -> {
-                        when (holdReporting(block, program, outcome, visiting)) {
+                        when (holdReporting(block, program, outcome, visiting, asked.inWholeMilliseconds)) {
                             Held.Boundary -> {
                                 return null
                             }
@@ -299,6 +299,13 @@ internal class Sitting(
     }
 
     /**
+     * Where the player says the last [hold] failed, in media ms; negative when it did not fail or could not say.
+     * Temporary: Task 8a replaces it with `Held.Failed(positionMs)`.
+     */
+    var failedPositionMs: Long = -1
+        private set
+
+    /**
      * Waits for how the play ends, or for [untilMs] (the block's end, which cuts a show that runs long). The play's
      * stalls in [notes] are reported as they come (and to the reporter when [reporting]);
      * a failure is reported with its numbers (#392).
@@ -320,6 +327,7 @@ internal class Sitting(
                     watchNotes(notes, reportTo) { end.firstOrNull() ?: PlaybackEnd.Ended }
                 }
             }
+        failedPositionMs = (ended as? PlaybackEnd.Failed)?.positionMs ?: -1
         if (ended is PlaybackEnd.Failed) report(TuneReport.HeldFailed(ended))
         if (ended == null) waitUntil(untilMs)
         return when {

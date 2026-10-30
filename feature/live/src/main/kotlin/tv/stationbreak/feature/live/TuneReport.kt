@@ -213,7 +213,7 @@ internal suspend fun <T> Sitting.watchNotes(
                     report(TuneReport.Stalling(it))
                     // The one collector of the notes also feeds the reporter (single-consumer channel).
                     when (it) {
-                        is PlayNote.Stall -> reporter?.stall()
+                        is PlayNote.Stall -> reporter?.stall(it.positionMs.takeIf { pos -> pos >= 0 })
                         is PlayNote.Resumed -> reporter?.resumed()
                     }
                 }

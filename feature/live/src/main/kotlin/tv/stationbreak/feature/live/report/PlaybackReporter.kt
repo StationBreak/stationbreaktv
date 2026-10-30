@@ -45,6 +45,8 @@ data class ReportTarget(
  *   position: the item's resume position, or 0 when it is played or the app has marked it played (R7). Then a Progress
  *   at that same position every `progressEvery`, and Stopped(failed) at the same position on leave. The real playing
  *   position is never sent.
+ * - While paused, check-ins carry `IsPaused` (still at the safe position) for `pauseReportMax`, then nothing is sent;
+ *   the next play sends a fresh Playing at once. A leave still sends Stopped (ADR-0021 decision 7).
  * - Once watched time reaches `playedThreshold` of the runtime, the airing is marked played, once, whatever the
  *   user-data read did (R5, R6). A 401 stops all reporting for the run (R9).
  *
@@ -53,7 +55,7 @@ data class ReportTarget(
  * left for good, which sends Stopped. Stall notes beyond the tune controller's cap of 20 per play over-count
  * watched time.
  *
- * Log lines hold only labels and numbers: `report start|progress|stop|played|error kind=<label>`.
+ * Log lines hold only labels and numbers: `report start|progress|stop|played|silent afterMs=<n>|error kind=<label>`.
  */
 class PlaybackReporter(
     scope: CoroutineScope,
@@ -84,22 +86,49 @@ class PlaybackReporter(
         events.trySend(ReportEvent.Sitting(sittingId, clock.now()))
     }
 
-    /** The viewer is now on [airing] playing [target]. The same airing again in the same sitting continues it. */
+    /**
+     * The viewer is now on [airing] playing [target] from media position [fromMs]. The same airing again in the same
+     * sitting continues it.
+     */
     fun visit(
         sittingId: Long,
         airing: AiringKey,
         target: ReportTarget,
+        fromMs: Long,
     ) {
-        events.trySend(ReportEvent.Visit(sittingId, airing, target, clock.now()))
+        events.trySend(ReportEvent.Visit(sittingId, airing, target, clock.now(), fromMs))
     }
 
-    /** The picture stalled; the time until [resumed] (or [leave]) is not watched time. */
-    fun stall() {
-        events.trySend(ReportEvent.Stall(clock.now()))
+    /**
+     * The picture stalled at [positionMs] when known; the time until [resumed] (or [leave]) is not watched time.
+     */
+    fun stall(positionMs: Long? = null) {
+        events.trySend(ReportEvent.Stall(clock.now(), positionMs))
     }
 
-    fun resumed() {
-        events.trySend(ReportEvent.Resumed(clock.now()))
+    /** The picture runs again from where it stopped, or from [fromMs] (a retry at the place). */
+    fun resumed(fromMs: Long? = null) {
+        events.trySend(ReportEvent.Resumed(clock.now(), fromMs))
+    }
+
+    /** The viewer paused, at [positionMs] when known. Check-ins say so for `pauseReportMax`, then go silent. */
+    fun paused(positionMs: Long? = null) {
+        events.trySend(ReportEvent.Paused(clock.now(), positionMs))
+    }
+
+    /** The viewer played on after a pause. After the silence, a fresh Playing goes out at once. */
+    fun unpaused() {
+        events.trySend(ReportEvent.Unpaused(clock.now()))
+    }
+
+    /** A seek began: the time until [seeked] is not watched time. */
+    fun seeking() {
+        events.trySend(ReportEvent.Seeking(clock.now()))
+    }
+
+    /** The seek is done at media position [toMs]: watched time runs on from there. */
+    fun seeked(toMs: Long) {
+        events.trySend(ReportEvent.Seeked(clock.now(), toMs))
     }
 
     /**

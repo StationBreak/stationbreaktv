@@ -125,7 +125,8 @@ class PlaybackReporterTest {
             assertEquals(emptyList<Call>(), rig.calls)
 
             rig.reporter.sittingStarted(2)
-            rig.visit(2, "a", runtime = short)
+            // live: the channel has moved on while the viewer was away, so this stretch of media is new
+            rig.visit(2, "a", runtime = short, fromMs = 60_000)
             rig.at(60_000 + 64_999)
             // 25 s + 65 s = 90 s needs the full runtime x 0.9; one millisecond short of it, nothing is marked
             assertTrue(rig.calls.none { it.kind == "played" })

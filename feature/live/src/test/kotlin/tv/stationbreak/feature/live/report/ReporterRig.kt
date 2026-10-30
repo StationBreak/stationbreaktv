@@ -42,6 +42,7 @@ internal data class Call(
     val item: String,
     val posMs: Long = -1,
     val failed: Boolean = false,
+    val paused: Boolean = false,
 )
 
 internal class RecordingServer(
@@ -53,6 +54,7 @@ internal class RecordingServer(
     var stopHangs = false
     var progressHangs = false
     var userDataThrows = false
+    var startResult: ServerResult<Unit> = ServerResult.Success(Unit)
     var progressResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     override suspend fun reportStart(
@@ -60,14 +62,15 @@ internal class RecordingServer(
         report: PlaybackReport,
     ): ServerResult<Unit> {
         calls += Call("start", now(), report.itemId.value, report.position.inWholeMilliseconds)
-        return ServerResult.Success(Unit)
+        return startResult
     }
 
     override suspend fun reportProgress(
         session: Session,
         report: PlaybackReport,
     ): ServerResult<Unit> {
-        calls += Call("progress", now(), report.itemId.value, report.position.inWholeMilliseconds)
+        calls +=
+            Call("progress", now(), report.itemId.value, report.position.inWholeMilliseconds, paused = report.isPaused)
         if (progressHangs) awaitCancellation()
         return progressResult
     }
@@ -139,13 +142,15 @@ internal fun target(
     runtime: Duration? = 45.minutes,
 ) = ReportTarget(ItemId(item), MediaSourceId("src-$item"), PlaySessionId("ps"), PlayMethod.DirectPlay, runtime)
 
+@Suppress("LongParameterList") // Test helper: every default is one thing a test may vary.
 internal fun Rig.visit(
     sitting: Long,
     item: String,
     block: Long = 0,
     runtime: Duration? = 45.minutes,
     channel: String = "ch1",
-) = reporter.visit(sitting, key(item, block, channel), target(item, runtime))
+    fromMs: Long = 0,
+) = reporter.visit(sitting, key(item, block, channel), target(item, runtime), fromMs)
 
 internal val SESSION =
     Session(

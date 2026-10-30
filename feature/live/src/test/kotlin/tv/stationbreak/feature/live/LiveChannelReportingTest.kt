@@ -63,6 +63,23 @@ class LiveChannelReportingTest {
         }
 
     @Test
+    fun theRunPassesItsPauseReportMaxToTheReporter() =
+        runTest {
+            val server = server()
+            val r = Rig(this, startMin = 10, timings = LiveTimings(pauseReportMax = 1.minutes), server = server)
+            r.ordinaryDay()
+            r.reporting()
+            r.start()
+            r.at(31_000)
+            assertEquals(1, server.calls.count { it.kind == "start" })
+            checkNotNull(r.live.reporting).paused()
+            r.at(400_000)
+            // Paused at 31 s: check-ins at 60 s and 90 s are under a minute into the pause, then the silence.
+            assertEquals(listOf(60_000L, 90_000L), server.calls.filter { it.paused }.map { it.atMs })
+            assertEquals(2, server.calls.count { it.kind == "progress" })
+        }
+
+    @Test
     fun aRetryOfTheSameBlockAfterAFailedPlayIsOneVisit() =
         runTest {
             val server = server()

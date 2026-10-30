@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.jellyfin.contract
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -30,20 +31,23 @@ import tv.stationbreak.core.model.VideoCodecSupport
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.AdapterTuning
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * F1.5 (ADR-0018): reporting a live sitting at a safe position leaves the user's data alone, on the real server.
- * Every case reports through the adapter's own calls and reads the user data back through `userData()`. Each case has
- * an item of its own, because the server keeps the state per item and the cases run in any order. Failure messages
- * name the step only: a body or a URL may carry a token.
+ * Every case reports through the adapter's own calls and reads the user data back through `userData()`. The server
+ * keeps the state per item and the cases run in any order, and the seed has only six items, so cases share an item
+ * only where every case's end state is independent of order (an unwatched, resume-pointed or played item stays so;
+ * counts are compared before and after). Failure messages name the step only: a body or a URL may carry a token.
  */
 @Suppress("TooManyFunctions") // One function per contract case, plus the helpers they share.
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -73,12 +77,25 @@ abstract class ReportingContractSuite {
         private val source: MediaSourceId,
         private val playSession: PlaySessionId?,
     ) {
-        fun report(position: Duration) =
-            PlaybackReport(item, source, playSession, position, playMethod = PlayMethod.DirectPlay, canSeek = false)
+        fun report(
+            position: Duration,
+            paused: Boolean = false,
+        ) = PlaybackReport(
+            item,
+            source,
+            playSession,
+            position,
+            isPaused = paused,
+            playMethod = PlayMethod.DirectPlay,
+            canSeek = false,
+        )
 
         suspend fun start(position: Duration) = ok("start", adapter.reportStart(session, report(position)))
 
-        suspend fun progress(position: Duration) = ok("progress", adapter.reportProgress(session, report(position)))
+        suspend fun progress(
+            position: Duration,
+            paused: Boolean = false,
+        ) = ok("progress", adapter.reportProgress(session, report(position, paused)))
 
         suspend fun stop(
             position: Duration,
@@ -262,26 +279,15 @@ abstract class ReportingContractSuite {
         v: Visit,
         itemId: String,
     ) {
-        run {
-            val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
-            val reply = server.http.expectOk("read sessions", server.http.get("Sessions", admin))
-            val mine =
-                reply
-                    .json()
-                    .jsonArray
-                    .map { it.jsonObject }
-                    .filter { it["DeviceId"]?.jsonPrimitive?.content == v.deviceId }
-            assertEquals(1, mine.size, "the viewer's device should have one session")
-            val playing = mine.single()["NowPlayingItem"]
-            assertNotNull(playing, "the session shows nothing playing")
-            assertEquals(
-                itemId.plain(),
-                playing.jsonObject
-                    .getValue("Id")
-                    .jsonPrimitive.content
-                    .plain(),
-            )
-        }
+        val playing = dashboardSession(v)["NowPlayingItem"]
+        assertNotNull(playing, "the session shows nothing playing")
+        assertEquals(
+            itemId.plain(),
+            playing.jsonObject
+                .getValue("Id")
+                .jsonPrimitive.content
+                .plain(),
+        )
     }
 
     /**
@@ -318,6 +324,203 @@ abstract class ReportingContractSuite {
         }
     }
 
+    // Spec 20 (ADR-0021): a paused sitting is checked in with `IsPaused = true` and must leave the user's data alone,
+    // the same as a playing one.
+
+    /** Paused check-ins between playing ones leave an unwatched item unwatched. */
+    @Test
+    fun pausedCheckInsLeaveAnUnwatchedItemUnwatched() {
+        runBlocking {
+            val v = visit(server.seeded.movieIds[0])
+
+            v.start(Duration.ZERO)
+            repeat(PAUSED_CHECK_INS) { v.progress(Duration.ZERO, paused = true) }
+            v.progress(Duration.ZERO)
+            v.stop(Duration.ZERO, failed = true)
+
+            assertEquals(UserItemState(Duration.ZERO, played = false), v.state())
+        }
+    }
+
+    @Test
+    fun pausedCheckInsKeepAResumePoint() {
+        runBlocking {
+            val itemId = server.seeded.movieIds[1]
+            seedResume(itemId, RESUME)
+            val v = visit(itemId)
+
+            v.start(RESUME)
+            repeat(PAUSED_CHECK_INS) { v.progress(RESUME, paused = true) }
+            v.stop(RESUME, failed = true)
+
+            assertEquals(UserItemState(RESUME, played = false), v.state())
+        }
+    }
+
+    @Test
+    fun pausedCheckInsKeepAPlayedItemPlayed() {
+        runBlocking {
+            val v = visit(server.seeded.movieIds[2])
+            v.markPlayed()
+            assertTrue(v.state().played, "the mark didn't take")
+
+            v.start(Duration.ZERO)
+            repeat(PAUSED_CHECK_INS) { v.progress(Duration.ZERO, paused = true) }
+            v.stop(Duration.ZERO, failed = true)
+
+            assertTrue(v.state().played)
+        }
+    }
+
+    /**
+     * A fresh Playing after a pause (same `PlaySessionId`) counts as a play on the server, so it moves `PlayCount` and
+     * nothing else. The gap: the second Playing here comes **without** the server's idle auto-stop (about 10 min) in
+     * between, because the long timers are too slow for CI. The full sequence (5 min of paused check-ins, silence, the
+     * auto-stop, then a fresh Playing) is covered by the SP-7 re-run before the matrix moves, not by this suite.
+     */
+    @Test
+    fun aSecondPlayingAfterAPauseChangesOnlyThePlayCount() {
+        runBlocking {
+            val itemId = server.seeded.movieIds[0]
+            val v = visit(itemId)
+            val before = v.state()
+            val playCount0 = playCount(itemId)
+
+            v.start(Duration.ZERO)
+            v.progress(Duration.ZERO, paused = true)
+            v.start(Duration.ZERO)
+            v.progress(Duration.ZERO)
+            v.stop(Duration.ZERO, failed = true)
+
+            assertEquals(before, v.state())
+            assertEquals(playCount0 + 2, playCount(itemId), "the play count moved by something other than two plays")
+        }
+    }
+
+    @Test
+    fun theDashboardShowsThePausedItem() {
+        runBlocking {
+            val itemId = server.seeded.movieIds[0]
+            val v = visit(itemId)
+            v.start(Duration.ZERO)
+            try {
+                v.progress(Duration.ZERO, paused = true)
+                val mine = dashboardSession(v)
+                val playing = mine["NowPlayingItem"]
+                assertNotNull(playing, "the session shows nothing playing")
+                assertEquals(
+                    itemId.plain(),
+                    playing.jsonObject
+                        .getValue("Id")
+                        .jsonPrimitive.content
+                        .plain(),
+                )
+                val paused =
+                    mine
+                        .getValue("PlayState")
+                        .jsonObject["IsPaused"]
+                        ?.jsonPrimitive
+                        ?.content
+                assertEquals("true", paused, "the dashboard doesn't show the item as paused")
+            } finally {
+                v.stop(Duration.ZERO, failed = true)
+            }
+        }
+    }
+
+    /**
+     * Tripwire for #511: records what each Jellyfin version does to `LastPlayedDate` on a positioned check-in of an
+     * item that has a resume point. A change in either direction fails loudly, so the mitigation gets decided.
+     */
+    @Test
+    fun lastPlayedDateAfterACheckInMatchesTheKnownBehaviour() {
+        runBlocking {
+            val version = serverVersion()
+            val itemId = server.seeded.movieIds[1]
+            seedResume(itemId, RESUME)
+            val v = visit(itemId)
+
+            v.start(RESUME)
+            val first: Instant
+            val second: Instant
+            val third: Instant
+            try {
+                first = lastPlayed(itemId)
+                delay(LAST_PLAYED_GAP)
+                v.progress(RESUME)
+                second = lastPlayed(itemId)
+                delay(LAST_PLAYED_GAP)
+                v.progress(RESUME, paused = true)
+                third = lastPlayed(itemId)
+            } finally {
+                v.stop(RESUME, failed = true)
+            }
+
+            when (version) {
+                V12_1 -> {
+                    assertEquals(first, second, "12.1 moved LastPlayedDate on a check-in (#511)")
+                    assertEquals(second, third, "12.1 moved LastPlayedDate on a paused check-in (#511)")
+                }
+
+                V12_2 -> {
+                    assertTrue(
+                        second.isAfter(first),
+                        "12.2 moves LastPlayedDate on a check-in (#511): if this fails, recheck #511",
+                    )
+                    assertTrue(
+                        third.isAfter(second),
+                        "12.2 moves LastPlayedDate on a paused check-in (#511): if this fails, recheck #511",
+                    )
+                }
+
+                else -> {
+                    fail("record this version's LastPlayedDate behaviour (#511)")
+                }
+            }
+        }
+    }
+
+    private fun playCount(itemId: String): Int =
+        rawUserData(itemId)
+            .getValue("PlayCount")
+            .jsonPrimitive.content
+            .toInt()
+
+    private fun lastPlayed(itemId: String): Instant {
+        val raw = rawUserData(itemId)["LastPlayedDate"]?.jsonPrimitive?.content
+        assertNotNull(raw, "the item has no LastPlayedDate")
+        return Instant.parse(raw)
+    }
+
+    /** The server's major and minor version, from the unauthenticated `System/Info/Public`. */
+    private fun serverVersion(): Pair<Int, Int> {
+        val version =
+            server.http
+                .expectOk("read server version", server.http.get("System/Info/Public"))
+                .obj()
+                .getValue("Version")
+                .jsonPrimitive.content
+        val parts = version.split('.').map { it.toIntOrNull() }
+        val major = parts.getOrNull(0)
+        val minor = parts.getOrNull(1)
+        if (major == null || minor == null) fail("read server version: not a version number")
+        return Pair(major, minor)
+    }
+
+    /** The viewer device's one session on the dashboard. */
+    private fun dashboardSession(v: Visit): JsonObject {
+        val admin = server.http.signIn(server.admin.name, server.admin.rawPassword())
+        val reply = server.http.expectOk("read sessions", server.http.get("Sessions", admin))
+        val mine =
+            reply
+                .json()
+                .jsonArray
+                .map { it.jsonObject }
+                .filter { it["DeviceId"]?.jsonPrimitive?.content == v.deviceId }
+        assertEquals(1, mine.size, "the viewer's device should have one session")
+        return mine.single()
+    }
+
     private val request =
         PlaybackRequest(
             capabilities =
@@ -341,6 +544,10 @@ abstract class ReportingContractSuite {
         /** 40% of the seeded 330 s items. */
         val FORTY_PERCENT = 132.seconds
         const val TICKS_PER_SECOND = 10_000_000L
+        const val PAUSED_CHECK_INS = 3
+        val LAST_PLAYED_GAP = 2.seconds
+        val V12_1 = Pair(12, 1)
+        val V12_2 = Pair(12, 2)
     }
 }
 
