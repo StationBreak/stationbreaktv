@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -444,6 +445,18 @@ internal class Sitting(
         /** How many following blocks each look at the schedule asks for (the next one is pre-resolved). */
         const val WINDOW = 3
     }
+}
+
+/**
+ * A transport op already taken from the inbox when the play's end or the cut won: it is dropped, with a line
+ * (`press dropped reason=<reason>`), so no press vanishes without a trace.
+ */
+private fun Sitting.reportLostOp(
+    taken: Deferred<*>,
+    reason: String,
+) {
+    if (!taken.isCompleted || taken.isCancelled) return
+    report(TuneReport.PressDropped(reason, state.value.javaClass.logName()))
 }
 
 /** The play's end (an empty flow: stopped under us, which counts as an end), or the first live op taken. */

@@ -17,7 +17,6 @@ import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
-import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
 import kotlin.time.Duration.Companion.milliseconds
@@ -38,7 +37,7 @@ internal suspend fun Sitting.holdProgram(
     while (true) {
         val held = hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)
         if (held !is Held.Transport) return held
-        val behindPlay = BehindPlay(this, block, play, visiting, play.timings.route)
+        val behindPlay = BehindPlay(behindHost(), block, play, visiting, play.timings.route)
         behind = behindPlay
         val ended =
             try {
@@ -53,18 +52,6 @@ internal suspend fun Sitting.holdProgram(
             is BehindEnd.Exit -> return Held.Exited(ended.exit)
         }
     }
-}
-
-/**
- * A transport op already taken from the inbox when the play's end or the cut won: it is dropped, with a line
- * (`press dropped reason=<reason>`), so no press vanishes without a trace.
- */
-internal fun Sitting.reportLostOp(
-    taken: Deferred<*>,
-    reason: String,
-) {
-    if (!taken.isCompleted || taken.isCancelled) return
-    report(TuneReport.PressDropped(reason, state.value.javaClass.logName()))
 }
 
 /** How a [BehindPlay] ended. */
@@ -109,7 +96,7 @@ internal sealed interface BehindEnd {
  */
 @Suppress("TooManyFunctions") // One function per transport op and state change.
 internal class BehindPlay(
-    private val sitting: Sitting,
+    private val host: BehindHost,
     private val block: AiringBlock,
     private val play: TuneOutcome.Playing,
     private val visiting: Visiting?,
@@ -117,7 +104,7 @@ internal class BehindPlay(
 ) {
     private val inPointMs = TransportMath.inPointMs(block)
     private val cutMs = TransportMath.cutMs(block)
-    private val timings = sitting.timings
+    private val timings = host.timings
     private val aheadMs = timings.stepAhead.inWholeMilliseconds
     private val rearmMinMs = timings.holdRearmMin.inWholeMilliseconds
     private val goLiveWaitMs = timings.goLiveWait.inWholeMilliseconds
@@ -170,10 +157,10 @@ internal class BehindPlay(
                     known(from.mediaMs)
                 } else {
                     // Live until now: if the player cannot say where it is, the live position is the place.
-                    known(TransportMath.liveMs(block, sitting.vnowMs()))
+                    known(TransportMath.liveMs(block, host.vnowMs()))
                     read()
                 }
-                sitting.watchNotes(play.notes, sitting.reporter.takeIf { visiting != null }, { playEnded }) {
+                host.watchNotes(play.notes, visiting != null, { _: BehindEnd -> playEnded }) {
                     loop(this, first)
                 }
             } finally {
@@ -182,7 +169,7 @@ internal class BehindPlay(
                 while (true) onEvent(events.tryReceive().getOrNull() ?: break)
                 // A seek still open is closed at the best-known place, so the visit's watched time runs on after us.
                 seeks.close(knownMs)?.let { visiting?.seeked(it) }
-                sitting.state.transport.value = null
+                host.publishTransport(null)
                 coroutineContext.cancelChildren()
             }
         }
@@ -190,7 +177,7 @@ internal class BehindPlay(
     /** The paused place now, for the screen stop (Task 12); null unless paused on a program block. */
     fun pausedPlace(): Place? {
         val onProgram = block.airing is Airing.Program
-        return if (paused && onProgram) Place(sitting.channel, block, knownMs) else null
+        return if (paused && onProgram) Place(host.channel, block, knownMs) else null
     }
 
     @Suppress("ReturnCount", "CyclomaticComplexMethod") // Each return is one way the behind play ends.
@@ -206,7 +193,7 @@ internal class BehindPlay(
             if (still) return BehindEnd.Live(play)
         }
         val ended = within.async { play.end.firstOrNull() ?: PlaybackEnd.Ended }
-        val nextOp = { within.async { sitting.commands.receive(block.startMs) } }
+        val nextOp = { within.async { host.receive(block.startMs) } }
         var next = nextOp()
         var firedShort = false
         while (true) {
@@ -217,7 +204,7 @@ internal class BehindPlay(
             if (leftMs != null && leftMs <= 0) {
                 // Up to two lines for one cut, one per thing lost: an op already taken from the inbox, and a stepped
                 // target never sought. Each is a press the viewer made that did nothing.
-                sitting.reportLostOp(next, "transport-lost-at-cut")
+                lostOp(next, "transport-lost-at-cut")
                 dropTarget("transport-lost-at-cut")
                 return BehindEnd.ItemEnd(null)
             }
@@ -237,7 +224,7 @@ internal class BehindPlay(
             firedShort = woke is Wake.Due
             when (woke) {
                 is Wake.End -> {
-                    sitting.reportLostOp(next, "transport-lost-at-end")
+                    lostOp(next, "transport-lost-at-end")
                     dropTarget("transport-lost-at-end")
                     return playEnd(woke.end)
                 }
@@ -254,14 +241,14 @@ internal class BehindPlay(
                 // The live seek's own SeekDone: live.
                 is Wake.Event -> {
                     if (onEvent(woke.event)) {
-                        sitting.reportLostOp(next, "transport-lost-at-live")
+                        lostOp(next, "transport-lost-at-live")
                         return BehindEnd.Live(play)
                     }
                 }
 
                 // The live seek's SeekDone never came: live at the known place (run closes the seek there).
                 Wake.LiveUnmatched -> {
-                    sitting.reportLostOp(next, "transport-lost-at-live")
+                    lostOp(next, "transport-lost-at-live")
                     dropped("transport-seek-unmatched")
                     return BehindEnd.Live(play)
                 }
@@ -313,7 +300,7 @@ internal class BehindPlay(
         liveSinceMs = null
         seeks.cancelLive()
         val fromMs = steps.target?.toMs ?: read()
-        val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
+        val liveMs = TransportMath.liveMs(block, host.vnowMs())
         val toMs =
             when (op.direction) {
                 SeekDirection.Back -> TransportMath.back(fromMs - timings.stepBack.inWholeMilliseconds, inPointMs)
@@ -351,11 +338,11 @@ internal class BehindPlay(
      * 9): false, and nothing is done.
      */
     private suspend fun goLive(): Boolean {
-        val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
+        val liveMs = TransportMath.liveMs(block, host.vnowMs())
         if (liveMs >= cutMs) return false
         steps.drop()
         linger?.cancel()
-        sitting.state.transport.value = null
+        host.publishTransport(null)
         seek(liveMs, live = true)
         liveSinceMs = nowMs()
         if (paused) {
@@ -402,7 +389,7 @@ internal class BehindPlay(
             else -> Wake.Due
         }
 
-    private fun nowMs(): Long = sitting.clock.now().toEpochMilliseconds()
+    private fun nowMs(): Long = host.nowMs()
 
     /**
      * The item's end through the play's own end. A failure is reported as the live hold reports it, and its place
@@ -411,7 +398,7 @@ internal class BehindPlay(
     private fun playEnd(end: PlaybackEnd): BehindEnd {
         playEnded = true
         if (end is PlaybackEnd.Failed) {
-            sitting.report(TuneReport.HeldFailed(end))
+            host.report(TuneReport.HeldFailed(end))
             visiting?.failedPlay(end.positionMs)
         }
         return BehindEnd.ItemEnd(null)
@@ -488,20 +475,20 @@ internal class BehindPlay(
     }
 
     /** A `press dropped` line with [reason] and the state on screen. */
-    private fun dropped(reason: String) {
-        sitting.report(
-            TuneReport.PressDropped(
-                reason,
-                sitting.state.value.javaClass
-                    .logName(),
-            ),
-        )
+    private fun dropped(reason: String) = host.dropped(reason)
+
+    /** An op already taken from the inbox when the loop ended is dropped with a line, never silently. */
+    private fun lostOp(
+        taken: Deferred<*>,
+        reason: String,
+    ) {
+        if (taken.isCompleted && !taken.isCancelled) dropped(reason)
     }
 
     private fun publish() {
         // Going back to live: the view is gone, and stays gone.
         if (liveSinceMs != null) return
-        sitting.state.transport.value =
+        host.publishTransport(
             TransportView(
                 paused = paused,
                 seeking = seeks.inFlight,
@@ -513,8 +500,9 @@ internal class BehindPlay(
                 blockStartMs = block.startMs,
                 inPointMs = inPointMs,
                 cutMs = cutMs,
-                driftMs = sitting.driftMs,
-            )
+                driftMs = host.driftMs,
+            ),
+        )
     }
 
     /** What woke the behind loop. */
