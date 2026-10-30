@@ -149,9 +149,9 @@ class TuneControllerTransportTest {
                     at(2_000) { PlayerEvent.Resumed(it, 3_300) },
                     at(2_100) { PlayerEvent.Stalled(it, 3_400, positionMs = 400, bufferedMs = 0) },
                 )
-            after(2_100)
+            after(2_100 + PLAYING_TIMEOUT_MS - 1)
             assertTrue(seen.ends.isEmpty())
-            after(PLAYING_TIMEOUT_MS)
+            after(1)
             assertEquals(1, seen.ends.size)
             assertTrue(failedWith("StallTimeout")(seen.ends.single()))
             assertTrue(seen.notes.none { it is PlayNote.Stall })
@@ -197,6 +197,69 @@ class TuneControllerTransportTest {
             assertTrue(seen.notes.none { it is PlayNote.Stall })
             assertTrue(seen.ends.isEmpty())
             endWatchers()
+        }
+
+    @Test
+    fun aPlayingAfterASeekWithNoSeekDoneStillTimesALaterStall() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(500) { PlayerEvent.Seeking(it, 1_800, 400, 60_000) },
+                    at(600) { PlayerEvent.Playing(1_900, 60.seconds, it) },
+                    at(1_000) { PlayerEvent.Stalled(it, 2_300, positionMs = 60_400, bufferedMs = 0) },
+                )
+            after(1_000 + PLAYING_TIMEOUT_MS - 1)
+            assertTrue(seen.ends.isEmpty())
+            after(1)
+            assertTrue(failedWith("StallTimeout")(seen.ends.single()))
+        }
+
+    @Test
+    fun aStallThatOutlivesItsSeekStillTimesOut() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(500) { PlayerEvent.Seeking(it, 1_800, 400, 60_000) },
+                    at(600) { PlayerEvent.Stalled(it, 1_900, positionMs = 400, bufferedMs = 0) },
+                    at(700) { PlayerEvent.SeekDone(it, 2_000, 60_000) },
+                )
+            after(700 + PLAYING_TIMEOUT_MS - 1)
+            assertTrue(seen.ends.isEmpty())
+            after(1)
+            assertTrue(failedWith("StallTimeout")(seen.ends.single()))
+            assertTrue(seen.notes.none { it is PlayNote.Stall })
+        }
+
+    @Test
+    fun aSeekCancelsARunningStallTimerAndTheStallRestartsItAtSeekDone() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(100) { PlayerEvent.Stalled(it, 1_400, positionMs = 400, bufferedMs = 0) },
+                    at(500) { PlayerEvent.Seeking(it, 1_800, 400, 60_000) },
+                    at(600) { PlayerEvent.SeekDone(it, 1_900, 60_000) },
+                )
+            after(100 + PLAYING_TIMEOUT_MS + 1)
+            assertTrue("the old timer is gone", seen.ends.isEmpty())
+            after(600 - 101)
+            assertTrue(failedWith("StallTimeout")(seen.ends.single()))
+        }
+
+    @Test
+    fun aPlayingAfterASeekIsNotAFirstPlaying() =
+        runTest {
+            val (play, seen) =
+                start(
+                    at(500) { PlayerEvent.Seeking(it, 1_800, 400, 60_000) },
+                    at(600) { PlayerEvent.SeekDone(it, 1_900, 60_000) },
+                    at(700) { PlayerEvent.Playing(9_300, 60.seconds, it) },
+                    at(9_000) { PlayerEvent.Failed("ERROR_CODE_IO_UNSPECIFIED", null, it, 10_300) },
+                )
+            assertEquals(300L, play.playingMs)
+            assertEquals(250L, play.firstFrameMs)
+            after(9_000)
+            val end = seen.ends.single() as PlaybackEnd.Failed
+            assertEquals("the failure is timed from the first playing", 9_000L, end.afterMs)
         }
 
     private companion object {

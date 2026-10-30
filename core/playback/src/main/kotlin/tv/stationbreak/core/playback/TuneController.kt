@@ -765,6 +765,16 @@ class TuneController(
                 var stall: Job? = null
                 var seek: Job? = null
                 val held = HeldPlay()
+
+                fun startStall(event: PlayerEvent.Stalled) {
+                    stall?.cancel()
+                    stall =
+                        launch {
+                            delay(PLAYING_TIMEOUT)
+                            result.complete(held.timedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
+                            watcher?.cancel()
+                        }
+                }
                 player.events.collect { event ->
                     if (event.generation != generation.await()) return@collect
                     held.see(event, notes)
@@ -782,15 +792,7 @@ class TuneController(
 
                         event is PlayerEvent.Stalled -> {
                             // Paused, or mid-seek: no stall to time; the seek has its own timer.
-                            if (held.timesStalls) {
-                                stall?.cancel()
-                                stall =
-                                    launch {
-                                        delay(PLAYING_TIMEOUT)
-                                        result.complete(held.timedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
-                                        watcher?.cancel()
-                                    }
-                            }
+                            if (held.timesStalls) startStall(event)
                         }
 
                         event is PlayerEvent.Playing -> {
@@ -803,6 +805,8 @@ class TuneController(
                         }
 
                         event is PlayerEvent.Seeking -> {
+                            // The seek timer covers a stall now running; one that outlives the seek restarts below.
+                            stall?.cancel()
                             seek?.cancel()
                             seek =
                                 launch {
@@ -814,6 +818,8 @@ class TuneController(
 
                         event is PlayerEvent.SeekDone -> {
                             seek?.cancel()
+                            // A stall that began or ran during the seek and is still open is timed from here.
+                            held.openStall?.takeIf { held.timesStalls }?.let(::startStall)
                         }
                     }
                 }
@@ -838,6 +844,10 @@ class TuneController(
         private var resuming = false
         private var seeking = false
 
+        /** The last [PlayerEvent.Stalled] not yet ended by a Playing or a pause, noted or not. */
+        var openStall: PlayerEvent.Stalled? = null
+            private set
+
         /** False while paused or mid-seek: a [PlayerEvent.Stalled] then is no stall to time. */
         val timesStalls get() = !paused && !seeking
 
@@ -851,12 +861,15 @@ class TuneController(
                     closeStall(event.atMs, notes)
                     paused = false
                     resuming = false
+                    seeking = false
+                    openStall = null
                 }
 
                 is PlayerEvent.Paused -> {
                     // A pause closes an open stall, so the reporter's stall flag clears (paused time is not counted).
                     closeStall(event.atMs, notes)
                     paused = true
+                    openStall = null
                 }
 
                 is PlayerEvent.Resumed -> {
@@ -874,6 +887,7 @@ class TuneController(
 
                 is PlayerEvent.Stalled -> {
                     // A slow first segment after a resume (ADR-0021, 7) and a seek's buffering are normal, not stalls.
+                    if (!paused) openStall = event
                     if (timesStalls && !resuming) noteStall(event, notes)
                 }
 
@@ -924,7 +938,10 @@ class TuneController(
             stalls,
         )
 
-        /** The failure of a seek that [Seeking] began and no SeekDone or Playing ended within [waitedMs]. */
+        /**
+         * The failure of a seek that [Seeking] began and no SeekDone or Playing ended within [waitedMs]. Its
+         * `positionMs` is the position before the seek, and `bufferedMs` -1 means unknown.
+         */
         fun seekTimedOut(
             seek: PlayerEvent.Seeking,
             waitedMs: Long,
