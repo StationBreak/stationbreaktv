@@ -4,7 +4,7 @@
 - **Date:** 2026-10-30
 - **Decided by:** the owner (2026-10-24, 2026-10-29 and 2026-10-30, quoted below) and Rincewind (the mechanism and the spike rulings)
 - **Resolves:** [#383](https://github.com/StationBreak/stationbreaktv/issues/383); the open point in ADR-0018, "pausing within a visit"
-- **Amends:** ADR-0017 (6, the player's lifecycle) and ADR-0018 (paused check-ins)
+- **Amends:** ADR-0016 (the player gains transport), ADR-0017 (2 and 6) and ADR-0018 (paused check-ins)
 - **Informs:** spec 20, F1.5
 
 ## Context
@@ -41,9 +41,9 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    | Key | Live or behind | Paused |
    |---|---|---|
    | Play/Pause | Pause | Play |
-   | Rewind, MEDIA_PREVIOUS, SKIP_BACKWARD | Back 10 s | Back 10 s, stays paused; D-pad Left scrubs the same |
+   | Rewind, MEDIA_PREVIOUS, SKIP_BACKWARD | Back 10 s | Back 10 s, stays paused; D-pad Left scrubs the same (scrubbing: provisional; detailed UX with the design partner) |
    | Fast-forward, MEDIA_NEXT, SKIP_FORWARD | Ahead 30 s, capped at live; at the cap, live. Already live: nothing | Ahead 30 s, capped, stays paused; D-pad Right scrubs the same |
-   | Select | Actions banner; "Live" is added while behind | Play |
+   | Select | Actions banner; "Live" is added while behind (provisional; detailed UX with the design partner) | Play |
    | Back | Guide | Guide |
    | Up, Down, CH+, CH-, Menu, guide tune | Flip (the behind state is dropped) | Flip (dropped) |
 
@@ -79,24 +79,31 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    the first frame if the viewer was paused. Past it, or after the process dies, the viewer joins live. The place is
    never persisted.
 6. **Seek uses the player's native seek inside the existing HLS playlist.** There is no new `PlaybackInfo`, no new
-   `PlaySessionId`, and no `StartTimeTicks`. A seek's rebuffer is shown as a spinner over the frozen frame, not as snow,
-   and is not reported as a stall. A restart with a new `PlaybackInfo` stays as the recovery path if a segment request
-   fails.
+   `PlaySessionId`, and no `StartTimeTicks`. A seek's rebuffer shows as a spinner over the frozen frame, not snow
+   (provisional; detailed UX with the design partner), and is not reported as a stall. If a segment request fails, a
+   restart with a new `PlaybackInfo` is the single fallback of ADR-0016, 4 (it never loops), and the 2 s landing check
+   applies to it.
 7. **Paused reporting.** While paused the app sends `POST /Sessions/Playing/Progress` with `IsPaused=true`, at the safe
    position (ADR-0018, 1), with the `PlaySessionId`, every 30 s, for up to `pauseReportMax` (default 5 minutes, in
-   `LiveTimings`). After that it goes silent. The server reclaims the encode and ends the session by itself. On Play the
-   app sends a fresh `POST /Sessions/Playing` and continues the usual check-ins. The server restarts the encode on the
-   next segment request; the app treats a slow first segment as normal, not as a stall or failure. This stops a long
-   pause parking an ffmpeg job and its temporary files on a home server for up to an hour.
+   `LiveTimings`). After that it goes silent. With "Throttle transcodes" on, the server then reclaims the encode, and in
+   every case it ends the session by itself. On Play the app sends a fresh `POST /Sessions/Playing` and continues the
+   usual check-ins. The server restarts the encode on the next segment request; the app treats a slow first segment as
+   normal, not as a stall or failure. With throttling on, this stops a long pause parking an ffmpeg job and its
+   temporary files on a home server for up to an hour.
 8. **Watched time is the union of media intervals played** per airing, not wall time open minus stalls (ADR-0018, 2).
    Pause is not watched time. Rewinding and rewatching does not count twice towards the 90%. Seeking ahead counts
-   nothing. The airing key stays the behind block's key until catch-up. A pause or seek needs new player events
-   (`Paused`, `Resumed`); without them, paused time would count as watched.
-9. **Seams.** `VideoPlayer` gains pause, resume, seek and a position read. Transport is a per-play handle in
-   `TuneOutcome.Playing`, tied to that play's generation, not new `TunePort` methods. New `LiveCommand`s (`PlayPause`,
-   `Seek`, `SeekReleased`, `GoLive`) reach the current sitting through a small conflated channel, not through `Flipper`.
-   The behind loop is its own class, not part of `playProgram`. The hold waits on media remaining, re-armed on each
-   pause or seek, not on wall time left.
+   nothing. The airing key stays the behind block's key until catch-up. Counting needs position-tagged start, stop and
+   seek events, including a failed-play retry and a resume from the kept place; the exact set is left to the plan.
+   This rewrites the shipped `WatchLedger` (wall time minus stalls). Stalls fall out of the count by construction.
+9. **Seams.** `VideoPlayer` gains pause, resume, seek and a position read. Transport is a per-play handle
+   (`PlayControl`) in `TuneOutcome.Playing`, tied to that play's generation, not new `TunePort` methods. Commands reach
+   the sitting through a per-sitting buffered channel, tagged with the sitting's id; a command whose id does not match
+   the current sitting is dropped, so a press just before a flip can never seek the new channel. They do not go through
+   `Flipper`. The sitting owns the seek target: repeated Back and Ahead presses during a hold add up there, and one
+   absolute-target seek is issued on release or after the settle time. The sitting resolves Play/Pause against its
+   current state, so two quick presses cannot invert it. Command names are left to the plan. The behind loop is its own
+   class, not part of `playProgram`. The hold waits on media remaining, re-armed on each pause or seek, not on wall
+   time left.
 10. **Diagnostics** (numbers only): `SBLIVE seek` (direction, target ms, ms to playing, route) and
     `SBLIVE pause heldMs resumeMs`.
 
@@ -115,16 +122,21 @@ player.
 | Does a pause flag extend the idle auto-stop? | No. One paused check-in then silence: the session was auto-stopped at about 10 min, user data unchanged. |
 | Idle transcode, throttling on, no check-ins | ffmpeg killed after 5 to 7 min of silence (a 5 min timer on a roughly 1 min tick); session auto-stopped at about 10 min. |
 | Idle transcode, paused check-ins with the `PlaySessionId` | ffmpeg stayed alive and parked for the whole 15 min tested. |
+| Idle transcode, default config (throttling off, as shipped) | ffmpeg encodes the whole clip and exits by itself in about 100 to 130 s, with or without check-ins. Finished segments stay served for at least 15 min. Same as any HLS play, not a new cost of pausing. |
 | Resume after 1, 5 and 15 min | No new `PlaybackInfo` needed. Same URLs answered 200 every time. After a kill the server restarts ffmpeg at the segment asked for: 0.22 to 0.35 s, against 0.01 to 0.03 s when the segment exists. |
 | Seek, target already encoded | Native in-playlist seek 0.03 to 0.09 s, same ffmpeg process. A restart took 0.4 to 1.1 s. |
 | Seek, target ahead of the encoder | The server restarts ffmpeg itself: 0.5 to 0.85 s at 2 CPUs, 1.4 to 1.7 s at 0.5 CPU, about what a client restart costs. |
 | `StartTimeTicks` on the HLS URL | HTTP 400. The playlist is always full length; HLS seeking is asking for another segment. |
 | Direct stream (HLS remux) seek | 0.01 to 0.5 s. It is HLS, not an HTTP-range file. |
-| 12.2 only | Every positioned check-in, paused or not, moves `LastPlayedDate` for an item that already has a resume point; 12.1 sets it once, at `Playing`. Filed as [#511](https://github.com/StationBreak/stationbreaktv/issues/511). |
+| 12.2 only | Every positioned check-in, paused or not, moves `LastPlayedDate` for an item that already has a resume point; 12.1 sets it once, at `Playing`. Filed as [#511](https://github.com/StationBreak/stationbreaktv/issues/511). This ADR does not decide it (see Consequences). |
 
 **Not tested.**
 - A real player (ExoPlayer): playlist refresh after a pause, buffer eviction, reaction to a slow first segment.
+- The full sequence: 5 min of paused check-ins, then silence, then a fresh `Playing`.
+- An item with a resume point through that sequence, and long items with throttling off.
 - Pauses over 15 min, and check-ins without the `PlaySessionId`.
+
+These are planned for the SP-7 re-run before the contract matrix moves.
 - Hardware transcode, subtitle burn-in, hours-long items, many parallel jobs.
 - Segment deletion on (a back seek past the retention window may restart ffmpeg).
 - Direct-play range seeks, seeks near the item's end, and seeking while paused.
@@ -138,9 +150,10 @@ player.
 - A resume after more than about 5 minutes pays one extra Playing report and, on a weak server, up to about a second for
   the first segment.
 - `Sitting` stops being purely wall-clock: the behind loop works in media time. This is the largest code change.
-- **12.2 reorders Continue Watching.** It affects the existing 30 s check-ins of ADR-0018 as well as pause. ADR-0018's
-  "leaves no Continue Watching or resume-point noise" holds for resume points and the played flag, not for the order of
-  items that already have a resume point on 12.2.
+- **#511 is an open defect, not a decision of this ADR.** The owner's Q-JF-5 rule (no Continue Watching noise) stands
+  unchanged. On 12.2 the shipped 30 s check-ins already break it for items with a resume point, pause or not, so F1.5
+  on 12.2 depends on #511 and a technical fix is required. Only if no fix exists does it go back to the owner. A
+  `jellyfin-contract` tripwire records `LastPlayedDate` after a check-in on each version.
 - **Risk:** the design relies on server behaviour outside the API contract (the idle kill, auto-stop and restart on
   request). The `jellyfin-contract` suite gains paused check-in cases on 12.1 and 12.2; the long timers are too slow for
   CI, so SP-7 is re-run against new images before the matrix moves, as SP-6 is. A failed case means this ADR needs the
@@ -151,12 +164,18 @@ player.
 
 ## Amendments
 
+- **ADR-0016.** `VideoPlayer` gains transport (decision 9).
 - **ADR-0017, 6.** A screen stop still tears the period down in the same order (close the tuner, detach, release). The
   one change is that the paused place now survives it, in the ViewModel, for `pauseHoldMax`. The next run is passed the
-  place. Everything else in 6 stands.
+  place. The place is read from `PlayControl` before the teardown begins. Everything else in 6 stands.
+- **ADR-0017, 2.** A retune still works the position out from the clock, with one exception: a return within
+  `pauseHoldMax` resumes at the kept place. If the place's block has not started by the clock (possible after
+  ahead-drift), the place is dropped and the viewer joins live. A block that has already ended by the clock is fine:
+  the viewer is behind and catches up at the next item.
 - **ADR-0018.** Added to 1: while paused, progress check-ins carry `IsPaused=true` at the safe position, for up to
-  `pauseReportMax`, then stop; Play sends a fresh `Playing`. Changed in 2: watched time is the union of media intervals
-  played. The "not covered" note on pausing is now covered, on 12.1 and 12.2.
+  `pauseReportMax`, then stop; Play sends a fresh `Playing`. Added to 4: a resume after the silence starts a new
+  `Playing` report, which raises `PlayCount` by 1 and adds two activity-log entries. Changed in 2: watched time is the
+  union of media intervals played. The "not covered" note on pausing is now covered, on 12.1 and 12.2.
 
 ## Out of scope
 
