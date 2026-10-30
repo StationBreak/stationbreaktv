@@ -80,9 +80,9 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    never persisted.
 6. **Seek uses the player's native seek inside the existing HLS playlist.** There is no new `PlaybackInfo`, no new
    `PlaySessionId`, and no `StartTimeTicks`. A seek's rebuffer shows as a spinner over the frozen frame, not snow
-   (provisional; detailed UX with the design partner), and is not reported as a stall. If a segment request fails, a
-   restart with a new `PlaybackInfo` is the single fallback of ADR-0016, 4 (it never loops), and the 2 s landing check
-   applies to it.
+   (provisional; detailed UX with the design partner), and is not reported as a stall. A segment that fails after a
+   seek is a mid-play failure: the play ends, and `BehindPlay` retries once at the place. That fresh tune runs
+   ADR-0016, 4 internally (its one fallback and the 2 s landing check), as any tune does.
 7. **Paused reporting.** While paused the app sends `POST /Sessions/Playing/Progress` with `IsPaused=true`, at the safe
    position (ADR-0018, 1), with the `PlaySessionId`, every 30 s, for up to `pauseReportMax` (default 5 minutes, in
    `LiveTimings`). After that it goes silent. With "Throttle transcodes" on, the server then reclaims the encode, and in
@@ -133,11 +133,11 @@ player.
 **Not tested.**
 - A real player (ExoPlayer): playlist refresh after a pause, buffer eviction, reaction to a slow first segment.
 - The full sequence: 5 min of paused check-ins, then silence, then a fresh `Playing`.
-- An item with a resume point through that sequence, and long items with throttling off.
+- An item with a resume point through that sequence, and hours-long items with throttling off.
 - Pauses over 15 min, and check-ins without the `PlaySessionId`.
 
-These are planned for the SP-7 re-run before the contract matrix moves.
-- Hardware transcode, subtitle burn-in, hours-long items, many parallel jobs.
+The items above are planned for the SP-7 re-run before the contract matrix moves. Not planned:
+- Hardware transcode, subtitle burn-in, many parallel jobs.
 - Segment deletion on (a back seek past the retention window may restart ffmpeg).
 - Direct-play range seeks, seeks near the item's end, and seeking while paused.
 - Whether Continue Watching on a real client re-sorts on the 12.2 `LastPlayedDate` change.
@@ -147,7 +147,8 @@ These are planned for the SP-7 re-run before the contract matrix moves.
 - The viewer keeps their place through a pause of any length in the foreground and for 60 minutes after the screen
   stops. The schedule and the other TVs are untouched.
 - Pause, resume and seek act on the existing player. The only unavoidable tune is the return after the screen stopped.
-- A resume after more than about 5 minutes pays one extra Playing report and, on a weak server, up to about a second for
+- A resume after more than about 5 minutes pays one extra Playing report (+1 `PlayCount`, two activity-log entries)
+  and, on a weak server, up to about a second for
   the first segment.
 - `Sitting` stops being purely wall-clock: the behind loop works in media time. This is the largest code change.
 - **#511 is an open defect, not a decision of this ADR.** The owner's Q-JF-5 rule (no Continue Watching noise) stands
@@ -170,8 +171,9 @@ These are planned for the SP-7 re-run before the contract matrix moves.
   place. The place is read from `PlayControl` before the teardown begins. Everything else in 6 stands.
 - **ADR-0017, 2.** A retune still works the position out from the clock, with one exception: a return within
   `pauseHoldMax` resumes at the kept place. If the place's block has not started by the clock (possible after
-  ahead-drift), the place is dropped and the viewer joins live. A block that has already ended by the clock is fine:
-  the viewer is behind and catches up at the next item.
+  ahead-drift), the place is dropped and the viewer joins live. A place ahead of the clock's live position (paused in
+  an ahead-drifted sitting) is clamped to the live position, so the viewer is Live and never ahead of the schedule. A
+  block that has already ended by the clock is fine: the viewer is behind and catches up at the next item.
 - **ADR-0018.** Added to 1: while paused, progress check-ins carry `IsPaused=true` at the safe position, for up to
   `pauseReportMax`, then stop; Play sends a fresh `Playing`. Added to 4: a resume after the silence starts a new
   `Playing` report, which raises `PlayCount` by 1 and adds two activity-log entries. Changed in 2: watched time is the
