@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackRequest
@@ -20,35 +21,42 @@ import kotlin.time.Duration
  * Decides how to play an item from the server's answer and the device's [capabilities]. It asks the server once,
  * chooses one of its sources (see [choose]), and picks the cheapest route the client agrees with. The client overrules
  * the server's `SupportsDirectPlay` where the chosen audio could not be decoded here or the subtitle is burned in
- * (ADR-0016, 8).
+ * (ADR-0016, 8). A forced transcode that names a [prefer]red source (the one that just failed) transcodes that one.
  */
 class PlaybackResolver(
     private val server: MediaServer,
     private val capabilities: () -> DeviceCapabilities,
 ) {
+    @Suppress("LongParameterList") // One call's context.
     suspend fun resolve(
         session: Session,
         item: ItemId,
         start: Duration,
         override: TrackOverride?,
         forceTranscode: Boolean = false,
+        prefer: MediaSourceId? = null,
     ): ServerResult<ResolvedPlayback> {
         val limits = capabilities()
         val request = PlaybackRequest(limits, start, override?.audioIndex, override?.subtitleIndex, forceTranscode)
         return when (val answer = server.playbackInfo(session, item, request)) {
             is ServerResult.Failure -> answer
-            is ServerResult.Success -> resolveAnswer(answer.value, limits, start, override, forceTranscode)
+            is ServerResult.Success -> resolveAnswer(answer.value, limits, start, override, forceTranscode, prefer)
         }
     }
 
+    @Suppress("LongParameterList") // One call's context.
     private fun resolveAnswer(
         info: PlaybackInfo,
         limits: DeviceCapabilities,
         start: Duration,
         override: TrackOverride?,
         forceTranscode: Boolean,
+        prefer: MediaSourceId?,
     ): ServerResult<ResolvedPlayback> {
-        val candidates = info.sources.map { resolveSource(info, it, limits, start, override, forceTranscode) }
+        // A fallback transcodes the version that just failed, not the first (which may be the heaviest, e.g. 4K).
+        val preferred = if (forceTranscode && prefer != null) info.sources.filter { it.id == prefer } else emptyList()
+        val sources = preferred.ifEmpty { info.sources }
+        val candidates = sources.map { resolveSource(info, it, limits, start, override, forceTranscode) }
         val resolved = choose(candidates, limits)
         return resolved?.let { ServerResult.Success(it) } ?: ServerResult.Failure(MediaServerError.NotFound())
     }
