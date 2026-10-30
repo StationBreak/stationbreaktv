@@ -187,6 +187,31 @@ sealed interface TuneReport {
         override fun line() = "press dropped reason=$reason${count?.let { " n=$it" }.orEmpty()} state=$state"
     }
 
+    /**
+     * A seek the viewer made while behind (spec 20): [direction] is `back`, `ahead` or `live`; [targetMs] the media
+     * position sought; [toPlayingMs] the time from the seek to the player's first `SeekDone` or `Playing` (-1: the play
+     * ended first); [route] the play's route, or none when it is not known.
+     */
+    data class Seek(
+        val direction: String,
+        val targetMs: Long,
+        val toPlayingMs: Long,
+        val route: String?,
+    ) : TuneReport {
+        override fun line() = "seek dir=$direction targetMs=$targetMs toPlayingMs=$toPlayingMs route=${route ?: "none"}"
+    }
+
+    /**
+     * A pause (spec 20): [heldMs] the time it was held, and [resumeMs] the time from the resume to the next `Playing`
+     * (-1: the pause ended with no resume, or no picture followed it).
+     */
+    data class Pause(
+        val heldMs: Long,
+        val resumeMs: Long,
+    ) : TuneReport {
+        override fun line() = "pause heldMs=$heldMs resumeMs=$resumeMs"
+    }
+
     /** A line of the playback reporter (spec 16): `report start|progress|stop|played|error kind=<label>`. */
     data class Reported(
         val text: String,

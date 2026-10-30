@@ -198,9 +198,6 @@ internal class BehindPlay(
     /** The play on screen: the first, or the retry at the place that replaced it. */
     private var play = first
 
-    /** The play's route, for the seek line (Task 11). */
-    val route: String? get() = play.timings.route
-
     /** A program's block resolves its catch-up ahead; a stand-in piece's end goes back to the stand-ins. */
     private val onProgram = block.airing is Airing.Program
 
@@ -236,6 +233,15 @@ internal class BehindPlay(
 
     /** Which SeekDone is the latest seek's, and whether the visit's watched time is stopped for one; one per play. */
     private var seeks = newSeeks()
+
+    /** The seek whose line is waiting for its first `SeekDone` or `Playing` (the diagnostics, spec 20). */
+    private var seekLine: SeekLine? = null
+
+    /** The clock time (epoch ms) the pause began while paused; null otherwise. */
+    private var pausedAtMs: Long? = null
+
+    /** A resume asked for, whose line waits for the next `Playing`: how long it was held, and when it was asked for. */
+    private var resumeLine: ResumeLine? = null
 
     /**
      * The clock time (epoch ms) the seek back to live went out, while it is in flight (null otherwise): once its own
@@ -288,6 +294,7 @@ internal class BehindPlay(
                 unsubscribe()
                 // A seek still open is closed at the best-known place, so the visit's watched time runs on after us.
                 seeks.close(knownMs)?.let { visiting?.seeked(it) }
+                reportUnfinished()
                 // Not handed to a catch-up (live again, or an exit): let it go.
                 dropCatchUp()
                 host.publishTransport(null)
@@ -438,6 +445,7 @@ internal class BehindPlay(
         read()
         play.control.pause()
         paused = true
+        pausedAtMs = nowMs()
         linger?.cancel()
         visible = true
         publish()
@@ -447,6 +455,7 @@ internal class BehindPlay(
         read()
         play.control.resume()
         paused = false
+        resumed()
         show()
     }
 
@@ -483,14 +492,30 @@ internal class BehindPlay(
         val (toMs, toLive) = steps.take() ?: return null
         val wentLive = !paused && toLive && goLive()
         val ends = !wentLive && !paused && (toLive || toMs >= cutMs) && blockEnded()
-        if (!wentLive && !ends) seekToTarget(toMs)
+        if (!wentLive && !ends) seekToTarget(toMs, toLive)
         return if (ends) itemEnd() else null
     }
 
+    /** The seek line's direction: live, else which way [toMs] is from [fromMs]. */
+    private fun directionOf(
+        toLive: Boolean,
+        toMs: Long,
+        fromMs: Long,
+    ) = when {
+        toLive -> DIR_LIVE
+        toMs < fromMs -> DIR_BACK
+        else -> DIR_AHEAD
+    }
+
     /** Not live: the target itself, clamped at the cut while the play is still on its block. */
-    private suspend fun seekToTarget(toMs: Long) {
-        if (read() < cutMs) {
-            seek(minOf(toMs, cutMs))
+    private suspend fun seekToTarget(
+        toMs: Long,
+        toLive: Boolean,
+    ) {
+        val fromMs = read()
+        if (fromMs < cutMs) {
+            val to = minOf(toMs, cutMs)
+            seek(to, direction = directionOf(toLive, to, fromMs))
             show()
         } else {
             dropped("transport-lost-at-cut")
@@ -508,11 +533,12 @@ internal class BehindPlay(
         steps.drop()
         linger?.cancel()
         host.publishTransport(null)
-        seek(liveMs, live = true)
+        seek(liveMs, live = true, direction = DIR_LIVE)
         liveSinceMs = nowMs()
         if (paused) {
             play.control.resume()
             paused = false
+            resumed()
         }
         return true
     }
@@ -525,11 +551,15 @@ internal class BehindPlay(
     private suspend fun seek(
         toMs: Long,
         live: Boolean = false,
+        direction: String,
     ) {
         dropCatchUp()
         val fromMs = play.control.position()?.inWholeMilliseconds
         visiting?.seeking(fromMs)
         seeks.sent(toMs, live)
+        // A seek folded into one pending gets the one answer: the earlier one's line is closed as lost.
+        seekLine?.let { host.report(it.lost()) }
+        seekLine = SeekLine(direction, toMs, nowMs(), play.timings.route)
         play.control.seekTo(toMs.milliseconds)
         known(toMs)
     }
@@ -582,6 +612,9 @@ internal class BehindPlay(
         // A seek still open (a seek that timed out) is done at the place: nothing is counted until the retry plays.
         seeks.close(place)?.let { visiting?.seeked(it) }
         seeks = newSeeks()
+        // The unsubscribe above took the events that came; a seek line still waiting is lost with the play.
+        seekLine?.let { host.report(it.lost()) }
+        seekLine = null
         liveSinceMs = null
         dropCatchUp()
         return when {
@@ -770,6 +803,7 @@ internal class BehindPlay(
             // A play that plays on is past a seek it began: its SeekDone comes first, so one still open was lost.
             is PlayerEvent.Playing -> {
                 seeks.closeOnPlaying(event.position.inWholeMilliseconds)?.let { visiting?.seeked(it) }
+                reportPlaying()
             }
 
             is PlayerEvent.Seeking -> {
@@ -791,10 +825,44 @@ internal class BehindPlay(
      */
     private fun seekDone(at: Long?): Boolean {
         val landing = seeks.onSeekDone(at) ?: return false
+        reportSeekLine()
         landing.positionMs?.let(::known)
         if (landing.report) visiting?.seeked(landing.atMs)
         publish()
         return landing.live && liveSinceMs != null
+    }
+
+    /** The resume is asked for: the pause's held time is told, and its line waits for the next `Playing`. */
+    private fun resumed() {
+        val since = pausedAtMs ?: return
+        pausedAtMs = null
+        val now = nowMs()
+        resumeLine = ResumeLine(now - since, now)
+    }
+
+    /** The latest seek's `SeekDone`: its line goes out with the time it took. */
+    private fun reportSeekLine() {
+        val line = seekLine ?: return
+        seekLine = null
+        host.report(line.done(nowMs()))
+    }
+
+    /** A `Playing`: it ends the wait of a seek line (its `SeekDone` never came) and of the resume line. */
+    private fun reportPlaying() {
+        reportSeekLine()
+        val resume = resumeLine ?: return
+        resumeLine = null
+        host.report(TuneReport.Pause(resume.heldMs, nowMs() - resume.atMs))
+    }
+
+    /** The behind play ends: a seek or resume still waiting is told as lost (-1), a pause still held with its time. */
+    private fun reportUnfinished() {
+        seekLine?.let { host.report(it.lost()) }
+        seekLine = null
+        resumeLine?.let { host.report(TuneReport.Pause(it.heldMs, -1)) }
+        resumeLine = null
+        pausedAtMs?.let { host.report(TuneReport.Pause(nowMs() - it, -1)) }
+        pausedAtMs = null
     }
 
     /** Logs a stepped target that was never sought, because the cut or the play's end came first. */
@@ -834,6 +902,24 @@ internal class BehindPlay(
         )
     }
 
+    /** A seek sent, whose line is told once the player answers. */
+    private class SeekLine(
+        val direction: String,
+        val targetMs: Long,
+        val sentAtMs: Long,
+        val route: String?,
+    ) {
+        fun done(nowMs: Long) = TuneReport.Seek(direction, targetMs, nowMs - sentAtMs, route)
+
+        fun lost() = TuneReport.Seek(direction, targetMs, -1, route)
+    }
+
+    /** A resume asked for at [atMs] after a pause held [heldMs]. */
+    private class ResumeLine(
+        val heldMs: Long,
+        val atMs: Long,
+    )
+
     /** How one play's [loop] ended: the behind play is over, or the play failed (for [retry]). */
     private sealed interface Round {
         data class Over(
@@ -868,5 +954,11 @@ internal class BehindPlay(
 
         /** The seek back to live was not done within [LiveTimings.goLiveWait]. */
         data object LiveUnmatched : Wake
+    }
+
+    private companion object {
+        const val DIR_BACK = "back"
+        const val DIR_AHEAD = "ahead"
+        const val DIR_LIVE = "live"
     }
 }
