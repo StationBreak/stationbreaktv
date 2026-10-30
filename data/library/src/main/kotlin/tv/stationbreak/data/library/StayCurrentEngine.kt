@@ -248,7 +248,8 @@ internal class StayCurrentEngine(
      * endless list changes nothing, an empty list for a library that had items is suspect and rejected, and a list
      * whose size or count does not match what the server said tombstones nothing. Even a list that looks sound is
      * read a second time before anything is tombstoned, and only what both reads lack is. The cache is read before
-     * the server, so what another pass saves meanwhile cannot look deleted. It never moves the recorded moment.
+     * the server, so what another pass saves meanwhile cannot look deleted. A chosen library the server no longer lists
+     * is tombstoned whole under the same guards (#495). It never moves the recorded moment.
      */
     suspend fun reconcile(
         session: Session,
@@ -342,11 +343,18 @@ internal class StayCurrentEngine(
         private fun counted() = passed.copy(skipped = skipped)
 
         suspend fun reconcile(chosen: Set<ItemId>): StayResult<ReconcileSummary> {
-            val libraries =
+            val listing =
                 when (val listed = server.libraries(session)) {
-                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
+                    is ServerResult.Success -> listed.value
                     is ServerResult.Failure -> return StayResult(fail(listed.error), reconciled)
                 }
+            val libraries = listing.filter { it.id in chosen }
+            // A chosen library the server does not list may have been deleted there (#495).
+            val removed = chosen - libraries.map { it.id }.toSet()
+            if (removed.isNotEmpty()) {
+                val failed = tombstoneRemoved(chosen, removed, listing)
+                if (failed != null) return StayResult(failed, reconciled)
+            }
             for (library in libraries) {
                 val failed = reconcile(library)
                 if (failed != null) return StayResult(failed, reconciled)
@@ -355,6 +363,44 @@ internal class StayCurrentEngine(
             repository.clearFailure(account)
             return StayResult(SyncOutcome.Completed, reconciled)
         }
+
+        // A chosen library the listing lacks is tombstoned (items and series, revivable), but only on a listing that
+        // looks sound: an empty one, or one with none of the chosen libraries, is more likely a server fault (suspect).
+        // Like the ID reconcile, only what a second read also lacks is gone. The library stays chosen, so if it comes
+        // back its rows revive in the ordinary reconcile. One with no live rows has nothing to tombstone.
+        private suspend fun tombstoneRemoved(
+            chosen: Set<ItemId>,
+            removed: Set<ItemId>,
+            listing: List<Library>,
+        ): SyncOutcome? {
+            // The cache first, then the server, as in the ID reconcile.
+            val live =
+                removed
+                    .associateWith { repository.liveItemIds(account, it) to repository.liveSeriesIds(account, it) }
+                    .filterValues { (items, series) -> items.isNotEmpty() || series.isNotEmpty() }
+            if (live.isEmpty()) return null
+            if (!soundListing(chosen, listing)) return suspect()
+            val again =
+                when (val read = server.libraries(session)) {
+                    is ServerResult.Success -> read.value
+                    is ServerResult.Failure -> return fail(read.error)
+                }
+            if (!soundListing(chosen, again)) return suspect()
+            val listedAgain = again.map { it.id }.toSet()
+            for ((library, rows) in live) {
+                if (library in listedAgain) continue
+                val (items, series) = rows
+                repository.applyReconcile(account, items, emptySet(), series, emptySet())
+                reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
+            }
+            return null
+        }
+
+        // Neither empty nor missing every chosen library.
+        private fun soundListing(
+            chosen: Set<ItemId>,
+            listing: List<Library>,
+        ) = listing.any { it.id in chosen }
 
         private suspend fun reconcile(library: Library): SyncOutcome? {
             // The cache first, then the server: whatever another pass saves while the list is read is not "gone".
