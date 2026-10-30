@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -9,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
@@ -30,7 +30,6 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @Suppress("ReturnCount") // Each return is one way the program's play ends; a return to live goes round again.
 internal suspend fun Sitting.holdProgram(
-    scope: CoroutineScope,
     block: AiringBlock,
     first: TuneOutcome.Playing,
     visiting: Visiting?,
@@ -39,7 +38,7 @@ internal suspend fun Sitting.holdProgram(
     while (true) {
         val held = hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)
         if (held !is Held.Transport) return held
-        val behindPlay = BehindPlay(this, scope, block, play, visiting, play.timings.route)
+        val behindPlay = BehindPlay(this, block, play, visiting, play.timings.route)
         behind = behindPlay
         val ended =
             try {
@@ -101,17 +100,16 @@ internal sealed interface BehindEnd {
  * [LiveTimings.flipReleaseFallback] when no release comes. A settled target at the live position, while the block is
  * still on air, is live again.
  *
- * Its state is written by the loop and by the event collector, both on the sitting's dispatcher; the fields the
- * collector reads or writes are `@Volatile` as well, so a multi-threaded dispatcher still sees each write.
+ * Single writer: the play's events are only forwarded by their collector, into [events], and its loop takes them
+ * with the ops and the timers, so all its state is written there (or by the banner's linger, in the same scope). It is
+ * confined to the sitting's dispatcher; only what [pausedPlace] reads from outside is `@Volatile`.
  *
  * It holds the one subscription to the play's events, which drive the [visiting] reports. [visiting] is null when the
  * play is not reported (or, from Task 10, for a stand-in). [route] is the play's route, for the seek line (Task 11).
  */
-@Suppress("LongParameterList", "TooManyFunctions") // The sitting, the block's scope, the block and its play, its visit
-// and route; one function per transport op and state change.
+@Suppress("TooManyFunctions") // One function per transport op and state change.
 internal class BehindPlay(
     private val sitting: Sitting,
-    private val scope: CoroutineScope,
     private val block: AiringBlock,
     private val play: TuneOutcome.Playing,
     private val visiting: Visiting?,
@@ -131,12 +129,9 @@ internal class BehindPlay(
     /** The media position last known (a read, or the last Paused or SeekDone event), and the clock time it was so. */
     @Volatile
     private var knownMs = inPointMs
-
-    @Volatile
     private var knownAtMs = 0L
 
     /** Whether the transport view shows: while paused, and for [LiveTimings.bannerLinger] after Play or a step. */
-    @Volatile
     private var visible = true
     private var linger: Job? = null
 
@@ -149,12 +144,17 @@ internal class BehindPlay(
     /** Which SeekDone is the latest seek's, and whether the visit's watched time is stopped for one. */
     private val seeks = SeekTracker(timings.seekLandingSlack.inWholeMilliseconds)
 
-    /** Set while the seek back to live is in flight: once it is done, the viewer is live. */
-    @Volatile
-    private var goingLive: CompletableDeferred<Unit>? = null
+    /**
+     * The clock time (epoch ms) the seek back to live went out, while it is in flight (null otherwise): once its own
+     * SeekDone comes the viewer is live, and it is waited for [LiveTimings.goLiveWait] at most.
+     */
+    private var liveSinceMs: Long? = null
 
-    /** The clock time (epoch ms) the seek back to live went out: it is waited for [LiveTimings.goLiveWait] at most. */
-    private var liveSinceMs = 0L
+    /** The play's events, forwarded by their one collector for the loop to take in order. */
+    private val events = Channel<PlayerEvent>(Channel.UNLIMITED)
+
+    /** The scope of [run]: the banner's linger runs in it, so it ends with the behind play. */
+    private var runScope: CoroutineScope? = null
 
     /** Runs from the live play's [first] op (or a kept [from] place, Task 12) until the item ends, live, or an exit. */
     suspend fun run(
@@ -162,8 +162,9 @@ internal class BehindPlay(
         from: Place? = null,
     ): BehindEnd =
         coroutineScope {
+            runScope = this
             // The one subscription, made before the first transport call: the events carry no replay.
-            launch(start = CoroutineStart.UNDISPATCHED) { play.control.events.collect(::onEvent) }
+            launch(start = CoroutineStart.UNDISPATCHED) { play.control.events.collect { events.trySend(it) } }
             try {
                 if (from != null) {
                     known(from.mediaMs)
@@ -177,6 +178,8 @@ internal class BehindPlay(
                 }
             } finally {
                 linger?.cancel()
+                // Events already in are still told to the visit (a Resumed after the live seek's SeekDone, say).
+                while (true) onEvent(events.tryReceive().getOrNull() ?: break)
                 // A seek still open is closed at the best-known place, so the visit's watched time runs on after us.
                 seeks.close(knownMs)?.let { visiting?.seeked(it) }
                 sitting.state.transport.value = null
@@ -199,7 +202,7 @@ internal class BehindPlay(
         if (first != null) {
             act(first)
             // A first op that changed nothing (a step the play cannot take) leaves the viewer live.
-            val still = !paused && steps.target == null && !seeks.inFlight && goingLive == null
+            val still = !paused && steps.target == null && !seeks.inFlight && liveSinceMs == null
             if (still) return BehindEnd.Live(play)
         }
         val ended = within.async { play.end.firstOrNull() ?: PlaybackEnd.Ended }
@@ -222,14 +225,13 @@ internal class BehindPlay(
             // floor put under it, so a hold that keeps running short near the cut never spins.
             val dueMs = leftMs?.let { if (firedShort) maxOf(it, rearmMinMs) else it }
             val settleMs = steps.dueAtMs?.let { maxOf(0L, it - nowMs()) }
-            val landed = goingLive
-            val liveMs = landed?.let { maxOf(0L, liveSinceMs + goLiveWaitMs - nowMs()) }
+            val liveMs = liveSinceMs?.let { maxOf(0L, it + goLiveWaitMs - nowMs()) }
             val waitMs = listOfNotNull(dueMs, settleMs, liveMs).minOrNull()
             val woke =
                 select {
                     ended.onAwait { Wake.End(it) }
                     next.onAwait { Wake.Op(it) }
-                    landed?.onAwait { Wake.Landed }
+                    events.onReceive { Wake.Event(it) }
                     if (waitMs != null) onTimeout(waitMs) { timedOut() }
                 }
             firedShort = woke is Wake.Due
@@ -249,9 +251,12 @@ internal class BehindPlay(
                     settle()
                 }
 
-                Wake.Landed -> {
-                    sitting.reportLostOp(next, "transport-lost-at-live")
-                    return BehindEnd.Live(play)
+                // The live seek's own SeekDone: live.
+                is Wake.Event -> {
+                    if (onEvent(woke.event)) {
+                        sitting.reportLostOp(next, "transport-lost-at-live")
+                        return BehindEnd.Live(play)
+                    }
                 }
 
                 // The live seek's SeekDone never came: live at the known place (run closes the seek there).
@@ -280,7 +285,7 @@ internal class BehindPlay(
     }
 
     private suspend fun pause() {
-        goingLive = null
+        liveSinceMs = null
         seeks.cancelLive()
         read()
         play.control.pause()
@@ -305,7 +310,7 @@ internal class BehindPlay(
     private suspend fun step(op: TransportOp.Step) {
         if (!play.control.seekable()) return
         if (!steps.key(op.repeat, op.atMs)) return
-        goingLive = null
+        liveSinceMs = null
         seeks.cancelLive()
         val fromMs = steps.target?.toMs ?: read()
         val liveMs = TransportMath.liveMs(block, sitting.vnowMs())
@@ -350,7 +355,6 @@ internal class BehindPlay(
         if (liveMs >= cutMs) return false
         steps.drop()
         linger?.cancel()
-        goingLive = CompletableDeferred()
         sitting.state.transport.value = null
         seek(liveMs, live = true)
         liveSinceMs = nowMs()
@@ -363,9 +367,8 @@ internal class BehindPlay(
 
     /**
      * One absolute seek to [toMs]. The watched span closes at the player's own position, read just before, so both
-     * ends of the seek are in the player's coordinates; its SeekDone reports where it landed. The read may suspend, so
-     * this seek is only made the one a SeekDone is matched to after it: one that comes meanwhile is the earlier seek's.
-     * A [live] seek is the one whose SeekDone ends the way back to live.
+     * ends of the seek are in the player's coordinates; its SeekDone reports where it landed. A [live] seek is the one
+     * whose SeekDone ends the way back to live.
      */
     private suspend fun seek(
         toMs: Long,
@@ -384,7 +387,7 @@ internal class BehindPlay(
         publish()
         linger?.cancel()
         linger =
-            scope.launch {
+            runScope?.launch {
                 delay(timings.bannerLinger)
                 visible = false
                 publish()
@@ -394,7 +397,7 @@ internal class BehindPlay(
     /** What a timed-out wait was for: the live seek's wait first, then the settle, else the media-time hold. */
     private fun timedOut(): Wake =
         when {
-            goingLive != null && nowMs() >= liveSinceMs + goLiveWaitMs -> Wake.LiveUnmatched
+            liveSinceMs?.let { nowMs() >= it + goLiveWaitMs } == true -> Wake.LiveUnmatched
             steps.isDue() -> Wake.Settle
             else -> Wake.Due
         }
@@ -431,7 +434,8 @@ internal class BehindPlay(
         knownAtMs = nowMs()
     }
 
-    private fun onEvent(event: PlayerEvent) {
+    /** Takes one of the play's events; true when it is the live seek's own SeekDone while going back to live. */
+    private fun onEvent(event: PlayerEvent): Boolean {
         when (event) {
             is PlayerEvent.Paused -> {
                 val at = event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN }
@@ -457,20 +461,24 @@ internal class BehindPlay(
             }
 
             is PlayerEvent.SeekDone -> {
-                seekDone(event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN })
+                return seekDone(event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN })
             }
 
             else -> {}
         }
+        return false
     }
 
-    /** A `SeekDone` at [at] (null: not known): reported, and the way back to live ended, only when it is the latest. */
-    private fun seekDone(at: Long?) {
-        val landing = seeks.onSeekDone(at) ?: return
+    /**
+     * A `SeekDone` at [at] (null: not known): reported only when it is the latest seek's. True when that is the live
+     * seek while still going back to live.
+     */
+    private fun seekDone(at: Long?): Boolean {
+        val landing = seeks.onSeekDone(at) ?: return false
         landing.positionMs?.let(::known)
         if (landing.report) visiting?.seeked(landing.atMs)
-        if (landing.live) goingLive?.complete(Unit)
         publish()
+        return landing.live && liveSinceMs != null
     }
 
     /** Logs a stepped target that was never sought, because the cut or the play's end came first. */
@@ -492,7 +500,7 @@ internal class BehindPlay(
 
     private fun publish() {
         // Going back to live: the view is gone, and stays gone.
-        if (goingLive != null) return
+        if (liveSinceMs != null) return
         sitting.state.transport.value =
             TransportView(
                 paused = paused,
@@ -525,8 +533,10 @@ internal class BehindPlay(
         /** The pending target's settle time came with the key still down. */
         data object Settle : Wake
 
-        /** The seek back to live is done. */
-        data object Landed : Wake
+        /** One of the play's events. */
+        data class Event(
+            val event: PlayerEvent,
+        ) : Wake
 
         /** The seek back to live was not done within [LiveTimings.goLiveWait]. */
         data object LiveUnmatched : Wake

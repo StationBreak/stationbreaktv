@@ -259,7 +259,7 @@ internal class Sitting(
                 when (outcome) {
                     is TuneOutcome.Playing -> {
                         val from = asked.inWholeMilliseconds
-                        when (val held = holdReporting(scope, block, program, outcome, visiting, from)) {
+                        when (val held = holdReporting(block, program, outcome, visiting, from)) {
                             // Caught up: the visit is left (by the caller) and the sitting follows what is on now.
                             Held.Boundary, is Held.CaughtUp -> {
                                 return null

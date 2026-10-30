@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
-import kotlinx.coroutines.CoroutineScope
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.ItemId
@@ -71,9 +70,7 @@ internal class Visiting(
  * nothing here waits on the server). Slates, idents and stand-ins never come here. The caller leaves [visiting] when
  * the block ends.
  */
-@Suppress("LongParameterList") // The block's scope, the block and its program, the play, the visit and its start.
 internal suspend fun Sitting.holdReporting(
-    scope: CoroutineScope,
     block: AiringBlock,
     program: Airing.Program,
     outcome: TuneOutcome.Playing,
@@ -81,11 +78,11 @@ internal suspend fun Sitting.holdReporting(
     fromMs: Long,
 ): Held {
     val facts = outcome.report
-    if (reporter == null || facts == null) return holdProgram(scope, block, outcome, null)
+    if (reporter == null || facts == null) return holdProgram(block, outcome, null)
     val item = ItemId(program.itemId.value)
     val target = ReportTarget(item, facts.sourceId, facts.playSessionId, facts.playMethod, facts.runtime)
     visiting.playing(fromMs) { it.visit(sittingId, AiringKey(channel, block.startMs, item), target, fromMs) }
-    val held = holdProgram(scope, block, outcome, visiting)
+    val held = holdProgram(block, outcome, visiting)
     if (held is Held.Failed) visiting.failedPlay(held.positionMs ?: -1)
     return held
 }
