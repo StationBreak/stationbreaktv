@@ -6,11 +6,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -213,40 +211,43 @@ internal class Flipper(
     }
 
     /**
-     * Handles [commands] until the flow ends; a settle still pending carries on in the run's scope. A command that
-     * fails is dropped, not fatal. [overlay] sees every command first: the overlays' commands are its alone, and a
-     * flip's key also keeps the actions banner up.
+     * One command, at once (nothing here suspends; a settle carries on in the run's scope). [overlay] sees it first:
+     * the overlays' commands are its alone, and a flip's key also keeps the actions banner up. A command that throws
+     * is dropped, not fatal.
      */
-    suspend fun follow(
-        commands: Flow<LiveCommand>,
+    fun handle(
+        command: LiveCommand,
         overlay: (LiveCommand) -> Unit = {},
-    ) = coroutineScope {
-        commands.collect { command ->
-            try {
-                overlay(command)
-                when (command) {
-                    is LiveCommand.Flip -> flip(command)
+    ) = guarded {
+        overlay(command)
+        when (command) {
+            is LiveCommand.Flip -> flip(command)
 
-                    LiveCommand.FlipReleased -> released()
+            LiveCommand.FlipReleased -> released()
 
-                    LiveCommand.Previous -> recall()
+            LiveCommand.Previous -> recall()
 
-                    is LiveCommand.Tune -> tune(command.channel)
+            is LiveCommand.Tune -> tune(command.channel)
 
-                    LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
+            LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
 
-                    // The sitting's inbox takes these (LiveChannel.routeTransport), not the flipper.
-                    LiveCommand.PlayPause, LiveCommand.Play, LiveCommand.Pause, is LiveCommand.Seek,
-                    LiveCommand.SeekReleased, LiveCommand.GoLive,
-                    -> Unit
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (
-                @Suppress("TooGenericExceptionCaught") e: Exception,
-            ) {
-                failed(e)
-            }
+            // The sitting's inbox takes these (LiveChannel.routeTransport), not the flipper.
+            LiveCommand.PlayPause, LiveCommand.Play, LiveCommand.Pause, is LiveCommand.Seek,
+            LiveCommand.SeekReleased, LiveCommand.GoLive,
+            -> Unit
+        }
+    }
+
+    /** Runs [block], one command's work: if it throws, the command is dropped with a line, never fatal to the run. */
+    fun guarded(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            failed(e)
         }
     }
 

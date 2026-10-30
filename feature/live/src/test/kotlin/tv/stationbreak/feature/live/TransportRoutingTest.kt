@@ -49,6 +49,27 @@ class TransportRoutingTest {
         }
 
     @Test
+    fun aPauseQueuedBehindAFlipIsDroppedAndTheChannelIsNotPausedOnReturn() =
+        runTest {
+            val f = flipping()
+            // Both in one batch: the pause is taken in order, after the flip has put the number up.
+            f.keys.trySend(LiveCommand.Flip(FlipDirection.Up))
+            f.keys.trySend(LiveCommand.PlayPause)
+            runCurrent()
+            assertEquals(listOf("press dropped reason=transport-not-watching state=Choosing"), f.r.dropped())
+            // Back down to the channel it started on, and let it settle.
+            f.send(LiveCommand.Flip(FlipDirection.Down))
+            f.send(LiveCommand.FlipReleased)
+            advanceTimeBy(3.seconds)
+            runCurrent()
+            assertTrue(
+                f.r.tune.controls
+                    .none { (_, control) -> "pause" in control.calls },
+            )
+            assertNull(f.r.live.transport.value)
+        }
+
+    @Test
     fun aTransportPressOnTheIdentIsDropped() =
         runTest {
             val r = Rig(this)

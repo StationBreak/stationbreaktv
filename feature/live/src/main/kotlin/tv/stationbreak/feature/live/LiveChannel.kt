@@ -302,27 +302,27 @@ class LiveChannel(
     }
 
     /**
-     * Follows the viewer's [commands] in [scope]: transport presses go to the sitting's inbox as they come, never
-     * queued behind the flipper's work (ADR-0021, 9); everything else goes on to the flipper (and the overlays), in
-     * order.
+     * Follows the viewer's [commands] in [scope], one at a time and in order: a transport press goes straight to the
+     * sitting's inbox (ADR-0021, 9: not through the flipper), everything else to the flipper's handler (and the
+     * overlays). Neither suspends, so a transport press never waits on anything that does, and a press queued behind a
+     * flip sees the screen that flip left (the number up: dropped). A command that throws is dropped, as the flipper
+     * drops its own.
      */
     private fun follow(
         scope: CoroutineScope,
         commands: Flow<LiveCommand>,
         flipper: Flipper,
     ) {
-        val toFlipper = Channel<LiveCommand>(Channel.UNLIMITED)
         scope.launch {
-            try {
-                commands.collect { command ->
-                    val op = transportOp(command)
-                    if (op != null) routeTransport(op) else toFlipper.send(command)
+            commands.collect { command ->
+                val op = transportOp(command)
+                if (op != null) {
+                    flipper.guarded { routeTransport(op) }
+                } else {
+                    flipper.handle(command) { overlays.handle(it, scope) }
                 }
-            } finally {
-                toFlipper.close()
             }
         }
-        scope.launch { flipper.follow(toFlipper.receiveAsFlow()) { overlays.handle(it, scope) } }
     }
 
     /** The sitting's op for a transport press; null for any other command (the flipper's or an overlay's). */
