@@ -21,12 +21,18 @@ import kotlin.time.Duration
  * Decides how to play an item from the server's answer and the device's [capabilities]. It asks the server once,
  * chooses one of its sources (see [choose]), and picks the cheapest route the client agrees with. The client overrules
  * the server's `SupportsDirectPlay` where the chosen audio could not be decoded here or the subtitle is burned in
- * (ADR-0016, 8). A forced transcode that names a [prefer]red source (the one that just failed) transcodes that one.
+ * (ADR-0016, 8). A [prefer]red source that is in the answer is the only one resolved.
  */
 class PlaybackResolver(
     private val server: MediaServer,
     private val capabilities: () -> DeviceCapabilities,
 ) {
+    /**
+     * Resolves [item]. When [prefer] names a source in the answer, only that one is resolved (a fallback transcodes the
+     * version that just failed, not the first, which may be the heaviest); otherwise the choice is [choose]'s. A caller
+     * that passes a [TrackOverride] should pass [prefer] (the current `media.id`), because its indices are one
+     * source's stream indices and must keep meaning the same tracks.
+     */
     @Suppress("LongParameterList") // One call's context.
     suspend fun resolve(
         session: Session,
@@ -53,8 +59,7 @@ class PlaybackResolver(
         forceTranscode: Boolean,
         prefer: MediaSourceId?,
     ): ServerResult<ResolvedPlayback> {
-        // A fallback transcodes the version that just failed, not the first (which may be the heaviest, e.g. 4K).
-        val preferred = if (forceTranscode && prefer != null) info.sources.filter { it.id == prefer } else emptyList()
+        val preferred = if (prefer != null) info.sources.filter { it.id == prefer } else emptyList()
         val sources = preferred.ifEmpty { info.sources }
         val candidates = sources.map { resolveSource(info, it, limits, start, override, forceTranscode) }
         val resolved = choose(candidates, limits)

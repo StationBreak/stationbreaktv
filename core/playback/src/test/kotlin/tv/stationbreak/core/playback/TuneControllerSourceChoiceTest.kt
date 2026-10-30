@@ -49,11 +49,4 @@ class TuneControllerSourceChoiceTest {
             assertEquals(MediaSourceId("hd"), outcome.resolved.media.id)
             assertEquals("https://media.example.com/hls/hd", player.played.last().url)
         }
-
-    @Test
-    fun aForcedTranscodeWithNoPriorChoiceUsesTheFirstVersion() =
-        runTest {
-            val result = resolver.resolve(session, item, Duration.ZERO, null, forceTranscode = true)
-            assertEquals(MediaSourceId("uhd"), assertIs<ServerResult.Success<ResolvedPlayback>>(result).value.media.id)
-        }
 }
