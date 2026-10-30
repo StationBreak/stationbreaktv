@@ -171,11 +171,11 @@ class WatchLedgerTest {
         l.enterAt(a, 0, 0)
         l.pause(min(4), media(4.0))
         l.seeking(min(5))
-        l.seeked(min(6), media(20.0))
+        l.seeked(min(6), media(1.0))
         l.unpause(min(7))
         l.leave(min(10))
-        // 0-4 before the pause, then 20-23 after the seek and the unpause: the pause and seek time count nothing.
-        assertEquals(7.minutes, l.watched(a, min(10)))
+        // 0-4 before the pause, then 1-4 again after the seek and the unpause: all already watched, so 4 in all.
+        assertEquals(4.minutes, l.watched(a, min(10)))
     }
 
     @Test
@@ -184,10 +184,10 @@ class WatchLedgerTest {
         l.enterAt(a, 0, 0)
         l.seeking(min(2))
         l.stall(min(3), null)
-        l.seeked(min(4), media(10.0))
+        l.seeked(min(4), media(1.0))
         l.resumed(min(5), null)
         l.leave(min(8))
-        // 0-2 before the seek, then 10-13 once the stall is over.
-        assertEquals(5.minutes, l.watched(a, min(8)))
+        // 0-2 before the seek, then 1-4 once the stall is over: 1-2 is already watched, so 4 in all.
+        assertEquals(4.minutes, l.watched(a, min(8)))
     }
 }

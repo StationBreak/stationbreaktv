@@ -54,6 +54,7 @@ internal class RecordingServer(
     var stopHangs = false
     var progressHangs = false
     var userDataThrows = false
+    var startResult: ServerResult<Unit> = ServerResult.Success(Unit)
     var progressResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     override suspend fun reportStart(
@@ -61,7 +62,7 @@ internal class RecordingServer(
         report: PlaybackReport,
     ): ServerResult<Unit> {
         calls += Call("start", now(), report.itemId.value, report.position.inWholeMilliseconds)
-        return ServerResult.Success(Unit)
+        return startResult
     }
 
     override suspend fun reportProgress(

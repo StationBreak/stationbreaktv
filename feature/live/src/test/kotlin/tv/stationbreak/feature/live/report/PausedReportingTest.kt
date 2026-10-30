@@ -111,6 +111,32 @@ class PausedReportingTest {
         }
 
     @Test
+    fun aLeaveAfterAFailedFreshPlayingStillSendsAFailedStop() =
+        runTest {
+            val rig = Rig(this)
+            rig.playing()
+            rig.reporter.paused()
+            rig.at(465_000)
+            rig.server.startResult = ServerResult.Failure(MediaServerError.Timeout())
+            rig.reporter.unpaused()
+            rig.at(465_000)
+            assertEquals(Call("start", 465_000, "a", 7_000), rig.calls.last())
+            rig.reporter.leave()
+            rig.at(470_000)
+            assertEquals(Call("stopped", 465_000, "a", 7_000, failed = true), rig.calls.last())
+        }
+
+    @Test
+    fun aPausedCheckInLogsOnlyLabelsAndNumbers() =
+        runTest {
+            val rig = Rig(this)
+            rig.playing()
+            rig.reporter.paused()
+            rig.at(60_000)
+            assertTrue(rig.lines.contains("report progress paused=1 pos=7000"))
+        }
+
+    @Test
     fun aSessionErrorStillHaltsWhilePaused() =
         runTest {
             val rig = Rig(this)

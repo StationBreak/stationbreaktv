@@ -102,7 +102,12 @@ internal class ReportWorker(
         var userRead = false
         var resume: Duration = Duration.ZERO
         var userPlayed = false
+
+        /** True once a Playing was ever sent in this visit, so a leave sends Stopped. */
         var started = false
+
+        /** True after a silence ended in a Play: the next check-in is a fresh Playing, not a Progress. */
+        var needsFreshStart = false
 
         /** When the viewer paused, while paused. */
         var pausedAt: Instant? = null
@@ -208,7 +213,7 @@ internal class ReportWorker(
                 ledger.unpause(event.at)
                 // After the silence the server has let the session go: a fresh Playing now, then the cadence.
                 if (v.silent) {
-                    v.started = false
+                    v.needsFreshStart = true
                     post(ReportEvent.Tick(v.id, event.at))
                 }
                 v.pausedAt = null
@@ -287,13 +292,14 @@ internal class ReportWorker(
     private suspend fun checkIn(v: OpenVisit) {
         if (!v.userRead && !readUserData(v)) return
         val position = v.safePosition(ledger.isMarked(v.key))
-        if (v.started) {
+        if (v.started && !v.needsFreshStart) {
             val paused = v.pausedAt != null
             if (calls.call { server.reportProgress(session, v.report(position, paused)) } != null) {
-                log("report progress pos=${position.inWholeMilliseconds}")
+                log("report progress ${if (paused) "paused=1 " else ""}pos=${position.inWholeMilliseconds}")
             }
         } else if (calls.call { server.reportStart(session, v.report(position)) } != null) {
             v.started = true
+            v.needsFreshStart = false
             log("report start pos=${position.inWholeMilliseconds}")
         }
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -89,6 +90,7 @@ class LiveChannel(
 
     // The running run's reporter, so that [leave] can end its reporting before the run's own teardown gets to it.
     @Volatile
+    @VisibleForTesting
     internal var reporting: PlaybackReporter? = null
         private set
 
