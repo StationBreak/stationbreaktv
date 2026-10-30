@@ -2,6 +2,7 @@
 package tv.stationbreak.app.di
 
 import android.content.Context
+import android.util.Log
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,9 +20,12 @@ import tv.stationbreak.data.library.CollectionRelist
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.HistoryRetention
 import tv.stationbreak.data.library.RoomLibraryRepository
+import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.library.WorkManagerFirstSync
 import javax.inject.Singleton
 import kotlin.time.Clock
+
+private const val SYNC_TAG = "Sync"
 
 /**
  * The saved library (F0.6, spec 06 Unit 2): the Room-backed repository behind the [LibraryRepository] port, and the
@@ -79,4 +83,17 @@ internal object LibraryModule {
         server: MediaServer,
         repository: RoomLibraryRepository,
     ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
+
+    /**
+     * The one stay-current for the process, so the open trigger, the on-open work and the periodic job share one runner
+     * and its one gate (spec 06 Unit 4). The `Application` and the worker both reach it through the graph (see
+     * [StationBreakApp.FirstSyncEntryPoint]). It is built over the stores the first-sync runner reads, so the two
+     * cannot disagree about whose library it is.
+     */
+    @Provides
+    @Singleton
+    fun stayCurrent(
+        @ApplicationContext context: Context,
+        firstSync: FirstSyncRunner,
+    ): StayCurrent = StayCurrent.create(context, firstSync) { Log.i(SYNC_TAG, it) }
 }

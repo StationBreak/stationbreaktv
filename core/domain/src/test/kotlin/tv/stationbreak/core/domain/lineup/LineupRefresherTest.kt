@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -49,6 +51,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+@Suppress("LargeClass") // One function per trigger and rule of the refresher, over one shared set of fixtures.
 class LineupRefresherTest {
     private val library = CountingLibrary().apply { seed(fillingLibrary()) }
 
@@ -482,6 +485,87 @@ class LineupRefresherTest {
             assertEquals(generation, savedMeta().plannedGeneration, "its last write too")
             assertEquals(pass.toEpochMilliseconds(), savedMeta().collectionPassActedOn)
         }
+
+    // The first sync and the stay-current runs are two runners behind one signal (#480): the refresher cannot tell
+    // which of them is writing.
+    @Test
+    fun aFirstSyncIsHeldAndTakenInByOneRefreshWhenItStops() =
+        runBlocking<Unit> {
+            val firstSync = MutableStateFlow(false)
+            val before = startCurrentWith(firstSync, MutableStateFlow(false))
+
+            firstSync.value = true
+            library.delegate.noteContentChange(ACCOUNT)
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T10:00:00Z")))
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:01:00Z"))
+            library.delegate.noteContentChange(ACCOUNT)
+            settle()
+            assertEquals(before, refreshes, "nothing is planned while the first sync writes")
+
+            firstSync.value = false
+            until("refreshed when the first sync stopped") { refreshes == before + 1 }
+            settle()
+            assertEquals(before + 1, refreshes, "one refresh for the whole first sync")
+        }
+
+    @Test
+    fun twoRunnersWritingOneAfterTheOtherAreOneRefresh() =
+        runBlocking<Unit> {
+            val firstSync = MutableStateFlow(false)
+            val stayCurrent = MutableStateFlow(false)
+            val before = startCurrentWith(firstSync, stayCurrent)
+
+            // The second starts before the first has stopped: the writing never stops in between.
+            firstSync.value = true
+            library.delegate.noteContentChange(ACCOUNT)
+            stayCurrent.value = true
+            firstSync.value = false
+            library.delegate.noteContentChange(ACCOUNT)
+            settle()
+            assertEquals(before, refreshes, "held while either writes")
+
+            stayCurrent.value = false
+            until("refreshed when both had stopped") { refreshes == before + 1 }
+            settle()
+            assertEquals(before + 1, refreshes, "one refresh for both")
+        }
+
+    @Test
+    fun theCombinedSignalGivesItsCurrentValueFirstAndStaysOnWhileEitherWrites() =
+        runBlocking<Unit> {
+            val firstSync = MutableStateFlow(true)
+            val stayCurrent = MutableStateFlow(false)
+            val seen = mutableListOf<Boolean>()
+
+            @Suppress("InjectDispatcher") // A test: Unconfined sees each value as it is set.
+            val watching =
+                launch(Dispatchers.Unconfined) {
+                    eitherWriting(firstSync, stayCurrent).writing().collect { seen += it }
+                }
+            stayCurrent.value = true
+            firstSync.value = false
+            stayCurrent.value = false
+            watching.cancel()
+
+            assertEquals(listOf(true, false), seen.distinct(), "on from the start, off only when both stopped")
+            assertEquals(false, seen.last())
+        }
+
+    // A current lineup and a refresher listening to [firstSync] and [stayCurrent]; returns the refreshes so far.
+    private suspend fun startCurrentWith(
+        firstSync: MutableStateFlow<Boolean>,
+        stayCurrent: MutableStateFlow<Boolean>,
+    ): Int {
+        library.delegate.setCollectionsSynced(ACCOUNT, true)
+        library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T09:00:00Z"))
+        service.refresh(ACCOUNT, LIBRARIES)
+        val before = refreshes
+        LineupRefresher(service, library, { libraries }, eitherWriting(firstSync, stayCurrent)) { events += it }
+            .start(scope)
+        settle()
+        assertEquals(before, refreshes, "current at start")
+        return before
+    }
 
     @Test
     fun aSyncRunThatChangedNothingRefreshesNothingAndRecordsItsPass() =

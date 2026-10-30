@@ -22,7 +22,6 @@ import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.library.StayCurrentProvider
 
 private const val LINEUP_TAG = "Lineup"
-private const val SYNC_TAG = "Sync"
 
 /**
  * The Hilt root. The bindings live in `di/`; the server screen's ViewModel consumes `MediaServer` (F0.5).
@@ -42,16 +41,14 @@ class StationBreakApp :
     internal interface FirstSyncEntryPoint {
         fun firstSyncRunner(): FirstSyncRunner
 
+        fun stayCurrent(): StayCurrent
+
         fun lineupRefresher(): LineupRefresher
 
         fun scheduleWarmer(): ScheduleWarmer
 
         fun deviceCapabilities(): DeviceCapabilitiesCache
     }
-
-    // One object for the whole process, so the open trigger, the on-open work and the periodic job share one gate. It
-    // is built over the stores the first-sync runner reads, which keeps the graph the tests replace as it is.
-    private val stayCurrent: StayCurrent by lazy { StayCurrent.create(this, firstSyncRunner()) { Log.i(SYNC_TAG, it) } }
 
     // Each time the app comes to the foreground (a launch, or returning from Home) keep the saved library current,
     // quietly (spec 06 Unit 4). Off the main thread; a configuration change does not fire it.
@@ -62,7 +59,7 @@ class StationBreakApp :
         // escapes is logged by name and does not crash the process.
         val failed = lineupFailureHandler { Log.w(LINEUP_TAG, it) }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
-        ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent.onOpen() })
+        ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent().onOpen() })
         // The schedule's days are built ahead from the first time the app is in the foreground, not at process start:
         // a process WorkManager starts for the periodic sync has no screen and needs no day (#434). Coming back from
         // standby later, the warmer's waits did not run, so it looks again now.
@@ -99,8 +96,10 @@ class StationBreakApp :
         }
     }
 
-    override fun firstSyncRunner(): FirstSyncRunner =
-        EntryPointAccessors.fromApplication(this, FirstSyncEntryPoint::class.java).firstSyncRunner()
+    private fun graph() = EntryPointAccessors.fromApplication(this, FirstSyncEntryPoint::class.java)
 
-    override fun stayCurrent(): StayCurrent = stayCurrent
+    override fun firstSyncRunner(): FirstSyncRunner = graph().firstSyncRunner()
+
+    // The graph's one, so the open trigger, the on-open work and the periodic job share one runner and its gate.
+    override fun stayCurrent(): StayCurrent = graph().stayCurrent()
 }
