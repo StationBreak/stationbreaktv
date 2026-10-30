@@ -50,7 +50,26 @@ internal class TuneWhat(
     val position: Duration,
 )
 
-/** How a play that had started ended, or what the viewer asked of it, as [Sitting.hold] sees it. */
+/** How the live hold ([Sitting.hold]) ended: how the play ended, or a transport op that starts a behind play. */
+internal sealed interface LiveHold {
+    /** The block's end came first: the play is cut there. */
+    data object Boundary : LiveHold
+
+    /** The media played to its end inside the block. */
+    data object Ended : LiveHold
+
+    /** The play broke; [positionMs] is where the player says it failed, null when it could not say. */
+    data class Failed(
+        val positionMs: Long?,
+    ) : LiveHold
+
+    /** The viewer paused or stepped back on the live play: [op] starts the behind play. */
+    data class Transport(
+        val op: TransportOp,
+    ) : LiveHold
+}
+
+/** How a program's play ended ([Sitting.holdProgram]): live or behind, every transport op already run. */
 internal sealed interface Held {
     /** The block's end came first: the play is cut there. */
     data object Boundary : Held
@@ -61,11 +80,6 @@ internal sealed interface Held {
     /** The play broke; [positionMs] is where the player says it failed, null when it could not say. */
     data class Failed(
         val positionMs: Long?,
-    ) : Held
-
-    /** The viewer paused or stepped back on the live play: [op] starts the behind play. */
-    data class Transport(
-        val op: TransportOp,
     ) : Held
 
     /** A behind play reached its item's end: catch up (Task 9 fills [catchUp]; null until then). */
@@ -278,10 +292,6 @@ internal class Sitting(
                             is Held.Exited -> {
                                 return held.exit
                             }
-
-                            is Held.Transport -> {
-                                error("holdProgram runs every transport op")
-                            }
                         }
                     }
 
@@ -374,8 +384,8 @@ internal class Sitting(
      * a failure is reported with its numbers (#392).
      *
      * With a [blockStartMs] (a program's block), it also takes the viewer's transport ops for that block: Play/Pause
-     * and Pause return [Held.Transport], as does a back step when [control] can seek; the rest mean nothing while live.
-     * Without one (stand-ins, until Task 10) it takes no ops.
+     * and Pause return [LiveHold.Transport], as does a back step when [control] can seek; the rest mean nothing while
+     * live. Without one (stand-ins, until Task 10) it takes no ops.
      */
     @Suppress("LongParameterList") // The play's three flows and handle, the block's end and its tag.
     suspend fun hold(
@@ -385,7 +395,7 @@ internal class Sitting(
         reporting: Boolean,
         control: PlayControl,
         blockStartMs: Long?,
-    ): Held {
+    ): LiveHold {
         val left = untilMs - vnowMs()
         val woke =
             if (left <= 0) {
@@ -397,22 +407,22 @@ internal class Sitting(
                     watchNotes(notes, reportTo, drain = { it is Woke.End }) { endOrOp(end, control, blockStartMs) }
                 }
             }
-        if (woke is Woke.Op) return Held.Transport(woke.op)
+        if (woke is Woke.Op) return LiveHold.Transport(woke.op)
         val ended = (woke as? Woke.End)?.end
         if (ended is PlaybackEnd.Failed) report(TuneReport.HeldFailed(ended))
         if (ended == null) waitUntil(untilMs)
         return when {
             ended == null || vnowMs() >= untilMs -> {
                 cutFrom = clock.now()
-                Held.Boundary
+                LiveHold.Boundary
             }
 
             ended is PlaybackEnd.Failed -> {
-                Held.Failed(ended.positionMs.takeIf { it >= 0 })
+                LiveHold.Failed(ended.positionMs.takeIf { it >= 0 })
             }
 
             else -> {
-                Held.Ended
+                LiveHold.Ended
             }
         }
     }

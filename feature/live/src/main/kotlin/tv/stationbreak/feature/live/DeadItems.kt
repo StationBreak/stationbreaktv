@@ -75,8 +75,8 @@ private suspend fun Sitting.fillIn(
                     // A piece that ends at its own end is not a failure: the next piece (or the schedule) follows.
                     // No block start: a stand-in takes no transport ops until Task 10.
                     val held = hold(piece.endMs, outcome.end, outcome.notes, false, outcome.control, null)
-                    if (held == Held.Boundary && piece.endMs >= block.endMs) return null
-                    held != Held.Boundary
+                    if (held == LiveHold.Boundary && piece.endMs >= block.endMs) return null
+                    held != LiveHold.Boundary
                 }
 
                 is TuneOutcome.Dead -> {

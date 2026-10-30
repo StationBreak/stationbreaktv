@@ -35,8 +35,13 @@ internal suspend fun Sitting.holdProgram(
 ): Held {
     var play = first
     while (true) {
-        val held = hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)
-        if (held !is Held.Transport) return held
+        val held =
+            when (val live = hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)) {
+                LiveHold.Boundary -> return Held.Boundary
+                LiveHold.Ended -> return Held.Ended
+                is LiveHold.Failed -> return Held.Failed(live.positionMs)
+                is LiveHold.Transport -> live
+            }
         val behindPlay = BehindPlay(behindHost(), block, play, visiting, play.timings.route)
         behind = behindPlay
         val ended =
