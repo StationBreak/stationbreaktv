@@ -22,11 +22,15 @@ The owner decisions of 2026-10-24:
   starts at the schedule's current position for it.
 - The schedule itself never moves. Every TV keeps agreeing on what is on.
 
-Two more, from the open points:
+Three more, from the open points:
 
 - 2026-10-29: a paused place is kept for **60 minutes** after the screen stops.
 - 2026-10-30: **Back reaches the start of the item** (the block's in-point), even if the viewer tuned in halfway, so any
   show can be restarted and reach 90% watched. It is not limited to the join point.
+- 2026-10-30: an untended pause must let the device sleep: the app releases the screen while paused, and the device's
+  own screensaver, ambient and sleep settings take over, so the TV can turn itself off. The hold is configurable. After
+  it, a return **joins live, playing** (like turning a cable box back on); within it, the viewer gets the paused place,
+  still paused. The app never wakes the device or resumes play on its own.
 
 Three things were unproven: whether pause check-ins are safe for user data (ADR-0018 did not test pausing), what an
 idle transcode does while paused, and what a seek on a Jellyfin transcode costs. Spike SP-7 answers them.
