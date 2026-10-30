@@ -17,8 +17,8 @@ import kotlin.time.Instant
 
 /**
  * The contract the day build's caches stand on (#392, #480): `ruleSnapshot`'s output depends only on the account, the
- * libraries, the cut-off, and what `contentGeneration` reports (the in-memory cache also keys on
- * `collectionPassCompleted`, which only makes its key finer). Today `collectionsSynced` comes from
+ * libraries, the cut-off, and what `contentGeneration` reports; both caches (the in-memory one and the persisted days)
+ * key on the generation alone, not on `collectionPassCompleted`. Today `collectionsSynced` comes from
  * `collection_sync.lastRelistMs`, and `recordCollectionPass` moves the generation when that is first set. If this test
  * fails, the output of `ruleSnapshot` has gained an input that the generation does not track: fix the signal, never
  * the test.
