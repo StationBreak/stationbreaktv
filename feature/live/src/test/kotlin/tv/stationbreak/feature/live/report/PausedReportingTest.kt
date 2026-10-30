@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.report
 
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,7 +11,9 @@ import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.UserItemState
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /** Spec 20, ADR-0021 decision 7: paused check-ins for pauseReportMax, then silence, then a fresh Playing. */
 class PausedReportingTest {
@@ -179,5 +183,31 @@ class PausedReportingTest {
             rig.reporter.unpaused()
             rig.at(100_000)
             assertEquals(emptyList<Call>(), rig.calls)
+        }
+
+    @Test
+    fun aSnapshotTakenBeforeThePauseIsHandledNeverCountsPastThePlace() =
+        runTest {
+            // The clock runs ahead of the worker: time passes while the pause still waits in the queue.
+            var lagMs = 0L
+            val clock =
+                object : Clock {
+                    override fun now(): Instant = Instant.fromEpochMilliseconds(testScheduler.currentTime + lagMs)
+                }
+            val server = RecordingServer({ testScheduler.currentTime })
+            val reporter = PlaybackReporter(backgroundScope, server, SESSION, clock) {}
+            reporter.sittingStarted(1)
+            reporter.visit(1, key("a"), target("a"), 0)
+            advanceTimeBy(600_000)
+            runCurrent()
+            // Paused at media 10:00; the worker has not handled it when the screen stops 5 minutes later.
+            reporter.paused(600_000)
+            lagMs = 300_000
+
+            val place = 600_000L
+            val snapshot = checkNotNull(reporter.snapshot(atMostMs = place))
+            val watched = snapshot.spans.sumOf { it.endMs - it.startMs }
+            assertTrue("watched $watched, place $place", watched <= place)
+            assertTrue(snapshot.spans.all { it.endMs <= place })
         }
 }

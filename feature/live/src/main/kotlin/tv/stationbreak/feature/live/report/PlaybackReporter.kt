@@ -84,9 +84,11 @@ class PlaybackReporter(
 
     /**
      * The open airing's watched time, for a kept place (spec 20): the worker's last published state, its running
-     * interval closed at the clock now. Never suspends or waits on the worker; null when no airing is open.
+     * interval closed at the clock now, and never past [atMostMs] (the kept place's media position) when given, so a
+     * pause the worker has not handled yet adds nothing. Never suspends or waits on the worker; null when no airing is
+     * open.
      */
-    fun snapshot(): WatchSnapshot? = reportWorker.published?.at(clock.now())
+    fun snapshot(atMostMs: Long? = null): WatchSnapshot? = reportWorker.published?.at(clock.now(), atMostMs)
 
     /** Watched time from before a screen stop, united into its airing's ledger entry; queue it before any [visit]. */
     fun seed(snapshot: WatchSnapshot) {

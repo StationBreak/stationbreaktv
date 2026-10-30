@@ -44,9 +44,14 @@ internal class OpenAiring(
     val fromMs: Long,
     val since: Instant?,
 ) {
-    fun at(now: Instant): WatchSnapshot {
+    /** The spans with the running interval closed at [now], and never past [atMostMs] when given (never over-count). */
+    fun at(
+        now: Instant,
+        atMostMs: Long? = null,
+    ): WatchSnapshot {
         val from = since ?: return WatchSnapshot(key, spans, marked)
-        val end = fromMs + (now - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds
+        val derived = fromMs + (now - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds
+        val end = atMostMs?.let { minOf(it, derived) } ?: derived
         return WatchSnapshot(key, WatchLedger.merge(spans, MediaSpan(fromMs, end)), marked)
     }
 }

@@ -137,7 +137,8 @@ class LiveChannel(
         val place = current?.behind?.pausedPlace() ?: return null
         val program = place.block.airing as? Airing.Program
         val key = program?.let { AiringKey(place.channel, place.block.startMs, ItemId(it.itemId.value)) }
-        return Kept(place, reporting?.snapshot()?.takeIf { it.key == key })
+        // Capped at the place: a pause the reporter has not handled yet must not count the time since as watched.
+        return Kept(place, reporting?.snapshot(atMostMs = place.mediaMs)?.takeIf { it.key == key })
     }
 
     /**
