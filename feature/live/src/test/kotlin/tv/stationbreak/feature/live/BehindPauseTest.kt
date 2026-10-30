@@ -5,6 +5,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -125,8 +126,12 @@ class BehindPauseTest {
             assertEquals(1, k.r.tuneCount())
             k.r.at(61 * MIN + 49 * MIN + 1_000)
             assertEquals(2, k.r.tuneCount())
-            // Wall minute 120 (10 + 110): what is on now is item 3, from its start.
-            val next = k.r.tunes.last()
+            // Wall minute 120 (10 + 110): what is on now is item 3, from its start, from the handle resolved ahead.
+            val next =
+                assertIs<Call.TuneHandle>(
+                    k.r.tune.calls
+                        .last { it is Call.Tune || it is Call.TuneHandle },
+                )
             assertEquals(itemOf(3), next.item)
             assertEquals(0L, next.start.inWholeMilliseconds)
             assertNull(k.r.live.transport.value)
@@ -147,12 +152,12 @@ class BehindPauseTest {
             assertTrue(k.control.positionMs() < 60 * MIN)
             k.r.atMin(11 + 55)
             assertEquals(2, k.r.tuneCount())
-            assertEquals(
-                itemOf(2),
-                k.r.tunes
-                    .last()
-                    .item,
-            )
+            val next =
+                assertIs<Call.TuneHandle>(
+                    k.r.tune.calls
+                        .last { it is Call.Tune || it is Call.TuneHandle },
+                )
+            assertEquals(itemOf(2), next.item)
         }
 
     @Test
@@ -275,16 +280,15 @@ class BehindPauseTest {
         }
 
     @Test
-    fun aFailedPlayWhileBehindIsReportedAndRetunesLive() =
+    fun aFailedPlayWhileBehindIsReportedAndRetriedAtThePlace() =
         runTest {
-            // Interim behaviour until Task 10 (one retry at the place): the failure is reported, and the sitting
-            // tunes what is on now, at its live position.
+            // ADR-0021 4 and 6: the failure is reported, and the item is tuned again once, at the place it failed at.
             val r = Rig(this, startMin = 10)
             r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
             val failed = PlaybackEnd.Failed("Boom", positionMs = 13 * MIN)
             r.tune.script(itemOf(1), r.tune.playsThenEnds(5.minutes, failed))
             val keys = Channel<LiveCommand>(Channel.UNLIMITED)
-            r.start(commands = keys.receiveAsFlow())
+            val job = r.start(commands = keys.receiveAsFlow())
             r.atMin(1)
             keys.trySend(LiveCommand.PlayPause)
             r.atMin(2)
@@ -294,8 +298,12 @@ class BehindPauseTest {
             val retune = r.tunes.last()
             assertEquals(2, r.tunes.size)
             assertEquals(itemOf(1), retune.item)
-            assertEquals(15 * MIN, retune.start.inWholeMilliseconds)
-            assertNull(r.live.transport.value)
+            assertEquals(13 * MIN, retune.start.inWholeMilliseconds)
+            // Still behind: the place is two minutes behind the clock's 15:00.
+            assertFalse(checkNotNull(r.live.transport.value).paused)
             assertTrue(r.state is LiveState.Watching)
+            job.cancel()
+            runCurrent()
+            r.assertEveryPreResolveEndsOnce()
         }
 }

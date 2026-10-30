@@ -89,6 +89,7 @@ sealed interface Call {
 private class Prepared(
     val item: ItemId,
     val start: Duration,
+    val id: Int,
 )
 
 /** A [TunePort] that records its calls and answers from a script per item (default: plays, never ends). */
@@ -101,6 +102,12 @@ class FakeTune(
     /** How long each [stop] takes on the virtual clock (a slow player). */
     var stopDelayMs = 0L
     var preResolveResult: (ItemId) -> Boolean = { true }
+
+    /** How long each [preResolve] takes on the virtual clock (a slow server resolve); cancellable. */
+    var preResolveDelayMs = 0L
+
+    /** What became of each handle made, by the order it was made in: `tune` or `discard`, in order. */
+    val handleFates = linkedMapOf<Int, MutableList<String>>()
 
     /** What every play tells the reporter about its route (null: nothing, so nothing is reported). */
     var reportFacts: ReportFacts? = null
@@ -170,7 +177,11 @@ class FakeTune(
         start: Duration,
     ): NextHandle? {
         calls += Call.PreResolve(item, start, now())
-        return if (preResolveResult(item)) NextHandle(Prepared(item, start)) else null
+        delay(preResolveDelayMs)
+        if (!preResolveResult(item)) return null
+        val id = handleFates.size
+        handleFates[id] = mutableListOf()
+        return NextHandle(Prepared(item, start, id))
     }
 
     override suspend fun tune(
@@ -179,6 +190,7 @@ class FakeTune(
         start: Duration?,
     ): TuneOutcome {
         val p = next.token as Prepared
+        handleFates.getValue(p.id) += "tune"
         calls += Call.TuneHandle(p.item, start ?: p.start, now())
         return outcomeFor(p.item, start ?: p.start)
     }
@@ -187,7 +199,9 @@ class FakeTune(
         session: Session,
         next: NextHandle,
     ) {
-        calls += Call.Discard((next.token as Prepared).item, now())
+        val p = next.token as Prepared
+        handleFates.getValue(p.id) += "discard"
+        calls += Call.Discard(p.item, now())
     }
 
     override suspend fun stop(session: Session) {
@@ -467,6 +481,16 @@ class Rig(
     val state: LiveState get() = live.state.value
 
     val tunes: List<Call.Tune> get() = tune.calls.filterIsInstance<Call.Tune>()
+}
+
+/**
+ * Every handle the port made ended exactly once: tuned (which takes it) or discarded, never both, never twice, and
+ * none left over. Call it once the run holds nothing (after it ended, or once every resolve was used).
+ */
+fun Rig.assertEveryPreResolveEndsOnce() {
+    tune.handleFates.forEach { (id, fates) ->
+        check(fates.size == 1) { "handle $id (made in order $id) ended ${fates.ifEmpty { listOf("never") }}" }
+    }
 }
 
 /** JUnit 4 has no assertIs: this fails the test with the actual value when it is not a [T]. */

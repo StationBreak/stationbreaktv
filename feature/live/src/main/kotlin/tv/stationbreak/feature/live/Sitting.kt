@@ -82,13 +82,16 @@ internal sealed interface Held {
         val positionMs: Long?,
     ) : Held
 
-    /** A behind play reached its item's end: catch up (Task 9 fills [catchUp]; null until then). */
+    /** A behind play reached its item's end: catch up with what is on now, from [catchUp] when it was resolved. */
     data class CaughtUp(
         val catchUp: Pending.CatchUp?,
     ) : Held
 
-    /** A behind play's file ended early while the clock is still inside its block: hold the ident (Task 9). */
+    /** A behind play's file ended early while the clock is still inside its block: hold the ident. */
     data object EndedInBlock : Held
+
+    /** The block's one retry is used and the item is still dead, with the clock inside its block: the dead item. */
+    data object Dead : Held
 
     /** The behind play ended the sitting (a retry that signed out or was stopped, Task 10). */
     data class Exited(
@@ -114,7 +117,7 @@ private sealed interface Woke {
  *
  * Dead items are handled in `DeadItems.kt`; choosing the channel is [LiveChannel]'s.
  */
-@Suppress("LongParameterList") // The machine's ports and clock, one for one.
+@Suppress("LongParameterList", "TooManyFunctions") // Ports one for one; a function per step, plus 2 catch-up wrappers.
 internal class Sitting(
     val session: Session,
     val channel: ChannelId,
@@ -156,6 +159,9 @@ internal class Sitting(
     private val nextUp = NextUp(session, tuner, timings, ::vnowMs, lead)
     private var lingering: Job? = null
 
+    /** This block's wall-clock look-ahead at the next block: dropped while behind, started again at live. */
+    internal val boundary = BoundaryLookAhead(nextUp)
+
     /** The wide look for the banner's "Next", kept for the block it was made in: the ident card reuses it. */
     internal var widenedNext: Pair<Long, AiringBlock>? = null
 
@@ -194,10 +200,19 @@ internal class Sitting(
     /** Ends what the sitting holds: a pre-resolved handle nobody used. The caller stops the tuner. */
     suspend fun release() = nextUp.release()
 
+    /** A behind play's catch-up, resolved ahead for [block] at its position at [atMs] ([NextUp.resolveCatchUp]). */
+    internal suspend fun resolveCatchUp(
+        block: AiringBlock,
+        atMs: Long,
+    ): Pending.CatchUp? = nextUp.resolveCatchUp(block, atMs)
+
+    /** Ends a behind play's catch-up handle that will not be played. */
+    internal suspend fun discardCatchUp(handle: Pending.CatchUp) = nextUp.discard(handle)
+
     private suspend fun inBlock(onAir: ChannelOnAir): Exit? =
         coroutineScope {
             val handle = nextUp.takeFor(onAir.now)
-            val ahead = nextUp.prepare(this, onAir)
+            boundary.start(this, onAir)
             try {
                 when (val airing = onAir.now.airing) {
                     Airing.Slate -> {
@@ -221,7 +236,7 @@ internal class Sitting(
                 }
             } finally {
                 handle?.let { nextUp.discard(it) }
-                nextUp.keep(ahead)
+                boundary.keep()
                 coroutineContext[Job]?.cancelChildren()
             }
         }
@@ -239,7 +254,8 @@ internal class Sitting(
         // A program the library no longer has cannot be tuned: straight to the slate.
         if (program.info == null) return deadItem(scope, onAir, program.itemId)
         var cut = handle
-        var failures = 0
+        // One retry for the block, whichever play (live or behind) takes it.
+        val retries = BlockRetries()
         while (true) {
             val at = vnowMs()
             if (at >= block.endMs) return null
@@ -254,12 +270,14 @@ internal class Sitting(
                 when {
                     use is Pending.AtBoundary -> TuneKind.Prepared
                     use is Pending.Retarget -> TuneKind.Neighbour
-                    failures > 0 -> TuneKind.Retry
+                    use is Pending.CatchUp -> TuneKind.CatchUp
+                    retries.taken -> TuneKind.Retry
                     else -> TuneKind.Fresh
                 }
             val asked = if (use is Pending.AtBoundary) use.start else position
-            // Only a cut at a block boundary has no snow: a flip shows it on every route (one decode at a time).
-            val snow = use !is Pending.AtBoundary
+            // Only a cut at a block boundary, or a behind play's catch-up on the same channel, has no snow: a flip
+            // shows it on every route (one decode at a time).
+            val snow = use !is Pending.AtBoundary && use !is Pending.CatchUp
             val outcome =
                 tuneAndShow(scope, banner, snow = snow, what = TuneWhat(kind, block, asked), onAir = onAir) {
                     use?.consumed = true
@@ -274,19 +292,41 @@ internal class Sitting(
                 when (outcome) {
                     is TuneOutcome.Playing -> {
                         val from = asked.inWholeMilliseconds
-                        when (val held = holdReporting(block, program, outcome, visiting, from)) {
-                            // Caught up: the visit is left (by the caller) and the sitting follows what is on now.
-                            Held.Boundary, is Held.CaughtUp -> {
+                        val item = ItemId(program.itemId.value)
+                        val retune = retuneAt(scope, onAir, block, item, BannerLabel.TuningIn)
+                        when (val held = holdReporting(block, program, outcome, visiting, from, retune, retries)) {
+                            Held.Boundary -> {
                                 return null
                             }
 
-                            Held.Ended, Held.EndedInBlock -> {
+                            // Caught up: the visit is left (by the caller) and the sitting follows what is on now, with
+                            // the handle resolved for it.
+                            is Held.CaughtUp -> {
+                                held.catchUp?.let { nextUp.catchUp(it) }
+                                // The item's end is the cut: the catch-up's tune reports its gap from here.
+                                cutFrom = clock.now()
+                                return null
+                            }
+
+                            Held.Ended -> {
+                                visiting.leave()
+                                return holdIdent(scope, onAir, block.endMs)
+                            }
+
+                            // Behind, the file ended early with the clock still in its block: the ident holds to the
+                            // block's end, as on the live path, and the next block is resolved ahead again.
+                            Held.EndedInBlock -> {
+                                rearmBoundaryLookAhead()
                                 visiting.leave()
                                 return holdIdent(scope, onAir, block.endMs)
                             }
 
                             is Held.Failed -> {
-                                ++failures >= 2
+                                !retries.take()
+                            }
+
+                            Held.Dead -> {
+                                true
                             }
 
                             is Held.Exited -> {
@@ -297,7 +337,7 @@ internal class Sitting(
 
                     // One retry, from the clock; none after a timeout (it would only cost another 20 s of snow).
                     is TuneOutcome.Dead -> {
-                        ++failures >= 2 || outcome.timedOut
+                        !retries.take() || outcome.timedOut
                     }
 
                     TuneOutcome.Expired -> {
@@ -317,7 +357,8 @@ internal class Sitting(
 
     /**
      * Shows the tune (snow with the banner when [snow]; a straight cut otherwise), runs [tune], and on a picture shows
-     * the banner over it. The snow shows for at least [LiveTimings.minSnow] from the start of the tune.
+     * the banner over it. The snow shows for at least [LiveTimings.minSnow] from the start of the tune. [onPlaying] is
+     * told of a play as soon as the tune answers, before the picture shows.
      */
     suspend fun tuneAndShow(
         scope: CoroutineScope,
@@ -325,6 +366,7 @@ internal class Sitting(
         snow: Boolean,
         what: TuneWhat,
         onAir: ChannelOnAir? = null,
+        onPlaying: (TuneOutcome.Playing) -> Unit = {},
         tune: suspend () -> TuneOutcome,
     ): TuneOutcome {
         // A press made before this cut or retune must not act on what plays after it.
@@ -343,6 +385,8 @@ internal class Sitting(
         cutFrom = null
         val outcome = tune()
         if (outcome is TuneOutcome.Playing) {
+            // Before the picture shows (a retry that must be paused again, say).
+            onPlaying(outcome)
             reportTune(what, outcome.timings, cutSince)
             reportFlipPlayed(what.kind, began, clock.now(), outcome.timings)
             if (snow) {
@@ -383,9 +427,9 @@ internal class Sitting(
      * stalls in [notes] are reported as they come (and to the reporter when [reporting]);
      * a failure is reported with its numbers (#392).
      *
-     * With a [blockStartMs] (a program's block), it also takes the viewer's transport ops for that block: Play/Pause
-     * and Pause return [LiveHold.Transport], as does a back step when [control] can seek; the rest mean nothing while
-     * live. Without one (stand-ins, until Task 10) it takes no ops.
+     * It also takes the viewer's transport ops for the block (or stand-in piece) that started at [blockStartMs]:
+     * Play/Pause and Pause return [LiveHold.Transport], as does a back step when [control] can seek; the rest mean
+     * nothing while live.
      */
     @Suppress("LongParameterList") // The play's three flows and handle, the block's end and its tag.
     suspend fun hold(
@@ -394,7 +438,7 @@ internal class Sitting(
         notes: Flow<PlayNote>,
         reporting: Boolean,
         control: PlayControl,
-        blockStartMs: Long?,
+        blockStartMs: Long,
     ): LiveHold {
         val left = untilMs - vnowMs()
         val woke =
@@ -458,6 +502,15 @@ internal class Sitting(
 }
 
 /**
+ * Cancels this block's wall-clock look-ahead at the next block and discards its handle: a behind play's next item is
+ * what is on at its cut, not the next block, and a resolve or encode is not held through a pause (spec 20).
+ */
+internal suspend fun Sitting.dropBoundaryLookAhead() = boundary.drop()
+
+/** Starts this block's look-ahead again after a drop, once the play is live (or on the ident) again; true if it did. */
+internal fun Sitting.rearmBoundaryLookAhead() = boundary.rearm()
+
+/**
  * A transport op already taken from the inbox when the play's end or the cut won: it is dropped, with a line
  * (`press dropped reason=<reason>`), so no press vanishes without a trace.
  */
@@ -473,11 +526,10 @@ private fun Sitting.reportLostOp(
 private suspend fun Sitting.endOrOp(
     end: Flow<PlaybackEnd>,
     control: PlayControl,
-    blockStartMs: Long?,
+    blockStartMs: Long,
 ): Woke =
     coroutineScope {
         val ended = async { Woke.End(end.firstOrNull() ?: PlaybackEnd.Ended) }
-        if (blockStartMs == null) return@coroutineScope ended.await()
         val op = async { takeLiveOp(control, blockStartMs) }
         val woke: Woke =
             try {

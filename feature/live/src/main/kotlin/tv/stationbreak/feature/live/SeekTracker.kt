@@ -37,6 +37,9 @@ internal class SeekTracker(
     /** True while the latest seek's `SeekDone` has not come. */
     val inFlight: Boolean get() = toMs != null
 
+    /** The latest seek's target while its `SeekDone` has not come; null otherwise. */
+    val targetMs: Long? get() = toMs
+
     /** A seek to [toMs] was sent ([live]: the way back to live); it is open from now. */
     fun sent(
         toMs: Long,

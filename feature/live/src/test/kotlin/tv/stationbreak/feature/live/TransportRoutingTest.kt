@@ -11,11 +11,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
-import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -100,19 +100,21 @@ class TransportRoutingTest {
     fun pressesLeftInTheInboxAreDroppedAtTheNextTune() =
         runTest {
             val r = Rig(this)
-            // A dead item 9 with 50 minutes left: a stand-in plays, and its hold takes no presses yet.
-            r.schedule.channel(CH7, 7, listOf(program(0, 60, 9, info = null), program(60, 120, 2)))
-            r.schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 7, 0)) }
-            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
-            r.start(commands = keys.receiveAsFlow())
+            // Item 1 ends early: the ident holds to minute 60, and nothing takes presses meanwhile.
+            r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
+            r.tune.script(itemOf(1), r.tune.playsThenEnds(1.minutes, PlaybackEnd.Ended))
+            val job = r.start()
             r.atMin(2)
-            assertTrue(r.state is LiveState.Watching)
-            keys.trySend(LiveCommand.PlayPause)
-            keys.trySend(LiveCommand.PlayPause)
-            runCurrent()
+            assertTrue(r.state is LiveState.Ident)
+            // Two presses already in the inbox, tagged for the next block (as a press racing its cut would be).
+            val sitting = checkNotNull(r.live.currentSitting())
+            repeat(2) { sitting.commands.offer(Tagged(sitting.sittingId, T0 + 60 * MIN, TransportOp.Toggle)) }
             r.atMin(51)
-            assertEquals(listOf("press dropped reason=transport-at-tune n=2 state=Watching"), r.dropped())
+            assertEquals(listOf("press dropped reason=transport-at-tune n=2 state=Ident"), r.dropped())
             assertTrue(checkNotNull(r.tune.controlOf(itemOf(2))).calls.isEmpty())
+            job.cancel()
+            runCurrent()
+            r.assertEveryPreResolveEndsOnce()
         }
 
     @Test

@@ -42,7 +42,8 @@ internal suspend fun Sitting.deadItem(
 /**
  * Stand-ins for the dead block of [onAir], joined at the clock position and kept until the block ends. A stand-in that
  * fails (or ends early) is replaced by the next pick, up to [LiveTimings.standInAttempts] failures; then the ident
- * card holds until the block ends.
+ * card holds until the block ends. A piece can be paused and stepped like a program; once it ends behind (or its one
+ * retry at the place is dead), the piece on at the sitting's time follows, or the schedule once the block is over.
  */
 @Suppress("ReturnCount", "CyclomaticComplexMethod") // One stand-in loop: each early return ends the block's cover.
 private suspend fun Sitting.fillIn(
@@ -72,11 +73,11 @@ private suspend fun Sitting.fillIn(
         val failed =
             when (outcome) {
                 is TuneOutcome.Playing -> {
-                    // A piece that ends at its own end is not a failure: the next piece (or the schedule) follows.
-                    // No block start: a stand-in takes no transport ops until Task 10.
-                    val held = hold(piece.endMs, outcome.end, outcome.notes, false, outcome.control, null)
-                    if (held == LiveHold.Boundary && piece.endMs >= block.endMs) return null
-                    held != LiveHold.Boundary
+                    when (val held = holdPiece(scope, onAir, piece, ItemId(standIn.itemId.value), outcome)) {
+                        PieceHeld.Covered -> return null
+                        is PieceHeld.Exited -> return held.exit
+                        is PieceHeld.Next -> held.failed
+                    }
                 }
 
                 is TuneOutcome.Dead -> {
@@ -99,4 +100,56 @@ private suspend fun Sitting.fillIn(
     }
     reportFlipEnded("failed")
     return holdIdent(scope, onAir, block.endMs)
+}
+
+/** How a stand-in piece's play ended, for [fillIn]. */
+private sealed interface PieceHeld {
+    /** The piece was cut at its end, which is the dead block's: the block is covered. */
+    data object Covered : PieceHeld
+
+    /** The next piece follows; [failed] when this one broke or ended early while live. */
+    data class Next(
+        val failed: Boolean,
+    ) : PieceHeld
+
+    /** The sitting ends: the retry at the place signed out or was stopped. */
+    data class Exited(
+        val exit: Exit,
+    ) : PieceHeld
+}
+
+/**
+ * A stand-in [piece]'s play of [item], live or behind (ADR-0021 4: it can be paused and stepped). A piece that ends
+ * at its own end is not a failure, nor is its end while behind (its one retry at the place included): the next piece,
+ * or the schedule, follows. Once behind no longer, the next block's look-ahead, dropped while behind, starts again.
+ */
+private suspend fun Sitting.holdPiece(
+    scope: CoroutineScope,
+    onAir: ChannelOnAir,
+    piece: AiringBlock,
+    item: ItemId,
+    outcome: TuneOutcome.Playing,
+): PieceHeld {
+    val retune = retuneAt(scope, onAir, piece, item, BannerLabel.FillingIn)
+    return when (val held = holdProgram(piece, outcome, null, retune, BlockRetries())) {
+        Held.Boundary -> {
+            if (piece.endMs >= onAir.now.endMs) PieceHeld.Covered else PieceHeld.Next(failed = false)
+        }
+
+        is Held.CaughtUp, Held.EndedInBlock -> {
+            (held as? Held.CaughtUp)?.catchUp?.let { discardCatchUp(it) }
+            // Only while the dead block is still on: past it, the next block is played anyway.
+            if (vnowMs() < onAir.now.endMs) rearmBoundaryLookAhead()
+            PieceHeld.Next(failed = false)
+        }
+
+        // Its retry used and still failing, with the clock inside the piece: a failed piece, as while live.
+        Held.Ended, is Held.Failed, Held.Dead -> {
+            PieceHeld.Next(failed = true)
+        }
+
+        is Held.Exited -> {
+            PieceHeld.Exited(held.exit)
+        }
+    }
 }
