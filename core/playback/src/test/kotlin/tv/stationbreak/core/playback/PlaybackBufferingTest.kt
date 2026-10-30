@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.analytics.PlayerId
 import androidx.media3.exoplayer.source.MediaSource.MediaPeriodId
 import androidx.media3.exoplayer.source.SinglePeriodTimeline
+import androidx.media3.exoplayer.upstream.DefaultAllocator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -48,6 +49,48 @@ class PlaybackBufferingTest {
     }
 
     @Test
+    fun theTargetBufferIsAQuarterOfTheHeapWithinMedia3sBounds() {
+        val mib = 1_024L * 1_024L
+        // The Firestick 4K's growth limit (the OOM of 2026-10-29): 48 MiB, not Media3's ~138 MiB for video and audio.
+        assertEquals(48 * mib, PlaybackBuffering.targetBufferBytesFor(192 * mib).toLong())
+        assertEquals(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_SIZE,
+            PlaybackBuffering.targetBufferBytesFor(32 * mib),
+        )
+        assertEquals(
+            DefaultLoadControl.DEFAULT_MUXED_BUFFER_SIZE,
+            PlaybackBuffering.targetBufferBytesFor(4_096 * mib),
+        )
+        // The default is wired to this process's own heap limit: on the test JVM that is usually clamped to the
+        // ceiling, so this pins the wiring, not a number.
+        assertEquals(
+            PlaybackBuffering.targetBufferBytesFor(Runtime.getRuntime().maxMemory()),
+            PlaybackBuffering().targetBufferBytes,
+        )
+    }
+
+    @Test
+    fun loadingStopsAtTheTargetBufferEvenBelowTheMinimumDuration() {
+        val segment = C.DEFAULT_BUFFER_SEGMENT_SIZE
+        val control = PlaybackBuffering(targetBufferBytes = 4 * segment).prepared()
+        val allocator = control.getAllocator(PlayerId.UNSET)
+        repeat(3) { allocator.allocate() }
+        // 10 s buffered is far below the 50 s minimum: only the byte target can stop the load, and only while
+        // prioritizeTimeOverSizeThresholds stays false (with true, Media3 would keep loading to the minimum).
+        assertTrue(control.shouldContinueLoading(parameters(bufferedMs = 10_000, rebuffering = false)))
+        allocator.allocate()
+        assertFalse(control.shouldContinueLoading(parameters(bufferedMs = 10_000, rebuffering = false)))
+    }
+
+    @Test
+    fun theBufferComesFromTheGivenAllocatorSoItsSizeCanBeRead() {
+        val allocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)
+        val control = PlaybackBuffering().toLoadControl(allocator).also { it.onPrepared(PlayerId.UNSET) }
+        repeat(2) { control.getAllocator(PlayerId.UNSET).allocate() }
+        assertEquals(2 * C.DEFAULT_BUFFER_SEGMENT_SIZE, allocator.totalBytesAllocated)
+    }
+
+    @Test
     fun invalidValuesAreRejected() {
         assertThrows(IllegalArgumentException::class.java) { PlaybackBuffering(bufferForPlaybackMs = 0) }
         assertThrows(IllegalArgumentException::class.java) { PlaybackBuffering(bufferForPlaybackAfterRebufferMs = -1) }
@@ -55,6 +98,7 @@ class PlaybackBufferingTest {
         assertThrows(IllegalArgumentException::class.java) {
             PlaybackBuffering(minBufferMs = 60_000, maxBufferMs = 50_000)
         }
+        assertThrows(IllegalArgumentException::class.java) { PlaybackBuffering(targetBufferBytes = 0) }
     }
 
     private fun PlaybackBuffering.prepared() = toLoadControl().also { it.onPrepared(PlayerId.UNSET) }

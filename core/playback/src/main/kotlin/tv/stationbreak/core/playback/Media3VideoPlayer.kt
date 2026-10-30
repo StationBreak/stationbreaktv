@@ -57,13 +57,25 @@ class Media3VideoPlayer(
     }
 
     private val loadCounter = LoadCounter()
+    private val allocator = PlaybackBuffering.mediaAllocator()
     private val exo: ExoPlayer =
         ExoPlayer
             .Builder(context)
-            .setLoadControl(buffering.toLoadControl())
+            .setLoadControl(buffering.toLoadControl(allocator))
             .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
             .build()
     private val handler = Handler(exo.applicationLooper)
+
+    // The `SBLIVE mem` line while a play is on the player (diagnostics, OOM of 2026-10-29).
+    private val memory =
+        MemorySampler(
+            allocator = allocator,
+            schedule = { task, delayMs -> handler.postDelayed(task, delayMs) },
+            cancel = handler::removeCallbacks,
+            playing = { current != null },
+            bufferedMs = { exo.totalBufferedDuration },
+            log = { android.util.Log.i(MEMORY_LOG_TAG, it) },
+        )
     private val flow =
         MutableSharedFlow<PlayerEvent>(
             extraBufferCapacity = EVENT_BUFFER,
@@ -126,6 +138,7 @@ class Media3VideoPlayer(
             exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
             exo.prepare()
             exo.playWhenReady = true
+            memory.start()
         }
         return generation
     }
@@ -144,6 +157,7 @@ class Media3VideoPlayer(
     override fun release() =
         onPlayerThread {
             current = null
+            memory.stop()
             exo.release()
         }
 
@@ -315,6 +329,9 @@ class Media3VideoPlayer(
 
     private companion object {
         const val EVENT_BUFFER = 64
+
+        /** The tag live TV's measurement lines use, so a device run collects this line with them. */
+        const val MEMORY_LOG_TAG = "SBLIVE"
 
         /** The Media3 sample MIME type of each codec name the server uses; unlisted codecs are not checked. */
         val CODEC_MIMES =
