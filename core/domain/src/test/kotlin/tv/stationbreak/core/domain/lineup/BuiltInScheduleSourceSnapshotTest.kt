@@ -90,15 +90,29 @@ class BuiltInScheduleSourceSnapshotTest {
         assertEquals(2, source.snapshotReads(), "the sync moved the content generation")
     }
 
+    // #487: every sync completes a pass, and one that changed nothing moves the pass instant and not the generation.
     @Test
-    fun aCompletedCollectionPassMakesTheNextBuildReadAgain() {
+    fun aCompletedCollectionPassThatChangedNothingLeavesTheSnapshotKept() {
         refresh()
         days()
         counting.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T11:00:00Z"))
         refresh()
         days()
 
-        assertEquals(2, source.snapshotReads(), "collectionsSynced may have changed with no row written")
+        assertEquals(1, source.snapshotReads(), "the pass wrote nothing, so the generation did not move")
+    }
+
+    @Test
+    fun aChangeOfCollectionsSyncedMakesTheNextBuildReadAgain() {
+        refresh()
+        days()
+        // Off and on again, as the first full pass of a cache rebuilt under the same process turns it true.
+        counting.delegate.setCollectionsSynced(ACCOUNT, false)
+        counting.delegate.setCollectionsSynced(ACCOUNT, true)
+        refresh()
+        days()
+
+        assertEquals(2, source.snapshotReads(), "collectionsSynced changed with no row written")
     }
 
     @Test

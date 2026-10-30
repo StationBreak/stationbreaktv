@@ -212,10 +212,12 @@ interface LibraryRepository : AccountCache {
      * the saved library, and every change to that state moves [contentGeneration]: a write to an item, series or
      * collection, or to the chosen libraries, and the collection pass that turns `collectionsSynced` true (it writes no
      * row, but changes the result). A caller may therefore keep a snapshot under the key (account, libraries, cutoff,
-     * generation), the generation read *before* the snapshot, and reuse it while that key holds; adding
-     * [collectionPassCompleted] to the key only makes it finer. Anything new that this result comes to depend on must
-     * move the generation, or the caches of the day build serve it stale; `RuleSnapshotKeyContractTest` pins this for
-     * the Room implementation.
+     * generation), the generation read *before* the snapshot, and reuse it while that key holds: the in-memory cache
+     * and the persisted day key both key on the generation alone (#487, #480), and [collectionPassCompleted], which
+     * every completed pass moves, is no part of either. A purge must not change what this returns: it deletes only
+     * rows superseded or tombstoned before any cut-off a day build reads, which is why it does not bump. Anything new
+     * that this result comes to depend on must move the generation, or the caches of the day build serve it stale;
+     * `RuleSnapshotKeyContractTest` pins this for the Room implementation.
      *
      * A **planning read** (spec 12: choosing which channels a lineup holds) may pass `cutoff = now`, which is inside
      * the safe range. Such a snapshot is never used to build a day: a day is built only from the `S - G` cut-off.

@@ -10,21 +10,20 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import java.lang.ref.SoftReference
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.time.Instant
 
 /**
  * The library snapshots the day builds read, kept across lineup revisions (#392). A snapshot depends on the account,
  * the chosen libraries, the cut-off and what the library holds, not on the lineup, so a refresh that changes the lineup
  * need not read it again.
  *
- * What the library holds is told by two numbers the key carries: the account's `contentGeneration` (it moves exactly
+ * What the library holds is told by one number the key carries: the account's `contentGeneration`. It moves exactly
  * when a committed write changes an item, series or collection row, or the chosen libraries, and when the first full
- * collection pass turns `collectionsSynced` true) and the start of its last completed collection pass. The generation
- * alone covers everything `ruleSnapshot` returns (the contract written on `LibraryRepository.ruleSnapshot`); the pass
- * only makes the key finer, at the cost of a read again after a pass that changed nothing. A sync
- * therefore never finds a stale snapshot: its key is simply not asked for again. Both numbers are read *before* the
- * snapshot, so a write that lands in between leaves the snapshot filed under the older key, which no later build asks
- * for, and never the other way round.
+ * collection pass turns `collectionsSynced` true, so it covers everything `ruleSnapshot` returns (the contract written
+ * on `LibraryRepository.ruleSnapshot`). The start of the last completed collection pass is not in the key: every sync
+ * runs a pass, and one that changed nothing must not cost the next build a read (#487). A sync therefore never finds
+ * a stale snapshot: its key is simply not asked for again. The generation is read *before* the snapshot, so a write
+ * that lands in between leaves the snapshot filed under the older key, which no later build asks for, and never the
+ * other way round.
  *
  * Callers that miss together share one read, which runs in [scope] and not in the caller: a build that gives up (its
  * lineup revision is no longer current) leaves the read running for the build that replaces it.
@@ -48,18 +47,12 @@ internal class SnapshotCache(
         val libraries: Set<ItemId>,
         val cutoffMs: Long,
         val generation: Long,
-        val collectionPass: Instant?,
     ) {
         /** The same snapshot of the library at another time of its life. */
-        fun sameSnapshotAs(o: Key) = copy(generation = o.generation, collectionPass = o.collectionPass) == o
+        fun sameSnapshotAs(o: Key) = copy(generation = o.generation) == o
 
-        /** True when this is a later state of the library than [o]: a higher generation, or a later pass. */
-        fun newerThan(o: Key): Boolean {
-            val pass = collectionPass
-            val other = o.collectionPass
-            val later = pass != null && (other == null || pass > other)
-            return generation > o.generation || (generation == o.generation && later)
-        }
+        /** True when this is a later state of the library than [o]: a higher generation. */
+        fun newerThan(o: Key) = generation > o.generation
     }
 
     /** How [get] found the snapshot. [Cleared] is a kept snapshot the garbage collector had dropped. */
