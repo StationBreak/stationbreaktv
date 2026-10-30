@@ -28,9 +28,9 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
@@ -251,10 +251,14 @@ internal fun GuideCellView(
             .fillMaxHeight()
             .padding(CellInset)
             .cellLook(cell.kind == CellKind.Slate, place, viewportOf, mark.takeIf { title.isNotEmpty() }) { focused }
-            .semantics {
+            .testTag(GuideTags.cell(channel, cell.startMs))
+            // The description carries the title, so the title Text's own semantics are cleared from the merged tree
+            // (a screen reader would otherwise read the cell, then the title again). The tag stays outside, so it is
+            // kept; the unmerged tree still has the Text node.
+            .clearAndSetSemantics {
                 selected = focused
                 contentDescription = cellDescription(resources, cell, title, onNow, is24h)
-            }.testTag(GuideTags.cell(channel, cell.startMs)),
+            },
         contentAlignment = Alignment.CenterStart,
     ) {
         if (!place.compact && title.isNotEmpty()) {
