@@ -170,6 +170,63 @@ class TuneControllerTransportTest {
         }
 
     @Test
+    fun aPauseDuringAStallThenResumeWithNoEventsTimesOut() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(100) { PlayerEvent.Stalled(it, 1_400, positionMs = 400, bufferedMs = 0) },
+                    at(200) { PlayerEvent.Paused(it, 1_500, 400) },
+                    at(5_000) { PlayerEvent.Resumed(it, 6_300) },
+                )
+            after(5_000 + PLAYING_TIMEOUT_MS - 1)
+            assertTrue(seen.ends.isEmpty())
+            after(1)
+            assertTrue(failedWith("StallTimeout")(seen.ends.single()))
+            assertTrue(seen.notes.none { it is PlayNote.Stall && it.positionMs != 400L })
+        }
+
+    @Test
+    fun aPlayingAfterAResumeCancelsTheResumeTimer() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(100) { PlayerEvent.Paused(it, 1_500, 400) },
+                    at(200) { PlayerEvent.Resumed(it, 1_600) },
+                    at(300) { PlayerEvent.Playing(1_700, 400.milliseconds, it) },
+                )
+            after(30.minutes.inWholeMilliseconds)
+            assertTrue(seen.ends.isEmpty())
+            endWatchers()
+        }
+
+    @Test
+    fun aPauseOrSeekAfterAResumeCancelsTheResumeTimer() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(100) { PlayerEvent.Paused(it, 1_500, 400) },
+                    at(200) { PlayerEvent.Resumed(it, 1_600) },
+                    at(300) { PlayerEvent.Paused(it, 1_700, 400) },
+                )
+            after(30.minutes.inWholeMilliseconds)
+            assertTrue(seen.ends.isEmpty())
+            endWatchers()
+        }
+
+    @Test
+    fun aSeekEndingAResumeLeavesOnlyTheSeekTimer() =
+        runTest {
+            val (_, seen) =
+                start(
+                    at(100) { PlayerEvent.Paused(it, 1_500, 400) },
+                    at(200) { PlayerEvent.Resumed(it, 1_600) },
+                    at(300) { PlayerEvent.Seeking(it, 1_700, 400, 60_000) },
+                )
+            after(300 + PLAYING_TIMEOUT_MS)
+            assertTrue(failedWith("SeekTimeout")(seen.ends.single()))
+        }
+
+    @Test
     fun aSeekThatCompletesWhilePausedDoesNotFail() =
         runTest {
             val (_, seen) =

@@ -754,7 +754,7 @@ class TuneController(
      * [PlayerEvent.Stalled] that no [PlayerEvent.Playing] follows within [PLAYING_TIMEOUT]. The result is kept, so a
      * collector that comes late still gets it. Subscribing is not dispatched, so no event after this call is missed.
      */
-    @Suppress("LongMethod") // One collector with its two timers, kept together.
+    @Suppress("LongMethod", "CyclomaticComplexMethod") // One collector with its three timers, kept together.
     private fun watchEnd(generation: CompletableDeferred<Long>): Watch {
         val result = CompletableDeferred<PlaybackEnd?>()
         val notes = Channel<PlayNote>(Channel.UNLIMITED)
@@ -764,10 +764,13 @@ class TuneController(
                 val watcher = currentCoroutineContext()[Job]
                 var stall: Job? = null
                 var seek: Job? = null
+                var resume: Job? = null
                 val held = HeldPlay()
 
                 fun startStall(event: PlayerEvent.Stalled) {
                     stall?.cancel()
+                    // The stall's own timer takes over from the resume's.
+                    resume?.cancel()
                     stall =
                         launch {
                             delay(PLAYING_TIMEOUT)
@@ -798,15 +801,30 @@ class TuneController(
                         event is PlayerEvent.Playing -> {
                             stall?.cancel()
                             seek?.cancel()
+                            resume?.cancel()
                         }
 
                         event is PlayerEvent.Paused -> {
                             stall?.cancel()
+                            resume?.cancel()
+                        }
+
+                        event is PlayerEvent.Resumed -> {
+                            // Media3 stays BUFFERING through a resume, so a paused stall sends no new Stalled: time it.
+                            stall?.cancel()
+                            resume?.cancel()
+                            resume =
+                                launch {
+                                    delay(PLAYING_TIMEOUT)
+                                    result.complete(held.resumeTimedOut(event, PLAYING_TIMEOUT.inWholeMilliseconds))
+                                    watcher?.cancel()
+                                }
                         }
 
                         event is PlayerEvent.Seeking -> {
                             // The seek timer covers a stall now running; one that outlives the seek restarts below.
                             stall?.cancel()
+                            resume?.cancel()
                             seek?.cancel()
                             seek =
                                 launch {
@@ -843,6 +861,7 @@ class TuneController(
         private var paused = false
         private var resuming = false
         private var seeking = false
+        private var pausedPositionMs = PlayerEvent.NOT_KNOWN
 
         /** The last [PlayerEvent.Stalled] not yet ended by a Playing or a pause, noted or not. */
         var openStall: PlayerEvent.Stalled? = null
@@ -869,6 +888,7 @@ class TuneController(
                     // A pause closes an open stall, so the reporter's stall flag clears (paused time is not counted).
                     closeStall(event.atMs, notes)
                     paused = true
+                    pausedPositionMs = event.positionMs
                     openStall = null
                 }
 
@@ -935,6 +955,19 @@ class TuneController(
             since(stall.atMs).let { if (it < 0) it else it + waitedMs },
             stall.positionMs,
             stall.bufferedMs,
+            stalls,
+        )
+
+        /** The failure of a resume that no Playing, pause, seek or Stalled followed within [waitedMs]. */
+        fun resumeTimedOut(
+            resume: PlayerEvent.Resumed,
+            waitedMs: Long,
+        ) = PlaybackEnd.Failed(
+            STALLED,
+            -1,
+            since(resume.atMs).let { if (it < 0) it else it + waitedMs },
+            pausedPositionMs,
+            -1,
             stalls,
         )
 

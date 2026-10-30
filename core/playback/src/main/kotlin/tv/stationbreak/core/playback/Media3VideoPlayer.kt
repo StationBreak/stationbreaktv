@@ -24,8 +24,10 @@ import androidx.media3.exoplayer.audio.AudioSink
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -78,6 +80,12 @@ class Media3VideoPlayer(
             bufferedMs = { exo.totalBufferedDuration },
             log = { android.util.Log.i(MEMORY_LOG_TAG, it) },
         )
+
+    /**
+     * The player's events. The buffer is 64 and drops the oldest when full (a collector that stalls loses events): a
+     * dropped `SeekDone` would surface as a SeekTimeout 20 s later, though the seek completed. The risk is accepted
+     * while the buffer is ample for the few events a play produces.
+     */
     private val flow =
         MutableSharedFlow<PlayerEvent>(
             extraBufferCapacity = EVENT_BUFFER,
@@ -101,10 +109,11 @@ class Media3VideoPlayer(
     /** A seek is under way: set by [seekTo], cleared by the `SeekDone`. Used on the player's looper. */
     private var seeking = false
 
-    /** What the looper last saw, for [position] and [seekable] off the looper; [NO_POSITION] for none. */
-    @Volatile private var publishedPositionMs = NO_POSITION
-
-    @Volatile private var publishedSeekable = false
+    /**
+     * What the looper last saw, for [position] and [seekable] off the looper: one immutable snapshot in one reference,
+     * so a reader never mixes the values of two plays. Written on the looper only.
+     */
+    @Volatile private var published = Published.NONE
     private val audio = AudioSampler()
     private val av = AvRecorder()
 
@@ -129,6 +138,8 @@ class Media3VideoPlayer(
         val calledAt = clock()
         onPlayerThread {
             active = generation
+            // In the same step as `active`, so a reader on another thread never sees the old play under the new number.
+            published = Published(generation, source.playerStart.inWholeMilliseconds, false)
             av.begin(generation, calledAt)
             current = source
             tracksApplied = false
@@ -171,14 +182,14 @@ class Media3VideoPlayer(
 
     override fun pause(generation: Long) =
         onPlayerThread {
-            if (active != generation || !exo.playWhenReady) return@onPlayerThread
+            if (generation <= 0 || active != generation || !exo.playWhenReady) return@onPlayerThread
             exo.playWhenReady = false
             emit(PlayerEvent.Paused(generation, clock(), exo.currentPosition))
         }
 
     override fun resume(generation: Long) =
         onPlayerThread {
-            if (active != generation || exo.playWhenReady) return@onPlayerThread
+            if (generation <= 0 || active != generation || exo.playWhenReady) return@onPlayerThread
             emit(PlayerEvent.Resumed(generation, clock()))
             exo.playWhenReady = true
         }
@@ -187,7 +198,7 @@ class Media3VideoPlayer(
         generation: Long,
         position: Duration,
     ) = onPlayerThread {
-        if (active != generation) return@onPlayerThread
+        if (generation <= 0 || active != generation) return@onPlayerThread
         val to = position.inWholeMilliseconds
         // A seek already pending is coalesced: the target moves, and its one SeekDone carries the final position.
         if (!seeking) {
@@ -200,15 +211,25 @@ class Media3VideoPlayer(
     }
 
     override fun position(generation: Long): Duration? {
-        if (active != generation) return null
-        if (Looper.myLooper() == handler.looper) publish()
-        return publishedPositionMs.takeIf { it != NO_POSITION }?.milliseconds
+        val ms = snapshot(generation)?.positionMs ?: return null
+        return if (ms == NO_POSITION) null else ms.milliseconds
     }
 
-    override fun seekable(generation: Long): Boolean {
-        if (active != generation) return false
-        if (Looper.myLooper() == handler.looper) publish()
-        return publishedSeekable
+    override suspend fun currentPosition(generation: Long): Duration? =
+        suspendCancellableCoroutine { continuation ->
+            onPlayerThread {
+                val live = if (generation <= 0 || active != generation) null else exo.currentPosition.milliseconds
+                continuation.resume(live)
+            }
+        }
+
+    override fun seekable(generation: Long): Boolean = snapshot(generation)?.seekable == true
+
+    /** The published snapshot if it is [generation]'s, else null. On the looper it is refreshed first. */
+    private fun snapshot(generation: Long): Published? {
+        if (generation <= 0) return null
+        if (Looper.myLooper() == handler.looper && active == generation) publish()
+        return published.takeIf { it.generation == generation }
     }
 
     override fun release() =
@@ -216,8 +237,7 @@ class Media3VideoPlayer(
             current = null
             active = 0L
             seeking = false
-            publishedPositionMs = NO_POSITION
-            publishedSeekable = false
+            published = Published.NONE
             memory.stop()
             exo.release()
         }
@@ -230,12 +250,18 @@ class Media3VideoPlayer(
     }
 
     private fun publish() {
-        if (active == 0L) {
-            publishedPositionMs = NO_POSITION
-            publishedSeekable = false
-        } else {
-            publishedPositionMs = exo.currentPosition
-            publishedSeekable = exo.isCurrentMediaItemSeekable
+        published =
+            if (active == 0L) Published.NONE else Published(active, exo.currentPosition, exo.isCurrentMediaItemSeekable)
+    }
+
+    /** What the looper saw of play [generation]; [Published.NONE] (generation 0) for none. */
+    private data class Published(
+        val generation: Long,
+        val positionMs: Long,
+        val seekable: Boolean,
+    ) {
+        companion object {
+            val NONE = Published(0L, NO_POSITION, false)
         }
     }
 

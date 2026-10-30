@@ -102,6 +102,14 @@ internal class FakeVideoPlayer : VideoPlayer {
 
     override fun position(generation: Long): Duration? = null
 
+    /** What [currentPosition] answers. */
+    var live: Duration? = null
+
+    override suspend fun currentPosition(generation: Long): Duration? {
+        calls += "live:$generation"
+        return live
+    }
+
     override fun seekable(generation: Long): Boolean = false
 
     override fun attach(surface: SurfaceView?) = Unit

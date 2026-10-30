@@ -346,6 +346,46 @@ class Media3VideoPlayerTest {
     }
 
     @Test
+    fun currentPositionFromAnotherThreadIsLive() {
+        val generation = playingAt()
+        val earlier = runBlocking { player.currentPosition(generation) }
+        assertNotNull(earlier)
+        Thread.sleep(2_000)
+        val later = runBlocking { player.currentPosition(generation) }
+        assertNotNull(later)
+        assertTrue("did not advance: $earlier then $later", later!! - earlier!! > 1.seconds)
+    }
+
+    @Test
+    fun currentPositionOfAnOldOrNoGenerationIsNull() {
+        val first = playingAt()
+        val second = playingAt()
+        assertNull(runBlocking { player.currentPosition(first) })
+        assertNotNull(runBlocking { player.currentPosition(second) })
+        assertNull(runBlocking { player.currentPosition(0) })
+    }
+
+    @Test
+    fun generationZeroTransportAfterAStopEmitsNothing() {
+        val generation = playingAt()
+        player.stop()
+        eventsWithin(500.milliseconds)
+        player.pause(0)
+        player.seekTo(0, 5.seconds)
+        player.resume(0)
+        val events = eventsWithin(1.seconds)
+        assertTrue(
+            "generation 0 emitted $events",
+            events.none {
+                it is PlayerEvent.Paused || it is PlayerEvent.Seeking ||
+                    it is PlayerEvent.Resumed
+            },
+        )
+        assertNull(player.position(0))
+        assertNull(player.position(generation))
+    }
+
+    @Test
     fun aLocalClipIsSeekable() {
         val generation = playingAt()
         assertTrue(player.seekable(generation))

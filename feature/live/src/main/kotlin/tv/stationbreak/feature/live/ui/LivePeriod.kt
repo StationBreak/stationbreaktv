@@ -71,6 +71,11 @@ internal class LivePeriod(
 
         override fun position(generation: Long): Duration? = if (left.get()) null else inner.position(generation)
 
+        override suspend fun currentPosition(generation: Long): Duration? {
+            if (left.get()) return null
+            return inner.currentPosition(generation)
+        }
+
         override fun seekable(generation: Long): Boolean = !left.get() && inner.seekable(generation)
 
         override fun attach(surface: SurfaceView?) {

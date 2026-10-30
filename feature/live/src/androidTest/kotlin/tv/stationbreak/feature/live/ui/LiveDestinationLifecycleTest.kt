@@ -103,6 +103,8 @@ class LiveDestinationLifecycleTest {
 
         override fun position(generation: Long): Duration? = null
 
+        override suspend fun currentPosition(generation: Long): Duration? = null
+
         override fun seekable(generation: Long): Boolean = false
 
         override fun attach(surface: SurfaceView?) {

@@ -45,6 +45,8 @@ internal class RecordingPlayer : VideoPlayer {
 
     override fun position(generation: Long): Duration? = 1.seconds
 
+    override suspend fun currentPosition(generation: Long): Duration? = 1.seconds
+
     override fun seekable(generation: Long): Boolean = true
 
     override fun release() {

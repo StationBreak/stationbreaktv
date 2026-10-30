@@ -165,13 +165,19 @@ interface VideoPlayer {
     )
 
     /**
-     * The position of [generation]; null when it is not the play on the player (a newer play, or after [stop]) or the
-     * player cannot say. On the player's looper it is read now; from any other thread it is the last value the player
-     * published (refreshed only on events and transport calls), so during steady playback it is stale and is not "now".
-     * Called from another thread straight after [play], it is null until the looper has run the play. After [stop] the
-     * active generation is 0, meaning none.
+     * The position of [generation] as of the last snapshot the player published; null when it is not the play on the
+     * player (a newer play, or after [stop]) or the player cannot say. The snapshot is taken on the player's looper at
+     * events and transport calls only, so during steady playback this is NOT "now": use [currentPosition] for the
+     * live value. It is generation-safe from any thread: a snapshot of another play is never returned. Called from
+     * another thread straight after [play], it is null until the looper has run the play.
      */
     fun position(generation: Long): Duration?
+
+    /**
+     * The live, exact position of [generation], read on the player's looper whatever the caller's thread; null when
+     * it is not the play on the player (a newer play, or after [stop]) or the player cannot say.
+     */
+    suspend fun currentPosition(generation: Long): Duration?
 
     /** True when [generation] is on the player and its media can seek; false otherwise, after [stop], or unknown. */
     fun seekable(generation: Long): Boolean
