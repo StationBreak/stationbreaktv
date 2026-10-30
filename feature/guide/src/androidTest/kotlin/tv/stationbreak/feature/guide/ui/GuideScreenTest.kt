@@ -243,6 +243,21 @@ class GuideScreenTest {
     }
 
     @Test
+    fun wideCellIsAnnouncedOnceWithItsTitleInTheDescriptionOnly() {
+        showReady(CH5)
+        val node = cell(CH5, 60).fetchSemanticsNode()
+        val description = node.config[SemanticsProperties.ContentDescription].joinToString(" ")
+        assertEquals("the title once in the description", 1, Regex("Test Movie 201").findAll(description).count())
+        // The title Text is still there, unmerged, but the cell's merged tree carries no second node or Text of it.
+        assertEquals("title text drawn", "Test Movie 201", text(GuideTags.cellText(CH5, min(60))))
+        assertEquals("no child node in the merged tree", 0, node.children.size)
+        assertTrue("no Text on the cell", SemanticsProperties.Text !in node.config)
+        compose
+            .onAllNodesWithText("Test Movie 201")
+            .assertCountEquals(1) // the panel's title only, never the cell's
+    }
+
+    @Test
     fun panelAnnouncesWhatChangedNotTheMinuteCountdown() {
         showReady(CH5)
         // The panel is one polite live region: a screen reader reads it again when it changes, so the line and bar
