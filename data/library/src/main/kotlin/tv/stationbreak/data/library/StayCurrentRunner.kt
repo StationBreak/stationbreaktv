@@ -58,8 +58,9 @@ data class SyncPlan(
  * [lastBackfill] and never changes how the run ended.
  *
  * It reports timings through [report], numbers, flags and outcome names only (never a title, a name, an ID, an
- * address or a message), so a device log shows whether the re-read ran and how long it took. Durations come from
- * [timeSource], which is monotonic, not from [clock].
+ * address or a message), so a device log shows whether the re-read ran and how long it took. A run or a re-read that
+ * ends in an Error (an OutOfMemoryError, say) still says so, as outcome=Error with the class name; the Error goes
+ * on. Durations come from [timeSource], which is monotonic, not from [clock].
  *
  * Only one run goes at a time in the process (a second one, from another trigger, does nothing), and a run leaves an
  * account whose first sync has not finished to the first sync. A failure is recorded in the saved library for Phase 1's
@@ -268,7 +269,7 @@ class StayCurrentRunner(
 
     // The studios re-read, after everything else. Its result is kept for the record and never changes the run's;
     // cancellation and a sign-out pass through, the same as for the passes.
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught", "ThrowsCount")
     private suspend fun backfill(
         engine: StayCurrentEngine,
         session: Session,
@@ -291,6 +292,12 @@ class StayCurrentRunner(
                 throw signedOut
             } catch (_: Exception) {
                 StayResult(SyncOutcome.Failed(SyncFailure.Server), PassSummary())
+            } catch (fatal: Throwable) {
+                // An Error (an OutOfMemoryError, say) is not recorded: it goes on, with a line saying so.
+                if (pending != false) {
+                    report.sayEscaping("BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} ${fatal.label()}")
+                }
+                throw fatal
             }
         lastBackfill = result
         // After StayCurrentWrote, which covers only the passes: the re-read's own writes are told apart (#480).
@@ -404,6 +411,9 @@ private fun SyncOutcome.label() =
         is SyncOutcome.Failed -> "outcome=Failed failure=${failure.name}"
     }
 
+// An Error that escaped a pass as a log field: the class name only, never a message.
+private fun Throwable.label() = "outcome=Error error=${this::class.java.simpleName}"
+
 // The reasons a run does nothing; the names are what the log line says.
 private enum class Skip {
     EmptyPlan,
@@ -431,13 +441,14 @@ private fun ((String) -> Unit).skipped(
 }
 
 // Runs the passes and says how they ended when they did not return: stopped or signed out is Cancelled, anything else
-// is the server failure [StayCurrentRunner.safely] records. The exception goes on; the line has no message.
+// is the server failure [StayCurrentRunner.safely] records, and an Error (an OutOfMemoryError, say) is Error with its
+// class name. The throwable goes on; the line has no message.
 @Suppress("TooGenericExceptionCaught", "ThrowsCount")
 private suspend fun ((String) -> Unit).timed(
     began: TimeMark,
     block: suspend () -> Ran,
 ): Ran {
-    val done = { label: String -> say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} $label") }
+    val done = { label: String -> sayEscaping("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} $label") }
     try {
         return block()
     } catch (stopped: CancellationException) {
@@ -449,6 +460,9 @@ private suspend fun ((String) -> Unit).timed(
     } catch (unexpected: Exception) {
         done("outcome=Failed failure=${SyncFailure.Server.name}")
         throw unexpected
+    } catch (fatal: Throwable) {
+        done(fatal.label())
+        throw fatal
     }
 }
 
@@ -484,5 +498,16 @@ private fun ((String) -> Unit).say(line: String) {
         throw cancelled
     } catch (_: Exception) {
         // Logging is best effort.
+    }
+}
+
+// The same for a line told while an Error is escaping: under an OutOfMemoryError the log call may fail too, and that
+// failure must not replace the Error.
+@Suppress("TooGenericExceptionCaught")
+private fun ((String) -> Unit).sayEscaping(line: String) {
+    try {
+        invoke(line)
+    } catch (_: Throwable) {
+        // Logging is best effort, and the Error already escaping is the one to report.
     }
 }
