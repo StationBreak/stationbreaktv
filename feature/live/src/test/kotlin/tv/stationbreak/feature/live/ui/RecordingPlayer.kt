@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /** A [VideoPlayer] that only writes down what it was asked to do, in order. */
 internal class RecordingPlayer : VideoPlayer {
@@ -25,6 +27,27 @@ internal class RecordingPlayer : VideoPlayer {
     override fun attach(surface: SurfaceView?) {
         log += if (surface == null) "attach(null)" else "attach(surface)"
     }
+
+    override fun pause(generation: Long) {
+        log += "pause:$generation"
+    }
+
+    override fun resume(generation: Long) {
+        log += "resume:$generation"
+    }
+
+    override fun seekTo(
+        generation: Long,
+        position: Duration,
+    ) {
+        log += "seek:$generation:${position.inWholeMilliseconds}"
+    }
+
+    override fun position(generation: Long): Duration? = 1.seconds
+
+    override suspend fun currentPosition(generation: Long): Duration? = 1.seconds
+
+    override fun seekable(generation: Long): Boolean = true
 
     override fun release() {
         log += "release"

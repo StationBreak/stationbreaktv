@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.time.Duration.Companion.minutes
@@ -77,6 +78,7 @@ class LiveChannelReportingTest {
                             delay(40_000)
                             emit(failure)
                         },
+                        PlayControl.None,
                     )
                 },
                 // The retry takes longer than the leave grace: the visit must not depend on the grace.

@@ -108,6 +108,21 @@ class TunePortAdapterTest {
             stops++
         }
 
+        override fun pause(generation: Long) = Unit
+
+        override fun resume(generation: Long) = Unit
+
+        override fun seekTo(
+            generation: Long,
+            position: Duration,
+        ) = Unit
+
+        override fun position(generation: Long): Duration? = null
+
+        override suspend fun currentPosition(generation: Long): Duration? = null
+
+        override fun seekable(generation: Long): Boolean = false
+
         override fun attach(surface: SurfaceView?) = Unit
 
         override fun release() = Unit
@@ -233,6 +248,16 @@ class TunePortAdapterTest {
             assertEquals(400L, playing.timings.tracksMs)
             assertEquals(12L, playing.timings.skippedFrames)
             assertEquals(loads, playing.timings.loads)
+        }
+
+    @Test
+    fun aPlayedTuneCarriesTheControllersControl() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer()
+            rig.player.answerAt = 30.seconds
+            val playing = rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing
+            assertEquals(rig.player.generation, playing.control.generation)
         }
 
     @Test

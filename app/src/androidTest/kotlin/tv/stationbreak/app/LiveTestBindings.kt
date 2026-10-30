@@ -8,6 +8,7 @@ import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import kotlin.time.Duration
 
 /**
  * The player factory for a navigation test that swaps the media server for a fake. The real one reads media through
@@ -26,6 +27,21 @@ private class NoOpPlayer : VideoPlayer {
     override fun play(source: PlayerSource): Long = 0
 
     override fun stop() = Unit
+
+    override fun pause(generation: Long) = Unit
+
+    override fun resume(generation: Long) = Unit
+
+    override fun seekTo(
+        generation: Long,
+        position: Duration,
+    ) = Unit
+
+    override fun position(generation: Long): Duration? = null
+
+    override suspend fun currentPosition(generation: Long): Duration? = null
+
+    override fun seekable(generation: Long): Boolean = false
 
     override fun attach(surface: SurfaceView?) = Unit
 

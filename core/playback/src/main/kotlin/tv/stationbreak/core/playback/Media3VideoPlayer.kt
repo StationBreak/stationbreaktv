@@ -24,8 +24,11 @@ import androidx.media3.exoplayer.audio.AudioSink
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -45,6 +48,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * leaves Media3's own default. A null subtitle pick with no separate subtitle turns text tracks off.
  */
 @UnstableApi
+@Suppress("TooManyFunctions") // The one player: its transport and its picks stay together.
 class Media3VideoPlayer(
     context: Context,
     dataSource: DataSource.Factory,
@@ -76,6 +80,12 @@ class Media3VideoPlayer(
             bufferedMs = { exo.totalBufferedDuration },
             log = { android.util.Log.i(MEMORY_LOG_TAG, it) },
         )
+
+    /**
+     * The player's events. The buffer is 64 and drops the oldest when full (a collector that stalls loses events): a
+     * dropped `SeekDone` would surface as a SeekTimeout 20 s later, though the seek completed. The risk is accepted
+     * while the buffer is ample for the few events a play produces.
+     */
     private val flow =
         MutableSharedFlow<PlayerEvent>(
             extraBufferCapacity = EVENT_BUFFER,
@@ -95,6 +105,15 @@ class Media3VideoPlayer(
     /** The media id of the item the current play set (see [mediaItem]). */
     private var playId = ""
     private var hasPlayed = false
+
+    /** A seek is under way: set by [seekTo], cleared by the `SeekDone`. Used on the player's looper. */
+    private var seeking = false
+
+    /**
+     * What the looper last saw, for [position] and [seekable] off the looper: one immutable snapshot in one reference,
+     * so a reader never mixes the values of two plays. Written on the looper only.
+     */
+    @Volatile private var published = Published.NONE
     private val audio = AudioSampler()
     private val av = AvRecorder()
 
@@ -119,6 +138,8 @@ class Media3VideoPlayer(
         val calledAt = clock()
         onPlayerThread {
             active = generation
+            // In the same step as `active`, so a reader on another thread never sees the old play under the new number.
+            published = Published(generation, source.playerStart.inWholeMilliseconds, false)
             av.begin(generation, calledAt)
             current = source
             tracksApplied = false
@@ -126,6 +147,7 @@ class Media3VideoPlayer(
             skips.reset()
             loadCounter.reset(generation)
             hasPlayed = false
+            seeking = false
             audio.reset()
             lastPickVerified = null
             exo.trackSelectionParameters =
@@ -139,6 +161,7 @@ class Media3VideoPlayer(
             exo.prepare()
             exo.playWhenReady = true
             memory.start()
+            publish()
         }
         return generation
     }
@@ -148,18 +171,106 @@ class Media3VideoPlayer(
             current = null
             // The closing audio sample, taken before the stop resets the position.
             if (audio.takeClosingSample()) {
-                flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
+                emit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
             }
+            active = 0L
+            seeking = false
             exo.stop()
             exo.clearMediaItems()
+            publish()
         }
+
+    override fun pause(generation: Long) =
+        onPlayerThread {
+            if (generation <= 0 || active != generation || !exo.playWhenReady) return@onPlayerThread
+            exo.playWhenReady = false
+            emit(PlayerEvent.Paused(generation, clock(), exo.currentPosition))
+        }
+
+    override fun resume(generation: Long) =
+        onPlayerThread {
+            if (generation <= 0 || active != generation || exo.playWhenReady) return@onPlayerThread
+            emit(PlayerEvent.Resumed(generation, clock()))
+            exo.playWhenReady = true
+        }
+
+    override fun seekTo(
+        generation: Long,
+        position: Duration,
+    ) = onPlayerThread {
+        if (generation <= 0 || active != generation) return@onPlayerThread
+        val to = position.inWholeMilliseconds
+        // A seek already pending is coalesced: the target moves, and its one SeekDone carries the final position.
+        if (!seeking) {
+            // Set first: Media3 may report the finish from inside the seek call.
+            seeking = true
+            emit(PlayerEvent.Seeking(generation, clock(), exo.currentPosition, to))
+        }
+        exo.seekTo(to)
+        publish()
+    }
+
+    override fun position(generation: Long): Duration? {
+        val ms = snapshot(generation)?.positionMs ?: return null
+        return if (ms == NO_POSITION) null else ms.milliseconds
+    }
+
+    override suspend fun currentPosition(generation: Long): Duration? =
+        suspendCancellableCoroutine { continuation ->
+            onPlayerThread {
+                val live = if (generation <= 0 || active != generation) null else exo.currentPosition.milliseconds
+                continuation.resume(live)
+            }
+        }
+
+    override fun seekable(generation: Long): Boolean = snapshot(generation)?.seekable == true
+
+    /** The published snapshot if it is [generation]'s, else null. On the looper it is refreshed first. */
+    private fun snapshot(generation: Long): Published? {
+        if (generation <= 0) return null
+        if (Looper.myLooper() == handler.looper && active == generation) publish()
+        return published.takeIf { it.generation == generation }
+    }
 
     override fun release() =
         onPlayerThread {
             current = null
+            active = 0L
+            seeking = false
+            published = Published.NONE
             memory.stop()
             exo.release()
         }
+
+    /** Sends [event] and refreshes what [position] and [seekable] answer from other threads. Looper only. */
+    private fun emit(event: PlayerEvent) {
+        // Published first, so a collector on another thread sees values at least as fresh as the event.
+        publish()
+        flow.tryEmit(event)
+    }
+
+    private fun publish() {
+        published =
+            if (active == 0L) Published.NONE else Published(active, exo.currentPosition, exo.isCurrentMediaItemSeekable)
+    }
+
+    /** What the looper saw of play [generation]; [Published.NONE] (generation 0) for none. */
+    private data class Published(
+        val generation: Long,
+        val positionMs: Long,
+        val seekable: Boolean,
+    ) {
+        companion object {
+            val NONE = Published(0L, NO_POSITION, false)
+        }
+    }
+
+    /** The seek is over: one `SeekDone`. Nothing when no seek is under way. */
+    private fun finishSeek() {
+        if (!seeking) return
+        seeking = false
+        emit(PlayerEvent.SeekDone(active, clock(), exo.currentPosition))
+    }
 
     private fun onPlayerThread(block: () -> Unit) {
         if (Looper.myLooper() == handler.looper) block() else handler.post(block)
@@ -232,6 +343,7 @@ class Media3VideoPlayer(
         return mime != null && mime == expected
     }
 
+    @Suppress("TooManyFunctions") // One override per Media3 event the player reports.
     private inner class Analytics : AnalyticsListener {
         override fun onTracksChanged(
             eventTime: AnalyticsListener.EventTime,
@@ -239,7 +351,7 @@ class Media3VideoPlayer(
         ) {
             if (!tracksReported && tracks.groups.isNotEmpty()) {
                 tracksReported = true
-                flow.tryEmit(PlayerEvent.TracksReady(clock(), active, loadCounter.close(containerMime(tracks))))
+                emit(PlayerEvent.TracksReady(clock(), active, loadCounter.close(containerMime(tracks))))
             }
             val source = current ?: return
             if (!source.directPlayTracks || tracksApplied || tracks.groups.isEmpty()) return
@@ -252,7 +364,7 @@ class Media3VideoPlayer(
             output: Any,
             renderTimeMs: Long,
         ) {
-            flow.tryEmit(PlayerEvent.FirstFrame(clock(), active, skips.sincePlay()))
+            emit(PlayerEvent.FirstFrame(clock(), active, skips.sincePlay()))
         }
 
         override fun onIsPlayingChanged(
@@ -262,7 +374,7 @@ class Media3VideoPlayer(
             if (!isPlaying) return
             hasPlayed = true
             val timings = av.finish(eventGeneration(eventTime, active))
-            flow.tryEmit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active, timings))
+            emit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active, timings))
         }
 
         override fun onPlaybackStateChanged(
@@ -270,18 +382,31 @@ class Media3VideoPlayer(
             state: Int,
         ) {
             if (state == Player.STATE_READY) av.ready(eventGeneration(eventTime, active), clock())
-            // A rebuffer: buffering again after playback had begun.
-            if (state == Player.STATE_BUFFERING && hasPlayed) {
-                flow.tryEmit(PlayerEvent.Stalled(active, clock(), exo.currentPosition, exo.totalBufferedDuration))
+            // A seek ends at READY, or at the end of the stream (the target was reached: the end). IDLE drops it.
+            if (state == Player.STATE_READY || state == Player.STATE_ENDED) finishSeek()
+            if (state == Player.STATE_IDLE) seeking = false
+            // A rebuffer: buffering again after playback had begun. One that follows a seek is the seek's own.
+            if (state == Player.STATE_BUFFERING && hasPlayed && !seeking) {
+                emit(PlayerEvent.Stalled(active, clock(), exo.currentPosition, exo.totalBufferedDuration))
             }
-            if (state == Player.STATE_ENDED) flow.tryEmit(PlayerEvent.Ended(active))
+            if (state == Player.STATE_ENDED) emit(PlayerEvent.Ended(active))
+        }
+
+        override fun onPositionDiscontinuity(
+            eventTime: AnalyticsListener.EventTime,
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            // A seek inside the buffer, or to the current position, never leaves READY: no state change would end it.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK && exo.playbackState == Player.STATE_READY) finishSeek()
         }
 
         override fun onCues(
             eventTime: AnalyticsListener.EventTime,
             cueGroup: CueGroup,
         ) {
-            flow.tryEmit(PlayerEvent.Cues(cueGroup.cues.size, active))
+            emit(PlayerEvent.Cues(cueGroup.cues.size, active))
         }
 
         override fun onAudioPositionAdvancing(
@@ -290,7 +415,7 @@ class Media3VideoPlayer(
         ) {
             audio.advancing()
             av.audioAdvancing(eventGeneration(eventTime, active), clock())
-            flow.tryEmit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
+            emit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
         }
 
         override fun onVideoDecoderInitialized(
@@ -323,12 +448,15 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
-            flow.tryEmit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
+            // The play ends here: a pending seek will not finish, and says nothing.
+            seeking = false
+            emit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
         }
     }
 
     private companion object {
         const val EVENT_BUFFER = 64
+        const val NO_POSITION = -1L
 
         /** The tag live TV's measurement lines use, so a device run collects this line with them. */
         const val MEMORY_LOG_TAG = "SBLIVE"

@@ -85,6 +85,34 @@ sealed interface PlayerEvent {
         val bufferedMs: Long = NOT_KNOWN,
     ) : PlayerEvent
 
+    /** [VideoPlayer.pause] paused the play at [positionMs]. */
+    data class Paused(
+        override val generation: Long,
+        val atMs: Long,
+        val positionMs: Long,
+    ) : PlayerEvent
+
+    /** The play was asked to play on after a pause; [PlayerEvent.Playing] follows when it does. */
+    data class Resumed(
+        override val generation: Long,
+        val atMs: Long,
+    ) : PlayerEvent
+
+    /** [VideoPlayer.seekTo] moved the play from [fromMs] towards [toMs]. */
+    data class Seeking(
+        override val generation: Long,
+        val atMs: Long,
+        val fromMs: Long,
+        val toMs: Long,
+    ) : PlayerEvent
+
+    /** The player is ready at the seek target again (playing or paused). Exactly one per [Seeking]. */
+    data class SeekDone(
+        override val generation: Long,
+        val atMs: Long,
+        val positionMs: Long,
+    ) : PlayerEvent
+
     companion object {
         /** A number the player could not give. */
         const val NOT_KNOWN = -1L
@@ -112,4 +140,45 @@ interface VideoPlayer {
     fun attach(surface: SurfaceView?)
 
     fun release()
+
+    /**
+     * Pauses the play [generation]; nothing when it is not the play on the player, or is already paused. Emits
+     * [PlayerEvent.Paused].
+     */
+    fun pause(generation: Long)
+
+    /**
+     * Plays on from where [generation] paused; nothing when it is not the play on the player, or is not paused. Emits
+     * [PlayerEvent.Resumed] at once, then Playing.
+     */
+    fun resume(generation: Long)
+
+    /**
+     * Seeks [generation] to [position] in the stream, playing or paused as it was. Emits Seeking, then SeekDone. A seek
+     * called while one is pending is coalesced: it moves the target and emits no second Seeking, so there is one
+     * SeekDone per Seeking, at the final position. After a seek during playback, Playing follows once it plays on, as
+     * after a rebuffer.
+     */
+    fun seekTo(
+        generation: Long,
+        position: Duration,
+    )
+
+    /**
+     * The position of [generation] as of the last snapshot the player published; null when it is not the play on the
+     * player (a newer play, or after [stop]) or the player cannot say. The snapshot is taken on the player's looper at
+     * events and transport calls only, so during steady playback this is NOT "now": use [currentPosition] for the
+     * live value. It is generation-safe from any thread: a snapshot of another play is never returned. Called from
+     * another thread straight after [play], it is null until the looper has run the play.
+     */
+    fun position(generation: Long): Duration?
+
+    /**
+     * The live, exact position of [generation], read on the player's looper whatever the caller's thread; null when
+     * it is not the play on the player (a newer play, or after [stop]) or the player cannot say.
+     */
+    suspend fun currentPosition(generation: Long): Duration?
+
+    /** True when [generation] is on the player and its media can seek; false otherwise, after [stop], or unknown. */
+    fun seekable(generation: Long): Boolean
 }

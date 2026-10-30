@@ -40,6 +40,7 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -179,7 +180,8 @@ class FakeTune(
         fun plays(
             end: Flow<PlaybackEnd> = flow { awaitCancellation() },
             timings: TuneTimings = TuneTimings(),
-        ): TuneOutcome = TuneOutcome.Playing(end, timings)
+            control: PlayControl = PlayControl.None,
+        ): TuneOutcome = TuneOutcome.Playing(end, control, timings)
 
         /** A tune that takes [wait] to show a picture, with the [timings] the controller would have measured. */
         fun playsAfter(

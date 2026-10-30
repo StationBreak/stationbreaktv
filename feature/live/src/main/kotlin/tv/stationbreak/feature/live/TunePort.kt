@@ -10,6 +10,7 @@ import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.AvTimings
 import tv.stationbreak.core.playback.LoadStats
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration
@@ -67,12 +68,14 @@ data class ReportFacts(
 /** How one tune went, as the machine needs it. */
 sealed interface TuneOutcome {
     /**
-     * The picture plays. [end] emits how the play ends, or completes empty when it is stopped or replaced. [timings]
+     * The picture plays. [end] emits how the play ends, or completes empty when it is stopped or replaced. [control]
+     * is the transport handle of this play alone (pause, seek, position). [timings]
      * is what the controller measured. [notes] are the play's stalls and their ends (diagnostics, numbers only).
      * [report] is what the server should be told about the play (spec 16), null when the adapter had nothing.
      */
     data class Playing(
         val end: Flow<PlaybackEnd>,
+        val control: PlayControl,
         val timings: TuneTimings = TuneTimings(),
         val notes: Flow<PlayNote> = emptyFlow(),
         val report: ReportFacts? = null,

@@ -85,6 +85,33 @@ internal class FakeVideoPlayer : VideoPlayer {
         stops++
     }
 
+    override fun pause(generation: Long) {
+        calls += "pause:$generation"
+    }
+
+    override fun resume(generation: Long) {
+        calls += "resume:$generation"
+    }
+
+    override fun seekTo(
+        generation: Long,
+        position: Duration,
+    ) {
+        calls += "seek:$generation:${position.inWholeMilliseconds}"
+    }
+
+    override fun position(generation: Long): Duration? = null
+
+    /** What [currentPosition] answers. */
+    var live: Duration? = null
+
+    override suspend fun currentPosition(generation: Long): Duration? {
+        calls += "live:$generation"
+        return live
+    }
+
+    override fun seekable(generation: Long): Boolean = false
+
     override fun attach(surface: SurfaceView?) = Unit
 
     override fun release() = Unit

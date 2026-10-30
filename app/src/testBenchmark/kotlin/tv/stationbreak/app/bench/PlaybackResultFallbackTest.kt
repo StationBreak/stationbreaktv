@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.playback.Fallback
 import tv.stationbreak.core.playback.FallbackCause
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneFailure
 import tv.stationbreak.core.playback.TuneResult
@@ -24,7 +25,7 @@ class PlaybackResultFallbackTest {
         positionError: Duration? = null,
     ): PlaybackResult {
         val resolved = BenchTestData.resolved(route, null)
-        val played = TuneResult.Played(resolved, 300, 400, positionError, fallback)
+        val played = TuneResult.Played(resolved, 300, 400, positionError, fallback, PlayControl.None)
         return PlaybackResult.from("video", played, Watch(0, 0, 12_000), expected, 30_000)
     }
 

@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.SubtitleDelivery
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.TuneFailure
 import tv.stationbreak.core.playback.TuneResult
@@ -27,7 +28,7 @@ class PlaybackResultTest {
         outcome: TuneResult? = null,
     ): PlaybackResult {
         val resolved = BenchTestData.resolved(route, subtitle)
-        val played = outcome ?: TuneResult.Played(resolved, 300, 400, positionError, null)
+        val played = outcome ?: TuneResult.Played(resolved, 300, 400, positionError, null, PlayControl.None)
         return PlaybackResult.from(section, played, watch, expected, 30_000)
     }
 
