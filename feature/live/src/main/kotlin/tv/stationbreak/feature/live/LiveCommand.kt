@@ -46,4 +46,29 @@ sealed interface LiveCommand {
 
     /** Back: closes the info overlay (the actions banner comes back), else the actions banner; else nothing. */
     data object DismissOverlay : LiveCommand
+
+    /** Play/Pause: pauses a playing picture, plays a paused one (spec 20). */
+    data object PlayPause : LiveCommand
+
+    /** Play (a remote with separate keys): plays a paused picture. */
+    data object Play : LiveCommand
+
+    /** Pause (a remote with separate keys): pauses a playing picture. */
+    data object Pause : LiveCommand
+
+    /**
+     * Left or right: step the picture back or ahead (spec 20). A [repeat] is a key held down, paced by [atMs], the key
+     * event's time, or the clock when there is none, as for [Flip].
+     */
+    data class Seek(
+        val direction: SeekDirection,
+        val repeat: Boolean = false,
+        val atMs: Long? = null,
+    ) : LiveCommand
+
+    /** The Left or Right key of the last [Seek] came up. */
+    data object SeekReleased : LiveCommand
+
+    /** Back to live from behind (spec 20). */
+    data object GoLive : LiveCommand
 }

@@ -38,6 +38,16 @@ internal sealed class Pending(
         item: CanonicalId,
         blockStartMs: Long,
     ) : Pending(handle, item, blockStartMs)
+
+    /**
+     * The block on air when a behind play's item ends, resolved ahead; played from the schedule's position at the cut.
+     * Declared for the catch-up (spec 20); Task 9 makes and plays it.
+     */
+    class CatchUp(
+        handle: NextHandle,
+        item: CanonicalId,
+        blockStartMs: Long,
+    ) : Pending(handle, item, blockStartMs)
 }
 
 /**

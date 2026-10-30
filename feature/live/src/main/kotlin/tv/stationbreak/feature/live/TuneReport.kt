@@ -200,10 +200,14 @@ sealed interface TuneReport {
 /** How long the notes of a play that has ended may take to arrive. */
 private val NOTES_DRAIN = 50.milliseconds
 
-/** Reports [notes] while [body] runs; the notes the play left when it ended are reported too, none after. */
+/**
+ * Reports [notes] while [body] runs; the notes the play left when it ended are reported too, none after. A result for
+ * which [drain] is false means the play goes on (watched by someone else): its notes are not waited for.
+ */
 internal suspend fun <T> Sitting.watchNotes(
     notes: Flow<PlayNote>,
     reporter: PlaybackReporter?,
+    drain: (T) -> Boolean = { true },
     body: suspend () -> T,
 ): T =
     coroutineScope {
@@ -220,7 +224,7 @@ internal suspend fun <T> Sitting.watchNotes(
             }
         val result = body()
         // The notes flow completes with the play's end; a play that is not over has nothing to wait for.
-        withTimeoutOrNull(NOTES_DRAIN) { job.join() }
+        if (drain(result)) withTimeoutOrNull(NOTES_DRAIN) { job.join() }
         job.cancel()
         result
     }

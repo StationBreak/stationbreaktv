@@ -8,6 +8,7 @@ import org.junit.Test
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** The interval tables: times are wall minutes from a zero origin, `fromMs` and positions are media time. */
@@ -71,6 +72,18 @@ class WatchLedgerTest {
         l.seeked(min(7), media(8.0))
         l.leave(min(10))
         assertEquals(8.minutes, l.watched(a, min(10)))
+    }
+
+    @Test
+    fun `a seek back over watched time closes at the players own position so it counts once`() {
+        val l = ledger()
+        l.enterAt(a, 0, 0)
+        // The player runs 2 s behind the derived position: at minute 10 it is at 9:58, and the seek closes there.
+        l.seeking(min(10), positionMs = media(10.0) - 2_000)
+        l.seeked(min(10), media(8.0))
+        l.leave(min(11))
+        // 0 to 9:58, then 8:00 to 9:00 again, already watched: never the 2 s the player had not reached.
+        assertEquals(10.minutes - 2.seconds, l.watched(a, min(11)))
     }
 
     @Test

@@ -49,6 +49,7 @@ internal sealed interface ReportEvent {
 
     data class Seeking(
         val at: Instant,
+        val positionMs: Long?,
     ) : ReportEvent
 
     data class Seeked(
@@ -221,7 +222,7 @@ internal class ReportWorker(
             }
 
             is ReportEvent.Seeking -> {
-                ledger.seeking(event.at)
+                ledger.seeking(event.at, event.positionMs)
             }
 
             is ReportEvent.Seeked -> {

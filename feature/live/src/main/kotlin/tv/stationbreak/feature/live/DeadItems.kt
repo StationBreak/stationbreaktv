@@ -26,6 +26,7 @@ internal suspend fun Sitting.deadItem(
     tuner.stop(session)
     val remaining = block.endMs - vnowMs()
     if (remaining <= 0) return null
+    heldBlockStartMs = null
     state.value = LiveState.TechnicalDifficulties(up, onAir.tag())
     onSettled(scope)
     delay(timings.slateHold)
@@ -72,9 +73,10 @@ private suspend fun Sitting.fillIn(
             when (outcome) {
                 is TuneOutcome.Playing -> {
                     // A piece that ends at its own end is not a failure: the next piece (or the schedule) follows.
-                    val held = hold(piece.endMs, outcome.end, outcome.notes)
-                    if (held == Held.Boundary && piece.endMs >= block.endMs) return null
-                    held != Held.Boundary
+                    // No block start: a stand-in takes no transport ops until Task 10.
+                    val held = hold(piece.endMs, outcome.end, outcome.notes, false, outcome.control, null)
+                    if (held == LiveHold.Boundary && piece.endMs >= block.endMs) return null
+                    held != LiveHold.Boundary
                 }
 
                 is TuneOutcome.Dead -> {

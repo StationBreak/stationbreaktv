@@ -2,23 +2,28 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.feature.live.report.PlaybackReporter
@@ -45,8 +50,62 @@ internal class TuneWhat(
     val position: Duration,
 )
 
-/** How a play that had started ended, as [Sitting.hold] sees it. */
-internal enum class Held { Boundary, Ended, Failed }
+/** How the live hold ([Sitting.hold]) ended: how the play ended, or a transport op that starts a behind play. */
+internal sealed interface LiveHold {
+    /** The block's end came first: the play is cut there. */
+    data object Boundary : LiveHold
+
+    /** The media played to its end inside the block. */
+    data object Ended : LiveHold
+
+    /** The play broke; [positionMs] is where the player says it failed, null when it could not say. */
+    data class Failed(
+        val positionMs: Long?,
+    ) : LiveHold
+
+    /** The viewer paused or stepped back on the live play: [op] starts the behind play. */
+    data class Transport(
+        val op: TransportOp,
+    ) : LiveHold
+}
+
+/** How a program's play ended ([Sitting.holdProgram]): live or behind, every transport op already run. */
+internal sealed interface Held {
+    /** The block's end came first: the play is cut there. */
+    data object Boundary : Held
+
+    /** The media played to its end inside the block. */
+    data object Ended : Held
+
+    /** The play broke; [positionMs] is where the player says it failed, null when it could not say. */
+    data class Failed(
+        val positionMs: Long?,
+    ) : Held
+
+    /** A behind play reached its item's end: catch up (Task 9 fills [catchUp]; null until then). */
+    data class CaughtUp(
+        val catchUp: Pending.CatchUp?,
+    ) : Held
+
+    /** A behind play's file ended early while the clock is still inside its block: hold the ident (Task 9). */
+    data object EndedInBlock : Held
+
+    /** The behind play ended the sitting (a retry that signed out or was stopped, Task 10). */
+    data class Exited(
+        val exit: Exit,
+    ) : Held
+}
+
+/** What woke the live hold: the play's end, or a transport op it takes. */
+private sealed interface Woke {
+    data class End(
+        val end: PlaybackEnd,
+    ) : Woke
+
+    data class Op(
+        val op: TransportOp,
+    ) : Woke
+}
 
 /**
  * One sitting on one channel: a loop over the blocks of its schedule (spec 14). Time is always [vnowMs], the clock plus
@@ -72,12 +131,22 @@ internal class Sitting(
     /** The run's playback reporter (spec 16), null where reporting is off, and this sitting's id in it. */
     internal val reporter: PlaybackReporter? = null,
     internal val sittingId: Long = 0,
+    /** This sitting's inbox for the viewer's transport presses (spec 20); the run closes it with the sitting. */
+    internal val commands: SittingCommands,
     /**
      * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
      * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
      */
     internal val onSettled: (CoroutineScope) -> Unit = {},
 ) {
+    /** The start of the block (or stand-in piece) whose picture is up; null before a tune plays or on a card. */
+    @Volatile
+    internal var heldBlockStartMs: Long? = null
+
+    /** The behind play running on this sitting's picture (spec 20), null while live or on a card. */
+    @Volatile
+    internal var behind: BehindPlay? = null
+
     /** How far ahead of the clock this sitting runs (milliseconds, never negative). */
     var driftMs = 0L
 
@@ -197,24 +266,31 @@ internal class Sitting(
                     when (use) {
                         is Pending.AtBoundary -> tuner.tune(session, use.handle)
                         is Pending.Retarget -> tuner.tune(session, use.handle, position)
+                        is Pending.CatchUp -> tuner.tune(session, use.handle, position)
                         null -> tuner.tune(session, ItemId(program.itemId.value), position)
                     }
                 }
             val dead =
                 when (outcome) {
                     is TuneOutcome.Playing -> {
-                        when (holdReporting(block, program, outcome, visiting, asked.inWholeMilliseconds)) {
-                            Held.Boundary -> {
+                        val from = asked.inWholeMilliseconds
+                        when (val held = holdReporting(block, program, outcome, visiting, from)) {
+                            // Caught up: the visit is left (by the caller) and the sitting follows what is on now.
+                            Held.Boundary, is Held.CaughtUp -> {
                                 return null
                             }
 
-                            Held.Ended -> {
+                            Held.Ended, Held.EndedInBlock -> {
                                 visiting.leave()
                                 return holdIdent(scope, onAir, block.endMs)
                             }
 
-                            Held.Failed -> {
+                            is Held.Failed -> {
                                 ++failures >= 2
+                            }
+
+                            is Held.Exited -> {
+                                return held.exit
                             }
                         }
                     }
@@ -251,6 +327,9 @@ internal class Sitting(
         onAir: ChannelOnAir? = null,
         tune: suspend () -> TuneOutcome,
     ): TuneOutcome {
+        // A press made before this cut or retune must not act on what plays after it.
+        val stale = commands.drain()
+        if (stale > 0) report(TuneReport.PressDropped("transport-at-tune", state.value.javaClass.logName(), stale))
         if (snow) state.value = LiveState.Tuning(banner)
         val began = clock.now()
         // The committed item's own first tune only: a stand-in comes after the slate's hold, which is not hand-over.
@@ -270,6 +349,7 @@ internal class Sitting(
                 val left = timings.minSnow - (clock.now() - began)
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
+            heldBlockStartMs = what.block.startMs
             val playing = showWatching(scope, banner, what.block.airing.itemId())
             // The banner's "Next" came from the blocks already read; with no program among them, look wider, now that
             // the picture is up and the tune no longer waits for it.
@@ -299,49 +379,50 @@ internal class Sitting(
     }
 
     /**
-     * Where the player says the last [hold] failed, in media ms; negative when it did not fail or could not say.
-     * Temporary: Task 8a replaces it with `Held.Failed(positionMs)`.
-     */
-    var failedPositionMs: Long = -1
-        private set
-
-    /**
      * Waits for how the play ends, or for [untilMs] (the block's end, which cuts a show that runs long). The play's
      * stalls in [notes] are reported as they come (and to the reporter when [reporting]);
      * a failure is reported with its numbers (#392).
+     *
+     * With a [blockStartMs] (a program's block), it also takes the viewer's transport ops for that block: Play/Pause
+     * and Pause return [LiveHold.Transport], as does a back step when [control] can seek; the rest mean nothing while
+     * live. Without one (stand-ins, until Task 10) it takes no ops.
      */
+    @Suppress("LongParameterList") // The play's three flows and handle, the block's end and its tag.
     suspend fun hold(
         untilMs: Long,
         end: Flow<PlaybackEnd>,
-        notes: Flow<PlayNote> = emptyFlow(),
-        reporting: Boolean = false,
-    ): Held {
+        notes: Flow<PlayNote>,
+        reporting: Boolean,
+        control: PlayControl,
+        blockStartMs: Long?,
+    ): LiveHold {
         val left = untilMs - vnowMs()
-        // An empty flow means the play was stopped under us; it counts as an end.
-        val ended =
+        val woke =
             if (left <= 0) {
                 null
             } else {
                 val reportTo = reporter.takeIf { reporting }
                 withTimeoutOrNull(left) {
-                    watchNotes(notes, reportTo) { end.firstOrNull() ?: PlaybackEnd.Ended }
+                    // An op leaves the play running: its notes are collected on by the behind play, not drained here.
+                    watchNotes(notes, reportTo, drain = { it is Woke.End }) { endOrOp(end, control, blockStartMs) }
                 }
             }
-        failedPositionMs = (ended as? PlaybackEnd.Failed)?.positionMs ?: -1
+        if (woke is Woke.Op) return LiveHold.Transport(woke.op)
+        val ended = (woke as? Woke.End)?.end
         if (ended is PlaybackEnd.Failed) report(TuneReport.HeldFailed(ended))
         if (ended == null) waitUntil(untilMs)
         return when {
             ended == null || vnowMs() >= untilMs -> {
                 cutFrom = clock.now()
-                Held.Boundary
+                LiveHold.Boundary
             }
 
             ended is PlaybackEnd.Failed -> {
-                Held.Failed
+                LiveHold.Failed(ended.positionMs.takeIf { it >= 0 })
             }
 
             else -> {
-                Held.Ended
+                LiveHold.Ended
             }
         }
     }
@@ -355,6 +436,7 @@ internal class Sitting(
         // Worked out before the stop: the card must follow the stop at once, not after a look at the schedule.
         val up = upNext(onAir)
         tuner.stop(session)
+        heldBlockStartMs = null
         state.value = LiveState.Ident(up, onAir.tag())
         // A card with no picture also looks ahead, so a flip off it is not a fresh tune (#392).
         onSettled(scope)
@@ -364,6 +446,7 @@ internal class Sitting(
     }
 
     fun expired(): Exit {
+        heldBlockStartMs = null
         state.value = LiveState.SignedOut
         return Exit.SignedOut
     }
@@ -371,5 +454,60 @@ internal class Sitting(
     internal companion object {
         /** How many following blocks each look at the schedule asks for (the next one is pre-resolved). */
         const val WINDOW = 3
+    }
+}
+
+/**
+ * A transport op already taken from the inbox when the play's end or the cut won: it is dropped, with a line
+ * (`press dropped reason=<reason>`), so no press vanishes without a trace.
+ */
+private fun Sitting.reportLostOp(
+    taken: Deferred<*>,
+    reason: String,
+) {
+    if (!taken.isCompleted || taken.isCancelled) return
+    report(TuneReport.PressDropped(reason, state.value.javaClass.logName()))
+}
+
+/** The play's end (an empty flow: stopped under us, which counts as an end), or the first live op taken. */
+private suspend fun Sitting.endOrOp(
+    end: Flow<PlaybackEnd>,
+    control: PlayControl,
+    blockStartMs: Long?,
+): Woke =
+    coroutineScope {
+        val ended = async { Woke.End(end.firstOrNull() ?: PlaybackEnd.Ended) }
+        if (blockStartMs == null) return@coroutineScope ended.await()
+        val op = async { takeLiveOp(control, blockStartMs) }
+        val woke: Woke =
+            try {
+                select<Woke> {
+                    ended.onAwait { it }
+                    op.onAwait { it }
+                }
+            } catch (cut: TimeoutCancellationException) {
+                // The block's end cut the hold: an op it had already taken goes with it.
+                reportLostOp(op, "transport-lost-at-cut")
+                throw cut
+            }
+        if (woke is Woke.End) reportLostOp(op, "transport-lost-at-end")
+        coroutineContext[Job]?.cancelChildren()
+        woke
+    }
+
+/** The next op for the block that starts the behind play; ops that mean nothing while live are let go. */
+private suspend fun Sitting.takeLiveOp(
+    control: PlayControl,
+    blockStartMs: Long,
+): Woke.Op {
+    while (true) {
+        val op = commands.receive(blockStartMs)
+        val takes =
+            when (op) {
+                TransportOp.Toggle, TransportOp.Pause -> true
+                is TransportOp.Step -> op.direction == SeekDirection.Back && control.seekable()
+                TransportOp.Play, TransportOp.StepReleased, TransportOp.GoLive -> false
+            }
+        if (takes) return Woke.Op(op)
     }
 }

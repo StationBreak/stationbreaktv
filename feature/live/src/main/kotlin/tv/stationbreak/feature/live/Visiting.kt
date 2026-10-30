@@ -48,8 +48,9 @@ internal class Visiting(
         if (open) reporter?.unpaused()
     }
 
-    fun seeking() {
-        if (open) reporter?.seeking()
+    /** A seek begins from [positionMs], the player's exact position when known. */
+    fun seeking(positionMs: Long?) {
+        if (open) reporter?.seeking(positionMs)
     }
 
     fun seeked(toMs: Long) {
@@ -65,8 +66,9 @@ internal class Visiting(
 }
 
 /**
- * [Sitting.hold] for a scheduled program that plays: the reporter is told of the visit (non-suspending, so nothing here
- * waits on the server). Slates, idents and stand-ins never come here. The caller leaves [visiting] when the block ends.
+ * [Sitting.holdProgram] for a scheduled program that plays: the reporter is told of the visit (non-suspending, so
+ * nothing here waits on the server). Slates, idents and stand-ins never come here. The caller leaves [visiting] when
+ * the block ends.
  */
 internal suspend fun Sitting.holdReporting(
     block: AiringBlock,
@@ -76,11 +78,11 @@ internal suspend fun Sitting.holdReporting(
     fromMs: Long,
 ): Held {
     val facts = outcome.report
-    if (reporter == null || facts == null) return hold(block.endMs, outcome.end, outcome.notes)
+    if (reporter == null || facts == null) return holdProgram(block, outcome, null)
     val item = ItemId(program.itemId.value)
     val target = ReportTarget(item, facts.sourceId, facts.playSessionId, facts.playMethod, facts.runtime)
     visiting.playing(fromMs) { it.visit(sittingId, AiringKey(channel, block.startMs, item), target, fromMs) }
-    val held = hold(block.endMs, outcome.end, outcome.notes, reporting = true)
-    if (held == Held.Failed) visiting.failedPlay(failedPositionMs)
+    val held = holdProgram(block, outcome, visiting)
+    if (held is Held.Failed) visiting.failedPlay(held.positionMs ?: -1)
     return held
 }

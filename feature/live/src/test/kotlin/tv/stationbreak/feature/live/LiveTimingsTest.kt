@@ -46,7 +46,35 @@ class LiveTimingsTest {
     }
 
     @Test
+    fun theBehindPlayBoundsDefaultToTheirMeasuredValues() {
+        assertEquals(20.seconds, LiveTimings().goLiveWait)
+        assertEquals(2.seconds, LiveTimings().seekLandingSlack)
+        assertEquals(250.milliseconds, LiveTimings().holdRearmMin)
+    }
+
+    @Test
+    fun behindPlayBoundsThatAreNotPositiveAreRefused() {
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(goLiveWait = 0.seconds) }
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(seekLandingSlack = (-1).seconds) }
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(holdRearmMin = 0.seconds) }
+    }
+
+    @Test
     fun aNegativePauseReportMaxIsRefused() {
         assertThrows(IllegalArgumentException::class.java) { LiveTimings(pauseReportMax = (-1).seconds) }
+    }
+
+    @Test
+    fun theTransportDefaultsAreTenBackThirtyAheadAndAnHourHeld() {
+        assertEquals(10.seconds, LiveTimings().stepBack)
+        assertEquals(30.seconds, LiveTimings().stepAhead)
+        assertEquals(60.minutes, LiveTimings().pauseHoldMax)
+    }
+
+    @Test
+    fun aTransportTimeThatIsNotPositiveIsRefused() {
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(stepBack = 0.seconds) }
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(stepAhead = 0.seconds) }
+        assertThrows(IllegalArgumentException::class.java) { LiveTimings(pauseHoldMax = 0.seconds) }
     }
 }
