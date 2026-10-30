@@ -250,6 +250,12 @@ class FakePlayControl(
     /** How long a seek takes to be done; 0 sends `SeekDone` at once. A delay needs the control's scope. */
     var seekDelayMs = 0L
 
+    /** A `SeekDone` at this position left over from an earlier seek, sent (once) just before the next seek's events. */
+    var staleDoneMs: Long? = null
+
+    /** When true, a seek is folded into one already pending: no `Seeking`, only its `SeekDone`. */
+    var coalesces = false
+
     override val events = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
 
     private var baseMs = startMs
@@ -296,7 +302,9 @@ class FakePlayControl(
         calls += "seek:$to"
         baseMs = to
         sinceMs = now()
-        events.tryEmit(PlayerEvent.Seeking(generation, now(), from, to))
+        staleDoneMs?.let { events.tryEmit(PlayerEvent.SeekDone(generation, now(), known(it))) }
+        staleDoneMs = null
+        if (!coalesces) events.tryEmit(PlayerEvent.Seeking(generation, now(), from, to))
         val delayed = scope
         if (seekDelayMs <= 0 || delayed == null) {
             events.tryEmit(PlayerEvent.SeekDone(generation, now(), known(to)))

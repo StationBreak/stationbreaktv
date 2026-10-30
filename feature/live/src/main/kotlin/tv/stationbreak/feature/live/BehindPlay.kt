@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
+import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -144,12 +145,25 @@ internal class BehindPlay(
     /** True when the pending target is the live position: an Ahead step's clamp hit it. */
     private var targetIsLive = false
 
-    /** The clock time (epoch ms) the pending target settles at if the key is not released first. */
+    /**
+     * The clock time (epoch ms) the pending target settles at: the release fallback while the key is down, then the
+     * later of the last press or repeat plus [LiveTimings.flipSettle], and the release (#430, R55).
+     */
     private var settleAtMs: Long? = null
 
-    /** The target of the seek sent and not yet done; null when none is in flight. */
+    /** True from a Back or Ahead press until its release: nothing settles at [LiveTimings.flipSettle] meanwhile. */
+    private var keyDown = false
+
+    /** The clock time (epoch ms) of the last Back or Ahead press or repeat. */
+    private var lastKeyAtMs = 0L
+
+    /** The target of the latest seek sent and not yet done; null when none is in flight. */
     @Volatile
     private var seekingToMs: Long? = null
+
+    /** True once the player's `Seeking` for [seekingToMs] has come: the next `SeekDone` is that seek's. */
+    @Volatile
+    private var seekStarted = false
 
     /** Set while the seek back to live is in flight: once it is done, the viewer is live. */
     @Volatile
@@ -210,6 +224,7 @@ internal class BehindPlay(
             val leftMs = if (paused) null else cutMs - read()
             if (leftMs != null && leftMs <= 0) {
                 sitting.reportLostOp(next, "transport-lost-at-cut")
+                dropTarget("transport-lost-at-cut")
                 return BehindEnd.ItemEnd(null)
             }
             // The first wait is the exact media left, so the cut is on time. Only once a wait has fired short is a
@@ -229,6 +244,7 @@ internal class BehindPlay(
             when (woke) {
                 is Wake.End -> {
                     sitting.reportLostOp(next, "transport-lost-at-end")
+                    dropTarget("transport-lost-at-end")
                     return playEnd(woke.end)
                 }
 
@@ -259,7 +275,7 @@ internal class BehindPlay(
             TransportOp.Play -> if (paused) resume()
             TransportOp.Pause -> if (!paused) pause()
             is TransportOp.Step -> step(op)
-            TransportOp.StepReleased -> settle()
+            TransportOp.StepReleased -> released()
             TransportOp.GoLive -> goLive()
         }
     }
@@ -288,7 +304,11 @@ internal class BehindPlay(
      */
     private suspend fun step(op: TransportOp.Step) {
         if (!play.control.seekable()) return
-        settleAtMs = nowMs() + timings.flipSettle.inWholeMilliseconds
+        // While the key is down only the release fallback settles, so a held key seeks once, when it comes up, even
+        // where the remote's first auto-repeat comes after flipSettle (480 ms on older hardware).
+        keyDown = true
+        lastKeyAtMs = nowMs()
+        settleAtMs = lastKeyAtMs + timings.flipReleaseFallback.inWholeMilliseconds
         val atMs = op.atMs ?: nowMs()
         if (op.repeat) {
             if (!pace.repeatSteps(atMs)) return
@@ -306,6 +326,17 @@ internal class BehindPlay(
         targetMs = toMs
         targetIsLive = op.direction == SeekDirection.Ahead && TransportMath.reachesLive(toMs, liveMs, cutMs)
         show()
+    }
+
+    /**
+     * The Back or Ahead key came up (R55, as for a flip): the target settles at the later of the last press or repeat
+     * plus the settle, and now. A tap settles at its press plus the settle, so quick taps add up to one seek.
+     */
+    private suspend fun released() {
+        if (!keyDown) return
+        keyDown = false
+        settleAtMs = maxOf(lastKeyAtMs + timings.flipSettle.inWholeMilliseconds, nowMs())
+        if (settleDue()) settle()
     }
 
     /** The pending target settles: one seek to it, or back to live when it is the live position and the play runs. */
@@ -352,6 +383,7 @@ internal class BehindPlay(
         val fromMs = play.control.position()?.inWholeMilliseconds
         visiting?.seeking(fromMs)
         seekingToMs = toMs
+        seekStarted = false
         play.control.seekTo(toMs.milliseconds)
         known(toMs)
     }
@@ -416,18 +448,48 @@ internal class BehindPlay(
                 visiting?.unpaused()
             }
 
+            is PlayerEvent.Seeking -> {
+                if (event.toMs == seekingToMs) seekStarted = true
+            }
+
             is PlayerEvent.SeekDone -> {
-                val at = event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN }
-                at?.let(::known)
-                // Only a seek this play sent is reported done; where it landed, else where it was sent.
-                seekingToMs?.let { visiting?.seeked(at ?: it) }
-                seekingToMs = null
-                goingLive?.complete(Unit)
-                publish()
+                seekDone(event.positionMs.takeIf { it != PlayerEvent.NOT_KNOWN })
             }
 
             else -> {}
         }
+    }
+
+    /**
+     * A `SeekDone` at [at] (null: not known). It is the latest seek's when that seek's `Seeking` came before it, or,
+     * with no `Seeking` seen (the player folded the seek into one already pending), when it lands within
+     * [LANDING_SLACK_MS] of the target. Any other is an earlier seek's, still buffered when the latest went out: it is
+     * dropped, so it can neither report the landing nor end the way back to live early. Only the latest seek's is
+     * reported, where it landed (else where it was sent).
+     */
+    private fun seekDone(at: Long?) {
+        val toMs = seekingToMs ?: return
+        val mine = seekStarted || at == null || abs(at - toMs) <= LANDING_SLACK_MS
+        if (!mine) return
+        at?.let(::known)
+        visiting?.seeked(at ?: toMs)
+        seekingToMs = null
+        seekStarted = false
+        goingLive?.complete(Unit)
+        publish()
+    }
+
+    /** Logs a stepped target that was never sought, because the cut or the play's end came first. */
+    private fun dropTarget(reason: String) {
+        if (targetMs == null) return
+        targetMs = null
+        sitting.report(
+            TuneReport.PressDropped(
+                reason,
+                sitting.state.value.javaClass
+                    .logName(),
+            ),
+        )
     }
 
     private fun publish() {
@@ -452,6 +514,9 @@ internal class BehindPlay(
     private companion object {
         /** The shortest re-armed media-time wait: a hold that fired short waits at least this long again. */
         const val MIN_REARM_MS = 250L
+
+        /** How far from its target a `SeekDone` with no `Seeking` seen may land and still be that seek's. */
+        const val LANDING_SLACK_MS = 2_000L
     }
 
     /** What woke the behind loop. */
