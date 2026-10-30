@@ -131,18 +131,20 @@ private suspend fun Sitting.holdPiece(
     outcome: TuneOutcome.Playing,
 ): PieceHeld {
     val retune = retuneAt(scope, onAir, piece, item, BannerLabel.FillingIn)
-    return when (val held = holdProgram(piece, outcome, null, retune)) {
+    return when (val held = holdProgram(piece, outcome, null, retune, BlockRetries())) {
         Held.Boundary -> {
             if (piece.endMs >= onAir.now.endMs) PieceHeld.Covered else PieceHeld.Next(failed = false)
         }
 
         is Held.CaughtUp, Held.EndedInBlock -> {
             (held as? Held.CaughtUp)?.catchUp?.let { discardCatchUp(it) }
-            rearmBoundaryLookAhead()
+            // Only while the dead block is still on: past it, the next block is played anyway.
+            if (vnowMs() < onAir.now.endMs) rearmBoundaryLookAhead()
             PieceHeld.Next(failed = false)
         }
 
-        Held.Ended, is Held.Failed -> {
+        // Its retry used and still failing, with the clock inside the piece: a failed piece, as while live.
+        Held.Ended, is Held.Failed, Held.Dead -> {
             PieceHeld.Next(failed = true)
         }
 

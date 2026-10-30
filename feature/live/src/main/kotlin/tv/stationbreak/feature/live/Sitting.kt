@@ -90,6 +90,9 @@ internal sealed interface Held {
     /** A behind play's file ended early while the clock is still inside its block: hold the ident. */
     data object EndedInBlock : Held
 
+    /** The block's one retry is used and the item is still dead, with the clock inside its block: the dead item. */
+    data object Dead : Held
+
     /** The behind play ended the sitting (a retry that signed out or was stopped, Task 10). */
     data class Exited(
         val exit: Exit,
@@ -251,7 +254,8 @@ internal class Sitting(
         // A program the library no longer has cannot be tuned: straight to the slate.
         if (program.info == null) return deadItem(scope, onAir, program.itemId)
         var cut = handle
-        var failures = 0
+        // One retry for the block, whichever play (live or behind) takes it.
+        val retries = BlockRetries()
         while (true) {
             val at = vnowMs()
             if (at >= block.endMs) return null
@@ -267,7 +271,7 @@ internal class Sitting(
                     use is Pending.AtBoundary -> TuneKind.Prepared
                     use is Pending.Retarget -> TuneKind.Neighbour
                     use is Pending.CatchUp -> TuneKind.CatchUp
-                    failures > 0 -> TuneKind.Retry
+                    retries.taken -> TuneKind.Retry
                     else -> TuneKind.Fresh
                 }
             val asked = if (use is Pending.AtBoundary) use.start else position
@@ -290,7 +294,7 @@ internal class Sitting(
                         val from = asked.inWholeMilliseconds
                         val item = ItemId(program.itemId.value)
                         val retune = retuneAt(scope, onAir, block, item, BannerLabel.TuningIn)
-                        when (val held = holdReporting(block, program, outcome, visiting, from, retune)) {
+                        when (val held = holdReporting(block, program, outcome, visiting, from, retune, retries)) {
                             Held.Boundary -> {
                                 return null
                             }
@@ -318,7 +322,11 @@ internal class Sitting(
                             }
 
                             is Held.Failed -> {
-                                ++failures >= 2
+                                !retries.take()
+                            }
+
+                            Held.Dead -> {
+                                true
                             }
 
                             is Held.Exited -> {
@@ -329,7 +337,7 @@ internal class Sitting(
 
                     // One retry, from the clock; none after a timeout (it would only cost another 20 s of snow).
                     is TuneOutcome.Dead -> {
-                        ++failures >= 2 || outcome.timedOut
+                        !retries.take() || outcome.timedOut
                     }
 
                     TuneOutcome.Expired -> {
@@ -349,7 +357,8 @@ internal class Sitting(
 
     /**
      * Shows the tune (snow with the banner when [snow]; a straight cut otherwise), runs [tune], and on a picture shows
-     * the banner over it. The snow shows for at least [LiveTimings.minSnow] from the start of the tune.
+     * the banner over it. The snow shows for at least [LiveTimings.minSnow] from the start of the tune. [onPlaying] is
+     * told of a play as soon as the tune answers, before the picture shows.
      */
     suspend fun tuneAndShow(
         scope: CoroutineScope,
@@ -357,6 +366,7 @@ internal class Sitting(
         snow: Boolean,
         what: TuneWhat,
         onAir: ChannelOnAir? = null,
+        onPlaying: (TuneOutcome.Playing) -> Unit = {},
         tune: suspend () -> TuneOutcome,
     ): TuneOutcome {
         // A press made before this cut or retune must not act on what plays after it.
@@ -375,6 +385,8 @@ internal class Sitting(
         cutFrom = null
         val outcome = tune()
         if (outcome is TuneOutcome.Playing) {
+            // Before the picture shows (a retry that must be paused again, say).
+            onPlaying(outcome)
             reportTune(what, outcome.timings, cutSince)
             reportFlipPlayed(what.kind, began, clock.now(), outcome.timings)
             if (snow) {

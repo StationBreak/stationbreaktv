@@ -5,6 +5,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -287,7 +288,7 @@ class BehindPauseTest {
             val failed = PlaybackEnd.Failed("Boom", positionMs = 13 * MIN)
             r.tune.script(itemOf(1), r.tune.playsThenEnds(5.minutes, failed))
             val keys = Channel<LiveCommand>(Channel.UNLIMITED)
-            r.start(commands = keys.receiveAsFlow())
+            val job = r.start(commands = keys.receiveAsFlow())
             r.atMin(1)
             keys.trySend(LiveCommand.PlayPause)
             r.atMin(2)
@@ -301,5 +302,8 @@ class BehindPauseTest {
             // Still behind: the place is two minutes behind the clock's 15:00.
             assertFalse(checkNotNull(r.live.transport.value).paused)
             assertTrue(r.state is LiveState.Watching)
+            job.cancel()
+            runCurrent()
+            r.assertEveryPreResolveEndsOnce()
         }
 }

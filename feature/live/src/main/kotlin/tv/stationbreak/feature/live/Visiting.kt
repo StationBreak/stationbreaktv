@@ -70,7 +70,7 @@ internal class Visiting(
  * nothing here waits on the server). Slates, idents and stand-ins never come here. The caller leaves [visiting] when
  * the block ends. A behind play's retry at the place that plays goes on with the same visit from the place (C11).
  */
-@Suppress("LongParameterList") // The block, its program, the play, its visit and start, and the retry.
+@Suppress("LongParameterList") // The block, its program, the play, its visit and start, and the block's retry.
 internal suspend fun Sitting.holdReporting(
     block: AiringBlock,
     program: Airing.Program,
@@ -78,20 +78,21 @@ internal suspend fun Sitting.holdReporting(
     visiting: Visiting,
     fromMs: Long,
     retune: Retune,
+    retries: BlockRetries,
 ): Held {
     val facts = outcome.report
-    if (reporter == null || facts == null) return holdProgram(block, outcome, null, retune)
+    if (reporter == null || facts == null) return holdProgram(block, outcome, null, retune, retries)
     val item = ItemId(program.itemId.value)
     val key = AiringKey(channel, block.startMs, item)
     visiting.playing(fromMs) { it.visit(sittingId, key, facts.target(item), fromMs) }
     val reported =
-        Retune { placeMs ->
-            retune.at(placeMs).also { retried ->
+        Retune { placeMs, onPlaying ->
+            retune.at(placeMs, onPlaying).also { retried ->
                 val again = (retried as? TuneOutcome.Playing)?.report
                 if (again != null) visiting.playing(placeMs) { it.visit(sittingId, key, again.target(item), placeMs) }
             }
         }
-    val held = holdProgram(block, outcome, visiting, reported)
+    val held = holdProgram(block, outcome, visiting, reported, retries)
     if (held is Held.Failed) visiting.failedPlay(held.positionMs ?: -1)
     return held
 }

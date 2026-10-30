@@ -103,7 +103,7 @@ class TransportRoutingTest {
             // Item 1 ends early: the ident holds to minute 60, and nothing takes presses meanwhile.
             r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
             r.tune.script(itemOf(1), r.tune.playsThenEnds(1.minutes, PlaybackEnd.Ended))
-            r.start()
+            val job = r.start()
             r.atMin(2)
             assertTrue(r.state is LiveState.Ident)
             // Two presses already in the inbox, tagged for the next block (as a press racing its cut would be).
@@ -112,6 +112,9 @@ class TransportRoutingTest {
             r.atMin(51)
             assertEquals(listOf("press dropped reason=transport-at-tune n=2 state=Ident"), r.dropped())
             assertTrue(checkNotNull(r.tune.controlOf(itemOf(2))).calls.isEmpty())
+            job.cancel()
+            runCurrent()
+            r.assertEveryPreResolveEndsOnce()
         }
 
     @Test

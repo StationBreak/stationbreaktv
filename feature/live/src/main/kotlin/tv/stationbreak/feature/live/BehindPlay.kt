@@ -23,9 +23,25 @@ import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
 import kotlin.time.Duration.Companion.milliseconds
 
-/** One fresh tune of a behind play's item at a media position (ms): its one retry at the place (ADR-0021 4, 6). */
+/**
+ * One fresh tune of a behind play's item at a media position (ms): its retry at the place (ADR-0021 4, 6). [onPlaying]
+ * is told of the play as soon as the tune answers, before the picture shows.
+ */
 internal fun interface Retune {
-    suspend fun at(mediaMs: Long): TuneOutcome
+    suspend fun at(
+        mediaMs: Long,
+        onPlaying: (TuneOutcome.Playing) -> Unit,
+    ): TuneOutcome
+}
+
+/** The one retry a block (or stand-in piece) allows, shared by its live and behind plays (ADR-0021 4 and 6). */
+internal class BlockRetries {
+    /** True once the retry was taken. */
+    var taken = false
+        private set
+
+    /** Takes the retry: true when it was still there. */
+    fun take(): Boolean = !taken.also { taken = true }
 }
 
 /**
@@ -41,12 +57,14 @@ internal fun Sitting.retuneAt(
     item: ItemId,
     label: BannerLabel,
 ): Retune =
-    Retune { mediaMs ->
+    Retune { mediaMs, onPlaying ->
         val position = mediaMs.milliseconds
         val banner = bannerFor(onAir.channel, block, label, mediaMs, driftMs, onAir.nextProgram())
         val what = TuneWhat(TuneKind.Retry, block, position)
         val outcome =
-            tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir) { tuner.tune(session, item, position) }
+            tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = onPlaying) {
+                tuner.tune(session, item, position)
+            }
         if (outcome == TuneOutcome.Expired) expired()
         outcome
     }
@@ -55,7 +73,8 @@ internal fun Sitting.retuneAt(
  * A program's (or stand-in piece's) play while it is live: [hold] until the play ends or the block does, and when the
  * viewer pauses or steps back, a [BehindPlay] until its item ends, it ends the sitting, or it is back at live (then
  * the live hold carries on with the play it hands back). [visiting] is the block's visit, told of pauses and seeks;
- * null when the play is not reported (a stand-in is never). [retune] is the behind play's one retry at the place.
+ * null when the play is not reported (a stand-in is never). [retune] is the behind play's retry at the place, made
+ * only while [retries] still holds the block's one retry.
  */
 @Suppress("ReturnCount") // Each return is one way the program's play ends; a return to live goes round again.
 internal suspend fun Sitting.holdProgram(
@@ -63,6 +82,7 @@ internal suspend fun Sitting.holdProgram(
     first: TuneOutcome.Playing,
     visiting: Visiting?,
     retune: Retune,
+    retries: BlockRetries,
 ): Held {
     var play = first
     while (true) {
@@ -73,7 +93,7 @@ internal suspend fun Sitting.holdProgram(
                 is LiveHold.Failed -> return Held.Failed(live.positionMs)
                 is LiveHold.Transport -> live
             }
-        val behindPlay = BehindPlay(behindHost(), block, play, visiting, retune)
+        val behindPlay = BehindPlay(behindHost(), block, play, visiting, retune, retries)
         behind = behindPlay
         val ended =
             try {
@@ -96,6 +116,10 @@ internal suspend fun Sitting.holdProgram(
                 return Held.EndedInBlock
             }
 
+            BehindEnd.Dead -> {
+                return Held.Dead
+            }
+
             is BehindEnd.Exit -> {
                 return Held.Exited(ended.exit)
             }
@@ -115,6 +139,9 @@ internal sealed interface BehindEnd {
 
     /** The file ended early and the clock is still inside the block: the ident holds to its end. */
     data object EndedInBlock : BehindEnd
+
+    /** The play failed with the block's retry used (or the retry is dead), the clock still inside the block. */
+    data object Dead : BehindEnd
 
     /** Back at the live position on the same item, still on air: the live hold carries on with [play]. */
     data class Live(
@@ -149,9 +176,11 @@ internal sealed interface BehindEnd {
  * with the ops and the timers, so all its state is written there (or by the banner's linger, in the same scope). It is
  * confined to the sitting's dispatcher; only what [pausedPlace] reads from outside is `@Volatile`.
  *
- * A play that fails (a seek that timed out included) is tuned once more at the place by [retune], under the snow
- * (ADR-0021 4 and 6). If it plays, the behind play carries on with it, paused again if it was paused; if that one fails
- * too, or the retry is dead, the item has ended and the sitting catches up, with no slate and no stand-in.
+ * A play that fails (a seek that timed out included) is tuned once more at the place by [retune], under the snow,
+ * while [retries] still holds the block's one retry (ADR-0021 4 and 6). If it plays, the behind play carries on with
+ * it, paused (before its picture shows) if it was paused, or live if it was going back to live. When no retry is left,
+ * or the retry is dead: once the block has ended by the clock, the item has ended and the sitting catches up, with no
+ * slate and no stand-in; while the clock is still inside the block, the item is dead for it.
  *
  * It holds the one subscription to the play's events, which drive the [visiting] reports; a retry moves it to the new
  * play. [visiting] is null when the play is not reported (a stand-in is never). A stand-in piece (ADR-0021 4) is
@@ -164,6 +193,7 @@ internal class BehindPlay(
     first: TuneOutcome.Playing,
     private val visiting: Visiting?,
     private val retune: Retune,
+    private val retries: BlockRetries,
 ) {
     /** The play on screen: the first, or the retry at the place that replaced it. */
     private var play = first
@@ -173,9 +203,6 @@ internal class BehindPlay(
 
     /** A program's block resolves its catch-up ahead; a stand-in piece's end goes back to the stand-ins. */
     private val onProgram = block.airing is Airing.Program
-
-    /** Set once the one retry at the place was made: a second failure is the item's end. */
-    private var retried = false
 
     /** The collector forwarding the play's events into [events]; replaced with the play. */
     private var collector: Job? = null
@@ -541,34 +568,48 @@ internal class BehindPlay(
     }
 
     /**
-     * The play failed: it is reported as the live hold reports it, and its place closes the visit's watched time. The
-     * first failure is tuned again once at the place; non-null when the behind play ends instead (the item's end, with
-     * nothing resolved ahead, or an exit). The watched time runs again only once the retry plays, from the place.
+     * The play failed: it is reported as the live hold reports it, and its place closes the visit's watched time. While
+     * the block's retry is left, it is taken: the item is tuned again at the place. Non-null when the behind play ends
+     * instead: live (the retry of a play going back to live), the item's end, the item dead for its block, or an exit.
+     * The watched time runs again only once the retry plays, from the place.
      */
     private suspend fun retry(end: PlaybackEnd.Failed): BehindEnd? {
         unsubscribe()
         host.report(TuneReport.HeldFailed(end))
         visiting?.failedPlay(end.positionMs)
-        val place = placeAfter(end)
+        val goingLive = liveSinceMs != null
+        val place = placeAfter(end, goingLive)
         // A seek still open (a seek that timed out) is done at the place: nothing is counted until the retry plays.
         seeks.close(place)?.let { visiting?.seeked(it) }
         seeks = newSeeks()
         liveSinceMs = null
         dropCatchUp()
-        if (retried || place >= cutMs) return BehindEnd.ItemEnd(null)
-        retried = true
+        return when {
+            // Nothing left to play: the play's end, as if it had ended there.
+            place >= cutMs -> playEnd()
+
+            !retries.take() -> deadOrOver()
+
+            else -> tuneAgain(place, goingLive)
+        }
+    }
+
+    /** The block's retry: the item tuned again at [place], under the snow. Non-null as for [retry]. */
+    private suspend fun tuneAgain(
+        place: Long,
+        goingLive: Boolean,
+    ): BehindEnd? {
         // The kept place while the retry tunes (a screen stop meanwhile keeps it).
         known(place)
         linger?.cancel()
         host.publishTransport(null)
-        return when (val outcome = retune.at(place)) {
+        return when (retune.at(place, ::carryOn)) {
             is TuneOutcome.Playing -> {
-                carryOn(outcome)
-                null
+                shown(goingLive)
             }
 
             is TuneOutcome.Dead -> {
-                BehindEnd.ItemEnd(null)
+                deadOrOver()
             }
 
             TuneOutcome.Expired -> {
@@ -582,31 +623,52 @@ internal class BehindPlay(
     }
 
     /**
-     * Where the viewer was when [end] came: the target of a seek still out (a timed-out seek's own position is from
-     * before it), else where the player says it failed, else the best known; never before the block's in-point.
+     * The item cannot be played again: once its block has ended by the clock, that is its end (catch up, nothing
+     * resolved ahead); while the clock is still inside the block, it is dead for the block.
      */
-    private suspend fun placeAfter(end: PlaybackEnd.Failed): Long {
+    private fun deadOrOver(): BehindEnd = if (blockEnded()) BehindEnd.ItemEnd(null) else BehindEnd.Dead
+
+    /**
+     * Where the viewer was when [end] came: the clock's live position while [goingLive], else the target of a seek
+     * still out (a timed-out seek's own position is from before it), else where the player says it failed, else the
+     * best known; never before the block's in-point.
+     */
+    private suspend fun placeAfter(
+        end: PlaybackEnd.Failed,
+        goingLive: Boolean,
+    ): Long {
+        val target = seeks.targetMs
         val at =
             when {
-                seeks.inFlight -> knownMs
+                goingLive -> TransportMath.liveMs(block, host.vnowMs())
+                target != null -> target
                 end.positionMs >= 0 -> end.positionMs
                 else -> read()
             }
         return maxOf(at, inPointMs)
     }
 
-    /** The retry plays from the place: its events are now the ones followed, and a paused viewer is paused again. */
-    private suspend fun carryOn(outcome: TuneOutcome.Playing) {
+    /**
+     * The retry plays, before its picture shows: its events are now the ones followed, and a paused viewer is paused
+     * again at once, so the picture comes up paused.
+     */
+    private fun carryOn(outcome: TuneOutcome.Playing) {
         play = outcome
         subscribe()
+        if (paused) play.control.pause()
+    }
+
+    /** The retry's picture is up: live again when it was [goingLive] (non-null), else behind, paused or playing. */
+    private suspend fun shown(goingLive: Boolean): BehindEnd? {
+        if (goingLive) return BehindEnd.Live(play)
         if (paused) {
-            play.control.pause()
             visible = true
             publish()
         } else {
             read()
             show()
         }
+        return null
     }
 
     /** Forwards the play's events into [events]; made before its first transport call, as they carry no replay. */

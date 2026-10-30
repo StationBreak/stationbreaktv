@@ -257,6 +257,166 @@ class BehindEdgesTest {
             k.finish()
         }
 
+    @Test
+    fun theBlocksOneRetryIsSharedByTheLiveAndBehindPlays() =
+        runTest {
+            // One retry per block, whichever path takes it (fix round 1).
+            val first = PlaybackEnd.Failed("Boom", positionMs = 11 * MIN)
+            val second = PlaybackEnd.Failed("Boom", positionMs = 14 * MIN)
+            val k =
+                keys(blocks = listOf(program(0, 60, 1), program(60, 120, 2))) {
+                    schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 8, 0)) }
+                    tune.script(itemOf(1), tune.playsThenEnds(2.minutes, first), tune.playsThenEnds(4.minutes, second))
+                }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN, LiveCommand.PlayPause)
+            // The first failure, behind: the block's retry, at the place.
+            k.r.at(2 * MIN + 1_000)
+            assertEquals(Call.Tune(itemOf(1), 11.minutes, 2 * MIN), k.r.tunes.last())
+            // Back to live, then paused again: the retried play fails too, with the clock still inside the block.
+            k.press(LiveCommand.GoLive)
+            k.r.at(3 * MIN)
+            assertNull(checkNotNull(k.r.live.currentSitting()).behind)
+            k.press(LiveCommand.PlayPause)
+            k.r.at(6 * MIN + 10_000)
+            // No second retry: the item is dead for this block. The slate, then a stand-in (45 minutes are left).
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            assertTrue(k.r.seen.any { it is LiveState.TechnicalDifficulties })
+            assertEquals(
+                itemOf(8),
+                k.r.tunes
+                    .last()
+                    .item,
+            )
+            k.finish()
+        }
+
+    @Test
+    fun aLiveRetryUsesTheBlocksRetrySoABehindFailureHasNone() =
+        runTest {
+            val live = PlaybackEnd.Failed("Boom", positionMs = 11 * MIN)
+            val behind = PlaybackEnd.Failed("Boom", positionMs = 12 * MIN)
+            val k =
+                keys(blocks = listOf(program(0, 60, 1), program(60, 120, 2))) {
+                    schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 8, 0)) }
+                    tune.script(itemOf(1), tune.playsThenEnds(1.minutes, live), tune.playsThenEnds(3.minutes, behind))
+                }
+            // The live failure takes the retry, from the clock.
+            k.r.at(MIN + 1_000)
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            k.pressAt(2 * MIN, LiveCommand.PlayPause)
+            k.r.at(4 * MIN + 10_000)
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            assertEquals(
+                itemOf(8),
+                k.r.tunes
+                    .last()
+                    .item,
+            )
+            k.finish()
+        }
+
+    @Test
+    fun aDeadRetryWithTheClockStillInsideTheBlockIsTheDeadItemPath() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 13 * MIN)
+            val k =
+                keys(blocks = listOf(program(0, 60, 1), program(60, 120, 2))) {
+                    schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 8, 0)) }
+                    tune.script(itemOf(1), tune.playsThenEnds(5.minutes, failed), FakeTune.dead())
+                }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN, LiveCommand.PlayPause)
+            k.r.at(5 * MIN + 10_000)
+            // The retry at the place is dead: no fresh tune of item 1 at the clock, but the slate and a stand-in.
+            val retry = Call.Tune(itemOf(1), 13.minutes, 5 * MIN)
+            val standIn = Call.Tune(itemOf(8), 15.minutes + 3.seconds, 5 * MIN + 3_000)
+            assertEquals(listOf(retry, standIn), k.r.tunes.drop(1))
+            assertTrue(k.r.seen.any { it is LiveState.TechnicalDifficulties })
+            assertNull(k.transport)
+            k.finish()
+        }
+
+    @Test
+    fun aRetryWhilePausedIsPausedBeforeThePictureShows() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 10 * MIN + upMs)
+            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(3.minutes, failed)) }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            // The retry plays at 3:00; the snow holds to 3:00.5. Its play is paused already, under the snow.
+            k.r.at(3 * MIN + 100)
+            assertTrue(k.r.state is LiveState.Tuning)
+            val retried = k.controls(itemOf(1)).last()
+            assertEquals(listOf("pause"), retried.calls)
+            k.r.at(3 * MIN + 1_000)
+            assertTrue(k.r.state is LiveState.Watching)
+            assertEquals(listOf("pause"), retried.calls)
+            assertTrue(checkNotNull(k.transport).paused)
+            k.finish()
+        }
+
+    @Test
+    fun aPausedRetryIsReportedPausedThenPlaying() =
+        runTest {
+            val server = RecordingServer({ currentTime })
+            val facts = ReportFacts(MediaSourceId("src"), PlaySessionId("ps"), PlayMethod.DirectPlay, 60.minutes)
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 10 * MIN + 31_000)
+            val k =
+                keys(server = server, blocks = listOf(program(0, 60, 1), program(60, 120, 2))) {
+                    tune.reportFacts = facts
+                    tune.script(itemOf(1), tune.playsThenEnds(100.seconds, failed))
+                }
+            k.pressAt(31_000, LiveCommand.PlayPause)
+            k.r.at(150_000)
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            k.press(LiveCommand.PlayPause)
+            k.r.at(260_000)
+            val progress = server.calls.filter { it.kind == "progress" }
+            // Paused through the failure and the retry; playing again after Play, with no second Playing.
+            assertTrue(progress.filter { it.atMs in 31_001..150_000 }.all { it.paused })
+            val after = progress.filter { it.atMs > 150_000 }
+            assertTrue(after.isNotEmpty())
+            assertTrue(after.toString(), after.none { it.paused })
+            assertEquals(1, server.calls.count { it.kind == "start" })
+            k.finish()
+        }
+
+    @Test
+    fun aSeekTimeoutRetriesAtTheSeeksTargetAfterAPositionRead() =
+        runTest {
+            val failed = PlaybackEnd.Failed("SeekTimeout", positionMs = 11 * MIN)
+            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(140.seconds, failed)) }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(2 * MIN)
+            k.controls(itemOf(1)).single().dropsSeekDone = true
+            k.press(LiveCommand.Seek(SeekDirection.Back))
+            k.press(LiveCommand.SeekReleased)
+            // A Play key wakes the loop, which reads the position again (the player's, moved on from the target).
+            k.pressAt(130_000, LiveCommand.Play)
+            k.r.at(140_000 + 100)
+            assertEquals(listOf(Call.Tune(itemOf(1), 650.seconds, 140_000)), k.r.tunes.drop(1))
+            k.finish()
+        }
+
+    @Test
+    fun aFailureWhileGoingLiveRetriesAtLiveAndIsLive() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 11 * MIN)
+            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(125.seconds, failed)) }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN + upMs, LiveCommand.PlayPause)
+            k.r.at(2 * MIN)
+            // The live seek never lands; the play fails five seconds into the wait.
+            k.controls(itemOf(1)).single().dropsSeekDone = true
+            k.press(LiveCommand.GoLive)
+            k.r.at(125_000 + 1_000)
+            assertEquals(Call.Tune(itemOf(1), (12 * MIN + 5_000).milliseconds, 125_000), k.r.tunes.last())
+            assertNull(checkNotNull(k.r.live.currentSitting()).behind)
+            assertNull(k.transport)
+            k.finish()
+        }
+
     // Stand-ins can be paused and stepped; catch-up is at the next piece or block.
 
     @Test
