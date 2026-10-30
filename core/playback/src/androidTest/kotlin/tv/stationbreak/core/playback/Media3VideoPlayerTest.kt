@@ -214,15 +214,22 @@ class Media3VideoPlayerTest {
         return generation
     }
 
+    /** The position of [generation] read on the main looper, so it is the live value, not the published one. */
+    private fun livePosition(generation: Long): Duration? {
+        var read: Duration? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { read = player.position(generation) }
+        return read
+    }
+
     @Test
     fun pauseEmitsPausedAndHoldsThePosition() {
         val generation = playingAt()
         player.pause(generation)
         val paused = await<PlayerEvent.Paused> { it.generation == generation }
-        val first = player.position(generation)
+        val first = livePosition(generation)
         assertNotNull(first)
         Thread.sleep(1_000)
-        val second = player.position(generation)
+        val second = livePosition(generation)
         assertNotNull(second)
         assertTrue("moved ${second!! - first!!} while paused", (second - first).absoluteValue < 100.milliseconds)
         assertTrue(paused.positionMs >= 0)
@@ -233,12 +240,12 @@ class Media3VideoPlayerTest {
         val generation = playingAt()
         player.pause(generation)
         await<PlayerEvent.Paused> { it.generation == generation }
-        val before = player.position(generation)!!
+        val before = livePosition(generation)!!
         player.resume(generation)
         await<PlayerEvent.Resumed> { it.generation == generation }
         await<PlayerEvent.Playing> { it.generation == generation }
         Thread.sleep(1_000)
-        assertTrue("position did not advance", player.position(generation)!! > before)
+        assertTrue("position did not advance", livePosition(generation)!! > before)
     }
 
     @Test
@@ -280,7 +287,7 @@ class Media3VideoPlayerTest {
         val generation = playingAt()
         player.pause(generation)
         await<PlayerEvent.Paused> { it.generation == generation }
-        player.seekTo(generation, player.position(generation)!!)
+        player.seekTo(generation, livePosition(generation)!!)
         val events = eventsWithin(2.seconds)
         assertEquals(1, events.count { it is PlayerEvent.SeekDone && it.generation == generation })
     }
@@ -288,13 +295,32 @@ class Media3VideoPlayerTest {
     @Test
     fun aSeekInsideTheBufferWhilePausedCompletes() {
         val generation = playingAt()
-        await<PlayerEvent.AudioAdvanced> { it.generation == generation && it.position >= 3.seconds }
+        Thread.sleep(3_000)
         player.pause(generation)
         await<PlayerEvent.Paused> { it.generation == generation }
         player.seekTo(generation, 1.seconds)
         val events = eventsWithin(2.seconds)
         assertEquals(1, events.count { it is PlayerEvent.SeekDone && it.generation == generation })
         assertTrue("stalled", events.none { it is PlayerEvent.Stalled })
+    }
+
+    @Test
+    fun overlappingSeeksGiveOneSeekingAndOneSeekDone() {
+        val generation = playingAt()
+        player.seekTo(generation, 4.seconds)
+        player.seekTo(generation, 6.seconds)
+        val events = eventsWithin(3.seconds).filter { it.generation == generation }
+        assertEquals(1, events.count { it is PlayerEvent.Seeking })
+        val done = events.filterIsInstance<PlayerEvent.SeekDone>()
+        assertEquals(1, done.size)
+        assertTrue("landed ${done.single().positionMs}", done.single().positionMs in 5_500L..6_500L)
+    }
+
+    @Test
+    fun aSeekToTheEndCompletesWithSeekDone() {
+        val generation = playingAt()
+        player.seekTo(generation, 60.seconds)
+        await<PlayerEvent.SeekDone> { it.generation == generation }
     }
 
     @Test

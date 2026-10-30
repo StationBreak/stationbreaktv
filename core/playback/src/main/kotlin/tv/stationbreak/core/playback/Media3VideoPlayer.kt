@@ -171,14 +171,14 @@ class Media3VideoPlayer(
 
     override fun pause(generation: Long) =
         onPlayerThread {
-            if (active != generation) return@onPlayerThread
+            if (active != generation || !exo.playWhenReady) return@onPlayerThread
             exo.playWhenReady = false
             emit(PlayerEvent.Paused(generation, clock(), exo.currentPosition))
         }
 
     override fun resume(generation: Long) =
         onPlayerThread {
-            if (active != generation) return@onPlayerThread
+            if (active != generation || exo.playWhenReady) return@onPlayerThread
             emit(PlayerEvent.Resumed(generation, clock()))
             exo.playWhenReady = true
         }
@@ -189,9 +189,12 @@ class Media3VideoPlayer(
     ) = onPlayerThread {
         if (active != generation) return@onPlayerThread
         val to = position.inWholeMilliseconds
-        // Set first: Media3 may report the finish from inside the seek call.
-        seeking = true
-        emit(PlayerEvent.Seeking(generation, clock(), exo.currentPosition, to))
+        // A seek already pending is coalesced: the target moves, and its one SeekDone carries the final position.
+        if (!seeking) {
+            // Set first: Media3 may report the finish from inside the seek call.
+            seeking = true
+            emit(PlayerEvent.Seeking(generation, clock(), exo.currentPosition, to))
+        }
         exo.seekTo(to)
         publish()
     }
@@ -221,8 +224,9 @@ class Media3VideoPlayer(
 
     /** Sends [event] and refreshes what [position] and [seekable] answer from other threads. Looper only. */
     private fun emit(event: PlayerEvent) {
-        flow.tryEmit(event)
+        // Published first, so a collector on another thread sees values at least as fresh as the event.
         publish()
+        flow.tryEmit(event)
     }
 
     private fun publish() {
@@ -352,7 +356,9 @@ class Media3VideoPlayer(
             state: Int,
         ) {
             if (state == Player.STATE_READY) av.ready(eventGeneration(eventTime, active), clock())
-            if (state == Player.STATE_READY) finishSeek()
+            // A seek ends at READY, or at the end of the stream (the target was reached: the end). IDLE drops it.
+            if (state == Player.STATE_READY || state == Player.STATE_ENDED) finishSeek()
+            if (state == Player.STATE_IDLE) seeking = false
             // A rebuffer: buffering again after playback had begun. One that follows a seek is the seek's own.
             if (state == Player.STATE_BUFFERING && hasPlayed && !seeking) {
                 emit(PlayerEvent.Stalled(active, clock(), exo.currentPosition, exo.totalBufferedDuration))
@@ -416,6 +422,8 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
+            // The play ends here: a pending seek will not finish, and says nothing.
+            seeking = false
             emit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
         }
     }

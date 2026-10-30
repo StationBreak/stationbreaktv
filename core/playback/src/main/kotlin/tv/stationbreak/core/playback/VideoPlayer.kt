@@ -141,13 +141,24 @@ interface VideoPlayer {
 
     fun release()
 
-    /** Pauses the play [generation]; nothing when it is not the play on the player. Emits [PlayerEvent.Paused]. */
+    /**
+     * Pauses the play [generation]; nothing when it is not the play on the player, or is already paused. Emits
+     * [PlayerEvent.Paused].
+     */
     fun pause(generation: Long)
 
-    /** Plays on from where [generation] paused; nothing otherwise. Emits [PlayerEvent.Resumed], then Playing. */
+    /**
+     * Plays on from where [generation] paused; nothing when it is not the play on the player, or is not paused. Emits
+     * [PlayerEvent.Resumed] at once, then Playing.
+     */
     fun resume(generation: Long)
 
-    /** Seeks [generation] to [position] in the stream, playing or paused as it was. Emits Seeking, then SeekDone. */
+    /**
+     * Seeks [generation] to [position] in the stream, playing or paused as it was. Emits Seeking, then SeekDone. A seek
+     * called while one is pending is coalesced: it moves the target and emits no second Seeking, so there is one
+     * SeekDone per Seeking, at the final position. After a seek during playback, Playing follows once it plays on, as
+     * after a rebuffer.
+     */
     fun seekTo(
         generation: Long,
         position: Duration,
@@ -156,7 +167,9 @@ interface VideoPlayer {
     /**
      * The position of [generation]; null when it is not the play on the player (a newer play, or after [stop]) or the
      * player cannot say. On the player's looper it is read now; from any other thread it is the last value the player
-     * published (refreshed on every event and every transport call), because Media3 must not be read off its thread.
+     * published (refreshed only on events and transport calls), so during steady playback it is stale and is not "now".
+     * Called from another thread straight after [play], it is null until the looper has run the play. After [stop] the
+     * active generation is 0, meaning none.
      */
     fun position(generation: Long): Duration?
 
