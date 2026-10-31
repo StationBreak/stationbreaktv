@@ -451,6 +451,7 @@ class Rig(
     suspend fun start(
         withAccount: Boolean = true,
         commands: Flow<LiveCommand> = emptyFlow(),
+        resume: Kept? = null,
     ): Job {
         sessions.save(session)
         if (withAccount) library.useAccount(account)
@@ -458,7 +459,7 @@ class Rig(
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
             live.state.collect { states += it to tune.calls.size }
         }
-        val job = scope.backgroundScope.launch { live.run(commands) }
+        val job = scope.backgroundScope.launch { live.run(commands, resume) }
         scope.runCurrent()
         return job
     }

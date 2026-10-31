@@ -3,8 +3,10 @@ package tv.stationbreak.feature.live
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
@@ -62,5 +64,35 @@ class TransportMathTest {
         val split = program(0, 30, 2, mediaStartMs = 40 * MIN)
         assertEquals(40 * MIN, TransportMath.inPointMs(split))
         assertEquals(70 * MIN, TransportMath.cutMs(split))
+    }
+
+    // The return rules (ADR-0021, amendment to ADR-0017, 2): a fresh sitting at the clock time, no drift.
+
+    @Test
+    fun aPlaceWhoseBlockHasNotStartedIsDropped() {
+        // Paused in a sitting running 5 minutes ahead, on a block that starts at minute 60; back at minute 58.
+        val later = program(60, 120, 2)
+        assertNull(returnTo(Place(CH7, later, MIN), T0 + 58 * MIN))
+    }
+
+    @Test
+    fun aPlaceAheadOfLiveIsClampedToLive() {
+        val place = Place(CH7, block, 25 * MIN)
+        assertEquals(place.copy(mediaMs = 20 * MIN), returnTo(place, T0 + 20 * MIN))
+    }
+
+    @Test
+    fun aPlaceInAnEndedBlockIsKeptBehind() {
+        val place = Place(CH7, block, 50 * MIN)
+        assertEquals(place, returnTo(place, T0 + 90 * MIN))
+        // Behind on a block still on air is kept too.
+        val behind = Place(CH7, block, 10 * MIN)
+        assertEquals(behind, returnTo(behind, T0 + 30 * MIN))
+    }
+
+    @Test
+    fun aPlaceAtTheCutIsDropped() {
+        assertNull(returnTo(Place(CH7, block, 60 * MIN), T0 + 90 * MIN))
+        assertNull(returnTo(Place(CH7, block, 61 * MIN), T0 + 90 * MIN))
     }
 }

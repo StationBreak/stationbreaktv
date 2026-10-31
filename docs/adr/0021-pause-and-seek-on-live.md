@@ -75,7 +75,8 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    | File runs long while behind | Cut at the block's end, then catch up (the schedule wins, Q-SCH-3) |
    | Item's schedule slot ends while paused | Nothing; Play continues it |
    | Dead item or source error while behind | One retry at the place, from the block's single retry budget, which is shared with the live path. If still dead (or no retry is left): while the clock is inside the block, the existing dead-item handling (slate, then stand-in); once the block has ended by the clock, treated as the item's end and caught up, with no stand-in |
-   | Stand-in | Can be paused and sought like a program |
+   | Fails while paused (a play that breaks, or a kept place whose tune is dead) | Nothing is tuned, stood in or played: the place and the paused transport hold, so the screen stays released and the device may sleep. A step moves the paused place only. Play (or Go live) runs the block's one retry; with none left, the dead-item or catch-up routing above, at that moment. Never plays without a press |
+   | Stand-in | Can be paused and sought like a program, and its paused place is kept across a screen stop. Stand-ins are deterministic (ADR-0017, 4); one that cannot be laid again on return (a lineup built again, or another choice) drops the place, and the viewer joins live, playing |
    | Split item | "The item" is the block; Back stops at its in-point |
    | Flip, Previous or guide tune to another channel | Behind state dropped; coming back joins live |
    | Guide Select on the playing channel | Guide closes, state kept |
@@ -174,7 +175,11 @@ The items above are planned for the SP-7 re-run before the contract matrix moves
 - **ADR-0016.** `VideoPlayer` gains transport (decision 9).
 - **ADR-0017, 6.** A screen stop still tears the period down in the same order (close the tuner, detach, release). The
   one change is that the paused place now survives it, in the ViewModel, for `pauseHoldMax`. The next run is passed the
-  place. The place is read from `PlayControl` before the teardown begins. Everything else in 6 stands.
+  place. The kept place is the position from the last `Paused` or `SeekDone` event, which the behind play tracks. It
+  is taken before the teardown begins and is never read from the player during the teardown (a paused player does not
+  move). The hold is one untended pause, measured on a monotonic clock that counts sleep: further stops while the
+  place has never been played do not restart it. A lineup built again with another block in the place's slot drops the
+  place. Everything else in 6 stands.
 - **ADR-0017, 2.** A retune still works the position out from the clock, with one exception: a return within
   `pauseHoldMax` resumes at the kept place. If the place's block has not started by the clock (possible after
   ahead-drift), the place is dropped and the viewer joins live. A place ahead of the clock's live position (paused in

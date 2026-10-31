@@ -40,7 +40,8 @@ import kotlin.time.Duration.Companion.seconds
  *   sends a fresh Playing.
  * @property stepBack how far one press of the back key moves the picture (spec 20).
  * @property stepAhead how far one press of the ahead key moves the picture (spec 20).
- * @property pauseHoldMax the longest a pause is held before the sitting plays on (spec 20, ADR-0021).
+ * @property pauseHoldMax how long a paused place is kept after the screen stops (spec 20, ADR-0021 5): a return within
+ *   it shows the place, still paused; after it the viewer joins live, playing.
  * @property goLiveWait the longest the way back to live waits for its seek to be done (spec 20): then the viewer is
  *   live at the known place. As long as the player's own seek watchdog (`TuneController.PLAYING_TIMEOUT`).
  * @property seekLandingSlack how far from its target a seek's `SeekDone` may land, when its `Seeking` was not seen (the

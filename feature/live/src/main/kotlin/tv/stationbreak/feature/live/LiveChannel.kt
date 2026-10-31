@@ -42,10 +42,13 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.feature.live.report.AiringKey
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import tv.stationbreak.feature.live.report.ReportingConfig
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * The live channel (spec 14, F1.3): one sitting. [run] picks a channel, tunes it at the schedule's offset and follows
@@ -91,6 +94,10 @@ class LiveChannel(
     // The sitting that is running, for the transport presses to reach; set and cleared by [sit].
     private var current: Sitting? = null
 
+    // The kept place this run was given, until its return has a behind play or the place is dropped: a screen stop
+    // during the return's own start (the landing, the tune) keeps it as it was given.
+    private var pendingResume: Kept? = null
+
     /** The sitting that is running, for tests that look at its transport state. */
     @VisibleForTesting
     internal fun currentSitting(): Sitting? = current
@@ -126,6 +133,24 @@ class LiveChannel(
     }
 
     /**
+     * The place to keep across a screen stop (spec 20, ADR-0021 5): the paused place of the running sitting (a
+     * program's block or a stand-in piece), with a program's watched time so far. Null unless the viewer is paused:
+     * live or playing behind, the viewer joins live after the stop. Never suspends and never asks the player: the place
+     * is the one the behind play last knew (its last Paused or SeekDone), and a paused player does not move. Main
+     * thread only.
+     */
+    fun kept(): Kept? = pendingResume?.copy(untended = true) ?: current?.behind?.let(::keptOf)
+
+    /** [behind]'s paused place with a program's watched time (a stand-in has none), or null unless it is paused. */
+    private fun keptOf(behind: BehindPlay): Kept? {
+        val place = behind.pausedPlace() ?: return null
+        val program = place.block.airing as? Airing.Program
+        val key = program?.let { AiringKey(place.channel, place.block.startMs, ItemId(it.itemId.value)) }
+        // Capped at the place: a pause the reporter has not handled yet must not count the time since as watched.
+        return Kept(place, reporting?.snapshot(atMostMs = place.mediaMs)?.takeIf { it.key == key }, behind.untended)
+    }
+
+    /**
      * Follows the viewer: picks a channel, tunes it at the schedule's offset and follows its blocks, and obeys
      * [commands] (spec 15). Everything here runs on one dispatcher (the main thread; the host launches it there), so
      * the shared fields need no locks; only [Screen], which the UI reads, has one.
@@ -138,8 +163,15 @@ class LiveChannel(
      * from the clock instead of ending the run. The finally of a sitting stops the tuner under [NonCancellable], so
      * backgrounding never leaves picture, sound or an encode running. It does not close the tuner: the host does,
      * then releases the player (ADR-0016).
+     *
+     * A [resume] kept from before a screen stop (in memory only, never persisted) seeds the reporter with its watched
+     * time, and the first sitting returns to its place, paused, when its channel is on air and the return rules keep it
+     * ([returnTo]); otherwise the viewer joins live.
      */
-    suspend fun run(commands: Flow<LiveCommand> = emptyFlow()) {
+    suspend fun run(
+        commands: Flow<LiveCommand> = emptyFlow(),
+        resume: Kept? = null,
+    ) {
         val session = sessions.current.value
         if (session == null) {
             screen.value = LiveState.SignedOut
@@ -147,7 +179,7 @@ class LiveChannel(
         }
         val neighbours = Neighbours(session, tuner, schedule, clock)
         val requests = Channel<SitRequest>(Channel.CONFLATED)
-        requests.trySend(SitRequest(null, null))
+        requests.trySend(SitRequest(null, null, resume?.place))
         // Its own scope and job, so it outlives every sitting (a flip cancels them) and run's own cancel: the final
         // Stopped is drained from that scope after run ends (finishReporting). Never a child of a sitting (R1).
         val reporterScope = CoroutineScope(currentCoroutineContext().minusKey(Job) + SupervisorJob())
@@ -164,6 +196,9 @@ class LiveChannel(
                 }
             }
         reporting = reporter
+        pendingResume = resume
+        // Before any visit of this run, so the kept airing's watched time goes on.
+        resume?.watched?.let { reporter?.seed(it) }
         try {
             coroutineScope {
                 val flipper =
@@ -208,6 +243,8 @@ class LiveChannel(
         request: SitRequest,
     ) {
         logFlip(unstarted?.flip, "superseded")
+        // A flip leaves the kept place behind: a stop during its snow keeps nothing from before it.
+        pendingResume = null
         unstarted = request
         request.flip?.sentAt = clock.now()
         requests.trySend(request)
@@ -235,14 +272,14 @@ class LiveChannel(
         if (request.flip != null) screen.handOver()
         var sitting: Sitting? = null
         var known: ChannelTag? = null
-        var landed = request.first
+        // Only the first sitting of a request lands where it says; one after it chooses afresh.
+        var landing: SitRequest? = request
         var flip = request.flip
         try {
             while (true) {
                 try {
-                    val (acct, first) =
-                        landed?.let { checkNotNull(account) to it } ?: awaitChannel().also { account = it.first }
-                    landed = null
+                    val (acct, first, place) = land(landing)
+                    landing = null
                     val id = first.channel.id
                     known = first.tag()
                     tuned.moveTo(first.channel)
@@ -257,7 +294,7 @@ class LiveChannel(
                     sitting?.commands?.close()
                     sitting = next
                     current = next
-                    val exit = next.follow(first)
+                    val exit = next.follow(first, place)
                     if (exit == Exit.SignedOut) return true
                     closeFlip(next, null, "abandoned")
                     // Cancelled from outside is not an exit: it throws here, and the finally stops everything.
@@ -401,6 +438,7 @@ class LiveChannel(
             reporter,
             sittingId,
             SittingCommands(sittingId),
+            resumeSettled = { pendingResume = null },
         ) { scope ->
             lookAhead(scope, neighbours, first.channel)
         }
@@ -495,6 +533,78 @@ class LiveChannel(
         val airings = on.map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
         val saved = lastChannel.load(account)
         return EarlyLineup(FlipOrder(airings), airings.firstOrNull { it.id == saved })
+    }
+
+    /** Where a sitting lands: the account, the channel with what is on it, and a kept place to return to on it. */
+    private data class Landing(
+        val account: LibraryAccount,
+        val onAir: ChannelOnAir,
+        val place: Place?,
+    )
+
+    /**
+     * Where [request]'s sitting lands: the channel a flip landed on; else a kept place's channel when it is on air,
+     * with the place; else the channel chosen as at start (and a kept place is dropped: the viewer joins live).
+     */
+    private suspend fun land(request: SitRequest?): Landing {
+        val kept = request?.resume
+        // A kept place goes with the first sitting of its run only: any other landing settles it.
+        if (kept == null) pendingResume = null
+        request?.first?.let { return Landing(checkNotNull(account), it, null) }
+        val (acct, onAir) = kept?.let { onAirFor(it) } ?: awaitChannel()
+        account = acct
+        val place = kept?.takeIf { it.channel == onAir.channel.id && stillScheduled(it, onAir) }
+        if (place == null) pendingResume = null
+        return Landing(acct, onAir, place)
+    }
+
+    /**
+     * True when [place]'s block can be had again: a program's block is still the one its channel airs in its slot, and
+     * a stand-in piece is still one its dead block's stand-ins would lay (ADR-0017 4: they are deterministic). A lineup
+     * built again, or stand-ins chosen otherwise, drop the place.
+     */
+    private suspend fun stillScheduled(
+        place: Place,
+        onAir: ChannelOnAir,
+    ): Boolean {
+        val block = place.block
+        val standIn =
+            block.airing as? Airing.StandIn ?: return scheduledAt(place, block.startMs, onAir)?.sameAs(block) == true
+        val dead = scheduledAt(place, standIn.forBlockStartMs, onAir)
+        val program = dead?.airing as? Airing.Program
+        return dead != null && program != null &&
+            schedule.standIns(place.channel, dead, setOf(program.itemId)).any { it.sameAs(block) }
+    }
+
+    /**
+     * The block [place]'s channel airs from [startMs]: what is on now ([onAir]) when it started then, with no second
+     * read; else, once the clock has passed the place's own block, the one looked up at [startMs]. Otherwise another
+     * block holds the slot now: null (another lineup).
+     */
+    private suspend fun scheduledAt(
+        place: Place,
+        startMs: Long,
+        onAir: ChannelOnAir,
+    ): AiringBlock? =
+        when {
+            onAir.now.startMs == startMs -> {
+                onAir.now
+            }
+
+            clock.now().toEpochMilliseconds() >= place.block.endMs -> {
+                val at = Instant.fromEpochMilliseconds(startMs)
+                schedule.onAir(place.channel, at, 0)?.now?.takeIf { it.startMs == startMs }
+            }
+
+            else -> {
+                null
+            }
+        }
+
+    /** A kept [place]'s channel with what is on it now, and the active account; null when it is not on air. */
+    private suspend fun onAirFor(place: Place): Pair<LibraryAccount, ChannelOnAir>? {
+        val acct = library.activeAccount().first() ?: return null
+        return schedule.onAir(place.channel, clock.now(), Sitting.WINDOW)?.let { acct to it }
     }
 
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */

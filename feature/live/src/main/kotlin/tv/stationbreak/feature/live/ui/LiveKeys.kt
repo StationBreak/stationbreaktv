@@ -11,6 +11,7 @@ import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.TransportView
 
 /** Which overlay is up: the keys mean something else over it (Select, Back), and nothing at all over the guide. */
 internal data class OverlayUp(
@@ -20,21 +21,28 @@ internal data class OverlayUp(
     val info: Boolean = false,
     /** The guide is open: it has the D-pad and Select, and Back leaves live TV. */
     val guide: Boolean = false,
+    /** The picture is paused: Select plays it, and Left and Right scrub it (with no overlay up). */
+    val paused: Boolean = false,
 ) {
     companion object {
         val None = OverlayUp()
     }
 }
 
-/** What is up over the picture for [state] and [info], with the guide [guideOpen] or not. A tune banner is nothing. */
+/**
+ * What is up over the picture for [state] and [info], with the guide [guideOpen] or not, and whether the [transport]
+ * says it is paused. A tune banner is nothing.
+ */
 internal fun overlayUpOf(
     state: LiveState,
     info: LiveInfo?,
     guideOpen: Boolean,
+    transport: TransportView? = null,
 ) = OverlayUp(
     actions = (state as? LiveState.Watching)?.banner?.actions == true,
     info = info != null,
     guide = guideOpen,
+    paused = transport?.paused == true,
 )
 
 /** What a key asks for: a command for the machine, or the guide opened or closed, which the screen does itself. */
@@ -54,6 +62,11 @@ private fun mappedCommand(
 ): LiveCommand? {
     // The guide has the D-pad and Select; flipping, Menu and Info would act on a picture the viewer cannot see.
     if (up.guide) return null
+    // Left, Right and Select belong to the overlays when one is up; paused with none, they are the transport's.
+    val scrubbing = up.paused && !up.actions && !up.info
+    // Over the actions banner Select clicks its focused button; over the info overlay it does nothing; paused it plays
+    // (ADR-0021, 2).
+    val select = if (scrubbing) LiveCommand.Play else LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
     return when (key) {
         Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
 
@@ -63,13 +76,12 @@ private fun mappedCommand(
 
         Key.Info -> LiveCommand.ShowInfo
 
-        // Over the actions banner Select clicks its focused button; over the info overlay it does nothing.
-        Key.DirectionCenter, Key.Enter -> LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
+        Key.DirectionCenter, Key.Enter -> select
 
         // Back closes an overlay; with none up it opens the guide (keyAction).
         Key.Back -> LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
 
-        else -> null
+        else -> transportCommand(key, scrubbing)
     }
 }
 
@@ -94,9 +106,9 @@ private fun keyAction(
  * The command a key sends the machine on the live screen (spec 15), or null when it sends none. Key-down only,
  * auto-repeat included, so holding Up or Down keeps flipping; a repeat's flip is marked as one, and the machine steps
  * those at its held-key rate (#430). Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel, Select
- * brings the actions banner and Info the program's info (spec 17). Back sends only while [up] says an overlay is open
- * (otherwise it opens the guide, which is no command); the media next/previous keys are kept for pause and skip. With
- * the guide open nothing is sent.
+ * brings the actions banner (or plays, paused) and Info the program's info (spec 17). The media keys pause, play, and
+ * step back and ahead (spec 20), and Left and Right do the same while paused. Back sends only while [up] says an
+ * overlay is open (otherwise it opens the guide, which is no command). With the guide open nothing is sent.
  */
 internal fun liveKeyCommand(
     event: KeyEvent,
@@ -106,7 +118,7 @@ internal fun liveKeyCommand(
     val native = event.nativeKeyEvent
     val command = mappedCommand(event.key, up)
     val repeat = native.repeatCount > 0
-    return if (command is LiveCommand.Flip) command.copy(repeat = repeat, atMs = native.eventTime) else command
+    return command?.timed(repeat, native.eventTime)
 }
 
 /**
@@ -127,6 +139,9 @@ internal class HeldKeys {
 
     /** True while any consumed press that flipped (Up, Down, CH+, CH-) is still down. */
     fun flipHeld(): Boolean = consumed.values.any { (it as? KeyAction.Send)?.command is LiveCommand.Flip }
+
+    /** True while any consumed press that sought (a media step key, or Left or Right while paused) is still down. */
+    fun seekHeld(): Boolean = consumed.values.any { (it as? KeyAction.Send)?.command is LiveCommand.Seek }
 
     /** True when [key]'s press, now being held, began with a first down that came here and passed through. */
     fun passedThrough(key: Key): Boolean = key in passed
@@ -164,10 +179,11 @@ internal class HeldKeys {
  * does nothing, but nothing else should see a stray release). Everything else passes. Back is mapped while an overlay
  * is up (it closes it) and from the full picture (it opens the guide through [guide]), never while the guide is open;
  * Select only while no overlay is. The auto-repeats and the release of a press that was consumed are consumed too,
- * whatever [up] says by then. A repeat sends again only when the press flipped, so holding Up keeps flipping; a held
- * Select, Info, Back, Guide or Menu acts once, so a held Back never runs on from the info to the banner to the guide
- * and out of live TV. A repeat never starts anything: one of a press that passed through passes too, and one of a
- * press whose first down never came here (a long OK the guide took and closed on) is consumed, doing nothing.
+ * whatever [up] says by then. A repeat sends again only when the press flipped or sought, so holding Up keeps
+ * flipping; a held Select, Info, Back, Guide or Menu acts once, so a held Back never runs on from the info to the
+ * banner to the guide and out of live TV. A repeat never starts anything: one of a press that passed through passes
+ * too, and one of a press whose first down never came here (a long OK the guide took and closed on) is consumed,
+ * doing nothing.
  */
 internal fun handleLiveKey(
     event: KeyEvent,
@@ -202,9 +218,7 @@ internal fun handleLiveKey(
     val action = keyAction(key, up)
     if (action != null && type == KeyEventType.KeyDown) {
         when (action) {
-            // A flip carries the time of the key event that made it.
-            is KeyAction.Send -> send((action.command as? LiveCommand.Flip)?.copy(atMs = atMs) ?: action.command)
-
+            is KeyAction.Send -> send(action.command.timed(repeat = false, atMs = atMs))
             is KeyAction.Guide -> guide(action.open)
         }
         held.hold(key, action)
@@ -216,7 +230,8 @@ internal fun handleLiveKey(
 
 /**
  * An auto-repeat down of [key]: part of a press already judged, never a new one. The repeats of a consumed press are
- * consumed and send again only when it flipped, marked as repeats so the machine steps at the held-key rate (#430);
+ * consumed and send again only when it flipped or sought, marked as repeats so the machine steps at the held-key
+ * rate (#430);
  * those of a press that passed through pass too; and those of a press whose first down never came here are consumed
  * and do nothing.
  */
@@ -228,13 +243,14 @@ private fun handleRepeat(
 ): Boolean {
     val press = held.consumedPress(key)
     val command = (press as? KeyAction.Send)?.command
-    if (command is LiveCommand.Flip) send(command.copy(repeat = true, atMs = atMs))
+    if (command is LiveCommand.Flip || command is LiveCommand.Seek) send(command.timed(repeat = true, atMs = atMs))
     return press != null || !held.passedThrough(key)
 }
 
 /**
  * True when this event of [key] is the release of a press that was consumed ([HeldKeys.releases]); the release of one
- * that flipped also tells the machine, which settles from it (#430), once no other flip key is still down.
+ * that flipped also tells the machine, which settles from it (#430), once no other flip key is still down; so does that
+ * of one that sought, once no other seek key is.
  */
 private fun release(
     key: Key,
@@ -247,6 +263,9 @@ private fun release(
     // With rollover (Up held, Down pressed, Up let go) the flip is still held: only the last flip key's release counts.
     val flipped = (pressed as? KeyAction.Send)?.command is LiveCommand.Flip
     if (release && flipped && !held.flipHeld()) send(LiveCommand.FlipReleased)
+    // The same for seeking: the last seek key's release ends it.
+    val sought = (pressed as? KeyAction.Send)?.command is LiveCommand.Seek
+    if (release && sought && !held.seekHeld()) send(LiveCommand.SeekReleased)
     return release
 }
 

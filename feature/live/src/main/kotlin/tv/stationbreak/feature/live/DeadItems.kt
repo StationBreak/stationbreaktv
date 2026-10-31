@@ -8,6 +8,7 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
+import kotlin.time.Instant
 
 /**
  * A program that cannot be played (spec 14, goal 6): the "Technical difficulties" slate, then, by the time left in the
@@ -46,7 +47,7 @@ internal suspend fun Sitting.deadItem(
  * retry at the place is dead), the piece on at the sitting's time follows, or the schedule once the block is over.
  */
 @Suppress("ReturnCount", "CyclomaticComplexMethod") // One stand-in loop: each early return ends the block's cover.
-private suspend fun Sitting.fillIn(
+internal suspend fun Sitting.fillIn(
     scope: CoroutineScope,
     onAir: ChannelOnAir,
     dead: CanonicalId,
@@ -152,4 +153,36 @@ private suspend fun Sitting.holdPiece(
             PieceHeld.Exited(held.exit)
         }
     }
+}
+
+/**
+ * A return to a kept paused stand-in piece [place] (spec 20, ADR-0021 5): the piece tuned at the place and paused, as a
+ * program's place is, then its behind play (never reported). Once the piece is over, the dead block's stand-ins carry
+ * on while it is still on ([standInsAfter]); otherwise what is on follows.
+ */
+internal suspend fun Sitting.resumeStandIn(
+    scope: CoroutineScope,
+    onAir: ChannelOnAir,
+    standIn: Airing.StandIn,
+    place: Place,
+): Exit? {
+    val piece = place.block
+    val item = ItemId(standIn.itemId.value)
+    val outcome = tunePaused(scope, onAir, place, item, BannerLabel.FillingIn, TuneKind.StandIn)
+    val play = pausedPlay(outcome) ?: return resumeEnded(outcome)
+    resumeSettled()
+    val retune = retuneAt(scope, onAir, piece, item, BannerLabel.FillingIn)
+    val held = holdProgram(piece, play, null, retune, BlockRetries(), place, outcome is TuneOutcome.Dead)
+    (held as? Held.CaughtUp)?.catchUp?.let { discardCatchUp(it) }
+    return if (held is Held.Exited) held.exit else standInsAfter(scope, standIn)
+}
+
+/** After a resumed stand-in piece: the stand-ins of its dead block, while that block is still on; else null. */
+private suspend fun Sitting.standInsAfter(
+    scope: CoroutineScope,
+    standIn: Airing.StandIn,
+): Exit? {
+    val onAir = schedule.onAir(channel, Instant.fromEpochMilliseconds(vnowMs()), Sitting.WINDOW)
+    val dead = onAir?.now?.takeIf { it.startMs == standIn.forBlockStartMs }?.airing as? Airing.Program
+    return if (onAir != null && dead != null) fillIn(scope, onAir, dead.itemId) else null
 }

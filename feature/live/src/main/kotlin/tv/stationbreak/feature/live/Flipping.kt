@@ -47,11 +47,14 @@ internal class FlipTiming(
 
 /**
  * Which channel the next sitting is on: [first] is what was on it at the commit, or null to choose as spec 14 does (the
- * saved channel, else the first with something on). [flip] is set when a flip asked for it.
+ * saved channel, else the first with something on). [flip] is set when a flip asked for it. [resume] is a kept paused
+ * place (spec 20): its channel is chosen when it is on air, and the sitting returns to the place if the return rules
+ * keep it.
  */
 internal class SitRequest(
     val first: ChannelOnAir?,
     val flip: FlipTiming?,
+    val resume: Place? = null,
 )
 
 /**
