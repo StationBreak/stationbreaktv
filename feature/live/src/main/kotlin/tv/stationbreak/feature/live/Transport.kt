@@ -180,6 +180,22 @@ internal object TransportMath {
         cutMs: Long,
     ): Long = minOf(targetMs, minOf(liveMs, cutMs))
 
+    /**
+     * [fromMs] stepped one press in [direction] on [block]: back by `stepBack`, never before the in-point; ahead by
+     * `stepAhead`, never past the lesser of [liveMs] and the cut.
+     */
+    fun step(
+        fromMs: Long,
+        direction: SeekDirection,
+        timings: LiveTimings,
+        block: AiringBlock,
+        liveMs: Long,
+    ): Long =
+        when (direction) {
+            SeekDirection.Back -> back(fromMs - timings.stepBack.inWholeMilliseconds, inPointMs(block))
+            SeekDirection.Ahead -> ahead(fromMs + timings.stepAhead.inWholeMilliseconds, liveMs, cutMs(block))
+        }
+
     /** True when the ahead clamp hit live, which is before the cut: the viewer is back at live. */
     fun reachesLive(
         targetMs: Long,

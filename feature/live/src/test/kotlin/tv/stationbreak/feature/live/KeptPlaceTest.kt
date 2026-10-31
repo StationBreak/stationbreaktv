@@ -289,4 +289,41 @@ class KeptPlaceTest {
             )
             k.finish()
         }
+
+    @Test
+    fun aReturnWhoseTuneIsDeadPlaysNothing() =
+        runTest {
+            val k =
+                keys(startMin = 30, resume = kept(one, 20 * MIN)) {
+                    schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 8, 0)) }
+                    tune.script(itemOf(1), FakeTune.dead(), FakeTune.playing())
+                }
+            // The return's tune is dead: no retry, no slate, no stand-in, no live; the place is held, paused.
+            k.r.atMin(10)
+            assertEquals(listOf(Call.Tune(itemOf(1), 20.minutes, 0)), k.r.tunes)
+            assertTrue(
+                k.r.schedule.standInCalls
+                    .isEmpty(),
+            )
+            assertTrue(k.r.seen.none { it is LiveState.TechnicalDifficulties })
+            assertTrue(checkNotNull(k.transport).paused)
+            assertEquals(
+                Place(CH7, one, 20 * MIN),
+                k.r.live
+                    .kept()
+                    ?.place,
+            )
+            // Play: the block's one retry, at the place, and it plays.
+            k.press(LiveCommand.PlayPause)
+            assertEquals(Call.Tune(itemOf(1), 20.minutes, 10 * MIN), k.r.tunes.last())
+            k.r.atMin(10)
+            k.r.at(10 * MIN + 1_000)
+            assertEquals(
+                emptyList<String>(),
+                k.r.tune.lastControl!!
+                    .calls,
+            )
+            assertFalse(checkNotNull(k.transport).paused)
+            k.finish()
+        }
 }

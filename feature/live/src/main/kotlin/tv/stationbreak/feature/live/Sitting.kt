@@ -6,11 +6,13 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
@@ -288,7 +290,10 @@ internal class Sitting(
             }
         }
 
-    /** [resumeBlock]'s tune at the place, paused at once; one retry for a dead tune, as for any (none on a timeout). */
+    /**
+     * [resumeBlock]'s tune at the place, paused at once. A dead tune is not retried and falls back to nothing (no
+     * slate, no stand-in, no live): the place is held paused with no picture, and the block's one retry waits for Play.
+     */
     private suspend fun resumeProgram(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
@@ -305,25 +310,34 @@ internal class Sitting(
         val retune = retuneAt(scope, onAir, block, item, BannerLabel.TuningIn)
         val banner = bannerFor(onAir.channel, block, BannerLabel.TuningIn, place.mediaMs, driftMs, onAir.nextProgram())
         val what = TuneWhat(TuneKind.Fresh, block, position)
-        var outcome =
+        val outcome =
             tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = pauseAtOnce) {
                 tuner.tune(session, item, position)
             }
-        if (outcome is TuneOutcome.Dead && !outcome.timedOut && retries.take()) {
-            outcome = retune.at(place.mediaMs, pauseAtOnce)
+        val play =
+            when (outcome) {
+                is TuneOutcome.Playing -> {
+                    outcome
+                }
+
+                // Nothing to show: the banner over no picture, the place paused, and the neighbours looked at.
+                is TuneOutcome.Dead -> {
+                    heldBlockStartMs = block.startMs
+                    showWatching(scope, banner, program.itemId)
+                    onSettled(scope)
+                    NO_PLAY
+                }
+
+                TuneOutcome.Expired, TuneOutcome.Cancelled -> {
+                    null
+                }
+            }
+        if (play == null) {
+            resumeSettled()
+            return if (outcome == TuneOutcome.Expired) expired() else Exit.Stopped
         }
-        // No play to pause: the place is dropped (the item is dead, or the sitting ends).
-        if (outcome !is TuneOutcome.Playing) resumeSettled()
-        return when (outcome) {
-            is TuneOutcome.Playing -> resumeHeld(scope, onAir, program, outcome, place, visiting, retune, retries)
-
-            // Dead for its block while the clock is still inside it; past it, the item is over: catch up.
-            is TuneOutcome.Dead -> if (inBlockOnAir(onAir, block)) deadItem(scope, onAir, program.itemId) else null
-
-            TuneOutcome.Expired -> expired()
-
-            TuneOutcome.Cancelled -> Exit.Stopped
-        }
+        val dead = outcome is TuneOutcome.Dead
+        return resumeHeld(scope, onAir, program, play, place, visiting, retune, retries, dead)
     }
 
     /** The resumed play, from the kept place (paused), until its item ends, it goes live and ends, or an exit. */
@@ -337,11 +351,13 @@ internal class Sitting(
         visiting: Visiting,
         retune: Retune,
         retries: BlockRetries,
+        dead: Boolean,
     ): Exit? {
         val block = place.block
         // The behind play starts at once from here, with no suspension first: it holds the kept place from now on.
         resumeSettled()
-        return when (val held = holdReporting(block, program, play, visiting, place.mediaMs, retune, retries, place)) {
+        val held = holdReporting(block, program, play, visiting, place.mediaMs, retune, retries, place, dead)
+        return when (held) {
             // Live again and the block's end came, or the live play broke: what is on now, by the usual loop.
             Held.Boundary, is Held.Failed -> {
                 null
@@ -370,12 +386,6 @@ internal class Sitting(
             }
         }
     }
-
-    /** True while [block] is what [onAir] has on and the clock is still inside it. */
-    private fun inBlockOnAir(
-        onAir: ChannelOnAir,
-        block: AiringBlock,
-    ): Boolean = onAir.now.sameAs(block) && vnowMs() < block.endMs
 
     /** One program's block, every try at it. [visiting] is left by the caller when the block is left for good. */
     @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod") // One block's steps: each return is an ending.
@@ -634,6 +644,9 @@ internal class Sitting(
     internal companion object {
         /** How many following blocks each look at the schedule asks for (the next one is pre-resolved). */
         const val WINDOW = 3
+
+        /** A kept place's dead tune: no play at all, held paused until the viewer presses Play. */
+        private val NO_PLAY = TuneOutcome.Playing(flow { awaitCancellation() }, PlayControl.None)
     }
 }
 

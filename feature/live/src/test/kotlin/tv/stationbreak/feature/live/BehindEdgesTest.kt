@@ -164,19 +164,22 @@ class BehindEdgesTest {
         }
 
     @Test
-    fun aFailureWhilePausedRetriesAtThePlaceStillPaused() =
+    fun aFailureWhilePausedWaitsForPlayThenRetriesAtThePlace() =
         runTest {
             val failed = PlaybackEnd.Failed("Boom", positionMs = 10 * MIN + upMs)
             val k = keys { tune.script(itemOf(1), tune.playsThenEnds(3.minutes, failed)) }
             k.pressAt(upMs, LiveCommand.PlayPause)
+            // The play fails at 3:00 while paused: nothing is tuned, and the place stays paused (ADR-0021).
             k.r.at(3 * MIN + 1_000)
-            assertEquals(Call.Tune(itemOf(1), (10 * MIN + upMs).milliseconds, 3 * MIN), k.r.tunes.last())
-            val retried = k.controls(itemOf(1)).last()
-            assertEquals(listOf("pause"), retried.calls)
+            assertEquals(1, k.r.tunes.size)
             assertTrue(checkNotNull(k.transport).paused)
-            // Play carries on from the place.
+            // Play: the block's retry, at the place, playing.
             k.press(LiveCommand.PlayPause)
-            assertEquals(listOf("pause", "resume"), retried.calls)
+            assertEquals(Call.Tune(itemOf(1), (10 * MIN + upMs).milliseconds, 3 * MIN + 1_000), k.r.tunes.last())
+            k.r.at(3 * MIN + 2_000)
+            val retried = k.controls(itemOf(1)).last()
+            assertEquals(emptyList<String>(), retried.calls)
+            assertFalse(checkNotNull(k.transport).paused)
             assertNear(3 * MIN, checkNotNull(k.transport).behindMs(k.r.nowMs()))
             k.finish()
         }
@@ -278,7 +281,13 @@ class BehindEdgesTest {
             k.r.at(3 * MIN)
             assertNull(checkNotNull(k.r.live.currentSitting()).behind)
             k.press(LiveCommand.PlayPause)
+            // The retried play fails at 6:00 while paused: held, nothing tuned or stood in until Play.
             k.r.at(6 * MIN + 10_000)
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            assertTrue(k.r.seen.none { it is LiveState.TechnicalDifficulties })
+            assertTrue(checkNotNull(k.transport).paused)
+            k.press(LiveCommand.PlayPause)
+            k.r.at(6 * MIN + 20_000)
             // No second retry: the item is dead for this block. The slate, then a stand-in (45 minutes are left).
             assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
             assertTrue(k.r.seen.any { it is LiveState.TechnicalDifficulties })
@@ -305,7 +314,12 @@ class BehindEdgesTest {
             k.r.at(MIN + 1_000)
             assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
             k.pressAt(2 * MIN, LiveCommand.PlayPause)
+            // The behind play fails while paused: held until Play, which finds no retry left.
             k.r.at(4 * MIN + 10_000)
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            assertEquals(0, k.r.schedule.standInCalls.size)
+            k.pressAt(4 * MIN + 10_000, LiveCommand.PlayPause)
+            k.r.at(4 * MIN + 20_000)
             assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
             assertEquals(
                 itemOf(8),
@@ -338,25 +352,7 @@ class BehindEdgesTest {
         }
 
     @Test
-    fun aRetryWhilePausedIsPausedBeforeThePictureShows() =
-        runTest {
-            val failed = PlaybackEnd.Failed("Boom", positionMs = 10 * MIN + upMs)
-            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(3.minutes, failed)) }
-            k.pressAt(upMs, LiveCommand.PlayPause)
-            // The retry plays at 3:00; the snow holds to 3:00.5. Its play is paused already, under the snow.
-            k.r.at(3 * MIN + 100)
-            assertTrue(k.r.state is LiveState.Tuning)
-            val retried = k.controls(itemOf(1)).last()
-            assertEquals(listOf("pause"), retried.calls)
-            k.r.at(3 * MIN + 1_000)
-            assertTrue(k.r.state is LiveState.Watching)
-            assertEquals(listOf("pause"), retried.calls)
-            assertTrue(checkNotNull(k.transport).paused)
-            k.finish()
-        }
-
-    @Test
-    fun aPausedRetryIsReportedPausedThenPlaying() =
+    fun aPlayAfterAFailureWhilePausedIsReportedPausedThenPlaying() =
         runTest {
             val server = RecordingServer({ currentTime })
             val facts = ReportFacts(MediaSourceId("src"), PlaySessionId("ps"), PlayMethod.DirectPlay, 60.minutes)
@@ -367,12 +363,14 @@ class BehindEdgesTest {
                     tune.script(itemOf(1), tune.playsThenEnds(100.seconds, failed))
                 }
             k.pressAt(31_000, LiveCommand.PlayPause)
+            // The play fails at 100 s while paused: no retry until Play.
             k.r.at(150_000)
-            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
+            assertEquals(1, k.r.tunes.count { it.item == itemOf(1) })
             k.press(LiveCommand.PlayPause)
+            assertEquals(2, k.r.tunes.count { it.item == itemOf(1) })
             k.r.at(260_000)
             val progress = server.calls.filter { it.kind == "progress" }
-            // Paused through the failure and the retry; playing again after Play, with no second Playing.
+            // Paused through the failure; playing again once Play retried it, with no second Playing.
             assertTrue(progress.filter { it.atMs in 31_001..150_000 }.all { it.paused })
             val after = progress.filter { it.atMs > 150_000 }
             assertTrue(after.isNotEmpty())

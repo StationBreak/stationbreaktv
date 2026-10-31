@@ -82,12 +82,16 @@ internal suspend fun Sitting.holdReporting(
     retune: Retune,
     retries: BlockRetries,
     from: Place? = null,
+    fromDead: Boolean = false,
 ): Held {
     val facts = outcome.report
-    if (reporter == null || facts == null) return holdProgram(block, outcome, null, retune, retries, from)
+    // A kept place whose tune was dead has nothing to report yet; its retry, if the viewer plays it, opens the visit.
+    if (reporter == null || (facts == null && !fromDead)) {
+        return holdProgram(block, outcome, null, retune, retries, from, fromDead)
+    }
     val item = ItemId(program.itemId.value)
     val key = AiringKey(channel, block.startMs, item)
-    visiting.playing(fromMs) { it.visit(sittingId, key, facts.target(item), fromMs) }
+    facts?.let { f -> visiting.playing(fromMs) { it.visit(sittingId, key, f.target(item), fromMs) } }
     val reported =
         Retune { placeMs, onPlaying ->
             retune.at(placeMs, onPlaying).also { retried ->
@@ -95,7 +99,7 @@ internal suspend fun Sitting.holdReporting(
                 if (again != null) visiting.playing(placeMs) { it.visit(sittingId, key, again.target(item), placeMs) }
             }
         }
-    val held = holdProgram(block, outcome, visiting, reported, retries, from)
+    val held = holdProgram(block, outcome, visiting, reported, retries, from, fromDead)
     if (held is Held.Failed) visiting.failedPlay(held.positionMs ?: -1)
     return held
 }
