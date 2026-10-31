@@ -59,7 +59,7 @@ class LivePeriodTest {
             r.at(45_000)
             assertEquals(1, server.count("start"))
             val inner = RecordingPlayer()
-            val period = LivePeriod(inner, job).also { it.machine = r.live }
+            val period = LivePeriod(inner, job) {}.also { it.machine = r.live }
 
             assertTrue("the first leave ends the period", period.leave())
 
@@ -89,7 +89,7 @@ class LivePeriodTest {
             val r = reportingRig(server)
             val job = r.start()
             r.at(45_000)
-            LivePeriod(RecordingPlayer(), job).also { it.machine = r.live }.leave()
+            LivePeriod(RecordingPlayer(), job) {}.also { it.machine = r.live }.leave()
             r.at(60_000)
             assertTrue(job.isCompleted)
 
@@ -106,7 +106,7 @@ class LivePeriodTest {
     fun theGuardedPlayerForwardsTransportUntilLeft() =
         runTest {
             val inner = RecordingPlayer()
-            val period = LivePeriod(inner, Job())
+            val period = LivePeriod(inner, Job()) {}
 
             period.player.pause(3)
             assertEquals(listOf("pause:3"), inner.log)

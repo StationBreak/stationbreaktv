@@ -29,7 +29,7 @@ internal class LivePeriod(
     private val inner: VideoPlayer,
     private val sitting: Job,
     /** Told the paused place to keep, once, as the period is left. */
-    private val keep: (Kept?) -> Unit = {},
+    private val keep: (Kept?) -> Unit,
 ) {
     private val left = AtomicBoolean(false)
 
@@ -39,7 +39,10 @@ internal class LivePeriod(
 
     val player: VideoPlayer = Guarded()
 
-    /** Leaves the period; true when this call did, false when it was already left (or released). */
+    /**
+     * Leaves the period; true when this call did, false when it was already left (or released). Main thread only: the
+     * check, the read of the kept place and the set of the left flag are not one atomic step.
+     */
     fun leave(): Boolean {
         if (left.get()) return false
         // Read before the teardown (ADR-0021, amendment to ADR-0017 6): a paused place survives the stop.

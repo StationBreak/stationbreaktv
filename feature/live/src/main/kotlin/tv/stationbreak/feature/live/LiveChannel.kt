@@ -48,6 +48,7 @@ import tv.stationbreak.feature.live.report.AiringKey
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import tv.stationbreak.feature.live.report.ReportingConfig
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * The live channel (spec 14, F1.3): one sitting. [run] picks a channel, tunes it at the schedule's offset and follows
@@ -93,6 +94,10 @@ class LiveChannel(
     // The sitting that is running, for the transport presses to reach; set and cleared by [sit].
     private var current: Sitting? = null
 
+    // The kept place this run was given, until its return has a behind play or the place is dropped: a screen stop
+    // during the return's own start (the landing, the tune) keeps it as it was given.
+    private var pendingResume: Kept? = null
+
     /** The sitting that is running, for tests that look at its transport state. */
     @VisibleForTesting
     internal fun currentSitting(): Sitting? = current
@@ -133,12 +138,15 @@ class LiveChannel(
      * a stand-in, the viewer joins live after the stop. Never suspends and never asks the player: the place is the one
      * the behind play last knew (its last Paused or SeekDone), and a paused player does not move. Main thread only.
      */
-    fun kept(): Kept? {
-        val place = current?.behind?.pausedPlace() ?: return null
+    fun kept(): Kept? = pendingResume?.copy(untended = true) ?: current?.behind?.let(::keptOf)
+
+    /** [behind]'s paused place with its airing's watched time, or null unless it is paused on a program's block. */
+    private fun keptOf(behind: BehindPlay): Kept? {
+        val place = behind.pausedPlace() ?: return null
         val program = place.block.airing as? Airing.Program
         val key = program?.let { AiringKey(place.channel, place.block.startMs, ItemId(it.itemId.value)) }
         // Capped at the place: a pause the reporter has not handled yet must not count the time since as watched.
-        return Kept(place, reporting?.snapshot(atMostMs = place.mediaMs)?.takeIf { it.key == key })
+        return Kept(place, reporting?.snapshot(atMostMs = place.mediaMs)?.takeIf { it.key == key }, behind.untended)
     }
 
     /**
@@ -187,6 +195,7 @@ class LiveChannel(
                 }
             }
         reporting = reporter
+        pendingResume = resume
         // Before any visit of this run, so the kept airing's watched time goes on.
         resume?.watched?.let { reporter?.seed(it) }
         try {
@@ -426,6 +435,7 @@ class LiveChannel(
             reporter,
             sittingId,
             SittingCommands(sittingId),
+            resumeSettled = { pendingResume = null },
         ) { scope ->
             lookAhead(scope, neighbours, first.channel)
         }
@@ -534,11 +544,21 @@ class LiveChannel(
      * with the place; else the channel chosen as at start (and a kept place is dropped: the viewer joins live).
      */
     private suspend fun land(request: SitRequest?): Landing {
-        request?.first?.let { return Landing(checkNotNull(account), it, null) }
         val kept = request?.resume
+        // A kept place goes with the first sitting of its run only: any other landing settles it.
+        if (kept == null) pendingResume = null
+        request?.first?.let { return Landing(checkNotNull(account), it, null) }
         val (acct, onAir) = kept?.let { onAirFor(it) } ?: awaitChannel()
         account = acct
-        return Landing(acct, onAir, kept?.takeIf { it.channel == onAir.channel.id })
+        val place = kept?.takeIf { it.channel == onAir.channel.id && stillScheduled(it) }
+        if (place == null) pendingResume = null
+        return Landing(acct, onAir, place)
+    }
+
+    /** True when [place]'s block is still the one its channel airs at its start: a lineup built again drops it. */
+    private suspend fun stillScheduled(place: Place): Boolean {
+        val at = Instant.fromEpochMilliseconds(place.block.startMs)
+        return schedule.onAir(place.channel, at, 0)?.now?.sameAs(place.block) == true
     }
 
     /** A kept [place]'s channel with what is on it now, and the active account; null when it is not on air. */

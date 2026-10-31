@@ -23,6 +23,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import tv.stationbreak.core.playback.SeekCheck
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The kept place (spec 20, ADR-0021 5, amendments to ADR-0017 2 and 6): only a paused place is kept, and a run given
@@ -243,6 +244,23 @@ class KeptPlaceTest {
             // Paused at 11:00 of item 1; the minutes after go by on a frozen picture.
             k.r.at(30 * MIN)
             assertEquals(Kept(Place(CH7, one, 11 * MIN), null), k.r.live.kept())
+            k.finish()
+        }
+
+    @Test
+    fun keptDuringTheReturnsTuneIsTheGivenPlace() =
+        runTest {
+            val given = kept(one, 20 * MIN)
+            val k = keys(startMin = 30, resume = given) { tune.script(itemOf(1), FakeTune.playsAfter(5.seconds)) }
+            // The tune has not answered: no behind play yet, but the place given is still the one kept.
+            assertEquals(given.copy(untended = true), k.r.live.kept())
+            k.r.at(6_000)
+            assertEquals(given.copy(untended = true), k.r.live.kept())
+            // Played: the untended pause is over, and nothing is kept while playing.
+            k.press(LiveCommand.PlayPause)
+            assertNull(k.r.live.kept())
+            k.press(LiveCommand.PlayPause)
+            assertFalse(checkNotNull(k.r.live.kept()).untended)
             k.finish()
         }
 }

@@ -87,7 +87,19 @@ data class Place(
 data class Kept(
     val place: Place,
     val watched: WatchSnapshot?,
+    /** True while this is the place a run was given back and it has not been played since: the same untended pause. */
+    val untended: Boolean = false,
 )
+
+/**
+ * True when [other] is the same block as this one: the same slot, the same item and the same media start. A lineup
+ * built again may put another block at the same start; its program info may change without the block changing.
+ */
+internal fun AiringBlock.sameAs(other: AiringBlock): Boolean =
+    startMs == other.startMs &&
+        endMs == other.endMs &&
+        airing.itemId() == other.airing.itemId() &&
+        positionAt(startMs) == other.positionAt(other.startMs)
 
 /**
  * The place to return to at [nowMs] (a fresh sitting: no drift), or null to join live (ADR-0017, 2 as amended). A block

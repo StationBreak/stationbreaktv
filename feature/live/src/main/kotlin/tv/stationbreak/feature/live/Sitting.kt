@@ -137,6 +137,8 @@ internal class Sitting(
     internal val sittingId: Long = 0,
     /** This sitting's inbox for the viewer's transport presses (spec 20); the run closes it with the sitting. */
     internal val commands: SittingCommands,
+    /** Told once a kept place this sitting was given is settled: its behind play starts, or the place is dropped. */
+    internal val resumeSettled: () -> Unit = {},
     /**
      * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
      * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
@@ -180,16 +182,20 @@ internal class Sitting(
      * Follows the channel from [first] (what was on when it was chosen) until something ends the sitting. A kept paused
      * place to [resume] at, when the return rules keep it ([returnTo]), comes first ([resumeBlock]); then what is on.
      */
-    @Suppress("ReturnCount") // The kept place's exit, the channel lost, or the block's exit.
     suspend fun follow(
         first: ChannelOnAir,
         resume: Place? = null,
     ): Exit {
         val place = resume?.let { returnTo(it, clock.now().toEpochMilliseconds()) }
-        place?.let { resumeBlock(first, it) }?.let { return it }
-        // After a kept place, what is on now is looked at afresh: the item has ended, or it went live and its block
-        // did.
-        var current: ChannelOnAir? = first.takeIf { place == null }
+        if (resume != null && place == null) resumeSettled()
+        if (place == null) return followFrom(first)
+        // After a kept place, what is on now is looked at afresh: the item ended, or it went live and its block did.
+        return resumeBlock(first, place) ?: followFrom(null)
+    }
+
+    /** The block loop, from [first] (what was on when the channel was chosen), else from what is on at its time. */
+    private suspend fun followFrom(first: ChannelOnAir?): Exit {
+        var current: ChannelOnAir? = first
         while (true) {
             val at = Instant.fromEpochMilliseconds(vnowMs())
             val onAir = current ?: schedule.onAir(channel, at, WINDOW)
@@ -266,8 +272,12 @@ internal class Sitting(
         place: Place,
     ): Exit? =
         coroutineScope {
-            val program = place.block.airing as? Airing.Program ?: return@coroutineScope null
-            if (onAir.now.startMs == place.block.startMs) boundary.startDropped(this, onAir)
+            val program =
+                place.block.airing as? Airing.Program ?: run {
+                    resumeSettled()
+                    return@coroutineScope null
+                }
+            if (onAir.now.sameAs(place.block)) boundary.startDropped(this, onAir)
             val visiting = Visiting(reporter)
             try {
                 resumeProgram(this, onAir, program, place, visiting)
@@ -302,6 +312,8 @@ internal class Sitting(
         if (outcome is TuneOutcome.Dead && !outcome.timedOut && retries.take()) {
             outcome = retune.at(place.mediaMs, pauseAtOnce)
         }
+        // No play to pause: the place is dropped (the item is dead, or the sitting ends).
+        if (outcome !is TuneOutcome.Playing) resumeSettled()
         return when (outcome) {
             is TuneOutcome.Playing -> resumeHeld(scope, onAir, program, outcome, place, visiting, retune, retries)
 
@@ -327,6 +339,8 @@ internal class Sitting(
         retries: BlockRetries,
     ): Exit? {
         val block = place.block
+        // The behind play starts at once from here, with no suspension first: it holds the kept place from now on.
+        resumeSettled()
         return when (val held = holdReporting(block, program, play, visiting, place.mediaMs, retune, retries, place)) {
             // Live again and the block's end came, or the live play broke: what is on now, by the usual loop.
             Held.Boundary, is Held.Failed -> {
@@ -361,7 +375,7 @@ internal class Sitting(
     private fun inBlockOnAir(
         onAir: ChannelOnAir,
         block: AiringBlock,
-    ): Boolean = onAir.now.startMs == block.startMs && vnowMs() < block.endMs
+    ): Boolean = onAir.now.sameAs(block) && vnowMs() < block.endMs
 
     /** One program's block, every try at it. [visiting] is left by the caller when the block is left for good. */
     @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod") // One block's steps: each return is an ending.

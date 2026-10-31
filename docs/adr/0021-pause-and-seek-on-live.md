@@ -176,7 +176,9 @@ The items above are planned for the SP-7 re-run before the contract matrix moves
   one change is that the paused place now survives it, in the ViewModel, for `pauseHoldMax`. The next run is passed the
   place. The kept place is the position from the last `Paused` or `SeekDone` event, which the behind play tracks. It
   is taken before the teardown begins and is never read from the player during the teardown (a paused player does not
-  move). Everything else in 6 stands.
+  move). The hold is one untended pause, measured on a monotonic clock that counts sleep: further stops while the
+  place has never been played do not restart it. A lineup built again with another block in the place's slot drops the
+  place. Everything else in 6 stands.
 - **ADR-0017, 2.** A retune still works the position out from the clock, with one exception: a return within
   `pauseHoldMax` resumes at the kept place. If the place's block has not started by the clock (possible after
   ahead-drift), the place is dropped and the viewer joins live. A place ahead of the clock's live position (paused in

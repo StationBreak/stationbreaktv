@@ -155,11 +155,13 @@ internal class ReportWorker(
     suspend fun handle(event: ReportEvent): Boolean {
         try {
             dispatch(event)
-            published = ledger.openAiring()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             log("report error kind=exception")
+        } finally {
+            // Even after a failed event: never left describing an airing the ledger has moved past.
+            published = ledger.openAiring()
         }
         return event !is ReportEvent.Close
     }

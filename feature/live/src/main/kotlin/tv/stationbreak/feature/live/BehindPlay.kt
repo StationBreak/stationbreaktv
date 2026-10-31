@@ -228,6 +228,11 @@ internal class BehindPlay(
     @Volatile
     private var paused = false
 
+    /** True from a kept place's start until the play first runs again: one untended pause (ADR-0021 5). */
+    @Volatile
+    var untended = false
+        private set
+
     /** The media position last known (a read, or the last Paused or SeekDone event), and the clock time it was so. */
     @Volatile
     private var knownMs = inPointMs
@@ -286,6 +291,7 @@ internal class BehindPlay(
                     // A kept place: its tune was paused on the first frame, before the picture showed (ADR-0021 5).
                     known(from.mediaMs)
                     paused = true
+                    untended = true
                     pausedAtMs = nowMs()
                     visiting?.paused(from.mediaMs)
                 } else {
@@ -473,6 +479,7 @@ internal class BehindPlay(
         read()
         play.control.resume()
         paused = false
+        untended = false
         resumed()
         show()
     }
@@ -556,6 +563,7 @@ internal class BehindPlay(
         if (paused) {
             play.control.resume()
             paused = false
+            untended = false
             resumed()
         }
         return true

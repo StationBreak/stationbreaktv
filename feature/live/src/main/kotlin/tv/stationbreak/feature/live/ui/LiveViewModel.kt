@@ -69,11 +69,21 @@ internal fun drainStalePresses(
     }
 }
 
-/** A paused place kept across a screen stop, and when it was kept (the clock's epoch ms): in memory only. */
+/**
+ * A paused place kept across a screen stop, and when its untended pause began, on a monotonic clock that counts sleep
+ * (`SystemClock.elapsedRealtime`, ms): in memory only. A stop while the place has not been played since it was given
+ * back keeps the first [keptAtMs]: the hold measures one untended pause (ADR-0021 5).
+ */
 internal data class KeptPlace(
     val kept: Kept,
     val keptAtMs: Long,
-)
+) {
+    /** True while the hold [holdMs] has not run out at [nowMs]; a monotonic clock that went back counts as run out. */
+    fun heldAt(
+        nowMs: Long,
+        holdMs: Long,
+    ): Boolean = (nowMs - keptAtMs) in 0..holdMs
+}
 
 /** How a sitting gets its tuner: over [VideoPlayer], for [Session]. A test swaps it for one that records. */
 internal fun interface TunerFactory {
@@ -157,7 +167,8 @@ internal class LiveViewModel
         private val commands = Channel<LiveCommand>(Channel.UNLIMITED)
 
         // The paused place the last screen stop kept (ADR-0021 5): taken once by the next sitting within
-        // pauseHoldMax. Never persisted, so it is gone with the process. Main thread only.
+        // pauseHoldMax, measured on the monotonic clock. Never persisted, so it is gone with the process. Main thread
+        // only.
         private var kept: KeptPlace? = null
 
         /** The running sitting's machine, for tests that look at its transport. */
@@ -208,30 +219,35 @@ internal class LiveViewModel
             context: Context,
             surface: SurfaceView,
             tuners: TunerFactory = controllers,
-        ) = sit({ players.create(context, SystemClock::elapsedRealtime) }, surface, tuners) { Log.i(LOG_TAG, it) }
+        ) {
+            val elapsed = SystemClock::elapsedRealtime
+            sit({ players.create(context, elapsed) }, surface, tuners, elapsed) { Log.i(LOG_TAG, it) }
+        }
 
         /**
          * [sit] with its Android parts passed in, so a JVM test can run a sitting: [makePlayer] makes the period's
-         * player, [surface] is what it shows on (null: none) and [log] takes the logcat lines.
+         * player, [surface] is what it shows on (null: none), [elapsedMs] is the monotonic clock the pause hold is
+         * measured on and [log] takes the logcat lines.
          */
         internal suspend fun sit(
             makePlayer: () -> VideoPlayer,
             surface: SurfaceView?,
             tuners: TunerFactory,
+            elapsedMs: () -> Long,
             log: (String) -> Unit,
-        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, log) }
+        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, elapsedMs, log) }
 
         @Suppress("SwallowedException") // The period's own cancel ends it; a cancel of the caller is rethrown.
         private suspend fun sitting(
             makePlayer: () -> VideoPlayer,
             surface: SurfaceView?,
             tuners: TunerFactory,
+            elapsedMs: () -> Long,
             log: (String) -> Unit,
         ) {
             // Once only: within the hold the next run returns to the place, paused; past it the viewer joins live,
             // playing (the place is dropped).
-            val holdMs = timings.pauseHoldMax.inWholeMilliseconds
-            val resume = kept?.takeIf { clock.now().toEpochMilliseconds() - it.keptAtMs <= holdMs }
+            val resume = kept?.takeIf { it.heldAt(elapsedMs(), timings.pauseHoldMax.inWholeMilliseconds) }
             kept = null
             val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
@@ -248,7 +264,9 @@ internal class LiveViewModel
                 coroutineScope {
                     val running =
                         LivePeriod(makePlayer(), coroutineContext.job) { place ->
-                            kept = place?.let { KeptPlace(it, clock.now().toEpochMilliseconds()) }
+                            // Never played since it was given back: the same untended pause, so the same hold.
+                            val since = resume?.keptAtMs?.takeIf { place?.untended == true }
+                            kept = place?.let { KeptPlace(it, since ?: elapsedMs()) }
                         }
                     ended = period(running, session, surface, tuners, log, resume?.kept)
                 }

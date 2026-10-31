@@ -44,7 +44,11 @@ internal class OpenAiring(
     val fromMs: Long,
     val since: Instant?,
 ) {
-    /** The spans with the running interval closed at [now], and never past [atMostMs] when given (never over-count). */
+    /**
+     * The spans with the running interval closed at [now], and never past [atMostMs] when given (never over-count). By
+     * design this may under-count: a seek back and a pause still queued for the worker end the interval at the cap,
+     * though some of what played after the seek's landing was watched.
+     */
     fun at(
         now: Instant,
         atMostMs: Long? = null,
