@@ -269,7 +269,7 @@ internal class LiveViewModel
                 // Its own scope, so a leave cancels this period and never the caller's job.
                 coroutineScope {
                     val running =
-                        LivePeriod(makePlayer(), coroutineContext.job) { place ->
+                        LivePeriod(makePlayer(), coroutineContext.job, resume?.kept) { place ->
                             // Never played since it was given back: the same untended pause, so the same hold.
                             val since = resume?.keptAtMs?.takeIf { place?.untended == true }
                             kept = place?.let { KeptPlace(it, since ?: elapsedMs()) }

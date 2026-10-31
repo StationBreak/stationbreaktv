@@ -22,6 +22,7 @@ import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveCommand
+import tv.stationbreak.feature.live.Place
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
 import tv.stationbreak.feature.live.report.RecordingServer
@@ -59,7 +60,7 @@ class LivePeriodTest {
             r.at(45_000)
             assertEquals(1, server.count("start"))
             val inner = RecordingPlayer()
-            val period = LivePeriod(inner, job) {}.also { it.machine = r.live }
+            val period = LivePeriod(inner, job, null) {}.also { it.machine = r.live }
 
             assertTrue("the first leave ends the period", period.leave())
 
@@ -89,7 +90,7 @@ class LivePeriodTest {
             val r = reportingRig(server)
             val job = r.start()
             r.at(45_000)
-            LivePeriod(RecordingPlayer(), job) {}.also { it.machine = r.live }.leave()
+            LivePeriod(RecordingPlayer(), job, null) {}.also { it.machine = r.live }.leave()
             r.at(60_000)
             assertTrue(job.isCompleted)
 
@@ -106,7 +107,7 @@ class LivePeriodTest {
     fun theGuardedPlayerForwardsTransportUntilLeft() =
         runTest {
             val inner = RecordingPlayer()
-            val period = LivePeriod(inner, Job()) {}
+            val period = LivePeriod(inner, Job(), null) {}
 
             period.player.pause(3)
             assertEquals(listOf("pause:3"), inner.log)
@@ -150,7 +151,7 @@ class LivePeriodTest {
             val inner = RecordingPlayer()
             var kept: Kept? = null
             val period =
-                LivePeriod(inner, job) {
+                LivePeriod(inner, job, null) {
                     inner.log += "kept"
                     kept = it
                 }.also { it.machine = r.live }
@@ -175,7 +176,20 @@ class LivePeriodTest {
             val (r, job) = pausedRig(45_000) { checkNotNull(it.tune.controlOf(itemOf(1))).positionUnknown = true }
             r.at(5 * 60_000)
             var kept: Kept? = null
-            LivePeriod(RecordingPlayer(), job) { kept = it }.also { it.machine = r.live }.leave()
+            LivePeriod(RecordingPlayer(), job, null) { kept = it }.also { it.machine = r.live }.leave()
             assertEquals(10 * 60_000L + 45_000L, checkNotNull(kept).place.mediaMs)
+        }
+
+    @Test
+    fun aLeaveBeforeTheMachineKeepsThePlaceItWasGiven() =
+        runTest {
+            // A screen stop before this period's machine exists: the place the period was given is kept, not lost.
+            val given = Kept(Place(CH7, program(0, 60, 1), 10 * 60_000L), null)
+            val inner = RecordingPlayer()
+            var kept: Kept? = null
+            val period = LivePeriod(inner, Job(), given) { kept = it }
+            assertTrue(period.leave())
+            assertEquals(given.copy(untended = true), kept)
+            assertEquals(listOf("stop", "attach(null)", "release"), inner.log)
         }
 }
