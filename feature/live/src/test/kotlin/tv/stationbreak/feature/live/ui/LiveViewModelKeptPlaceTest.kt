@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
@@ -341,5 +342,58 @@ class LiveViewModelKeptPlaceTest {
                 s.r.tune.lastControl!!
                     .calls,
             )
+        }
+
+    @Test
+    fun aPausedStandInIsKeptAcrossAStop() =
+        runTest {
+            val s = setup(blocks = listOf(program(0, 60, 1), program(60, 120, 2)))
+            s.r.schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 7, 0)) }
+            // Item 1 is dead (its retry too): the slate's 3 s, then stand-in 7 at 10:03.
+            s.r.tune.script(itemOf(1), FakeTune.dead(), FakeTune.dead())
+            sit(s)
+            s.r.at(4_000)
+            assertEquals(
+                itemOf(7),
+                s.r.tunes
+                    .last()
+                    .item,
+            )
+            press(s, LiveCommand.PlayPause)
+            s.vm.leave()
+            runCurrent()
+            // Back within the hold: the stand-in at its paused place (10:04 of it), still paused.
+            s.r.at(30 * MIN)
+            sit(s)
+            assertEquals(Call.Tune(itemOf(7), 10.minutes + 4.seconds, 30 * MIN), s.r.tunes.last())
+            assertEquals(
+                listOf("pause"),
+                s.r.tune.lastControl!!
+                    .calls,
+            )
+            s.r.at(30 * MIN + 1_000)
+            assertTrue(
+                s.vm.transport.value!!
+                    .paused,
+            )
+        }
+
+    @Test
+    fun aStandInThatCannotBeDerivedAgainJoinsLive() =
+        runTest {
+            val s = setup(blocks = listOf(program(0, 60, 1), program(60, 120, 2)))
+            s.r.schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 7, 0)) }
+            s.r.tune.script(itemOf(1), FakeTune.dead(), FakeTune.dead())
+            sit(s)
+            s.r.at(4_000)
+            press(s, LiveCommand.PlayPause)
+            s.vm.leave()
+            runCurrent()
+            // The stand-ins are chosen differently now: the place cannot be had again, so the viewer joins live.
+            s.r.schedule.standInScript = { _, _ -> listOf(standIn(0, 60, 8, 0)) }
+            s.r.at(30 * MIN)
+            sit(s)
+            assertEquals(Call.Tune(itemOf(1), 40.minutes, 30 * MIN), s.r.tunes.last())
+            assertTrue(s.r.tunes.none { it.item == itemOf(7) && it.at >= 30 * MIN })
         }
 }

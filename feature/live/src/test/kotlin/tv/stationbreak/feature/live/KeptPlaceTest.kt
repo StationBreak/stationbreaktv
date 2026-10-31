@@ -215,7 +215,7 @@ class KeptPlaceTest {
         }
 
     @Test
-    fun keptIsNullOnAStandIn() =
+    fun keptHoldsAStandInsPausedPlace() =
         runTest {
             val k =
                 keys(startMin = 10, blocks = listOf(one, two)) {
@@ -232,7 +232,8 @@ class KeptPlaceTest {
             )
             k.pressAt(5_000, LiveCommand.PlayPause)
             assertTrue(checkNotNull(k.transport).paused)
-            assertNull(k.r.live.kept())
+            // Stand-ins are kept too: the piece, at 10:05 of it (ADR-0021 5; ADR-0017 4 makes them deterministic).
+            assertEquals(Kept(Place(CH7, standIn(0, 60, 7, 0), 10 * MIN + 5_000), null), k.r.live.kept())
             k.finish()
         }
 

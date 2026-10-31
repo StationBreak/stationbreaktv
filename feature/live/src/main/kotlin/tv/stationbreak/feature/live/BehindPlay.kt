@@ -322,8 +322,8 @@ internal class BehindPlay(
             }
         }
 
-    /** The paused place now, for the screen stop (Task 12); null unless paused on a program block. */
-    fun pausedPlace(): Place? = if (paused && onProgram) Place(host.channel, block, knownMs) else null
+    /** The paused place now, for the screen stop: a program's block or a stand-in piece; null unless paused. */
+    fun pausedPlace(): Place? = if (paused) Place(host.channel, block, knownMs) else null
 
     /** The live play's [first] op; non-null when it ends the behind play at once. Then behind: no look-ahead. */
     private suspend fun begin(first: TransportOp?): BehindEnd? {

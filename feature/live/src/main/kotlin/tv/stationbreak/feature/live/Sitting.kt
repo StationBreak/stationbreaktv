@@ -274,15 +274,16 @@ internal class Sitting(
         place: Place,
     ): Exit? =
         coroutineScope {
-            val program =
-                place.block.airing as? Airing.Program ?: run {
-                    resumeSettled()
-                    return@coroutineScope null
-                }
-            if (onAir.now.sameAs(place.block)) boundary.startDropped(this, onAir)
-            val visiting = Visiting(reporter)
+            val airing = place.block.airing
+            if (airing is Airing.Program && onAir.now.sameAs(place.block)) boundary.startDropped(this, onAir)
+            // A stand-in is never reported.
+            val visiting = Visiting(reporter.takeIf { airing is Airing.Program })
             try {
-                resumeProgram(this, onAir, program, place, visiting)
+                when (airing) {
+                    is Airing.Program -> resumeProgram(this, onAir, airing, place, visiting)
+                    is Airing.StandIn -> resumeStandIn(this, onAir, airing, place)
+                    Airing.Slate -> null.also { resumeSettled() }
+                }
             } finally {
                 visiting.leave()
                 boundary.keep()
@@ -291,9 +292,45 @@ internal class Sitting(
         }
 
     /**
-     * [resumeBlock]'s tune at the place, paused at once. A dead tune is not retried and falls back to nothing (no
-     * slate, no stand-in, no live): the place is held paused with no picture, and the block's one retry waits for Play.
+     * A kept place's [item] tuned at the place under the snow, with [label]'s banner, and paused on the first frame,
+     * before the picture shows (C14). A dead tune is not retried and falls back to nothing (no slate, no stand-in, no
+     * live): the banner over no picture, with the place paused; the block's one retry waits for Play.
      */
+    @Suppress("LongParameterList") // The block's scope, what is on, the place, its item, and how it is tuned.
+    internal suspend fun tunePaused(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+        place: Place,
+        item: ItemId,
+        label: BannerLabel,
+        kind: TuneKind,
+    ): TuneOutcome {
+        val block = place.block
+        val position = place.mediaMs.milliseconds
+        val banner = bannerFor(onAir.channel, block, label, place.mediaMs, driftMs, onAir.nextProgram())
+        val outcome =
+            tuneAndShow(scope, banner, true, TuneWhat(kind, block, position), onAir, { it.control.pause() }) {
+                tuner.tune(session, item, position)
+            }
+        if (outcome is TuneOutcome.Dead) {
+            heldBlockStartMs = block.startMs
+            showWatching(scope, banner, block.airing.itemId())
+            onSettled(scope)
+        }
+        return outcome
+    }
+
+    /** The play a [tunePaused] outcome hands the behind play: none at all for a dead tune; null when it ended. */
+    internal fun pausedPlay(outcome: TuneOutcome): TuneOutcome.Playing? =
+        (outcome as? TuneOutcome.Playing) ?: NO_PLAY.takeIf { outcome is TuneOutcome.Dead }
+
+    /** A kept place's tune that signed out or was stopped: the place is settled and the sitting ends. */
+    internal fun resumeEnded(outcome: TuneOutcome): Exit {
+        resumeSettled()
+        return if (outcome == TuneOutcome.Expired) expired() else Exit.Stopped
+    }
+
+    /** [resumeBlock] for a program's block: the paused tune, then its behind play, reported as the same airing. */
     private suspend fun resumeProgram(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
@@ -301,43 +338,12 @@ internal class Sitting(
         place: Place,
         visiting: Visiting,
     ): Exit? {
-        val block = place.block
         val item = ItemId(program.itemId.value)
-        val position = place.mediaMs.milliseconds
-        // The pause lands on the first frame: before the minimum snow, the banner and any sound (C14).
-        val pauseAtOnce: (TuneOutcome.Playing) -> Unit = { it.control.pause() }
-        val retries = BlockRetries()
-        val retune = retuneAt(scope, onAir, block, item, BannerLabel.TuningIn)
-        val banner = bannerFor(onAir.channel, block, BannerLabel.TuningIn, place.mediaMs, driftMs, onAir.nextProgram())
-        val what = TuneWhat(TuneKind.Fresh, block, position)
-        val outcome =
-            tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = pauseAtOnce) {
-                tuner.tune(session, item, position)
-            }
-        val play =
-            when (outcome) {
-                is TuneOutcome.Playing -> {
-                    outcome
-                }
-
-                // Nothing to show: the banner over no picture, the place paused, and the neighbours looked at.
-                is TuneOutcome.Dead -> {
-                    heldBlockStartMs = block.startMs
-                    showWatching(scope, banner, program.itemId)
-                    onSettled(scope)
-                    NO_PLAY
-                }
-
-                TuneOutcome.Expired, TuneOutcome.Cancelled -> {
-                    null
-                }
-            }
-        if (play == null) {
-            resumeSettled()
-            return if (outcome == TuneOutcome.Expired) expired() else Exit.Stopped
-        }
+        val outcome = tunePaused(scope, onAir, place, item, BannerLabel.TuningIn, TuneKind.Fresh)
+        val play = pausedPlay(outcome) ?: return resumeEnded(outcome)
+        val retune = retuneAt(scope, onAir, place.block, item, BannerLabel.TuningIn)
         val dead = outcome is TuneOutcome.Dead
-        return resumeHeld(scope, onAir, program, play, place, visiting, retune, retries, dead)
+        return resumeHeld(scope, onAir, program, play, place, visiting, retune, BlockRetries(), dead)
     }
 
     /** The resumed play, from the kept place (paused), until its item ends, it goes live and ends, or an exit. */
@@ -646,7 +652,7 @@ internal class Sitting(
         const val WINDOW = 3
 
         /** A kept place's dead tune: no play at all, held paused until the viewer presses Play. */
-        private val NO_PLAY = TuneOutcome.Playing(flow { awaitCancellation() }, PlayControl.None)
+        internal val NO_PLAY = TuneOutcome.Playing(flow { awaitCancellation() }, PlayControl.None)
     }
 }
 

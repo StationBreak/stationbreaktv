@@ -76,7 +76,7 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    | Item's schedule slot ends while paused | Nothing; Play continues it |
    | Dead item or source error while behind | One retry at the place, from the block's single retry budget, which is shared with the live path. If still dead (or no retry is left): while the clock is inside the block, the existing dead-item handling (slate, then stand-in); once the block has ended by the clock, treated as the item's end and caught up, with no stand-in |
    | Fails while paused (a play that breaks, or a kept place whose tune is dead) | Nothing is tuned, stood in or played: the place and the paused transport hold, so the screen stays released and the device may sleep. A step moves the paused place only. Play (or Go live) runs the block's one retry; with none left, the dead-item or catch-up routing above, at that moment. Never plays without a press |
-   | Stand-in | Can be paused and sought like a program |
+   | Stand-in | Can be paused and sought like a program, and its paused place is kept across a screen stop. Stand-ins are deterministic (ADR-0017, 4); one that cannot be laid again on return (a lineup built again, or another choice) drops the place, and the viewer joins live, playing |
    | Split item | "The item" is the block; Back stops at its in-point |
    | Flip, Previous or guide tune to another channel | Behind state dropped; coming back joins live |
    | Guide Select on the playing channel | Guide closes, state kept |

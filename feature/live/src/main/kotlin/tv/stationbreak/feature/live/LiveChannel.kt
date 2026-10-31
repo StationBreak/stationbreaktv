@@ -133,14 +133,15 @@ class LiveChannel(
     }
 
     /**
-     * The place to keep across a screen stop (spec 20, ADR-0021 5): the paused place of the running sitting, with its
-     * airing's watched time so far. Null unless the viewer is paused on a program's block: live, playing behind and on
-     * a stand-in, the viewer joins live after the stop. Never suspends and never asks the player: the place is the one
-     * the behind play last knew (its last Paused or SeekDone), and a paused player does not move. Main thread only.
+     * The place to keep across a screen stop (spec 20, ADR-0021 5): the paused place of the running sitting (a
+     * program's block or a stand-in piece), with a program's watched time so far. Null unless the viewer is paused:
+     * live or playing behind, the viewer joins live after the stop. Never suspends and never asks the player: the place
+     * is the one the behind play last knew (its last Paused or SeekDone), and a paused player does not move. Main
+     * thread only.
      */
     fun kept(): Kept? = pendingResume?.copy(untended = true) ?: current?.behind?.let(::keptOf)
 
-    /** [behind]'s paused place with its airing's watched time, or null unless it is paused on a program's block. */
+    /** [behind]'s paused place with a program's watched time (a stand-in has none), or null unless it is paused. */
     private fun keptOf(behind: BehindPlay): Kept? {
         val place = behind.pausedPlace() ?: return null
         val program = place.block.airing as? Airing.Program
@@ -558,30 +559,47 @@ class LiveChannel(
     }
 
     /**
-     * True when [place]'s block is still the one its channel airs in its slot: a lineup built again drops it. What is
-     * on now ([onAir]) answers for a block still on the air; only a block the clock has already ended is looked up
-     * again, at its start. Any other block in the slot now is another lineup.
+     * True when [place]'s block can be had again: a program's block is still the one its channel airs in its slot, and
+     * a stand-in piece is still one its dead block's stand-ins would lay (ADR-0017 4: they are deterministic). A lineup
+     * built again, or stand-ins chosen otherwise, drop the place.
      */
     private suspend fun stillScheduled(
         place: Place,
         onAir: ChannelOnAir,
     ): Boolean {
         val block = place.block
-        return when {
-            onAir.now.startMs == block.startMs -> {
-                onAir.now.sameAs(block)
+        val standIn =
+            block.airing as? Airing.StandIn ?: return scheduledAt(place, block.startMs, onAir)?.sameAs(block) == true
+        val dead = scheduledAt(place, standIn.forBlockStartMs, onAir)
+        val program = dead?.airing as? Airing.Program
+        return dead != null && program != null &&
+            schedule.standIns(place.channel, dead, setOf(program.itemId)).any { it.sameAs(block) }
+    }
+
+    /**
+     * The block [place]'s channel airs from [startMs]: what is on now ([onAir]) when it started then, with no second
+     * read; else, once the clock has passed the place's own block, the one looked up at [startMs]. Otherwise another
+     * block holds the slot now: null (another lineup).
+     */
+    private suspend fun scheduledAt(
+        place: Place,
+        startMs: Long,
+        onAir: ChannelOnAir,
+    ): AiringBlock? =
+        when {
+            onAir.now.startMs == startMs -> {
+                onAir.now
             }
 
-            clock.now().toEpochMilliseconds() >= block.endMs -> {
-                val at = Instant.fromEpochMilliseconds(block.startMs)
-                schedule.onAir(place.channel, at, 0)?.now?.sameAs(block) == true
+            clock.now().toEpochMilliseconds() >= place.block.endMs -> {
+                val at = Instant.fromEpochMilliseconds(startMs)
+                schedule.onAir(place.channel, at, 0)?.now?.takeIf { it.startMs == startMs }
             }
 
             else -> {
-                false
+                null
             }
         }
-    }
 
     /** A kept [place]'s channel with what is on it now, and the active account; null when it is not on air. */
     private suspend fun onAirFor(place: Place): Pair<LibraryAccount, ChannelOnAir>? {
