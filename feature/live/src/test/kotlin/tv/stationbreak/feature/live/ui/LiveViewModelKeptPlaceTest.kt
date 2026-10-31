@@ -396,4 +396,13 @@ class LiveViewModelKeptPlaceTest {
             assertEquals(Call.Tune(itemOf(1), 40.minutes, 30 * MIN), s.r.tunes.last())
             assertTrue(s.r.tunes.none { it.item == itemOf(7) && it.at >= 30 * MIN })
         }
+
+    @Test
+    fun theTransportStripReadsTheInjectedClock() =
+        runTest {
+            val s = setup()
+            // The transport view's times are the machine's clock: the strip must read the same one, not the device's.
+            s.r.jumpMs = 120 * MIN
+            assertEquals(s.r.nowMs(), s.vm.nowMs())
+        }
 }

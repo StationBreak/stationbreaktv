@@ -181,6 +181,9 @@ internal class LiveViewModel
             guide.open(atNanos, live?.playingChannel)
         }
 
+        /** The clock now (epoch ms), the one the transport view's times are in: the strip reads it. */
+        fun nowMs(): Long = clock.now().toEpochMilliseconds()
+
         fun closeGuide() {
             guide.close()
         }

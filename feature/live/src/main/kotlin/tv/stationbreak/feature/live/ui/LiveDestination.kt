@@ -124,6 +124,8 @@ internal fun LiveRoot(
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         guide = { pictureHole, onTune -> guide(viewModel.guideChannel, guideOpenedAt, pictureHole, onTune) },
+        // The machine's own clock, which the transport view's times are in.
+        nowMs = viewModel::nowMs,
     ) { AndroidView(factory = { surface }) }
 }
 
@@ -148,6 +150,7 @@ internal fun LiveKeysRoot(
     upNow: (() -> OverlayUp)? = null,
     onGuide: (open: Boolean) -> Unit = {},
     guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
+    nowMs: () -> Long = System::currentTimeMillis,
     video: @Composable () -> Unit,
 ) {
     val command by rememberUpdatedState(onCommand)
@@ -182,7 +185,7 @@ internal fun LiveKeysRoot(
             }.focusable(),
     ) {
         val shown: (@Composable (DpRect) -> Unit)? = if (guideOpen) ({ hole -> guide(hole, tune) }) else null
-        LiveScreen(state, info, onCommand, shown, transport, video)
+        LiveScreen(state, info, onCommand, shown, transport, nowMs, video)
     }
 }
 
