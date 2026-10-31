@@ -278,7 +278,7 @@ class LiveBannerActionsTest {
 
     @Test
     fun liveSendsGoLive() {
-        showKeysRoot(transport = view(paused = true))
+        showKeysRoot(transport = view(paused = false))
         press(Key.DirectionCenter)
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
         press(Key.DirectionLeft)
