@@ -373,10 +373,11 @@ internal class BehindPlay(
             firedShort = woke is Wake.Due
             when (woke) {
                 is Wake.End -> {
-                    lostOp(next, "transport-lost-at-end")
-                    dropTarget("transport-lost-at-end")
-                    playEnded = true
                     val end = woke.end
+                    lostOp(next, "transport-lost-at-end")
+                    // A paused play that broke keeps a stepped target: heldBroken folds it into the place.
+                    if (end !is PlaybackEnd.Failed || !paused) dropTarget("transport-lost-at-end")
+                    playEnded = true
                     if (end !is PlaybackEnd.Failed) return Round.Over(playEnd())
                     // The retry's own tune drops what is in the inbox; the next play takes ops afresh.
                     next.cancel()
@@ -645,7 +646,8 @@ internal class BehindPlay(
      * block's one retry runs, or, with none left, the usual dead-item or catch-up routing. Non-null as for [retry].
      */
     private suspend fun heldBroken(from: Long): BehindEnd? {
-        var at = from
+        // A step still settling is folded into the place: the strip showed it, so Play lands there, with no seek after.
+        var at = steps.drop()?.toMs ?: from
         showBroken(at)
         var op = host.receive(block.startMs)
         while (op != TransportOp.Toggle && op != TransportOp.Play && op != TransportOp.GoLive) {

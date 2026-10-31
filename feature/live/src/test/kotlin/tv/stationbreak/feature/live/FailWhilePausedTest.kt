@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -18,6 +19,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.feature.live.ui.keepsScreenOn
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * A play that fails while the viewer is paused (ADR-0021 failure table, "Fails while paused"): nothing is tuned, no
@@ -120,6 +122,31 @@ class FailWhilePausedTest {
             k.r.at(12 * MIN + 5_000)
             assertTrue(k.r.seen.any { it is LiveState.TechnicalDifficulties })
             assertEquals(1, k.r.schedule.standInCalls.size)
+            k.finish()
+        }
+
+    @Test
+    fun aStepStillSettlingWhenThePlayFailsIsWherePlayLands() =
+        runTest {
+            val k = keys { listOf(failsAtTwoMinutes()) }
+            k.pressAt(MIN, LiveCommand.PlayPause)
+            // Back 10 s from 11:00 with the key still down: the target, 10:50, is still settling when the play fails.
+            k.pressAt(2 * MIN - 300, LiveCommand.Seek(SeekDirection.Back))
+            k.r.at(12 * MIN)
+            // The strip shows where the viewer stepped to, with no target left pending.
+            val view = checkNotNull(k.transport)
+            assertTrue(view.paused)
+            assertEquals(10 * MIN + 50_000, view.mediaMs)
+            assertNull(view.targetMs)
+            // Play: the retry lands there, with no second seek to the old target.
+            k.pressAt(12 * MIN, LiveCommand.PlayPause)
+            assertEquals(Call.Tune(itemOf(1), 650.seconds, 12 * MIN), k.r.tunes.last())
+            k.r.at(13 * MIN)
+            assertTrue(
+                k.r.tune.lastControl!!
+                    .calls
+                    .none { it.startsWith("seek") },
+            )
             k.finish()
         }
 }
