@@ -11,7 +11,6 @@ import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
-import tv.stationbreak.feature.live.SeekDirection
 import tv.stationbreak.feature.live.TransportView
 
 /** Which overlay is up: the keys mean something else over it (Select, Back), and nothing at all over the guide. */
@@ -65,37 +64,24 @@ private fun mappedCommand(
     if (up.guide) return null
     // Left, Right and Select belong to the overlays when one is up; paused with none, they are the transport's.
     val scrubbing = up.paused && !up.actions && !up.info
+    // Over the actions banner Select clicks its focused button; over the info overlay it does nothing; paused it plays
+    // (ADR-0021, 2).
+    val select = if (scrubbing) LiveCommand.Play else LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
     return when (key) {
-        Key.DirectionUp, Key.ChannelUp -> {
-            LiveCommand.Flip(FlipDirection.Up)
-        }
+        Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
 
-        Key.DirectionDown, Key.ChannelDown -> {
-            LiveCommand.Flip(FlipDirection.Down)
-        }
+        Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
 
-        Key.Menu -> {
-            LiveCommand.Previous
-        }
+        Key.Menu -> LiveCommand.Previous
 
-        Key.Info -> {
-            LiveCommand.ShowInfo
-        }
+        Key.Info -> LiveCommand.ShowInfo
 
-        // Over the actions banner Select clicks its focused button; over the info overlay it does nothing; paused it
-        // plays (ADR-0021, 2).
-        Key.DirectionCenter, Key.Enter -> {
-            if (scrubbing) LiveCommand.Play else LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
-        }
+        Key.DirectionCenter, Key.Enter -> select
 
         // Back closes an overlay; with none up it opens the guide (keyAction).
-        Key.Back -> {
-            LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
-        }
+        Key.Back -> LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
 
-        else -> {
-            transportCommand(key, scrubbing)
-        }
+        else -> transportCommand(key, scrubbing)
     }
 }
 
@@ -122,8 +108,7 @@ private fun keyAction(
  * those at its held-key rate (#430). Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel, Select
  * brings the actions banner (or plays, paused) and Info the program's info (spec 17). The media keys pause, play, and
  * step back and ahead (spec 20), and Left and Right do the same while paused. Back sends only while [up] says an
- * overlay is open
- * (otherwise it opens the guide, which is no command); With the guide open nothing is sent.
+ * overlay is open (otherwise it opens the guide, which is no command). With the guide open nothing is sent.
  */
 internal fun liveKeyCommand(
     event: KeyEvent,
@@ -195,10 +180,10 @@ internal class HeldKeys {
  * is up (it closes it) and from the full picture (it opens the guide through [guide]), never while the guide is open;
  * Select only while no overlay is. The auto-repeats and the release of a press that was consumed are consumed too,
  * whatever [up] says by then. A repeat sends again only when the press flipped or sought, so holding Up keeps
- * flipping; a held
- * Select, Info, Back, Guide or Menu acts once, so a held Back never runs on from the info to the banner to the guide
- * and out of live TV. A repeat never starts anything: one of a press that passed through passes too, and one of a
- * press whose first down never came here (a long OK the guide took and closed on) is consumed, doing nothing.
+ * flipping; a held Select, Info, Back, Guide or Menu acts once, so a held Back never runs on from the info to the
+ * banner to the guide and out of live TV. A repeat never starts anything: one of a press that passed through passes
+ * too, and one of a press whose first down never came here (a long OK the guide took and closed on) is consumed,
+ * doing nothing.
  */
 internal fun handleLiveKey(
     event: KeyEvent,

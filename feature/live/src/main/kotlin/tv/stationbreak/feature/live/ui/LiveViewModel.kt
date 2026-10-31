@@ -206,7 +206,11 @@ internal class LiveViewModel
          */
         fun leave() {
             val running = period ?: return
-            if (running.leave() && period === running) period = null
+            if (running.leave() && period === running) {
+                period = null
+                // No sitting, no transport: a paused place must not make Select play or Left and Right seek nothing.
+                shownTransport.value = null
+            }
         }
 
         /**
@@ -253,6 +257,7 @@ internal class LiveViewModel
             val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
+            shownTransport.value = null
             val session = sessions.current.value
             drainStalePresses(commands, before, session == null, log)
             if (session == null) {
@@ -338,8 +343,6 @@ internal class LiveViewModel
             } finally {
                 // A newer sitting may already have taken these slots.
                 if (live === running.machine) live = null
-                // No sitting, no transport: a paused place must not make Left and Right scrub nothing.
-                if (period === running) shownTransport.value = null
                 // A sitting started after this one was cancelled may already have taken the slot.
                 if (period === running) period = null
                 withContext(NonCancellable) {

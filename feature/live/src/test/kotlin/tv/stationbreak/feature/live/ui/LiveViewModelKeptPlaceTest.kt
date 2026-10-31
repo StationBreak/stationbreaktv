@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -129,6 +131,20 @@ class LiveViewModelKeptPlaceTest {
                 s.vm.transport.value!!
                     .paused,
             )
+        }
+
+    @Test
+    fun leavingClearsTheTransportSoSelectShowsTheBannerOnReturn() =
+        runTest {
+            val s = setup()
+            pauseAndStop(s, MIN)
+            runCurrent()
+            assertNull(s.vm.transport.value)
+            val up = s.vm.overlayUpNow()
+            assertFalse(up.paused)
+            val sent = mutableListOf<LiveCommand>()
+            handleLiveKey(KeyEventType.KeyDown, Key.DirectionCenter, up, HeldKeys()) { sent += it }
+            assertEquals(listOf<LiveCommand>(LiveCommand.ShowBanner), sent)
         }
 
     @Test

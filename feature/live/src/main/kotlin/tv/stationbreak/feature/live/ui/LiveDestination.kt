@@ -40,6 +40,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.TransportView
 
 /**
  * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
@@ -87,6 +88,7 @@ internal fun LiveRoot(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val info by viewModel.info.collectAsStateWithLifecycle()
     val guideOpen by viewModel.guideOpen.collectAsStateWithLifecycle()
+    val transport by viewModel.transport.collectAsStateWithLifecycle()
     val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
@@ -118,6 +120,7 @@ internal fun LiveRoot(
         info = info,
         onCommand = onCommand,
         guideOpen = guideOpen,
+        transport = transport,
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         guide = { pictureHole, onTune -> guide(viewModel.guideChannel, guideOpenedAt, pictureHole, onTune) },
@@ -141,6 +144,7 @@ internal fun LiveKeysRoot(
     info: LiveInfo?,
     onCommand: (LiveCommand) -> Unit,
     guideOpen: Boolean = false,
+    transport: TransportView? = null,
     upNow: (() -> OverlayUp)? = null,
     onGuide: (open: Boolean) -> Unit = {},
     guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
@@ -164,7 +168,7 @@ internal fun LiveKeysRoot(
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
     }
     val held = remember { HeldKeys() }
-    val composed = overlayUpOf(state, info, guideOpen)
+    val composed = overlayUpOf(state, info, guideOpen, transport)
     // The actions banner's buttons or the guide held the focus; when they go the root takes it back, or no key would
     // arrive.
     LaunchedEffect(focus, composed.actions, guideOpen) { if (!composed.actions && !guideOpen) focus.requestFocus() }
