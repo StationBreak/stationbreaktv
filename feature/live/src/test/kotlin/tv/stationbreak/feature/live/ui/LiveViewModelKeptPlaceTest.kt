@@ -124,10 +124,9 @@ class LiveViewModelKeptPlaceTest {
                     .calls,
             )
             s.r.at(back + 1_000)
+            runCurrent()
             assertTrue(
-                s.vm
-                    .running()!!
-                    .transport.value!!
+                s.vm.transport.value!!
                     .paused,
             )
         }
@@ -153,11 +152,8 @@ class LiveViewModelKeptPlaceTest {
                 s.r.tune.lastControl!!
                     .calls,
             )
-            assertNull(
-                s.vm
-                    .running()!!
-                    .transport.value,
-            )
+            runCurrent()
+            assertNull(s.vm.transport.value)
         }
 
     @Test
@@ -310,11 +306,8 @@ class LiveViewModelKeptPlaceTest {
                     .calls,
             )
             s.r.at(5 * MIN + 1_000)
-            assertNull(
-                s.vm
-                    .running()!!
-                    .transport.value,
-            )
+            runCurrent()
+            assertNull(s.vm.transport.value)
         }
 
     @Test

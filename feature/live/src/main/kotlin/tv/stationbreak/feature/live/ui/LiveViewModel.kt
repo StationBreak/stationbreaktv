@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import android.view.SurfaceView
-import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -42,6 +41,7 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.LiveTimings
+import tv.stationbreak.feature.live.TransportView
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
 import tv.stationbreak.feature.live.TuneReport
@@ -138,6 +138,11 @@ internal class LiveViewModel
         /** The program info overlay (spec 17), while one is open. */
         val info: StateFlow<LiveInfo?> = shownInfo.asStateFlow()
 
+        private val shownTransport = MutableStateFlow<TransportView?>(null)
+
+        /** The transport while the viewer is behind or paused; null while live (spec 20). */
+        val transport: StateFlow<TransportView?> = shownTransport.asStateFlow()
+
         private val guide = GuideSwitch()
 
         /**
@@ -171,10 +176,6 @@ internal class LiveViewModel
         // only.
         private var kept: KeptPlace? = null
 
-        /** The running sitting's machine, for tests that look at its transport. */
-        @VisibleForTesting
-        internal fun running(): LiveChannel? = live
-
         /** Opens the guide over the channel playing now; [atNanos] is when its key arrived (`System.nanoTime`). */
         fun openGuide(atNanos: Long) {
             guide.open(atNanos, live?.playingChannel)
@@ -190,7 +191,7 @@ internal class LiveViewModel
          * latest. A command still in the queue is not in them yet, which errs towards doing less: a Back right behind
          * a Back that is closing an overlay closes again (a no-op) rather than opening the guide or leaving.
          */
-        fun overlayUpNow(): OverlayUp = overlayUpOf(state.value, info.value, guideOpen.value)
+        fun overlayUpNow(): OverlayUp = overlayUpOf(state.value, info.value, guideOpen.value, transport.value)
 
         /** A key press, in order. Presses made while the screen was stopped are dropped by the next [sit]. */
         fun send(command: LiveCommand) {
@@ -325,16 +326,20 @@ internal class LiveViewModel
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
+                    val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
                     machine.run(commands.receiveAsFlow(), resume)
                     // run() returns only when the session ended.
                     mirror.cancel()
                     infoMirror.cancel()
+                    transportMirror.cancel()
                 }
                 ended = machine.state.value == LiveState.SignedOut
                 if (!ended) shown.value = machine.state.value
             } finally {
                 // A newer sitting may already have taken these slots.
                 if (live === running.machine) live = null
+                // No sitting, no transport: a paused place must not make Left and Right scrub nothing.
+                if (period === running) shownTransport.value = null
                 // A sitting started after this one was cancelled may already have taken the slot.
                 if (period === running) period = null
                 withContext(NonCancellable) {
