@@ -61,6 +61,11 @@ internal sealed interface ReportEvent {
         val at: Instant,
     ) : ReportEvent
 
+    /** Watched time from before a screen stop, for the ledger (a kept place, spec 20). */
+    data class Seed(
+        val snapshot: WatchSnapshot,
+    ) : ReportEvent
+
     data class Tick(
         val visitId: Long,
         val at: Instant,
@@ -135,6 +140,14 @@ internal class ReportWorker(
 
     private val ledger = WatchLedger(config)
     private var visit: OpenVisit? = null
+
+    /**
+     * The open airing as of the last event handled, published for [PlaybackReporter.snapshot] to read from another
+     * thread without waiting on this worker; null while none is open.
+     */
+    @Volatile
+    var published: OpenAiring? = null
+        private set
     private var visitCounter = 0L
 
     /** Handles [event], never letting a fault in it end the worker. Returns false once the worker should end. */
@@ -146,6 +159,9 @@ internal class ReportWorker(
             throw e
         } catch (e: Exception) {
             log("report error kind=exception")
+        } finally {
+            // Even after a failed event: never left describing an airing the ledger has moved past.
+            published = ledger.openAiring()
         }
         return event !is ReportEvent.Close
     }
@@ -175,6 +191,10 @@ internal class ReportWorker(
 
             is ReportEvent.Leave -> {
                 endVisit(event.at)
+            }
+
+            is ReportEvent.Seed -> {
+                ledger.seed(event.snapshot)
             }
 
             is ReportEvent.Tick -> {

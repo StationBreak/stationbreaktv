@@ -6,11 +6,13 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
@@ -29,6 +31,7 @@ import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /** Why a sitting stopped following its channel. */
@@ -136,6 +139,8 @@ internal class Sitting(
     internal val sittingId: Long = 0,
     /** This sitting's inbox for the viewer's transport presses (spec 20); the run closes it with the sitting. */
     internal val commands: SittingCommands,
+    /** Told once a kept place this sitting was given is settled: its behind play starts, or the place is dropped. */
+    internal val resumeSettled: () -> Unit = {},
     /**
      * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
      * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
@@ -175,8 +180,23 @@ internal class Sitting(
         while (vnowMs() < ms) delay(ms - vnowMs())
     }
 
-    /** Follows the channel from [first] (what was on when it was chosen) until something ends the sitting. */
-    suspend fun follow(first: ChannelOnAir): Exit {
+    /**
+     * Follows the channel from [first] (what was on when it was chosen) until something ends the sitting. A kept paused
+     * place to [resume] at, when the return rules keep it ([returnTo]), comes first ([resumeBlock]); then what is on.
+     */
+    suspend fun follow(
+        first: ChannelOnAir,
+        resume: Place? = null,
+    ): Exit {
+        val place = resume?.let { returnTo(it, clock.now().toEpochMilliseconds()) }
+        if (resume != null && place == null) resumeSettled()
+        if (place == null) return followFrom(first)
+        // After a kept place, what is on now is looked at afresh: the item ended, or it went live and its block did.
+        return resumeBlock(first, place) ?: followFrom(null)
+    }
+
+    /** The block loop, from [first] (what was on when the channel was chosen), else from what is on at its time. */
+    private suspend fun followFrom(first: ChannelOnAir?): Exit {
         var current: ChannelOnAir? = first
         while (true) {
             val at = Instant.fromEpochMilliseconds(vnowMs())
@@ -240,6 +260,138 @@ internal class Sitting(
                 coroutineContext[Job]?.cancelChildren()
             }
         }
+
+    /**
+     * A return to a kept paused [place] (spec 20, ADR-0021 5): the item of its block tuned at the place under the snow
+     * and paused on the first frame, before the picture shows, then a behind play from there, still paused. Nothing
+     * plays on by itself: Play is the viewer's. A block still on air and one ended by the clock go the same way. No
+     * boundary look-ahead starts (the viewer is behind); it starts once back at live, or on the ident. [onAir] is
+     * what is on now. Null when [follow] goes on with what is on: the item ended (caught up), or the play went live and
+     * reached its boundary or broke.
+     */
+    internal suspend fun resumeBlock(
+        onAir: ChannelOnAir,
+        place: Place,
+    ): Exit? =
+        coroutineScope {
+            val airing = place.block.airing
+            if (airing is Airing.Program && onAir.now.sameAs(place.block)) boundary.startDropped(this, onAir)
+            // A stand-in is never reported.
+            val visiting = Visiting(reporter.takeIf { airing is Airing.Program })
+            try {
+                when (airing) {
+                    is Airing.Program -> resumeProgram(this, onAir, airing, place, visiting)
+                    is Airing.StandIn -> resumeStandIn(this, onAir, airing, place)
+                    Airing.Slate -> null.also { resumeSettled() }
+                }
+            } finally {
+                visiting.leave()
+                boundary.keep()
+                coroutineContext[Job]?.cancelChildren()
+            }
+        }
+
+    /**
+     * A kept place's [item] tuned at the place under the snow, with [label]'s banner, and paused on the first frame,
+     * before the picture shows (C14). A dead tune is not retried and falls back to nothing (no slate, no stand-in, no
+     * live): the banner over no picture, with the place paused; the block's one retry waits for Play.
+     */
+    @Suppress("LongParameterList") // The block's scope, what is on, the place, its item, and how it is tuned.
+    internal suspend fun tunePaused(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+        place: Place,
+        item: ItemId,
+        label: BannerLabel,
+        kind: TuneKind,
+    ): TuneOutcome {
+        val block = place.block
+        val position = place.mediaMs.milliseconds
+        val banner = bannerFor(onAir.channel, block, label, place.mediaMs, driftMs, onAir.nextProgram())
+        val outcome =
+            tuneAndShow(scope, banner, true, TuneWhat(kind, block, position), onAir, { it.control.pause() }) {
+                tuner.tune(session, item, position)
+            }
+        if (outcome is TuneOutcome.Dead) {
+            heldBlockStartMs = block.startMs
+            showWatching(scope, banner, block.airing.itemId())
+            onSettled(scope)
+        }
+        return outcome
+    }
+
+    /** The play a [tunePaused] outcome hands the behind play: none at all for a dead tune; null when it ended. */
+    internal fun pausedPlay(outcome: TuneOutcome): TuneOutcome.Playing? =
+        (outcome as? TuneOutcome.Playing) ?: NO_PLAY.takeIf { outcome is TuneOutcome.Dead }
+
+    /** A kept place's tune that signed out or was stopped: the place is settled and the sitting ends. */
+    internal fun resumeEnded(outcome: TuneOutcome): Exit {
+        resumeSettled()
+        return if (outcome == TuneOutcome.Expired) expired() else Exit.Stopped
+    }
+
+    /** [resumeBlock] for a program's block: the paused tune, then its behind play, reported as the same airing. */
+    private suspend fun resumeProgram(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+        program: Airing.Program,
+        place: Place,
+        visiting: Visiting,
+    ): Exit? {
+        val item = ItemId(program.itemId.value)
+        val outcome = tunePaused(scope, onAir, place, item, BannerLabel.TuningIn, TuneKind.Fresh)
+        val play = pausedPlay(outcome) ?: return resumeEnded(outcome)
+        val retune = retuneAt(scope, onAir, place.block, item, BannerLabel.TuningIn)
+        val dead = outcome is TuneOutcome.Dead
+        return resumeHeld(scope, onAir, program, play, place, visiting, retune, BlockRetries(), dead)
+    }
+
+    /** The resumed play, from the kept place (paused), until its item ends, it goes live and ends, or an exit. */
+    @Suppress("LongParameterList") // The block's scope and what is on, the program, its play, place, visit and retry.
+    private suspend fun resumeHeld(
+        scope: CoroutineScope,
+        onAir: ChannelOnAir,
+        program: Airing.Program,
+        play: TuneOutcome.Playing,
+        place: Place,
+        visiting: Visiting,
+        retune: Retune,
+        retries: BlockRetries,
+        dead: Boolean,
+    ): Exit? {
+        val block = place.block
+        // The behind play starts at once from here, with no suspension first: it holds the kept place from now on.
+        resumeSettled()
+        val held = holdReporting(block, program, play, visiting, place.mediaMs, retune, retries, place, dead)
+        return when (held) {
+            // Live again and the block's end came, or the live play broke: what is on now, by the usual loop.
+            Held.Boundary, is Held.Failed -> {
+                null
+            }
+
+            is Held.CaughtUp -> {
+                held.catchUp?.let { nextUp.catchUp(it) }
+                cutFrom = clock.now()
+                null
+            }
+
+            // The file ended with the clock still inside its block: the ident to the block's end, as on the live path.
+            Held.Ended, Held.EndedInBlock -> {
+                rearmBoundaryLookAhead()
+                visiting.leave()
+                holdIdent(scope, onAir, block.endMs)
+            }
+
+            Held.Dead -> {
+                visiting.leave()
+                deadItem(scope, onAir, program.itemId)
+            }
+
+            is Held.Exited -> {
+                held.exit
+            }
+        }
+    }
 
     /** One program's block, every try at it. [visiting] is left by the caller when the block is left for good. */
     @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod") // One block's steps: each return is an ending.
@@ -498,6 +650,9 @@ internal class Sitting(
     internal companion object {
         /** How many following blocks each look at the schedule asks for (the next one is pre-resolved). */
         const val WINDOW = 3
+
+        /** A kept place's dead tune: no play at all, held paused until the viewer presses Play. */
+        internal val NO_PLAY = TuneOutcome.Playing(flow { awaitCancellation() }, PlayControl.None)
     }
 }
 

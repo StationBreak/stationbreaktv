@@ -12,12 +12,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -36,6 +38,7 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.NextProgram
+import tv.stationbreak.feature.live.TransportView
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** The banner's progress and "Next" line, the actions banner's buttons and the info overlay on screen (spec 17). */
@@ -130,7 +133,7 @@ class LiveBannerActionsTest {
      * The app's own key path: [LiveKeysRoot] takes the keys first, as on the TV. Select asks for the actions banner,
      * which this stand-in machine then shows, so the buttons appear the way they do after a real press.
      */
-    private fun showKeysRoot() {
+    private fun showKeysRoot(transport: TransportView? = null) {
         compose.setContent {
             var state by remember { mutableStateOf<LiveState>(LiveState.Watching(banner())) }
             val machine = { command: LiveCommand ->
@@ -139,7 +142,7 @@ class LiveBannerActionsTest {
                     state = LiveState.Watching(banner(actions = true, hasLast = true))
                 }
             }
-            StationBreakTheme { LiveKeysRoot(state, null, machine) {} }
+            StationBreakTheme { LiveKeysRoot(state, null, machine, transport = transport) {} }
         }
         compose.waitForIdle()
     }
@@ -189,6 +192,100 @@ class LiveBannerActionsTest {
         sent.clear()
         press(Key.DirectionCenter)
         assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent.toList())
+    }
+
+    private fun view(paused: Boolean) =
+        TransportView(
+            paused = paused,
+            seeking = false,
+            seekable = true,
+            visible = true,
+            mediaMs = 10 * MINUTE,
+            targetMs = null,
+            asOfMs = START,
+            blockStartMs = START - 15 * MINUTE,
+            inPointMs = 0,
+            cutMs = 60 * MINUTE,
+            driftMs = 0,
+        )
+
+    @Test
+    fun liveShowsOnlyWhileBehindAndInfoKeepsTheFocus() {
+        var transport by mutableStateOf<TransportView?>(null)
+        compose.setContent {
+            StationBreakTheme {
+                LiveScreen(LiveState.Watching(banner(actions = true, hasLast = true)), null, {}, null, transport) {}
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertDoesNotExist()
+        compose.runOnIdle { transport = view(paused = false) }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        // Live, Info, Last: left to right.
+        val live =
+            compose
+                .onNodeWithTag(LiveTags.BANNER_ACTION_LIVE)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        val info =
+            compose
+                .onNodeWithTag(LiveTags.BANNER_ACTION_INFO)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        val last =
+            compose
+                .onNodeWithTag(LiveTags.BANNER_ACTION_LAST)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        assertTrue("$live $info $last", live < info && info < last)
+        compose.runOnIdle { transport = null }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertDoesNotExist()
+    }
+
+    @Test
+    fun theBannerUpWhileLiveGainsLiveWhenTheViewerPauses() {
+        var transport by mutableStateOf<TransportView?>(null)
+        compose.setContent {
+            StationBreakTheme {
+                LiveScreen(LiveState.Watching(banner(actions = true, hasLast = true)), null, {}, null, transport) {}
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertDoesNotExist()
+        compose.runOnIdle { transport = view(paused = true) }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
+    }
+
+    @Test
+    fun theFocusMovesToInfoWhenLiveGoesWhileFocused() {
+        var transport by mutableStateOf<TransportView?>(view(paused = true))
+        compose.setContent {
+            StationBreakTheme {
+                LiveScreen(LiveState.Watching(banner(actions = true, hasLast = true)), null, {}, null, transport) {}
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).performSemanticsAction(SemanticsActions.RequestFocus)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertIsFocused()
+        compose.runOnIdle { transport = null }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+    }
+
+    @Test
+    fun liveSendsGoLive() {
+        showKeysRoot(transport = view(paused = false))
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        press(Key.DirectionLeft)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertIsFocused()
+        sent.clear()
+        press(Key.DirectionCenter)
+        assertEquals(listOf<LiveCommand>(LiveCommand.GoLive), sent.toList())
     }
 
     @Test

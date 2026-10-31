@@ -74,32 +74,46 @@ internal fun Sitting.retuneAt(
  * viewer pauses or steps back, a [BehindPlay] until its item ends, it ends the sitting, or it is back at live (then
  * the live hold carries on with the play it hands back). [visiting] is the block's visit, told of pauses and seeks;
  * null when the play is not reported (a stand-in is never). [retune] is the behind play's retry at the place, made
- * only while [retries] still holds the block's one retry.
+ * only while [retries] still holds the block's one retry. Given a kept [from] place (spec 20, its play already paused),
+ * it starts with the behind play, paused there; [fromDead] when the place's tune was dead ([first] is no play): it is
+ * held paused with no picture until the viewer presses Play.
  */
-@Suppress("ReturnCount") // Each return is one way the program's play ends; a return to live goes round again.
+@Suppress("ReturnCount", "LongParameterList") // Each return is one way the play ends; live goes round again.
 internal suspend fun Sitting.holdProgram(
     block: AiringBlock,
     first: TuneOutcome.Playing,
     visiting: Visiting?,
     retune: Retune,
     retries: BlockRetries,
+    from: Place? = null,
+    fromDead: Boolean = false,
 ): Held {
     var play = first
+    // A kept place starts behind, paused there: no live hold before its behind play.
+    var resume = from
     while (true) {
-        val held =
-            when (val live = hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)) {
+        val live =
+            if (resume == null) {
+                hold(block.endMs, play.end, play.notes, visiting != null, play.control, block.startMs)
+            } else {
+                null
+            }
+        val op =
+            when (live) {
+                null -> null
                 LiveHold.Boundary -> return Held.Boundary
                 LiveHold.Ended -> return Held.Ended
                 is LiveHold.Failed -> return Held.Failed(live.positionMs)
-                is LiveHold.Transport -> live
+                is LiveHold.Transport -> live.op
             }
         val behindPlay = BehindPlay(behindHost(), block, play, visiting, retune, retries)
         behind = behindPlay
         val ended =
             try {
-                behindPlay.run(held.op)
+                behindPlay.run(op, resume, fromDead && resume != null)
             } finally {
                 behind = null
+                resume = null
             }
         when (ended) {
             // Live again: the block's look-ahead, dropped while behind, is started again for the boundary's cut.
@@ -207,7 +221,6 @@ internal class BehindPlay(
     private val inPointMs = TransportMath.inPointMs(block)
     private val cutMs = TransportMath.cutMs(block)
     private val timings = host.timings
-    private val aheadMs = timings.stepAhead.inWholeMilliseconds
     private val rearmMinMs = timings.holdRearmMin.inWholeMilliseconds
     private val goLiveWaitMs = timings.goLiveWait.inWholeMilliseconds
     private val leadMs = timings.preResolveLead.inWholeMilliseconds
@@ -215,6 +228,11 @@ internal class BehindPlay(
     /** Paused or playing behind: Play/Pause is resolved against this, not against the player's last event. */
     @Volatile
     private var paused = false
+
+    /** True from a kept place's start until the play first runs again: one untended pause (ADR-0021 5). */
+    @Volatile
+    var untended = false
+        private set
 
     /** The media position last known (a read, or the last Paused or SeekDone event), and the clock time it was so. */
     @Volatile
@@ -234,14 +252,8 @@ internal class BehindPlay(
     /** Which SeekDone is the latest seek's, and whether the visit's watched time is stopped for one; one per play. */
     private var seeks = newSeeks()
 
-    /** The seek whose line is waiting for its first `SeekDone` or `Playing` (the diagnostics, spec 20). */
-    private var seekLine: SeekLine? = null
-
-    /** The clock time (epoch ms) the pause began while paused; null otherwise. */
-    private var pausedAtMs: Long? = null
-
-    /** A resume asked for, whose line waits for the next `Playing`: how long it was held, and when it was asked for. */
-    private var resumeLine: ResumeLine? = null
+    /** The `SBLIVE seek` and `pause` lines waiting for the player's answer (the diagnostics, spec 20). */
+    private val lines = TransportLines(host)
 
     /**
      * The clock time (epoch ms) the seek back to live went out, while it is in flight (null otherwise): once its own
@@ -259,25 +271,33 @@ internal class BehindPlay(
     private var runScope: CoroutineScope? = null
 
     /**
-     * Runs from the live play's [first] op (or a kept [from] place, Task 12) until the item ends, live, or an exit.
-     * Each play's notes are watched while it plays: the first's, then the retry's.
+     * Runs from the live play's [first] op, or paused at a kept [from] place (its play already paused), until the item
+     * ends, live, or an exit. Each play's notes are watched while it plays: the first's, then the retry's. [dead] when
+     * the kept place's tune was dead: it is held as a play that failed while paused ([heldBroken]).
      */
     suspend fun run(
         first: TransportOp?,
         from: Place? = null,
+        dead: Boolean = false,
     ): BehindEnd =
         coroutineScope {
             runScope = this
             subscribe()
             try {
                 if (from != null) {
+                    // A kept place: its tune was paused on the first frame, before the picture showed (ADR-0021 5).
                     known(from.mediaMs)
+                    paused = true
+                    untended = true
+                    lines.paused()
+                    visiting?.paused(from.mediaMs)
                 } else {
                     // Live until now: if the player cannot say where it is, the live position is the place.
                     known(TransportMath.liveMs(block, host.vnowMs()))
                     read()
                 }
                 var ended = begin(first)
+                if (ended == null && dead && from != null) ended = heldBroken(from.mediaMs)
                 while (ended == null) {
                     playEnded = false
                     val round = host.watchNotes(play.notes, visiting != null, { _: Round -> playEnded }) { loop(this) }
@@ -294,7 +314,7 @@ internal class BehindPlay(
                 unsubscribe()
                 // A seek still open is closed at the best-known place, so the visit's watched time runs on after us.
                 seeks.close(knownMs)?.let { visiting?.seeked(it) }
-                reportUnfinished()
+                lines.unfinished()
                 // Not handed to a catch-up (live again, or an exit): let it go.
                 dropCatchUp()
                 host.publishTransport(null)
@@ -302,8 +322,8 @@ internal class BehindPlay(
             }
         }
 
-    /** The paused place now, for the screen stop (Task 12); null unless paused on a program block. */
-    fun pausedPlace(): Place? = if (paused && onProgram) Place(host.channel, block, knownMs) else null
+    /** The paused place now, for the screen stop: a program's block or a stand-in piece; null unless paused. */
+    fun pausedPlace(): Place? = if (paused) Place(host.channel, block, knownMs) else null
 
     /** The live play's [first] op; non-null when it ends the behind play at once. Then behind: no look-ahead. */
     private suspend fun begin(first: TransportOp?): BehindEnd? {
@@ -353,10 +373,11 @@ internal class BehindPlay(
             firedShort = woke is Wake.Due
             when (woke) {
                 is Wake.End -> {
-                    lostOp(next, "transport-lost-at-end")
-                    dropTarget("transport-lost-at-end")
-                    playEnded = true
                     val end = woke.end
+                    lostOp(next, "transport-lost-at-end")
+                    // A paused play that broke keeps a stepped target: heldBroken folds it into the place.
+                    if (end !is PlaybackEnd.Failed || !paused) dropTarget("transport-lost-at-end")
+                    playEnded = true
                     if (end !is PlaybackEnd.Failed) return Round.Over(playEnd())
                     // The retry's own tune drops what is in the inbox; the next play takes ops afresh.
                     next.cancel()
@@ -446,8 +467,7 @@ internal class BehindPlay(
         play.control.pause()
         paused = true
         // A resume still waiting for its Playing is over: no picture was attributed to it.
-        flushResume()
-        pausedAtMs = nowMs()
+        lines.paused()
         linger?.cancel()
         visible = true
         publish()
@@ -457,7 +477,8 @@ internal class BehindPlay(
         read()
         play.control.resume()
         paused = false
-        resumed()
+        untended = false
+        lines.resumed()
         show()
     }
 
@@ -473,11 +494,7 @@ internal class BehindPlay(
         seeks.cancelLive()
         val fromMs = steps.target?.toMs ?: read()
         val liveMs = TransportMath.liveMs(block, host.vnowMs())
-        val toMs =
-            when (op.direction) {
-                SeekDirection.Back -> TransportMath.back(fromMs - timings.stepBack.inWholeMilliseconds, inPointMs)
-                SeekDirection.Ahead -> TransportMath.ahead(fromMs + aheadMs, liveMs, cutMs)
-            }
+        val toMs = steppedFrom(fromMs, op.direction)
         steps.aim(toMs, op.direction == SeekDirection.Ahead && TransportMath.reachesLive(toMs, liveMs, cutMs))
         show()
     }
@@ -496,17 +513,6 @@ internal class BehindPlay(
         val ends = !wentLive && !paused && (toLive || toMs >= cutMs) && blockEnded()
         if (!wentLive && !ends) seekToTarget(toMs, toLive)
         return if (ends) itemEnd() else null
-    }
-
-    /** The seek line's direction: live, else which way [toMs] is from [fromMs]. */
-    private fun directionOf(
-        toLive: Boolean,
-        toMs: Long,
-        fromMs: Long,
-    ) = when {
-        toLive -> DIR_LIVE
-        toMs < fromMs -> DIR_BACK
-        else -> DIR_AHEAD
     }
 
     /** Not live: the target itself, clamped at the cut while the play is still on its block. */
@@ -540,7 +546,8 @@ internal class BehindPlay(
         if (paused) {
             play.control.resume()
             paused = false
-            resumed()
+            untended = false
+            lines.resumed()
         }
         return true
     }
@@ -560,8 +567,7 @@ internal class BehindPlay(
         visiting?.seeking(fromMs)
         seeks.sent(toMs, live)
         // A seek folded into one pending gets the one answer: the earlier one's line is closed as lost (-1).
-        seekLine?.let { host.report(it.lost()) }
-        seekLine = SeekLine(direction, toMs, nowMs(), play.timings.route)
+        lines.seekSent(direction, toMs, play.timings.route)
         play.control.seekTo(toMs.milliseconds)
         known(toMs)
     }
@@ -615,13 +621,14 @@ internal class BehindPlay(
         seeks.close(place)?.let { visiting?.seeked(it) }
         seeks = newSeeks()
         // The unsubscribe above took the events that came; a seek line still waiting is lost with the play.
-        seekLine?.let { host.report(it.lost()) }
-        seekLine = null
-        // A resume that never showed a picture before the play failed: -1. A pause carries on (the retry is paused
-        // again at once, see carryOn), so its held time keeps running and is not reset.
-        flushResume()
+        lines.seekLost()
+        // A resume that never showed a picture before the play failed: -1. A pause carries on (held until Play, see
+        // heldBroken), so its held time keeps running and is not reset.
+        lines.flushResume()
         liveSinceMs = null
         dropCatchUp()
+        // Paused: nothing is tuned, stood in or played until the viewer asks (ADR-0021, "Fails while paused").
+        if (paused) return heldBroken(place)
         return when {
             // Nothing left to play: the play's end, as if it had ended there.
             place >= cutMs -> playEnd()
@@ -629,6 +636,58 @@ internal class BehindPlay(
             !retries.take() -> deadOrOver()
 
             else -> tuneAgain(place, goingLive)
+        }
+    }
+
+    /**
+     * A play that failed while paused (ADR-0021, "Fails while paused"), or a kept place whose tune was dead: no retune,
+     * no stand-in, no live. The place and the paused transport hold, so the screen stays released and the device
+     * may sleep. A step moves the paused place and tunes nothing. Play (or Go live) is the viewer's ask: then the
+     * block's one retry runs, or, with none left, the usual dead-item or catch-up routing. Non-null as for [retry].
+     */
+    private suspend fun heldBroken(from: Long): BehindEnd? {
+        // A step still settling is folded into the place: the strip showed it, so Play lands there, with no seek after.
+        var at = steps.drop()?.toMs ?: from
+        showBroken(at)
+        var op = host.receive(block.startMs)
+        while (op != TransportOp.Toggle && op != TransportOp.Play && op != TransportOp.GoLive) {
+            if (op is TransportOp.Step) at = steppedFrom(at, op.direction).also(::showBroken)
+            op = host.receive(block.startMs)
+        }
+        val toLive = op == TransportOp.GoLive
+        // Live once the block has ended by the clock is what is on now: the item's end.
+        if (toLive && blockEnded()) return itemEnd()
+        return playAfterBreak(if (toLive) TransportMath.liveMs(block, host.vnowMs()) else at, toLive)
+    }
+
+    /** The broken play's place, paused, with the transport up. */
+    private fun showBroken(at: Long) {
+        known(at)
+        linger?.cancel()
+        visible = true
+        publish()
+    }
+
+    /** [at] stepped one press in [direction], clamped as a step is. */
+    private fun steppedFrom(
+        at: Long,
+        direction: SeekDirection,
+    ): Long = TransportMath.step(at, direction, timings, block, TransportMath.liveMs(block, host.vnowMs()))
+
+    /** The viewer asked to play a broken play at [at]: the block's retry, else its end or the item dead or over. */
+    private suspend fun playAfterBreak(
+        at: Long,
+        goingLive: Boolean,
+    ): BehindEnd? {
+        paused = false
+        untended = false
+        lines.resumed()
+        // Its watched time runs again once the retry plays (the visit's stall ends there).
+        visiting?.unpaused()
+        return when {
+            at >= cutMs -> playEnd()
+            !retries.take() -> deadOrOver()
+            else -> tuneAgain(at, goingLive)
         }
     }
 
@@ -808,7 +867,7 @@ internal class BehindPlay(
             // A play that plays on is past a seek it began: its SeekDone comes first, so one still open was lost.
             is PlayerEvent.Playing -> {
                 seeks.closeOnPlaying(event.position.inWholeMilliseconds)?.let { visiting?.seeked(it) }
-                reportPlaying()
+                lines.playing()
             }
 
             is PlayerEvent.Seeking -> {
@@ -830,50 +889,11 @@ internal class BehindPlay(
      */
     private fun seekDone(at: Long?): Boolean {
         val landing = seeks.onSeekDone(at) ?: return false
-        reportSeekLine()
+        lines.seekDone()
         landing.positionMs?.let(::known)
         if (landing.report) visiting?.seeked(landing.atMs)
         publish()
         return landing.live && liveSinceMs != null
-    }
-
-    /** The resume is asked for: the pause's held time is told, and its line waits for the next `Playing`. */
-    private fun resumed() {
-        val since = pausedAtMs ?: return
-        pausedAtMs = null
-        val now = nowMs()
-        flushResume()
-        resumeLine = ResumeLine(now - since, now)
-    }
-
-    /** A resume still waiting for its `Playing` is told with `resumeMs=-1`: no picture was attributed to it. */
-    private fun flushResume() {
-        resumeLine?.let { host.report(TuneReport.Pause(it.heldMs, -1)) }
-        resumeLine = null
-    }
-
-    /** The latest seek's `SeekDone`: its line goes out with the time it took. */
-    private fun reportSeekLine() {
-        val line = seekLine ?: return
-        seekLine = null
-        host.report(line.done(nowMs()))
-    }
-
-    /** A `Playing`: it ends the wait of a seek line (its `SeekDone` never came) and of the resume line. */
-    private fun reportPlaying() {
-        reportSeekLine()
-        val resume = resumeLine ?: return
-        resumeLine = null
-        host.report(TuneReport.Pause(resume.heldMs, nowMs() - resume.atMs))
-    }
-
-    /** The behind play ends: a seek or resume still waiting is told as lost (-1), a pause still held with its time. */
-    private fun reportUnfinished() {
-        seekLine?.let { host.report(it.lost()) }
-        seekLine = null
-        flushResume()
-        pausedAtMs?.let { host.report(TuneReport.Pause(nowMs() - it, -1)) }
-        pausedAtMs = null
     }
 
     /** Logs a stepped target that was never sought, because the cut or the play's end came first. */
@@ -912,67 +932,55 @@ internal class BehindPlay(
             ),
         )
     }
+}
 
-    /**
-     * A seek sent, whose line is told once the player answers. [TuneReport.Seek.toPlayingMs] is -1 when no answer was
-     * attributed to it: the play ended or was retried first, or a later seek was folded into it by the player.
-     */
-    private class SeekLine(
-        val direction: String,
-        val targetMs: Long,
-        val sentAtMs: Long,
-        val route: String?,
-    ) {
-        fun done(nowMs: Long) = TuneReport.Seek(direction, targetMs, nowMs - sentAtMs, route)
+/** How one play's [loop] ended: the behind play is over, or the play failed (for [retry]). */
+private sealed interface Round {
+    data class Over(
+        val end: BehindEnd,
+    ) : Round
 
-        fun lost() = TuneReport.Seek(direction, targetMs, -1, route)
-    }
+    data class Failed(
+        val end: PlaybackEnd.Failed,
+    ) : Round
+}
 
-    /** A resume asked for at [atMs] after a pause held [heldMs]. */
-    private class ResumeLine(
-        val heldMs: Long,
-        val atMs: Long,
-    )
+/** What woke the behind loop. */
+private sealed interface Wake {
+    data class End(
+        val end: PlaybackEnd,
+    ) : Wake
 
-    /** How one play's [loop] ended: the behind play is over, or the play failed (for [retry]). */
-    private sealed interface Round {
-        data class Over(
-            val end: BehindEnd,
-        ) : Round
+    data class Op(
+        val op: TransportOp,
+    ) : Wake
 
-        data class Failed(
-            val end: PlaybackEnd.Failed,
-        ) : Round
-    }
+    /** The media-time hold is due: the position is read again. */
+    data object Due : Wake
 
-    /** What woke the behind loop. */
-    private sealed interface Wake {
-        data class End(
-            val end: PlaybackEnd,
-        ) : Wake
+    /** The pending target's settle time came with the key still down. */
+    data object Settle : Wake
 
-        data class Op(
-            val op: TransportOp,
-        ) : Wake
+    /** One of the play's events. */
+    data class Event(
+        val event: PlayerEvent,
+    ) : Wake
 
-        /** The media-time hold is due: the position is read again. */
-        data object Due : Wake
+    /** The seek back to live was not done within [LiveTimings.goLiveWait]. */
+    data object LiveUnmatched : Wake
+}
 
-        /** The pending target's settle time came with the key still down. */
-        data object Settle : Wake
+private const val DIR_BACK = "back"
+private const val DIR_AHEAD = "ahead"
+private const val DIR_LIVE = "live"
 
-        /** One of the play's events. */
-        data class Event(
-            val event: PlayerEvent,
-        ) : Wake
-
-        /** The seek back to live was not done within [LiveTimings.goLiveWait]. */
-        data object LiveUnmatched : Wake
-    }
-
-    private companion object {
-        const val DIR_BACK = "back"
-        const val DIR_AHEAD = "ahead"
-        const val DIR_LIVE = "live"
-    }
+/** The seek line's direction: live, else which way [toMs] is from [fromMs]. */
+private fun directionOf(
+    toLive: Boolean,
+    toMs: Long,
+    fromMs: Long,
+) = when {
+    toLive -> DIR_LIVE
+    toMs < fromMs -> DIR_BACK
+    else -> DIR_AHEAD
 }

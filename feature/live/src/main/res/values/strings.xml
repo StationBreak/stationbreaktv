@@ -25,6 +25,17 @@
     <string name="live_action_info">Info</string>
     <string name="live_action_last">Last</string>
 
+    <!-- The Live button of the actions banner, shown while the viewer is paused or behind live: back to the live picture. -->
+    <string name="live_action_live">Live</string>
+
+    <!-- DESIGN(#383): placeholder. The transport strip: paused, or how far behind live (a plural, for locales that need one). -->
+    <string name="live_transport_paused">Paused</string>
+    <string name="live_transport_seeking">Seeking</string>
+    <plurals name="live_transport_behind">
+        <item quantity="one">%1$d min behind</item>
+        <item quantity="other">%1$d min behind</item>
+    </plurals>
+
     <!-- How far in the viewer joined; "Just started" under a minute. -->
     <string name="live_just_started">Just started</string>
     <string name="live_joining">joining %1$d min in</string>

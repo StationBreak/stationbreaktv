@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live.report
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.ChannelId
@@ -212,5 +213,39 @@ class WatchLedgerTest {
         l.leave(min(6))
         // Never over-count: the player cannot have played more than the wall time since the span began.
         assertEquals(5.minutes, l.watched(a, min(6)))
+    }
+
+    // A kept place carries its airing's watched time across a screen stop (spec 20, ADR-0021 5).
+
+    @Test
+    fun aSnapshotClosesTheOpenInterval() {
+        val l = ledger()
+        l.enterAt(a, 0, 0)
+        l.seeking(min(4))
+        l.seeked(min(4), media(10.0))
+        val snap = l.snapshot(a, min(7))
+        val spans = listOf(MediaSpan(0, media(4.0)), MediaSpan(media(10.0), media(13.0)))
+        assertEquals(WatchSnapshot(a, spans, false), snap)
+        // The snapshot is a copy: the ledger runs on as it was.
+        assertEquals(10.minutes, l.watched(a, min(10)))
+        assertNull(l.snapshot(b, min(7)))
+    }
+
+    @Test
+    fun aSeedIsUnitedWithLaterViewing() {
+        val l = ledger()
+        l.seed(WatchSnapshot(a, listOf(MediaSpan(0, media(10.0))), false))
+        l.enterAt(a, 0, 10)
+        l.leave(min(5))
+        assertEquals(15.minutes, l.watched(a, min(5)))
+    }
+
+    @Test
+    fun aSeededMarkIsKept() {
+        val l = ledger()
+        l.seed(WatchSnapshot(a, listOf(MediaSpan(0, media(30.0))), true))
+        assertTrue(l.isMarked(a))
+        assertFalse(l.markDue(a, 30.minutes, min(0)))
+        assertEquals(true, l.snapshot(a, min(0))?.marked)
     }
 }

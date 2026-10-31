@@ -64,7 +64,7 @@ class LiveViewModelLeaveTest {
         return Setup(r, server, vm)
     }
 
-    private suspend fun Setup.sit(player: RecordingPlayer) = vm.sit({ player }, null, { _, _ -> r.tune }) {}
+    private suspend fun Setup.sit(player: RecordingPlayer) = vm.sit({ player }, null, { _, _ -> r.tune }, { 0L }) {}
 
     private fun RecordingServer.count(kind: String) = calls.count { it.kind == kind }
 

@@ -40,6 +40,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.TransportView
 
 /**
  * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
@@ -87,6 +88,7 @@ internal fun LiveRoot(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val info by viewModel.info.collectAsStateWithLifecycle()
     val guideOpen by viewModel.guideOpen.collectAsStateWithLifecycle()
+    val transport by viewModel.transport.collectAsStateWithLifecycle()
     val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
@@ -110,7 +112,7 @@ internal fun LiveRoot(
         viewModel.leave()
     }
     LeaveAtOnce(owner, leaveNow) { if (sittings.value == null) sittings.value = System.nanoTime() }
-    KeepScreenOn(owner)
+    KeepScreenOn(owner, keepsScreenOn(transport))
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
     LiveKeysRoot(
@@ -118,9 +120,12 @@ internal fun LiveRoot(
         info = info,
         onCommand = onCommand,
         guideOpen = guideOpen,
+        transport = transport,
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         guide = { pictureHole, onTune -> guide(viewModel.guideChannel, guideOpenedAt, pictureHole, onTune) },
+        // The machine's own clock, which the transport view's times are in.
+        nowMs = viewModel::nowMs,
     ) { AndroidView(factory = { surface }) }
 }
 
@@ -141,9 +146,11 @@ internal fun LiveKeysRoot(
     info: LiveInfo?,
     onCommand: (LiveCommand) -> Unit,
     guideOpen: Boolean = false,
+    transport: TransportView? = null,
     upNow: (() -> OverlayUp)? = null,
     onGuide: (open: Boolean) -> Unit = {},
     guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
+    nowMs: () -> Long = System::currentTimeMillis,
     video: @Composable () -> Unit,
 ) {
     val command by rememberUpdatedState(onCommand)
@@ -164,7 +171,7 @@ internal fun LiveKeysRoot(
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
     }
     val held = remember { HeldKeys() }
-    val composed = overlayUpOf(state, info, guideOpen)
+    val composed = overlayUpOf(state, info, guideOpen, transport)
     // The actions banner's buttons or the guide held the focus; when they go the root takes it back, or no key would
     // arrive.
     LaunchedEffect(focus, composed.actions, guideOpen) { if (!composed.actions && !guideOpen) focus.requestFocus() }
@@ -178,7 +185,7 @@ internal fun LiveKeysRoot(
             }.focusable(),
     ) {
         val shown: (@Composable (DpRect) -> Unit)? = if (guideOpen) ({ hole -> guide(hole, tune) }) else null
-        LiveScreen(state, info, onCommand, shown, video)
+        LiveScreen(state, info, onCommand, shown, transport, nowMs, video)
     }
 }
 
@@ -199,26 +206,42 @@ private fun logLiveKey(
     line?.let { Log.i(LOG_TAG, it) }
 }
 
+/** False while the viewer is paused: an untended pause lets the device sleep (ADR-0021). */
+internal fun keepsScreenOn(transport: TransportView?): Boolean = transport?.paused != true
+
 /**
  * A TV channel never lets the device sleep while it is on screen (snow, slates and the "No channels" card included):
  * the view keeps the screen on from STARTED until the screen leaves or stops. A view flag, so the feature does not
  * touch the activity's window.
+ *
+ * Not while [keep] is false (the viewer is paused, ADR-0021): an untended pause lets the device sleep, so the
+ * screensaver can come on. The app takes no wake lock and never wakes the device; Play and a return to live turn the
+ * flag on again.
  */
 @Composable
-private fun KeepScreenOn(owner: LifecycleOwner) {
+internal fun KeepScreenOn(
+    owner: LifecycleOwner,
+    keep: Boolean,
+) {
     val view = LocalView.current
+    val keepNow by rememberUpdatedState(keep)
     DisposableEffect(view, owner) {
         val observer =
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_START) view.keepScreenOn = true
+                if (event == Lifecycle.Event.ON_START) view.keepScreenOn = keepNow
                 if (event == Lifecycle.Event.ON_STOP) view.keepScreenOn = false
             }
-        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = true
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = keepNow
         owner.lifecycle.addObserver(observer)
         onDispose {
             owner.lifecycle.removeObserver(observer)
             view.keepScreenOn = false
         }
+    }
+    // A pause or a play while the screen is up; a stopped screen stays off.
+    DisposableEffect(view, owner, keep) {
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = keep
+        onDispose {}
     }
 }
 

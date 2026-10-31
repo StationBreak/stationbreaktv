@@ -24,6 +24,43 @@ data class MediaSpan(
 )
 
 /**
+ * One airing's played media spans ([MediaSpan], half-open, sorted and disjoint) and whether the app marked it played,
+ * carried across a screen stop with a kept place (spec 20). Public plain data; held in memory only.
+ */
+data class WatchSnapshot(
+    val key: AiringKey,
+    val spans: List<MediaSpan>,
+    val marked: Boolean,
+)
+
+/**
+ * The open airing as the ledger last had it: its closed [spans] and mark, and the interval running from [fromMs] since
+ * [since] (null while stopped). [at] closes that interval at a later time without the ledger.
+ */
+internal class OpenAiring(
+    val key: AiringKey,
+    val spans: List<MediaSpan>,
+    val marked: Boolean,
+    val fromMs: Long,
+    val since: Instant?,
+) {
+    /**
+     * The spans with the running interval closed at [now], and never past [atMostMs] when given (never over-count). By
+     * design this may under-count: a seek back and a pause still queued for the worker end the interval at the cap,
+     * though some of what played after the seek's landing was watched.
+     */
+    fun at(
+        now: Instant,
+        atMostMs: Long? = null,
+    ): WatchSnapshot {
+        val from = since ?: return WatchSnapshot(key, spans, marked)
+        val derived = fromMs + (now - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds
+        val end = atMostMs?.let { minOf(it, derived) } ?: derived
+        return WatchSnapshot(key, WatchLedger.merge(spans, MediaSpan(fromMs, end)), marked)
+    }
+}
+
+/**
  * What the viewer actually watched, per airing, for the life of one `LiveChannel.run` (spec 16, R3/R4/R5/R7; spec 20).
  * Pure: every method is told the time, so virtual time drives it. Not thread-safe; the reporter uses it from one
  * coroutine.
@@ -179,18 +216,12 @@ internal class WatchLedger(
     fun watched(
         key: AiringKey,
         at: Instant,
-    ): Duration {
-        val closed = entries[key]?.spans.orEmpty()
-        val from = since
-        val spans =
-            if (key == open && from != null) {
-                val end = fromMs + (at - from).coerceAtLeast(Duration.ZERO).inWholeMilliseconds
-                merge(closed, MediaSpan(fromMs, end))
-            } else {
-                closed
-            }
-        return spans.sumOf { it.endMs - it.startMs }.milliseconds
-    }
+    ): Duration =
+        snapshot(key, at)
+            ?.spans
+            .orEmpty()
+            .sumOf { it.endMs - it.startMs }
+            .milliseconds
 
     /** True when [key] was watched for at least the threshold of [runtime] and is not yet marked (R5, R6). */
     fun markDue(
@@ -211,6 +242,28 @@ internal class WatchLedger(
     ) {
         val entry = entry(key)
         if (succeeded) entry.marked = true else entry.markFailures++
+    }
+
+    /** [key]'s played spans and mark, the open interval closed at [at]; null when [key] is not remembered. */
+    fun snapshot(
+        key: AiringKey,
+        at: Instant,
+    ): WatchSnapshot? {
+        val entry = entries[key] ?: return null
+        return OpenAiring(key, entry.spans, entry.marked, fromMs, since.takeIf { key == open }).at(at)
+    }
+
+    /** Unites [snapshot] (watched time from before a screen stop) into the entry for its key, and keeps its mark. */
+    fun seed(snapshot: WatchSnapshot) {
+        val entry = entry(snapshot.key)
+        entry.spans = snapshot.spans.fold(entry.spans, ::merge)
+        if (snapshot.marked) entry.marked = true
+    }
+
+    /** The open airing as it stands, for the reporter to publish off its worker; null when none is open. */
+    fun openAiring(): OpenAiring? {
+        val key = open ?: return null
+        return entries[key]?.let { OpenAiring(key, it.spans, it.marked, fromMs, since) }
     }
 
     fun isMarked(key: AiringKey): Boolean = entries[key]?.marked == true
@@ -238,38 +291,38 @@ internal class WatchLedger(
         if (!stalled && !paused && !seeking) since = at
     }
 
-    /** [spans] plus [add] (clipped at 0), joined where they overlap or touch. */
-    private fun merge(
-        spans: List<MediaSpan>,
-        add: MediaSpan,
-    ): List<MediaSpan> {
-        val start = maxOf(add.startMs, 0L)
-        if (add.endMs <= start) return spans
-        var from = start
-        var to = add.endMs
-        val result = mutableListOf<MediaSpan>()
-        for (span in spans) {
-            when {
-                span.endMs < from -> {
-                    result += span
-                }
-
-                span.startMs > to -> {
-                    result += span
-                }
-
-                else -> {
-                    from = minOf(from, span.startMs)
-                    to = maxOf(to, span.endMs)
-                }
-            }
-        }
-        result += MediaSpan(from, to)
-        return result.sortedBy { it.startMs }
-    }
-
     companion object {
         /** The most airings remembered: far more than a viewer can flip through, small enough to stay tiny. */
         const val MAX_ENTRIES = 256
+
+        /** [spans] plus [add] (clipped at 0), joined where they overlap or touch. */
+        internal fun merge(
+            spans: List<MediaSpan>,
+            add: MediaSpan,
+        ): List<MediaSpan> {
+            val start = maxOf(add.startMs, 0L)
+            if (add.endMs <= start) return spans
+            var from = start
+            var to = add.endMs
+            val result = mutableListOf<MediaSpan>()
+            for (span in spans) {
+                when {
+                    span.endMs < from -> {
+                        result += span
+                    }
+
+                    span.startMs > to -> {
+                        result += span
+                    }
+
+                    else -> {
+                        from = minOf(from, span.startMs)
+                        to = maxOf(to, span.endMs)
+                    }
+                }
+            }
+            result += MediaSpan(from, to)
+            return result.sortedBy { it.startMs }
+        }
     }
 }

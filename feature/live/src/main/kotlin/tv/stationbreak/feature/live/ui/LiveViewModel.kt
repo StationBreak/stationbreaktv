@@ -35,11 +35,13 @@ import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveChannel
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.LiveTimings
+import tv.stationbreak.feature.live.TransportView
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
 import tv.stationbreak.feature.live.TuneReport
@@ -67,6 +69,22 @@ internal fun drainStalePresses(
     }
 }
 
+/**
+ * A paused place kept across a screen stop, and when its untended pause began, on a monotonic clock that counts sleep
+ * (`SystemClock.elapsedRealtime`, ms): in memory only. A stop while the place has not been played since it was given
+ * back keeps the first [keptAtMs]: the hold measures one untended pause (ADR-0021 5).
+ */
+internal data class KeptPlace(
+    val kept: Kept,
+    val keptAtMs: Long,
+) {
+    /** True while the hold [holdMs] has not run out at [nowMs]; a monotonic clock that went back counts as run out. */
+    fun heldAt(
+        nowMs: Long,
+        holdMs: Long,
+    ): Boolean = (nowMs - keptAtMs) in 0..holdMs
+}
+
 /** How a sitting gets its tuner: over [VideoPlayer], for [Session]. A test swaps it for one that records. */
 internal fun interface TunerFactory {
     fun create(
@@ -91,7 +109,8 @@ internal class ControllerTunerFactory
 /**
  * Supplies the live screen's collaborators and holds what it shows. It does NOT own the player: the player lives for
  * one STARTED period of the screen ([sit]), so backgrounding or standby stops everything at once and returning starts a
- * fresh sitting that re-anchors to the clock (review of spec 14: one player at a time, none kept while stopped).
+ * fresh sitting that re-anchors to the clock (review of spec 14: one player at a time, none kept while stopped). Only
+ * a paused place ([KeptPlace], in memory only) is kept across a stop, for `LiveTimings.pauseHoldMax` (ADR-0021 5).
  */
 @Suppress("LongParameterList") // The machine's ports, the tuner and the player's factory, one for one.
 @HiltViewModel
@@ -118,6 +137,11 @@ internal class LiveViewModel
 
         /** The program info overlay (spec 17), while one is open. */
         val info: StateFlow<LiveInfo?> = shownInfo.asStateFlow()
+
+        private val shownTransport = MutableStateFlow<TransportView?>(null)
+
+        /** The transport while the viewer is behind or paused; null while live (spec 20). */
+        val transport: StateFlow<TransportView?> = shownTransport.asStateFlow()
 
         private val guide = GuideSwitch()
 
@@ -147,10 +171,18 @@ internal class LiveViewModel
         // Here, not in the composition, because the ViewModel outlives it; drained at the start of each sitting.
         private val commands = Channel<LiveCommand>(Channel.UNLIMITED)
 
+        // The paused place the last screen stop kept (ADR-0021 5): taken once by the next sitting within
+        // pauseHoldMax, measured on the monotonic clock. Never persisted, so it is gone with the process. Main thread
+        // only.
+        private var kept: KeptPlace? = null
+
         /** Opens the guide over the channel playing now; [atNanos] is when its key arrived (`System.nanoTime`). */
         fun openGuide(atNanos: Long) {
             guide.open(atNanos, live?.playingChannel)
         }
+
+        /** The clock now (epoch ms), the one the transport view's times are in: the strip reads it. */
+        fun nowMs(): Long = clock.now().toEpochMilliseconds()
 
         fun closeGuide() {
             guide.close()
@@ -162,7 +194,7 @@ internal class LiveViewModel
          * latest. A command still in the queue is not in them yet, which errs towards doing less: a Back right behind
          * a Back that is closing an overlay closes again (a no-op) rather than opening the guide or leaving.
          */
-        fun overlayUpNow(): OverlayUp = overlayUpOf(state.value, info.value, guideOpen.value)
+        fun overlayUpNow(): OverlayUp = overlayUpOf(state.value, info.value, guideOpen.value, transport.value)
 
         /** A key press, in order. Presses made while the screen was stopped are dropped by the next [sit]. */
         fun send(command: LiveCommand) {
@@ -177,7 +209,11 @@ internal class LiveViewModel
          */
         fun leave() {
             val running = period ?: return
-            if (running.leave() && period === running) period = null
+            if (running.leave() && period === running) {
+                period = null
+                // No sitting, no transport: a paused place must not make Select play or Left and Right seek nothing.
+                shownTransport.value = null
+            }
         }
 
         /**
@@ -191,29 +227,40 @@ internal class LiveViewModel
             context: Context,
             surface: SurfaceView,
             tuners: TunerFactory = controllers,
-        ) = sit({ players.create(context, SystemClock::elapsedRealtime) }, surface, tuners) { Log.i(LOG_TAG, it) }
+        ) {
+            val elapsed = SystemClock::elapsedRealtime
+            sit({ players.create(context, elapsed) }, surface, tuners, elapsed) { Log.i(LOG_TAG, it) }
+        }
 
         /**
          * [sit] with its Android parts passed in, so a JVM test can run a sitting: [makePlayer] makes the period's
-         * player, [surface] is what it shows on (null: none) and [log] takes the logcat lines.
+         * player, [surface] is what it shows on (null: none), [elapsedMs] is the monotonic clock the pause hold is
+         * measured on and [log] takes the logcat lines.
          */
         internal suspend fun sit(
             makePlayer: () -> VideoPlayer,
             surface: SurfaceView?,
             tuners: TunerFactory,
+            elapsedMs: () -> Long,
             log: (String) -> Unit,
-        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, log) }
+        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, elapsedMs, log) }
 
         @Suppress("SwallowedException") // The period's own cancel ends it; a cancel of the caller is rethrown.
         private suspend fun sitting(
             makePlayer: () -> VideoPlayer,
             surface: SurfaceView?,
             tuners: TunerFactory,
+            elapsedMs: () -> Long,
             log: (String) -> Unit,
         ) {
+            // Once only: within the hold the next run returns to the place, paused; past it the viewer joins live,
+            // playing (the place is dropped).
+            val resume = kept?.takeIf { it.heldAt(elapsedMs(), timings.pauseHoldMax.inWholeMilliseconds) }
+            kept = null
             val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
+            shownTransport.value = null
             val session = sessions.current.value
             drainStalePresses(commands, before, session == null, log)
             if (session == null) {
@@ -224,8 +271,13 @@ internal class LiveViewModel
             try {
                 // Its own scope, so a leave cancels this period and never the caller's job.
                 coroutineScope {
-                    val running = LivePeriod(makePlayer(), coroutineContext.job)
-                    ended = period(running, session, surface, tuners, log)
+                    val running =
+                        LivePeriod(makePlayer(), coroutineContext.job, resume?.kept) { place ->
+                            // Never played since it was given back: the same untended pause, so the same hold.
+                            val since = resume?.keptAtMs?.takeIf { place?.untended == true }
+                            kept = place?.let { KeptPlace(it, since ?: elapsedMs()) }
+                        }
+                    ended = period(running, session, surface, tuners, log, resume?.kept)
                 }
             } catch (e: CancellationException) {
                 // The leave cancelled the period: the sitting is over and the caller carries on. A cancel of the caller
@@ -244,13 +296,14 @@ internal class LiveViewModel
         }
 
         /** Runs [running]'s live channel until the session ends (true) or it is cancelled, then tears it down. */
-        @Suppress("LongParameterList") // The period, its session and the sitting's Android parts.
+        @Suppress("LongParameterList") // The period, its session, the sitting's Android parts and a kept place.
         private suspend fun period(
             running: LivePeriod,
             session: Session,
             surface: SurfaceView?,
             tuners: TunerFactory,
             log: (String) -> Unit,
+            resume: Kept?,
         ): Boolean {
             period = running
             val player = running.player
@@ -281,10 +334,12 @@ internal class LiveViewModel
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
-                    machine.run(commands.receiveAsFlow())
+                    val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
+                    machine.run(commands.receiveAsFlow(), resume)
                     // run() returns only when the session ended.
                     mirror.cancel()
                     infoMirror.cancel()
+                    transportMirror.cancel()
                 }
                 ended = machine.state.value == LiveState.SignedOut
                 if (!ended) shown.value = machine.state.value
