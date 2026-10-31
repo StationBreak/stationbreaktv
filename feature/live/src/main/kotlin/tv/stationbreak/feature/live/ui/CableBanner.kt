@@ -74,7 +74,7 @@ private const val BAR_LOW_ALPHA = 0.25f
  * episode line when there is one, and the slot with how far in the viewer joined. Under the title a progress bar,
  * redrawn once a minute from [clock] without recomposing, and the "Next" line. The banner the viewer asked for
  * ([Banner.actions]) adds an Info and a Last button, which call [onInfo] and [onLast], and a Live button (while
- * [Banner.behind]) that calls [onLive]. Inside a 5% safe area.
+ * [behind]: the viewer is paused or behind live) that calls [onLive]. Inside a 5% safe area.
  */
 @Suppress("LongParameterList") // The banner, its two actions and a clock a test can set.
 @Composable
@@ -85,6 +85,7 @@ internal fun CableBanner(
     onInfo: () -> Unit = {},
     onLast: () -> Unit = {},
     onLive: () -> Unit = {},
+    behind: Boolean = false,
     clock: () -> Long = System::currentTimeMillis,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -108,6 +109,7 @@ internal fun CableBanner(
             banner,
             Modifier.align(Alignment.BottomCenter).padding(start = side, end = side, bottom = edge),
             Actions(onInfo, onLast, onLive),
+            behind,
             clock,
         )
     }
@@ -153,6 +155,7 @@ private fun BannerStrip(
     banner: Banner,
     modifier: Modifier,
     actions: Actions,
+    behind: Boolean,
     clock: () -> Long,
 ) {
     val context = LocalContext.current
@@ -207,7 +210,7 @@ private fun BannerStrip(
                     ProgressBar(banner.slotStartMs, banner.slotEndMs, programCopy, clock)
                 }
                 next?.let { Detail(it, LiveTags.BANNER_NEXT, Modifier.fillMaxWidth()) }
-                if (banner.actions) ActionsRow(banner.hasLast, actions, banner.behind)
+                if (banner.actions) ActionsRow(banner.hasLast, actions, behind)
             }
         }
     }

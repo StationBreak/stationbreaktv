@@ -59,15 +59,7 @@ internal class Overlays(
         if (shown.banner?.actions == true) {
             arm(scope, shown)
         } else {
-            val actions =
-                LiveState.Watching(
-                    playing.banner.copy(
-                        actions = true,
-                        hasLast = tuned.previous != null,
-                        behind =
-                            screen.transport.value != null,
-                    ),
-                )
+            val actions = LiveState.Watching(playing.banner.copy(actions = true, hasLast = tuned.previous != null))
             screen.overlay(actions)
             arm(scope, actions)
         }

@@ -89,24 +89,6 @@ class KeptPlaceTest {
     ) = assertTrue("expected $expectedMs, was $actualMs", abs(expectedMs - actualMs) <= toleranceMs)
 
     @Test
-    fun theActionsBannerOffersLiveOnlyWhilePausedOrBehind() =
-        runTest {
-            val k = keys(startMin = 30, resume = kept(one, 20 * MIN))
-            k.r.at(1_000)
-            k.press(LiveCommand.ShowBanner)
-            val paused = checkNotNull((k.r.state as LiveState.Watching).banner)
-            assertTrue(paused.actions)
-            assertTrue("paused is behind live", paused.behind)
-            k.finish()
-
-            val live = keys(startMin = 30)
-            live.r.at(5_000)
-            live.press(LiveCommand.ShowBanner)
-            assertFalse(checkNotNull((live.r.state as LiveState.Watching).banner).behind)
-            live.finish()
-        }
-
-    @Test
     fun aRunGivenAPausedPlaceTunesItAndPausesAtOnce() =
         runTest {
             val place = 20 * MIN

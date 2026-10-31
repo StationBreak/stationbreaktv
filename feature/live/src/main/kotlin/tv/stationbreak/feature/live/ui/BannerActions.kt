@@ -10,13 +10,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -97,6 +102,15 @@ internal fun ActionsRow(
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
+    // The Live button comes and goes with the transport; if it held the focus when it went, Info takes it.
+    var liveFocused by remember { mutableStateOf(false) }
+    var refocus by remember { mutableStateOf(false) }
+    LaunchedEffect(refocus) {
+        if (refocus) {
+            first.requestFocus()
+            refocus = false
+        }
+    }
     // 6 dp here plus the banner column's 4 dp spacing makes the 10 dp gap above the buttons of the UX notes.
     Row(
         Modifier.padding(top = 6.dp).testTag(LiveTags.BANNER_ACTIONS),
@@ -104,7 +118,12 @@ internal fun ActionsRow(
     ) {
         // DESIGN(#383): placeholder
         if (behind) {
-            ActionButton(R.string.live_action_live, actions.live, Modifier.testTag(LiveTags.BANNER_ACTION_LIVE))
+            DisposableEffect(Unit) { onDispose { if (liveFocused) refocus = true } }
+            val live =
+                Modifier
+                    .onFocusChanged { liveFocused = it.hasFocus }
+                    .testTag(LiveTags.BANNER_ACTION_LIVE)
+            ActionButton(R.string.live_action_live, actions.live, live)
         }
         val info = Modifier.focusRequester(first).testTag(LiveTags.BANNER_ACTION_INFO)
         ActionButton(R.string.live_action_info, actions.info, info)

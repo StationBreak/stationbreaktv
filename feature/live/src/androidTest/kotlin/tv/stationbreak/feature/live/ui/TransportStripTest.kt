@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -64,6 +65,20 @@ class TransportStripTest {
     fun hasNoSpinnerWhenNotSeeking() {
         show(view())
         compose.onNodeWithTag(LiveTags.TRANSPORT_SPINNER, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun showsNothingWhenCaughtUpAndPlaying() {
+        show(view().copy(mediaMs = 15 * MINUTE))
+        compose.onNodeWithTag(LiveTags.TRANSPORT, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun theSpinnerSaysSeeking() {
+        show(view(seeking = true))
+        compose
+            .onNodeWithTag(LiveTags.TRANSPORT_SPINNER, useUnmergedTree = true)
+            .assertContentDescriptionEquals("Seeking")
     }
 
     @Test

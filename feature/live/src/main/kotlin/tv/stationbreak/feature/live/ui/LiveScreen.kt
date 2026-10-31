@@ -72,7 +72,7 @@ internal fun LiveScreen(
             Box(Modifier.inRect(corner).clipToBounds()) { PictureLayers(state) }
             guide(corner)
         } else {
-            LiveLayers(state, info, onCommand)
+            LiveLayers(state, info, onCommand, behind = transport != null)
             TransportStrip(transport, System::currentTimeMillis)
         }
     }
@@ -145,6 +145,7 @@ private fun LiveLayers(
     state: LiveState,
     info: LiveInfo?,
     onCommand: (LiveCommand) -> Unit,
+    behind: Boolean,
 ) {
     Box(Modifier.fillMaxSize()) {
         when (state) {
@@ -160,6 +161,7 @@ private fun LiveLayers(
                         onInfo = { onCommand(LiveCommand.ShowInfo) },
                         onLast = { onCommand(LiveCommand.Previous) },
                         onLive = { onCommand(LiveCommand.GoLive) },
+                        behind = behind,
                     )
                 }
             }

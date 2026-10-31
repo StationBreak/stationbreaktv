@@ -112,7 +112,7 @@ internal fun LiveRoot(
         viewModel.leave()
     }
     LeaveAtOnce(owner, leaveNow) { if (sittings.value == null) sittings.value = System.nanoTime() }
-    KeepScreenOn(owner, paused = transport?.paused == true)
+    KeepScreenOn(owner, paused = !keepsScreenOn(transport))
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
     LiveKeysRoot(
@@ -202,6 +202,9 @@ private fun logLiveKey(
     val line = keyLogLine(event.type, event.key, native.keyCode, native.repeatCount, handled, state, up)
     line?.let { Log.i(LOG_TAG, it) }
 }
+
+/** False while the viewer is paused: an untended pause lets the device sleep (ADR-0021). */
+internal fun keepsScreenOn(transport: TransportView?): Boolean = transport?.paused != true
 
 /**
  * A TV channel never lets the device sleep while it is on screen (snow, slates and the "No channels" card included):
