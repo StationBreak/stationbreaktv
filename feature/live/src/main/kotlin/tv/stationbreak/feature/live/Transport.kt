@@ -87,7 +87,10 @@ data class Place(
 data class Kept(
     val place: Place,
     val watched: WatchSnapshot?,
-    /** True while this is the place a run was given back and it has not been played since: the same untended pause. */
+    /**
+     * True while this is the place a run was given back and it has not been played since: the same untended pause.
+     * Bookkeeping for the host's hold; `LiveChannel.run` ignores it on input.
+     */
     val untended: Boolean = false,
 )
 

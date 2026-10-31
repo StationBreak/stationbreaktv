@@ -263,4 +263,30 @@ class KeptPlaceTest {
             assertFalse(checkNotNull(k.r.live.kept()).untended)
             k.finish()
         }
+
+    @Test
+    fun aReturnToABlockStillOnAirReadsTheScheduleOnlyForNow() =
+        runTest {
+            val k = keys(startMin = 30, resume = kept(one, 20 * MIN))
+            assertEquals(listOf(Call.Tune(itemOf(1), 20.minutes, 0)), k.r.tunes)
+            // What is on now already shows the kept block: no second read at the block's start.
+            assertTrue(
+                k.r.schedule.onAirCalls
+                    .none { it.second == one.startMs },
+            )
+            k.finish()
+        }
+
+    @Test
+    fun aReturnToAnEndedBlockChecksItIsStillScheduled() =
+        runTest {
+            val k = keys(startMin = 70, resume = kept(one, 50 * MIN))
+            assertEquals(listOf(Call.Tune(itemOf(1), 50.minutes, 0)), k.r.tunes)
+            assertEquals(
+                1,
+                k.r.schedule.onAirCalls
+                    .count { it.second == one.startMs },
+            )
+            k.finish()
+        }
 }

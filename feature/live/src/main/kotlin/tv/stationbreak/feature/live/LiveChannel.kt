@@ -242,6 +242,8 @@ class LiveChannel(
         request: SitRequest,
     ) {
         logFlip(unstarted?.flip, "superseded")
+        // A flip leaves the kept place behind: a stop during its snow keeps nothing from before it.
+        pendingResume = null
         unstarted = request
         request.flip?.sentAt = clock.now()
         requests.trySend(request)
@@ -550,15 +552,35 @@ class LiveChannel(
         request?.first?.let { return Landing(checkNotNull(account), it, null) }
         val (acct, onAir) = kept?.let { onAirFor(it) } ?: awaitChannel()
         account = acct
-        val place = kept?.takeIf { it.channel == onAir.channel.id && stillScheduled(it) }
+        val place = kept?.takeIf { it.channel == onAir.channel.id && stillScheduled(it, onAir) }
         if (place == null) pendingResume = null
         return Landing(acct, onAir, place)
     }
 
-    /** True when [place]'s block is still the one its channel airs at its start: a lineup built again drops it. */
-    private suspend fun stillScheduled(place: Place): Boolean {
-        val at = Instant.fromEpochMilliseconds(place.block.startMs)
-        return schedule.onAir(place.channel, at, 0)?.now?.sameAs(place.block) == true
+    /**
+     * True when [place]'s block is still the one its channel airs in its slot: a lineup built again drops it. What is
+     * on now ([onAir]) answers for a block still on the air; only a block the clock has already ended is looked up
+     * again, at its start. Any other block in the slot now is another lineup.
+     */
+    private suspend fun stillScheduled(
+        place: Place,
+        onAir: ChannelOnAir,
+    ): Boolean {
+        val block = place.block
+        return when {
+            onAir.now.startMs == block.startMs -> {
+                onAir.now.sameAs(block)
+            }
+
+            clock.now().toEpochMilliseconds() >= block.endMs -> {
+                val at = Instant.fromEpochMilliseconds(block.startMs)
+                schedule.onAir(place.channel, at, 0)?.now?.sameAs(block) == true
+            }
+
+            else -> {
+                false
+            }
+        }
     }
 
     /** A kept [place]'s channel with what is on it now, and the active account; null when it is not on air. */
