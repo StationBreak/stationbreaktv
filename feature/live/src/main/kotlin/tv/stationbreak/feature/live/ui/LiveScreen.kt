@@ -32,6 +32,7 @@ import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.TransportView
 import java.time.ZoneId
 
 /**
@@ -40,6 +41,8 @@ import java.time.ZoneId
  * [surface] is the video surface and is always the bottom layer, composed in the same place for every state, so the
  * picture is there the moment the player has one. Everything else is drawn over it and opaque, except the banner while
  * the picture plays, so snow and slates never let a half-ready picture show through.
+ *
+ * [transport], while the viewer is paused or behind, draws the placeholder transport strip over the picture.
  *
  * [info] is the program info overlay (spec 17), over the picture in place of the banner; the actions banner's buttons
  * send their [LiveCommand] to [onCommand].
@@ -50,12 +53,14 @@ import java.time.ZoneId
  * picture plays on. What stands in for a picture (snow, the cards) is drawn in the corner too, cut to it; the banners
  * and the info overlay make way for the guide, which says the same.
  */
+@Suppress("LongParameterList") // The state, its overlays and the transport, and the surface.
 @Composable
 internal fun LiveScreen(
     state: LiveState,
     info: LiveInfo? = null,
     onCommand: (LiveCommand) -> Unit = {},
     guide: (@Composable (pictureHole: DpRect) -> Unit)? = null,
+    transport: TransportView? = null,
     surface: @Composable () -> Unit,
 ) {
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
@@ -68,6 +73,7 @@ internal fun LiveScreen(
             guide(corner)
         } else {
             LiveLayers(state, info, onCommand)
+            TransportStrip(transport, System::currentTimeMillis)
         }
     }
 }
@@ -153,6 +159,7 @@ private fun LiveLayers(
                         it,
                         onInfo = { onCommand(LiveCommand.ShowInfo) },
                         onLast = { onCommand(LiveCommand.Previous) },
+                        onLive = { onCommand(LiveCommand.GoLive) },
                     )
                 }
             }

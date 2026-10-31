@@ -51,6 +51,7 @@ class LiveBannerActionsTest {
     private fun banner(
         actions: Boolean = false,
         hasLast: Boolean = false,
+        behind: Boolean = false,
         next: NextProgram? = NextProgram("Test Movie B", START + 30 * MINUTE),
     ) = Banner(
         4,
@@ -64,6 +65,7 @@ class LiveBannerActionsTest {
         next,
         actions,
         hasLast,
+        behind,
     )
 
     private fun show(
@@ -130,13 +132,13 @@ class LiveBannerActionsTest {
      * The app's own key path: [LiveKeysRoot] takes the keys first, as on the TV. Select asks for the actions banner,
      * which this stand-in machine then shows, so the buttons appear the way they do after a real press.
      */
-    private fun showKeysRoot() {
+    private fun showKeysRoot(behind: Boolean = false) {
         compose.setContent {
             var state by remember { mutableStateOf<LiveState>(LiveState.Watching(banner())) }
             val machine = { command: LiveCommand ->
                 sent += command
                 if (command == LiveCommand.ShowBanner) {
-                    state = LiveState.Watching(banner(actions = true, hasLast = true))
+                    state = LiveState.Watching(banner(actions = true, hasLast = true, behind = behind))
                 }
             }
             StationBreakTheme { LiveKeysRoot(state, null, machine) {} }
@@ -189,6 +191,49 @@ class LiveBannerActionsTest {
         sent.clear()
         press(Key.DirectionCenter)
         assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent.toList())
+    }
+
+    @Test
+    fun liveShowsOnlyWhileBehindAndInfoKeepsTheFocus() {
+        var behind by mutableStateOf(false)
+        compose.setContent {
+            StationBreakTheme { CableBanner(banner(actions = true, hasLast = true, behind = behind)) }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertDoesNotExist()
+        compose.runOnIdle { behind = true }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        // Live, Info, Last: left to right.
+        val live =
+            compose
+                .onNodeWithTag(LiveTags.BANNER_ACTION_LIVE)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        val info =
+            compose
+                .onNodeWithTag(LiveTags.BANNER_ACTION_INFO)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        val last =
+            compose
+                .onNodeWithTag(LiveTags.BANNER_ACTION_LAST)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        assertTrue("$live $info $last", live < info && info < last)
+    }
+
+    @Test
+    fun liveSendsGoLive() {
+        showKeysRoot(behind = true)
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        press(Key.DirectionLeft)
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertIsFocused()
+        sent.clear()
+        press(Key.DirectionCenter)
+        assertEquals(listOf<LiveCommand>(LiveCommand.GoLive), sent.toList())
     }
 
     @Test

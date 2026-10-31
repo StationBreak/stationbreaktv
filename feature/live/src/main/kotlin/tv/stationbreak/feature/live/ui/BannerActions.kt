@@ -46,6 +46,7 @@ private val ActionTextSize = 16.sp
 internal class Actions(
     val info: () -> Unit,
     val last: () -> Unit,
+    val live: () -> Unit = {},
 )
 
 /**
@@ -85,11 +86,14 @@ internal fun ProgressBar(
     )
 }
 
-/** Info, then Last (when there is a channel to go back to). Info has the focus as the row appears. */
+/**
+ * Live (while behind), Info, then Last (when there is a channel to go back to). Info has the focus as the row appears.
+ */
 @Composable
 internal fun ActionsRow(
     hasLast: Boolean,
     actions: Actions,
+    behind: Boolean = false,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
@@ -98,6 +102,10 @@ internal fun ActionsRow(
         Modifier.padding(top = 6.dp).testTag(LiveTags.BANNER_ACTIONS),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // DESIGN(#383): placeholder
+        if (behind) {
+            ActionButton(R.string.live_action_live, actions.live, Modifier.testTag(LiveTags.BANNER_ACTION_LIVE))
+        }
         val info = Modifier.focusRequester(first).testTag(LiveTags.BANNER_ACTION_INFO)
         ActionButton(R.string.live_action_info, actions.info, info)
         if (hasLast) {

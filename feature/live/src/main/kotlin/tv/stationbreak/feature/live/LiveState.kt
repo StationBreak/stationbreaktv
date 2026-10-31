@@ -77,7 +77,8 @@ enum class BannerLabel {
  * holds the rest of the show's names (the episode line is made from it on the screen, from resources). [joinedMs] is
  * how far into the media the viewer joined (null when the show cut in at its start, and for "up next"). [next] is the
  * program that follows, when one does. [actions] is true for the banner the viewer asked for (Select or Info), which
- * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go).
+ * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go), and a Live
+ * button while [behind] (the viewer is paused or behind live).
  */
 data class Banner(
     val number: Int,
@@ -91,6 +92,7 @@ data class Banner(
     val next: NextProgram? = null,
     val actions: Boolean = false,
     val hasLast: Boolean = false,
+    val behind: Boolean = false,
 )
 
 /** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */

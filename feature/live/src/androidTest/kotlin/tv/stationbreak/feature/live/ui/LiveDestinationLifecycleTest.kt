@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -447,6 +448,33 @@ class LiveDestinationLifecycleTest {
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
         compose.runOnIdle { shown = false }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
+    }
+
+    @Test
+    fun pausingReleasesTheScreenSoTheDeviceCanSleep() {
+        // ADR-0021: an untended pause lets the device sleep; Play turns the flag on again. The app takes no wake lock.
+        var paused by mutableStateOf(false)
+        var host: View? = null
+        compose.setContent {
+            host = LocalView.current
+            StationBreakTheme { KeepScreenOn(LocalLifecycleOwner.current, paused) }
+        }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
+        compose.runOnIdle { paused = true }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
+        compose.runOnIdle { paused = false }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
+        compose.runOnIdle { paused = true }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
+        // A paused screen that stops and starts again stays released.
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        compose.waitForIdle()
+        assertEquals(false, host?.keepScreenOn)
+        compose.runOnIdle { paused = false }
+        compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
     }
 
