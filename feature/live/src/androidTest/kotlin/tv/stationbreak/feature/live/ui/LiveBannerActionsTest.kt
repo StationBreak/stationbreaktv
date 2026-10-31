@@ -269,7 +269,6 @@ class LiveBannerActionsTest {
             }
         }
         compose.waitForIdle()
-        compose.runOnIdle { transport = view(paused = true) }
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).performSemanticsAction(SemanticsActions.RequestFocus)
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertIsFocused()
         compose.runOnIdle { transport = null }

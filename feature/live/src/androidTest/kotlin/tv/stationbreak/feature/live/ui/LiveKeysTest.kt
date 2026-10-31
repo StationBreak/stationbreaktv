@@ -60,6 +60,7 @@ import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.NextHandle
+import tv.stationbreak.feature.live.SeekDirection
 import tv.stationbreak.feature.live.TuneOutcome
 import tv.stationbreak.feature.live.TunePort
 import java.util.concurrent.CopyOnWriteArrayList
@@ -238,13 +239,14 @@ class LiveKeysTest {
     }
 
     @Test
-    fun backSendsNoCommandAndTheMediaKeysAreNotConsumed() {
+    fun backSendsNoCommandAndTheMediaKeysSeek() {
         show()
-        for (code in listOf(KEYCODE_BACK, KEYCODE_MEDIA_NEXT, KEYCODE_MEDIA_PREVIOUS)) {
-            assertNull("$code", liveKeyCommand(key(ACTION_DOWN, code)))
-        }
-        press(listOf(Key.MediaNext, Key.MediaPrevious))
-        assertEquals(emptyList<LiveCommand>(), sent.toList())
+        assertNull("$KEYCODE_BACK", liveKeyCommand(key(ACTION_DOWN, KEYCODE_BACK)))
+        // The media keys are the transport's (ADR-0021, 2): Next steps ahead, Previous steps back.
+        val ahead = liveKeyCommand(key(ACTION_DOWN, KEYCODE_MEDIA_NEXT))
+        assertEquals(SeekDirection.Ahead, (ahead as LiveCommand.Seek).direction)
+        val back = liveKeyCommand(key(ACTION_DOWN, KEYCODE_MEDIA_PREVIOUS))
+        assertEquals(SeekDirection.Back, (back as LiveCommand.Seek).direction)
     }
 
     @Test

@@ -112,7 +112,7 @@ internal fun LiveRoot(
         viewModel.leave()
     }
     LeaveAtOnce(owner, leaveNow) { if (sittings.value == null) sittings.value = System.nanoTime() }
-    KeepScreenOn(owner, paused = !keepsScreenOn(transport))
+    KeepScreenOn(owner, keepsScreenOn(transport))
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
     LiveKeysRoot(
@@ -211,23 +211,24 @@ internal fun keepsScreenOn(transport: TransportView?): Boolean = transport?.paus
  * the view keeps the screen on from STARTED until the screen leaves or stops. A view flag, so the feature does not
  * touch the activity's window.
  *
- * Not while [paused] (ADR-0021): an untended pause lets the device sleep, so the screensaver can come on. The app takes
- * no wake lock and never wakes the device; Play and a return to live turn the flag on again.
+ * Not while [keep] is false (the viewer is paused, ADR-0021): an untended pause lets the device sleep, so the
+ * screensaver can come on. The app takes no wake lock and never wakes the device; Play and a return to live turn the
+ * flag on again.
  */
 @Composable
 internal fun KeepScreenOn(
     owner: LifecycleOwner,
-    paused: Boolean,
+    keep: Boolean,
 ) {
     val view = LocalView.current
-    val pausedNow by rememberUpdatedState(paused)
+    val keepNow by rememberUpdatedState(keep)
     DisposableEffect(view, owner) {
         val observer =
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_START) view.keepScreenOn = !pausedNow
+                if (event == Lifecycle.Event.ON_START) view.keepScreenOn = keepNow
                 if (event == Lifecycle.Event.ON_STOP) view.keepScreenOn = false
             }
-        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = !pausedNow
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = keepNow
         owner.lifecycle.addObserver(observer)
         onDispose {
             owner.lifecycle.removeObserver(observer)
@@ -235,8 +236,8 @@ internal fun KeepScreenOn(
         }
     }
     // A pause or a play while the screen is up; a stopped screen stays off.
-    DisposableEffect(view, owner, paused) {
-        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = !paused
+    DisposableEffect(view, owner, keep) {
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = keep
         onDispose {}
     }
 }

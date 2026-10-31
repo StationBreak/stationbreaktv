@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.TransportView
 
-/** The placeholder transport strip (spec 20): paused, minutes behind, a spinner while seeking, hidden when not visible. */
+/** The placeholder transport strip (spec 20): paused, minutes behind, a spinner while seeking, or hidden. */
 @RunWith(AndroidJUnit4::class)
 class TransportStripTest {
     @get:Rule

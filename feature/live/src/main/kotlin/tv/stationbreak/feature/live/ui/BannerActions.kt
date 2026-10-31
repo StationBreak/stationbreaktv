@@ -10,16 +10,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
@@ -101,34 +102,46 @@ internal fun ActionsRow(
     behind: Boolean = false,
 ) {
     val first = remember { FocusRequester() }
+    val live = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
-    // The Live button comes and goes with the transport; if it held the focus when it went, Info takes it.
-    var liveFocused by remember { mutableStateOf(false) }
-    var refocus by remember { mutableStateOf(false) }
-    LaunchedEffect(refocus) {
-        if (refocus) {
-            first.requestFocus()
-            refocus = false
-        }
+    // The Live button comes and goes with the transport. If the row had the focus and neither Info nor Last has it
+    // once Live is gone, it was Live's: Info takes it. Losses are ignored once `behind` is false, so the row's last
+    // state while Live was there is what is read (the detach of a focused Live reports a loss of its own).
+    val behindNow by rememberUpdatedState(behind)
+    var rowFocused by remember { mutableStateOf(false) }
+    var infoFocused by remember { mutableStateOf(false) }
+    var lastFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(behind) {
+        val onLive = rowFocused && !infoFocused && !lastFocused
+        if (!behind && onLive) first.requestFocus()
     }
     // 6 dp here plus the banner column's 4 dp spacing makes the 10 dp gap above the buttons of the UX notes.
     Row(
-        Modifier.padding(top = 6.dp).testTag(LiveTags.BANNER_ACTIONS),
+        Modifier
+            .padding(top = 6.dp)
+            .onFocusChanged { if (behindNow || it.hasFocus) rowFocused = it.hasFocus }
+            .testTag(LiveTags.BANNER_ACTIONS),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // DESIGN(#383): placeholder
         if (behind) {
-            DisposableEffect(Unit) { onDispose { if (liveFocused) refocus = true } }
-            val live =
+            val modifier =
                 Modifier
-                    .onFocusChanged { liveFocused = it.hasFocus }
+                    .focusRequester(live)
+                    .focusProperties { right = first }
                     .testTag(LiveTags.BANNER_ACTION_LIVE)
-            ActionButton(R.string.live_action_live, actions.live, live)
+            ActionButton(R.string.live_action_live, actions.live, modifier)
         }
-        val info = Modifier.focusRequester(first).testTag(LiveTags.BANNER_ACTION_INFO)
+        val info =
+            Modifier
+                .focusRequester(first)
+                .focusProperties { if (behind) left = live }
+                .onFocusChanged { infoFocused = it.hasFocus }
+                .testTag(LiveTags.BANNER_ACTION_INFO)
         ActionButton(R.string.live_action_info, actions.info, info)
         if (hasLast) {
-            ActionButton(R.string.live_action_last, actions.last, Modifier.testTag(LiveTags.BANNER_ACTION_LAST))
+            val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
+            ActionButton(R.string.live_action_last, actions.last, last)
         }
     }
 }

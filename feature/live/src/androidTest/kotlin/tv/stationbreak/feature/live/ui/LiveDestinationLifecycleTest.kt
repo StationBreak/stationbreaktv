@@ -454,25 +454,25 @@ class LiveDestinationLifecycleTest {
     @Test
     fun pausingReleasesTheScreenSoTheDeviceCanSleep() {
         // ADR-0021: an untended pause lets the device sleep; Play turns the flag on again. The app takes no wake lock.
-        var paused by mutableStateOf(false)
+        var keep by mutableStateOf(true)
         var host: View? = null
         compose.setContent {
             host = LocalView.current
-            StationBreakTheme { KeepScreenOn(LocalLifecycleOwner.current, paused) }
+            StationBreakTheme { KeepScreenOn(LocalLifecycleOwner.current, keep) }
         }
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
-        compose.runOnIdle { paused = true }
+        compose.runOnIdle { keep = false }
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
-        compose.runOnIdle { paused = false }
+        compose.runOnIdle { keep = true }
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
-        compose.runOnIdle { paused = true }
+        compose.runOnIdle { keep = false }
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
         // A paused screen that stops and starts again stays released.
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         compose.waitForIdle()
         assertEquals(false, host?.keepScreenOn)
-        compose.runOnIdle { paused = false }
+        compose.runOnIdle { keep = true }
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
