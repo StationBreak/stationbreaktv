@@ -2,7 +2,7 @@
 # Kotlin 2.4.20 or later is required by jellyfin-sdk-kotlin 1.9.2 (F0.3). AGP 9 has Kotlin built in;
 # declaring the Kotlin plugin in the root build raises AGP's bundled Kotlin to this version.
 kotlin = "2.4.21"
-agp = "9.4.1"
+agp = "9.5.0"
 # detekt 2.0.0-alpha.6 is the only release built for Kotlin 2.4; move to 2.0 stable when it ships.
 detekt = "2.0.0-alpha.6"
 spotless = "8.10.4"
@@ -28,17 +28,17 @@ hiltNavigationCompose = "1.4.0"
 
 # jellyfin-sdk-kotlin 1.9.2 (checked 2026-10-13): the 12.0+ line, the version ADR-0006 tested. Upgrade only through the
 # contract matrix (F0.3 Unit 3).
-jellyfinSdk = "1.9.2"
+jellyfinSdk = "1.9.4"
 # OkHttp and kotlinx-coroutines are pinned to the versions the SDK 1.9.2 POM resolves (ADR-0006): move them only
 # together with the SDK.
-okhttp = "5.5.0"
+okhttp = "5.5.1"
 coroutines = "1.11.0"
 # kotlinx-serialization 1.11.0 is the latest stable (checked 2026-10-13; 1.12.0 is still an RC). Its compiler plugin
 # is the Kotlin version.
-serialization = "1.11.0"
+serialization = "1.12.0"
 # slf4j-nop 2.0.18 is the SLF4J line the SDK's kotlin-logging resolves (slf4j-api 2.0.18, checked 2026-10-14): without a
 # binding the SDK's first request crashes on Android (ADR-0006, F0.3 task 2.13).
-slf4j = "2.0.18"
+slf4j = "2.0.20"
 
 # Hilt 2.60.1 and KSP 2.3.12 build and run with AGP 9.4.1 and Kotlin 2.4.21 (spiked 2026-10-14, F0.3 task 3.1). KSP,
 # not kapt: AGP 9's built-in Kotlin doesn't support kapt. Hilt is for `app` only (MODULES.md, "Hilt in pure modules").
@@ -141,7 +141,7 @@ testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "
 # Test only (see [versions]).
 json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 # Test only. Pins the validator's Jackson 3 tree to 3.2.3, which fixes the advisories in 3.2.1 (checked 2026-10-16).
-jackson-bom = { module = "tools.jackson:jackson-bom", version = "3.2.3" }
+jackson-bom = { module = "tools.jackson:jackson-bom", version = "3.2.4" }
 
 # Gradle plugins, as libraries: build-logic compiles its convention plugins against these.
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
