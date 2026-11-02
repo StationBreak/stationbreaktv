@@ -7,7 +7,13 @@ import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Filters
+import tv.stationbreak.core.rules.Ordering
+import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.Source
 import kotlin.random.Random
 import kotlin.test.Test
@@ -41,6 +47,45 @@ class DayInputsDifferentialTest {
         vararg sources: Source,
     ) = channel(id, number, state, ChannelSource.Custom(rules(id, *sources)))
 
+    // Rules of version 2: a rotation with caps and a collection source, and a channel with filters.
+    private fun v2(
+        id: String,
+        ordering: Ordering?,
+        filters: Filters?,
+        vararg sources: Source,
+    ) = ChannelRules(
+        2,
+        id,
+        Seed(id.hashCode().toULong()),
+        sources.toList(),
+        null,
+        null,
+        ordering,
+        timing(),
+        null,
+        filters,
+    )
+
+    private val boxSet = id(900)
+    private val years = Filters(null, 1990, 2010, null, null, null)
+
+    private val v2Fixture =
+        lineupOf(
+            channel(
+                "custom-1",
+                600,
+                ChannelState.On,
+                ChannelSource.Custom(v2("one", Ordering(OrderingMode.Rotation), null, Source.Collection(boxSet))),
+            ),
+            channel(
+                "custom-2",
+                610,
+                ChannelState.UserHidden,
+                ChannelSource.Custom(v2("two", null, years, Source.Genre("Comedy"))),
+            ),
+            leftovers("odds-and-ends", 199, null),
+        )
+
     private val fixtures: List<Lineup> =
         listOf(
             lineupOf(
@@ -64,6 +109,7 @@ class DayInputsDifferentialTest {
                 leftovers("kids-odds-and-ends", 99, "PG"),
                 leftovers("odds-and-ends", 199, null, ChannelState.UserHidden),
             ),
+            v2Fixture,
         )
 
     private val numbers = listOf(5, 50, 98, 99, 100, 120, 150, 199, 210, 250, 600, 999)
@@ -146,6 +192,25 @@ class DayInputsDifferentialTest {
         }
         assertTrue(compared >= MIN_COMPARED, "only $compared pairs shared inputs: the test would prove little")
         assertTrue(groups.size >= MIN_GROUPS, "only ${groups.size} distinct inputs: the edits change too little")
+    }
+
+    @Test
+    fun aCapsEditOrAFilterEditChangesTheDigest() {
+        fun digestOf(edit: (ChannelRules) -> ChannelRules): String {
+            val custom = v2Fixture.channels.first { it.id.value == "custom-1" }
+            val rules = (custom.source as ChannelSource.Custom).rules
+            val edited = custom.copy(source = ChannelSource.Custom(edit(rules)))
+            return days.inputsOf(lineupOf(edited))
+        }
+
+        val digests =
+            setOf(
+                digestOf { it },
+                digestOf { it.copy(ordering = Ordering(OrderingMode.Rotation, OrderingCaps(series = 2, film = 2))) },
+                digestOf { it.copy(filters = Filters(null, 1990, 2010, null, null, null)) },
+            )
+
+        assertEquals(3, digests.size)
     }
 
     private companion object {
