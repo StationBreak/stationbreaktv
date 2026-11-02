@@ -73,6 +73,8 @@ what the screen does then, and the few structural choices that go with it.
 9. **The app opens on the live screen.** The setup-complete placeholder is gone. After setup, and on every launch with a
    finished setup, the launch router sends the app to the live screen with nothing beneath it, so Back leaves the app.
    A session that ends while watching goes back to the launch router, which decides where the viewer goes.
+   `MainActivity` is `singleTask`, so a start while it is open (the launcher, `am start -n`) brings it forward rather
+   than stacking a second copy beneath which Back would land on the launch router again (#529).
 10. **The shared channel manager is a later idea.** Letting TVs agree on a stand-in or a drift would need a shared
     place to keep that state; a Jellyfin plugin acting as a channel manager is parked in
     [#354](https://github.com/StationBreak/stationbreaktv/issues/354). Spec 14 needs none of it, because every
