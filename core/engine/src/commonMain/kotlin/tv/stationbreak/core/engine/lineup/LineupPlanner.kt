@@ -21,8 +21,8 @@ import tv.stationbreak.core.rules.ChannelRules
  *   channel for the day may reshuffle once.
  * - While a newer catalog waits for a full collection pass, a shelved starter that switches on is resolved from the
  *   newer catalog's recipe, until that catalog is applied.
- * - What happens when the user's number override lands on another channel's default number is left to F2.4. Today a
- *   new recipe treats both default and override numbers as taken, so it never shares one.
+ * - The viewer's number override always holds. A new recipe treats both default and override numbers as taken, so
+ *   when its default is held by a viewer's override it joins the shelf with no number, and never shares one.
  */
 object LineupPlanner {
     /**
