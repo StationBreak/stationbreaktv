@@ -18,6 +18,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -208,6 +210,7 @@ class LiveChannel(
                 refresher = flipper::refresh
                 lineup = flipper::lineup
                 follow(this, commands, flipper)
+                launch { followLineup { flipper.lineupChanged() } }
                 try {
                     requests.receiveAsFlow().collectLatest { request ->
                         if (sit(session, request, neighbours, reporter)) throw RunEnded()
@@ -516,6 +519,21 @@ class LiveChannel(
             }
         }
         delay(timings.crashBackoff)
+    }
+
+    /**
+     * Calls [changed] whenever the On channels' ids or numbers change after the first list is seen (a switch-off or a
+     * renumber from the channels screen), so flipping builds its order afresh at once.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun followLineup(changed: () -> Unit) {
+        library
+            .activeAccount()
+            .flatMapLatest { account -> if (account == null) emptyFlow() else channels.channels(account) }
+            .map { list -> list.filter { it.state == ChannelStatus.On }.map { it.id to it.number } }
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { changed() }
     }
 
     /**

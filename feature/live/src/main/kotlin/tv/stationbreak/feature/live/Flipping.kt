@@ -139,6 +139,16 @@ internal class Flipper(
     // The guide's tune, while its lookup runs; a newer press or tune replaces it.
     private var tuning: Job? = null
 
+    /**
+     * Drops the cached lineup: the On channels or their numbers changed (the channels screen), so the next press builds
+     * its order afresh. A run of presses already moving keeps the order it took ([order]); the drop applies at its
+     * next build. A read in flight is cancelled, as it may carry the old lineup.
+     */
+    fun lineupChanged() {
+        refreshing?.cancel()
+        cached = null
+    }
+
     /** Reads the lineup in the background for the presses to come; a read still running is replaced. */
     fun refresh() {
         refreshing?.cancel()

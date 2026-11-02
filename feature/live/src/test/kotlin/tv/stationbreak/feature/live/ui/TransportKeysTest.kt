@@ -168,6 +168,17 @@ class TransportKeysTest {
     }
 
     @Test
+    fun liveKeysDoNotActUnderTheChannelsScreen() {
+        // The channels screen is drawn by the guide, so the guide is open underneath.
+        val guide = OverlayUp(guide = true)
+        for (key in listOf(Key.Menu, Key.ChannelUp, Key.ChannelDown, Key.MediaRewind)) {
+            assertFalse("$key", down(key, guide))
+            assertFalse("$key", release(key, guide))
+        }
+        assertEquals(emptyList<LiveCommand>(), sent)
+    }
+
+    @Test
     fun overlayUpOfCarriesThePausedFlag() {
         val view = pausedView()
         assertTrue(overlayUpOf(LiveState.Ident(null), null, false, view).paused)
