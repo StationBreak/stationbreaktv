@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +35,11 @@ class SingleMainActivityTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
 
+    @Before
+    fun noInstanceIsLeftOver() {
+        assertTrue("a MainActivity from another test is still alive", instances().isEmpty())
+    }
+
     @After
     fun finishWhatIsLeft() {
         instances().forEach { activity -> instrumentation.runOnMainSync { activity.finish() } }
@@ -53,22 +59,37 @@ class SingleMainActivityTest {
         return found
     }
 
-    private fun awaitResumedFirst(): MainActivity {
+    private fun resumed(): MainActivity? {
+        var found: MainActivity? = null
+        instrumentation.runOnMainSync {
+            found =
+                ActivityLifecycleMonitorRegistry
+                    .getInstance()
+                    .getActivitiesInStage(Stage.RESUMED)
+                    .filterIsInstance<MainActivity>()
+                    .firstOrNull()
+        }
+        return found
+    }
+
+    // The API 25 emulator starts in portrait and rotates, which recreates the host (see
+    // app/src/debug/AndroidManifest.xml), so the first RESUMED instance may be a short-lived one. Wait until the
+    // same instance has stayed RESUMED for a settle period, and hand that one back.
+    private fun awaitStableResumed(): MainActivity {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_S)
+        var candidate: MainActivity? = null
+        var since = 0L
         while (System.nanoTime() < deadline) {
-            var resumed: MainActivity? = null
-            instrumentation.runOnMainSync {
-                resumed =
-                    ActivityLifecycleMonitorRegistry
-                        .getInstance()
-                        .getActivitiesInStage(Stage.RESUMED)
-                        .filterIsInstance<MainActivity>()
-                        .firstOrNull()
+            val now = resumed()
+            if (now == null || now !== candidate) {
+                candidate = now
+                since = System.nanoTime()
+            } else if (System.nanoTime() - since >= TimeUnit.MILLISECONDS.toNanos(SETTLE_MS)) {
+                return now
             }
-            resumed?.let { return it }
             Thread.sleep(POLL_MS)
         }
-        error("MainActivity never reached RESUMED")
+        error("MainActivity never stayed RESUMED")
     }
 
     private fun start(intent: Intent) {
@@ -79,7 +100,7 @@ class SingleMainActivityTest {
     @Test
     fun aLauncherStartAfterAnExplicitStartBringsTheFirstInstanceForward() {
         start(Intent().setClassName(context, MainActivity::class.java.name))
-        val first = awaitResumedFirst()
+        val first = awaitStableResumed()
         val newIntents = CountDownLatch(1)
         instrumentation.runOnMainSync {
             first.addOnNewIntentListener { newIntents.countDown() }
@@ -102,5 +123,6 @@ class SingleMainActivityTest {
     private companion object {
         const val TIMEOUT_S = 10L
         const val POLL_MS = 100L
+        const val SETTLE_MS = 2_000L
     }
 }
