@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -37,7 +36,7 @@ class ActiveChannelsTest {
             service.refresh(ACCOUNT, LIBRARIES)
             val other = LibraryAccount(ServerId("c0".repeat(16)), UserId(USER.value))
             val seen = java.util.concurrent.CopyOnWriteArrayList<List<ChannelSummary>>()
-            val job = launch(Dispatchers.Default) { service.activeChannels().collect { seen += it } }
+            val job = launch { service.activeChannels().collect { seen += it } }
 
             delay(POLL_MS * 5)
             assertTrue(seen.isEmpty(), "nothing while no account is active")

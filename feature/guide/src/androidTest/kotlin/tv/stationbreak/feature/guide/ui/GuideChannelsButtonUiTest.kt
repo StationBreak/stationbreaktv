@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -174,6 +175,12 @@ class GuideChannelsButtonUiTest {
 
     private fun cell(startMin: Long) = compose.onNodeWithTag(GuideTags.cell(CH5, T0 + startMin * MIN))
 
+    // The view model has the button focused at once; the semantics follow a frame later, so they are waited for.
+    private fun awaitOnTheButton() {
+        assertTrue("the view model has the button focused", vm.snapshot.value.onButton)
+        compose.waitUntil(TIMEOUT_MS) { runCatching { button().assertIsSelected() }.isSuccess }
+    }
+
     private fun openTheSlot() {
         press(Key.DirectionUp)
         button().assertIsSelected()
@@ -189,8 +196,11 @@ class GuideChannelsButtonUiTest {
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
         openTheSlot()
         assertEquals(1, openings.size)
-        // The guide stays open underneath.
-        compose.onNodeWithTag(GuideTags.SCREEN, useUnmergedTree = true).assertExists()
+        // The guide stays open underneath (its session and focus), but is out of the semantics tree while the screen
+        // covers it: a screen reader sees one screen.
+        assertTrue(vm.snapshot.value.state is GuideState.Ready)
+        assertTrue(vm.snapshot.value.onButton)
+        compose.onNodeWithTag(GuideTags.SCREEN, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -200,7 +210,7 @@ class GuideChannelsButtonUiTest {
         compose.runOnUiThread { done?.invoke(null) }
         compose.waitForIdle()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
-        button().assertIsSelected()
+        awaitOnTheButton()
         cell(60).assertIsNotSelected()
         // The guide has its keys back: Down returns to the cell.
         compose.awaitWindowFocus()
@@ -216,8 +226,8 @@ class GuideChannelsButtonUiTest {
         press(Key.DirectionDown)
         press(Key.DirectionRight)
         assertEquals(listOf(Key.DirectionDown, Key.DirectionRight), slotKeys.toList())
-        button().assertIsSelected()
-        cell(60).assertIsNotSelected()
+        // The guide did not move under it (and is out of the semantics tree, so its nodes cannot be asked).
+        assertTrue(vm.snapshot.value.onButton)
     }
 
     @Test
@@ -228,7 +238,7 @@ class GuideChannelsButtonUiTest {
         // The slot finishes on its own Back release; the guide does not take that press.
         back()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
-        button().assertIsSelected()
+        awaitOnTheButton()
         assertEquals(0, exits)
         // Back from the button goes to the playing cell, and the next leaves live TV.
         back()

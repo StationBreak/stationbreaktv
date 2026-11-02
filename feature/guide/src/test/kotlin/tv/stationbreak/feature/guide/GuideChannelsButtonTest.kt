@@ -499,6 +499,30 @@ class GuideChannelsButtonTest : GuideRig() {
         }
 
     @Test
+    fun theButtonKeepsTheFocusAcrossTheClockUnderTheScreenAndAfter() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH5)
+            runCurrent()
+            vm.up()
+            vm.channelsOpened()
+            val opened = vm.ready().nowMs
+            after(3 * MIN)
+            assertTrue(vm.onButton())
+            // The clock stands still under the screen.
+            assertEquals(opened, vm.ready().nowMs)
+
+            vm.channelsClosed()
+            runCurrent()
+            assertTrue(vm.onButton())
+            // And runs again at once when it closes.
+            assertTrue(vm.ready().nowMs >= opened + 3 * MIN)
+            after(2 * MIN)
+            assertTrue(vm.onButton())
+            assertTrue(vm.ready().nowMs >= opened + 5 * MIN)
+        }
+
+    @Test
     fun aRenameIsNotAChangeToTheLineup() =
         guideTest { vm ->
             closedWithNoChange(vm)
