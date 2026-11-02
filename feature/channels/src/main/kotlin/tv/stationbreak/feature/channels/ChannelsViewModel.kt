@@ -88,6 +88,8 @@ internal class ChannelsViewModel
             val holder: ChannelId? = null,
             val message: ChannelsMessage? = null,
             val confirmingReset: Boolean = false,
+            val choice: Int = 0,
+            val picker: PickerState? = null,
             val choosing: Boolean = false,
             val reset: ResetResult? = null,
             /** Lists that arrived while a reset ran: one of them is the lineup the reset made. */
@@ -104,6 +106,9 @@ internal class ChannelsViewModel
         private val lock = Any()
         private var model = Model()
         private var session: Job? = null
+
+        /** Between [open] and [close]: nothing is published outside it. */
+        private var visible = false
         private val shown = MutableStateFlow(ChannelsUi.Empty)
 
         val ui: StateFlow<ChannelsUi> = shown.asStateFlow()
@@ -118,16 +123,22 @@ internal class ChannelsViewModel
                 session?.cancel()
                 generation = model.generation + 1
                 model = Model(generation = generation, current = current, wantFocus = current)
+                visible = true
                 shown.value = derive(model)
             }
             session = scope.launch { run(generation) }
         }
 
-        /** The screen has gone: nothing is read or watched until the next [open]. */
+        /**
+         * The screen has gone: nothing is read or watched until the next [open], and nothing of this visit is shown
+         * again (a panel left open must not appear for a frame when the screen comes back).
+         */
         fun close() {
             synchronized(lock) {
                 session?.cancel()
                 session = null
+                visible = false
+                shown.value = ChannelsUi.Empty
             }
         }
 
@@ -215,8 +226,73 @@ internal class ChannelsViewModel
             var next = f(old)
             // The rows are sorted only when the channels or their reasons changed: a key press does no sorting.
             if (next.channels !== old.channels || next.reasons !== old.reasons) next = next.copy(rows = rowsOf(next))
+            // A new panel (or the reset question) starts with its own choice and digits, in the same assignment.
+            if (next.panel != old.panel || next.confirmingReset != old.confirmingReset) {
+                next =
+                    next.copy(
+                        choice = startChoice(next.panel, next.confirmingReset),
+                        picker = (next.panel as? ChannelsPanel.Number)?.let { PickerState.of(it.start) },
+                    )
+            }
             model = next.copy(focus = mended(next, old.rows.map { it.id }, next.rows.map { it.id }))
-            shown.value = derive(model)
+            if (visible) shown.value = derive(model)
+        }
+
+        /** A D-pad key inside the open panel: the choice moves, or the number picker's digit or position does. */
+        fun panelMove(move: PanelMove) {
+            synchronized(lock) {
+                val picker = model.picker
+                if (picker != null) {
+                    apply {
+                        it.copy(
+                            picker =
+                                when (move) {
+                                    PanelMove.Up -> picker.up()
+                                    PanelMove.Down -> picker.down()
+                                    PanelMove.Left -> picker.left()
+                                    PanelMove.Right -> picker.right()
+                                },
+                        )
+                    }
+                } else if (model.panel != null || model.confirmingReset) {
+                    val last = choicesOf(derive(model)).lastIndex
+                    val step = if (move == PanelMove.Up || move == PanelMove.Left) -1 else 1
+                    apply { it.copy(choice = (it.choice + step).coerceIn(0, last.coerceAtLeast(0))) }
+                }
+            }
+        }
+
+        /**
+         * Select inside the open panel acts on the choice or number the state shows, so a key always does what was on
+         * screen. Returns the channel to tune when the choice is Watch (tuning is the caller's), else null. 000 is not
+         * a channel number: Select on it does nothing.
+         */
+        fun panelSelect(): ChannelId? {
+            val ui = synchronized(lock) { derive(model) }
+            val panel = ui.panel
+            val picker = ui.picker
+            val choice = choicesOf(ui).getOrNull(ui.choice)
+            var tune: ChannelId? = null
+            when {
+                picker != null && panel != null -> if (picker.value > 0) setNumber(panel.id, picker.value)
+                choice == Choice.Cancel -> dismiss()
+                choice == Choice.Confirm -> confirm(panel)
+                panel == null || choice == null -> Unit
+                choice == Choice.Watch -> tune = panel.id
+                choice == Choice.SwitchOn -> switchOn(panel.id)
+                choice == Choice.SwitchOff -> switchOff(panel.id)
+                choice == Choice.ChangeNumber -> startNumber(panel.id)
+                choice == Choice.DefaultNumber -> defaultNumber(panel.id)
+            }
+            return tune
+        }
+
+        private fun confirm(panel: ChannelsPanel?) {
+            when (panel) {
+                is ChannelsPanel.ConfirmOptIn -> confirmOptIn()
+                is ChannelsPanel.Swap -> swap()
+                else -> reset()
+            }
         }
 
         private fun mended(
@@ -255,6 +331,8 @@ internal class ChannelsViewModel
                 panel = m.panel,
                 message = m.message,
                 confirmingReset = m.confirmingReset,
+                choice = m.choice,
+                picker = m.picker,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> =

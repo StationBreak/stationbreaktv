@@ -2,44 +2,28 @@
 package tv.stationbreak.feature.channels.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.domain.lineup.ChannelKind
-import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.ScreenLayout
-import tv.stationbreak.feature.channels.ChannelGroup
-import tv.stationbreak.feature.channels.ChannelRow
-import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsMessage
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
@@ -53,7 +37,6 @@ private val PanelGap = 16.dp
 @Composable
 internal fun ChannelsScreen(
     ui: ChannelsUi,
-    panelFocus: PanelFocus,
     pictureHole: DpRect,
     modifier: Modifier = Modifier,
 ) {
@@ -76,7 +59,6 @@ internal fun ChannelsScreen(
             if (open) {
                 ChannelsPanelView(
                     ui,
-                    panelFocus,
                     Modifier
                         .offset(pictureHole.left, pictureHole.bottom + PanelGap)
                         .width(safe.right - pictureHole.left)

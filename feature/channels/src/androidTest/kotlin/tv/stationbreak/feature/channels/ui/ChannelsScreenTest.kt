@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsSelected
@@ -51,8 +52,10 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -81,6 +84,8 @@ private class Lineup(
     ChannelEditor {
     val list = MutableStateFlow(initial)
     val changes = CopyOnWriteArrayList<ChannelChange>()
+
+    val resets = AtomicInteger()
 
     @Volatile
     var resetGate: CompletableDeferred<Unit>? = null
@@ -128,6 +133,7 @@ private class Lineup(
     }
 
     override suspend fun reset(account: LibraryAccount): ResetResult {
+        resets.incrementAndGet()
         resetGate?.await()
         return ResetResult.Chosen
     }
@@ -144,6 +150,7 @@ class ChannelsScreenTest {
     private val schedule = FakeSchedule()
     private val tuned = CopyOnWriteArrayList<ChannelId>()
     private var closed = 0
+    private val showing = mutableStateOf(true)
     private lateinit var vm: ChannelsViewModel
     private lateinit var lineup: Lineup
 
@@ -174,7 +181,9 @@ class ChannelsScreenTest {
             StationBreakTheme {
                 // As in the app: live TV's root is focusable and the screen takes the focus from it.
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
-                    ChannelsRoot(vm, current, HOLE, onTune = { tuned += it }, onClose = { closed++ })
+                    if (showing.value) {
+                        ChannelsRoot(vm, current, HOLE, onTune = { tuned += it }, onClose = { closed++ })
+                    }
                 }
             }
         }
@@ -370,11 +379,87 @@ class ChannelsScreenTest {
         ).forEach { assertTrue(it, !exists(it)) }
     }
 
+    /** Keys sent one straight after the other, with no frame between them. */
+    private fun pressTogether(vararg pads: Pad) {
+        compose.onRoot().performKeyInput { pads.forEach { pressKey(keyOf(it)) } }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun aDoubleSelectOnResetDoesNotReset() {
+        show(ALPHA)
+        repeat(lineup().size) { press(Pad.Down) }
+        pressTogether(Pad.Select, Pad.Select)
+        until { !exists(ChannelsTags.PANEL) }
+        assertEquals(0, lineup.resets.get())
+    }
+
+    @Test
+    fun aDoubleSelectOnTheOptInQuestionDoesNotSwitchOn() {
+        show(NIGHT)
+        // Row, the switch-on action, then a third Select at once: the question's default is Cancel.
+        pressTogether(Pad.Select, Pad.Select, Pad.Select)
+        until { !exists(ChannelsTags.PANEL) }
+        assertTrue(lineup.changes.isEmpty())
+    }
+
+    @Test
+    fun aLoneBackReleaseIsActedOn() {
+        show(ALPHA)
+        compose.onRoot().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        until { exists(ChannelsTags.PANEL) }
+        // A fast double Back can reach the screen as a release alone.
+        compose.onRoot().performKeyInput { keyUp(Key.Back) }
+        compose.waitForIdle()
+        assertTrue(!exists(ChannelsTags.PANEL))
+    }
+
+    @Test
+    fun selectAutoRepeatIsIgnored() {
+        show(ALPHA)
+        compose.onRoot().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            advanceEventTime(REPEAT_HOLD_MS)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.waitForIdle()
+        // The press opened the panel; its repeats did not go on to pick Watch.
+        assertTrue(exists(ChannelsTags.PANEL))
+        assertTrue(tuned.isEmpty())
+    }
+
+    @Test
+    fun theViewModelIsClosedWhenTheScreenLeaves() {
+        show(ALPHA)
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        compose.runOnUiThread { showing.value = false }
+        compose.waitForIdle()
+        assertEquals(ChannelsUi.Empty, vm.ui.value)
+    }
+
+    @Test
+    fun selectOnZeroZeroZeroStaysInThePicker() {
+        show(ALPHA)
+        press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
+        until { exists(ChannelsTags.PICKER) }
+        // 006 to 000.
+        press(Pad.Right, Pad.Right)
+        repeat(6) { press(Pad.Down) }
+        press(Pad.Select)
+        assertTrue(exists(ChannelsTags.PICKER))
+        assertTrue(lineup.changes.isEmpty())
+    }
+
     private companion object {
         // A 1080p TV at xhdpi, whatever the device is, as the guide's tests host it.
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
+        const val REPEAT_HOLD_MS = 1_000L
     }
 }

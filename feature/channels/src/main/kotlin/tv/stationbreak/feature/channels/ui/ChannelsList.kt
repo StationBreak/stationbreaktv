@@ -1,46 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.DpRect
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
-import tv.stationbreak.core.domain.lineup.LineupAccess
-import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.FocusStyle
-import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsFocus
-import tv.stationbreak.feature.channels.ChannelsMessage
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
 
@@ -109,23 +93,6 @@ private fun Line.key(): String =
         Line.Reset -> "reset"
     }
 
-/**
- * Scrolls only when line [index] is not fully on screen: up so that the line above it (its heading, when it is the
- * first of a group) shows, down so that it is the last line shown. A move inside the screen scrolls nothing.
- */
-private suspend fun LazyListState.keepVisible(index: Int) {
-    val info = layoutInfo
-    val shown =
-        info.visibleItemsInfo.filter {
-            it.offset >= info.viewportStartOffset && it.offset + it.size <= info.viewportEndOffset
-        }
-    when {
-        shown.isEmpty() -> scrollToItem(index)
-        index < shown.first().index -> scrollToItem((index - 1).coerceAtLeast(0))
-        index > shown.last().index -> scrollToItem((index - shown.size + 1).coerceAtLeast(0))
-    }
-}
-
 @Composable
 private fun HeadingLine(group: ChannelGroup) {
     val text = stringResource(groupName(group))
@@ -158,14 +125,15 @@ private fun RowLine(
         Modifier
             .fillMaxWidth()
             .then(FocusStyle.drawn(focused))
-            .alpha(if (reason != null) DIMMED_ALPHA else 1f)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(ChannelsTags.row(row.id))
             .semantics { selected = focused },
     ) {
         val number = row.number?.toString().orEmpty()
+        // Only the number and name are dimmed: the reason stays at full strength so it can be read.
         Text(
             listOf(number, row.name, labels).filter { it.isNotEmpty() }.joinToString("  "),
+            Modifier.alpha(if (reason != null) DIMMED_ALPHA else 1f),
             style = MaterialTheme.typography.bodyLarge,
         )
         if (reason != null) {

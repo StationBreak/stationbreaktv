@@ -82,6 +82,10 @@ internal data class ChannelsUi(
     val panel: ChannelsPanel?,
     val message: ChannelsMessage?,
     val confirmingReset: Boolean,
+    /** Which choice of the open panel (or of the reset question) is focused; see [choicesOf]. */
+    val choice: Int = 0,
+    /** The number picker's digits while its panel is open. */
+    val picker: PickerState? = null,
 ) {
     companion object {
         val Empty =

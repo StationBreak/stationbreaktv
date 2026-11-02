@@ -288,12 +288,8 @@ class ChannelsViewModelTest {
             advanceTimeBy(5_000)
             runCurrent()
             assertEquals(reads, rig.schedule.airingsCalls)
-            assertEquals(
-                listOf(B, A, C).map { it.value }.sorted(),
-                rig.ui.rows
-                    .map { it.id.value }
-                    .sorted(),
-            )
+            // Nothing of the visit is shown again when the screen comes back.
+            assertEquals(ChannelsUi.Empty, rig.ui)
         }
 
     @Test

@@ -20,9 +20,9 @@ import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
+import tv.stationbreak.feature.channels.PanelMove
 
 /**
  * Channel management (spec 21), drawn by live TV over its picture while the screen is open: live owns whether it
@@ -64,19 +64,11 @@ internal fun ChannelsRoot(
         onDispose { viewModel.close() }
     }
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    val panelFocus =
-        remember(ui.panel, ui.confirmingReset) {
-            PanelFocus(startChoice(ui), (ui.panel as? ChannelsPanel.Number)?.let { PickerState.of(it.start) })
-        }
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
-    val actions =
-        remember(viewModel, panelFocus, onTune, onClose) {
-            ChannelsActions(viewModel, panelFocus, onTune, onClose)
-        }
+    val actions = remember(viewModel, onTune, onClose) { ChannelsActions(viewModel, onTune, onClose) }
     ChannelsScreen(
         ui = ui,
-        panelFocus = panelFocus,
         pictureHole = pictureHole,
         modifier =
             modifier
@@ -120,19 +112,21 @@ internal fun channelsKey(
     return true
 }
 
-/** What a key does, given what is open: a panel's choices, the number picker, or the list. */
+/**
+ * What a key does, given what is open. Every decision is the ViewModel's, taken on its state at that moment, so a key
+ * always acts on what the viewer saw: a second Select before the next frame does not reuse an old choice.
+ */
 internal class ChannelsActions(
     private val vm: ChannelsViewModel,
-    private val focus: PanelFocus,
     private val onTune: (ChannelId) -> Unit,
     private val onClose: () -> Unit,
 ) {
     fun pad(pad: Pad) {
         val ui = vm.ui.value
+        val inPanel = ui.panel != null || ui.confirmingReset
         when {
             pad == Pad.Back -> back(ui)
-            ui.panel is ChannelsPanel.Number -> number(pad, ui.panel)
-            ui.panel != null || ui.confirmingReset -> choices(pad, ui)
+            inPanel -> panel(pad)
             else -> list(pad)
         }
     }
@@ -155,69 +149,14 @@ internal class ChannelsActions(
         }
     }
 
-    private fun choices(
-        pad: Pad,
-        ui: ChannelsUi,
-    ) {
-        val choices = choicesOf(ui)
+    private fun panel(pad: Pad) {
         when (pad) {
-            Pad.Up, Pad.Left -> focus.choice = (focus.choice - 1).coerceAtLeast(0)
-            Pad.Down, Pad.Right -> focus.choice = (focus.choice + 1).coerceAtMost(choices.lastIndex)
-            Pad.Select -> choices.getOrNull(focus.choice)?.let { perform(it, ui) }
+            Pad.Up -> vm.panelMove(PanelMove.Up)
+            Pad.Down -> vm.panelMove(PanelMove.Down)
+            Pad.Left -> vm.panelMove(PanelMove.Left)
+            Pad.Right -> vm.panelMove(PanelMove.Right)
+            Pad.Select -> vm.panelSelect()?.let(onTune)
             Pad.Back -> Unit
-        }
-    }
-
-    private fun number(
-        pad: Pad,
-        panel: ChannelsPanel.Number,
-    ) {
-        val picker = focus.picker ?: return
-        when (pad) {
-            Pad.Up -> focus.picker = picker.up()
-            Pad.Down -> focus.picker = picker.down()
-            Pad.Left -> focus.picker = picker.left()
-            Pad.Right -> focus.picker = picker.right()
-            Pad.Select -> vm.setNumber(panel.id, picker.value)
-            Pad.Back -> Unit
-        }
-    }
-
-    private fun perform(
-        choice: Choice,
-        ui: ChannelsUi,
-    ) {
-        val panel = ui.panel
-        when (choice) {
-            Choice.Cancel -> {
-                vm.dismiss()
-            }
-
-            Choice.Confirm -> {
-                when (panel) {
-                    is ChannelsPanel.ConfirmOptIn -> vm.confirmOptIn()
-                    is ChannelsPanel.Swap -> vm.swap()
-                    else -> vm.reset()
-                }
-            }
-
-            else -> {
-                panel?.let { onChoice(choice, it.id) }
-            }
-        }
-    }
-
-    private fun onChoice(
-        choice: Choice,
-        id: ChannelId,
-    ) {
-        when (choice) {
-            Choice.Watch -> onTune(id)
-            Choice.SwitchOn -> vm.switchOn(id)
-            Choice.SwitchOff -> vm.switchOff(id)
-            Choice.ChangeNumber -> vm.startNumber(id)
-            Choice.DefaultNumber -> vm.defaultNumber(id)
-            Choice.Confirm, Choice.Cancel -> Unit
         }
     }
 }
