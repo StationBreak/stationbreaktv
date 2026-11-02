@@ -381,7 +381,7 @@ minus the exclusions (see Items and the pool). An item that fails a filter is ou
 
 | Part | Value | An item passes when |
 | --- | --- | --- |
-| `genres` | List of 1 to 256 names | It has **any** of the names. A name is matched exactly as a `genre` source is (see String matching), and an episode also takes its series' genres, as a `genre` source says. |
+| `genres` | List of 1 to 256 names | It has **any** of the names. A name is matched exactly as a `genre` source is (see String matching), and an episode also takes its series' genres, as a `genre` source says; an episode whose series is not in the snapshot is checked on its own genres alone, and the filter does not fail closed. |
 | `years` | `{ "from", "to" }` | Its **own** production year is from `from` to `to`, both included, as for a `yearRange` source. An item with no production year fails. `from` and `to` are whole numbers from 1 to 9999 and `to` is not below `from`. |
 | `runtime` | `{ "minMinutes", "maxMinutes" }` | Its runtime, as read at the cut-off `S - G` (see The pool of an epoch), is at least `minMinutes` and at most `maxMinutes`, both included, in whole minutes (compared in milliseconds: `minMinutes * 60000` and `maxMinutes * 60000`). Each is a whole number from 1 to 1440; `minMinutes` is not above `maxMinutes`; at least one is given. An item with no runtime is already out of the pool. |
 | `kind` | `"movie"` or `"episode"` | It is of that kind. |
@@ -598,6 +598,11 @@ In version 2, for `rotation` and the capped shuffle, **films of a collection are
   breaks ties. In the capped `shuffle` the films of a collection keep the relative order the version 1 shuffle gives them:
   the mode stays fully random, and only the cap is applied.
 - Any other item is a group of one.
+
+A film that is a member of a named collection is grouped however it came into the pool, for example through a library
+source. The map is defined by these rules whatever the ordering mode; only `rotation` and the capped `shuffle` read it, and
+any other mode ignores it, so an implementation may leave it empty there, since nothing reads it. An `item` source that holds the ID of a library, a series
+or a collection matches nothing: it names a movie or an episode.
 
 The map from film to collection ID is worked out for the epoch from the as-of library snapshot (see The pool of an
 epoch) and the rules' `sources`. It is an input to building the day, as the items are; an item has no collection field.
