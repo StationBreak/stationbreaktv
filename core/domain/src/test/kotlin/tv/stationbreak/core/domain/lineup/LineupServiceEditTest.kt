@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
@@ -8,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.EditRefusal
@@ -38,6 +40,7 @@ class LineupServiceEditTest {
 
     private val laughs = LineupIds.starter("laughs")
     private val whodunit = LineupIds.starter("whodunit")
+    private val frights = LineupIds.starter("frights")
 
     private fun threeOn(): Lineup =
         lineupOf(
@@ -202,12 +205,12 @@ class LineupServiceEditTest {
     fun resetCompletesWhenItsCallerIsCancelled() =
         runBlocking<Unit> {
             seedStored()
-            val gated = GatedLibrary(library)
-            val locked = LineupService(store, gated, clock, { 0 }, {}, TestCatalog)
+            val gated = SaveGatedStore(store)
+            val locked = LineupService(gated, library, clock, { 0 }, {}, TestCatalog)
             locked.loaded(ACCOUNT)
 
             val caller = launch { locked.reset(ACCOUNT, LIBRARIES) }
-            withTimeout(WAIT_MS) { gated.entered.await() }
+            withTimeout(WAIT_MS) { gated.saving.await() }
             caller.cancel()
             gated.release.complete(Unit)
             withTimeout(WAIT_MS) { caller.join() }
@@ -219,6 +222,61 @@ class LineupServiceEditTest {
                 "the reset ran to its end",
             )
             assertEquals(published, stored())
+        }
+
+    @Test
+    fun anEditAfterAFailedReadKeepsTheStoredChoices() =
+        runBlocking<Unit> {
+            val chosen =
+                threeOn().let { l ->
+                    l.copy(
+                        channels =
+                            l.channels.map {
+                                if (it.id ==
+                                    laughs
+                                ) {
+                                    it.copy(state = ChannelState.UserHidden)
+                                } else {
+                                    it
+                                }
+                            },
+                    )
+                }
+            seedStored(chosen)
+            store.inner.failReads = true
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertFalse(checkNotNull(service.lineup(ACCOUNT).value).writable)
+            store.inner.failReads = false
+
+            val outcome = edit(LineupEdit.SetNumber(frights, 311))
+
+            assertIs<EditOutcome.Applied>(outcome)
+            val saved = checkNotNull(stored())
+            assertEquals(ChannelState.UserHidden, state(saved, laughs), "the viewer's choice is kept")
+            assertEquals(311, saved.channels.single { it.id == frights }.number)
+            assertEquals(chosen.channels.size, saved.channels.size, "no from-scratch plan was saved over it")
+        }
+
+    @Test
+    fun aPassNotedAfterAFailedReadKeepsTheStoredChoices() =
+        runBlocking<Unit> {
+            val chosen = onlyOn(threeOn(), laughs)
+            store.inner.save(ACCOUNT, LineupCodec.encode(chosen, RefreshMeta(collectionPassActedOn = 1_000L)))
+            store.inner.failReads = true
+            service.refresh(ACCOUNT, LIBRARIES)
+            store.inner.failReads = false
+
+            service.notePass(ACCOUNT, Instant.fromEpochMilliseconds(2_000L))
+
+            assertEquals(chosen, stored(), "the stored lineup, not the session's from-scratch plan")
+            assertEquals(
+                2_000L,
+                service
+                    .lineup(ACCOUNT)
+                    .value
+                    ?.meta
+                    ?.collectionPassActedOn,
+            )
         }
 
     @Test
@@ -261,11 +319,27 @@ class LineupServiceEditTest {
         }
 
     @Test
-    fun editableIsFalseWithNoLineup() =
+    fun accessIsLoadingWithNoLineup() =
         runBlocking<Unit> {
-            val editable = ChannelManager(service, { LIBRARIES }, clock).editable(ACCOUNT).first()
-            assertFalse(editable)
+            val editable = ChannelManager(service) { LIBRARIES }.access(ACCOUNT).first()
+            assertEquals(LineupAccess.Loading, editable)
         }
 }
 
 private const val WAIT_MS = 10_000L
+
+/** Holds the first save until [release], after saying it began ([saving]). */
+private class SaveGatedStore(
+    private val inner: RecordingStore,
+) : LineupStore by inner {
+    val saving = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+
+    override suspend fun save(
+        account: LibraryAccount,
+        bytes: ByteArray,
+    ): Boolean {
+        if (saving.complete(Unit)) release.await()
+        return inner.save(account, bytes)
+    }
+}

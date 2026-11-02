@@ -3,15 +3,18 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -26,7 +29,7 @@ class ChannelManagerTest {
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private var chosen: Set<ItemId>? = LIBRARIES
-    private val manager = ChannelManager(service, { chosen }, clock)
+    private val manager = ChannelManager(service) { chosen }
 
     private fun lineup(
         state: ChannelState = ChannelState.On,
@@ -43,13 +46,13 @@ class ChannelManagerTest {
     }
 
     @Test
-    fun numberTakenNamesTheHolder() =
+    fun numberTakenCarriesTheHolder() =
         runBlocking<Unit> {
             seed(lineup())
 
             val result = manager.change(ACCOUNT, ChannelChange.SetNumber(LineupIds.starter("laughs"), 210))
 
-            assertEquals(ChangeResult.NumberTaken(LineupIds.starter("whodunit"), "Whodunit"), result)
+            assertEquals(ChangeResult.Refused(ChangeRefusal.NumberTaken(LineupIds.starter("whodunit"))), result)
         }
 
     @Test
@@ -60,8 +63,8 @@ class ChannelManagerTest {
             assertEquals(ChangeResult.NotEditable, manager.change(ACCOUNT, laughs))
             seed(lineup())
             assertEquals(ChangeResult.Done, manager.change(ACCOUNT, laughs))
-            assertEquals(ChangeResult.LastOn, manager.change(ACCOUNT, whodunit))
-            assertTrue(manager.editable(ACCOUNT).first())
+            assertEquals(ChangeResult.Refused(ChangeRefusal.LastOn), manager.change(ACCOUNT, whodunit))
+            assertEquals(LineupAccess.Editable, manager.access(ACCOUNT).first())
         }
 
     @Test
@@ -84,13 +87,47 @@ class ChannelManagerTest {
         }
 
     @Test
-    fun resetReportsNotChosenYetWithoutOne() =
+    fun resetReportsNotChosenYetWithoutAChannelOn() =
         runBlocking<Unit> {
             seed(lineup())
-            chosen = null
+            val bare = LineupService(store, CountingLibrary(), clock, { 0 }, {}, TestCatalog)
 
-            assertEquals(ResetResult.NotChosenYet, manager.reset(ACCOUNT))
-            assertFalse(checkNotNull(service.lineup(ACCOUNT).value).lineup.finalised)
+            assertEquals(ResetResult.NotChosenYet, ChannelManager(bare) { LIBRARIES }.reset(ACCOUNT))
+        }
+
+    @Test
+    fun resetWritesNothingWhenTheLibrariesAreUnavailable() =
+        runBlocking<Unit> {
+            seed(lineup())
+            val before = store.inner.peek(ACCOUNT)
+            store.calls.clear()
+
+            chosen = null
+            assertEquals(ResetResult.LibrariesUnavailable, manager.reset(ACCOUNT))
+            chosen = emptySet()
+            assertEquals(ResetResult.LibrariesUnavailable, manager.reset(ACCOUNT))
+            val failing = ChannelManager(service) { error("settings unreadable") }
+            assertEquals(ResetResult.LibrariesUnavailable, failing.reset(ACCOUNT))
+
+            assertTrue("save" !in store.calls, "calls were ${store.calls}")
+            assertContentEquals(before, store.inner.peek(ACCOUNT))
+        }
+
+    @Test
+    fun resetReportsLibrariesUnavailableWhenTheLibraryReadFails() =
+        runBlocking<Unit> {
+            seed(lineup())
+            val broken =
+                object : LibraryRepository by library {
+                    override suspend fun ruleSnapshot(
+                        account: LibraryAccount,
+                        libraries: Set<ItemId>,
+                        cutoff: Instant,
+                    ): RuleSnapshot = error("library unreadable")
+                }
+            val failing = LineupService(store, broken, clock, { 0 }, {}, TestCatalog)
+
+            assertEquals(ResetResult.LibrariesUnavailable, ChannelManager(failing) { LIBRARIES }.reset(ACCOUNT))
         }
 
     @Test
@@ -98,9 +135,10 @@ class ChannelManagerTest {
         runBlocking<Unit> {
             val newer = """{"version":2}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
+            service.refresh(ACCOUNT, LIBRARIES)
 
             assertEquals(ResetResult.NotEditable, manager.reset(ACCOUNT))
-            assertFalse(manager.editable(ACCOUNT).first())
+            assertEquals(LineupAccess.ReadOnly, manager.access(ACCOUNT).first())
         }
 
     @Test

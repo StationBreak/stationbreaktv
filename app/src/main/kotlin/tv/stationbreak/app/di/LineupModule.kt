@@ -123,7 +123,7 @@ internal object LineupModule {
     fun channelEditor(
         service: LineupService,
         settings: ServerSettings,
-    ): ChannelEditor = ChannelManager(service, { settings.loadLibraries() }, Clock.System)
+    ): ChannelEditor = ChannelManager(service) { settings.loadLibraries() }
 
     @Provides
     @Singleton

@@ -228,7 +228,9 @@ class LineupService internal constructor(
      * library to plan from since the lineup last took in a pass, so the lineup already reflects this one too. Without
      * this a pass that wrote nothing would look new after every restart. Only a lineup that already took in a pass is
      * touched. It changes the [RefreshMeta] and nothing else, so the revision does not move and the lineup saved is
-     * the one this session holds, never an older one read back from the file. Never throws for stored data; saves under
+     * the one this session holds, never an older one read back from the file. A session lineup that was not published
+     * writable (planned while the file could not be read) is not that one: the file, now readable, is.
+     * Never throws for stored data; saves under
      * the same rules as [refresh].
      */
     internal suspend fun notePass(
@@ -240,7 +242,7 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val held = entry.state.value
+            val held = entry.state.value?.takeIf { it.writable }
             val lineup = held?.lineup ?: start.current
             val meta = held?.meta ?: start.meta
             val ms = pass.toEpochMilliseconds()
@@ -254,38 +256,47 @@ class LineupService internal constructor(
                     entry.state.value = held.copy(meta = updated, writable = entry.writable)
                 }
                 entry.loaded = true
+            } else {
+                noteWritable(entry)
             }
         }
     }
 
     /**
      * Applies [edit] to [account]'s lineup (spec 21) under the account's lock, so it never lands between a refresh's
-     * read and its save: it waits for the refresh and edits what the refresh published. It starts from this session's
-     * lineup, as [notePass] does. An applied edit is saved and then published with a new revision; one that changes
-     * nothing, and a refusal, publish nothing. [Saved.Failed]: the save failed or was rejected, and nothing changed.
-     * Null: there is no lineup, or the file may not be written (a newer app's, say): nothing changes.
-     * [nowMs] is when the edit is made.
+     * read and its save: it waits for the refresh and edits what the refresh published. It starts from the lineup
+     * this session published writable, else from the stored one ([startOf]): a lineup planned while the file could
+     * not be read is never saved over the real one. Like [refresh] it may set an unreadable or foreign file aside
+     * first. An applied edit is saved and then published with a new revision; one that changes nothing, and a
+     * refusal, publish nothing. [Saved.Failed]: the save failed or was rejected, and nothing changed.
+     * [Saved.Invalid]: the edit would break the lineup's rules. Null: there is no lineup, or the file may not be
+     * written (a newer app's, say): nothing changes.
      */
     internal suspend fun edit(
         account: LibraryAccount,
         edit: LineupEdit,
-        nowMs: Long = clock.now().toEpochMilliseconds(),
     ): Saved<EditOutcome>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
         return entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val held = entry.state.value
+            val held = entry.state.value?.takeIf { it.writable }
             val lineup = held?.lineup ?: start.current
             if (!entry.writable || lineup == null) {
                 noteWritable(entry)
                 return@withLock null
             }
-            val outcome = LineupEdits.apply(lineup, edit, nowMs, catalog)
+            val outcome = applied(lineup, edit)
             when {
+                outcome == null -> {
+                    noteWritable(entry)
+                    Saved.Invalid
+                }
+
                 // A refusal, or an edit that changes nothing: no save and no new revision (no schedule rebuild).
                 outcome !is EditOutcome.Applied || outcome.lineup == lineup -> {
+                    noteWritable(entry)
                     Saved.Ok(outcome)
                 }
 
@@ -304,34 +315,41 @@ class LineupService internal constructor(
         }
     }
 
+    // Null: the edit could not build a lineup that keeps the invariants (the edits are meant to make that impossible).
+    @Suppress("SwallowedException")
+    private fun applied(
+        lineup: Lineup,
+        edit: LineupEdit,
+    ): EditOutcome? =
+        try {
+            LineupEdits.apply(lineup, edit, clock.now().toEpochMilliseconds(), catalog)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
     /**
-     * Replaces [account]'s lineup with a fresh first choice from the [libraries] (null or none: an empty lineup, not
-     * yet finalised, which the refresher chooses from later), in one hold of the lock and once started it finishes
-     * even if the caller is cancelled: the lineup is never left forgotten. The old lineup stays until the new one is
-     * saved, then published, and what was built from it is forgotten. [Saved.Failed]: the save failed or was
-     * rejected, and nothing changed. Null: the file may not be written, and nothing changes. Never throws for stored
-     * data; a failure to read the library does propagate.
+     * Replaces [account]'s lineup with a fresh first choice from the [libraries], under the account's lock. Like
+     * [refresh] it may set an unreadable or foreign file aside first. The old lineup stays until the new one is
+     * planned and saved; the save, the forgetting of what was built from the old one and the publishing then finish
+     * even if the caller is cancelled, so the lineup is never left forgotten or half replaced. [Saved.Failed]: the
+     * save failed or was rejected, and nothing changed. Null: the file may not be written, and nothing changes. Never
+     * throws for stored data; a failure to read the library does propagate.
      */
     internal suspend fun reset(
         account: LibraryAccount,
-        libraries: Set<ItemId>?,
+        libraries: Set<ItemId>,
     ): Saved<Lineup>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
-        return withContext(NonCancellable) {
-            entry.mutex.withLock {
-                val start = startOf(owner, entry)
-                entry.writable = start.save
-                if (!entry.writable) {
-                    noteWritable(entry)
-                    return@withLock null
-                }
-                val (fresh, meta) =
-                    if (libraries.isNullOrEmpty()) {
-                        emptyLineup(owner) to RefreshMeta()
-                    } else {
-                        planned(owner, account, libraries, null, null)
-                    }
+        return entry.mutex.withLock {
+            val start = startOf(owner, entry)
+            entry.writable = start.save
+            if (!entry.writable) {
+                noteWritable(entry)
+                return@withLock null
+            }
+            val (fresh, meta) = planned(owner, account, libraries, null, null)
+            withContext(NonCancellable) {
                 if (saveVerified(owner, fresh, meta)) {
                     forgetDerived(owner.key)
                     publish(entry, fresh, meta)
@@ -343,12 +361,6 @@ class LineupService internal constructor(
                 }
             }
         }
-    }
-
-    // What the planner gives with no library to choose from: nothing yet, and not finalised.
-    private fun emptyLineup(owner: Owner): Lineup {
-        val offset = standardOffsetMinutes()
-        return Lineup(owner.server, owner.user, catalog.version, offset, false, emptyList())
     }
 
     // A held lineup shows whether it may be written now, at its own revision: no channel changed.
@@ -548,13 +560,15 @@ class LineupService internal constructor(
  */
 internal const val GIVE_UP_AFTER = 2
 
-/** What an edit or reset did at the service: it [Ok], or its save failed and nothing changed. */
+/** What an edit or reset did at the service: it [Ok], or its save failed ([Failed]) or the edit was invalid. */
 internal sealed interface Saved<out T> {
     class Ok<T>(
         val value: T,
     ) : Saved<T>
 
     data object Failed : Saved<Nothing>
+
+    data object Invalid : Saved<Nothing>
 }
 
 /**

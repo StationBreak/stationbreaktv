@@ -7,34 +7,57 @@ import tv.stationbreak.core.model.ChannelId
 
 /** One change the viewer makes to a channel of the lineup (spec 21), in terms features can build. */
 sealed interface ChannelChange {
-    val id: ChannelId
-
     /** Switches the channel on. [confirmedOptIn] must be true for an opt-in (After Hours) channel. */
     data class SwitchOn(
-        override val id: ChannelId,
+        val id: ChannelId,
         val confirmedOptIn: Boolean = false,
     ) : ChannelChange
 
     /** Hides the channel. */
     data class SwitchOff(
-        override val id: ChannelId,
+        val id: ChannelId,
     ) : ChannelChange
 
     /** Moves the channel to [number]; with [swapWith], that channel, which holds [number], takes its old number. */
     data class SetNumber(
-        override val id: ChannelId,
+        val id: ChannelId,
         val number: Int,
         val swapWith: ChannelId? = null,
     ) : ChannelChange
 
     /** Back to the channel's default number; with [swapWith], that channel, which holds it, takes the current one. */
     data class ClearNumber(
-        override val id: ChannelId,
+        val id: ChannelId,
         val swapWith: ChannelId? = null,
     ) : ChannelChange
 }
 
-/** What a [ChannelChange] did: [Done], or why it did nothing. */
+/** Why a change was not made. */
+sealed interface ChangeRefusal {
+    data object UnknownChannel : ChangeRefusal
+
+    data object NotSwitchable : ChangeRefusal
+
+    data object OptInNotConfirmed : ChangeRefusal
+
+    data object LastOn : ChangeRefusal
+
+    data object NoFreeNumber : ChangeRefusal
+
+    data object OutOfRange : ChangeRefusal
+
+    data object KidsBandOnly : ChangeRefusal
+
+    /** Another channel, [holder], has the number (its name is in the channel list). */
+    data class NumberTaken(
+        val holder: ChannelId,
+    ) : ChangeRefusal
+
+    /** The change would break the lineup's rules, which the other refusals should have caught. */
+    data object Invalid : ChangeRefusal
+}
+
+/** What a [ChannelChange] did. */
 sealed interface ChangeResult {
     data object Done : ChangeResult
 
@@ -44,28 +67,13 @@ sealed interface ChangeResult {
     /** The change could not be saved; nothing changed. */
     data object SaveFailed : ChangeResult
 
-    data object UnknownChannel : ChangeResult
-
-    data object NotSwitchable : ChangeResult
-
-    data object OptInNotConfirmed : ChangeResult
-
-    data object LastOn : ChangeResult
-
-    data object NoFreeNumber : ChangeResult
-
-    data object OutOfRange : ChangeResult
-
-    data object KidsBandOnly : ChangeResult
-
-    /** Another channel, [holder] (shown as [holderName]), has the number. */
-    data class NumberTaken(
-        val holder: ChannelId,
-        val holderName: String,
+    /** The change was not made, for [reason]; nothing changed. */
+    data class Refused(
+        val reason: ChangeRefusal,
     ) : ChangeResult
 }
 
-/** What a reset left: [NotChosenYet] is a new lineup with no channel on yet, which the planner finishes later. */
+/** What a reset left: [NotChosenYet] is a new lineup with no On channel yet, which the planner finishes later. */
 enum class ResetResult {
     Chosen,
     NotChosenYet,
@@ -73,12 +81,27 @@ enum class ResetResult {
 
     /** The change could not be saved; nothing changed. */
     SaveFailed,
+
+    /** No library is chosen, or the choice could not be read just now; nothing changed. */
+    LibrariesUnavailable,
 }
 
-/** How features change an account's channel lineup (spec 21). */
+/** Whether a lineup can be changed on this TV. */
+enum class LineupAccess {
+    /** No lineup is published yet. */
+    Loading,
+
+    /** There is a lineup and it may be written. */
+    Editable,
+
+    /** There is a lineup but it may not be written here (a newer app's, or a file that could not be read). */
+    ReadOnly,
+}
+
+/** How features change an account's channel lineup (spec 21). None of it throws for an expected failure. */
 interface ChannelEditor {
-    /** Whether [account]'s lineup can be changed on this TV: there is one and it may be written. Follows the lineup. */
-    fun editable(account: LibraryAccount): Flow<Boolean>
+    /** [account]'s lineup access, following the lineup. */
+    fun access(account: LibraryAccount): Flow<LineupAccess>
 
     suspend fun change(
         account: LibraryAccount,
@@ -87,8 +110,8 @@ interface ChannelEditor {
 
     /**
      * Replaces the lineup with a fresh choice from the library already on this TV, in one step: there is never a
-     * moment with no lineup. NotChosenYet: the new lineup has no On channel yet (the planner finalises it later). A
-     * failure to read the library propagates (it is not stored data), so callers catch it.
+     * moment with no lineup. NotChosenYet: the new lineup has no On channel yet (the planner finalises it later).
+     * LibrariesUnavailable: no library is chosen or the choice or library could not be read, and nothing changed.
      */
     suspend fun reset(account: LibraryAccount): ResetResult
 }

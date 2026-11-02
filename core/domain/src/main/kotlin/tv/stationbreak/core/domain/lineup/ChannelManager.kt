@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
@@ -12,31 +13,34 @@ import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.EditRefusal
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
-import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
-import kotlin.time.Clock
 
 /**
  * Changes a lineup through [LineupService], under its lock (spec 21): the engine's edits stay on this side of the
- * port. [libraries] is the libraries the viewer chose, read when a reset plans a new lineup. [clock] times the edits
- * (a channel switched on is on since then).
+ * port. [libraries] is the libraries the viewer chose, read when a reset plans a new lineup; null means none chosen
+ * or unreadable.
  */
 class ChannelManager(
     private val service: LineupService,
     private val libraries: suspend () -> Set<ItemId>?,
-    private val clock: Clock,
 ) : ChannelEditor {
-    override fun editable(account: LibraryAccount): Flow<Boolean> =
+    override fun access(account: LibraryAccount): Flow<LineupAccess> =
         flow {
             service.loaded(account)
             emitAll(service.lineup(account))
-        }.map { it?.writable == true }.distinctUntilChanged()
+        }.map {
+            when {
+                it == null -> LineupAccess.Loading
+                it.writable -> LineupAccess.Editable
+                else -> LineupAccess.ReadOnly
+            }
+        }.distinctUntilChanged()
 
     override suspend fun change(
         account: LibraryAccount,
         change: ChannelChange,
     ): ChangeResult =
-        when (val saved = service.edit(account, change.toEdit(), clock.now().toEpochMilliseconds())) {
+        when (val saved = service.edit(account, change.toEdit())) {
             null -> {
                 ChangeResult.NotEditable
             }
@@ -45,46 +49,51 @@ class ChannelManager(
                 ChangeResult.SaveFailed
             }
 
+            Saved.Invalid -> {
+                ChangeResult.Refused(ChangeRefusal.Invalid)
+            }
+
             is Saved.Ok -> {
                 when (val outcome = saved.value) {
                     is EditOutcome.Applied -> ChangeResult.Done
-                    is EditOutcome.Refused -> outcome.refusal.toResult(account)
+                    is EditOutcome.Refused -> ChangeResult.Refused(outcome.refusal.toRefusal())
                 }
             }
         }
 
+    // A library that cannot be read is an expected failure here (the choice was null or the read threw): nothing is
+    // written, and the caller may try again.
+    @Suppress("TooGenericExceptionCaught")
     override suspend fun reset(account: LibraryAccount): ResetResult =
-        when (val saved = service.reset(account, libraries())) {
-            null -> ResetResult.NotEditable
-            Saved.Failed -> ResetResult.SaveFailed
-            is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
+        try {
+            val chosen = libraries()
+            if (chosen.isNullOrEmpty()) {
+                ResetResult.LibrariesUnavailable
+            } else {
+                when (val saved = service.reset(account, chosen)) {
+                    null -> ResetResult.NotEditable
+                    Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
+                    is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            ResetResult.LibrariesUnavailable
         }
-
-    private suspend fun EditRefusal.toResult(account: LibraryAccount): ChangeResult =
-        when (this) {
-            EditRefusal.UnknownChannel -> ChangeResult.UnknownChannel
-            EditRefusal.NotSwitchable -> ChangeResult.NotSwitchable
-            EditRefusal.OptInNotConfirmed -> ChangeResult.OptInNotConfirmed
-            EditRefusal.LastOn -> ChangeResult.LastOn
-            EditRefusal.NoFreeNumber -> ChangeResult.NoFreeNumber
-            EditRefusal.OutOfRange -> ChangeResult.OutOfRange
-            EditRefusal.KidsBandOnly -> ChangeResult.KidsBandOnly
-            is EditRefusal.NumberTaken -> ChangeResult.NumberTaken(holder, nameOf(account, holder))
-        }
-
-    // A refusal changed nothing, so the lineup held now is the one the holder was found in.
-    private suspend fun nameOf(
-        account: LibraryAccount,
-        holder: ChannelId,
-    ): String =
-        service
-            .loaded(account)
-            ?.lineup
-            ?.channels
-            ?.firstOrNull { it.id == holder }
-            ?.displayName(service.catalog)
-            .orEmpty()
 }
+
+private fun EditRefusal.toRefusal(): ChangeRefusal =
+    when (this) {
+        EditRefusal.UnknownChannel -> ChangeRefusal.UnknownChannel
+        EditRefusal.NotSwitchable -> ChangeRefusal.NotSwitchable
+        EditRefusal.OptInNotConfirmed -> ChangeRefusal.OptInNotConfirmed
+        EditRefusal.LastOn -> ChangeRefusal.LastOn
+        EditRefusal.NoFreeNumber -> ChangeRefusal.NoFreeNumber
+        EditRefusal.OutOfRange -> ChangeRefusal.OutOfRange
+        EditRefusal.KidsBandOnly -> ChangeRefusal.KidsBandOnly
+        is EditRefusal.NumberTaken -> ChangeRefusal.NumberTaken(holder)
+    }
 
 private fun Lineup.hasOn() = channels.any { it.state == ChannelState.On }
 

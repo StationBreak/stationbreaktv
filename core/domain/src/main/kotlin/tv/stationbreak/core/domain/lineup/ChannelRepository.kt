@@ -47,9 +47,9 @@ data class ChannelSummary(
     val state: ChannelStatus,
     val kind: ChannelKind,
     val onSince: Instant,
-    val defaultNumber: Int? = null,
-    val kid: Boolean = false,
-    val optIn: Boolean = false,
+    val defaultNumber: Int?,
+    val kid: Boolean,
+    val optIn: Boolean,
 )
 
 /** The lineup as features see it (spec 12). */

@@ -81,7 +81,11 @@ object LineupEdits {
     const val MIN_NUMBER = 1
     const val MAX_NUMBER = 999
 
-    /** Applies [edit] to [lineup] at [nowMs], numbering from [catalog]'s recipes and retired numbers. */
+    /**
+     * Applies [edit] to [lineup] at [nowMs], numbering from [catalog]'s recipes and retired numbers. Bands and opt-in
+     * come from [catalog]; whether a channel is a kid channel does not: [KidStatus] reads the global
+     * `StarterCatalog.EVER_KID_SAFE_KEYS`, whatever [catalog] is.
+     */
     fun apply(
         lineup: Lineup,
         edit: LineupEdit,

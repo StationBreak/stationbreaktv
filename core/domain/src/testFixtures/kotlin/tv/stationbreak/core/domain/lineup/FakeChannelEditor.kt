@@ -10,9 +10,9 @@ import tv.stationbreak.core.domain.LibraryAccount
  * [ChangeResult.Done] and a reset is [ResetResult.Chosen].
  */
 class FakeChannelEditor(
-    editable: Boolean = true,
+    access: LineupAccess = LineupAccess.Editable,
 ) : ChannelEditor {
-    private val editableNow = MutableStateFlow(editable)
+    private val accessNow = MutableStateFlow(access)
 
     /** Every change asked for, in order. */
     val changes = mutableListOf<Pair<LibraryAccount, ChannelChange>>()
@@ -26,11 +26,11 @@ class FakeChannelEditor(
     /** What [reset] answers next. */
     var resetResult: ResetResult = ResetResult.Chosen
 
-    fun setEditable(value: Boolean) {
-        editableNow.value = value
+    fun setAccess(value: LineupAccess) {
+        accessNow.value = value
     }
 
-    override fun editable(account: LibraryAccount): Flow<Boolean> = editableNow
+    override fun access(account: LibraryAccount): Flow<LineupAccess> = accessNow
 
     override suspend fun change(
         account: LibraryAccount,
