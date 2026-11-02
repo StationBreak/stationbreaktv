@@ -108,14 +108,27 @@ internal fun channelsKey(
     event: KeyEvent,
     pad: (Pad) -> Unit,
 ): Boolean {
-    val which = padOf(event.key) ?: return false
-    val down = event.type == KeyEventType.KeyDown
-    when (which) {
-        Pad.Back -> if (event.type == KeyEventType.KeyUp) pad(which)
-        Pad.Select -> if (down && event.nativeKeyEvent.repeatCount == 0) pad(which)
-        else -> if (down) pad(which)
-    }
+    if (padOf(event.key) == null) return false
+    padToAct(event.key, event.type, event.nativeKeyEvent.repeatCount)?.let(pad)
     return true
+}
+
+/**
+ * The pad to act on for a key event, or null when the event is only consumed: Back on its release, Select on its first
+ * press (never its auto-repeat), the other pads on every press (so holding one scrolls).
+ */
+internal fun padToAct(
+    key: Key,
+    type: KeyEventType,
+    repeatCount: Int,
+): Pad? {
+    val which = padOf(key) ?: return null
+    val down = type == KeyEventType.KeyDown
+    return when (which) {
+        Pad.Back -> which.takeIf { type == KeyEventType.KeyUp }
+        Pad.Select -> which.takeIf { down && repeatCount == 0 }
+        else -> which.takeIf { down }
+    }
 }
 
 /**

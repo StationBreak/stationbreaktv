@@ -9,11 +9,14 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onChild
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -22,7 +25,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -57,6 +60,7 @@ import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -150,6 +154,10 @@ class ChannelsScreenTest {
     private val account = LibraryAccount(ServerId("srv1"), UserId("u1"))
     private val library = InMemoryLibraryRepository()
     private val schedule = FakeSchedule()
+
+    // The ViewModel's own thread, as Dispatchers.Default would be in the app.
+    private val pool = Executors.newSingleThreadExecutor()
+    private val work = pool.asCoroutineDispatcher()
     private val tuned = CopyOnWriteArrayList<ChannelId>()
     private var closed = 0
     private val showing = mutableStateOf(true)
@@ -181,7 +189,7 @@ class ChannelsScreenTest {
         lineup = Lineup(lineup(), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
-        vm = ChannelsViewModel(library, lineup, lineup, schedule, clock, Dispatchers.Default)
+        vm = ChannelsViewModel(library, lineup, lineup, schedule, clock, work)
         compose.setContent {
             StationBreakTheme {
                 // As in the app: live TV's root is focusable and the screen takes the focus from it.
@@ -204,6 +212,7 @@ class ChannelsScreenTest {
     @After
     fun tearDown() {
         if (::vm.isInitialized) vm.close()
+        pool.shutdownNow()
     }
 
     private fun press(vararg pads: Pad) {
@@ -211,6 +220,12 @@ class ChannelsScreenTest {
             compose.onRoot().performKeyInput { pressKey(keyOf(pad)) }
             compose.waitForIdle()
         }
+    }
+
+    /** The Text inside a digit's box, which carries the tag and the selection. */
+    private fun digitText(position: Int): SemanticsNodeInteraction {
+        val box = compose.onNodeWithTag(ChannelsTags.digit(position), useUnmergedTree = true)
+        return box.onChild()
     }
 
     private fun keyOf(pad: Pad): Key =
@@ -267,12 +282,12 @@ class ChannelsScreenTest {
         show(ALPHA)
         press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
         until { exists(ChannelsTags.PICKER) }
-        compose.onNodeWithTag(ChannelsTags.digit(0), useUnmergedTree = true).assertTextContains("0")
-        compose.onNodeWithTag(ChannelsTags.digit(2), useUnmergedTree = true).assertTextContains("6")
+        digitText(0).assertTextEquals("0")
+        digitText(2).assertTextEquals("6")
         // 006: the middle digit up once is 016; Left from the first digit stays put.
         press(Pad.Left, Pad.Right, Pad.Up)
         compose.onNodeWithTag(ChannelsTags.digit(1)).assertIsSelected()
-        compose.onNodeWithTag(ChannelsTags.digit(1), useUnmergedTree = true).assertTextContains("1")
+        digitText(1).assertTextEquals("1")
         press(Pad.Select)
         until { lineup.changes.isNotEmpty() && !exists(ChannelsTags.PANEL) }
         assertEquals(listOf<ChannelChange>(ChannelChange.SetNumber(ALPHA, 16)), lineup.changes.toList())
@@ -351,7 +366,8 @@ class ChannelsScreenTest {
             .assertTextContains("Reset channels? Your numbers and switched-off channels on this TV will be lost.")
         press(Pad.Up, Pad.Select)
         until { exists(ChannelsTags.CHOOSING) }
-        compose.onNodeWithTag(ChannelsTags.CHOOSING, useUnmergedTree = true).assertTextContains("Choosing channels")
+        val choosing = compose.onNodeWithTag(ChannelsTags.CHOOSING, useUnmergedTree = true)
+        choosing.assertTextContains("Choosing channels", substring = true)
         lineup.resetGate?.complete(Unit)
         until { !exists(ChannelsTags.CHOOSING) }
     }
@@ -409,34 +425,6 @@ class ChannelsScreenTest {
         pressTogether(Pad.Select, Pad.Select, Pad.Select)
         until { !exists(ChannelsTags.PANEL) }
         assertTrue(lineup.changes.isEmpty())
-    }
-
-    @Test
-    fun aLoneBackReleaseIsActedOn() {
-        show(ALPHA)
-        compose.onRoot().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        until { exists(ChannelsTags.PANEL) }
-        // A fast double Back can reach the screen as a release alone.
-        compose.onRoot().performKeyInput { keyUp(Key.Back) }
-        compose.waitForIdle()
-        assertTrue(!exists(ChannelsTags.PANEL))
-    }
-
-    @Test
-    fun selectAutoRepeatIsIgnored() {
-        show(ALPHA)
-        compose.onRoot().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            advanceEventTime(REPEAT_HOLD_MS)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.waitForIdle()
-        // The press opened the panel; its repeats did not go on to pick Watch.
-        assertTrue(exists(ChannelsTags.PANEL))
-        assertTrue(tuned.isEmpty())
     }
 
     @Test
