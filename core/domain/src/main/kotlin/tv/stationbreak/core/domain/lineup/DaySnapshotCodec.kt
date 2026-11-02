@@ -69,7 +69,8 @@ internal data class DayKey(
  * there so that a miss says which of them moved.
  *
  * The body holds one table of the distinct [ScheduleItem]s of all the pools, in canonical-ID order, and per scheduled
- * channel in the key's order its day pool (`EpochPool.build`'s items, in order) and why the day is empty if it is. A
+ * channel in the key's order (by channel ID) its day pool (`EpochPool.build`'s items, in order) and why the day is
+ * empty if it is. A
  * day pool is in canonical-ID order, so it is written as the set of table rows it holds (a bitset, Base64): a few
  * kilobytes per channel however large the pool. A pool in any other order is written as its row numbers instead, so
  * the order is kept whatever it is. An item's fields are all kept, since the layout reads them all; a series ID is an
@@ -84,7 +85,8 @@ internal data class DayKey(
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
-    const val VERSION = 3
+    /** 4: the key's `lineup` is the digest of the day inputs; its channels, and the body's days, are in ID order. */
+    const val VERSION = 4
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024

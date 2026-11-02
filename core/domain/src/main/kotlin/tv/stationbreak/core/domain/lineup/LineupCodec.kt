@@ -109,6 +109,9 @@ internal object LineupCodec {
             Decoded.Unreadable
         }
 
+    /** [source] as the file holds it (the `source` of a channel): what the days' key ([LineupDays.inputsOf]) hashes. */
+    fun sourceOf(source: ChannelSource): JsonElement = SourceCodec.encode(source)
+
     // The version as a whole number of 1 or more (a too-big one is newer than any app), or null.
     private fun versionOf(root: JsonElement): Int? {
         val primitive = (root as? JsonObject)?.get("version") as? JsonPrimitive

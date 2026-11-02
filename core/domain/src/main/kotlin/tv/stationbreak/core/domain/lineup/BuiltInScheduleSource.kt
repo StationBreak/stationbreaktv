@@ -43,18 +43,24 @@ import kotlin.time.TimeSource
  * Every switched-on channel's day is built from the library as held before that day's cut-off, with **one
  * `ruleSnapshot` per distinct cut-off and never `scheduleItems`** (#275). The starter and leftovers channels all share
  * the lineup's one offset and day start, so a lineup of them is one read; a custom channel with another day start adds
- * one. The built days (settings, epoch and day pool) are kept per lineup revision and cut-offs, so asking again
- * within the same days reads nothing. [onAir] builds a channel's day once (kept on the cached `ChannelDay`) and reads
- * the names of the blocks it returns with one `programInfo` call; the days themselves stay internal to this class.
+ * one. The built days (settings, epoch and day pool) are kept under what they depend on, not the lineup revision: the
+ * lineup's day inputs ([LineupDays.inputsOf]), the content generation the lineup was planned at
+ * ([RefreshMeta.plannedGeneration]) and the cut-offs. So asking again within the same days reads nothing, and an edit
+ * that changes no pool (a renumber, a swap on one side of the Kids band) builds nothing: the kept days are handed out
+ * with the current lineup's channels, numbers and names ([LineupDays.rebound]), so what the guide, flipping and live
+ * see follows the lineup at once. An edit that does change a pool (a switch on or off, a move into or out of the Kids
+ * band that changes a policy) builds the days again. [onAir] builds a channel's day once (kept on the cached
+ * `ChannelDay`) and reads the names of the blocks it returns with one `programInfo` call; the days themselves stay
+ * internal to this class.
  *
  * Callers that miss the cache together share one build (single flight, #392): the first starts it in this source's own
  * scope and the rest await it, so a caller that is cancelled (a flip superseded mid-lookup) leaves the build running
  * for the others, and for the cache. A build that fails is not kept; the next caller builds again.
  *
- * The snapshots are kept apart from the days ([SnapshotCache]): a new lineup revision builds its days again but reads
- * the library only if it changed (its content generation moved). A build whose revision is no
- * longer the account's current one stops at its next channel and does not report; the callers that joined it ask again
- * and get the current revision's days.
+ * The snapshots are kept apart from the days ([SnapshotCache]): days built again (a refresh after the library changed,
+ * or an edit that changes a pool) read the library only if it changed (its content generation moved). A build whose
+ * key is no longer the current lineup's stops at its next channel and does not report; the callers that joined it ask
+ * again and get the current lineup's days. One whose lineup moved on to a revision of the same key goes on.
  *
  * [timed] is told the build of each following day that [onAir] needed: the day's index and the milliseconds it took
  * (numbers only; no item, title or URL ever reaches it), so a first tune near a day edge can be measured. [built] is
@@ -92,10 +98,13 @@ class BuiltInScheduleSource(
     private val saveDispatcher: CoroutineDispatcher = BackgroundSaves.dispatcher,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
+    // What a set of built days depends on (see the class comment): never the revision, nor any number or name that
+    // changes no pool. [planned] stands for the library's state: a refresh after a change records a new one.
     private data class Key(
         val account: LibraryAccount,
-        val revision: Long,
         val libraries: Set<ItemId>,
+        val inputs: String,
+        val planned: Long?,
         val cutoffs: List<Long>,
     )
 
@@ -123,6 +132,9 @@ class BuiltInScheduleSource(
     // The (account, libraries, cut-offs) this process has already looked for on disk: see [shouldLook].
     private val diskLooked = HashSet<Triple<LibraryAccount, Set<ItemId>, List<Long>>>()
 
+    // The last lineup's day inputs: worked out once per lineup, not on every lookup.
+    private var lastInputs: Pair<Lineup, String>? = null
+
     /** For tests: waits for the writes of built days to disk started so far. */
     internal suspend fun awaitSaves() = synchronized(lock) { saves.toList() }.joinAll()
 
@@ -132,13 +144,56 @@ class BuiltInScheduleSource(
     /** For tests: how many snapshot reads the cache has cancelled. */
     internal fun cancelledSnapshotReads(): Int = snapshots.cancelledReads
 
-    /** The build of a lineup revision that is no longer the account's current one stops, and its callers go on. */
+    /** The build of days the account's current lineup no longer has stops, and its callers go on. */
     private class StaleBuild : RuntimeException("The lineup moved on while the day build ran")
 
     private fun isCurrent(
         account: LibraryAccount,
         revision: Long,
     ): Boolean = service.lineup(account).value?.revision == revision
+
+    private fun inputsOf(lineup: Lineup): String {
+        synchronized(lock) { lastInputs?.takeIf { it.first === lineup }?.let { return it.second } }
+        val inputs = days.inputsOf(lineup)
+        synchronized(lock) { lastInputs = lineup to inputs }
+        return inputs
+    }
+
+    private fun keyOf(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        held: Revisioned,
+        scheduled: List<Scheduled>,
+    ): Key {
+        val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
+        return Key(account, libraries, inputsOf(held.lineup), held.meta.plannedGeneration, cutoffs)
+    }
+
+    /**
+     * [built] as [found]'s lineup shows them. Kept so in place of [built], so the next caller need not do it again, and
+     * so that callers of one lineup get the one list.
+     */
+    private fun bound(
+        found: Lookup,
+        built: List<ChannelDay>,
+    ): List<ChannelDay> {
+        if (days.isShownAs(built, found.scheduled)) return built
+        val bound = days.rebound(built, found.scheduled)
+        return synchronized(lock) {
+            val now = kept[found.key]
+            when {
+                now === built -> bound.also { kept[found.key] = it }
+                now != null && days.isShownAs(now, found.scheduled) -> now
+                else -> bound
+            }
+        }
+    }
+
+    /** The days kept for [found], as its lineup shows them; null when none are kept. */
+    private fun keptFor(found: Lookup): List<ChannelDay>? {
+        val built = synchronized(lock) { kept[found.key] }
+        return built?.let { bound(found, it) }
+    }
 
     override suspend fun airings(at: Instant): List<ChannelAiring> =
         withContext(dispatcher) {
@@ -178,7 +233,7 @@ class BuiltInScheduleSource(
             val days =
                 when {
                     first == null -> null
-                    build == ScheduleBuild.CachedOnly -> synchronized(lock) { kept[first.key] }
+                    build == ScheduleBuild.CachedOnly -> keptFor(first)
                     else -> channelDays(account, chosen, from)
                 }
             when {
@@ -289,7 +344,7 @@ class BuiltInScheduleSource(
             when {
                 found == null -> null
                 found.held.revision != reading.revision -> null.also { reading.consistent = false }
-                reading.build == ScheduleBuild.CachedOnly -> synchronized(lock) { kept[found.key] }
+                reading.build == ScheduleBuild.CachedOnly -> keptFor(found)
                 else -> channelDays(reading.account, reading.chosen, start)
             }
         reading.following[startMs] = days
@@ -426,14 +481,14 @@ class BuiltInScheduleSource(
         libraries: Set<ItemId>,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
-        // A build that finds its lineup revision is no longer current stops, and the callers that joined it start
-        // again here, against the revision that is current now. Only a revision change sends a caller round: a change
-        // to the library does not (the snapshot reads are shared, see SnapshotCache, and a build is given the state it
-        // asked for). The loop is not bounded, and cannot be outrun: a pass round it needs a build to have found a
-        // newer revision, revisions are published only by LineupService (one at a time under its lock: a refresh when
-        // the library asks for one, and an edit for each press of the user's, so a person's pace and not a loop's),
-        // and a build that finishes while its revision is current is kept, so the next pass is a cache hit. Each
-        // await in it is a cancellation point, so a caller that gives up leaves at once.
+        // A build that finds the current lineup no longer has its days (its key) stops, and the callers that joined it
+        // start again here, against the lineup that is current now; so does a caller whose lineup moved on while it
+        // waited. Only a new revision can send a caller round: a change to the library does not (the snapshot reads are
+        // shared, see SnapshotCache, and a build is given the state it asked for). The loop is not bounded, and cannot
+        // be outrun: a pass round it needs a newer revision, revisions are published only by LineupService (one at a
+        // time under its lock: a refresh when the library asks for one, and an edit for each press of the user's, so a
+        // person's pace and not a loop's), and a build that finishes while its key is current is kept, so the next pass
+        // is a cache hit. Each await in it is a cancellation point, so a caller that gives up leaves at once.
         while (true) {
             try {
                 return channelDaysOnce(account, libraries, at)
@@ -461,8 +516,7 @@ class BuiltInScheduleSource(
     ): Lookup? {
         val held = service.loaded(account) ?: return null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
-        val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
-        return Lookup(held, scheduled, Key(account, held.revision, libraries, cutoffs))
+        return Lookup(held, scheduled, keyOf(account, libraries, held, scheduled))
     }
 
     private suspend fun channelDaysOnce(
@@ -470,7 +524,8 @@ class BuiltInScheduleSource(
         libraries: Set<ItemId>,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
-        val (held, scheduled, key) = lookup(account, libraries, at) ?: return emptyList<ChannelDay>() to null
+        val found = lookup(account, libraries, at) ?: return emptyList<ChannelDay>() to null
+        val key = found.key
         val began = TimeSource.Monotonic.markNow()
         var started = false
         val (hit, flight) =
@@ -485,7 +540,7 @@ class BuiltInScheduleSource(
                             lateinit var self: Deferred<List<ChannelDay>>
                             self =
                                 buildScope.async(start = CoroutineStart.LAZY) {
-                                    build(key, account, held.lineup, scheduled, self)
+                                    build(found, account, at.toEpochMilliseconds(), self)
                                 }
                             self
                         }
@@ -494,8 +549,10 @@ class BuiltInScheduleSource(
         // Started outside the lock, once the entry it removes itself from is in place.
         if (started) flight?.start()
         if (!started && flight != null) joined.incrementAndGet()
-        val days = hit ?: awaited(checkNotNull(flight))
-        return days to if (started) began.elapsedNow().inWholeMilliseconds else null
+        val built = hit ?: awaited(checkNotNull(flight))
+        // A build that went on through a renumber gives days of the same key; they are shown as the lineup is now.
+        if (!isCurrent(account, found.held.revision)) throw StaleBuild()
+        return bound(found, built) to if (started) began.elapsedNow().inWholeMilliseconds else null
     }
 
     /**
@@ -512,19 +569,23 @@ class BuiltInScheduleSource(
 
     @Suppress("LongMethod") // One build, timed phase by phase.
     private suspend fun build(
-        key: Key,
+        wanted: Lookup,
         account: LibraryAccount,
-        lineup: Lineup,
-        scheduled: List<Scheduled>,
+        atMs: Long,
         self: Deferred<List<ChannelDay>>,
     ): List<ChannelDay> {
+        val key = wanted.key
+        val lineup = wanted.held.lineup
+        val scheduled = wanted.scheduled
         try {
             val began = TimeSource.Monotonic.markNow()
             val job = currentCoroutineContext().job
-            // A stale build stops at the next of these (a snapshot read goes on for the build that replaces it).
+            // A stale build stops at the next of these (a snapshot read goes on for the build that replaces it). A
+            // newer revision with the same key (a renumber) is not stale: the build goes on, checked against that one.
+            var revision = wanted.held.revision
             val checkpoint = {
                 job.ensureActive()
-                if (!isCurrent(account, key.revision)) throw StaleBuild()
+                if (!isCurrent(account, revision)) revision = stillWanted(account, key, atMs) ?: throw StaleBuild()
             }
             val before = Probed(probes)
             val allocBefore = Reading(probes.allocatedBytes())
@@ -536,6 +597,7 @@ class BuiltInScheduleSource(
                     key.libraries,
                     generation,
                     lineup,
+                    key.inputs,
                     service.catalog.version,
                     scheduled,
                 )
@@ -593,6 +655,17 @@ class BuiltInScheduleSource(
             // Only this build's own entry: a failed or cancelled build leaves nothing kept, so the next caller builds.
             synchronized(lock) { inFlight.remove(key, self) }
         }
+    }
+
+    /** The revision of [account]'s current lineup if its days at [atMs] are still [key]'s; null when they are not. */
+    private fun stillWanted(
+        account: LibraryAccount,
+        key: Key,
+        atMs: Long,
+    ): Long? {
+        val held = service.lineup(account).value ?: return null
+        val same = keyOf(account, key.libraries, held, days.scheduled(held.lineup, atMs)) == key
+        return if (same) held.revision else null
     }
 
     /**

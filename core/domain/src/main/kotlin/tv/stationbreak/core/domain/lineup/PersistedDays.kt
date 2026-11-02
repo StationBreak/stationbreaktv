@@ -71,9 +71,11 @@ enum class DaySnapshotMiss {
  *   every change to what `ruleSnapshot` returns, the first full collection pass (which turns `collectionsSynced` true)
  *   included. The start of the last collection pass is not in the key: every open runs a pass, and one that changed
  *   nothing must not cost the next process its days (#480);
- * - the catalog version, the lineup's UTC offset and a SHA-256 of the whole stored lineup (every channel's rules,
- *   state, number and name);
- * - the cut-offs and every scheduled channel with its epoch number (which day).
+ * - the catalog version, the lineup's UTC offset and a SHA-256 of what of the lineup the days depend on
+ *   ([LineupDays.inputsOf]: every channel's state, source, ceiling and pool policy, and the leftovers' claim order),
+ *   which leaves out the numbers and names that change no pool, so a renumber keeps the file;
+ * - the cut-offs and every scheduled channel with its epoch number (which day), by channel ID: the file holds the days
+ *   in that order too, and they are given back in the caller's (number) order.
  *
  * The key also names the cache's own [DaySnapshotCodec.VERSION] and the holds' versions ([HOLDS]). Both change only
  * with the code, so [appBuild] already covers them; they are there so that a miss says which of them moved.
@@ -106,16 +108,19 @@ class PersistedDays internal constructor(
     // The keys whose write failed in this process: they are not encoded again.
     private val failed: MutableSet<DayKey> = Collections.synchronizedSet(HashSet())
 
+    /** The key of the days of [scheduled], for a lineup whose day inputs are [inputs] ([LineupDays.inputsOf]). */
     @Suppress("LongParameterList") // One argument per input of the days.
     internal fun keyOf(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         generation: Long,
         lineup: Lineup,
+        inputs: String,
         catalogVersion: Int,
         scheduled: List<Scheduled>,
-    ): DayKey =
-        DayKey(
+    ): DayKey {
+        val inKeyOrder = inKeyOrder(scheduled)
+        return DayKey(
             format = DaySnapshotCodec.VERSION,
             app = appBuild,
             holds = holds,
@@ -125,15 +130,16 @@ class PersistedDays internal constructor(
             generation = generation,
             catalog = catalogVersion,
             utcOffsetMinutes = lineup.utcOffsetMinutes,
-            lineup = sha256(LineupCodec.encode(lineup)),
+            lineup = inputs,
             cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted(),
-            channels = scheduled.map { it.channel.id.value },
-            days = scheduled.map { it.n },
+            channels = inKeyOrder.map { it.channel.id.value },
+            days = inKeyOrder.map { it.n },
         )
+    }
 
     /**
-     * The days of [scheduled] from disk if the file's key is [key], each made by [restore]; null otherwise, and
-     * [report] is told which. Never throws but for cancellation.
+     * The days of [scheduled] from disk if the file's key is [key], each made by [restore], in the order of
+     * [scheduled]; null otherwise, and [report] is told which. Never throws but for cancellation.
      */
     internal suspend fun load(
         account: LibraryAccount,
@@ -147,14 +153,15 @@ class PersistedDays internal constructor(
         val outcome =
             when (stored) {
                 StoredBytes.Absent -> Read.Missed(DaySnapshotMiss.Absent)
-                is StoredBytes.Present -> attempt { readDays(stored.bytes, key, scheduled, restore) }
+                is StoredBytes.Present -> attempt { readDays(stored.bytes, key, inKeyOrder(scheduled), restore) }
                 StoredBytes.Failed, null -> null
             } ?: Read.Missed(DaySnapshotMiss.Unreadable)
         return when (outcome) {
             is Read.Loaded -> {
                 val bytes = (stored as StoredBytes.Present).bytes.size.toLong()
                 report(DaySnapshotEvent.Hit(bytes, began.elapsedNow().inWholeMilliseconds))
-                outcome.days
+                val byId = outcome.days.associateBy { it.channel.id }
+                scheduled.map { byId.getValue(it.channel.id) }
             }
 
             is Read.Missed -> {
@@ -172,7 +179,7 @@ class PersistedDays internal constructor(
     ): Boolean {
         if (!enabled || key in failed) return false
         val began = TimeSource.Monotonic.markNow()
-        val bytes = attempt { DaySnapshotCodec.encode(key, days) }
+        val bytes = attempt { DaySnapshotCodec.encode(key, days.sortedBy { it.channel.id.value }) }
         val written = bytes != null && attempt { store.write(account, nameOf(key), bytes) } == true
         if (written) {
             report(DaySnapshotEvent.Saved(bytes.size.toLong(), began.elapsedNow().inWholeMilliseconds))
@@ -235,6 +242,9 @@ class PersistedDays internal constructor(
             null
         }
 
+    // The key's order of the channels, and the file's: by ID, so a renumber that changes no day keeps the file.
+    private fun inKeyOrder(scheduled: List<Scheduled>): List<Scheduled> = scheduled.sortedBy { it.channel.id.value }
+
     companion object {
         /** The holds a kid and a grown-up channel's pools are narrowed by (ADR-0019, ADR-0020). */
         internal val HOLDS: List<String> = listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME)
@@ -257,7 +267,7 @@ class PersistedDays internal constructor(
 
         /** A file's name: `<earliest>_<latest>_<hash of all the cut-offs>`, never longer than `DayStore.MAX_NAME`. */
         internal fun nameOf(key: DayKey): String {
-            val hash = sha256(key.cutoffs.joinToString(",").encodeToByteArray()).take(NAME_HASH)
+            val hash = sha256Hex(key.cutoffs.joinToString(",").encodeToByteArray()).take(NAME_HASH)
             return "${key.cutoffs.first()}_${key.cutoffs.last()}_$hash"
         }
 
@@ -271,20 +281,21 @@ class PersistedDays internal constructor(
 
         /** Keeps nothing and finds nothing. */
         fun disabled(): PersistedDays = PersistedDays(NoDays, "", {}, HOLDS, enabled = false)
-
-        private const val HEX = "0123456789abcdef"
-        private const val NIBBLE = 4
-        private const val LOW = 0x0f
-
-        private fun sha256(bytes: ByteArray): String =
-            buildString {
-                for (b in MessageDigest.getInstance("SHA-256").digest(bytes)) {
-                    append(HEX[(b.toInt() shr NIBBLE) and LOW])
-                    append(HEX[b.toInt() and LOW])
-                }
-            }
     }
 }
+
+private const val HEX = "0123456789abcdef"
+private const val NIBBLE = 4
+private const val LOW = 0x0f
+
+/** The SHA-256 of [bytes], in lower-case hex. */
+internal fun sha256Hex(bytes: ByteArray): String =
+    buildString {
+        for (b in MessageDigest.getInstance("SHA-256").digest(bytes)) {
+            append(HEX[(b.toInt() shr NIBBLE) and LOW])
+            append(HEX[b.toInt() and LOW])
+        }
+    }
 
 /** The store of [PersistedDays.disabled]: nothing is there, and nothing is kept. */
 private object NoDays : DayStore {

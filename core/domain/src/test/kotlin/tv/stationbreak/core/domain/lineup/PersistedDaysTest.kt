@@ -108,7 +108,7 @@ class PersistedDaysTest {
         generation: Long = GENERATION,
         of: Lineup = lineup,
         catalog: Int = TestCatalog.version,
-    ) = days.keyOf(account, libraries, generation, of, catalog, scheduled)
+    ) = days.keyOf(account, libraries, generation, of, lineupDays.inputsOf(of), catalog, scheduled)
 
     private fun save(
         days: PersistedDays = persisted(),

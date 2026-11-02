@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolEvaluator
@@ -38,7 +41,7 @@ import kotlin.time.TimeSource
  * is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
 @Suppress("LongParameterList") // The day's fixed facts, one for one.
-internal class ChannelDay(
+internal class ChannelDay private constructor(
     val channel: LineupChannel,
     val name: String,
     val settings: SchedulerSettings,
@@ -46,23 +49,49 @@ internal class ChannelDay(
     val pool: List<ScheduleItem>,
     val hidden: HiddenReason?,
     val ceilingRank: Int?,
-    laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
+    // The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once).
+    private val layout: Lazy<Day>,
 ) {
+    constructor(
+        channel: LineupChannel,
+        name: String,
+        settings: SchedulerSettings,
+        n: Long,
+        pool: List<ScheduleItem>,
+        hidden: HiddenReason?,
+        ceilingRank: Int?,
+        laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
+    ) : this(channel, name, settings, n, pool, hidden, ceilingRank, layoutOf(settings, pool, n, laidOut))
+
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
-
-    /** The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once). */
-    private val layout =
-        lazy {
-            val began = TimeSource.Monotonic.markNow()
-            buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
-        }
 
     val day: Day get() = layout.value
 
     /** Whether the layout of the day has been worked out (reading [day] before then does that work). */
     val isLaidOut: Boolean get() = layout.isInitialized()
+
+    /**
+     * This day as [channel] of a later lineup shows it, at its number and under its [name]: the pool and the layout
+     * (worked out or not) are this day's own, so nothing is built again. Only for a lineup whose days have the same
+     * inputs ([LineupDays.inputsOf]).
+     */
+    fun shownAs(
+        channel: LineupChannel,
+        name: String,
+    ): ChannelDay = ChannelDay(channel, name, settings, n, pool, hidden, ceilingRank, layout)
 }
+
+private fun layoutOf(
+    settings: SchedulerSettings,
+    pool: List<ScheduleItem>,
+    n: Long,
+    laidOut: (n: Long, ms: Long) -> Unit,
+): Lazy<Day> =
+    lazy {
+        val began = TimeSource.Monotonic.markNow()
+        buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+    }
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */
 internal class Scheduled(
@@ -102,6 +131,7 @@ internal class Scheduled(
  *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
+@Suppress("TooManyFunctions") // A lineup's days: worked out, restored, keyed and rebound together.
 internal class LineupDays(
     private val catalog: StarterCatalogView,
     private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
@@ -117,6 +147,70 @@ internal class LineupDays(
             .mapNotNull { channel ->
                 settingsOf(channel, lineup)?.let { Scheduled(channel, it, Epochs.epochNumber(it, atMs)) }
             }
+
+    /**
+     * Everything of [lineup] that a day's pool and empty reason depend on, as a SHA-256 (hex), so that two lineups
+     * whose days are the same give the same digest whatever their numbers and names. With the library snapshots, the
+     * catalog and the moment (which day of each channel) it is the whole input of [days]:
+     * - the server and the UTC offset, which every starter and leftovers channel's settings derive from;
+     * - every channel, by ID: its state (on, hidden or on the shelf: which pools are aired, withheld or ignored), its
+     *   source as stored but for the name in its rules (the rules, the edited flag, the leftovers key and ceiling, an
+     *   unusable channel's JSON), the ceiling it is scheduled under ([ceilingOf]) and its pool policy
+     *   ([KidStatus.policyOf]). The last two are where a number counts: the Kids band holds a channel to PG and to
+     *   made-for-kids content, so a move into or out of 1-99 that changes either changes the digest;
+     * - the order the leftovers channels claim in ([claimOrder]: ceilinged first, then by number), the one other place
+     *   numbers count.
+     *
+     * Numbers and names that change neither are left out: a renumber or a swap on one side of the Kids band keeps every
+     * built day. The day's channel and name are read from the current lineup ([rebound]).
+     */
+    fun inputsOf(lineup: Lineup): String {
+        val channels =
+            lineup.channels.sortedBy { it.id.value }.map { channel ->
+                JsonObject(
+                    linkedMapOf(
+                        "id" to JsonPrimitive(channel.id.value),
+                        "state" to JsonPrimitive(channel.state.name),
+                        "ceiling" to JsonPrimitive(ceilingOf(channel)),
+                        "policy" to JsonPrimitive(nameOf(policyOf(channel))),
+                        "source" to LineupCodec.sourceOf(unnamed(channel.source)),
+                    ),
+                )
+            }
+        val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
+        val inputs =
+            JsonObject(
+                linkedMapOf(
+                    "server" to JsonPrimitive(lineup.serverId.value),
+                    "offset" to JsonPrimitive(lineup.utcOffsetMinutes),
+                    "channels" to JsonArray(channels),
+                    "claims" to JsonArray(claims),
+                ),
+            )
+        return sha256Hex(inputs.toString().encodeToByteArray())
+    }
+
+    /** Whether [built] are already [scheduled]'s days as its lineup shows them: its very channels, in its order. */
+    fun isShownAs(
+        built: List<ChannelDay>,
+        scheduled: List<Scheduled>,
+    ): Boolean = built.size == scheduled.size && built.indices.all { built[it].channel === scheduled[it].channel }
+
+    /**
+     * [built], the days of a lineup with the same [inputsOf] as [scheduled]'s, as [scheduled] shows them: in its
+     * order, each with its channel (so its number) and its name. [built] itself when it already is.
+     */
+    fun rebound(
+        built: List<ChannelDay>,
+        scheduled: List<Scheduled>,
+    ): List<ChannelDay> {
+        if (isShownAs(built, scheduled)) return built
+        val byId = built.associateBy { it.channel.id }
+        return scheduled.map { s ->
+            val day = checkNotNull(byId[s.channel.id]) { "Days of the same inputs are of the same channels" }
+            if (day.channel === s.channel) day else day.shownAs(s.channel, s.channel.displayName(catalog))
+        }
+    }
 
     /**
      * The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`. [beforeChannel] is
@@ -221,11 +315,7 @@ internal class LineupDays(
             return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff), policy).also { evaluations[key] = it }
         }
 
-        // Leftovers channels that claim in turn: ceilinged first, then by number and ID. Shelved ones claim nothing.
-        private val leftovers =
-            lineup.channels
-                .filter { it.source is ChannelSource.Leftovers && it.state != ChannelState.Shelf }
-                .sortedWith(compareBy<LineupChannel> { ceilingOf(it) == null }.then(CHANNEL_ORDER))
+        private val leftovers = claimOrder(lineup)
 
         fun days(
             scheduled: List<Scheduled>,
@@ -357,6 +447,12 @@ internal class LineupDays(
         val policy: PoolPolicy,
     )
 
+    // Leftovers channels that claim in turn: ceilinged first, then by number and ID. Shelved ones claim nothing.
+    private fun claimOrder(lineup: Lineup): List<LineupChannel> =
+        lineup.channels
+            .filter { it.source is ChannelSource.Leftovers && it.state != ChannelState.Shelf }
+            .sortedWith(compareBy<LineupChannel> { ceilingOf(it) == null }.then(CHANNEL_ORDER))
+
     /**
      * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is
      * in the catalog (the stored one only counts for a retired key). An unedited starter of a kid-safe recipe takes the
@@ -405,6 +501,22 @@ private fun atMostPg(rating: String?): Boolean {
     val rank = RatingLadder.rankOf(rating)
     return rank != null && rank <= checkNotNull(RatingLadder.rankOf("PG"))
 }
+
+// A policy's name in the days' key; a new policy fails the build here rather than sharing a name.
+private fun nameOf(policy: PoolPolicy): String =
+    when (policy) {
+        PoolPolicy.Open -> "open"
+        PoolPolicy.KidsOnly -> "kidsOnly"
+        PoolPolicy.GrownUp -> "grownUp"
+    }
+
+// [source] without the name its rules may carry: a name never reaches a pool.
+private fun unnamed(source: ChannelSource): ChannelSource =
+    when (source) {
+        is ChannelSource.Starter -> source.copy(rules = source.rules.copy(name = null))
+        is ChannelSource.Custom -> source.copy(rules = source.rules.copy(name = null))
+        is ChannelSource.Leftovers, is ChannelSource.Unusable -> source
+    }
 
 private fun rulesOf(channel: LineupChannel): ChannelRules? =
     when (val source = channel.source) {
