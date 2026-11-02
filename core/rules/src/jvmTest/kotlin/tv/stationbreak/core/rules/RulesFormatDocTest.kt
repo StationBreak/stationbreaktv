@@ -106,14 +106,17 @@ class RulesFormatDocTest {
     fun hasTheScopeSectionsAndBanner() {
         val banner =
             "> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). " +
-                "Version 2 — final (2026-11-02), with its independently computed vectors: it adds features to " +
-                "version 1 and leaves version 1 unchanged (see Format version). " +
-                "Any later lineup change needs `formatVersion` 3."
+                "Version 2 (2026-11-02) is a Draft: it adds features to version 1 and leaves version 1 unchanged " +
+                "(see Format version), and the scheduler change that builds it finalises it once its independently " +
+                "computed vectors exist. Once version 2 is final, any later lineup change needs `formatVersion` 3."
         assertTrue(banner in doc.lines(), "the final banner is missing")
         assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
-        assertTrue("**Version 2 is final**" in doc, "the Format version text does not say version 2 is final")
-        assertTrue("Version 2 is a Draft" !in doc, "a version 2 Draft remains")
+        assertTrue("**Version 2 is a Draft**" in doc, "the Format version text does not say version 2 is a Draft")
+        assertTrue(
+            "The rule that a later lineup change needs `formatVersion` 3\napplies only once version 2 is final." in doc,
+            "the version 3 rule must apply once version 2 is final",
+        )
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")
         }
