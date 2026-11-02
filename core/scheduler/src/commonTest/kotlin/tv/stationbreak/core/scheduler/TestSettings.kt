@@ -4,6 +4,7 @@ package tv.stationbreak.core.scheduler
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 
@@ -44,3 +45,9 @@ internal fun testSettings(
     caps = caps,
     runtimeFilter = runtimeFilter,
 )
+
+/** No film belongs to a collection: the v1 tests' side input. */
+internal fun noFilms() = FilmCollections.of(emptyMap())
+
+/** The v1 tests' group rules: no film is in a collection. */
+internal fun noGroups() = GroupRules(noFilms())

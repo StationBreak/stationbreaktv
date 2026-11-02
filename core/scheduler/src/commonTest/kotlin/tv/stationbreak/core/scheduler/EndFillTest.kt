@@ -195,6 +195,7 @@ class EndFillTest {
                     case.settings,
                     EpochPool.build(case.settings, case.items, case.n),
                     Epochs.seedN(case.settings.seed, case.n),
+                    noGroups(),
                 )
             val regularItems =
                 (0 until actual.regularRunCount).sumOf { cycle[(actual.startRunIndex + it) % cycle.size].items.size }

@@ -94,7 +94,7 @@ class RunFormationTest {
             }
         val movie = testItem(idOf('9'))
         val settings = testSettings(orderingMode = OrderingMode.RandomInOrder, blockLength = 2, seed = Seed(3uL))
-        val runs = Runs.cycle(settings, eps + movie, seedN = 0uL)
+        val runs = Runs.cycle(settings, eps + movie, seedN = 0uL, noGroups())
         val turns = Orderings.randomInOrderTurns(eps + movie, Seed(3uL), 2)
         assertEquals(turns.map { t -> t.map { it.id.value } }, runs.ids())
         assertEquals(setOf(1, 2), runs.map { it.items.size }.toSet())
@@ -105,9 +105,15 @@ class RunFormationTest {
     fun randomInOrderIgnoresTheEpochSeedAndShuffleUsesIt() {
         val pool = itemsOf(12)
         val random = testSettings(orderingMode = OrderingMode.RandomInOrder, seed = Seed(4uL))
-        assertEquals(Runs.cycle(random, pool, seedN = 1uL).ids(), Runs.cycle(random, pool, seedN = 2uL).ids())
+        assertEquals(
+            Runs.cycle(random, pool, seedN = 1uL, noGroups()).ids(),
+            Runs.cycle(random, pool, seedN = 2uL, noGroups()).ids(),
+        )
         val shuffle = testSettings(orderingMode = OrderingMode.Shuffle, seed = Seed(4uL))
-        assertTrue(Runs.cycle(shuffle, pool, seedN = 1uL).ids() != Runs.cycle(shuffle, pool, seedN = 2uL).ids())
+        assertTrue(
+            Runs.cycle(shuffle, pool, seedN = 1uL, noGroups()).ids() !=
+                Runs.cycle(shuffle, pool, seedN = 2uL, noGroups()).ids(),
+        )
     }
 
     // The independent reference's cases: order and runs for every mode, from key-order.json.
@@ -140,7 +146,7 @@ class RunFormationTest {
             val blockLength = case.string("blockLength").toInt()
             val settings = testSettings(orderingMode = mode, seed = seed, blockLength = blockLength)
             val expected = case.array("runs").map { run -> run.jsonArray.map { it.jsonPrimitive.content } }
-            assertEquals(expected, Runs.cycle(settings, case.pool(), seedN).ids(), case.string("name"))
+            assertEquals(expected, Runs.cycle(settings, case.pool(), seedN, noGroups()).ids(), case.string("name"))
         }
     }
 }

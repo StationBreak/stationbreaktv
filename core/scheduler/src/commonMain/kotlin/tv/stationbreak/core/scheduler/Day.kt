@@ -3,6 +3,7 @@ package tv.stationbreak.core.scheduler
 
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -113,12 +114,14 @@ internal fun buildDayCounting(
         }
     }
     val pool = EpochPool.build(settings, items, n)
-    val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n))
+    // Task 10 passes the film-to-collection map in; until then no film is in a collection.
+    val groups = GroupRules(FilmCollections.of(emptyMap()))
+    val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
     if (cycle.isEmpty()) {
         return Day(n, start, end, listOf(ScheduleBlock(start, end, ScheduleContent.Slate)), RunPlan(0, 0, 0), onCompare)
     }
     val startRun = Timeline.startRun(settings, cycle, start)
-    val layout = Timeline.layout(settings, cycle, startRun, start, end)
+    val layout = Timeline.layout(settings, cycle, startRun, start, end, groups)
     return Day(n, start, end, layout.blocks, RunPlan(startRun, layout.runsStarted, cycle.size), onCompare)
 }
 
@@ -145,7 +148,8 @@ internal object Timeline {
         settings: SchedulerSettings,
         pool: List<ScheduleItem>,
         seedN: ULong,
-    ): List<Run> = Runs.cycle(settings, pool, seedN).filter { slotMs(settings, it) <= settings.epochMs }
+        groups: GroupRules,
+    ): List<Run> = Runs.cycle(settings, pool, seedN, groups).filter { slotMs(settings, it) <= settings.epochMs }
 
     /**
      * The run a day starts at. `shuffle` starts at run 0, because each day has its own seed. The other modes start at
@@ -182,12 +186,14 @@ internal object Timeline {
      * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's
      * end when aligned, and the end of the day planned by [fillEnd] when the next run would end after [dayEnd].
      */
+    @Suppress("LongParameterList") // The day's window and the group rules are each an input of the layout.
     fun layout(
         settings: SchedulerSettings,
         cycle: List<Run>,
         startRun: Int,
         dayStart: Long,
         dayEnd: Long,
+        groups: GroupRules,
     ): Layout {
         val blocks = ArrayList<ScheduleBlock>()
         var cursor = dayStart
@@ -211,7 +217,7 @@ internal object Timeline {
             index = (index + 1) % cycle.size
         }
         if (unstarted >= 0) {
-            val filled = fillEnd(settings, cycle, unstarted, cursor, dayEnd)
+            val filled = fillEnd(settings, cycle, unstarted, cursor, dayEnd, groups)
             blocks.addAll(filled)
             cursor = filled.lastOrNull()?.endMs ?: cursor
         }
@@ -225,33 +231,38 @@ internal object Timeline {
      * wraps; the other modes stop at the cycle's end, so an earlier episode is never replayed after a later one. Each
      * item starts at the end of the previous block, moved to the next grid mark when aligned, and is placed when its
      * start plus its actual runtime is no later than [dayEnd]. For the other modes, once an item of a group has been
-     * passed over no later item of that group is eligible. Returns the blocks placed (with the slates for grid gaps
+     * passed over no later item of that group is eligible. Rotation's group is the one [groups] gives (a collection is
+     * one group); the other modes' is the series or the item. Returns the blocks placed (with the slates for grid gaps
      * before them); the caller adds the closing slate.
      */
+    @Suppress("LongParameterList") // The same inputs as the layout, plus where the fill starts.
     private fun fillEnd(
         settings: SchedulerSettings,
         cycle: List<Run>,
         unstarted: Int,
         from: Long,
         dayEnd: Long,
+        groups: GroupRules,
     ): List<ScheduleBlock> {
         val items = cycle.flatMap { it.items }
         val firstItem = (0 until unstarted).sumOf { cycle[it].items.size }
         val wraps = settings.orderingMode == OrderingMode.Shuffle
         val visits = if (wraps) items.size else items.size - firstItem
+        val rotation = settings.orderingMode == OrderingMode.Rotation
         val passedOver = HashSet<CanonicalId>()
         val blocks = ArrayList<ScheduleBlock>()
         var cursor = from
         for (visit in 0 until visits) {
             val item = items[(firstItem + visit) % items.size]
-            if (!wraps && item.groupId in passedOver) continue
+            val group = if (rotation) groups.groupId(item) else item.groupId
+            if (!wraps && group in passedOver) continue
             val start = startAtOrAfter(settings, cursor)
             if (start + item.runtimeMs <= dayEnd) {
                 if (start > cursor) blocks.add(ScheduleBlock(cursor, start, ScheduleContent.Slate))
                 blocks.add(ScheduleBlock(start, start + item.runtimeMs, ScheduleContent.Program(item.id)))
                 cursor = start + item.runtimeMs
             } else if (!wraps) {
-                passedOver.add(item.groupId)
+                passedOver.add(group)
             }
         }
         return blocks

@@ -33,13 +33,14 @@ object Runs {
 
     /**
      * The runs of one cycle of [pool] in the settings' ordering mode. [seedN] is the epoch's seed, and only `shuffle`
-     * uses it: `randomInOrder` keys its groups with the channel seed, so its walk is the same every day. For
-     * `randomInOrder`, one turn is one run.
+     * uses it: `randomInOrder` and `rotation` key their groups with the channel seed, so their walk is the same every
+     * day. For those two, one turn is one run, and `blockLength` does not apply to `rotation`.
      */
-    fun cycle(
+    internal fun cycle(
         settings: SchedulerSettings,
         pool: List<ScheduleItem>,
         seedN: ULong,
+        groups: GroupRules,
     ): List<Run> =
         when (settings.orderingMode) {
             OrderingMode.Shuffle -> {
@@ -54,8 +55,13 @@ object Runs {
                 Orderings.randomInOrderTurns(pool, settings.seed, settings.blockLength).map { Run(it) }
             }
 
-            // The rules layer refuses these until the scheduler builds them (rules format version 2).
-            OrderingMode.Rotation, OrderingMode.InOrder -> {
+            OrderingMode.Rotation -> {
+                val caps = checkNotNull(settings.caps) { "Rotation needs caps" }
+                Orderings.rotationTurns(pool, settings.seed, caps, groups).map { Run(it) }
+            }
+
+            // The rules layer refuses this until the scheduler builds it (rules format version 2).
+            OrderingMode.InOrder -> {
                 error("Ordering mode ${settings.orderingMode.wireName} is not scheduled yet")
             }
         }
