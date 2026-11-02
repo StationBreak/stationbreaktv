@@ -17,11 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
@@ -334,6 +332,10 @@ internal class GuideViewModel
         // where it is: a slow write (a reset on older hardware) can land long after the screen closed. A lineup that
         // cannot be read is a lineup that did not change, as far as the guide knows; the watch ending that way is
         // logged once.
+        //
+        // The baseline is the watch's first emission, with no read of the lineup ahead of the schedule read (the open
+        // path waits for nothing but the schedule). So a write that lands between that read and the first emission is
+        // missed until the next change or the next open: accepted.
         private fun startWatch(s: CoroutineScope) {
             lineupWatch = s.launch { watchLineup(s) }
         }
@@ -482,7 +484,6 @@ internal class GuideViewModel
             id: Int,
             keepsGrid: Boolean,
         ) {
-            noteLineupBeforeReading(s)
             val slow =
                 s.launch {
                     delay(LOADING_AFTER_MS.milliseconds)
@@ -498,6 +499,7 @@ internal class GuideViewModel
                 val cached = windowOrNull(origin, ScheduleBuild.CachedOnly, onFailure = nothing)
                 slow.cancel()
                 if (showCached(s, cached, keepsGrid)) fillIn(s, origin, keepsGrid)
+                settleInfo(s)
             } finally {
                 slow.cancel()
                 synchronized(lock) { if (session === s && loadId == id) loaded = true }
@@ -519,7 +521,8 @@ internal class GuideViewModel
                 final -> publishIfCurrent(s, GuideState.Empty)
                 else -> publishIfCurrent(s, GuideState.Loading)
             }
-            return cached != null && (!final || (keepsGrid && noRows))
+            // No answer at all while a grid is shown (a reload) is not an answer either: the build decides.
+            return if (cached == null) keepsGrid else !final || (keepsGrid && noRows)
         }
 
         // The one build. An incomplete window after it is final: a channel stopped airing or the lineup changed.
@@ -543,21 +546,6 @@ internal class GuideViewModel
                     shownSnapshot.value = snapshotOf(GuideState.Empty, null)
                 }
             }
-        }
-
-        // The lineup as it stands when a load starts is what the watch compares against, so a write that lands between
-        // the schedule read and the watch's first emission still counts as a change. A reload sets it itself.
-        private suspend fun noteLineupBeforeReading(s: CoroutineScope) {
-            if (synchronized(lock) { lineupAtOpen != null }) return
-            val seen =
-                try {
-                    withTimeoutOrNull(BASELINE_MS) { lineup.activeChannels().map { it.onLineup() }.first() }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    null
-                }
-            synchronized(lock) { if (session === s && lineupAtOpen == null && seen != null) lineupAtOpen = seen }
         }
 
         private suspend fun windowOrNull(
@@ -761,11 +749,24 @@ internal class GuideViewModel
             val rows =
                 if (previous == null) ready.openingRowFor(focus) else ready.firstRowFor(focus, previous.firstVisibleRow)
             publish(ready.copy(firstVisibleRow = rows), focus)
-            keepInfoAfterReload(model)
         }
 
         // An info overlay open across a reload stays when its cell is in the new grid (and fetches again, as its fetch
-        // went with the old scope); otherwise it closes. Under the lock.
+        // went with the old scope); otherwise it closes. Settled once the load is done, not on the partial grid the
+        // first read may show: the cell may only be in the finished one.
+        private fun settleInfo(s: CoroutineScope) {
+            synchronized(lock) {
+                if (session !== s || infoKept == null) return
+                val model = (shownSnapshot.value.state as? GuideState.Ready)?.model
+                if (model == null) {
+                    infoKept = null
+                    shownInfo.value = null
+                } else {
+                    keepInfoAfterReload(model)
+                }
+            }
+        }
+
         private fun keepInfoAfterReload(model: GuideModel) {
             val kept = infoKept ?: return
             infoKept = null
@@ -879,7 +880,6 @@ internal class GuideViewModel
         private companion object {
             const val DWELL_MS = 500L
             const val LOADING_AFTER_MS = 400L
-            const val BASELINE_MS = 1_000L
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L

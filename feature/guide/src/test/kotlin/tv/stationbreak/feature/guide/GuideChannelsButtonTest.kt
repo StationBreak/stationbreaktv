@@ -9,13 +9,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelRow
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
@@ -420,6 +424,69 @@ class GuideChannelsButtonTest : GuideRig() {
             val shown = checkNotNull(vm.info.value)
 
             addChannelThree()
+            runCurrent()
+
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertEquals(shown.cell, vm.info.value?.cell)
+        }
+
+    @Test
+    fun aReloadWhoseFirstReadHasNoAnswerIsLeftToTheBuild() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            schedule.cachedNull = true
+            addChannelThree()
+            runCurrent()
+
+            // The build ran in its place and its rows are shown.
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+        }
+
+    @Test
+    fun anInfoOverlayIsSettledOnTheFinishedGridNotThePartialOne() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.select()
+            runCurrent()
+            val shown = checkNotNull(vm.info.value)
+            // The first read has only channel 5; the build has them all.
+            val partial =
+                ChannelRow(
+                    ChannelAiring(CH5, 5, "Test Channel 5", Instant.fromEpochMilliseconds(T0), null),
+                    listOf(program(0, 600, 1)),
+                    T0 + 48 * 60 * MIN,
+                )
+            val gate = CompletableDeferred<Unit>()
+            schedule.cachedAnswer = ScheduleWindow(listOf(partial), complete = false)
+            schedule.asNeededGate = gate
+
+            addChannelThree()
+            runCurrent()
+
+            assertEquals(
+                1,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertEquals("kept while the grid is partial", shown.cell, vm.info.value?.cell)
+            schedule.cachedAnswer = null
+            gate.complete(Unit)
             runCurrent()
 
             assertEquals(

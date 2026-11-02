@@ -56,6 +56,9 @@ internal class HookedSchedule(
     /** When set, an `AsNeeded` read waits for it (a slow build). */
     var asNeededGate: CompletableDeferred<Unit>? = null
 
+    /** When set, a `CachedOnly` read has no answer at all. */
+    var cachedNull = false
+
     /** When set, the answer to a `CachedOnly` read, in place of the lineup's. */
     var cachedAnswer: ScheduleWindow? = null
 
@@ -74,9 +77,13 @@ internal class HookedSchedule(
         onSchedule(calls)
         if (build == ScheduleBuild.AsNeeded) asNeededGate?.await()
         if (build == ScheduleBuild.CachedOnly) cachedGate?.await()
-        val said = if (build == ScheduleBuild.CachedOnly) cachedAnswer else asNeededAnswer
-        if (said != null) return said
-        return inner.schedule(from, until, build).also { afterSchedule(calls) }
+        val cached = build == ScheduleBuild.CachedOnly
+        val said = if (cached) cachedAnswer else asNeededAnswer
+        return when {
+            cached && cachedNull -> null
+            said != null -> said
+            else -> inner.schedule(from, until, build).also { afterSchedule(calls) }
+        }
     }
 }
 
