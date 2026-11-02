@@ -15,8 +15,8 @@ cannot say:
 
 1. **Caps.** "Random order, but never more than three episodes of one show in a row." Version 1's `shuffle` has no
    such limit, and `randomInOrder` always plays the same shows in the same turns.
-2. **Collection groups.** A film collection (a box set) should take turns as one unit, like a show does, and play in
-   release order.
+2. **Collection groups.** A film collection (a box set) should take turns as one unit, like a show does, and in
+   Rotation play in release order.
 3. **Group by group, in order.** One show start to finish, then the next, oldest first.
 4. **AND filters.** "Comedy, from the 1990s, under 40 minutes, shows only." Sources are a union and exclusions only
    subtract, so a narrowing condition cannot be written.
@@ -47,10 +47,11 @@ The rulings, each as `Ruling: what — why — cost if wrong`:
    silently turn into one giant group — cost: a channel sourced from a whole library gets no collection grouping until
    the viewer adds the collections as sources.
 2. **Ruling:** Rotation has no seam rule at its cycle wrap; the format documents the wrap, a capped shuffle's in-day
-   wrap and the planned end as places a cap can be exceeded — the fix would break "a group joining the pool never
+   wrap and the planned end as the places a cap can be exceeded (a left-out run can also bring two turns together, and a
+   group left alone plays on, which is designed behaviour) — the fix would break "a group joining the pool never
    reorders the others" in about half the cases, and a full cycle is days to weeks long — cost: at most once per cycle a
    show runs from its tail into its head.
-3. **Ruling:** a capped shuffle keeps episodes individually shuffled (the version 1 shuffle order inside a group) — the
+3. **Ruling:** a capped shuffle keeps episodes, and the films of a collection, individually shuffled (the version 1 shuffle order inside a group; release order is Rotation's) — the
    owner asked for full randomness, with the cap only as a ceiling — cost: none known.
 4. **Ruling:** In order treats every film as a group of its own, and orders all groups by the date of each group's
    first dated item; caps do not apply — the owner described it as one show after another, oldest first, with films
@@ -124,8 +125,9 @@ Ruling 20 is also stated in the Format version section of the document: a versio
 
 A spike built throwaway implementations of the three new orders against a pool of 10,000 items. Every order took under
 4 ms on a warm JVM, and a whole day (pool, order, runs and layout) took 5 to 7 ms. The paced walk of ruling 7 and the
-filters add work proportional to the pool and stay within that budget on the same pool. Speed on the oldest supported
-TV hardware is measured, not assumed, when the scheduler tasks land; this record does not claim it.
+filters were not part of the spike. They are expected to add work proportional to the pool, and a later scheduler task
+checks that expectation. Speed on the oldest supported TV hardware is measured when the scheduler tasks land; this record
+does not claim it.
 
 ## Consequences
 

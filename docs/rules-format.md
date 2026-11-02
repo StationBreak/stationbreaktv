@@ -414,8 +414,10 @@ the mode: a value outside 1 to 10 makes the file invalid.
 - The `caps` defaults are `series` `3` and `film` `1`, and each cap is a whole number in the range 1 to 10.
 - `shuffle` without `caps` has no cap: it is the version 1 shuffle, unchanged.
 - `rotation` without `caps` uses the defaults, 3 and 1.
-- A file with caps in force and `timing.epochHours` below 24 is invalid. Caps are in force when `shuffle` has a `caps`
-  object, and always for `rotation` (with its defaults when it has none).
+- A file with caps in force and `timing.epochHours` below 24 is invalid. Caps are in force in a version 2 file when
+  `shuffle` has a `caps` object, and always for `rotation` (with its defaults when it has none). They are not in force for
+  the other modes, so a `caps` object next to those modes is valid with any `epochHours`, and so is a version 1 file with
+  `caps` and a short epoch, because the caps are unknown fields there and are ignored.
 - `timing.blockLength` is ignored by `rotation`: its turns are set by the caps.
 
 All five modes work in **epochs** (see Timing), and the pool of each epoch is worked out on its own (see Building the
@@ -582,8 +584,10 @@ In version 2, for `rotation` and the capped shuffle, **films of a collection are
 - A film that is a member of several named collections belongs to the one with the **smallest canonical ID** (compared as
   the 32 ASCII bytes, unsigned).
 - A collection that is not in the library snapshot groups nothing.
-- Inside a collection group the films play in **release order**: by the key (undated flag, date, canonical ID), where the
-  date is the premiere date, or else the production year as `YYYY-01-01`, undated films last, and the ID breaks ties.
+- In `rotation`, inside a collection group the films play in **release order**: by the key (undated flag, date, canonical
+  ID), where the date is the premiere date, or else the production year as `YYYY-01-01`, undated films last, and the ID
+  breaks ties. In the capped `shuffle` the films of a collection keep the relative order the version 1 shuffle gives them:
+  the mode stays fully random, and only the cap is applied.
 - Any other item is a group of one.
 
 The map from film to collection ID is worked out for the epoch from the as-of library snapshot (see The pool of an
@@ -600,7 +604,8 @@ one (a cap on one item cannot be exceeded).
 `blockLength`:
 
 1. Split the pool into the groups of Groups in version 2. Order the items inside a series group by the in-group key of
-   `randomInOrder`; inside a collection group by release order.
+   `randomInOrder`; inside a collection group by release order (this is `rotation` only: the capped shuffle does not
+   sort a collection's films).
 2. Group keys: `splitmix64(seed + fnv1a64(groupIdBytes))` with the **channel seed**, sorted ascending as unsigned numbers,
    ties to the smaller group ID bytes: exactly as `randomInOrder`.
 3. Walk the groups in that order, in rounds. In each round every group takes its next turn of up to its cap items (the
@@ -637,7 +642,7 @@ count  = the items left in each group; N = the items left in all
 counts = the groups ordered by (count descending, group ID bytes ascending)
 last = none;  run = 0
 legal(g) = not (g == last and run >= cap(g))
-tight    = the first group in counts with count * (1 + cap) > cap * N, or none      (at most one: it holds more than half)
+tight    = the first group in counts with count * (1 + cap(g)) > cap(g) * N, or none      (at most one: it holds more than half)
 
 repeat N times:
     pick = tight                         if tight is not none and legal(tight)
@@ -656,10 +661,14 @@ What it guarantees:
 - **The cap holds whenever another group has an item left.** No group plays more than its cap in a row while any other
   group still has an item. The walk gives way (and a group runs past its cap) only when `last` is the only group with
   items left.
-- **A dominant group's forced run is as short as it can be.** If one group has `d` items and the other groups hold `m`
-  items in all, no order that obeys the caps can end with a run of that group shorter than `d - cap * m` (when that is
-  positive). While a group is *tight* (it needs every remaining gap) the walk holds the other groups back until it has
-  played its cap, so they are used one per `cap + 1` positions, and the forced run at the end has exactly that length.
+- **A dominant group's forced run has a lower bound, and the walk keeps close to it.** A **forced run** is a run of one
+  group past its cap, because nothing else is left to play. If one group has `d` items and the other groups hold `m` items
+  in all, no order that obeys the caps can end with a run of that group shorter than `d - cap * m` (when that is
+  positive). The walk's final run is never shorter than this bound, and for a dominant group it meets it in the common
+  case (a bound of 70 for 100 episodes, cap 3 and 10 other items gives a final run of 70). While a group is *tight* (it needs every remaining gap) the walk holds the other groups back until it has
+  played its cap, so they are used one per `cap + 1` positions, which keeps the forced run at the end as near to the bound as
+  the walk can. The bound is not always met: in the worked example below the bound is `5 - 2 * 2 = 1` and the walk ends with
+  a run of 2, which is within the cap.
   When no group is tight the walk is the plain "first legal item in shuffle order" walk.
 - The work is `O(n log n)` for `n` items.
 
@@ -807,8 +816,8 @@ epoch) at a time, and a day is worked out from that day's items alone.
 filled in from the rules first; the scheduler has none of its own.
 
 - mode: `shuffle`, `chronological`, `randomInOrder`, `rotation` or `inOrder`;
-- `caps`: none, or the `series` and `film` caps, each 1 to 10 (always present for `rotation`, with the defaults 3 and 1,
-  and for a capped `shuffle`; absent for the other modes);
+- `caps`: none, or the `series` and `film` caps, each 1 to 10. They are present, and so in force, for `rotation` (with the
+  defaults 3 and 1) and for a capped `shuffle`, and absent for the other modes;
 - `seed`: the channel seed, an unsigned 64-bit number;
 - `blockLength`: items per run, 1 to 100 (not read by `rotation`);
 - `alignToGrid`: true or false;
@@ -819,7 +828,7 @@ filled in from the rules first; the scheduler has none of its own.
 - `graceHours`: 0 to 48;
 - `minRuntimeSeconds`: 1 to 3600.
 
-With `caps` present, `epochHours` must be 24. A scheduler also takes the **film-to-collection map** of the epoch (see Groups
+With caps in force, `epochHours` must be 24. A scheduler also takes the **film-to-collection map** of the epoch (see Groups
 in version 2) as an input; it is empty unless the mode is `rotation` or a capped `shuffle`.
 
 From these: `offsetMs`, `startMs` and `epochMs` as in Timing, and
@@ -1044,7 +1053,8 @@ A run whose slot is **longer than `epochMs`** can never fit in a day, and it wou
 stall at the same place. So it is **left out**: removed from the list of runs. The list that remains, in order, is the
 **cycle**: runs `0` to `B - 1`, `B` runs in all. Runs are formed from the whole order first, and then removed, so a run
 that remains keeps exactly the items it had. The items of a left-out run are not in the cycle at all; the planned end of the
-day never visits them.
+day never visits them. The runs on each side of a left-out run become neighbours, so in `rotation` and the capped shuffle two
+turns of one group can end up together (see The planned end of the day, Where a cap can be exceeded).
 
 A run whose slot is **equal** to `epochMs` stays in the cycle: it fits only on a day that starts with it.
 
@@ -1191,17 +1201,20 @@ either, and wraps as `shuffle` does).
 **Caps are not enforced in the planned end.** The planned end places items one by one by their fit, so a cap can be
 exceeded there.
 
-**Where a cap can be exceeded.** A cap holds in the order the modes produce, with these exceptions, which are the only
-ones:
+**Where a cap can be exceeded.** A cap holds in the order a mode produces. It can be exceeded in three places only:
 
-- the **cycle wrap** of `rotation` (and of the other continuous playouts): the last turns of one cycle can be followed by
-  the first turn of the next, so a show can run from its tail into its head. There is no rule to mend this seam;
-- a group that is the **only one left** in `rotation`'s cycle plays its turns one after another, and in the capped shuffle
-  the walk **gives way** when only `last` has items left (these are the forced run at the end of the order);
+- `rotation`'s **cycle wrap**: the last turns of one cycle can be followed by the first turn of the next, so a show can run
+  from its tail into its head. There is no rule to mend this seam;
 - the capped shuffle's **in-day wrap**: when the cycle is shorter than the day, the order starts again and its tail meets
   its head;
-- the **planned end** of the day, as above;
-- a **left-out run** (see Left-out runs) can bring the turns on each side of it together.
+- the **planned end** of the day, as above.
+
+A separate consequence of the left-out rule: when a run is left out (see Left-out runs), the runs on each side of it
+become neighbours, and in `rotation` or the capped shuffle that can put two turns of one group together.
+
+**Giving way is not an exceed case.** When only one group has items left, it plays on: in the capped shuffle the walk
+gives way to `last`, and in `rotation` the lone group takes its turns one after another, as `randomInOrder` does. That is
+the designed behaviour, and the forced run it makes at the end of the order is what the lower bound above measures.
 
 Worked example 2: UTC (`utcOffsetMinutes` 0), `start` `"00:00"`, `epochHours` 2 (so day 0 is `[0, 120)` minutes), a 30-minute
 grid, `alignToGrid` true, `blockLength` 1, `graceHours` 6, `minRuntimeSeconds` 60, day `n = 0`. The channel seed is `8` for
