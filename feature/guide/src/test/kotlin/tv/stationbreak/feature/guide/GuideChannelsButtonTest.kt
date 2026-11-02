@@ -264,6 +264,125 @@ class GuideChannelsButtonTest : GuideRig() {
             assertTrue(vm.onButton())
         }
 
+    // The guide on channel 7, the screen opened and closed with no change, and the viewer on channel 7's row again.
+    private fun TestScope.closedWithNoChange(vm: GuideViewModel) {
+        lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+        vm.open(CH7)
+        runCurrent()
+        vm.up()
+        vm.up()
+        vm.channelsOpened()
+        runCurrent()
+        vm.channelsClosed()
+        runCurrent()
+    }
+
+    private fun addChannelThree() {
+        val added = ChannelId("ch-3")
+        fake.channel(added, 3, halfHours(600))
+        lineupList.list.value = lineupList.list.value + summary(added, 3)
+    }
+
+    @Test
+    fun aBackgroundChangeLongAfterTheScreenClosedDoesNotMoveFocus() =
+        guideTest { vm ->
+            closedWithNoChange(vm)
+            vm.down()
+            val focus = vm.focused()
+            after(10_000)
+
+            addChannelThree()
+            runCurrent()
+
+            assertEquals(
+                3,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertFalse(vm.onButton())
+            assertEquals(focus, vm.focused())
+        }
+
+    @Test
+    fun anEditASecondAfterTheScreenClosedReopensOnTheButton() =
+        guideTest { vm ->
+            closedWithNoChange(vm)
+            vm.down()
+            after(1_000)
+
+            addChannelThree()
+            runCurrent()
+
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertTrue(vm.onButton())
+        }
+
+    @Test
+    fun aRenameIsNotAChangeToTheLineup() =
+        guideTest { vm ->
+            closedWithNoChange(vm)
+            val calls = schedule.calls
+
+            lineupList.list.value = lineupList.list.value.map { it.copy(name = "Renamed ${it.name}") }
+            runCurrent()
+
+            assertEquals(calls, schedule.calls)
+            assertTrue(vm.onButton())
+        }
+
+    @Test
+    fun theLateWatchStopsAfterItsFirstReload() =
+        guideTest { vm ->
+            closedWithNoChange(vm)
+            addChannelThree()
+            runCurrent()
+            vm.down()
+            val focus = vm.focused()
+
+            lineupList.list.value = lineupList.list.value.drop(1)
+            runCurrent()
+
+            assertEquals(focus, vm.focused())
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+        }
+
+    @Test
+    fun aTuneEndsTheWatchWithoutReloading() =
+        guideTest { vm ->
+            closedWithNoChange(vm)
+            vm.channelsOpened()
+            runCurrent()
+            val calls = schedule.calls
+            vm.channelsEnded()
+            addChannelThree()
+            runCurrent()
+            assertEquals(calls, schedule.calls)
+        }
+
+    @Test
+    fun theHintSaysBackGoesToWhatIsPlayingWhileTheGridLoadsAgain() =
+        guideTest { vm ->
+            closedWithNoChange(vm)
+            vm.channelsOpened()
+            runCurrent()
+            addChannelThree()
+            runCurrent()
+            vm.channelsClosed()
+
+            assertTrue(vm.snapshot.value.isAwayFrom(CH7))
+        }
+
     @Test
     fun aLineupThatDidNotChangeLeavesTheGuideAsItWas() =
         guideTest { vm ->

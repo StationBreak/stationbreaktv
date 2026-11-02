@@ -19,6 +19,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -169,15 +170,24 @@ internal fun GuideRoot(
             pictureHole = pictureHole,
             modifier =
                 Modifier
+                    // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
+                    .graphicsLayer { alpha = if (managing) 0f else 1f }
                     .focusRequester(keys)
                     .onKeyEvent { managing || guideKey(it, move, viewModel::select, back) }
                     .focusable(),
         )
         if (managing) {
             channels(current, managingSince, pictureHole) { tuneTo ->
-                // The slot is gone from this moment: it ignores keys after onDone.
+                // The key focus comes back before the slot goes, so a key in between is not lost; the slot ignores keys
+                // after onDone.
+                runCatching { keys.requestFocus() }
                 managingSince = NOT_MANAGING
-                if (tuneTo == null) viewModel.channelsClosed() else tune(tuneTo)
+                if (tuneTo == null) {
+                    viewModel.channelsClosed()
+                } else {
+                    viewModel.channelsEnded()
+                    tune(tuneTo)
+                }
             }
         }
     }
@@ -187,8 +197,9 @@ private const val NOT_MANAGING = 0L
 
 /**
  * The guide's keys, all consumed so the focus never leaves the grid: the D-pad moves the focus (auto-repeat included,
- * so holding a direction scrolls; a held Up or Down pauses at the last or first row before it wraps) and Select acts
- * on the focused cell once per press. Their releases are consumed too.
+ * so holding a direction scrolls; a held Down pauses at the last row before it wraps, and a held Up at the top row
+ * before it goes to the Channels button) and Select acts on the focused cell once per press. Their releases are
+ * consumed too.
  *
  * Back is handed to [back] on its release, as the activity itself would: the info overlay's BackHandler closes it,
  * with none open the focus returns to what is playing, and from there the activity leaves live TV. Left unconsumed,

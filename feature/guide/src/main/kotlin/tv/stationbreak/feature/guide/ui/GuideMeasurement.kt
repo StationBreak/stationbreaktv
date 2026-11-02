@@ -15,7 +15,7 @@ import tv.stationbreak.feature.guide.missedVsyncs
 import tv.stationbreak.feature.guide.percentiles
 
 /** The logcat tag of the live channel's tune lines, which the guide line shares: `SBLIVE guide ...`. */
-private const val LOG_TAG = "SBLIVE"
+internal const val LOG_TAG = "SBLIVE"
 
 private const val NANOS_PER_MS = 1_000_000L
 private const val NANOS_PER_SECOND = 1_000_000_000L

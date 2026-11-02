@@ -3,6 +3,7 @@ package tv.stationbreak.app
 
 import android.view.KeyEvent
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -56,6 +57,7 @@ import tv.stationbreak.core.model.StoredSession
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.channels.ui.ChannelsTags
 import tv.stationbreak.feature.guide.ui.GuideTags
 import tv.stationbreak.feature.live.ui.LiveTags
 import tv.stationbreak.feature.onboarding.launch.LaunchTags
@@ -244,6 +246,33 @@ class LaunchNavigationTest {
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(ServerTags.FIELD))
         assertBackOpensTheGuideThenLeavesTheApp()
+    }
+
+    @Test
+    fun channelManagementOpensFromTheGuideAndBackWalksOutOfIt() {
+        storeSession()
+        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        launchApp()
+        awaitExists(LiveTags.NO_CHANNELS)
+
+        // Back opens the guide; with no channel on it the Channels button is the one thing to reach with Up.
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.EMPTY)
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitExists(ChannelsTags.TITLE)
+
+        // Back from the screen shows the guide again, on the button.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        assertFalse("the Back that closed the screen did not leave", compose.activity.isFinishing)
+
+        // Nothing is playing on an empty lineup, so there is no playing cell to go back to: the next Back leaves. (The
+        // playing-cell step is GuideChannelsButtonUiTest's.)
+        assertBackLeavesTheApp()
     }
 
     @Test

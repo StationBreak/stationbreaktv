@@ -60,7 +60,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
-import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
@@ -112,6 +111,8 @@ private class GatedSchedule(
 /** No lineup to watch: these tests do not open channel management. */
 private object NoLineup : ChannelRepository {
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = flowOf(emptyList())
+
+    override fun activeChannels(): Flow<List<ChannelSummary>> = flowOf(emptyList())
 }
 
 /** The guide on screen (spec 17): focus, the panel, cells of every kind, the info overlay and Back. */
@@ -166,7 +167,7 @@ class GuideScreenTest {
         measure: Boolean = false,
     ) {
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(schedule, cache, clock, work, InMemoryLibraryRepository(), NoLineup)
+        vm = GuideViewModel(schedule, cache, clock, work, NoLineup)
         compose.setContent {
             // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
             BackHandler { exits++ }

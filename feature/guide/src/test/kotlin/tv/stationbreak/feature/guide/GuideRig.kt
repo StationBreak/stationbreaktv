@@ -13,7 +13,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.FakeMediaServer
-import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
@@ -80,6 +79,8 @@ internal class FakeChannels(
     val list = MutableStateFlow(initial)
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
+
+    override fun activeChannels(): Flow<List<ChannelSummary>> = list
 }
 
 /** What the guide's ViewModel tests share: a lineup, a clock the test moves, and a guide on them. */
@@ -89,7 +90,6 @@ open class GuideRig {
     internal val schedule = HookedSchedule(fake)
     internal val server = FakeMediaServer()
     internal val sessions = SessionRepository(InMemorySecretStore(), server)
-    internal val library = InMemoryLibraryRepository()
     internal val lineupList = FakeChannels()
 
     // Channel 7 airs half-hour programs, channel 5 hour-long ones, channel 9 a long program, a slate, then more.
@@ -148,11 +148,10 @@ open class GuideRig {
     internal suspend fun TestScope.newGuide(startMin: Long): GuideViewModel {
         val address = ServerAddress(Scheme.Https, "jellyfin.example", 443)
         val info = ServerInfo("Home", ServerId("srv1"), ServerVersion(12, 2, 0))
-        library.useAccount(LibraryAccount(ServerId("srv1"), UserId("u1")))
         sessions.save(Session(UserId("u1"), AccessToken("fake-token-0123"), info, address, null, true))
         val dispatcher = StandardTestDispatcher(testScheduler)
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob() + dispatcher))
-        return GuideViewModel(schedule, cache, clock(startMin), dispatcher, library, lineupList)
+        return GuideViewModel(schedule, cache, clock(startMin), dispatcher, lineupList)
     }
 
     /** Runs [body] with a guide whose clock reads [startMin] minutes into the test day, and stops it after. */

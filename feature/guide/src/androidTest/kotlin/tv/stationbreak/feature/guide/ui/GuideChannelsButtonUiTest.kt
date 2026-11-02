@@ -42,7 +42,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
-import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
@@ -68,6 +67,8 @@ import kotlin.time.Instant
 /** No lineup to watch: these tests close the screen without a change. */
 private object QuietLineup : ChannelRepository {
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = flowOf(emptyList())
+
+    override fun activeChannels(): Flow<List<ChannelSummary>> = flowOf(emptyList())
 }
 
 /** The Channels button and the slot it opens over the guide (spec 21). */
@@ -103,7 +104,7 @@ class GuideChannelsButtonUiTest {
         fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) })
         fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), InMemoryLibraryRepository(), QuietLineup)
+        vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), QuietLineup)
         compose.setContent {
             StationBreakTheme {
                 // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
