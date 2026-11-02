@@ -26,10 +26,9 @@ import kotlin.test.assertTrue
 
 /**
  * `PoolEvaluator.evaluate` (and `GroupCollections`) against `docs/rules-format/vectors/pool.json` and `pool-v2.json`,
- * on every target. The expected IDs come from
- * an independent reference written from the rules document alone. The file leaves out the fields the pool does not
- * read
- * (runtime, dates, season and episode numbers); the shared builders fill them with valid defaults.
+ * on every target. The expected IDs come from an independent reference written from the rules document alone. The files
+ * leave out the fields the pool does not read (runtime, dates, season and episode numbers); the shared builders fill
+ * them with valid defaults.
  */
 class PoolVectorsTest {
     private val cases = VectorJson.parse(PoolVectorFiles.pool).array("cases").objects()

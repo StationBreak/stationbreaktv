@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.FilterKind
 import tv.stationbreak.core.rules.Filters
@@ -27,7 +28,7 @@ class ItemFiltersTest {
     private fun idsOf(
         rules: ChannelRules,
         vararg items: RuleItem,
-        shows: List<tv.stationbreak.core.model.RuleSeries> = emptyList(),
+        shows: List<RuleSeries> = emptyList(),
     ) = PoolEvaluator.evaluate(rules, snapshot(items = items.toList(), series = shows)).items.map { it.id }
 
     @Test
