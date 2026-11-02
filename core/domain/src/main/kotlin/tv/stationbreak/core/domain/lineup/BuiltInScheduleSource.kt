@@ -49,7 +49,14 @@ import kotlin.time.TimeSource
  * that changes no pool (a renumber, a swap on one side of the Kids band) builds nothing: the kept days are handed out
  * with the current lineup's channels, numbers and names ([LineupDays.rebound]), so what the guide, flipping and live
  * see follows the lineup at once. An edit that does change a pool (a switch on or off, a move into or out of the Kids
- * band that changes a policy) builds the days again. [onAir] builds a channel's day once (kept on the cached
+ * band that changes a policy) builds the days again.
+ *
+ * The key holds the generation the lineup was *planned* at, while a build reads the library as it is when it runs, so
+ * kept days can be of a newer library than their key's `planned` (a sync that lands between a refresh and a build).
+ * The refresh that follows every sync moves `planned`, and the days are built again then. Until it does, a lineup
+ * edited back to an earlier key (an edit undone before the next refresh) may be given the days kept for that key,
+ * built from the older library. Reading the generation on every lookup would close that gap at the cost of a store
+ * read per tune; it is not done. [onAir] builds a channel's day once (kept on the cached
  * `ChannelDay`) and reads the names of the blocks it returns with one `programInfo` call; the days themselves stay
  * internal to this class.
  *
@@ -133,7 +140,29 @@ class BuiltInScheduleSource(
     private val diskLooked = HashSet<Triple<LibraryAccount, Set<ItemId>, List<Long>>>()
 
     // The last lineup's day inputs: worked out once per lineup, not on every lookup.
-    private var lastInputs: Pair<Lineup, String>? = null
+    private var lastInputs: Pair<Lineup, Inputs>? = null
+
+    // How many times an account's days were forgotten: a build that began before the last time keeps nothing.
+    private var forgets = 0
+
+    init {
+        service.alsoForget(::forget)
+    }
+
+    /**
+     * Drops what this source holds of [account]'s days (kept, in flight, looked for on disk): the service calls it when
+     * it forgets or resets the account's lineup, beside the days on disk. A build already running finishes for its
+     * callers but keeps nothing.
+     */
+    internal fun forget(account: LibraryAccount) {
+        val mine = { other: LibraryAccount -> canonicalAccount(other) == canonicalAccount(account) }
+        synchronized(lock) {
+            forgets++
+            kept.keys.removeAll { mine(it.account) }
+            inFlight.keys.removeAll { mine(it.account) }
+            diskLooked.removeAll { mine(it.first) }
+        }
+    }
 
     /** For tests: waits for the writes of built days to disk started so far. */
     internal suspend fun awaitSaves() = synchronized(lock) { saves.toList() }.joinAll()
@@ -152,21 +181,31 @@ class BuiltInScheduleSource(
         revision: Long,
     ): Boolean = service.lineup(account).value?.revision == revision
 
-    private fun inputsOf(lineup: Lineup): String {
+    /** A lineup's day inputs ([LineupDays.inputsOf]) and the milliseconds it took to work them out. */
+    private class Inputs(
+        val digest: String,
+        val ms: Long,
+    )
+
+    private fun inputsOf(lineup: Lineup): Inputs {
         synchronized(lock) { lastInputs?.takeIf { it.first === lineup }?.let { return it.second } }
-        val inputs = days.inputsOf(lineup)
+        val began = TimeSource.Monotonic.markNow()
+        val digest = days.inputsOf(lineup)
+        val inputs = Inputs(digest, began.elapsedNow().inWholeMilliseconds)
         synchronized(lock) { lastInputs = lineup to inputs }
         return inputs
     }
 
-    private fun keyOf(
+    private fun lookupOf(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         held: Revisioned,
         scheduled: List<Scheduled>,
-    ): Key {
+    ): Lookup {
         val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
-        return Key(account, libraries, inputsOf(held.lineup), held.meta.plannedGeneration, cutoffs)
+        val inputs = inputsOf(held.lineup)
+        val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cutoffs)
+        return Lookup(held, scheduled, key, inputs.ms)
     }
 
     /**
@@ -181,8 +220,10 @@ class BuiltInScheduleSource(
         val bound = days.rebound(built, found.scheduled)
         return synchronized(lock) {
             val now = kept[found.key]
+            // Only a caller of the current lineup changes what is kept, so an older one cannot bind it back.
+            val current = isCurrent(found.key.account, found.held.revision)
             when {
-                now === built -> bound.also { kept[found.key] = it }
+                now === built && current -> bound.also { kept[found.key] = it }
                 now != null && days.isShownAs(now, found.scheduled) -> now
                 else -> bound
             }
@@ -498,11 +539,15 @@ class BuiltInScheduleSource(
         }
     }
 
-    /** The lineup held for [account], the channels scheduled at [at] and the [Key] their days are kept under. */
+    /**
+     * The lineup held for [account], the channels scheduled at [at], the [Key] their days are kept under, and how long
+     * the key's day inputs took to work out ([DayBuild.inputsMs]).
+     */
     private data class Lookup(
         val held: Revisioned,
         val scheduled: List<Scheduled>,
         val key: Key,
+        val inputsMs: Long,
     )
 
     /**
@@ -516,7 +561,7 @@ class BuiltInScheduleSource(
     ): Lookup? {
         val held = service.loaded(account) ?: return null
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
-        return Lookup(held, scheduled, keyOf(account, libraries, held, scheduled))
+        return lookupOf(account, libraries, held, scheduled)
     }
 
     private suspend fun channelDaysOnce(
@@ -577,6 +622,7 @@ class BuiltInScheduleSource(
         val key = wanted.key
         val lineup = wanted.held.lineup
         val scheduled = wanted.scheduled
+        val epoch = synchronized(lock) { forgets }
         try {
             val began = TimeSource.Monotonic.markNow()
             val job = currentCoroutineContext().job
@@ -596,7 +642,7 @@ class BuiltInScheduleSource(
                     account,
                     key.libraries,
                     generation,
-                    lineup,
+                    lineup.utcOffsetMinutes,
                     key.inputs,
                     service.catalog.version,
                     scheduled,
@@ -605,8 +651,8 @@ class BuiltInScheduleSource(
             val restored = if (look) fromDisk(account, disk, scheduled, checkpoint) else null
             val diskMs = if (look) began.elapsedNow().inWholeMilliseconds else -1L
             if (restored != null) {
-                keep(key, restored)
-                reportDisk(scheduled, diskMs, restored.size, before, allocBefore)
+                keep(key, restored, epoch)
+                reportDisk(wanted, diskMs, restored.size, before, allocBefore)
                 return restored
             }
             val snapshotsBegan = TimeSource.Monotonic.markNow()
@@ -621,7 +667,7 @@ class BuiltInScheduleSource(
             val result = days.days(lineup, scheduled, read, checkpoint) { evaluations++ }
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
-            keep(key, result)
+            keep(key, result, epoch)
             if (disk != null) save(account, disk, result)
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
@@ -648,6 +694,7 @@ class BuiltInScheduleSource(
                     evaluations = evaluations,
                     allocKb = if (allocated < 0) -1 else allocated / BYTES_PER_KB,
                     diskMs = diskMs,
+                    inputsMs = wanted.inputsMs,
                 ),
             )
             return result
@@ -664,7 +711,7 @@ class BuiltInScheduleSource(
         atMs: Long,
     ): Long? {
         val held = service.lineup(account).value ?: return null
-        val same = keyOf(account, key.libraries, held, days.scheduled(held.lineup, atMs)) == key
+        val same = lookupOf(account, key.libraries, held, days.scheduled(held.lineup, atMs)).key == key
         return if (same) held.revision else null
     }
 
@@ -700,10 +747,13 @@ class BuiltInScheduleSource(
         return restored
     }
 
+    // Not when the account's days were forgotten while the build ran ([forget]).
     private fun keep(
         key: Key,
         result: List<ChannelDay>,
+        epoch: Int,
     ) = synchronized(lock) {
+        if (epoch != forgets) return@synchronized
         kept[key] = result
         while (kept.size > KEPT) kept.remove(kept.keys.first())
     }
@@ -725,7 +775,7 @@ class BuiltInScheduleSource(
     // A disk hit, reported as a build: the whole time is the file's read ([DayBuild.diskMs]), and no snapshot was read
     // and no pool worked out.
     private fun reportDisk(
-        scheduled: List<Scheduled>,
+        wanted: Lookup,
         ms: Long,
         channels: Int,
         before: Probed,
@@ -735,7 +785,7 @@ class BuiltInScheduleSource(
         val allocated = Reading(probes.allocatedBytes()) - allocBefore
         built(
             DayBuild(
-                scheduled.firstOrNull()?.n ?: -1,
+                wanted.scheduled.firstOrNull()?.n ?: -1,
                 ms,
                 0,
                 0,
@@ -749,6 +799,7 @@ class BuiltInScheduleSource(
                 evaluations = 0,
                 allocKb = if (allocated < 0) -1 else allocated / BYTES_PER_KB,
                 diskMs = ms,
+                inputsMs = wanted.inputsMs,
             ),
         )
     }
@@ -815,6 +866,8 @@ class BuiltInScheduleSource(
  *   [ms] is [diskMs], and [snapshotsMs], [poolsMs], [poolsCpuMs], [poolsProcCpuMs] and [evaluations] are 0.
  * - [evaluations] is how many times `PoolEvaluator.evaluate` ran in the build, and [allocKb] the kilobytes the app
  *   allocated across the build (`art.gc.bytes-allocated`, process-wide), -1 when unknown.
+ * - [inputsMs] is the time it took to work out the lineup's day inputs ([LineupDays.inputsOf], the days' key), once
+ *   per lineup: the same number for every build of that lineup, -1 when unknown.
  * - [diskMs] is the time spent looking for the days on disk ([PersistedDays]): the whole build on a `disk` hit, the
  *   failed look on a miss, and -1 when the disk was not looked at.
  */
@@ -834,6 +887,7 @@ class DayBuild(
     val evaluations: Int = -1,
     val allocKb: Long = -1,
     val diskMs: Long = -1,
+    val inputsMs: Long = -1,
 )
 
 /**

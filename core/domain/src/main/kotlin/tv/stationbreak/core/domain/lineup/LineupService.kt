@@ -34,6 +34,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.time.TimeSource
@@ -141,8 +142,8 @@ class LineupService internal constructor(
     private val lock = Any()
     private val entries = HashMap<LibraryAccount, Entry>()
 
-    // Process-global, across accounts: BuiltInScheduleSource's cache key is this revision, and relies on that for
-    // account separation (two accounts never share a revision number).
+    // Process-global, across accounts, so two accounts never share a revision number. BuiltInScheduleSource keys its
+    // days by what they depend on, not by this; it uses the revision to tell whether a lineup is still current.
     private var revisions = 0L
     private val noLineup: StateFlow<Revisioned?> = MutableStateFlow<Revisioned?>(null).asStateFlow()
 
@@ -474,17 +475,29 @@ class LineupService internal constructor(
         }
     }
 
-    // The days built from the lineup go after it: only the days' own store, never an AccountCache that could reach the
-    // library, and a fault there (it never throws, but) cannot undo the lineup's delete. Cancellation goes through.
+    // The days built from the lineup go after it: the days' own store and what was registered with [alsoForget],
+    // never an AccountCache that could reach the library, and a fault there (none throws, but) cannot undo the
+    // lineup's delete or reset. Cancellation goes through.
     @Suppress("TooGenericExceptionCaught")
     private suspend fun forgetDerived(account: LibraryAccount) {
         try {
+            forgetters.forEach { it(account) }
             seams.derived?.forget(account)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            // Best effort: the days are a cache, and their key no longer matches a lineup that is gone.
+            // Best effort: the days are a cache. A lineup planned again builds them again, under a key of its own.
         }
+    }
+
+    private val forgetters = CopyOnWriteArrayList<(LibraryAccount) -> Unit>()
+
+    /**
+     * [forget] is told the (canonical) account whenever its lineup is forgotten or reset, beside
+     * [LineupSeams.derived]: what a schedule source holds in memory of the days built from it. It must not throw.
+     */
+    internal fun alsoForget(forget: (LibraryAccount) -> Unit) {
+        forgetters += forget
     }
 
     /** [account]'s lineup as this service holds it now; null while it has none. */
@@ -664,6 +677,9 @@ private class Owner(
     /** True when [lineup] is this account's. */
     fun owns(lineup: Lineup) = lineup.serverId == server && lineup.userId == user
 }
+
+/** [account] with its IDs in canonical form, as the service keys lineups; null when they are not IDs. */
+internal fun canonicalAccount(account: LibraryAccount): LibraryAccount? = ownerOf(account)?.key
 
 /** The canonical form of [account], or null when its server or user ID is not an ID at all. */
 private fun ownerOf(account: LibraryAccount): Owner? {

@@ -2,6 +2,12 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -108,7 +114,7 @@ class PersistedDaysTest {
         generation: Long = GENERATION,
         of: Lineup = lineup,
         catalog: Int = TestCatalog.version,
-    ) = days.keyOf(account, libraries, generation, of, lineupDays.inputsOf(of), catalog, scheduled)
+    ) = days.keyOf(account, libraries, generation, of.utcOffsetMinutes, lineupDays.inputsOf(of), catalog, scheduled)
 
     private fun save(
         days: PersistedDays = persisted(),
@@ -136,6 +142,33 @@ class PersistedDaysTest {
         assertTrue(loaded.any { it.hidden != null }, "an empty day keeps its reason")
         assertTrue(loaded.any { day -> day.pool.any { it.seriesId != null } }, "an episode keeps its series")
         assertTrue(events.first() is DaySnapshotEvent.Saved && events.last() is DaySnapshotEvent.Hit)
+    }
+
+    // The days of a file are matched to the channels by the IDs written with them, never by position alone: a body
+    // whose days are in another order than its key (two sorts that disagree, say) is a miss, even with a good checksum.
+    @Test
+    fun aDayFileWhoseChannelsDoNotMatchIsAMiss() {
+        save()
+        val (where, bytes) = store.only()
+        val text = bytes.decodeToString()
+        val headerLine = text.substringBefore('\n')
+        val body = Json.parseToJsonElement(text.substringAfter('\n')).jsonObject
+        val days = body.getValue("days").jsonArray
+        val swapped = JsonArray(listOf(days[1], days[0]) + days.drop(2))
+        val newBody = JsonObject(body + ("days" to swapped)).toString().encodeToByteArray()
+        val key = (DaySnapshotCodec.header(bytes) as DaySnapshotCodec.Header.Read).key
+        val crc =
+            CRC32()
+                .apply {
+                    update(Json.encodeToString(DayKey.serializer(), key).encodeToByteArray())
+                    update(newBody)
+                }.value
+        val header = Json.parseToJsonElement(headerLine).jsonObject
+        val newHeader = JsonObject(header + ("crc" to JsonPrimitive(crc))).toString()
+        store.files[where] = (newHeader + "\n").encodeToByteArray() + newBody
+
+        assertNull(load())
+        assertEquals(DaySnapshotMiss.Channels, lastMiss())
     }
 
     @Test
@@ -351,7 +384,11 @@ class PersistedDaysTest {
         val header = savedParts().first
         // As many days as are scheduled (or one more), each one way or another naming what the table lacks.
         val count = scheduledAt(NOON_MS).size
-        val days = { day: String, n: Int -> List(n) { day }.joinToString(",") }
+        // Each day names its channel, in the key's order, so only what is under test is wrong.
+        val ids = scheduledAt(NOON_MS).map { it.channel.id.value }.sorted()
+        val days = { day: String, n: Int ->
+            List(n) { "{\"c\":\"${ids.getOrElse(it) { "extra" }}\"," + day.drop(1) }.joinToString(",")
+        }
         val oneItem = "{\"series\":[],\"items\":[{\"i\":\"${"a".repeat(32)}\",\"r\":60000,\"c\":0}],"
         val corrupt =
             listOf(

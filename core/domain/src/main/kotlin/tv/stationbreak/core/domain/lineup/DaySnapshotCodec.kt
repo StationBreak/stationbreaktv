@@ -35,7 +35,7 @@ internal data class DayKey(
     val generation: Long,
     val catalog: Int,
     val utcOffsetMinutes: Int,
-    val lineup: String,
+    val inputs: String,
     val cutoffs: List<Long>,
     val channels: List<String>,
     val days: List<Long>,
@@ -51,7 +51,7 @@ internal data class DayKey(
             DaySnapshotMiss.Generation to (generation == other.generation),
             DaySnapshotMiss.Catalog to (catalog == other.catalog),
             DaySnapshotMiss.Offset to (utcOffsetMinutes == other.utcOffsetMinutes),
-            DaySnapshotMiss.Lineup to (lineup == other.lineup),
+            DaySnapshotMiss.Lineup to (inputs == other.inputs),
             DaySnapshotMiss.Cutoffs to (cutoffs == other.cutoffs),
             DaySnapshotMiss.Channels to (channels == other.channels && days == other.days),
         ).firstOrNull { (_, same) -> !same }?.first
@@ -69,8 +69,9 @@ internal data class DayKey(
  * there so that a miss says which of them moved.
  *
  * The body holds one table of the distinct [ScheduleItem]s of all the pools, in canonical-ID order, and per scheduled
- * channel in the key's order (by channel ID) its day pool (`EpochPool.build`'s items, in order) and why the day is
- * empty if it is. A
+ * channel, in the key's order (by channel ID), the channel's ID, its day pool (`EpochPool.build`'s items, in order)
+ * and why the day is empty if it is. A day is matched to its channel by that ID, never by position alone: [encode]
+ * refuses days in another order than the key's, and a reader checks each ID against the channel it expects. A
  * day pool is in canonical-ID order, so it is written as the set of table rows it holds (a bitset, Base64): a few
  * kilobytes per channel however large the pool. A pool in any other order is written as its row numbers instead, so
  * the order is kept whatever it is. An item's fields are all kept, since the layout reads them all; a series ID is an
@@ -85,7 +86,10 @@ internal data class DayKey(
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
-    /** 4: the key's `lineup` is the digest of the day inputs; its channels, and the body's days, are in ID order. */
+    /**
+     * 4: the key holds the digest of the day inputs (`inputs`), its channels and the body's days are in ID order, and
+     * each day names its channel.
+     */
     const val VERSION = 4
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
@@ -100,11 +104,12 @@ internal object DaySnapshotCodec {
 
     private val json = Json
 
-    /** The file of [days], built under [key]. */
+    /** The file of [days], built under [key]: one day per channel of the key, in the key's order, or it throws. */
     fun encode(
         key: DayKey,
         days: List<ChannelDay>,
     ): ByteArray {
+        require(days.map { it.channel.id.value } == key.channels) { "The days are in the key's order" }
         val body = ByteArrayOutputStream(INITIAL_BYTES)
         json.encodeToStream(BodyV2.serializer(), bodyOf(days), body)
         val out = ByteArrayOutputStream(body.size() + INITIAL_HEADER)
@@ -148,22 +153,29 @@ internal object DaySnapshotCodec {
         return end
     }
 
+    /** One day of a file: the ID of the channel it is for, its day pool and why it is empty, if it is. */
+    class StoredDay(
+        val channel: String,
+        val pool: List<ScheduleItem>,
+        val hidden: HiddenReason?,
+    )
+
     /**
-     * Reads the body of [file] after [header] (which checked it): each channel's day pool and empty reason, in the
-     * key's order. Throws for a body that cannot be read, or that does not hold [count] days.
+     * Reads the body of [file] after [header] (which checked it): each channel's day, in the key's order. Throws for a
+     * body that cannot be read, or that does not hold [count] days.
      */
     fun body(
         file: ByteArray,
         header: Header.Read,
         count: Int,
-    ): List<Pair<List<ScheduleItem>, HiddenReason?>> {
+    ): List<StoredDay> {
         val at = header.bodyAt
         val body = json.decodeFromStream(BodyV2.serializer(), ByteArrayInputStream(file, at, file.size - at))
         if (body.days.size != count) throw IOException("The body holds another number of days")
         val series = body.series.map(::idOf)
         // An item is made once, however many pools hold it.
         val items = body.items.map { it.item(series) }
-        return body.days.map { day -> poolOf(day, items) to day.hidden }
+        return body.days.map { day -> StoredDay(day.channel, poolOf(day, items), day.hidden) }
     }
 
     // The key as this codec writes it: compact JSON, its fields in declaration order.
@@ -221,9 +233,9 @@ internal object DaySnapshotCodec {
                 if (isAscending(rows)) {
                     val set = BitSet(table.size)
                     rows.forEach(set::set)
-                    DayV2(bits = Base64.encode(set.toByteArray()), hidden = day.hidden)
+                    DayV2(day.channel.id.value, bits = Base64.encode(set.toByteArray()), hidden = day.hidden)
                 } else {
-                    DayV2(rows = rows, hidden = day.hidden)
+                    DayV2(day.channel.id.value, rows = rows, hidden = day.hidden)
                 }
             }
         val series = LinkedHashMap<CanonicalId, Int>()
@@ -294,9 +306,13 @@ private class ItemV2(
         )
 }
 
-/** One channel's day: its pool as a bitset of table rows (Base64) or as row numbers, and its empty reason. */
+/**
+ * One channel's day: the channel's ID, its pool as a bitset of table rows (Base64) or as row numbers, and its empty
+ * reason.
+ */
 @Serializable
 private class DayV2(
+    @SerialName("c") val channel: String,
     val bits: String? = null,
     val rows: IntArray? = null,
     val hidden: HiddenReason? = null,

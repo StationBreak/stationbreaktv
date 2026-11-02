@@ -291,7 +291,13 @@ internal class LineupDays(
         return RecipeResolver.leftoversSettings(recipe, lineup.serverId, lineup.utcOffsetMinutes)
     }
 
-    /** One computation over one lineup and its snapshots. Pools are worked out once each. */
+    /**
+     * One computation over one lineup and its snapshots. Pools are worked out once each.
+     *
+     * Any new read of the lineup here (a field of a channel or of the lineup, or a new place a number or a name counts)
+     * must be added to [inputsOf] too, or two lineups that build different days would share the kept ones.
+     * `DayInputsDifferentialTest` checks the two agree over every edit.
+     */
     private inner class Build(
         private val lineup: Lineup,
         private val snapshots: Map<Long, RuleSnapshot>,

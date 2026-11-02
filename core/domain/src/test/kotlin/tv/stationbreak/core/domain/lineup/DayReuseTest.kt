@@ -238,6 +238,85 @@ class DayReuseTest {
             assertEquals(1, tv.builds.size)
         }
 
+    // No edit renames a channel, but a reconcile with the stored lineup can publish one: the held lineup was planned
+    // while the file could not be read, and the file, readable again, has the user's name for a channel.
+    @Test
+    fun aNameChangeFollowsAtOnceWithoutABuild() =
+        runBlocking<Unit> {
+            val planner = LineupService(RecordingStore(), library, clock, { 0 }, {}, LineupSeams(TestCatalog))
+            planner.refresh(ACCOUNT, LIBRARIES)
+            val planned = checkNotNull(planner.lineup(ACCOUNT).value)
+            val renamed =
+                planned.lineup.copy(
+                    channels =
+                        planned.lineup.channels.map {
+                            if (it.id == laughs) it.copy(nameOverride = "Giggles") else it
+                        },
+                )
+            store.inner.save(ACCOUNT, LineupCodec.encode(renamed, planned.meta))
+            store.inner.failReads = true
+            val tv = Process()
+            tv.service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(
+                planned.lineup,
+                tv.service
+                    .lineup(ACCOUNT)
+                    .value
+                    ?.lineup,
+                "planned from scratch, as the planner",
+            )
+            assertEquals(
+                "Laughs",
+                tv.source
+                    .airings(NOON)
+                    .first { it.id == laughs }
+                    .name,
+            )
+
+            store.inner.failReads = false
+            // Switching on a channel that is on changes nothing, but first the stored lineup replaces the held one.
+            tv.service.edit(ACCOUNT, LineupEdit.SwitchOn(laughs))
+
+            assertEquals(
+                renamed,
+                tv.service
+                    .lineup(ACCOUNT)
+                    .value
+                    ?.lineup,
+            )
+            assertEquals(
+                "Giggles",
+                tv.source
+                    .airings(NOON)
+                    .first { it.id == laughs }
+                    .name,
+            )
+            assertEquals(1, tv.builds.size, "the name came without a build")
+        }
+
+    // A reset forgets the days built from the old lineup: on disk, and in memory too.
+    @Test
+    fun aResetForgetsTheBuiltDaysInMemoryToo() =
+        runBlocking<Unit> {
+            val tv = Process()
+            tv.service.refresh(ACCOUNT, LIBRARIES)
+            tv.days()
+            assertEquals(1, tv.builds.size)
+
+            assertIs<Saved.Ok<*>>(tv.service.reset(ACCOUNT, LIBRARIES))
+            tv.days()
+
+            assertEquals(2, tv.builds.size, "the reset's lineup has the same days, but they were forgotten")
+            assertTrue(tv.events.any { it == DaySnapshotEvent.Miss(DaySnapshotMiss.Absent) }, "and looked for again")
+        }
+
+    @Test
+    fun aBuildReportsTheTimeOfTheDayInputs() {
+        val tv = process()
+        tv.days()
+        assertTrue(tv.builds.single().inputsMs >= 0, "inputsMs=${tv.builds.single().inputsMs}")
+    }
+
     @Test
     fun daysPersistedUnderTheOldKeyAreNotRead() {
         val first = process()
@@ -249,7 +328,7 @@ class DayReuseTest {
         val oldKey =
             current.key.copy(
                 format = 3,
-                lineup = sha256(LineupCodec.encode(lineup)),
+                inputs = sha256(LineupCodec.encode(lineup)),
                 channels = built.map { it.channel.id.value },
                 days = built.map { it.n },
             )

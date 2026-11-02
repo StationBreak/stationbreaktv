@@ -7,11 +7,9 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
-import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
-import java.security.MessageDigest
 import java.util.Collections
 import kotlin.time.TimeSource
 
@@ -114,7 +112,7 @@ class PersistedDays internal constructor(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         generation: Long,
-        lineup: Lineup,
+        utcOffsetMinutes: Int,
         inputs: String,
         catalogVersion: Int,
         scheduled: List<Scheduled>,
@@ -129,8 +127,8 @@ class PersistedDays internal constructor(
             libraries = libraries.map { it.value }.sorted(),
             generation = generation,
             catalog = catalogVersion,
-            utcOffsetMinutes = lineup.utcOffsetMinutes,
-            lineup = inputs,
+            utcOffsetMinutes = utcOffsetMinutes,
+            inputs = inputs,
             cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted(),
             channels = inKeyOrder.map { it.channel.id.value },
             days = inKeyOrder.map { it.n },
@@ -179,7 +177,12 @@ class PersistedDays internal constructor(
     ): Boolean {
         if (!enabled || key in failed) return false
         val began = TimeSource.Monotonic.markNow()
-        val bytes = attempt { DaySnapshotCodec.encode(key, days.sortedBy { it.channel.id.value }) }
+        // The days in the key's own order, each found by its channel's ID: days that are not the key's channels are
+        // not written (DaySnapshotCodec.encode checks the order again).
+        val byId = days.associateBy { it.channel.id.value }
+        val ordered =
+            key.channels.mapNotNull { byId[it] }.takeIf { it.size == days.size && it.size == key.channels.size }
+        val bytes = ordered?.let { attempt { DaySnapshotCodec.encode(key, it) } }
         val written = bytes != null && attempt { store.write(account, nameOf(key), bytes) } == true
         if (written) {
             report(DaySnapshotEvent.Saved(bytes.size.toLong(), began.elapsedNow().inWholeMilliseconds))
@@ -225,7 +228,13 @@ class PersistedDays internal constructor(
         val moved = if (header == null) DaySnapshotMiss.Format else header.key.firstDifference(key)
         if (header == null || moved != null) return Read.Missed(moved ?: DaySnapshotMiss.Format)
         val body = DaySnapshotCodec.body(file, header, scheduled.size)
-        return Read.Loaded(scheduled.mapIndexed { i, s -> restore(s, body[i].first, body[i].second) })
+        // Each day is the one its channel expects, by ID: a file whose days are in another order is a miss.
+        val matched = body.map { it.channel } == scheduled.map { it.channel.id.value }
+        return if (matched) {
+            Read.Loaded(scheduled.mapIndexed { i, s -> restore(s, body[i].pool, body[i].hidden) })
+        } else {
+            Read.Missed(DaySnapshotMiss.Channels)
+        }
     }
 
     // A fault of any kind (I/O, a corrupt or torn file, an item that fails its checks, a deep stack) is null; only
@@ -283,19 +292,6 @@ class PersistedDays internal constructor(
         fun disabled(): PersistedDays = PersistedDays(NoDays, "", {}, HOLDS, enabled = false)
     }
 }
-
-private const val HEX = "0123456789abcdef"
-private const val NIBBLE = 4
-private const val LOW = 0x0f
-
-/** The SHA-256 of [bytes], in lower-case hex. */
-internal fun sha256Hex(bytes: ByteArray): String =
-    buildString {
-        for (b in MessageDigest.getInstance("SHA-256").digest(bytes)) {
-            append(HEX[(b.toInt() shr NIBBLE) and LOW])
-            append(HEX[b.toInt() and LOW])
-        }
-    }
 
 /** The store of [PersistedDays.disabled]: nothing is there, and nothing is kept. */
 private object NoDays : DayStore {

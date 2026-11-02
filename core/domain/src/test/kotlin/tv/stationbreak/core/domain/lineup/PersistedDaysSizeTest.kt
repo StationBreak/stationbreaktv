@@ -89,7 +89,8 @@ class PersistedDaysSizeTest {
         val store = MemoryDayStore()
         val persisted = PersistedDays(store, "1:1")
         val inputs = lineupDays.inputsOf(lineup)
-        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1, lineup, inputs, TestCatalog.version, scheduled)
+        val offset = lineup.utcOffsetMinutes
+        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1, offset, inputs, TestCatalog.version, scheduled)
         val built = lineupDays.days(lineup, scheduled, snapshots)
         runBlocking { persisted.save(ACCOUNT, key, built) }
         repeat(2) { runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) } }
@@ -97,7 +98,7 @@ class PersistedDaysSizeTest {
         val (buildMs, buildBytes) = best { lineupDays.days(lineup, scheduled, snapshots) }
         val (readMs, readBytes) = best { runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) } }
         val read = runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) }
-        val (encodeMs, encodeBytes) = best { DaySnapshotCodec.encode(key, built) }
+        val (encodeMs, encodeBytes) = best { DaySnapshotCodec.encode(key, built.sortedBy { it.channel.id.value }) }
 
         val fileBytes = store.only().second.size
         val poolEntries = built.sumOf { it.pool.size }
