@@ -10,13 +10,17 @@ import kotlin.jvm.JvmInline
  * with the smallest collection ID; a film in none is not in the map.
  */
 @JvmInline
-value class FilmCollections(
+value class FilmCollections private constructor(
     private val byFilm: Map<CanonicalId, CanonicalId>,
 ) {
     /** The collection [film] plays under, or null when it is a group of one. */
     operator fun get(film: CanonicalId): CanonicalId? = byFilm[film]
 
     val isEmpty: Boolean get() = byFilm.isEmpty()
+
+    /** The (film, collection) pairs ascending by film ID bytes, whatever order the map was built in. */
+    val entries: List<Pair<CanonicalId, CanonicalId>>
+        get() = byFilm.entries.sortedBy { it.key.value }.map { it.key to it.value }
 
     companion object {
         fun of(map: Map<CanonicalId, CanonicalId>): FilmCollections = FilmCollections(map)

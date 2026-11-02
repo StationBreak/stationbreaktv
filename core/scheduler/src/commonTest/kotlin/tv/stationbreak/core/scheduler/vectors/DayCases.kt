@@ -46,7 +46,7 @@ internal object DayCases {
         val day = timing.obj("broadcastDay")
         val (hours, minutes) = day.string("start").split(":").map { it.toInt() }
         return SchedulerSettings(
-            orderingMode = OrderingMode.entries.single { it.wireName == obj("ordering").string("mode") },
+            orderingMode = orderingModeOf(obj("ordering").string("mode")),
             seed = Seed(string("seed").toULong()),
             blockLength = timing.getValue("blockLength").jsonPrimitive.int,
             // A case may omit alignToGrid: the version 1 default is true.
@@ -61,6 +61,11 @@ internal object DayCases {
             runtimeFilter = (this["runtimeFilter"] as? JsonObject)?.runtimeFilter(),
         )
     }
+
+    // An unknown mode is rejected like any other bad input.
+    private fun orderingModeOf(wireName: String): OrderingMode =
+        OrderingMode.entries.firstOrNull { it.wireName == wireName }
+            ?: throw IllegalArgumentException("unknown ordering mode $wireName")
 
     fun JsonObject.caps(): Caps = Caps(getValue("series").jsonPrimitive.int, getValue("film").jsonPrimitive.int)
 
@@ -141,13 +146,23 @@ internal object DayCases {
             if (expected != actual) failures.add("[$name] $what: reference $expected, Kotlin $actual")
         }
         if (case["inputError"] != null) {
+            // The input is bad in one of three places: the settings, an item, or the day (buildDay). Each rejects it
+            // with an IllegalArgumentException; any other exception is a fault in the case or the reader.
+            var stage = "reading the settings"
             val thrown =
                 runCatching {
+                    val settings = case.obj("settings").settings()
+                    stage = "reading the items"
                     val items = case.array("items").objects().map { it.item() }
-                    val settings = case.obj("settings")
-                    buildDay(settings.settings(), items, case.string("n").toLong(), settings["films"].filmsOrNone())
+                    stage = "building the day"
+                    val films = case.obj("settings")["films"].filmsOrNone()
+                    buildDay(settings, items, case.string("n").toLong(), films)
                 }
+            val error = thrown.exceptionOrNull()
             if (thrown.isSuccess) failures.add("[$name] input error: building should be rejected, but it built a day")
+            if (error != null && error !is IllegalArgumentException) {
+                failures.add("[$name] input error: $stage failed with $error, not an IllegalArgumentException")
+            }
             return failures
         }
         val settings = case.obj("settings")

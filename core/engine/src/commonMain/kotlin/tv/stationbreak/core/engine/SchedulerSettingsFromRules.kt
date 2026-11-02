@@ -43,8 +43,8 @@ internal fun settingsOf(
     orderingMode: OrderingMode,
     seed: Seed,
     timing: Timing,
-    caps: Caps? = null,
-    runtimeFilter: RuntimeFilter? = null,
+    caps: Caps?,
+    runtimeFilter: RuntimeFilter?,
 ): SchedulerSettings =
     SchedulerSettings(
         orderingMode = orderingMode,
