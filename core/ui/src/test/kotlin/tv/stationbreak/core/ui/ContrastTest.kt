@@ -30,6 +30,12 @@ class ContrastTest {
     }
 
     @Test
+    fun theDrawnRowRingShowsAgainstInk() {
+        // The channel screen draws its focused row's ring itself, on the broadcast ground.
+        assertAtLeast(3.0, colors.primary, BroadcastColors.Ink, "drawn ring on Ink")
+    }
+
+    @Test
     fun textReadsOnItsBackground() {
         assertAtLeast(4.5, colors.onSurface, colors.surface, "text on the page")
         assertAtLeast(4.5, colors.onSurfaceVariant, colors.surface, "details line on the page")

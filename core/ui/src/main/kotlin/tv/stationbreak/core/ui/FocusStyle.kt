@@ -2,8 +2,12 @@
 package tv.stationbreak.core.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ButtonBorder
@@ -22,11 +26,12 @@ import androidx.tv.material3.MaterialTheme
  * `ContrastTest` pins both at 3:1 or better against everything they touch.
  */
 object FocusStyle {
-    private val OutlineWidth = 3.dp
+    internal val OutlineWidth = 3.dp
+    internal val OutlineRadius = 4.dp
     private const val BUTTON_SCALE = 1.08f
 
     // A full-width surface grows far more in pixels than a button does, so it scales less.
-    private const val SURFACE_SCALE = 1.02f
+    internal const val SURFACE_SCALE = 1.02f
 
     @Composable
     fun buttonBorder(): ButtonBorder = ButtonDefaults.border(focusedBorder = outline(MaterialTheme.colorScheme.border))
@@ -42,4 +47,20 @@ object FocusStyle {
     fun surfaceScale(): ClickableSurfaceScale = ClickableSurfaceDefaults.scale(focusedScale = SURFACE_SCALE)
 
     private fun outline(color: Color) = Border(BorderStroke(OutlineWidth, color))
+}
+
+/**
+ * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
+ * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
+ * [FocusStyle.surfaceScale], without a Compose focus target.
+ */
+@Composable
+fun Modifier.drawnFocus(focused: Boolean): Modifier {
+    if (!focused) return this
+    val ring = MaterialTheme.colorScheme.primary
+    return this
+        .graphicsLayer {
+            scaleX = FocusStyle.SURFACE_SCALE
+            scaleY = FocusStyle.SURFACE_SCALE
+        }.border(FocusStyle.OutlineWidth, ring, RoundedCornerShape(FocusStyle.OutlineRadius))
 }

@@ -1,0 +1,649 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.feature.channels
+
+import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.lineup.ChangeRefusal
+import tv.stationbreak.core.domain.lineup.ChangeResult
+import tv.stationbreak.core.domain.lineup.ChannelChange
+import tv.stationbreak.core.domain.lineup.ChannelEditor
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.domain.lineup.ResetResult
+import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.model.ChannelId
+import javax.inject.Inject
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+
+/** How long the lineup stays quiet before the reasons are read again (a burst of edits is read once). */
+internal val REASONS_DEBOUNCE = 1.seconds
+
+/**
+ * Holds channel management (spec 21): the lineup as rows, the focus, the dialog over it, and the changes the viewer
+ * makes through the [ChannelEditor]. The ViewModel outlives the screen (it is scoped to live's back-stack entry), so
+ * [open] starts clean. The focus is a value by [ChannelId], so it follows a row that moves group.
+ *
+ * State is changed under [lock] in one assignment of [ChannelsUi], so a collector never reads a half-made state. A
+ * result that arrives after the screen was opened again is dropped.
+ *
+ * A write started in one visit finishes on this ViewModel's scope even if the screen goes meanwhile. A reset that
+ * finishes after the screen was opened again is not used by [closing] (accepted: the new visit starts from the list).
+ */
+@Suppress("TooManyFunctions") // One screen's actions, each small.
+@HiltViewModel
+internal class ChannelsViewModel
+    internal constructor(
+        private val library: LibraryRepository,
+        private val repository: ChannelRepository,
+        private val editor: ChannelEditor,
+        private val schedule: ScheduleSource,
+        private val clock: Clock,
+        dispatcher: CoroutineDispatcher,
+    ) : ViewModel() {
+        @Inject
+        constructor(
+            library: LibraryRepository,
+            repository: ChannelRepository,
+            editor: ChannelEditor,
+            schedule: ScheduleSource,
+            clock: Clock,
+        ) : this(library, repository, editor, schedule, clock, Dispatchers.Default)
+
+        /** What one visit to the screen knows beyond what [ChannelsUi] shows. */
+        private data class Model(
+            val generation: Int = 0,
+            val account: LibraryAccount? = null,
+            val channels: List<ChannelSummary> = emptyList(),
+            val reasons: Map<ChannelId, HiddenReason?> = emptyMap(),
+            /** The first read of [reasons] has landed, or failed. */
+            val reasonsRead: Boolean = false,
+            /** [channels] and [reasons] as rows, made only when one of them changes. */
+            val rows: List<ChannelRow> = emptyList(),
+            val access: LineupAccess = LineupAccess.Loading,
+            val focus: ChannelsFocus? = null,
+            /** The channel to focus when the list first arrives. */
+            val wantFocus: ChannelId? = null,
+            val panel: ChannelsPanel? = null,
+            /** The channel that holds the number a [ChannelsPanel.Swap] offers to take. */
+            val holder: ChannelId? = null,
+            val message: ChannelsMessage? = null,
+            val confirmingReset: Boolean = false,
+            val choice: Int = 0,
+            val picker: PickerState? = null,
+            val choosing: Boolean = false,
+            val reset: ResetResult? = null,
+            /** Lists that arrived while a reset ran: one of them is the lineup the reset made. */
+            val listsDuringReset: Int = 0,
+            /** A reset chose channels and the list it made has not arrived yet. */
+            val awaitingList: Boolean = false,
+            /** A change is out, so a second press sends nothing. */
+            val pending: Boolean = false,
+            val current: ChannelId? = null,
+            val currentNumber: Int? = null,
+        )
+
+        private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        private val lock = Any()
+        private var model = Model()
+        private var session: Job? = null
+
+        /** Between [open] and [close]: nothing is published outside it. */
+        private var visible = false
+        private val shown = MutableStateFlow(ChannelsUi.Empty)
+
+        val ui: StateFlow<ChannelsUi> = shown.asStateFlow()
+
+        override fun onCleared() {
+            scope.cancel()
+        }
+
+        fun open(current: ChannelId?) {
+            val generation: Int
+            synchronized(lock) {
+                session?.cancel()
+                generation = model.generation + 1
+                model = Model(generation = generation, current = current, wantFocus = current)
+                visible = true
+                shown.value = derive(model)
+            }
+            session = scope.launch { run(generation) }
+        }
+
+        /**
+         * The screen has gone: nothing is read or watched until the next [open], and nothing of this visit is shown
+         * again (a panel left open must not appear for a frame when the screen comes back).
+         */
+        fun close() {
+            synchronized(lock) {
+                session?.cancel()
+                session = null
+                visible = false
+                shown.value = ChannelsUi.Empty
+            }
+        }
+
+        private suspend fun run(generation: Int) =
+            coroutineScope {
+                val account = library.activeAccount().filterNotNull().first()
+                change(generation) { it.copy(account = account) }
+                val reasons = launch { readReasons(generation) }
+                val access =
+                    launch {
+                        editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
+                    }
+                var pending: Job? = reasons
+                var first = true
+                try {
+                    repository.channels(account).collect { list ->
+                        change(generation) { onList(it, list) }
+                        if (first) first = false else pending = rereadLater(generation, pending)
+                    }
+                } finally {
+                    pending?.cancel()
+                    access.cancel()
+                }
+            }
+
+        private fun CoroutineScope.rereadLater(
+            generation: Int,
+            pending: Job?,
+        ): Job {
+            pending?.cancel()
+            return launch {
+                delay(REASONS_DEBOUNCE)
+                readReasons(generation)
+            }
+        }
+
+        @Suppress("TooGenericExceptionCaught") // A failed read leaves the reasons as they were.
+        private suspend fun readReasons(generation: Int) {
+            val airings =
+                try {
+                    schedule.airings(clock.now())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // The reasons stay as they were; the read has been tried, so Watch is not held back for good.
+                    change(generation) { it.copy(reasonsRead = true) }
+                    return
+                }
+            val reasons = airings.associate { it.id to it.hidden }
+            change(generation) { it.copy(reasons = reasons, reasonsRead = true) }
+        }
+
+        /** A new list: it is kept, and a dialog about a channel that changed or went is closed. */
+        private fun onList(
+            m: Model,
+            list: List<ChannelSummary>,
+        ): Model {
+            val panel = m.panel
+            val before = panel?.let { p -> m.channels.firstOrNull { it.id == p.id } }
+            val after = panel?.let { p -> list.firstOrNull { it.id == p.id } }
+            val keep = panel == null || before == null || before == after
+            val currentNumber =
+                list.firstOrNull { it.id == m.current && it.state == ChannelStatus.On }?.number ?: m.currentNumber
+            return m.copy(
+                channels = list,
+                panel = if (keep) panel else null,
+                holder = if (keep) m.holder else null,
+                currentNumber = currentNumber,
+                listsDuringReset = m.listsDuringReset + 1,
+                awaitingList = false,
+            )
+        }
+
+        /** Applies [f] to the model of [generation], mends the focus, and publishes. */
+        private fun change(
+            generation: Int,
+            f: (Model) -> Model,
+        ) {
+            synchronized(lock) {
+                if (model.generation != generation) return
+                apply(f)
+            }
+        }
+
+        private fun apply(f: (Model) -> Model) {
+            val old = model
+            var next = f(old)
+            // The rows are sorted only when the channels or their reasons changed: a key press does no sorting.
+            if (next.channels !== old.channels || next.reasons !== old.reasons) next = next.copy(rows = rowsOf(next))
+            // A new panel (or the reset question) starts with its own choice and digits, in the same assignment.
+            if (next.panel != old.panel || next.confirmingReset != old.confirmingReset) {
+                next =
+                    next.copy(
+                        choice = startChoice(next.panel, next.confirmingReset),
+                        picker = (next.panel as? ChannelsPanel.Number)?.let { PickerState.of(it.start) },
+                    )
+            }
+            model = next.copy(focus = mended(next, old.rows.map { it.id }, next.rows.map { it.id }))
+            if (visible) shown.value = derive(model)
+        }
+
+        /** A D-pad key inside the open panel: the choice moves, or the number picker's digit or position does. */
+        fun panelMove(move: PanelMove) {
+            synchronized(lock) {
+                val picker = model.picker
+                if (picker != null) {
+                    apply {
+                        it.copy(
+                            picker =
+                                when (move) {
+                                    PanelMove.Up -> picker.up()
+                                    PanelMove.Down -> picker.down()
+                                    PanelMove.Left -> picker.left()
+                                    PanelMove.Right -> picker.right()
+                                },
+                        )
+                    }
+                } else if (model.panel != null || model.confirmingReset) {
+                    val last = choicesOf(derive(model)).lastIndex
+                    val step = if (move == PanelMove.Up || move == PanelMove.Left) -1 else 1
+                    apply { it.copy(choice = (it.choice + step).coerceIn(0, last.coerceAtLeast(0))) }
+                }
+            }
+        }
+
+        /**
+         * Select inside the open panel acts on the choice or number the state shows, so a key always does what was on
+         * screen. Returns the channel to tune when the choice is Watch (tuning is the caller's), else null. 000 is not
+         * a channel number: Select on it does nothing.
+         */
+        fun panelSelect(): ChannelId? {
+            val ui = synchronized(lock) { derive(model) }
+            val panel = ui.panel
+            val picker = ui.picker
+            val choice = choicesOf(ui).getOrNull(ui.choice)
+            var tune: ChannelId? = null
+            when {
+                picker != null && panel != null -> {
+                    if (picker.value > 0) setNumber(panel.id, picker.value)
+                }
+
+                choice == Choice.Cancel -> {
+                    dismiss()
+                }
+
+                choice == Choice.Confirm -> {
+                    confirm(panel)
+                }
+
+                panel == null || choice == null -> {
+                    Unit
+                }
+
+                choice == Choice.Watch -> {
+                    // The panel is closed in the model first, so the screen is finished with nothing open over it.
+                    dismiss()
+                    tune = panel.id
+                }
+
+                choice == Choice.SwitchOn -> {
+                    switchOn(panel.id)
+                }
+
+                choice == Choice.SwitchOff -> {
+                    switchOff(panel.id)
+                }
+
+                choice == Choice.ChangeNumber -> {
+                    startNumber(panel.id)
+                }
+
+                choice == Choice.DefaultNumber -> {
+                    defaultNumber(panel.id)
+                }
+            }
+            return tune
+        }
+
+        private fun confirm(panel: ChannelsPanel?) {
+            when (panel) {
+                is ChannelsPanel.ConfirmOptIn -> confirmOptIn()
+                is ChannelsPanel.Swap -> swap()
+                else -> reset()
+            }
+        }
+
+        private fun mended(
+            m: Model,
+            oldIds: List<ChannelId>,
+            ids: List<ChannelId>,
+        ): ChannelsFocus? {
+            val focus = m.focus
+            return when {
+                focus == null || focus == ChannelsFocus.Reset -> if (focus == null) firstFocus(m, ids) else focus
+                focus.id in ids -> focus
+                ids.isEmpty() -> ChannelsFocus.Reset
+                else -> ChannelsFocus.Row(ids[oldIds.indexOf(focus.id).coerceIn(0, ids.lastIndex)])
+            }
+        }
+
+        private fun firstFocus(
+            m: Model,
+            ids: List<ChannelId>,
+        ): ChannelsFocus? =
+            when {
+                ids.isEmpty() -> null
+                m.wantFocus in ids -> ChannelsFocus.Row(checkNotNull(m.wantFocus))
+                else -> ChannelsFocus.Row(ids.first())
+            }
+
+        private val ChannelsFocus.id: ChannelId?
+            get() = (this as? ChannelsFocus.Row)?.id
+
+        private fun derive(m: Model): ChannelsUi =
+            ChannelsUi(
+                rows = m.rows,
+                focus = m.focus,
+                access = m.access,
+                choosing = m.choosing,
+                panel = m.panel,
+                message = m.message,
+                confirmingReset = m.confirmingReset,
+                choice = m.choice,
+                picker = m.picker,
+                reasonsRead = m.reasonsRead,
+            )
+
+        private fun rowsOf(m: Model): List<ChannelRow> =
+            m.channels
+                .sortedWith(compareBy<ChannelSummary>({ groupOf(it) }, { it.number ?: Int.MAX_VALUE }))
+                .map { c ->
+                    val group = groupOf(c)
+                    ChannelRow(
+                        id = c.id,
+                        number = c.number,
+                        name = c.name,
+                        group = group,
+                        kind = c.kind,
+                        kid = c.kid,
+                        optIn = c.optIn,
+                        reason = if (group == ChannelGroup.On) m.reasons[c.id] else null,
+                        hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
+                    )
+                }
+
+        private fun groupOf(c: ChannelSummary): ChannelGroup =
+            when (c.state) {
+                ChannelStatus.On -> ChannelGroup.On
+                ChannelStatus.Shelf -> ChannelGroup.Shelf
+                ChannelStatus.UserHidden -> ChannelGroup.Off
+            }
+
+        /** Focus to the row above or below; Reset is the last stop. */
+        fun move(up: Boolean) {
+            synchronized(lock) {
+                val ids = model.rows.map { it.id }
+                val stops = ids.map { ChannelsFocus.Row(it) } + ChannelsFocus.Reset
+                val at = stops.indexOf(model.focus)
+                val to = if (at < 0) 0 else (if (up) at - 1 else at + 1).coerceIn(0, stops.lastIndex)
+                apply { it.copy(focus = stops[to]) }
+            }
+        }
+
+        /** On a row: opens its actions. On Reset: asks to reset. */
+        fun select() {
+            synchronized(lock) {
+                when (val focus = model.focus) {
+                    is ChannelsFocus.Row -> apply { it.copy(panel = ChannelsPanel.Actions(focus.id), message = null) }
+                    ChannelsFocus.Reset -> askReset()
+                    null -> Unit
+                }
+            }
+        }
+
+        /** Closes the panel, else the reset question, else the message. */
+        fun dismiss() {
+            synchronized(lock) {
+                apply {
+                    when {
+                        it.panel != null -> it.copy(panel = null, holder = null)
+                        it.confirmingReset -> it.copy(confirmingReset = false)
+                        else -> it.copy(message = null)
+                    }
+                }
+            }
+        }
+
+        fun switchOn(id: ChannelId) {
+            val asks =
+                synchronized(lock) {
+                    if (notEditable()) return
+                    val optIn = model.channels.firstOrNull { it.id == id }?.optIn == true
+                    if (optIn) apply { it.copy(panel = ChannelsPanel.ConfirmOptIn(id)) }
+                    optIn
+                }
+            if (!asks) submit(ChannelChange.SwitchOn(id, confirmedOptIn = false))
+        }
+
+        /** When the lineup may not be changed: closes what is open, says so, and returns true. Under [lock]. */
+        private fun notEditable(): Boolean {
+            if (model.access == LineupAccess.Editable) return false
+            apply {
+                it.copy(panel = null, holder = null, confirmingReset = false, message = ChannelsMessage.NotEditable)
+            }
+            return true
+        }
+
+        fun confirmOptIn() {
+            val id = synchronized(lock) { (model.panel as? ChannelsPanel.ConfirmOptIn)?.id } ?: return
+            submit(ChannelChange.SwitchOn(id, confirmedOptIn = true))
+        }
+
+        fun switchOff(id: ChannelId) = submit(ChannelChange.SwitchOff(id))
+
+        /** Opens the number dialog for [id], at its number (or the first free band's start). */
+        fun startNumber(id: ChannelId) {
+            synchronized(lock) {
+                val c = model.channels.firstOrNull { it.id == id } ?: return
+                if (notEditable()) return
+                val start = c.number ?: ChannelNumbers.startFor(c.kid)
+                apply { it.copy(panel = ChannelsPanel.Number(id, start)) }
+            }
+        }
+
+        fun setNumber(
+            id: ChannelId,
+            number: Int,
+        ) = submit(ChannelChange.SetNumber(id, number))
+
+        fun defaultNumber(id: ChannelId) = submit(ChannelChange.ClearNumber(id))
+
+        /** Takes the number from the holder the Swap panel names, who gets this channel's number. */
+        fun swap() {
+            val change =
+                synchronized(lock) {
+                    val panel = model.panel as? ChannelsPanel.Swap ?: return
+                    val holder = model.holder ?: return
+                    if (panel.toDefault) {
+                        ChannelChange.ClearNumber(panel.id, holder)
+                    } else {
+                        ChannelChange.SetNumber(panel.id, panel.number, holder)
+                    }
+                }
+            submit(change)
+        }
+
+        private fun submit(change: ChannelChange) {
+            val (generation, account) =
+                synchronized(lock) {
+                    if (notEditable() || model.pending || model.choosing) return
+                    val account = model.account ?: return
+                    apply { it.copy(pending = true) }
+                    model.generation to account
+                }
+            scope.launch {
+                val result = editor.change(account, change)
+                change(generation) { applyResult(it, change, result) }
+            }
+        }
+
+        private fun applyResult(
+            m: Model,
+            change: ChannelChange,
+            result: ChangeResult,
+        ): Model {
+            val own = m.panel?.id == change.channel
+            val closed =
+                if (own) m.copy(panel = null, holder = null, pending = false) else m.copy(pending = false)
+            return when (result) {
+                ChangeResult.Done -> closed.copy(message = null)
+                is ChangeResult.Refused -> refused(m, closed, change, result.reason)
+                ChangeResult.NotEditable -> closed.copy(message = ChannelsMessage.NotEditable)
+                ChangeResult.SaveFailed -> closed.copy(message = ChannelsMessage.SaveFailed)
+                ChangeResult.Failed -> closed.copy(message = ChannelsMessage.Failed)
+            }
+        }
+
+        private val ChannelChange.channel: ChannelId
+            get() =
+                when (this) {
+                    is ChannelChange.SwitchOn -> id
+                    is ChannelChange.SwitchOff -> id
+                    is ChannelChange.SetNumber -> id
+                    is ChannelChange.ClearNumber -> id
+                }
+
+        private fun refused(
+            m: Model,
+            closed: Model,
+            change: ChannelChange,
+            reason: ChangeRefusal,
+        ): Model =
+            when (reason) {
+                is ChangeRefusal.NumberTaken -> swapPanel(m, closed, change, reason.holder)
+                ChangeRefusal.KidsBandOnly -> closed.copy(message = ChannelsMessage.KidsBand)
+                ChangeRefusal.LastOn -> closed.copy(message = ChannelsMessage.LastOn)
+                ChangeRefusal.NoFreeNumber -> closed.copy(message = ChannelsMessage.NoNumber)
+                else -> closed.copy(message = ChannelsMessage.Failed)
+            }
+
+        private fun swapPanel(
+            m: Model,
+            closed: Model,
+            change: ChannelChange,
+            holder: ChannelId,
+        ): Model {
+            val name =
+                m.channels
+                    .firstOrNull { it.id == holder }
+                    ?.name
+                    .orEmpty()
+            val panel =
+                when (change) {
+                    is ChannelChange.SetNumber -> {
+                        ChannelsPanel.Swap(change.id, change.number, name, toDefault = false)
+                    }
+
+                    is ChannelChange.ClearNumber -> {
+                        val number = m.channels.firstOrNull { it.id == change.id }?.defaultNumber
+                        number?.let { ChannelsPanel.Swap(change.id, it, name, toDefault = true) }
+                    }
+
+                    else -> {
+                        null
+                    }
+                }
+            return if (panel == null) {
+                closed.copy(message = ChannelsMessage.Failed)
+            } else {
+                closed.copy(panel = panel, holder = holder, message = null)
+            }
+        }
+
+        fun askReset() {
+            synchronized(lock) {
+                if (!notEditable()) apply { it.copy(confirmingReset = true, panel = null) }
+            }
+        }
+
+        fun reset() {
+            val (generation, account) =
+                synchronized(lock) {
+                    if (notEditable() || model.pending || model.choosing) return
+                    val account = model.account ?: return
+                    apply {
+                        it.copy(
+                            confirmingReset = false,
+                            choosing = true,
+                            panel = null,
+                            message = null,
+                            listsDuringReset = 0,
+                            awaitingList = false,
+                        )
+                    }
+                    model.generation to account
+                }
+            scope.launch {
+                val result = editor.reset(account)
+                change(generation) { resetDone(it, result) }
+            }
+        }
+
+        private fun resetDone(
+            m: Model,
+            result: ResetResult,
+        ): Model {
+            val done = m.copy(choosing = false)
+            return when (result) {
+                ResetResult.Chosen -> done.copy(reset = result, awaitingList = m.listsDuringReset == 0)
+                ResetResult.NotChosenYet -> done.copy(reset = result, message = ChannelsMessage.NotChosenYet)
+                ResetResult.NotEditable -> done.copy(message = ChannelsMessage.NotEditable)
+                ResetResult.SaveFailed -> done.copy(message = ChannelsMessage.SaveFailed)
+                ResetResult.Failed -> done.copy(message = ChannelsMessage.Failed)
+                ResetResult.LibrariesUnavailable -> done.copy(message = ChannelsMessage.LibrariesUnavailable)
+            }
+        }
+
+        /** What to tune when the screen closes, or null to leave the picture as it is. */
+        fun closing(): ChannelId? =
+            synchronized(lock) {
+                val on =
+                    model.channels
+                        .filter { it.state == ChannelStatus.On && it.number != null }
+                        .sortedBy { it.number }
+                val current = model.current
+                when {
+                    // The lowest On of the list the reset made; until that list arrives there is nothing to name.
+                    model.reset == ResetResult.Chosen -> {
+                        if (model.awaitingList) null else on.firstOrNull()?.id
+                    }
+
+                    model.reset == ResetResult.NotChosenYet -> {
+                        null
+                    }
+
+                    current == null || on.any { it.id == current } -> {
+                        null
+                    }
+
+                    else -> {
+                        val after = model.currentNumber ?: Int.MIN_VALUE
+                        (on.firstOrNull { checkNotNull(it.number) > after } ?: on.firstOrNull())?.id
+                    }
+                }
+            }
+    }
