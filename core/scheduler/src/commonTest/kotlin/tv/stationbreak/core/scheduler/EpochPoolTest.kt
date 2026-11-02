@@ -128,10 +128,8 @@ class EpochPoolTest {
     }
 
     @Test
-    fun theRuntimeFilterIsReadAtTheCutoffNotNow() {
-        // The filter is part of the settings and is applied to the items as they stood at the cutoff: the pool is a
-        // function of (settings, items, epoch) and nothing else, and the filter never lets in an item the cutoff
-        // leaves out.
+    fun theRuntimeFilterJudgesTheRuntimeItIsGiven() {
+        // The filter never lets in an item the cutoff leaves out, and it judges the runtime on the item it is handed.
         val filtered =
             testSettings(
                 utcOffsetMinutes = -300,
@@ -145,9 +143,7 @@ class EpochPoolTest {
                 testItem(idOf('2'), runtimeMs = 45 * MS_MINUTE, createdAtMs = cutoff),
                 testItem(idOf('3'), runtimeMs = 20 * MS_MINUTE, createdAtMs = cutoff - 1),
             )
-        val first = EpochPool.build(filtered, items, 0L).map { it.id.value.first() }
-        assertEquals(listOf('1'), first)
-        assertEquals(first, EpochPool.build(filtered, items, 0L).map { it.id.value.first() })
+        assertEquals(listOf('1'), EpochPool.build(filtered, items, 0L).map { it.id.value.first() })
     }
 
     @Test

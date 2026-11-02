@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.ScheduleItemProblem
@@ -257,5 +258,38 @@ class ScheduleInputFilterTest {
             val ids = read().items.map { it.id.value }
 
             assertEquals(listOf(hexId(10), hexId(11)), ids)
+        }
+
+    // The runtime filter judges the runtime as of the cut-off, which only the as-of read can know.
+
+    private val filtered = settings.copy(runtimeFilter = RuntimeFilter(minMs = 30 * 60_000L, maxMs = null))
+
+    /** Puts item 1 at [before] minutes before the cut-off (0 ms), edits it to [after] minutes after it, and reads. */
+    private suspend fun poolAfterEdit(
+        before: Int,
+        after: Int,
+    ): List<ScheduleItem> {
+        val old = Instant.fromEpochMilliseconds(-1)
+        repository.select(ALICE, setOf(MOVIES))
+        clock.atMs(-1.hours.inWholeMilliseconds)
+        repository.put(ALICE, MOVIES, sitem(1, runtime = before.minutes).copy(dateCreated = old))
+        clock.atMs(1.hours.inWholeMilliseconds)
+        repository.put(ALICE, MOVIES, sitem(1, runtime = after.minutes).copy(dateCreated = old))
+        val inputs = repository.scheduleInputs(ALICE, setOf(MOVIES), Instant.fromEpochMilliseconds(0))
+        return EpochPool.build(filtered, inputs.items, 0)
+    }
+
+    @Test
+    fun theRuntimeFilterReadsTheRuntimeAsOfTheCutoff() =
+        runBlocking {
+            // 45 min before the cut-off, edited to 20 min after it: the day is built from 45, which the filter keeps.
+            assertEquals(listOf(hexId(1)), poolAfterEdit(before = 45, after = 20).map { it.id.value })
+        }
+
+    @Test
+    fun anEditIntoTheRuntimeWindowAfterTheCutoffDoesNotLetTheItemIn() =
+        runBlocking {
+            // 20 min before the cut-off, edited to 45 min after it: the day is built from 20, which the filter drops.
+            assertEquals(emptyList<ScheduleItem>(), poolAfterEdit(before = 20, after = 45))
         }
 }

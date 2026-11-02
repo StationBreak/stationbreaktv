@@ -18,9 +18,9 @@ sealed interface RulesResult {
 
     /**
      * The file is well formed but uses a kind this app does not schedule: an unknown source type, ordering mode or
-     * filler mode, a filler mode other than `none`, or, in version 2, a `filters.kind`. The channel is not scheduled and the user is told an update is
-     * required. [rules] is set when the whole file could still be read (so it can be kept and written back), and is
-     * null when part of it could not be understood.
+     * filler mode, a filler mode other than `none`, or, in version 2, a `filters.kind`. The channel is not scheduled
+     * and the user is told an update is required. [rules] is set when the whole file could still be read (so it can be
+     * kept and written back), and is null when part of it could not be understood.
      */
     data class Unsupported(
         val reason: String,
