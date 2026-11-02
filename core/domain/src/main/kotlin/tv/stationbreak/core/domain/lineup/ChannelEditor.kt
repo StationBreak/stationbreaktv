@@ -64,7 +64,10 @@ sealed interface ChangeResult {
     /** The lineup may not be written on this TV, or there is none. */
     data object NotEditable : ChangeResult
 
-    /** The change could not be saved; nothing changed. */
+    /**
+     * The change could not be saved, and was not made. A lineup this TV held but could not save from (planned while
+     * the stored file could not be read) may already have been replaced by the stored one, so that memory matches disk.
+     */
     data object SaveFailed : ChangeResult
 
     /** The change was not made, for [reason]; nothing changed. */
@@ -74,16 +77,21 @@ sealed interface ChangeResult {
 }
 
 /** What a reset left: [NotChosenYet] is a new lineup with no On channel yet, which the planner finishes later. */
-enum class ResetResult {
-    Chosen,
-    NotChosenYet,
-    NotEditable,
+sealed interface ResetResult {
+    data object Chosen : ResetResult
+
+    data object NotChosenYet : ResetResult
+
+    data object NotEditable : ResetResult
 
     /** The change could not be saved; nothing changed. */
-    SaveFailed,
+    data object SaveFailed : ResetResult
 
     /** No library is chosen, or the choice could not be read just now; nothing changed. */
-    LibrariesUnavailable,
+    data object LibrariesUnavailable : ResetResult
+
+    /** Something other than the library failed; nothing changed. */
+    data object Failed : ResetResult
 }
 
 /** Whether a lineup can be changed on this TV. */
@@ -98,7 +106,7 @@ enum class LineupAccess {
     ReadOnly,
 }
 
-/** How features change an account's channel lineup (spec 21). None of it throws for an expected failure. */
+/** How features change an account's channel lineup (spec 21). None of it throws, but for cancellation. */
 interface ChannelEditor {
     /** [account]'s lineup access, following the lineup. */
     fun access(account: LibraryAccount): Flow<LineupAccess>
@@ -112,6 +120,7 @@ interface ChannelEditor {
      * Replaces the lineup with a fresh choice from the library already on this TV, in one step: there is never a
      * moment with no lineup. NotChosenYet: the new lineup has no On channel yet (the planner finalises it later).
      * LibrariesUnavailable: no library is chosen or the choice or library could not be read, and nothing changed.
+     * Failed: something else failed (the plan, say), and nothing changed. It never throws, but for cancellation.
      */
     suspend fun reset(account: LibraryAccount): ResetResult
 }

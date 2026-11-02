@@ -134,6 +134,38 @@ class ChannelManagerTest {
             assertEquals(listOf(LineupEvent.ResetLibrariesUnavailable), events)
         }
 
+    // The port never throws: a failure of the plan (here the device offset it reads) is a result, reported.
+    @Test
+    fun aPlannerFailureOnResetIsFailedNotThrown() =
+        runBlocking<Unit> {
+            seed(lineup())
+            val failing = LineupService(store, library, clock, { error("no offset") }, { events += it }, TestCatalog)
+            failing.loaded(ACCOUNT)
+            val before = store.inner.peek(ACCOUNT)
+
+            assertEquals(ResetResult.Failed, ChannelManager(failing) { LIBRARIES }.reset(ACCOUNT))
+            assertEquals(listOf(LineupEvent.RefreshFailed), events)
+            assertContentEquals(before, store.inner.peek(ACCOUNT), "nothing was saved")
+        }
+
+    @Test
+    fun aFailedReadThenAFailedSaveLeavesMemoryAsTheStoredLineup() =
+        runBlocking<Unit> {
+            seed(lineup())
+            store.inner.failReads = true
+            service.refresh(ACCOUNT, LIBRARIES)
+            store.inner.failReads = false
+            store.inner.failWrites = true
+            val before = store.inner.peek(ACCOUNT)
+
+            val off = ChannelChange.SwitchOff(LineupIds.starter("laughs"))
+            assertEquals(ChangeResult.SaveFailed, manager.change(ACCOUNT, off))
+
+            assertContentEquals(before, store.inner.peek(ACCOUNT), "the stored file is unchanged")
+            val held = checkNotNull(service.lineup(ACCOUNT).value)
+            assertEquals(lineup(), held.lineup, "the reconcile published the stored lineup: memory matches disk")
+        }
+
     @Test
     fun resetReportsNotEditableForANewerAppsFile() =
         runBlocking<Unit> {

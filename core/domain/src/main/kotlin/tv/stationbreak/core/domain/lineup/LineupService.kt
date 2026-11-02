@@ -295,9 +295,10 @@ class LineupService internal constructor(
      * this session published writable, else from the stored one ([startOf]): a lineup planned while the file could
      * not be read is never saved over the real one. Like [refresh] it may set an unreadable or foreign file aside
      * first. An applied edit is saved and then published with a new revision; one that changes nothing, and a
-     * refusal, publish nothing. [Saved.Failed]: the save failed or was rejected, and nothing changed.
-     * [Saved.Invalid]: the edit would break the lineup's rules. Null: there is no lineup, or the file may not be
-     * written (a newer app's, say): nothing changes.
+     * refusal, publish no edit. [Saved.Failed]: the save failed or was rejected. [Saved.Invalid]: the edit would break
+     * the lineup's rules. Null: there is no lineup, or the file may not be written (a newer app's, say). In none of
+     * these, nor in a refusal, is the edit made, though a reconcile with the stored lineup ([reconciled]) may already
+     * have been published, so that memory matches disk.
      */
     internal suspend fun edit(
         account: LibraryAccount,
@@ -363,7 +364,7 @@ class LineupService internal constructor(
      * save failed or was rejected, and nothing changed. [Saved.Unavailable]: the library could not be read, and nothing
      * changed. Null: the
      * file may not be written, and nothing changes. Never throws for stored data; other failures (the planner's, say)
-     * propagate.
+     * propagate, and `ChannelManager` turns them into `ResetResult.Failed`.
      */
     @Suppress("TooGenericExceptionCaught") // Any failure to read the library: nothing is written and it is reported.
     internal suspend fun reset(

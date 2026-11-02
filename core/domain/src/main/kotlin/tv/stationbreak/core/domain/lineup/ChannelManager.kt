@@ -62,7 +62,8 @@ class ChannelManager(
         }
 
     // A choice that cannot be read is an expected failure here, as is none chosen: nothing is written, and the caller
-    // may try again. A failure of the plan or the save itself is not, and propagates.
+    // may try again. So is a failure of the plan or the save itself: it is reported as a refresh's would be, and is
+    // [ResetResult.Failed] (the service changes nothing until the new lineup is saved). Only cancellation goes through.
     @Suppress("TooGenericExceptionCaught")
     override suspend fun reset(account: LibraryAccount): ResetResult {
         val chosen =
@@ -74,17 +75,27 @@ class ChannelManager(
                 service.reportEvent(LineupEvent.ResetLibrariesUnavailable)
                 null
             }
-        return if (chosen.isNullOrEmpty()) {
-            ResetResult.LibrariesUnavailable
-        } else {
+        return if (chosen.isNullOrEmpty()) ResetResult.LibrariesUnavailable else resetFrom(account, chosen)
+    }
+
+    @Suppress("TooGenericExceptionCaught") // Any failure of the plan or the save: see [reset].
+    private suspend fun resetFrom(
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+    ): ResetResult =
+        try {
             when (val saved = service.reset(account, chosen)) {
                 null -> ResetResult.NotEditable
                 Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
                 Saved.Unavailable -> ResetResult.LibrariesUnavailable
                 is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            service.reportEvent(LineupEvent.RefreshFailed)
+            ResetResult.Failed
         }
-    }
 }
 
 private fun EditRefusal.toRefusal(): ChangeRefusal =
