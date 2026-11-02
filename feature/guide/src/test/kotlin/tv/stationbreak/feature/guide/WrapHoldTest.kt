@@ -65,8 +65,8 @@ class WrapHoldTest {
     }
 
     @Test
-    fun aHeldUpWrapsFromTheFirstRowTheSameWay() {
-        // The hold does not care which end: the caller says only that the step wraps.
+    fun aHeldUpWaitsAtTheTopRowTheSameWay() {
+        // The hold does not care which end: the caller says only that the step goes round or to the button.
         assertFalse(wrapStep(5_000))
         assertFalse(wrapStep(5_399))
         assertTrue(wrapStep(5_400))

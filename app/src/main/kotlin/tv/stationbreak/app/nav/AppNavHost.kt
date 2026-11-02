@@ -3,6 +3,7 @@ package tv.stationbreak.app.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -97,7 +98,10 @@ internal fun AppNavGraph(
                 // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so the
                 // graph hands it over. Live says where its picture is; the guide leaves that hole clear.
                 guide = { current, openedAtNanos, pictureHole, onTune ->
-                    GuideDestination(current, openedAtNanos, pictureHole, onTune)
+                    // Channel management is wired in later; until then the slot closes at once, so it never shows.
+                    GuideDestination(current, openedAtNanos, pictureHole, onTune, channels = { _, _, _, onDone ->
+                        LaunchedEffect(Unit) { onDone(null) }
+                    })
                 },
             )
         }

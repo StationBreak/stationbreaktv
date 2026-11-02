@@ -38,10 +38,14 @@ internal sealed interface GuideState {
  * What the grid draws, as one value: the [state] and the [focus] in it, replaced together so they always belong to the
  * same moment. A [focus] always resolves with `indexOf` in the model of a [GuideState.Ready] [state] (the ViewModel
  * checks it as it publishes); it is null when the guide is not showing a grid, or no row has a cell.
+ *
+ * [onButton] is true while the focus is on the Channels button above the grid (spec 21). The [focus] then keeps the
+ * cell last focused, which Down returns to, but no cell is drawn focused.
  */
 internal data class GuideSnapshot(
     val state: GuideState,
     val focus: GuideFocus?,
+    val onButton: Boolean = false,
 ) {
     companion object {
         /** The guide closed: nothing shown, nothing focused. */
@@ -68,4 +72,7 @@ internal sealed interface GuideEvent {
     data class Tune(
         val channel: ChannelId,
     ) : GuideEvent
+
+    /** Select on the Channels button: the guide shows channel management over itself. */
+    data object OpenChannels : GuideEvent
 }

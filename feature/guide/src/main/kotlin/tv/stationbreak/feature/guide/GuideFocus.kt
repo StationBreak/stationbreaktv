@@ -59,11 +59,14 @@ internal fun GuideSnapshot.playingFocus(current: ChannelId?): GuideFocus? {
     return ready?.model?.initialFocus(current, ready.nowMs)?.takeIf { it.channel == current }
 }
 
-/** Whether the focus is off the cell [playingFocus] names (cell, not anchor); false when there is nothing playing. */
+/**
+ * Whether Back has somewhere to go on the grid: the focus is off the cell [playingFocus] names (cell, not anchor), or
+ * on the Channels button, which Back leaves for the playing cell. False when there is nothing playing.
+ */
 internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
     val at = focus
     val playing = playingFocus(current)
-    return at != null && playing != null && !at.sameCellAs(playing)
+    return playing != null && (onButton || (at != null && !at.sameCellAs(playing)))
 }
 
 /** Whether both name the same cell (the anchor, the time Up and Down keep, does not count). */
@@ -72,9 +75,9 @@ internal fun GuideFocus.sameCellAs(o: GuideFocus): Boolean = channel == o.channe
 /**
  * One step of [direction] from [focus] at [nowMs] (the moment the grid shows); at the left or right edge of a row, or
  * when the focused cell is gone, the focus stays. Up and Down skip rows that have no cells and wrap, as live TV's
- * flipping does: Down past the last row goes to the first, Up past the first to the last. They stay put when no other
- * row has any cells. They go by the focus's anchor, never earlier than now: an anchor kept from minutes ago would land
- * on a program that has ended since.
+ * flipping does: Down past the last row goes to the first. Up does not: the view model takes Up from the top row to
+ * the Channels button, so here it stays put. They stay put when no other row has any cells. They go by the focus's
+ * anchor, never earlier than now: an anchor kept from minutes ago would land on a program that has ended since.
  */
 internal fun GuideModel.move(
     focus: GuideFocus,

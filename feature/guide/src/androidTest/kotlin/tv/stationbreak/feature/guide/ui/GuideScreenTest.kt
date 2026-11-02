@@ -50,6 +50,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -58,9 +60,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
@@ -101,6 +107,11 @@ private class GatedSchedule(
         if (build == ScheduleBuild.AsNeeded) gate?.await()
         return inner.schedule(from, until, build)
     }
+}
+
+/** No lineup to watch: these tests do not open channel management. */
+private object NoLineup : ChannelRepository {
+    override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = flowOf(emptyList())
 }
 
 /** The guide on screen (spec 17): focus, the panel, cells of every kind, the info overlay and Back. */
@@ -155,7 +166,7 @@ class GuideScreenTest {
         measure: Boolean = false,
     ) {
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(schedule, cache, clock, work)
+        vm = GuideViewModel(schedule, cache, clock, work, InMemoryLibraryRepository(), NoLineup)
         compose.setContent {
             // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
             BackHandler { exits++ }
@@ -175,6 +186,7 @@ class GuideScreenTest {
                                 current,
                                 pictureHole = HOLE,
                                 onTune = { tuned += it },
+                                channels = { _, _, _, _ -> },
                                 openedAtNanos = openedAt.longValue,
                                 measure = measure,
                             )
@@ -390,22 +402,30 @@ class GuideScreenTest {
     }
 
     @Test
-    fun upOnTheFirstChannelWrapsToTheLastAndDownBackAndBackReturnsToWhatIsPlaying() {
+    fun downOnTheLastChannelWrapsToTheFirstAndBackReturnsToWhatIsPlaying() {
         showReady(CH5)
         compose.awaitWindowFocus()
         cell(CH5, 60).assertIsSelected()
         press(Key.DirectionUp)
         cell(ch3, 0).assertIsSelected()
-        // Up on the first channel (3) goes to the last (9), the time column kept.
+        // Up on the first channel (3) goes to the Channels button, not round to the last (spec 21).
         press(Key.DirectionUp)
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        cell(ch3, 0).assertIsNotSelected()
+        // Down returns to the cell it left; on to the last channel (9), and Down from there goes round to the first.
+        press(Key.DirectionDown)
+        cell(ch3, 0).assertIsSelected()
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
         cell(CH9, 0).assertIsSelected()
         assertEquals("Test Movie 300", text(GuideTags.PANEL_TITLE))
-        // Down on the last goes to the first.
         press(Key.DirectionDown)
         cell(ch3, 0).assertIsSelected()
         press(Key.DirectionUp)
-        cell(CH9, 0).assertIsSelected()
-        // Back after a wrap returns to the playing channel before it exits.
+        press(Key.DirectionUp)
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        // Back from the button returns to the playing channel before it exits.
         back()
         cell(CH5, 60).assertIsSelected()
         assertEquals(0, exits)

@@ -55,6 +55,11 @@ class HintKindTest {
     }
 
     @Test
+    fun onTheChannelsButtonThereIsOnlyBack() {
+        assertEquals(HintKind.BackOnly, hintKindOf(snapshotAt(nowMin = 65, focusMin = 0).copy(onButton = true)))
+    }
+
+    @Test
     fun noGridHasOnlyBack() {
         assertEquals(HintKind.BackOnly, hintKindOf(GuideSnapshot.Closed))
     }

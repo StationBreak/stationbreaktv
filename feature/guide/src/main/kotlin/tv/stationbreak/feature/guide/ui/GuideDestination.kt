@@ -4,10 +4,13 @@ package tv.stationbreak.feature.guide.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -44,28 +47,46 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * arrived (`System.nanoTime`), for the guide's open-time measurement.
  *
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes
- * the info overlay when one is open and is otherwise left to the activity, which leaves live TV.
+ * the info overlay when one is open and is otherwise left to the activity, which leaves live TV. Select on the Channels
+ * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
+ * keys and Back stand down while it shows.
  */
+@Suppress("LongParameterList") // The destination's own: what is playing, where, how to tune, and the slot.
 @Composable
 fun GuideDestination(
     current: ChannelId?,
     openedAtNanos: Long,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
+    channels: ChannelsSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureHole, onTune, modifier, openedAtNanos, viewModel.measure)
+    GuideRoot(viewModel, current, pictureHole, onTune, channels, modifier, openedAtNanos, viewModel.measure)
 }
 
+/**
+ * Channel management as the guide draws it, over itself: what is playing, the picture's hole, and a way to finish.
+ * [onDone] is called once per showing, with the channel to tune or null for back to the guide; the guide stops drawing
+ * the slot then. A slot is a composable of the app's graph because a feature never depends on another.
+ */
+typealias ChannelsSlot =
+    @Composable (
+        current: ChannelId?,
+        openedAtNanos: Long,
+        pictureHole: DpRect,
+        onDone: (tune: ChannelId?) -> Unit,
+    ) -> Unit
+
 /** [GuideDestination] without Hilt, so a test can bring its own ViewModel. */
-@Suppress("LongParameterList") // The destination's own five, and two a test leaves at their defaults.
+@Suppress("LongParameterList", "LongMethod") // The destination's own six, and two a test leaves at their defaults.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
     current: ChannelId?,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
+    channels: ChannelsSlot,
     modifier: Modifier = Modifier,
     openedAtNanos: Long = System.nanoTime(),
     measure: Boolean = false,
@@ -109,36 +130,60 @@ internal fun GuideRoot(
     // A Tune is acted on as it is received, never right after Select: the guide may refuse a Select (info open, focus
     // gone), and a session that ends drops its queued events.
     val tune by rememberUpdatedState(onTune)
+    // When the viewer opened channel management (a fresh value per opening, for the slot), or 0 while it is not
+    // showing. It starts over with each showing of the guide.
+    var managingSince by remember(viewModel, openedAtNanos) { mutableLongStateOf(NOT_MANAGING) }
+    val managing = managingSince != NOT_MANAGING
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is GuideEvent.Tune -> tune(event.channel)
+                is GuideEvent.Tune -> {
+                    tune(event.channel)
+                }
+
+                GuideEvent.OpenChannels -> {
+                    viewModel.channelsOpened()
+                    managingSince = System.nanoTime().coerceAtLeast(1L)
+                }
             }
         }
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
     // Back over the info overlay closes it; with none open, Back returns the focus to what is
-    // playing, and from there it is the activity's and leaves live TV.
-    BackHandler(enabled = info != null) { viewModel.closeInfo() }
+    // playing, and from there it is the activity's and leaves live TV. While channel management shows, it is the
+    // screen's.
+    BackHandler(enabled = info != null && !managing) { viewModel.closeInfo() }
     val keys = remember { FocusRequester() }
-    LaunchedEffect(keys) { keys.requestFocus() }
+    // The guide takes the key focus when it shows, and takes it back when channel management has gone.
+    LaunchedEffect(keys, managing) { if (!managing) keys.requestFocus() }
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val back: (() -> Unit)? =
         remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.backToPlaying()) d.onBackPressed() } } }
     val move = remember(viewModel) { viewModel.tracedMove() }
-    GuideScreen(
-        snapshot = viewModel.snapshot,
-        panel = viewModel.panel,
-        info = info,
-        current = current,
-        pictureHole = pictureHole,
-        modifier =
-            modifier
-                .focusRequester(keys)
-                .onKeyEvent { guideKey(it, move, viewModel::select, back) }
-                .focusable(),
-    )
+    Box(modifier.fillMaxSize()) {
+        GuideScreen(
+            snapshot = viewModel.snapshot,
+            panel = viewModel.panel,
+            info = info,
+            current = current,
+            pictureHole = pictureHole,
+            modifier =
+                Modifier
+                    .focusRequester(keys)
+                    .onKeyEvent { !managing && guideKey(it, move, viewModel::select, back) }
+                    .focusable(),
+        )
+        if (managing) {
+            channels(current, managingSince, pictureHole) { tuneTo ->
+                // The slot is gone from this moment: it ignores keys after onDone.
+                managingSince = NOT_MANAGING
+                if (tuneTo == null) viewModel.channelsClosed() else tune(tuneTo)
+            }
+        }
+    }
 }
+
+private const val NOT_MANAGING = 0L
 
 /**
  * The guide's keys, all consumed so the focus never leaves the grid: the D-pad moves the focus (auto-repeat included,

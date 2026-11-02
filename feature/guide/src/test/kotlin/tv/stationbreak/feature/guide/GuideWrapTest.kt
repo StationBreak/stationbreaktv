@@ -11,7 +11,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 
 class GuideWrapTest : GuideRig() {
     @Test
-    fun downOnTheLastRowWrapsToTheFirstAndUpOnTheFirstToTheLast() =
+    fun downOnTheLastRowWrapsToTheFirstAndUpOnTheFirstGoesToTheButton() =
         guideTest { vm ->
             vm.open(CH9)
             runCurrent()
@@ -19,7 +19,8 @@ class GuideWrapTest : GuideRig() {
             assertEquals(CH5, vm.focused().channel)
             assertEquals(0, vm.ready().firstVisibleRow)
             vm.move(GuideDirection.Up, repeat = false, atMs = 0)
-            assertEquals(CH9, vm.focused().channel)
+            assertTrue(vm.snapshot.value.onButton)
+            assertEquals(CH5, vm.focused().channel)
         }
 
     @Test
@@ -27,9 +28,9 @@ class GuideWrapTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            vm.move(GuideDirection.Up, repeat = false, atMs = 0)
-            vm.move(GuideDirection.Up, repeat = false, atMs = 0)
-            assertEquals(CH9, vm.focused().channel)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
+            vm.move(GuideDirection.Down, repeat = false, atMs = 0)
+            assertEquals(CH5, vm.focused().channel)
             assertTrue(vm.backToPlaying())
             assertEquals(CH7, vm.focused().channel)
         }

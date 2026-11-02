@@ -4,6 +4,8 @@ package tv.stationbreak.feature.guide
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -11,10 +13,14 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.InMemorySecretStore
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
@@ -67,6 +73,15 @@ internal class HookedSchedule(
     }
 }
 
+/** A lineup a test changes while channel management shows. */
+internal class FakeChannels(
+    initial: List<ChannelSummary> = emptyList(),
+) : ChannelRepository {
+    val list = MutableStateFlow(initial)
+
+    override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
+}
+
 /** What the guide's ViewModel tests share: a lineup, a clock the test moves, and a guide on them. */
 @OptIn(SecretAccess::class)
 open class GuideRig {
@@ -74,6 +89,8 @@ open class GuideRig {
     internal val schedule = HookedSchedule(fake)
     internal val server = FakeMediaServer()
     internal val sessions = SessionRepository(InMemorySecretStore(), server)
+    internal val library = InMemoryLibraryRepository()
+    internal val lineupList = FakeChannels()
 
     // Channel 7 airs half-hour programs, channel 5 hour-long ones, channel 9 a long program, a slate, then more.
     internal fun lineup(
@@ -131,10 +148,11 @@ open class GuideRig {
     internal suspend fun TestScope.newGuide(startMin: Long): GuideViewModel {
         val address = ServerAddress(Scheme.Https, "jellyfin.example", 443)
         val info = ServerInfo("Home", ServerId("srv1"), ServerVersion(12, 2, 0))
+        library.useAccount(LibraryAccount(ServerId("srv1"), UserId("u1")))
         sessions.save(Session(UserId("u1"), AccessToken("fake-token-0123"), info, address, null, true))
         val dispatcher = StandardTestDispatcher(testScheduler)
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob() + dispatcher))
-        return GuideViewModel(schedule, cache, clock(startMin), dispatcher)
+        return GuideViewModel(schedule, cache, clock(startMin), dispatcher, library, lineupList)
     }
 
     /** Runs [body] with a guide whose clock reads [startMin] minutes into the test day, and stops it after. */

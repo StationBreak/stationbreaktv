@@ -124,7 +124,9 @@ internal fun GuideScreen(
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
-    val focusOf: () -> GuideFocus? = remember(shown) { { shown.value.focus } }
+    // No cell is focused while the focus is on the Channels button, whatever cell it will return to.
+    val focusOf: () -> GuideFocus? = remember(shown) { { shown.value.let { if (it.onButton) null else it.focus } } }
+    val onButtonOf: () -> Boolean = remember(shown) { { shown.value.onButton } }
     // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
     val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
     val viewport =
@@ -147,8 +149,10 @@ internal fun GuideScreen(
             ) {
                 // The info overlay says what the panel would, so the panel makes way while it is open: the title and
                 // the time are shown once. Its place is kept, so the grid does not move.
-                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
+                // The Channels button takes the foot of that band, so the grid and the picture stay where they are.
+                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 if (info == null) DetailsPanel(panel, nowOf, panelSize) else Spacer(panelSize)
+                ChannelsButton(onButtonOf)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
                 Spacer(Modifier.height(HintGap))
@@ -264,7 +268,8 @@ internal enum class HintKind { Watch, Info, BackOnly }
 internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
     val ready = snapshot.state as? GuideState.Ready
     val located = snapshot.focus?.let { ready?.model?.indexOf(it) }
-    if (ready == null || located == null) return HintKind.BackOnly
+    // On the Channels button OK opens channel management, which the button says by itself.
+    if (ready == null || located == null || snapshot.onButton) return HintKind.BackOnly
     val cell = ready.model.rows[located.first].cells[located.second]
     return when {
         cell.startMs <= ready.nowMs && ready.nowMs < cell.endMs -> HintKind.Watch
