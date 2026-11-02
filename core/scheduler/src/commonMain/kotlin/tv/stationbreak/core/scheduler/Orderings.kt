@@ -16,7 +16,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
  *
  * Canonical IDs are 32 lower-case ASCII hex characters, so comparing them as strings is comparing their bytes.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions") // The orders of rules format versions 1 and 2 share one set of keys.
 object Orderings {
     /** The `shuffle` key of [id]: `splitmix64(seedN + fnv1a64(idBytes))`, wrapping modulo 2^64. */
     fun shuffleKey(

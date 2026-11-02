@@ -18,8 +18,10 @@ class RotationTest {
     /** A seeded pool: some series, some single films, and some films in collections. */
     private class Pool(
         val items: List<ScheduleItem>,
-        val films: FilmCollections,
-    )
+        val collections: Map<CanonicalId, CanonicalId>,
+    ) {
+        val films = FilmCollections.of(collections)
+    }
 
     private fun film(
         id: CanonicalId,
@@ -74,7 +76,7 @@ class RotationTest {
                 }
             }
         }
-        return Pool(items, FilmCollections.of(map))
+        return Pool(items, map)
     }
 
     private fun List<ScheduleItem>.shuffledBy(salt: ULong) = Orderings.shuffle(this, salt)
@@ -165,19 +167,40 @@ class RotationTest {
     }
 
     @Test
+    fun onlyAFilmIsInACollection() {
+        val episodeWithoutSeries = episode(idOf('1'), idOf('5'), 1).copy(seriesId = null)
+        val rules = GroupRules(FilmCollections.of(mapOf(episodeWithoutSeries.id to idOf('c'))))
+
+        assertEquals(episodeWithoutSeries.id, rules.groupId(episodeWithoutSeries))
+        assertEquals(GroupKind.Single, rules.kind(episodeWithoutSeries))
+    }
+
+    @Test
     fun aGroupJoiningNeverReordersTheOthers() {
         forAllCases("a joiner leaves the others alone", 0x7003uL, cases = 100) { gen ->
             val built = gen.pool(withCollections = true)
             val rules = GroupRules(built.films)
             val seed = Seed(gen.nextULong())
             val caps = Caps(gen.nextInt(1..5), gen.nextInt(1..3))
-            val joiner = gen.id()
-            val joined = built.items + (1..gen.nextInt(1..6)).map { episode(gen.id(), joiner, it) }
-
+            val series = gen.id()
+            val collection = gen.id()
+            val members = (1..gen.nextInt(1..4)).map { film(gen.id(), 1950 + gen.nextInt(60)) }
+            val single = film(gen.id())
+            val joiners =
+                listOf(
+                    (1..gen.nextInt(1..6)).map { episode(gen.id(), series, it) },
+                    members,
+                    listOf(single),
+                )
+            val joinedFilms = FilmCollections.of(built.collections + members.associate { it.id to collection })
+            val joinedRules = GroupRules(joinedFilms)
             val before = Orderings.rotationTurns(built.items, seed, caps, rules)
-            val after = Orderings.rotationTurns(joined, seed, caps, rules).filter { rules.groupOf(it) != joiner }
 
-            assertEquals(before, after)
+            for (joiner in joiners) {
+                val joined = Orderings.rotationTurns(built.items + joiner, seed, caps, joinedRules)
+                val ids = joiner.map { it.id }.toSet()
+                assertEquals(before, joined.filter { turn -> turn.none { it.id in ids } })
+            }
         }
     }
 
