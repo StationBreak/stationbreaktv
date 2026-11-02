@@ -124,9 +124,10 @@ internal fun rules(
     sources: List<Source>,
     exclusions: List<Source>? = null,
     maxRating: String? = null,
+    formatVersion: Int = 1,
 ): ChannelRules =
     ChannelRules(
-        formatVersion = 1,
+        formatVersion = formatVersion,
         name = null,
         seed = Seed(0uL),
         sources = sources,

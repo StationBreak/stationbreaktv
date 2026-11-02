@@ -4,11 +4,14 @@ package tv.stationbreak.core.engine
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.BroadcastDay
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
+import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.rules.Timing
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class SchedulerSettingsFromRulesTest {
     private val base = rules(listOf(Source.Genre("Comedy")))
@@ -48,5 +51,28 @@ class SchedulerSettingsFromRulesTest {
     fun startWithMinutesIsParsed() {
         val timing = Timing(null, null, null, null, null, null, BroadcastDay(0, "05:30"))
         assertEquals(330, base.copy(timing = timing).toSchedulerSettings().startMinuteOfDay)
+    }
+
+    @Test
+    fun aVersion2FeatureIsRefusedBySchedulerSettings() {
+        val v2 = base.copy(formatVersion = 2)
+        val features =
+            listOf(
+                v2.copy(ordering = Ordering(OrderingMode.Rotation)),
+                v2.copy(ordering = Ordering(OrderingMode.InOrder)),
+                v2.copy(sources = listOf(Source.Item(idOf(1)))),
+                v2.copy(exclusions = listOf(Source.Item(idOf(1)))),
+                v2.copy(filters = Filters(null, null, null, null, null, null)),
+                v2.copy(ordering = Ordering(OrderingMode.Shuffle, OrderingCaps(null, null))),
+            )
+        for ((i, rules) in features.withIndex()) {
+            val e = assertFailsWith<IllegalArgumentException>("case $i") { rules.toSchedulerSettings() }
+            assertEquals("Rules format version 2 features are not scheduled yet", e.message)
+        }
+    }
+
+    @Test
+    fun aVersion2FileWithNoV2FeatureStillGivesSettings() {
+        assertEquals(OrderingMode.Shuffle, base.copy(formatVersion = 2).toSchedulerSettings().orderingMode)
     }
 }

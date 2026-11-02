@@ -1,0 +1,21 @@
+{
+  "formatVersion": 2,
+  "name": "One Show At A Time",
+  "seed": "12",
+  "sources": [
+    {
+      "type": "series",
+      "id": "33333333333333333333333333333333"
+    }
+  ],
+  "ordering": {
+    "mode": "inOrder"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

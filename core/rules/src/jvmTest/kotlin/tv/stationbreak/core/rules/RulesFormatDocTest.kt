@@ -106,7 +106,9 @@ class RulesFormatDocTest {
     fun hasTheScopeSectionsAndBanner() {
         val banner =
             "> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). " +
-                "Any later lineup change needs `formatVersion` 2."
+                "Version 2 (2026-11-02) is a Draft: it adds features to version 1 and leaves version 1 unchanged " +
+                "(see Format version), and the scheduler change that builds it finalises it once its independently " +
+                "computed vectors exist. Once version 2 is final, any later lineup change needs `formatVersion` 3."
         assertTrue(banner in doc.lines(), "the final banner is missing")
         assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
@@ -148,7 +150,7 @@ class RulesFormatDocTest {
         for (
         needle in
         listOf(
-            "A writer must write the lowest `formatVersion` whose features the file uses.",
+            "A writer that creates or edits rules must write the lowest `formatVersion` whose features they use.",
             "code points",
             "standard (non-daylight-saving) offset",
             "RFC 2119",
@@ -186,6 +188,49 @@ class RulesFormatDocTest {
                 .toList()
         assertTrue(blocks.isNotEmpty(), "no complete JSON examples in the document")
         for (b in blocks) assertTrue(schema.validate(b, InputFormat.JSON).isEmpty(), "invalid example in document:\n$b")
+    }
+
+    @Test
+    fun theDocNamesEveryVersion2Feature() {
+        val needles = listOf("rotation", "inOrder", "\"type\": \"item\"", "filters", "caps", "minMinutes", "maxMinutes")
+        for (needle in needles) {
+            assertTrue(needle in doc, "version 2 feature missing from the document: $needle")
+        }
+    }
+
+    @Test
+    fun theDocStatesTheCapDefaultsAndRange() {
+        val line =
+            doc.lines().firstOrNull { "caps" in it && "`3`" in it && "`1`" in it && "1 to 10" in it }
+        assertTrue(line != null, "no line holds the caps defaults 3 and 1 and the range 1 to 10")
+    }
+
+    @Test
+    fun theDocSaysCapsNeedAFullDayEpoch() {
+        val flat = doc.replace(Regex("\\s+"), " ")
+        assertTrue(
+            "caps in force" in flat && "`timing.epochHours` below 24 is invalid" in flat,
+            "the document must say a file with caps and an epochHours below 24 is invalid",
+        )
+    }
+
+    @Test
+    fun theVerifyListRejectsVersionThree() {
+        val start = doc.lines().indexOfFirst { it.startsWith("## Verify your client") }
+        assertTrue(start >= 0, "no Verify your client section")
+        val section =
+            doc
+                .lines()
+                .drop(start + 1)
+                .takeWhile { !it.startsWith("## ") }
+                .joinToString("\n")
+        assertTrue("`formatVersion` 3 is not scheduled" in section, "item 9 must reject version 3")
+        assertTrue("`formatVersion` 2 is not scheduled" !in section, "item 9 still rejects version 2")
+    }
+
+    @Test
+    fun theDocHasASectionForFilters() {
+        assertTrue(headings.any { "filters" in it }, "no section heading mentions: filters")
     }
 
     private companion object {

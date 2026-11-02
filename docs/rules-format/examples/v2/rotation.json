@@ -1,0 +1,25 @@
+{
+  "formatVersion": 2,
+  "name": "Taking Turns",
+  "seed": "11",
+  "sources": [
+    {
+      "type": "collection",
+      "id": "22222222222222222222222222222222"
+    },
+    {
+      "type": "series",
+      "id": "33333333333333333333333333333333"
+    }
+  ],
+  "ordering": {
+    "mode": "rotation"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

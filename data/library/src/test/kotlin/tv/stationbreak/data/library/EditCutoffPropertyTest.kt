@@ -253,10 +253,13 @@ class EditCutoffPropertyTest {
         episodeNumber = s.fields.episode,
     )
 
+    // The modes the scheduler builds so far: those of rules format version 1.
+    private val scheduledModes = listOf(OrderingMode.Shuffle, OrderingMode.Chronological, OrderingMode.RandomInOrder)
+
     private fun settingsOf(gen: HistoryGen): SchedulerSettings {
         val grid = gen.pick(listOf(15, 30, 60))
         return SchedulerSettings(
-            orderingMode = gen.pick(OrderingMode.entries),
+            orderingMode = gen.pick(scheduledModes),
             seed = Seed(gen.nextULong()),
             blockLength = 1 + gen.nextInt(5),
             alignToGrid = gen.chance(50),

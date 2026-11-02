@@ -64,13 +64,24 @@ object RulesReader {
 
     private fun readObject(root: JsonObject): RulesResult =
         when (val gate = versionGate(root)) {
-            is VersionGate.Invalid -> RulesResult.Invalid(gate.reason)
-            is VersionGate.Newer -> RulesResult.UpdateRequired(gate.version)
-            VersionGate.Current -> if (hasUnpairedSurrogate(root)) RulesResult.Invalid(BAD_TEXT) else decode(root)
+            is VersionGate.Invalid -> {
+                RulesResult.Invalid(gate.reason)
+            }
+
+            is VersionGate.Newer -> {
+                RulesResult.UpdateRequired(gate.version)
+            }
+
+            is VersionGate.Current -> {
+                if (hasUnpairedSurrogate(root)) RulesResult.Invalid(BAD_TEXT) else decode(root, gate.version)
+            }
         }
 
-    private fun decode(root: JsonObject): RulesResult {
-        val decoder = RulesDecoder()
+    private fun decode(
+        root: JsonObject,
+        version: Int,
+    ): RulesResult {
+        val decoder = RulesDecoder(version)
         return try {
             val rules = decoder.rules(root)
             val unsupported = decoder.unsupported.reason
@@ -98,7 +109,9 @@ object RulesReader {
     }
 
     private sealed interface VersionGate {
-        data object Current : VersionGate
+        data class Current(
+            val version: Int,
+        ) : VersionGate
 
         data class Newer(
             val version: Long,
@@ -132,7 +145,7 @@ object RulesReader {
             }
 
             else -> {
-                VersionGate.Current
+                VersionGate.Current(value.toInt())
             }
         }
     }

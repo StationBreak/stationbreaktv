@@ -53,5 +53,10 @@ object Runs {
             OrderingMode.RandomInOrder -> {
                 Orderings.randomInOrderTurns(pool, settings.seed, settings.blockLength).map { Run(it) }
             }
+
+            // The rules layer refuses these until the scheduler builds them (rules format version 2).
+            OrderingMode.Rotation, OrderingMode.InOrder -> {
+                error("Ordering mode ${settings.orderingMode.wireName} is not scheduled yet")
+            }
         }
 }

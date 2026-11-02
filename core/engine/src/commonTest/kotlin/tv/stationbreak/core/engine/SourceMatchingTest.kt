@@ -278,4 +278,45 @@ class SourceMatchingTest {
         assertEquals(true, matcher.tally(movie(idOf(1)), null, hits))
         assertEquals(listOf(1, 1), hits.toList())
     }
+
+    @Test
+    fun anItemSourceMatchesOnlyThatItem() {
+        val snap = snapshot(series = listOf(series(show)))
+        check(
+            Source.Item(idOf(1)),
+            snap,
+            movie(idOf(1)) to true,
+            movie(idOf(2)) to false,
+            episode(idOf(1), show) to true,
+            episode(idOf(3), show) to false,
+            // An ID that is not an item (a series, a library) matches nothing.
+            movie(idOf(4)) to false,
+        )
+        check(Source.Item(show), snap, episode(idOf(5), show) to false, movie(idOf(6), library = LIB) to false)
+        check(Source.Item(LIB), snap, movie(idOf(7)) to false)
+    }
+
+    @Test
+    fun anItemExclusionRemovesOnlyThatItem() {
+        val items = listOf(movie(idOf(1)), movie(idOf(2)), episode(idOf(3), show))
+        val snap = snapshot(items = items, series = listOf(series(show)))
+        val pool =
+            PoolEvaluator.evaluate(
+                rules(
+                    listOf(Source.Library(LIB)),
+                    exclusions = listOf(Source.Item(idOf(2)), Source.Item(show)),
+                    formatVersion = 2,
+                ),
+                snap,
+            )
+        assertEquals(setOf(idOf(1), idOf(3)), pool.items.map { it.id }.toSet())
+    }
+
+    @Test
+    fun anItemSourceIsCountedOncePerItem() {
+        val matcher = SourceMatcher(listOf(Source.Item(idOf(1)), Source.Item(idOf(1))), snapshot())
+        val hits = IntArray(2)
+        assertEquals(true, matcher.tally(movie(idOf(1)), null, hits))
+        assertEquals(listOf(1, 1), hits.toList())
+    }
 }

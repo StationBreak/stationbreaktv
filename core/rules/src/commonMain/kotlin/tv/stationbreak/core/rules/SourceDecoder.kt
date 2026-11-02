@@ -6,14 +6,18 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import tv.stationbreak.core.model.CanonicalId
 
-private val SOURCE_KINDS = setOf("library", "genre", "collection", "tag", "yearRange", "series")
+private val SOURCE_KINDS_V1 = setOf("library", "genre", "collection", "tag", "yearRange", "series")
+private val SOURCE_KINDS_V2 = SOURCE_KINDS_V1 + "item"
 private val FILLER_SOURCE_KINDS = setOf("library", "collection", "tag")
 private const val MAX_LIST = RulesLimits.MAX_LIST_ENTRIES
 
 /** Reads sources, exclusions and filler sources. An unknown kind is recorded in [unsupported] and skipped. */
 internal class SourceDecoder(
     private val unsupported: UnsupportedKinds,
+    version: Int,
 ) {
+    private val kinds = if (version >= 2) SOURCE_KINDS_V2 else SOURCE_KINDS_V1
+
     fun list(
         element: JsonElement,
         path: String,
@@ -32,7 +36,7 @@ internal class SourceDecoder(
     ): Source? {
         val obj = element as? JsonObject ?: invalid("$path must be an object")
         val type = string(required(obj, "type", path), "$path.type")
-        val known = type in SOURCE_KINDS
+        val known = type in kinds
         if (known && filler && type !in FILLER_SOURCE_KINDS) invalid("$path.type must be library, collection or tag")
         if (!known) unsupported.mark("source kind", type)
         return if (known) build(type, obj, path) else null
@@ -47,6 +51,7 @@ internal class SourceDecoder(
             "library" -> Source.Library(id(obj, path), extras(obj, setOf("type", "id")))
             "collection" -> Source.Collection(id(obj, path), extras(obj, setOf("type", "id")))
             "series" -> Source.Series(id(obj, path), extras(obj, setOf("type", "id")))
+            "item" -> Source.Item(id(obj, path), extras(obj, setOf("type", "id")))
             "genre" -> Source.Genre(sourceName(obj, path), extras(obj, setOf("type", "name")))
             "tag" -> Source.Tag(sourceName(obj, path), extras(obj, setOf("type", "name")))
             else -> yearRange(obj, path)

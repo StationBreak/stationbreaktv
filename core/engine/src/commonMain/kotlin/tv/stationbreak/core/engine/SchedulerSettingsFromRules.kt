@@ -13,9 +13,13 @@ private const val MINUTES_PER_HOUR = 60
 
 /**
  * The scheduler's numbers for a channel: its ordering, seed and timing with the rules-format defaults applied
- * (`effective…`), so the defaults are written once, in `core:rules`.
+ * (`effective…`), so the defaults are written once, in `core:rules`. Rules that use a version 2 feature are refused
+ * (`IllegalArgumentException`) until the scheduler builds them.
  */
-fun ChannelRules.toSchedulerSettings(): SchedulerSettings = settingsOf(orderingMode, seed, timing)
+fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
+    require(requiredVersion <= 1) { "Rules format version 2 features are not scheduled yet" }
+    return settingsOf(orderingMode, seed, timing)
+}
 
 internal fun settingsOf(
     orderingMode: OrderingMode,

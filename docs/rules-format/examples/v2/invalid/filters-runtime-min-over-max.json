@@ -1,0 +1,24 @@
+{
+  "formatVersion": 2,
+  "name": "Runtime Reversed",
+  "seed": "25",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filters": {
+    "runtime": {
+      "minMinutes": 60,
+      "maxMinutes": 30
+    }
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

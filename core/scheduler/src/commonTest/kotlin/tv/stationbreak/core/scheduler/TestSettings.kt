@@ -9,6 +9,10 @@ internal const val MS_MINUTE = 60_000L
 internal const val MS_HOUR = 3_600_000L
 internal const val MS_DAY = 86_400_000L
 
+/** The modes the scheduler builds so far: those of rules format version 1. */
+internal val SCHEDULED_MODES: List<OrderingMode> =
+    listOf(OrderingMode.Shuffle, OrderingMode.Chronological, OrderingMode.RandomInOrder)
+
 /** Test helper. The settings type has no defaults, so a test that only cares about some fields uses this. */
 @Suppress("LongParameterList")
 internal fun testSettings(

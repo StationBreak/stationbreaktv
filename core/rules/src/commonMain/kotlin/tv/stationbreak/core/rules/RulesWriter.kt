@@ -31,11 +31,50 @@ object RulesWriter {
             put("sources", JsonArray(rules.sources.map(::source)))
             rules.exclusions?.let { put("exclusions", JsonArray(it.map(::source))) }
             rules.maxRating?.let { put("maxRating", JsonPrimitive(it)) }
-            rules.ordering?.let { ordering ->
-                put("ordering", obj(ordering.extras) { put("mode", JsonPrimitive(ordering.mode.wireName)) })
-            }
+            rules.ordering?.let { put("ordering", ordering(it)) }
+            rules.filters?.let { put("filters", filters(it)) }
             put("timing", timing(rules.timing))
             rules.filler?.let { put("filler", filler(it)) }
+        }
+
+    private fun ordering(ordering: Ordering): JsonObject =
+        obj(ordering.extras) {
+            put("mode", JsonPrimitive(ordering.mode.wireName))
+            ordering.caps?.let { caps ->
+                put(
+                    "caps",
+                    obj(caps.extras) {
+                        caps.series?.let { put("series", JsonPrimitive(it)) }
+                        caps.film?.let { put("film", JsonPrimitive(it)) }
+                    },
+                )
+            }
+        }
+
+    private fun filters(filters: Filters): JsonObject =
+        obj(filters.extras) {
+            filters.genres?.let { genres -> put("genres", JsonArray(genres.map { JsonPrimitive(it) })) }
+            val from = filters.yearFrom
+            val to = filters.yearTo
+            if (from != null && to != null) {
+                put(
+                    "years",
+                    obj(filters.yearsExtras) {
+                        put("from", JsonPrimitive(from))
+                        put("to", JsonPrimitive(to))
+                    },
+                )
+            }
+            if (filters.minRuntimeMinutes != null || filters.maxRuntimeMinutes != null) {
+                put(
+                    "runtime",
+                    obj(filters.runtimeExtras) {
+                        filters.minRuntimeMinutes?.let { put("minMinutes", JsonPrimitive(it)) }
+                        filters.maxRuntimeMinutes?.let { put("maxMinutes", JsonPrimitive(it)) }
+                    },
+                )
+            }
+            filters.kind?.let { put("kind", JsonPrimitive(it.wireName)) }
         }
 
     private fun timing(timing: Timing): JsonObject =
@@ -87,6 +126,10 @@ object RulesWriter {
 
                 is Source.Series -> {
                     typed("series", "id" to JsonPrimitive(source.id.value))
+                }
+
+                is Source.Item -> {
+                    typed("item", "id" to JsonPrimitive(source.id.value))
                 }
             }
         }

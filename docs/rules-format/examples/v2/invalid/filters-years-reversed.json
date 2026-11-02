@@ -1,0 +1,24 @@
+{
+  "formatVersion": 2,
+  "name": "Years Reversed",
+  "seed": "24",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filters": {
+    "years": {
+      "from": 1999,
+      "to": 1990
+    }
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

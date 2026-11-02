@@ -76,6 +76,16 @@ sealed interface Source {
             RulesVocabulary.requireFreeExtras(extras, setOf("type", "id"))
         }
     }
+
+    /** Version 2: the one movie or episode with this ID. An ID that is anything else matches nothing. */
+    data class Item(
+        val id: CanonicalId,
+        override val extras: JsonObject = NO_EXTRAS,
+    ) : Source {
+        init {
+            RulesVocabulary.requireFreeExtras(extras, setOf("type", "id"))
+        }
+    }
 }
 
 /** No unknown fields. */

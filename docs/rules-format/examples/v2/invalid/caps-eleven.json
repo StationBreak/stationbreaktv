@@ -1,0 +1,24 @@
+{
+  "formatVersion": 2,
+  "name": "Caps Eleven",
+  "seed": "22",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "rotation",
+    "caps": {
+      "film": 11
+    }
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

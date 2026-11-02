@@ -5,6 +5,10 @@ import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -20,7 +24,78 @@ class SchemaExamplesTest {
             .getSchema(RulesFormatFiles.schemaFile.readText())
     }
 
+    private val schemaV2: Schema by lazy {
+        assertTrue(RulesFormatFiles.schemaV2File.isFile, "missing ${RulesFormatFiles.schemaV2File}")
+        SchemaRegistry
+            .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+            .getSchema(RulesFormatFiles.schemaV2File.readText())
+    }
+
     private fun errors(text: String) = schema.validate(text, InputFormat.JSON)
+
+    @Test
+    fun everyV2ExampleValidatesAgainstTheV2Schema() {
+        assertTrue(RulesFormatFiles.validV2.isNotEmpty(), "no files in examples/v2/")
+        val failures =
+            RulesFormatFiles.validV2.mapNotNull { (name, text) ->
+                schemaV2.validate(text, InputFormat.JSON).takeIf { it.isNotEmpty() }?.let { name to it }
+            }
+        if (failures.isNotEmpty()) fail(failures.joinToString("\n") { (n, e) -> "$n: $e" })
+    }
+
+    @Test
+    fun everyV1ExampleAlsoValidatesAgainstTheV2Schema() {
+        val failures =
+            RulesFormatFiles.valid.mapNotNull { (name, text) ->
+                schemaV2.validate(text, InputFormat.JSON).takeIf { it.isNotEmpty() }?.let { name to it }
+            }
+        if (failures.isNotEmpty()) fail(failures.joinToString("\n") { (n, e) -> "$n: $e" })
+    }
+
+    @Test
+    fun everyV2InvalidExampleFailsTheV2SchemaOrTheReader() {
+        val examples = RulesFormatFiles.validV2.keys
+        assertTrue(examples.isNotEmpty())
+        assertEquals(v2InvalidFiles.toSortedSet(), RulesFormatFiles.invalidV2.keys.toSortedSet())
+        for ((name, text) in RulesFormatFiles.invalidV2) {
+            // The schema checks shapes; the cross-field rules are the reader's (docs/rules-format.md, "Files").
+            if (name !in readerOnly) {
+                assertTrue(schemaV2.validate(text, InputFormat.JSON).isNotEmpty(), "$name should fail the v2 schema")
+            }
+            val result = RulesReader.read(text)
+            if (name in unsupportedFiles) {
+                assertTrue(result is RulesResult.Unsupported, "$name: $result")
+            } else {
+                assertTrue(result is RulesResult.Invalid, "$name: $result")
+            }
+        }
+    }
+
+    @Test
+    fun theV2SchemaStaysOpen() {
+        // Behavioural: a valid v2 file keeps validating with an unknown field at every level that has its own object.
+        val full = Json.parseToJsonElement(RulesFormatFiles.validV2.getValue("full.json")).jsonObject
+        val extra = "futureField" to JsonPrimitive(true)
+
+        fun JsonObject.plus(
+            key: String,
+            change: (JsonObject) -> JsonObject,
+        ) = JsonObject(this + (key to change(getValue(key).jsonObject)))
+
+        fun JsonObject.add() = JsonObject(this + extra)
+        val opened =
+            listOf(
+                full.add(),
+                full.plus("ordering") { o -> o.plus("caps") { it.add() } },
+                full.plus("filters") { it.add() },
+                full.plus("filters") { f -> f.plus("years") { it.add() } },
+                full.plus("filters") { f -> f.plus("runtime") { it.add() } },
+            )
+        for ((i, doc) in opened.withIndex()) {
+            assertTrue(schemaV2.validate(doc.toString(), InputFormat.JSON).isEmpty(), "case $i should still validate")
+        }
+        assertTrue("https://json-schema.org/draft/2020-12/schema" in RulesFormatFiles.schemaV2File.readText())
+    }
 
     @Test
     fun everyValidExampleValidates() {
@@ -119,6 +194,29 @@ class SchemaExamplesTest {
     }
 
     private companion object {
+        val unsupportedFiles =
+            setOf(
+                "v1-file-rotation.json",
+                "v1-file-in-order.json",
+                "v1-file-item-source.json",
+                "filters-kind-season.json",
+            )
+        val readerOnly =
+            setOf("caps-short-epoch.json", "filters-years-reversed.json", "filters-runtime-min-over-max.json")
+        val v2InvalidFiles =
+            listOf(
+                "caps-zero.json",
+                "caps-eleven.json",
+                "caps-short-epoch.json",
+                "filters-years-reversed.json",
+                "filters-runtime-min-over-max.json",
+                "filters-empty-genres.json",
+                "item-source-upper-case-id.json",
+                "v1-file-rotation.json",
+                "v1-file-in-order.json",
+                "v1-file-item-source.json",
+                "filters-kind-season.json",
+            )
         val invalidCases =
             listOf(
                 "wrong-type.json",

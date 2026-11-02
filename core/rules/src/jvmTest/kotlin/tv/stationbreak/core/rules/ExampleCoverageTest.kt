@@ -34,6 +34,25 @@ class ExampleCoverageTest {
     }
 
     @Test
+    fun everyV2FeatureIsShown() {
+        val v2 = RulesFormatFiles.validV2.values.map { asMap(RulesFormatFiles.parse(it)) }
+        assertTrue(v2.isNotEmpty(), "no files in examples/v2/")
+        val modes = v2.mapNotNull { (it["ordering"] as? Map<*, *>)?.get("mode") }.toSet()
+        assertEquals(setOf("rotation", "inOrder", "shuffle"), modes.intersect(setOf("rotation", "inOrder", "shuffle")))
+        val caps = v2.mapNotNull { (it["ordering"] as? Map<*, *>)?.get("caps") as? Map<*, *> }
+        assertTrue(caps.any { "series" in it } && caps.any { "film" in it }, "caps parts")
+        val filters = v2.mapNotNull { it["filters"] as? Map<*, *> }
+        for (part in listOf("genres", "years", "runtime", "kind")) {
+            assertTrue(filters.any { part in it }, "filters.$part")
+        }
+        val runtimes = filters.mapNotNull { it["runtime"] as? Map<*, *> }
+        assertTrue(runtimes.any { "minMinutes" in it } && runtimes.any { "maxMinutes" in it }, "runtime bounds")
+        assertEquals(setOf("movie", "episode"), filters.mapNotNull { it["kind"] }.toSet())
+        assertTrue(v2.any { doc -> list(doc["sources"]).any { it["type"] == "item" } }, "item source")
+        assertTrue(v2.any { doc -> list(doc["exclusions"]).any { it["type"] == "item" } }, "item exclusion")
+    }
+
+    @Test
     fun everyFillerModeIsShownWithEachFillerSource() {
         val fillers = docs.mapNotNull { it["filler"] as? Map<*, *> }
         assertEquals(setOf("none", "padToGrid", "betweenEveryN"), fillers.map { it["mode"] }.toSet())

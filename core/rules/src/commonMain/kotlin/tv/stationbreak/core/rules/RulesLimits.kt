@@ -3,8 +3,8 @@ package tv.stationbreak.core.rules
 
 /** The limits a reader applies to a file from outside (docs/rules-format.md, "Limits"). */
 object RulesLimits {
-    /** The version this reader schedules. */
-    const val SUPPORTED_FORMAT_VERSION: Long = 1
+    /** The newest version this reader reads. */
+    const val SUPPORTED_FORMAT_VERSION: Long = 2
 
     const val MAX_BYTES: Int = 256 * 1024
     internal const val TOO_BIG = "The file is larger than 256 KiB"

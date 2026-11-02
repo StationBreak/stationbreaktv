@@ -175,7 +175,7 @@ class OriginTest {
         s: SchedulerSettings,
         items: List<ScheduleItem>,
     ) {
-        for (mode in OrderingMode.entries) {
+        for (mode in SCHEDULED_MODES) {
             val m = s.copy(orderingMode = mode, seed = Seed(77uL))
             for (n in -6L..6L) {
                 val day = buildDay(m, items, n)
@@ -214,7 +214,7 @@ class OriginTest {
                 utcOffsetMinutes = 345,
                 blockLength = 3,
             )
-        for (mode in OrderingMode.entries) {
+        for (mode in SCHEDULED_MODES) {
             val m = nepal.copy(orderingMode = mode)
             for (n in -4L..4L) {
                 val day = buildDay(m, mixed, n)

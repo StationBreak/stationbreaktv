@@ -281,8 +281,10 @@ private object SourceCodec {
 
     private fun custom(fields: JsonObject): ChannelSource? = rulesOf(fields)?.let { ChannelSource.Custom(it) }
 
-    // Only rules this app can schedule; any other result keeps the channel unusable.
-    private fun rulesOf(fields: JsonObject) = (fields.string(RULES)?.let(RulesReader::read) as? RulesResult.Ok)?.rules
+    // Only rules this app can schedule; any other result keeps the channel unusable. Rules that use a version 2 feature
+    // are not scheduled yet, so they stay unusable (and keep their JSON) until the scheduler builds them.
+    private fun rulesOf(fields: JsonObject) =
+        (fields.string(RULES)?.let(RulesReader::read) as? RulesResult.Ok)?.rules?.takeIf { it.requiredVersion <= 1 }
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
 }

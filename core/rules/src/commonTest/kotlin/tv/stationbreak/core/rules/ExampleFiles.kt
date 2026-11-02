@@ -1133,4 +1133,494 @@ internal object ExampleFiles {
                 }
                 """.trimIndent() + "\n",
         )
+
+    val validV2: Map<String, String> =
+        mapOf(
+            "rotation.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Taking Turns",
+                  "seed": "11",
+                  "sources": [
+                    {
+                      "type": "collection",
+                      "id": "22222222222222222222222222222222"
+                    },
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "rotation"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "in-order.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "One Show At A Time",
+                  "seed": "12",
+                  "sources": [
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "inOrder"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "shuffle-caps.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Capped Shuffle",
+                  "seed": "13",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "shuffle",
+                    "caps": {
+                      "series": 2
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filters.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Short Nineties Comedy",
+                  "seed": "14",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "genres": [
+                      "Comedy",
+                      "Animation"
+                    ],
+                    "years": {
+                      "from": 1990,
+                      "to": 1999
+                    },
+                    "runtime": {
+                      "maxMinutes": 40
+                    },
+                    "kind": "episode"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "item-source.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Two Picks",
+                  "seed": "15",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    },
+                    {
+                      "type": "item",
+                      "id": "44444444444444444444444444444444"
+                    }
+                  ],
+                  "exclusions": [
+                    {
+                      "type": "item",
+                      "id": "55555555555555555555555555555555"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "full.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Everything New",
+                  "seed": "16",
+                  "sources": [
+                    {
+                      "type": "collection",
+                      "id": "22222222222222222222222222222222"
+                    },
+                    {
+                      "type": "series",
+                      "id": "33333333333333333333333333333333"
+                    },
+                    {
+                      "type": "item",
+                      "id": "44444444444444444444444444444444"
+                    }
+                  ],
+                  "exclusions": [
+                    {
+                      "type": "item",
+                      "id": "55555555555555555555555555555555"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "rotation",
+                    "caps": {
+                      "series": 4,
+                      "film": 2
+                    }
+                  },
+                  "filters": {
+                    "genres": [
+                      "Drama"
+                    ],
+                    "years": {
+                      "from": 1980,
+                      "to": 2010
+                    },
+                    "runtime": {
+                      "minMinutes": 20,
+                      "maxMinutes": 120
+                    },
+                    "kind": "movie"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+        )
+
+    val invalidV2: Map<String, String> =
+        mapOf(
+            "caps-zero.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Caps Zero",
+                  "seed": "21",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "rotation",
+                    "caps": {
+                      "series": 0
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "caps-eleven.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Caps Eleven",
+                  "seed": "22",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "rotation",
+                    "caps": {
+                      "film": 11
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "caps-short-epoch.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Caps Short Epoch",
+                  "seed": "23",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "rotation",
+                    "caps": {
+                      "series": 3
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 12,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filters-years-reversed.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Years Reversed",
+                  "seed": "24",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "years": {
+                      "from": 1999,
+                      "to": 1990
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filters-runtime-min-over-max.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Runtime Reversed",
+                  "seed": "25",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "runtime": {
+                      "minMinutes": 60,
+                      "maxMinutes": 30
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filters-empty-genres.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Empty Genres",
+                  "seed": "26",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "genres": []
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "item-source-upper-case-id.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Upper Case Item",
+                  "seed": "27",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    },
+                    {
+                      "type": "item",
+                      "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "v1-file-rotation.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Version 1 Rotation",
+                  "seed": "28",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "rotation"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "v1-file-in-order.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Version 1 In Order",
+                  "seed": "29",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "inOrder"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "v1-file-item-source.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Version 1 Item",
+                  "seed": "30",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    },
+                    {
+                      "type": "item",
+                      "id": "44444444444444444444444444444444"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filters-kind-season.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Unknown Filter Kind",
+                  "seed": "31",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "kind": "season"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+        )
 }

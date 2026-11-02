@@ -28,6 +28,7 @@ internal class SourceMatcher(
     private val missingSeriesMatchesNames: Boolean = false,
 ) {
     private val byLibrary: Map<String, IntArray>
+    private val byItem: Map<String, IntArray>
     private val bySeries: Map<String, IntArray>
     private val movieMembers: Map<String, IntArray>
     private val episodeMembers: Map<String, IntArray>
@@ -49,6 +50,7 @@ internal class SourceMatcher(
 
     init {
         val library = Index()
+        val items = Index()
         val series = Index()
         val movies = Index()
         val episodes = Index()
@@ -69,6 +71,10 @@ internal class SourceMatcher(
 
                 is Source.Series -> {
                     series.add(source.id.value, index)
+                }
+
+                is Source.Item -> {
+                    items.add(source.id.value, index)
                 }
 
                 is Source.Genre -> {
@@ -100,6 +106,7 @@ internal class SourceMatcher(
             }
         }
         byLibrary = library.freeze()
+        byItem = items.freeze()
         bySeries = series.freeze()
         movieMembers = movies.freeze()
         episodeMembers = episodes.freeze()
@@ -146,6 +153,12 @@ internal class SourceMatcher(
         var any = false
 
         if (mark(byLibrary[item.libraryId.value], hits)) {
+            if (hits == null) return true
+            any = true
+        }
+        // An item source names a movie or an episode; the snapshot's items are only those, so an ID of anything else
+        // matches nothing.
+        if (mark(byItem[schedule.id.value], hits)) {
             if (hits == null) return true
             any = true
         }
