@@ -100,7 +100,7 @@ class ContinuityTest {
         items: List<ScheduleItem>,
         n: Long,
     ): Position {
-        val day = buildDay(settings, items, n)
+        val day = buildDay(settings, items, n, noFilms())
         val pool = EpochPool.build(settings, items, n)
         val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), noGroups())
         val slots = cycle.map { DayOracle.slot(settings, it) }

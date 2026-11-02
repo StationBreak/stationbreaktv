@@ -24,6 +24,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
@@ -90,7 +91,9 @@ private fun layoutOf(
 ): Lazy<Day> =
     lazy {
         val began = TimeSource.Monotonic.markNow()
-        buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+        // Until the channels' collection sources reach the day build (Task 14), no film is in a collection.
+        val films = FilmCollections.of(emptyMap())
+        buildDay(settings, pool, n, films).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
     }
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */

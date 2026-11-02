@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -22,6 +23,8 @@ import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+
+private val NO_FILMS = FilmCollections.of(emptyMap())
 
 /**
  * Spec 09 task 2.8 (Vimes M3): the as-of read leaves out, and counts, what the scheduler would refuse, and every drop
@@ -55,7 +58,7 @@ class ScheduleInputFilterTest {
                 seasonNumber = row.seasonNumber,
                 episodeNumber = row.episodeNumber,
             )
-        buildDay(settings, listOf(item), 0)
+        buildDay(settings, listOf(item), 0, NO_FILMS)
         return item
     }
 
@@ -215,7 +218,7 @@ class ScheduleInputFilterTest {
             )
             assertEquals(null, result.dropped[DropReason.RejectedByScheduleItem])
             // No throw anywhere: the scheduler builds a day from exactly what came back.
-            assertEquals(0L, buildDay(settings, result.items, 0).n)
+            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS).n)
         }
 
     @Test
@@ -245,7 +248,7 @@ class ScheduleInputFilterTest {
 
             assertEquals(listOf(hexId(11)), result.items.map { it.id.value })
             assertEquals(mapOf(DropReason.DuplicateId to 1), result.dropped)
-            assertEquals(0L, buildDay(settings, result.items, 0).n)
+            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS).n)
         }
 
     @Test

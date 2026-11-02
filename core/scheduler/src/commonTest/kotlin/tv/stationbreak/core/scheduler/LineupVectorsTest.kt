@@ -107,14 +107,14 @@ class LineupVectorsTest {
             val thrown =
                 runCatching {
                     val items = case.array("items").objects().map { it.item() }
-                    buildDay(case.obj("settings").settings(), items, case.string("n").toLong())
+                    buildDay(case.obj("settings").settings(), items, case.string("n").toLong(), noFilms())
                 }
             if (thrown.isSuccess) failures.add("[$name] input error: building should be rejected, but it built a day")
             return failures
         }
         val settings = case.obj("settings").settings()
         val items = case.array("items").objects().map { it.item() }
-        val day = buildDay(settings, items, case.string("n").toLong())
+        val day = buildDay(settings, items, case.string("n").toLong(), noFilms())
         val expectedBlocks = case.array("blocks").objects().map { it.block() }
         expect("blocks", expectedBlocks, day.blocks)
         for (query in case.array("queries").objects()) {
@@ -167,7 +167,7 @@ class LineupVectorsTest {
 
     @Test
     fun aTimeOutsideTheDayThrows() {
-        val day = buildDay(testSettings(), emptyList(), 0L)
+        val day = buildDay(testSettings(), emptyList(), 0L, noFilms())
         assertFailsWith<IllegalArgumentException> { day.whatsOn(day.endMs, 0) }
     }
 }

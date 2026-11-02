@@ -17,26 +17,26 @@ class InputLimitsTest {
     @Test
     fun aCreatedAtOrDeletedAtInsideTheBoundsIsAccepted() {
         val items = listOf(testItem(idOf('1'), createdAtMs = -limit, deletedAtMs = limit))
-        buildDay(settings, items, 0L)
+        buildDay(settings, items, 0L, noFilms())
     }
 
     @Test
     fun aCreatedAtBeyondTheBoundsRejectsTheWholeInput() {
         assertFailsWith<IllegalArgumentException> {
-            buildDay(settings, listOf(testItem(idOf('1'), createdAtMs = limit + 1)), 0L)
+            buildDay(settings, listOf(testItem(idOf('1'), createdAtMs = limit + 1)), 0L, noFilms())
         }
         assertFailsWith<IllegalArgumentException> {
-            buildDay(settings, listOf(testItem(idOf('1'), createdAtMs = -limit - 1)), 0L)
+            buildDay(settings, listOf(testItem(idOf('1'), createdAtMs = -limit - 1)), 0L, noFilms())
         }
     }
 
     @Test
     fun aDeletedAtBeyondTheBoundsRejectsTheWholeInput() {
         assertFailsWith<IllegalArgumentException> {
-            buildDay(settings, listOf(testItem(idOf('1'), deletedAtMs = limit + 1)), 0L)
+            buildDay(settings, listOf(testItem(idOf('1'), deletedAtMs = limit + 1)), 0L, noFilms())
         }
         assertFailsWith<IllegalArgumentException> {
-            buildDay(settings, listOf(testItem(idOf('1'), deletedAtMs = -limit - 1)), 0L)
+            buildDay(settings, listOf(testItem(idOf('1'), deletedAtMs = -limit - 1)), 0L, noFilms())
         }
     }
 
@@ -44,7 +44,7 @@ class InputLimitsTest {
     fun aBadItemRejectsTheInputEvenWhenThePoolWouldLeaveItOut() {
         // Too short for the pool, and out of range: still an input error.
         assertFailsWith<IllegalArgumentException> {
-            buildDay(settings, listOf(testItem(idOf('1'), runtimeMs = 1L, createdAtMs = limit + 1)), 0L)
+            buildDay(settings, listOf(testItem(idOf('1'), runtimeMs = 1L, createdAtMs = limit + 1)), 0L, noFilms())
         }
     }
 
@@ -52,16 +52,16 @@ class InputLimitsTest {
     fun aDayWhoseStartOrEndIsOutOfRangeIsRejected() {
         // With start 00:00 and offset 0, epochStart(n) = n days. The last n with epochStart(n + 1) <= 2^52:
         val lastGoodN = limit / MS_DAY - 1
-        buildDay(settings, emptyList(), lastGoodN)
-        buildDay(settings, emptyList(), -(lastGoodN + 1))
-        assertFailsWith<IllegalArgumentException> { buildDay(settings, emptyList(), lastGoodN + 1) }
-        assertFailsWith<IllegalArgumentException> { buildDay(settings, emptyList(), -(lastGoodN + 2)) }
+        buildDay(settings, emptyList(), lastGoodN, noFilms())
+        buildDay(settings, emptyList(), -(lastGoodN + 1), noFilms())
+        assertFailsWith<IllegalArgumentException> { buildDay(settings, emptyList(), lastGoodN + 1, noFilms()) }
+        assertFailsWith<IllegalArgumentException> { buildDay(settings, emptyList(), -(lastGoodN + 2), noFilms()) }
     }
 
     @Test
     fun aNonPositiveRuntimeLeavesTheItemOutAndIsNotAnError() {
         val items = listOf(testItem(idOf('1'), runtimeMs = 0L), testItem(idOf('2'), runtimeMs = -5L))
-        val day = buildDay(settings, items, 0L)
+        val day = buildDay(settings, items, 0L, noFilms())
         assertEquals(1, day.blocks.size)
     }
 
@@ -73,12 +73,12 @@ class InputLimitsTest {
 
                 override fun get(index: Int): ScheduleItem = error("the limit is checked before any item is read")
             }
-        assertFailsWith<IllegalArgumentException> { buildDay(settings, tooMany, 0L) }
+        assertFailsWith<IllegalArgumentException> { buildDay(settings, tooMany, 0L, noFilms()) }
     }
 
     @Test
     fun aNegativeKIsAnError() {
-        val day = buildDay(settings, emptyList(), 0L)
+        val day = buildDay(settings, emptyList(), 0L, noFilms())
         assertFailsWith<IllegalArgumentException> { day.whatsOn(day.startMs, -1) }
     }
 }
