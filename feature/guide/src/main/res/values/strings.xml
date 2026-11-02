@@ -19,8 +19,12 @@
     <!-- Back while the focus is away from the channel playing: it goes back to what is on now there. -->
     <string name="guide_hint_playing">To what\'s playing</string>
 
-    <!-- The button above the grid that opens channel management (spec 21). -->
+    <!-- Back on the playing channel's cell: it goes to the menu row above the grid. -->
+    <string name="guide_hint_menu">To the menu</string>
+
+    <!-- The entries of the menu row above the grid: the first opens channel management (spec 21), the second leaves. -->
     <string name="guide_channels_button">Channels</string>
+    <string name="guide_exit_button">Exit</string>
 
     <!-- The chip in front of the slot of a program on now. -->
     <string name="guide_now">Now</string>

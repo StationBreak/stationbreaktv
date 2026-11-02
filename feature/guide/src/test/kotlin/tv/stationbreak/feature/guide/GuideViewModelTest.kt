@@ -393,44 +393,46 @@ class GuideViewModelTest : GuideRig() {
             runCurrent()
             val opened = vm.snapshot.value
             assertFalse(opened.isAwayFrom(CH5))
-            // On the playing cell, Back is not the guide's: it leaves live TV.
-            assertFalse(vm.backToPlaying())
-
             vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             repeat(4) { vm.move(GuideDirection.Right, repeat = false, atMs = 0) }
             assertTrue(vm.snapshot.value.isAwayFrom(CH5))
             assertTrue(vm.ready().viewportStartMs > vm.ready().model.originMs)
 
-            assertTrue(vm.backToPlaying())
+            assertTrue(vm.back())
+            assertNull(vm.snapshot.value.menu)
             assertEquals(CH5, vm.focused().channel)
             assertEquals(min(60), vm.focused().cellStartMs)
             assertEquals(opened.state.let { (it as GuideState.Ready).viewportStartMs }, vm.ready().viewportStartMs)
             assertEquals((opened.state as GuideState.Ready).firstVisibleRow, vm.ready().firstVisibleRow)
             assertFalse(vm.snapshot.value.isAwayFrom(CH5))
-            assertFalse(vm.backToPlaying())
+            // On the playing cell, Back goes on to the menu row.
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
         }
 
     @Test
-    fun backWithAPlayingChannelThatIsNotOnTheGridIsNotTheGuides() =
+    fun backWithAPlayingChannelThatIsNotOnTheGridGoesToTheMenu() =
         guideTest { vm ->
             val gone = ChannelId("gone")
             vm.open(gone)
             runCurrent()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertFalse(vm.snapshot.value.isAwayFrom(gone))
-            assertFalse(vm.backToPlaying())
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
             vm.close()
             vm.open(null)
             runCurrent()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             assertFalse(vm.snapshot.value.isAwayFrom(null))
-            assertFalse(vm.backToPlaying())
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
         }
 
     @Test
     fun backWithTheInfoOverlayOpenOrNoGridIsNotTheGuides() =
         guideTest { vm ->
-            assertFalse(vm.backToPlaying())
+            assertFalse(vm.back())
             vm.open(CH7)
             runCurrent()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
@@ -438,7 +440,7 @@ class GuideViewModelTest : GuideRig() {
             vm.select()
             runCurrent()
             assertNotNull(vm.info.value)
-            assertFalse(vm.backToPlaying())
+            assertFalse(vm.back())
         }
 
     @Test

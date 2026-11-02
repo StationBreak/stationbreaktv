@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide
 
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
@@ -11,7 +12,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 
 class GuideWrapTest : GuideRig() {
     @Test
-    fun downOnTheLastRowWrapsToTheFirstAndUpOnTheFirstGoesToTheButton() =
+    fun downOnTheLastRowWrapsToTheFirstAndUpOnTheFirstWrapsToTheLast() =
         guideTest { vm ->
             vm.open(CH9)
             runCurrent()
@@ -19,8 +20,8 @@ class GuideWrapTest : GuideRig() {
             assertEquals(CH5, vm.focused().channel)
             assertEquals(0, vm.ready().firstVisibleRow)
             vm.move(GuideDirection.Up, repeat = false, atMs = 0)
-            assertTrue(vm.snapshot.value.onButton)
-            assertEquals(CH5, vm.focused().channel)
+            assertNull(vm.snapshot.value.menu)
+            assertEquals(CH9, vm.focused().channel)
         }
 
     @Test
@@ -31,7 +32,7 @@ class GuideWrapTest : GuideRig() {
             vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             vm.move(GuideDirection.Down, repeat = false, atMs = 0)
             assertEquals(CH5, vm.focused().channel)
-            assertTrue(vm.backToPlaying())
+            assertTrue(vm.back())
             assertEquals(CH7, vm.focused().channel)
         }
 

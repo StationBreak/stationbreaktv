@@ -180,16 +180,14 @@ class GuideFocusTest {
     }
 
     @Test
-    fun downWrapsRoundTheRowsButUpStopsAtTheTopAndLeftAndRightAtTheEdges() {
-        // Up from the top row stays here: the view model takes it to the Channels button.
+    fun upAndDownWrapRoundTheRowsAndLeftAndRightStopAtTheEdges() {
         val top = focusAt(0, 1)
-        assertEquals(top, model.move(top, GuideDirection.Up))
-        assertTrue(model.onTopRow(top))
-        assertFalse(model.onTopRow(focusAt(1, 1)))
+        assertEquals(CH9, model.move(top, GuideDirection.Up).channel)
+        assertTrue(model.wrapped(top, model.move(top, GuideDirection.Up), GuideDirection.Up))
+        assertFalse(model.wrapped(focusAt(1, 1), model.move(focusAt(1, 1), GuideDirection.Up), GuideDirection.Up))
         val bottom = focusAt(2, 1)
         assertEquals(CH5, model.move(bottom, GuideDirection.Down).channel)
         assertTrue(model.wrapped(bottom, model.move(bottom, GuideDirection.Down), GuideDirection.Down))
-        assertFalse(model.wrapped(top, model.move(top, GuideDirection.Up), GuideDirection.Up))
         assertFalse(model.wrapped(top, model.move(top, GuideDirection.Down), GuideDirection.Down))
         val last = focusAt(0, 2)
         assertEquals(last, model.move(last, GuideDirection.Right))

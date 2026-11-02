@@ -39,18 +39,28 @@ internal sealed interface GuideState {
  * same moment. A [focus] always resolves with `indexOf` in the model of a [GuideState.Ready] [state] (the ViewModel
  * checks it as it publishes); it is null when the guide is not showing a grid, or no row has a cell.
  *
- * [onButton] is true while the focus is on the Channels button above the grid (spec 21). The [focus] then keeps the
- * cell last focused, which Down returns to, but no cell is drawn focused.
+ * [menu] names the entry of the menu row above the grid that has the focus (spec 21), null while the focus is on the
+ * grid. The [focus] then keeps the cell last focused, which Down returns to when nothing is playing, but no cell is
+ * drawn focused.
  */
 internal data class GuideSnapshot(
     val state: GuideState,
     val focus: GuideFocus?,
-    val onButton: Boolean = false,
+    val menu: GuideMenuEntry? = null,
 ) {
     companion object {
         /** The guide closed: nothing shown, nothing focused. */
         val Closed = GuideSnapshot(GuideState.Closed, null)
     }
+}
+
+/** The entries of the menu row above the grid, left to right. */
+internal enum class GuideMenuEntry {
+    /** Opens channel management. */
+    Channels,
+
+    /** Leaves live TV, as Back does from the menu row. */
+    Exit,
 }
 
 /**
@@ -73,6 +83,9 @@ internal sealed interface GuideEvent {
         val channel: ChannelId,
     ) : GuideEvent
 
-    /** Select on the Channels button: the guide shows channel management over itself. */
+    /** Select on the Channels entry: the guide shows channel management over itself. */
     data object OpenChannels : GuideEvent
+
+    /** Select on the Exit entry: leave live TV, the way Back from the menu row does. */
+    data object Exit : GuideEvent
 }

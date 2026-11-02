@@ -190,28 +190,55 @@ internal class GuideViewModel
             synchronized(lock) {
                 val current = shownSnapshot.value
                 if (shownInfo.value != null) return
-                if (current.onButton) {
-                    leaveButton(current, direction)
+                if (current.menu != null) {
+                    moveOnMenu(current, current.menu, direction)
                 } else {
                     moveOnGrid(current, direction, repeat, atMs)
                 }
             }
         }
 
-        // On the Channels button only Down does anything: it returns to the cell last focused.
-        private fun leaveButton(
+        // On the menu row Left and Right move between the entries (and stop at the ends); Down goes to the playing
+        // cell, or to the cell last focused when there is none; Up does nothing.
+        private fun moveOnMenu(
             current: GuideSnapshot,
+            entry: GuideMenuEntry,
             direction: GuideDirection,
         ) {
-            val ready = current.state as? GuideState.Ready
-            val focus = current.focus
-            if (direction == GuideDirection.Down && ready != null && focus != null) {
-                publish(ready, focus, onButton = false)
+            val entries = GuideMenuEntry.entries
+            when (direction) {
+                GuideDirection.Left -> {
+                    entries.getOrNull(entry.ordinal - 1)?.let { shownSnapshot.value = current.copy(menu = it) }
+                }
+
+                GuideDirection.Right -> {
+                    entries.getOrNull(entry.ordinal + 1)?.let { shownSnapshot.value = current.copy(menu = it) }
+                }
+
+                GuideDirection.Down -> {
+                    leaveMenu(current)
+                }
+
+                GuideDirection.Up -> {
+                    Unit
+                }
             }
         }
 
-        // Up from the topmost row with cells goes to the button, a held Up waiting there as a wrap does; a guide with
-        // no cell to focus (nothing on) reaches the button with Up too, as it has nothing else to do.
+        // Down from the menu row: the playing cell, as Back from elsewhere on the grid goes to it, else the cell last
+        // focused; a guide with no cell keeps the focus on the menu.
+        private fun leaveMenu(current: GuideSnapshot) {
+            val ready = current.state as? GuideState.Ready ?: return
+            val playing = current.playingFocus(currentChannel)
+            val focus = current.focus
+            when {
+                playing != null -> showPlaying(ready, playing)
+                focus != null -> publish(ready, focus, menu = null)
+            }
+        }
+
+        // Up and Down on the grid wrap at the ends of the rows, a held key waiting at the end first. The menu row is
+        // reached by Back only, so a guide with no cell to focus (nothing on) has nothing for a direction to do.
         private fun moveOnGrid(
             current: GuideSnapshot,
             direction: GuideDirection,
@@ -220,18 +247,10 @@ internal class GuideViewModel
         ) {
             val ready = current.state as? GuideState.Ready
             val from = current.focus
-            if (from == null || ready == null) {
-                val shows = ready != null || current.state == GuideState.Empty
-                if (shows && direction == GuideDirection.Up) shownSnapshot.value = current.copy(onButton = true)
-            } else {
-                val toButton = direction == GuideDirection.Up && ready.model.onTopRow(from)
-                val to = if (toButton) from else ready.model.move(from, direction, ready.nowMs)
-                val wraps = toButton || ready.model.wrapped(from, to, direction)
-                when {
-                    !wrapHold.allows(wraps, repeat, atMs) -> Unit
-                    toButton -> publish(ready, from, onButton = true)
-                    else -> step(ready, from, to, direction)
-                }
+            if (from != null && ready != null) {
+                val to = ready.model.move(from, direction, ready.nowMs)
+                val wraps = ready.model.wrapped(from, to, direction)
+                if (wrapHold.allows(wraps, repeat, atMs)) step(ready, from, to, direction)
             }
         }
 
@@ -260,8 +279,15 @@ internal class GuideViewModel
         fun select() {
             synchronized(lock) {
                 val current = shownSnapshot.value
-                if (current.onButton) {
-                    if (shownInfo.value == null) eventChannel.trySend(GuideEvent.OpenChannels)
+                if (current.menu != null) {
+                    if (shownInfo.value == null) {
+                        eventChannel.trySend(
+                            when (current.menu) {
+                                GuideMenuEntry.Channels -> GuideEvent.OpenChannels
+                                GuideMenuEntry.Exit -> GuideEvent.Exit
+                            },
+                        )
+                    }
                     return
                 }
                 val ready = current.state as? GuideState.Ready
@@ -280,27 +306,46 @@ internal class GuideViewModel
         }
 
         /**
-         * Back with the info overlay closed: moves the focus (from the Channels button too) to the cell on air now on
-         * the playing channel's row, with the grid back at now and that row at the top, as when the guide opened; true
-         * when it did. False when the focus is already there, the overlay is open, there is no grid, or the playing
-         * channel is not on it: Back then leaves live TV. Nothing is added for a screen reader: the jump changes the
-         * focused cell, so the details panel's polite live region reads the playing program as it does after any move.
+         * Back with the info overlay closed, one step outwards: from a cell that is not the playing channel's cell on
+         * air now to that cell, with the grid back at now and that row at the top, as when the guide opened; from that
+         * cell (or when there is none to go to) to the menu row, on Channels. True when it moved. False on the menu
+         * row, while the guide loads, when the overlay is open and when there is no grid or menu to go to: Back then
+         * leaves live TV. Nothing is added for a screen reader: the jump changes the focused cell or entry, so the
+         * details panel's polite live region reads the playing program as it does after any move.
          */
-        fun backToPlaying(): Boolean =
+        fun back(): Boolean =
             synchronized(lock) {
                 val current = shownSnapshot.value
                 val ready = current.state as? GuideState.Ready
                 val target = current.playingFocus(currentChannel)
                 val focus = current.focus
-                if (ready == null || target == null || shownInfo.value != null) return false
-                // From the button Back goes to the playing cell even when the cell last focused is that one.
-                val moves = current.onButton || (focus != null && !focus.sameCellAs(target))
-                if (!moves) return false
-                val viewport = viewportStartFor(target, ready.model, ready.model.originMs, direction = null)
-                val shown = ready.copy(viewportStartMs = viewport, firstVisibleRow = 0)
-                publish(shown.copy(firstVisibleRow = shown.openingRowFor(target)), target, onButton = false)
-                true
+                val showsMenu = ready != null || current.state == GuideState.Empty
+                when {
+                    shownInfo.value != null || current.menu != null || !showsMenu -> {
+                        false
+                    }
+
+                    ready != null && target != null && focus != null && !focus.sameCellAs(target) -> {
+                        showPlaying(ready, target)
+                        true
+                    }
+
+                    else -> {
+                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels)
+                        true
+                    }
+                }
             }
+
+        // The grid at now, [target] focused and its row at the top.
+        private fun showPlaying(
+            ready: GuideState.Ready,
+            target: GuideFocus,
+        ) {
+            val viewport = viewportStartFor(target, ready.model, ready.model.originMs, direction = null)
+            val shown = ready.copy(viewportStartMs = viewport, firstVisibleRow = 0)
+            publish(shown.copy(firstVisibleRow = shown.openingRowFor(target)), target, menu = null)
+        }
 
         /** Closes the info overlay; true when there was one to close (so Back stops there). */
         fun closeInfo(): Boolean =
@@ -351,7 +396,7 @@ internal class GuideViewModel
                             if (session === s) {
                                 if (lineupAtOpen == null) lineupAtOpen = now
                                 lineupNow = now
-                                if (!managing && now != lineupAtOpen) reload(onButton = shownSnapshot.value.onButton)
+                                if (!managing && now != lineupAtOpen) reload(menu = shownSnapshot.value.menu)
                             }
                         }
                     }
@@ -363,7 +408,7 @@ internal class GuideViewModel
         }
 
         /**
-         * Channel management closed without tuning: the guide shows again on the Channels button. When the lineup
+         * Channel management closed without tuning: the guide shows again on the Channels entry. When the lineup
          * changed meanwhile the grid is loaded again (see [reload]) so it shows the new lineup at once; otherwise it is
          * as it was.
          */
@@ -371,9 +416,9 @@ internal class GuideViewModel
             synchronized(lock) {
                 managing = false
                 if (lineupAtOpen != null && lineupNow != lineupAtOpen) {
-                    reload(onButton = true)
+                    reload(menu = GuideMenuEntry.Channels)
                 } else {
-                    shownSnapshot.value = shownSnapshot.value.copy(onButton = true)
+                    shownSnapshot.value = shownSnapshot.value.copy(menu = GuideMenuEntry.Channels)
                     resumeTick()
                 }
             }
@@ -402,10 +447,10 @@ internal class GuideViewModel
         // The grid loaded again from the lineup as it is now, in a session of its own: the old one is cancelled whole,
         // so a read or build of it that is already past its last suspension point finds `session === s` false and
         // publishes nothing. The shown grid stays until the new one replaces it, and the focus stays on its cell
-        // (found again by identity, or the nearest row when its channel is gone), or on the button when [onButton].
+        // (found again by identity, or the nearest row when its channel is gone), or on the menu entry [menu] names.
         // The measurement stays as it is: the line describes the opening, so [windowMs] stays the first read's, while
         // the extensions and tick lag of the reload count in the session's totals. Under [lock].
-        private fun reload(onButton: Boolean) {
+        private fun reload(menu: GuideMenuEntry?) {
             val old = session ?: return
             old.coroutineContext[Job]?.cancel()
             val fresh = newSession()
@@ -413,8 +458,8 @@ internal class GuideViewModel
             resetLoadState()
             lineupWatch = null
             lineupAtOpen = lineupNow
-            if (shownSnapshot.value.onButton != onButton) {
-                shownSnapshot.value = shownSnapshot.value.copy(onButton = onButton)
+            if (shownSnapshot.value.menu != menu) {
+                shownSnapshot.value = shownSnapshot.value.copy(menu = menu)
             }
             startLoad(fresh)
             startWatch(fresh)
@@ -464,11 +509,11 @@ internal class GuideViewModel
             shownSnapshot.value = GuideSnapshot.Closed
         }
 
-        // A snapshot of [state], on the button when the one it replaces is: the button outlives the grid being rebuilt.
+        // A snapshot of [state], on the menu entry the one it replaces is on: the menu outlives the grid being rebuilt.
         private fun snapshotOf(
             state: GuideState,
             focus: GuideFocus?,
-        ) = GuideSnapshot(state, focus, shownSnapshot.value.onButton)
+        ) = GuideSnapshot(state, focus, shownSnapshot.value.menu)
 
         private fun publishIfCurrent(
             s: CoroutineScope,
@@ -784,12 +829,12 @@ internal class GuideViewModel
         private fun publish(
             ready: GuideState.Ready,
             focus: GuideFocus?,
-            onButton: Boolean = shownSnapshot.value.onButton,
+            menu: GuideMenuEntry? = shownSnapshot.value.menu,
         ) {
             val located = focus?.let { ready.model.indexOf(it) }
             check(focus == null || located != null) { "The focus is not in the model it is published with" }
             val before = shownSnapshot.value.focus
-            shownSnapshot.value = GuideSnapshot(ready, focus, onButton)
+            shownSnapshot.value = GuideSnapshot(ready, focus, menu)
             follow(ready.model, before, focus, located)
         }
 

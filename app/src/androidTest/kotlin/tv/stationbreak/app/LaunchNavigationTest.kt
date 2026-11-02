@@ -255,23 +255,23 @@ class LaunchNavigationTest {
         launchApp()
         awaitExists(LiveTags.NO_CHANNELS)
 
-        // Back opens the guide; with no channel on it the Channels button is the one thing to reach with Up.
+        // Back opens the guide; with no channel on it Back reaches the menu row, on its Channels entry.
         compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         awaitExists(GuideTags.EMPTY)
-        press(KeyEvent.KEYCODE_DPAD_UP)
+        press(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(ChannelsTags.TITLE)
 
-        // Back from the screen shows the guide again, on the button.
+        // Back from the screen shows the guide again, on the Channels entry.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertFalse("the Back that closed the screen did not leave", compose.activity.isFinishing)
 
-        // Nothing is playing on an empty lineup, so there is no playing cell to go back to: the next Back leaves. (The
-        // playing-cell step is GuideChannelsButtonUiTest's.)
+        // Nothing is playing on an empty lineup, so there is no playing cell to go back to, and Back on the menu row
+        // leaves. (The playing-cell step is GuideMenuUiTest's.)
         assertBackLeavesTheApp()
     }
 

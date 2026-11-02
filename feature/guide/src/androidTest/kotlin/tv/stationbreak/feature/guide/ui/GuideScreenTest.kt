@@ -368,7 +368,7 @@ class GuideScreenTest {
     fun dpadMovesFocusAndPanelFollows() {
         showReady(CH7)
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch"))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu"))
         press(Key.DirectionRight)
         cell(CH7, 90).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()
@@ -395,56 +395,60 @@ class GuideScreenTest {
         back()
         cell(CH7, 60).assertIsSelected()
         assertEquals("Test Movie 102", text(GuideTags.PANEL_TITLE))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu"))
+        assertEquals(0, exits)
+        // On the playing cell: the next Back goes to the menu row, whose Back leaves live TV.
+        back()
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
         assertEquals(0, exits)
-        // On the playing cell: the same Back leaves live TV.
         back()
         assertEquals(1, exits)
     }
 
     @Test
-    fun downOnTheLastChannelWrapsToTheFirstAndBackReturnsToWhatIsPlaying() {
+    fun upOnTheFirstChannelWrapsToTheLastAndBackWalksOut() {
         showReady(CH5)
         compose.awaitWindowFocus()
         cell(CH5, 60).assertIsSelected()
         press(Key.DirectionUp)
         cell(ch3, 0).assertIsSelected()
-        // Up on the first channel (3) goes to the Channels button, not round to the last (spec 21).
+        // Up on the first channel (3) goes round to the last (9), as Down from the last goes round to the first.
         press(Key.DirectionUp)
-        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
-        cell(ch3, 0).assertIsNotSelected()
-        // Down returns to the cell it left; on to the last channel (9), and Down from there goes round to the first.
-        press(Key.DirectionDown)
-        cell(ch3, 0).assertIsSelected()
-        press(Key.DirectionDown)
-        press(Key.DirectionDown)
-        press(Key.DirectionDown)
         cell(CH9, 0).assertIsSelected()
         assertEquals("Test Movie 300", text(GuideTags.PANEL_TITLE))
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsNotSelected()
         press(Key.DirectionDown)
         cell(ch3, 0).assertIsSelected()
-        press(Key.DirectionUp)
-        press(Key.DirectionUp)
-        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
-        // Back from the button returns to the playing channel before it exits.
+        // Back goes to the playing channel, then to the menu row, then leaves.
         back()
         cell(CH5, 60).assertIsSelected()
+        back()
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)
-    }
-
-    @Test
-    fun backOnTheOpeningCellExitsAtOnce() {
-        showReady(CH5)
         back()
         assertEquals(1, exits)
     }
 
     @Test
-    fun backWithNoPlayingChannelOnTheGridExitsAndSaysSo() {
-        // The guide opens on the first row, which is not what is playing: nothing to go back to.
+    fun backOnTheOpeningCellGoesToTheMenuAndTheNextExits() {
+        showReady(CH5)
+        back()
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        assertEquals(0, exits)
+        back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun backWithNoPlayingChannelOnTheGridGoesToTheMenuAndSaysSo() {
+        // The guide opens on the first row, which is not what is playing: nothing to go back to but the menu row.
         showReady(null)
         press(Key.DirectionRight)
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu"))
+        back()
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        assertEquals(0, exits)
         back()
         assertEquals(1, exits)
     }
@@ -571,9 +575,12 @@ class GuideScreenTest {
         back()
         compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
         assertEquals(0, exits)
-        // The overlay is gone: the next Back returns to the playing cell, and the one after is the activity's.
+        // The overlay is gone: the next Back returns to the playing cell, then the menu row, and the one after is the
+        // activity's.
         back()
         cell(CH7, 60).assertIsSelected()
+        back()
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)
         back()
         assertEquals(1, exits)
@@ -633,8 +640,8 @@ class GuideScreenTest {
             assertEquals("$key: $roots", 2, roots.count { it == "ui.GuideCellView" })
             val others = roots.filterNot { it == "ui.GuideCellView" || it.startsWith("ui.DetailsPanel") }
             assertTrue("$key: $roots", others.all { it.startsWith("ui.HintRow") })
-            // The Channels button reads only whether the focus is on it: a move on the grid leaves it alone.
-            assertTrue("$key: $roots", roots.none { it.startsWith("ui.ChannelsButton") })
+            // The menu entries read only whether the focus is on them: a move on the grid leaves them alone.
+            assertTrue("$key: $roots", roots.none { it.startsWith("ui.GuideMenu") || it.startsWith("ui.MenuButton") })
         }
     }
 

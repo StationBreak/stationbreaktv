@@ -142,11 +142,18 @@ internal fun GuideRoot(
     // showing. It starts over with each showing of the guide.
     var managingSince by remember(viewModel, openedAtNanos) { mutableLongStateOf(NOT_MANAGING) }
     val managing = managingSince != NOT_MANAGING
+    val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val leave by rememberUpdatedState { backs?.onBackPressed() }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is GuideEvent.Tune -> {
                     tune(event.channel)
+                }
+
+                // Exit takes the way Back takes from the menu row: the activity's.
+                GuideEvent.Exit -> {
+                    leave()
                 }
 
                 GuideEvent.OpenChannels -> {
@@ -157,16 +164,15 @@ internal fun GuideRoot(
         }
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
-    // Back over the info overlay closes it; with none open, Back returns the focus to what is
-    // playing, and from there it is the activity's and leaves live TV. While channel management shows, it is the
-    // screen's.
+    // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
+    // the menu row), and from the menu row it is the activity's and leaves live TV. While channel management shows, it
+    // is the screen's.
     BackHandler(enabled = info != null && !managing) { viewModel.closeInfo() }
     val keys = remember { FocusRequester() }
     // The guide takes the key focus when it shows, and takes it back when channel management has gone.
     LaunchedEffect(keys, managing) { if (!managing) keys.requestFocus() }
-    val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val back: (() -> Unit)? =
-        remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.backToPlaying()) d.onBackPressed() } } }
+        remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.back()) d.onBackPressed() } } }
     val move = remember(viewModel) { viewModel.tracedMove() }
     Box(modifier.fillMaxSize()) {
         GuideScreen(
@@ -206,13 +212,12 @@ private const val NOT_MANAGING = 0L
 /**
  * The guide's keys, all consumed so the focus never leaves the grid: the D-pad moves the focus (auto-repeat included,
  * so holding a direction scrolls; a held Down pauses at the last row before it wraps, and a held Up at the top row
- * before it goes to the Channels button) and Select acts on the focused cell once per press. Their releases are
- * consumed too.
+ * before it wraps) and Select acts on the focused cell once per press. Their releases are consumed too.
  *
  * Back is handed to [back] on its release, as the activity itself would: the info overlay's BackHandler closes it,
- * with none open the focus returns to what is playing, and from there the activity leaves live TV. Left unconsumed,
- * Compose would spend it on moving the focus out of the guide to live TV's root ("exit"), and the viewer would have to
- * press Back twice. The media keys are not the guide's.
+ * with none open the focus goes to what is playing, then to the menu row, and from there the activity leaves live TV.
+ * Left unconsumed, Compose would spend it on moving the focus out of the guide to live TV's root ("exit"), and the
+ * viewer would have to press Back twice. The media keys are not the guide's.
  */
 internal fun guideKey(
     event: KeyEvent,

@@ -32,6 +32,25 @@ class BackKeyTest {
     }
 
     @Test
+    fun liveOwnsOnlyTheFirstStepOfTheBackLadder() {
+        // Show -> guide: the full picture's Back opens the guide, press and release consumed.
+        val opened = mutableListOf<Boolean>()
+        val key = { type: KeyEventType, up: OverlayUp ->
+            handleLiveKey(type, Key.Back, up, held, guide = { opened += it }) { sent += it }
+        }
+        assertTrue(key(KeyEventType.KeyDown, OverlayUp.None))
+        assertTrue(key(KeyEventType.KeyUp, OverlayUp.None))
+        assertEquals(listOf(true), opened)
+        // Guide -> playing cell -> menu row -> leave: each Back is the guide's, then the activity's; live passes all.
+        repeat(3) {
+            assertFalse(key(KeyEventType.KeyDown, inGuide))
+            assertFalse(key(KeyEventType.KeyUp, inGuide))
+        }
+        assertEquals(listOf(true), opened)
+        assertEquals(emptyList<LiveCommand>(), sent)
+    }
+
+    @Test
     fun aBackThatWasNotConsumedPassesBothWays() {
         assertFalse(back(KeyEventType.KeyDown, inGuide))
         assertFalse(back(KeyEventType.KeyUp, inGuide))

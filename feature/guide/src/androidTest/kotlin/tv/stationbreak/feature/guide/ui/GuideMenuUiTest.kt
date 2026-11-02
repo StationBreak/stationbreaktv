@@ -58,6 +58,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
 import java.util.concurrent.CopyOnWriteArrayList
@@ -72,9 +73,9 @@ private object QuietLineup : ChannelRepository {
     override fun activeChannels(): Flow<List<ChannelSummary>> = flowOf(emptyList())
 }
 
-/** The Channels button and the slot it opens over the guide (spec 21). */
+/** The menu row (Channels and Exit) and the slot Channels opens over the guide (spec 21). */
 @RunWith(AndroidJUnit4::class)
-class GuideChannelsButtonUiTest {
+class GuideMenuUiTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
@@ -175,27 +176,30 @@ class GuideChannelsButtonUiTest {
         compose.waitForIdle()
     }
 
-    private fun button() = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON)
+    private fun channels() = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON)
+
+    private fun exit() = compose.onNodeWithTag(GuideTags.EXIT_BUTTON)
 
     private fun cell(startMin: Long) = compose.onNodeWithTag(GuideTags.cell(CH5, T0 + startMin * MIN))
 
-    // The view model has the button focused at once; the semantics follow a frame later, so they are waited for.
-    private fun awaitOnTheButton() {
+    // The view model has the Channels entry focused at once; the semantics follow a frame later, so they are waited for.
+    private fun awaitOnChannels() {
         val shown = vm.snapshot.value
-        assertTrue("the view model has the button focused (state ${shown.state::class.simpleName})", shown.onButton)
-        compose.waitUntil(TIMEOUT_MS) { runCatching { button().assertIsSelected() }.isSuccess }
+        assertEquals("the view model's menu (state ${shown.state::class.simpleName})", GuideMenuEntry.Channels, shown.menu)
+        compose.waitUntil(TIMEOUT_MS) { runCatching { channels().assertIsSelected() }.isSuccess }
     }
 
+    // Back from the playing cell reaches the menu row, on Channels.
     private fun openTheSlot() {
-        press(Key.DirectionUp)
-        button().assertIsSelected()
+        back()
+        awaitOnChannels()
         press(Key.DirectionCenter)
         compose.waitUntil(TIMEOUT_MS) { done != null }
         compose.onNodeWithTag(SLOT).assertExists()
     }
 
     @Test
-    fun selectOnTheButtonShowsTheSlot() {
+    fun selectOnChannelsShowsTheSlot() {
         showReady()
         cell(60).assertIsSelected()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
@@ -204,18 +208,18 @@ class GuideChannelsButtonUiTest {
         // The guide stays open underneath (its session and focus), but is out of the semantics tree while the screen
         // covers it: a screen reader sees one screen.
         assertTrue(vm.snapshot.value.state is GuideState.Ready)
-        assertTrue(vm.snapshot.value.onButton)
+        assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
         compose.onNodeWithTag(GuideTags.SCREEN, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
-    fun closingTheSlotReturnsToTheButton() {
+    fun closingTheSlotReturnsToChannels() {
         showReady()
         openTheSlot()
         compose.runOnUiThread { done?.invoke(null) }
         compose.waitForIdle()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
-        awaitOnTheButton()
+        awaitOnChannels()
         cell(60).assertIsNotSelected()
         // The guide has its keys back: Down returns to the cell.
         compose.awaitWindowFocus()
@@ -232,25 +236,50 @@ class GuideChannelsButtonUiTest {
         press(Key.DirectionRight)
         assertEquals(listOf(Key.DirectionDown, Key.DirectionRight), slotKeys.toList())
         // The guide did not move under it (and is out of the semantics tree, so its nodes cannot be asked).
-        assertTrue(vm.snapshot.value.onButton)
+        assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
     }
 
     @Test
-    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextTwoWalkOut() {
+    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextLeaves() {
         showReady()
         finishOnBack = true
         openTheSlot()
         // The slot finishes on its own Back release; the guide does not take that press.
         back()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
-        awaitOnTheButton()
+        awaitOnChannels()
         assertEquals(0, exits)
-        // Back from the button goes to the playing cell, and the next leaves live TV.
-        back()
-        cell(60).assertIsSelected()
-        assertEquals(0, exits)
+        // Back from the menu row leaves live TV.
         back()
         assertEquals(1, exits)
+    }
+
+    @Test
+    fun theExitEntryIsShownFocusableAndLeaves() {
+        showReady()
+        exit().assertExists()
+        exit().assertIsNotSelected()
+        back()
+        awaitOnChannels()
+        press(Key.DirectionRight)
+        exit().assertIsSelected()
+        channels().assertIsNotSelected()
+        assertEquals(0, exits)
+        press(Key.DirectionCenter)
+        assertEquals(1, exits)
+        compose.onNodeWithTag(SLOT).assertDoesNotExist()
+    }
+
+    @Test
+    fun downFromExitReturnsToThePlayingCell() {
+        showReady()
+        back()
+        press(Key.DirectionRight)
+        exit().assertIsSelected()
+        press(Key.DirectionDown)
+        exit().assertIsNotSelected()
+        cell(60).assertIsSelected()
+        assertEquals(0, exits)
     }
 
     @Test

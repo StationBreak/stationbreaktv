@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -24,8 +25,8 @@ import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
-/** The Channels button above the grid (spec 21, F2.4): Up from the top row reaches it, and Select opens management. */
-class GuideChannelsButtonTest : GuideRig() {
+/** The menu row above the grid (spec 21, F2.4): Back reaches it, Channels opens management and Exit leaves. */
+class GuideMenuTest : GuideRig() {
     private fun GuideViewModel.up(
         repeat: Boolean = false,
         atMs: Long = 0,
@@ -36,7 +37,12 @@ class GuideChannelsButtonTest : GuideRig() {
         atMs: Long = 0,
     ): Unit = move(GuideDirection.Down, repeat, atMs)
 
-    private fun GuideViewModel.onButton(): Boolean = snapshot.value.onButton
+    private fun GuideViewModel.menu(): GuideMenuEntry? = snapshot.value.menu
+
+    // Back until the focus is on the menu row.
+    private fun GuideViewModel.toMenu() {
+        while (menu() == null) check(back()) { "Back did not reach the menu" }
+    }
 
     private fun TestScope.eventsOf(vm: GuideViewModel): MutableList<GuideEvent> =
         mutableListOf<GuideEvent>().also { got -> backgroundScope.launch { vm.events.collect { got += it } } }
@@ -57,40 +63,38 @@ class GuideChannelsButtonTest : GuideRig() {
     )
 
     @Test
-    fun upFromTheTopRowGoesToTheButton() =
+    fun upFromTheTopRowWrapsToTheBottomRow() =
         guideTest { vm ->
             vm.open(CH5)
             runCurrent()
-            val cell = vm.focused()
             vm.up()
-            assertTrue(vm.onButton())
-            // The cell last focused is kept for Down to return to.
-            assertEquals(cell, vm.focused())
+            assertNull(vm.menu())
+            assertEquals(CH9, vm.focused().channel)
         }
 
     @Test
-    fun aHeldUpWaitsAtTheTopRowBeforeTheButton() =
+    fun aHeldUpWaitsAtTheTopRowBeforeItWraps() =
         guideTest { vm ->
             vm.open(CH5)
             runCurrent()
             vm.up(repeat = true, atMs = 1_000)
-            assertFalse(vm.onButton())
+            assertEquals(CH5, vm.focused().channel)
             vm.up(repeat = true, atMs = 1_399)
-            assertFalse(vm.onButton())
+            assertEquals(CH5, vm.focused().channel)
             vm.up(repeat = true, atMs = 1_000 + WRAP_HOLD.inWholeMilliseconds)
-            assertTrue(vm.onButton())
+            assertEquals(CH9, vm.focused().channel)
+            // On from the last row the hold scrolls as it did, unpaced.
+            vm.up(repeat = true, atMs = 1_430)
+            assertEquals(CH7, vm.focused().channel)
         }
 
     @Test
-    fun upNoLongerWrapsFromTheTop() =
+    fun upNeverReachesTheMenu() =
         guideTest { vm ->
             vm.open(CH5)
             runCurrent()
-            vm.up()
-            vm.up()
-            vm.up()
-            assertTrue(vm.onButton())
-            assertEquals(CH5, vm.focused().channel)
+            repeat(6) { vm.up() }
+            assertNull(vm.menu())
         }
 
     @Test
@@ -100,27 +104,158 @@ class GuideChannelsButtonTest : GuideRig() {
             runCurrent()
             vm.down()
             assertEquals(CH5, vm.focused().channel)
-            assertFalse(vm.onButton())
+            assertNull(vm.menu())
         }
 
     @Test
-    fun downFromTheButtonReturnsToTheLastCell() =
+    fun backWalksOutwardsFromACellToThePlayingCellThenTheMenuThenLeaves() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
+            val playing = vm.focused()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             vm.up()
-            val cell = vm.focused()
-            assertEquals(CH5, cell.channel)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertEquals(playing, vm.focused())
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            // The cell last focused is kept.
+            assertEquals(playing, vm.focused())
+            assertFalse(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+        }
+
+    @Test
+    fun backOnEitherEntryLeaves() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            assertFalse(vm.back())
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            assertFalse(vm.back())
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+        }
+
+    @Test
+    fun backWithNoPlayingCellGoesToTheMenu() =
+        guideTest { vm ->
+            vm.open(ChannelId("gone"))
+            runCurrent()
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            vm.close()
+            vm.open(null)
+            runCurrent()
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+        }
+
+    @Test
+    fun backOnAnEmptyGuideGoesToTheMenuAndThenLeaves() =
+        guideTest { vm ->
+            fake.channels.clear()
+            vm.open(CH5)
+            runCurrent()
+            assertEquals(GuideState.Empty, vm.snapshot.value.state)
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertFalse(vm.back())
+        }
+
+    @Test
+    fun backWhileTheGuideLoadsIsNotTheGuides() =
+        guideTest { vm ->
+            schedule.cachedGate = CompletableDeferred()
+            vm.open(CH5)
+            after(1_000)
+            assertEquals(GuideState.Loading, vm.snapshot.value.state)
+            assertFalse(vm.back())
+            assertNull(vm.menu())
+        }
+
+    @Test
+    fun downFromEitherEntryGoesToThePlayingCell() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            val playing = vm.focused()
             vm.up()
-            assertTrue(vm.onButton())
+            assertTrue(vm.back())
+            assertTrue(vm.back())
             vm.down()
-            assertFalse(vm.onButton())
+            assertNull(vm.menu())
+            assertEquals(playing, vm.focused())
+
+            vm.toMenu()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            vm.down()
+            assertNull(vm.menu())
+            assertEquals(playing, vm.focused())
+        }
+
+    @Test
+    fun downFromTheMenuWithNoPlayingCellGoesToTheCellLastFocused() =
+        guideTest { vm ->
+            vm.open(ChannelId("gone"))
+            runCurrent()
+            vm.down()
+            val cell = vm.focused()
+            assertEquals(CH7, cell.channel)
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            vm.down()
+            assertNull(vm.menu())
             assertEquals(cell, vm.focused())
         }
 
     @Test
-    fun selectOnTheButtonOpensChannels() =
+    fun downFromTheMenuOfAnEmptyGuideStays() =
+        guideTest { vm ->
+            fake.channels.clear()
+            vm.open(CH5)
+            runCurrent()
+            assertTrue(vm.back())
+            vm.down()
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+        }
+
+    @Test
+    fun leftAndRightMoveBetweenTheEntriesAndStopAtTheEnds() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+        }
+
+    @Test
+    fun upOnEitherEntryDoesNothing() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            var before = vm.snapshot.value
+            vm.up()
+            assertEquals(before, vm.snapshot.value)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            before = vm.snapshot.value
+            vm.up()
+            assertEquals(before, vm.snapshot.value)
+        }
+
+    @Test
+    fun selectOnAnEntryOpensChannelsOrLeaves() =
         guideTest { vm ->
             val got = eventsOf(vm)
             vm.open(CH5)
@@ -129,48 +264,15 @@ class GuideChannelsButtonTest : GuideRig() {
             runCurrent()
             assertEquals(listOf(GuideEvent.Tune(CH5)), got)
             got.clear()
-            vm.up()
+            assertTrue(vm.back())
             vm.select()
             runCurrent()
             assertEquals(listOf(GuideEvent.OpenChannels), got)
-        }
-
-    @Test
-    fun backOnTheButtonGoesToThePlayingCell() =
-        guideTest { vm ->
-            vm.open(CH7)
-            runCurrent()
-            val playing = vm.focused()
-            vm.up()
-            vm.up()
-            assertTrue(vm.onButton())
-            assertTrue(vm.backToPlaying())
-            assertFalse(vm.onButton())
-            assertEquals(playing, vm.focused())
-        }
-
-    @Test
-    fun backOnTheButtonWithNothingPlayingGoesOnToTheActivity() =
-        guideTest { vm ->
-            vm.open(null)
-            runCurrent()
-            vm.up()
-            assertTrue(vm.onButton())
-            assertFalse(vm.backToPlaying())
-            assertTrue(vm.onButton())
-        }
-
-    @Test
-    fun upOnTheButtonDoesNothing() =
-        guideTest { vm ->
-            vm.open(CH5)
-            runCurrent()
-            vm.up()
-            val before = vm.snapshot.value
-            vm.up()
-            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
+            got.clear()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            assertEquals(before, vm.snapshot.value)
+            vm.select()
+            runCurrent()
+            assertEquals(listOf(GuideEvent.Exit), got)
         }
 
     @Test
@@ -179,8 +281,7 @@ class GuideChannelsButtonTest : GuideRig() {
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
             vm.open(CH7)
             runCurrent()
-            vm.up()
-            vm.up()
+            vm.toMenu()
             vm.channelsOpened()
             runCurrent()
             assertEquals(
@@ -204,17 +305,16 @@ class GuideChannelsButtonTest : GuideRig() {
                     .ready()
                     .model.rows.size,
             )
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
     @Test
-    fun backWhileTheGridLoadsAgainGoesToThePlayingCellOnTheGridShown() =
+    fun downFromTheMenuWhileTheGridLoadsAgainGoesToThePlayingCellOnTheGridShown() =
         guideTest { vm ->
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
             vm.open(CH7)
             runCurrent()
-            vm.up()
-            vm.up()
+            vm.toMenu()
             vm.channelsOpened()
             runCurrent()
             val measured = vm.windowMs
@@ -224,8 +324,8 @@ class GuideChannelsButtonTest : GuideRig() {
 
             vm.channelsClosed()
 
-            // The grid shown stays until the new one lands: Back works on it, and the new grid keeps the focus.
-            assertTrue(vm.backToPlaying())
+            // The grid shown stays until the new one lands: Down works on it, and the new grid keeps the focus.
+            vm.down()
             assertEquals(CH7, vm.focused().channel)
             // The opening's figures are the first session's, not the reload's.
             assertEquals(measured, vm.windowMs)
@@ -255,7 +355,7 @@ class GuideChannelsButtonTest : GuideRig() {
                     .model.rows.size,
             )
             // On the button it was left on, it stays there.
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
     @Test
@@ -301,8 +401,7 @@ class GuideChannelsButtonTest : GuideRig() {
         lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
         vm.open(CH7)
         runCurrent()
-        vm.up()
-        vm.up()
+        vm.toMenu()
         vm.channelsOpened()
         runCurrent()
         vm.channelsClosed()
@@ -332,7 +431,7 @@ class GuideChannelsButtonTest : GuideRig() {
                     .ready()
                     .model.rows.size,
             )
-            assertFalse(vm.onButton())
+            assertNull(vm.menu())
             assertEquals(focus.channel, vm.focused().channel)
             assertEquals(focus.cellStartMs, vm.focused().cellStartMs)
         }
@@ -380,7 +479,7 @@ class GuideChannelsButtonTest : GuideRig() {
                     .ready()
                     .model.rows.size,
             )
-            assertTrue(vm.backToPlaying())
+            assertTrue(vm.back())
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             val focus = vm.focused()
             schedule.cachedAnswer = null
@@ -499,26 +598,26 @@ class GuideChannelsButtonTest : GuideRig() {
         }
 
     @Test
-    fun theButtonKeepsTheFocusAcrossTheClockUnderTheScreenAndAfter() =
+    fun theMenuKeepsTheFocusAcrossTheClockUnderTheScreenAndAfter() =
         guideTest { vm ->
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
             vm.open(CH5)
             runCurrent()
-            vm.up()
+            vm.toMenu()
             vm.channelsOpened()
             val opened = vm.ready().nowMs
             after(3 * MIN)
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
             // The clock stands still under the screen.
             assertEquals(opened, vm.ready().nowMs)
 
             vm.channelsClosed()
             runCurrent()
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
             // And runs again at once when it closes.
             assertTrue(vm.ready().nowMs >= opened + 3 * MIN)
             after(2 * MIN)
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
             assertTrue(vm.ready().nowMs >= opened + 5 * MIN)
         }
 
@@ -532,7 +631,7 @@ class GuideChannelsButtonTest : GuideRig() {
             runCurrent()
 
             assertEquals(calls, schedule.calls)
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
     @Test
@@ -541,8 +640,7 @@ class GuideChannelsButtonTest : GuideRig() {
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
             vm.open(CH7)
             runCurrent()
-            vm.up()
-            vm.up()
+            vm.toMenu()
             vm.channelsOpened()
             runCurrent()
             val calls = schedule.calls
@@ -553,17 +651,6 @@ class GuideChannelsButtonTest : GuideRig() {
 
             assertEquals(calls, schedule.calls)
             assertEquals(before, vm.ready())
-            assertTrue(vm.onButton())
-        }
-
-    @Test
-    fun anEmptyGuideStillReachesTheButtonWithUp() =
-        guideTest { vm ->
-            fake.channels.clear()
-            vm.open(CH5)
-            runCurrent()
-            assertEquals(GuideState.Empty, vm.snapshot.value.state)
-            vm.up()
-            assertTrue(vm.onButton())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 }
