@@ -44,7 +44,10 @@ object Runs {
     ): List<Run> =
         when (settings.orderingMode) {
             OrderingMode.Shuffle -> {
-                form(Orderings.shuffle(pool, seedN), settings.blockLength)
+                val caps = settings.caps
+                val order =
+                    if (caps == null) Orderings.shuffle(pool, seedN) else cappedShuffle(pool, seedN, caps, groups)
+                form(order, settings.blockLength)
             }
 
             OrderingMode.Chronological -> {
