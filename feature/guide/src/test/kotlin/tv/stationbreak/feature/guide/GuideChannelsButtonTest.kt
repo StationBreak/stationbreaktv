@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -202,7 +203,7 @@ class GuideChannelsButtonTest : GuideRig() {
         }
 
     @Test
-    fun backWhileTheGuideReopensStaysOnTheButton() =
+    fun backWhileTheGridLoadsAgainGoesToThePlayingCellOnTheGridShown() =
         guideTest { vm ->
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
             vm.open(CH7)
@@ -218,10 +219,10 @@ class GuideChannelsButtonTest : GuideRig() {
 
             vm.channelsClosed()
 
-            // The new session has not loaded yet: Back is taken, and does not leave live TV.
+            // The grid shown stays until the new one lands: Back works on it, and the new grid keeps the focus.
             assertTrue(vm.backToPlaying())
-            assertTrue(vm.onButton())
-            // The opening's figures are the first session's, not the reopen's.
+            assertEquals(CH7, vm.focused().channel)
+            // The opening's figures are the first session's, not the reload's.
             assertEquals(measured, vm.windowMs)
             runCurrent()
             assertEquals(
@@ -230,29 +231,16 @@ class GuideChannelsButtonTest : GuideRig() {
                     .ready()
                     .model.rows.size,
             )
+            assertEquals(CH7, vm.focused().channel)
         }
 
     @Test
-    fun anEditThatLandsAfterTheScreenClosedReopensTheGuideOnTheButton() =
+    fun resetThenBackAtOnceStillUpdatesTheGridWhenTheWriteLandsLater() =
         guideTest { vm ->
-            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
-            vm.open(CH7)
-            runCurrent()
-            vm.up()
-            vm.up()
-            vm.channelsOpened()
-            runCurrent()
-            vm.channelsClosed()
-            runCurrent()
-            assertEquals(
-                3,
-                vm
-                    .ready()
-                    .model.rows.size,
-            )
+            closedWithNoChange(vm)
+            after(10_000)
 
-            fake.channel(ChannelId("ch-3"), 3, halfHours(600))
-            lineupList.list.value = lineupList.list.value + summary(ChannelId("ch-3"), 3)
+            addChannelThree()
             runCurrent()
 
             assertEquals(
@@ -261,7 +249,46 @@ class GuideChannelsButtonTest : GuideRig() {
                     .ready()
                     .model.rows.size,
             )
+            // On the button it was left on, it stays there.
             assertTrue(vm.onButton())
+        }
+
+    @Test
+    fun aStaleGridOfTheOldSessionIsNotPublishedAfterAReload() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            val oldRead = CompletableDeferred<Unit>()
+            val newRead = CompletableDeferred<Unit>()
+            schedule.cachedGate = oldRead
+            vm.open(CH7)
+            runCurrent()
+            // The screen opens and the lineup changes under it while the first read is out.
+            vm.channelsOpened()
+            lineupList.list.value = lineupList.list.value + summary(ChannelId("ch-3"), 3)
+            runCurrent()
+            var fired = false
+            schedule.afterSchedule = {
+                if (!fired) {
+                    fired = true
+                    // The old read has its answer (three channels) and is about to build; the reload comes first.
+                    fake.channel(ChannelId("ch-3"), 3, halfHours(600))
+                    schedule.cachedGate = newRead
+                    vm.channelsClosed()
+                }
+            }
+
+            oldRead.complete(Unit)
+            runCurrent()
+
+            assertTrue("the old read's grid was published", vm.snapshot.value.state !is GuideState.Ready)
+            newRead.complete(Unit)
+            runCurrent()
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
         }
 
     // The guide on channel 7, the screen opened and closed with no change, and the viewer on channel 7's row again.
@@ -284,32 +311,12 @@ class GuideChannelsButtonTest : GuideRig() {
     }
 
     @Test
-    fun aBackgroundChangeLongAfterTheScreenClosedDoesNotMoveFocus() =
+    fun aChangeLongAfterTheScreenClosedReloadsTheGridWithTheFocusWhereItWas() =
         guideTest { vm ->
             closedWithNoChange(vm)
             vm.down()
             val focus = vm.focused()
-            after(10_000)
-
-            addChannelThree()
-            runCurrent()
-
-            assertEquals(
-                3,
-                vm
-                    .ready()
-                    .model.rows.size,
-            )
-            assertFalse(vm.onButton())
-            assertEquals(focus, vm.focused())
-        }
-
-    @Test
-    fun anEditASecondAfterTheScreenClosedReopensOnTheButton() =
-        guideTest { vm ->
-            closedWithNoChange(vm)
-            vm.down()
-            after(1_000)
+            after(60_000)
 
             addChannelThree()
             runCurrent()
@@ -320,7 +327,31 @@ class GuideChannelsButtonTest : GuideRig() {
                     .ready()
                     .model.rows.size,
             )
-            assertTrue(vm.onButton())
+            assertFalse(vm.onButton())
+            assertEquals(focus.channel, vm.focused().channel)
+            assertEquals(focus.cellStartMs, vm.focused().cellStartMs)
+        }
+
+    @Test
+    fun aChangeWhileOnACellKeepsThatCellFocused() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            val focus = vm.focused()
+
+            addChannelThree()
+            runCurrent()
+
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertEquals(focus.channel, vm.focused().channel)
+            assertEquals(focus.cellStartMs, vm.focused().cellStartMs)
         }
 
     @Test
@@ -334,53 +365,6 @@ class GuideChannelsButtonTest : GuideRig() {
 
             assertEquals(calls, schedule.calls)
             assertTrue(vm.onButton())
-        }
-
-    @Test
-    fun theLateWatchStopsAfterItsFirstReload() =
-        guideTest { vm ->
-            closedWithNoChange(vm)
-            addChannelThree()
-            runCurrent()
-            vm.down()
-            val focus = vm.focused()
-
-            lineupList.list.value = lineupList.list.value.drop(1)
-            runCurrent()
-
-            assertEquals(focus, vm.focused())
-            assertEquals(
-                4,
-                vm
-                    .ready()
-                    .model.rows.size,
-            )
-        }
-
-    @Test
-    fun aTuneEndsTheWatchWithoutReloading() =
-        guideTest { vm ->
-            closedWithNoChange(vm)
-            vm.channelsOpened()
-            runCurrent()
-            val calls = schedule.calls
-            vm.channelsEnded()
-            addChannelThree()
-            runCurrent()
-            assertEquals(calls, schedule.calls)
-        }
-
-    @Test
-    fun theHintSaysBackGoesToWhatIsPlayingWhileTheGridLoadsAgain() =
-        guideTest { vm ->
-            closedWithNoChange(vm)
-            vm.channelsOpened()
-            runCurrent()
-            addChannelThree()
-            runCurrent()
-            vm.channelsClosed()
-
-            assertTrue(vm.snapshot.value.isAwayFrom(CH7))
         }
 
     @Test

@@ -190,7 +190,7 @@ class GuideChannelsButtonUiTest {
         openTheSlot()
         assertEquals(1, openings.size)
         // The guide stays open underneath.
-        compose.onNodeWithTag(GuideTags.SCREEN).assertExists()
+        compose.onNodeWithTag(GuideTags.SCREEN, useUnmergedTree = true).assertExists()
     }
 
     @Test

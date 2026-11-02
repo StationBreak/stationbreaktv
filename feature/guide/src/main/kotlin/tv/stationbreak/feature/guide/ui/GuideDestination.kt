@@ -27,6 +27,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -172,6 +173,7 @@ internal fun GuideRoot(
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
                     .graphicsLayer { alpha = if (managing) 0f else 1f }
+                    .then(if (managing) Modifier.clearAndSetSemantics {} else Modifier)
                     .focusRequester(keys)
                     .onKeyEvent { managing || guideKey(it, move, viewModel::select, back) }
                     .focusable(),

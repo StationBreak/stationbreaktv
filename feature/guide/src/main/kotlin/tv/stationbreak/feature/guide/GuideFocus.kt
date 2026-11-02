@@ -61,15 +61,12 @@ internal fun GuideSnapshot.playingFocus(current: ChannelId?): GuideFocus? {
 
 /**
  * Whether Back has somewhere to go on the grid: the focus is off the cell [playingFocus] names (cell, not anchor), or
- * on the Channels button, which Back leaves for the playing cell; or the grid is loading again on the button, where
- * Back stays put. False when there is nothing playing.
+ * on the Channels button, which Back leaves for the playing cell. False when there is nothing playing.
  */
 internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
     val at = focus
     val playing = playingFocus(current)
-    // The grid loading again after a lineup change, on the button: Back is taken there too (no grid to go back on yet).
-    val loadingOnButton = onButton && (state == GuideState.Closed || state == GuideState.Loading)
-    return loadingOnButton || (playing != null && (onButton || (at != null && !at.sameCellAs(playing))))
+    return playing != null && (onButton || (at != null && !at.sameCellAs(playing)))
 }
 
 /** Whether both name the same cell (the anchor, the time Up and Down keep, does not count). */
