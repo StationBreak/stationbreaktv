@@ -3,12 +3,14 @@ package tv.stationbreak.app.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.unit.DpRect
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.ui.ChannelsDestination
 import tv.stationbreak.feature.guide.ui.GuideDestination
 import tv.stationbreak.feature.live.ui.LiveDestination
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncDestination
@@ -98,14 +100,31 @@ internal fun AppNavGraph(
                 // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so the
                 // graph hands it over. Live says where its picture is; the guide leaves that hole clear.
                 guide = { current, openedAtNanos, pictureHole, onTune ->
-                    // Channel management is wired in later; until then the slot closes at once, so it never shows.
-                    GuideDestination(current, openedAtNanos, pictureHole, onTune, channels = { _, _, _, onDone ->
-                        LaunchedEffect(Unit) { onDone(null) }
-                    })
+                    GuideWithChannels(current, openedAtNanos, pictureHole, onTune)
                 },
             )
         }
     }
+}
+
+/**
+ * The guide, with channel management as its slot too (spec 21), filled here for the same reason: a feature never
+ * depends on another.
+ */
+@Composable
+private fun GuideWithChannels(
+    current: ChannelId?,
+    openedAtNanos: Long,
+    pictureHole: DpRect,
+    onTune: (ChannelId) -> Unit,
+) {
+    GuideDestination(
+        current,
+        openedAtNanos,
+        pictureHole,
+        onTune,
+        channels = { channel, opened, hole, onDone -> ChannelsDestination(channel, opened, hole, onDone) },
+    )
 }
 
 /** Replaces the whole back stack with [route], so nothing is left to go Back to. */

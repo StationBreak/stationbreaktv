@@ -338,6 +338,8 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 ## F2.4 Channel management (M)
 
 **S2.4.1** As a user, I want to renumber, hide, and favourite channels so that the lineup is mine.
+
+📺 **Built 2026-11-02, device check pending** (spec 21, PRs [#531](https://github.com/StationBreak/stationbreaktv/pull/531), [#532](https://github.com/StationBreak/stationbreaktv/pull/532), [#535](https://github.com/StationBreak/stationbreaktv/pull/535) and this PR). Channel management opens from the Channels button in the guide: renumber, switch on and off, hide, the shelf of channels not switched on, and reset. Deferred: favourites (until something uses them), and rename, copy-to-customise and delete (with the custom channel builder, F2.3). Accepted for now: each TV keeps its own lineup, so a change on one TV does not reach another. The device check, including timing a burst of five edits on the older hardware, is the 📺 line below.
 - 🧪 Channel numbers are unique. Hidden channels are skipped by flipping and by the guide.
 - 🧪 A channel hidden automatically because it is empty ([#299](https://github.com/StationBreak/stationbreaktv/issues/299)) shows its reason here and needs no action to come back. A user's hide stays even when the channel has items.
 - 📺 Starter channels can be hidden. A channel the user hid or removed is never switched back on by a library change (S1.2.1; Q-UX-1). The shelf of channels not switched on is managed here.

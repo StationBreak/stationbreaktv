@@ -108,7 +108,9 @@ slot carries that hole (a `DpRect`, never null). The guide does not work out whe
 clear and lays its details panel and grid out around it, left to right whatever the device's layout direction (the hole
 is top-right in screen coordinates; live places its picture absolutely). A channel the guide picks (Select on a program
 on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
-so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). Everything in
+so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
+channel management (spec 21) as a second slot, `ChannelsSlot`, behind its Channels button; `app` fills it with
+`feature:channels`' `ChannelsDestination`. Everything in
 `feature:guide` is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for
 `app`'s tests.
 
@@ -233,7 +235,9 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ScheduleSource.airings` by building each switched-on channel's day with one `ruleSnapshot` per distinct cut-off and no
   `scheduleItems` call (#275), and keeps the built days (in memory, and on disk across processes) under what they depend
   on rather than the lineup revision, so a renumber or a swap that changes no channel's pool builds nothing.
-- `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` and `ScheduleSource`.
+- `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` (the rows),
+  `ChannelEditor` (every change a viewer makes, and the reset), `ScheduleSource` and `ChannelNumbers` (the bands, taken from
+  the engine).
 - Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
   channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
   land before F1.3.
