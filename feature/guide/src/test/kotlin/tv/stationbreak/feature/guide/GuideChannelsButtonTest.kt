@@ -16,6 +16,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
@@ -352,6 +353,82 @@ class GuideChannelsButtonTest : GuideRig() {
             )
             assertEquals(focus.channel, vm.focused().channel)
             assertEquals(focus.cellStartMs, vm.focused().cellStartMs)
+        }
+
+    @Test
+    fun aReloadWhoseFirstReadIsEmptyKeepsTheGridAndTheFocus() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            val gate = CompletableDeferred<Unit>()
+            schedule.cachedAnswer = ScheduleWindow(emptyList(), complete = false)
+            schedule.asNeededGate = gate
+
+            addChannelThree()
+            runCurrent()
+
+            // The old grid stays, and Back still goes to the playing cell.
+            assertEquals(
+                3,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertTrue(vm.backToPlaying())
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            val focus = vm.focused()
+            schedule.cachedAnswer = null
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertEquals(focus.channel, vm.focused().channel)
+            assertEquals(focus.cellStartMs, vm.focused().cellStartMs)
+        }
+
+    @Test
+    fun aFinalEmptyBuildAfterAReloadShowsEmpty() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            schedule.cachedAnswer = ScheduleWindow(emptyList(), complete = false)
+            schedule.asNeededAnswer = ScheduleWindow(emptyList(), complete = true)
+
+            addChannelThree()
+            runCurrent()
+
+            assertEquals(GuideState.Empty, vm.snapshot.value.state)
+        }
+
+    @Test
+    fun anInfoOverlayStaysOpenAcrossAReloadWhenItsCellIsStillThere() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.select()
+            runCurrent()
+            val shown = checkNotNull(vm.info.value)
+
+            addChannelThree()
+            runCurrent()
+
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertEquals(shown.cell, vm.info.value?.cell)
         }
 
     @Test

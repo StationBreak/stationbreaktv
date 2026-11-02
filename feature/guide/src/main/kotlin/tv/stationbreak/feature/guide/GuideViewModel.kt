@@ -17,9 +17,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
@@ -104,6 +106,9 @@ internal class GuideViewModel
         private var dwellJob: Job? = null
         private var infoJob: Job? = null
         private var infoOf: Pair<ChannelId, Long>? = null
+
+        // The info overlay's cell across a reload, until the new grid says whether it is still there.
+        private var infoKept: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
         private var scrollAsked: Pair<ChannelId, Long>? = null
@@ -142,7 +147,9 @@ internal class GuideViewModel
         // Runs the first read, build and fill-in of a session or of its reload; under [lock].
         private fun startLoad(s: CoroutineScope) {
             val id = ++loadId
-            loadJob = s.launch { load(s, id) }
+            // A reload has a grid on screen: it stays, with its focus, until a window with rows arrives.
+            val keepsGrid = shownSnapshot.value.state is GuideState.Ready
+            loadJob = s.launch { load(s, id, keepsGrid) }
         }
 
         /** How long the session's first schedule call took, in milliseconds, or -1 before it has returned (Task 9). */
@@ -304,6 +311,7 @@ internal class GuideViewModel
                 infoJob?.cancel()
                 infoJob = null
                 infoOf = null
+                infoKept = null
                 shownInfo.value = null
                 true
             }
@@ -399,6 +407,7 @@ internal class GuideViewModel
             val old = session ?: return
             old.coroutineContext[Job]?.cancel()
             val fresh = newSession()
+            infoKept = if (shownInfo.value != null) infoOf else null
             resetLoadState()
             lineupWatch = null
             lineupAtOpen = lineupNow
@@ -428,7 +437,6 @@ internal class GuideViewModel
             extensionJob = null
             extendedFrom = NEVER
             scrollAsked = null
-            shownInfo.value = null
         }
 
         // Ends the session and resets everything it published, including events it queued and nobody has taken yet.
@@ -449,6 +457,8 @@ internal class GuideViewModel
                 // Dropped: a Tune from this session must not fire in the next.
             }
             shownPanel.value = null
+            shownInfo.value = null
+            infoKept = null
             shownSnapshot.value = GuideSnapshot.Closed
         }
 
@@ -470,7 +480,9 @@ internal class GuideViewModel
         private suspend fun load(
             s: CoroutineScope,
             id: Int,
+            keepsGrid: Boolean,
         ) {
+            noteLineupBeforeReading(s)
             val slow =
                 s.launch {
                     delay(LOADING_AFTER_MS.milliseconds)
@@ -485,35 +497,67 @@ internal class GuideViewModel
                 val nothing = ScheduleWindow(emptyList(), complete = false)
                 val cached = windowOrNull(origin, ScheduleBuild.CachedOnly, onFailure = nothing)
                 slow.cancel()
-                val nothingToShow = cached == null || (cached.rows.isEmpty() && cached.complete)
-                when {
-                    nothingToShow -> publishIfCurrent(s, GuideState.Empty)
-                    cached.rows.isEmpty() -> publishIfCurrent(s, GuideState.Loading)
-                    else -> apply(s, cached, extension = false)
-                }
-                if (cached != null && !cached.complete) fillIn(s, origin)
+                if (showCached(s, cached, keepsGrid)) fillIn(s, origin, keepsGrid)
             } finally {
                 slow.cancel()
                 synchronized(lock) { if (session === s && loadId == id) loaded = true }
             }
         }
 
+        // Shows what the first read found, and says whether the build is still to come. Nothing yet while a grid is
+        // shown (a reload) leaves that grid and its focus; the build says whether it is final.
+        private fun showCached(
+            s: CoroutineScope,
+            cached: ScheduleWindow?,
+            keepsGrid: Boolean,
+        ): Boolean {
+            val noRows = cached == null || cached.rows.isEmpty()
+            val final = cached == null || cached.complete
+            when {
+                !noRows -> apply(s, checkNotNull(cached), extension = false)
+                keepsGrid -> Unit
+                final -> publishIfCurrent(s, GuideState.Empty)
+                else -> publishIfCurrent(s, GuideState.Loading)
+            }
+            return cached != null && (!final || (keepsGrid && noRows))
+        }
+
         // The one build. An incomplete window after it is final: a channel stopped airing or the lineup changed.
         private suspend fun fillIn(
             s: CoroutineScope,
             origin: Long,
+            keepsGrid: Boolean,
         ) {
             val filled = windowOrNull(origin, ScheduleBuild.AsNeeded, onFailure = null)
             if (filled != null && filled.rows.isNotEmpty()) {
                 apply(s, filled, extension = false)
                 return
             }
-            // Nothing came of it: a guide that already has a grid keeps it, one still loading is empty.
+            // Nothing came of it. A reload's final build with no rows means nothing is on: the guide is empty. A failed
+            // read, or any other guide that already has a grid, keeps it; one still loading is empty.
             synchronized(lock) {
-                if (session === s && shownSnapshot.value.state !is GuideState.Ready) {
+                val finalEmpty = keepsGrid && filled != null
+                if (session === s && (finalEmpty || shownSnapshot.value.state !is GuideState.Ready)) {
+                    infoKept = null
+                    shownInfo.value = null
                     shownSnapshot.value = snapshotOf(GuideState.Empty, null)
                 }
             }
+        }
+
+        // The lineup as it stands when a load starts is what the watch compares against, so a write that lands between
+        // the schedule read and the watch's first emission still counts as a change. A reload sets it itself.
+        private suspend fun noteLineupBeforeReading(s: CoroutineScope) {
+            if (synchronized(lock) { lineupAtOpen != null }) return
+            val seen =
+                try {
+                    withTimeoutOrNull(BASELINE_MS) { lineup.activeChannels().map { it.onLineup() }.first() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+            synchronized(lock) { if (session === s && lineupAtOpen == null && seen != null) lineupAtOpen = seen }
         }
 
         private suspend fun windowOrNull(
@@ -717,6 +761,21 @@ internal class GuideViewModel
             val rows =
                 if (previous == null) ready.openingRowFor(focus) else ready.firstRowFor(focus, previous.firstVisibleRow)
             publish(ready.copy(firstVisibleRow = rows), focus)
+            keepInfoAfterReload(model)
+        }
+
+        // An info overlay open across a reload stays when its cell is in the new grid (and fetches again, as its fetch
+        // went with the old scope); otherwise it closes. Under the lock.
+        private fun keepInfoAfterReload(model: GuideModel) {
+            val kept = infoKept ?: return
+            infoKept = null
+            val at = model.indexOf(GuideFocus(kept.first, kept.second, kept.second))
+            if (at == null) {
+                shownInfo.value = null
+            } else {
+                val row = model.rows[at.first]
+                openInfo(row, row.cells[at.second])
+            }
         }
 
         // One assignment, so the grid and its focus change together; then the panel follows the focus. A focus that
@@ -820,6 +879,7 @@ internal class GuideViewModel
         private companion object {
             const val DWELL_MS = 500L
             const val LOADING_AFTER_MS = 400L
+            const val BASELINE_MS = 1_000L
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L
             const val NANOS_PER_MS = 1_000_000L
