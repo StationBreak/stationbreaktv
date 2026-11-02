@@ -11,6 +11,8 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Filters
+import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.rules.Timing
 
@@ -120,11 +122,14 @@ internal fun snapshot(
         collectionsSynced = collectionsSynced,
     )
 
+@Suppress("LongParameterList") // Test builder: one defaulted parameter per field a test varies.
 internal fun rules(
     sources: List<Source>,
     exclusions: List<Source>? = null,
     maxRating: String? = null,
     formatVersion: Int = 1,
+    filters: Filters? = null,
+    ordering: Ordering? = null,
 ): ChannelRules =
     ChannelRules(
         formatVersion = formatVersion,
@@ -133,7 +138,8 @@ internal fun rules(
         sources = sources,
         exclusions = exclusions,
         maxRating = maxRating,
-        ordering = null,
+        ordering = ordering,
         timing = Timing(null, null, null, null, null, null, BroadcastDay(0, null)),
         filler = null,
+        filters = filters,
     )
