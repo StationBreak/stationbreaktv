@@ -209,6 +209,45 @@ object Orderings {
         return turns
     }
 
+    /**
+     * The `inOrder` order of one cycle: every group (a series, or a film or series-less episode alone; no collections)
+     * played start to finish in [inGroupKey] order, the groups ordered by:
+     * 1. the undated flag (a group with no dated item last);
+     * 2. the date of the group's first *dated* item in its own order, as text;
+     * 3. the group ID bytes.
+     *
+     * It uses no seed and no caps.
+     */
+    fun inOrder(pool: List<ScheduleItem>): List<ScheduleItem> =
+        pool
+            .groupBy { it.groupId }
+            .map { (groupId, items) ->
+                val sorted = items.sortedWith(inGroupKey)
+                InOrderGroup(groupId, sorted.firstNotNullOfOrNull { dateOf(it) }, sorted)
+            }.sortedWith(
+                Comparator { a, b ->
+                    when {
+                        (a.firstDate == null) != (b.firstDate == null) -> {
+                            if (a.firstDate == null) 1 else -1
+                        }
+
+                        a.firstDate != null && b.firstDate != null && a.firstDate != b.firstDate -> {
+                            a.firstDate.compareTo(b.firstDate)
+                        }
+
+                        else -> {
+                            a.groupId.value.compareTo(b.groupId.value)
+                        }
+                    }
+                },
+            ).flatMap { it.items }
+
+    private class InOrderGroup(
+        val groupId: CanonicalId,
+        val firstDate: String?,
+        val items: List<ScheduleItem>,
+    )
+
     /** The `randomInOrder` order of one cycle: the turns of [randomInOrderTurns], one after the other. */
     fun randomInOrder(
         pool: List<ScheduleItem>,

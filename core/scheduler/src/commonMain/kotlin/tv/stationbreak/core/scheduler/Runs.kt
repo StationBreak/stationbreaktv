@@ -60,9 +60,8 @@ object Runs {
                 Orderings.rotationTurns(pool, settings.seed, caps, groups).map { Run(it) }
             }
 
-            // The rules layer refuses this until the scheduler builds it (rules format version 2).
             OrderingMode.InOrder -> {
-                error("Ordering mode ${settings.orderingMode.wireName} is not scheduled yet")
+                form(Orderings.inOrder(pool), settings.blockLength)
             }
         }
 }
