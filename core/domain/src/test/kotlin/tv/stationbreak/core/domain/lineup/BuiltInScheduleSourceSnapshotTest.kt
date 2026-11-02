@@ -9,11 +9,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import java.util.Collections
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -65,13 +68,18 @@ class BuiltInScheduleSourceSnapshotTest {
 
     private fun refresh() = runBlocking { service.refresh(ACCOUNT, LIBRARIES) }
 
+    // A new revision whose days differ (a renumber or a refresh that changed nothing would keep them).
+    private suspend fun switchOff(key: String = "laughs") {
+        assertIs<Saved.Ok<*>>(service.edit(ACCOUNT, LineupEdit.SwitchOff(LineupIds.starter(key))))
+    }
+
     private fun days() = runBlocking { source.channelDays(ACCOUNT, chosen, NOON) }
 
     @Test
     fun aNewRevisionBuildsFromTheSnapshotAlreadyRead() {
         refresh()
         val first = days()
-        refresh()
+        runBlocking { switchOff() }
         val second = days()
 
         assertEquals(1, source.snapshotReads(), "one read serves both revisions")
@@ -136,7 +144,7 @@ class BuiltInScheduleSourceSnapshotTest {
             // Undispatched: it has joined (or started) the revision 1 build, which waits on its snapshot, on return.
             val old = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             withTimeout(WAIT_MS) { library.entered.await() }
-            refresh()
+            switchOff()
             val current = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             gate.complete(Unit)
 
@@ -145,6 +153,29 @@ class BuiltInScheduleSourceSnapshotTest {
             assertSame(currentResult, oldResult, "the caller of the replaced revision got the current revision's days")
             assertEquals(1, builds.size, "the stale build did not go on to a full build of its own")
             assertEquals(1, source.snapshotReads(), "and both builds used the one read")
+            assertEquals(0, source.inFlightCount())
+        }
+
+    // Spec 21: a renumber changes no day, so the build in flight is still the one wanted and goes on to the end.
+    @Test
+    fun aBuildWhoseLineupWasRenumberedGoesOnAndItsCallersSeeTheNewNumber() =
+        runBlocking {
+            refresh()
+            val gate = CompletableDeferred<Unit>()
+            library.gate = gate
+            val old = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            withTimeout(WAIT_MS) { library.entered.await() }
+            val laughs = LineupIds.starter("laughs")
+            assertIs<Saved.Ok<*>>(service.edit(ACCOUNT, LineupEdit.SetNumber(laughs, 150)))
+            val current = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
+            gate.complete(Unit)
+
+            val oldResult = withTimeout(WAIT_MS) { old.await() }
+            val currentResult = withTimeout(WAIT_MS) { current.await() }
+            assertSame(currentResult, oldResult, "both callers got the days as the lineup is now")
+            assertEquals(150, currentResult.first { it.channel.id == laughs }.channel.number)
+            assertEquals(1, builds.size, "the one build ran to the end")
+            assertEquals(1, source.joined.get(), "the second caller joined it")
             assertEquals(0, source.inFlightCount())
         }
 
@@ -158,7 +189,7 @@ class BuiltInScheduleSourceSnapshotTest {
             val joiner = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             withTimeout(WAIT_MS) { library.entered.await() }
             assertEquals(1, source.joined.get(), "the second caller joined the revision 1 build")
-            refresh()
+            switchOff()
             val current = async(start = CoroutineStart.UNDISPATCHED) { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
             gate.complete(Unit)
 
@@ -248,7 +279,7 @@ class BuiltInScheduleSourceSnapshotTest {
     fun aBuildFromKeptSnapshotsSaysHit() {
         refresh()
         days()
-        refresh()
+        runBlocking { switchOff() }
         days()
         assertEquals(listOf("miss", "hit"), builds.map { it.snapshot })
     }

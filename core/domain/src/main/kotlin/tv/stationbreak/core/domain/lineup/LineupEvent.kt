@@ -35,4 +35,13 @@ enum class LineupEvent {
 
     /** An edit would have built a lineup that breaks the lineup's rules. Nothing was changed. */
     EditInvalid,
+
+    /** An edit failed for a reason other than the lineup's rules (a store that threw, say). Nothing was changed. */
+    EditFailed,
+
+    /** Whether the lineup may be changed could not be told (a store that threw, say); it is shown read-only. */
+    AccessFailed,
+
+    /** A reset failed for a reason other than the library (the plan, say). Nothing was changed. */
+    ResetFailed,
 }

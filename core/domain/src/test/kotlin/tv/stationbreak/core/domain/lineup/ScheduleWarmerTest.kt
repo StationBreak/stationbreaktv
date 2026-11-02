@@ -245,15 +245,20 @@ class ScheduleWarmerTest {
     @Test
     fun aBurstOfRevisionsWarmsOnce() =
         runTest {
+            val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
+            val whodunit = starter("whodunit", 210, ChannelState.On, rules("Whodunit", Source.Genre("Crime")))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(laughs, whodunit)))
             val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
             warmer.start(backgroundScope)
             runCurrent()
             assertEquals(1, builds.size, "the first revision is warmed at once")
 
-            // Five edits, 200 ms apart: each is a new revision of the lineup.
+            // Five edits, 200 ms apart: each is a new revision of the lineup, and the last leaves Whodunit off. (A
+            // renumber would build nothing at all: it changes no day.)
             repeat(5) {
                 advanceTimeBy(200)
-                val edit = LineupEdit.SetNumber(LineupIds.starter("laughs"), 111 + it)
+                val id = LineupIds.starter("whodunit")
+                val edit = if (it % 2 == 0) LineupEdit.SwitchOff(id) else LineupEdit.SwitchOn(id)
                 assertIs<Saved.Ok<EditOutcome>>(service.edit(ACCOUNT, edit))
             }
             runCurrent()

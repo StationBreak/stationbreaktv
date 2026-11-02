@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -24,6 +25,7 @@ class ChannelManager(
     private val service: LineupService,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ChannelEditor {
+    // A failure to load (a store that throws, though none should) is shown as ReadOnly: nothing can be changed then.
     override fun access(account: LibraryAccount): Flow<LineupAccess> =
         flow {
             service.loaded(account)
@@ -34,13 +36,33 @@ class ChannelManager(
                 it.writable -> LineupAccess.Editable
                 else -> LineupAccess.ReadOnly
             }
+        }.catch { failure ->
+            if (failure is CancellationException) throw failure
+            service.reportEvent(LineupEvent.AccessFailed)
+            emit(LineupAccess.ReadOnly)
         }.distinctUntilChanged()
 
+    // Any failure other than cancellation (a store that throws, though none should) is Failed, and reported: the
+    // service saves before it publishes, so nothing it has not saved is ever shown.
+    @Suppress("TooGenericExceptionCaught")
     override suspend fun change(
         account: LibraryAccount,
         change: ChannelChange,
-    ): ChangeResult =
-        when (val saved = service.edit(account, change.toEdit())) {
+    ): ChangeResult {
+        val saved =
+            try {
+                service.edit(account, change.toEdit())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                service.reportEvent(LineupEvent.EditFailed)
+                return ChangeResult.Failed
+            }
+        return resultOf(saved)
+    }
+
+    private fun resultOf(saved: Saved<EditOutcome>?): ChangeResult =
+        when (saved) {
             null -> {
                 ChangeResult.NotEditable
             }
@@ -62,7 +84,12 @@ class ChannelManager(
         }
 
     // A choice that cannot be read is an expected failure here, as is none chosen: nothing is written, and the caller
-    // may try again. A failure of the plan or the save itself is not, and propagates.
+    // may try again. So is a failure of the plan or the save itself: it is reported (ResetFailed) and is
+    // [ResetResult.Failed]. That "nothing changed" holds because of LineupService.reset's order: all that can throw
+    // (the plan, the encoding, the store's save) comes before anything is published or forgotten, and what follows a
+    // save that succeeded (forgetting the derived days, publishing) does not throw. A store whose save throws after
+    // writing is the one gap: the file then holds the new lineup and memory the old, until the next load.
+    // Only cancellation goes through.
     @Suppress("TooGenericExceptionCaught")
     override suspend fun reset(account: LibraryAccount): ResetResult {
         val chosen =
@@ -74,15 +101,29 @@ class ChannelManager(
                 service.reportEvent(LineupEvent.ResetLibrariesUnavailable)
                 null
             }
-        return if (chosen.isNullOrEmpty()) {
-            ResetResult.LibrariesUnavailable
-        } else {
-            when (val saved = service.reset(account, chosen)) {
-                null -> ResetResult.NotEditable
-                Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
-                Saved.Unavailable -> ResetResult.LibrariesUnavailable
-                is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
+        return if (chosen.isNullOrEmpty()) ResetResult.LibrariesUnavailable else resetFrom(account, chosen)
+    }
+
+    // Only the service's call is guarded: the mapping of its result cannot fail.
+    @Suppress("TooGenericExceptionCaught") // Any failure of the plan or the save: see [reset].
+    private suspend fun resetFrom(
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+    ): ResetResult {
+        val saved =
+            try {
+                service.reset(account, chosen)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                service.reportEvent(LineupEvent.ResetFailed)
+                return ResetResult.Failed
             }
+        return when (saved) {
+            null -> ResetResult.NotEditable
+            Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
+            Saved.Unavailable -> ResetResult.LibrariesUnavailable
+            is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
         }
     }
 }

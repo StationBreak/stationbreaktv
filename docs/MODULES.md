@@ -220,7 +220,8 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   features see it). `LineupRefresher` calls `LineupService.refresh` at start when the lineup is absent, unfinalised or behind
   the catalog, after each completed collection pass, and after each successful sync. `BuiltInScheduleSource` implements
   `ScheduleSource.airings` by building each switched-on channel's day with one `ruleSnapshot` per distinct cut-off and no
-  `scheduleItems` call (#275), and keeps the built days in memory per lineup revision.
+  `scheduleItems` call (#275), and keeps the built days (in memory, and on disk across processes) under what they depend
+  on rather than the lineup revision, so a renumber or a swap that changes no channel's pool builds nothing.
 - `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` and `ScheduleSource`.
 - Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
   channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to

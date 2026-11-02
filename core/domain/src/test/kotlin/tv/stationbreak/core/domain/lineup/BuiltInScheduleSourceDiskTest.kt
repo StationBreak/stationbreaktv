@@ -2,6 +2,8 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.ItemId
 import java.util.Collections
 import kotlin.test.Test
@@ -224,8 +226,8 @@ class BuiltInScheduleSourceDiskTest {
         runBlocking { first.service.refresh(ACCOUNT, LIBRARIES) }
         first.days()
         val reads = disk.reads
-        // A new revision (a lineup edit, say): the days are built again from the snapshots this process holds.
-        runBlocking { first.service.refresh(ACCOUNT, LIBRARIES) }
+        // A lineup edit that changes a day: the days are built again from the snapshots this process holds.
+        runBlocking { first.service.edit(ACCOUNT, LineupEdit.SwitchOff(LineupIds.starter("laughs"))) }
         first.days()
 
         assertEquals(reads, disk.reads, "the disk was not read again")
