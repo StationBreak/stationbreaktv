@@ -3,6 +3,8 @@ package tv.stationbreak.core.scheduler
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 
 internal const val MS_MINUTE = 60_000L
@@ -26,6 +28,8 @@ internal fun testSettings(
     startMinuteOfDay: Int = 360,
     graceHours: Int = 6,
     minRuntimeMs: Long = 60_000L,
+    caps: Caps? = null,
+    runtimeFilter: RuntimeFilter? = null,
 ) = SchedulerSettings(
     orderingMode = orderingMode,
     seed = seed,
@@ -37,4 +41,6 @@ internal fun testSettings(
     startMinuteOfDay = startMinuteOfDay,
     graceHours = graceHours,
     minRuntimeMs = minRuntimeMs,
+    caps = caps,
+    runtimeFilter = runtimeFilter,
 )

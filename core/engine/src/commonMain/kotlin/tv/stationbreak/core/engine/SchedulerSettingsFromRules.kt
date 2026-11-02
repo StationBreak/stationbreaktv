@@ -37,6 +37,8 @@ internal fun settingsOf(
         startMinuteOfDay = minuteOfDay(timing.broadcastDay.effectiveStart),
         graceHours = timing.effectiveGraceHours,
         minRuntimeMs = timing.effectiveMinRuntimeSeconds * MS_PER_SECOND,
+        caps = null,
+        runtimeFilter = null,
     )
 
 // The start is "HH:MM", already checked by BroadcastDay.

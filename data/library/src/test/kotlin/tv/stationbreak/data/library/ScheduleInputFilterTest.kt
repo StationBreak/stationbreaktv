@@ -29,7 +29,7 @@ import kotlin.time.Instant
  */
 class ScheduleInputFilterTest {
     private val settings =
-        SchedulerSettings(OrderingMode.Shuffle, Seed(1uL), 1, true, 30, 24, 0, 360, 6, 60_000L)
+        SchedulerSettings(OrderingMode.Shuffle, Seed(1uL), 1, true, 30, 24, 0, 360, 6, 60_000L, null, null)
     private val id = hexId(1)
     private val series = hexId(2)
     private val ok =

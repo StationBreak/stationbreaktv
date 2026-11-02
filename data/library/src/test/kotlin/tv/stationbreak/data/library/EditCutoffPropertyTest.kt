@@ -269,6 +269,8 @@ class EditCutoffPropertyTest {
             startMinuteOfDay = gen.nextInt(1440 / grid) * grid,
             graceHours = gen.pick(listOf(0, 1, 3, 6, 12, 24, 48)),
             minRuntimeMs = 1_000L + gen.nextLong(3_599_000L),
+            caps = null,
+            runtimeFilter = null,
         )
     }
 

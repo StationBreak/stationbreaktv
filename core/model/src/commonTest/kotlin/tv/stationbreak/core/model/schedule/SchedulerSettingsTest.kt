@@ -6,6 +6,8 @@ import tv.stationbreak.core.model.Seed
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * The settings type has no defaults (they live in core:rules only, so the two cannot drift) and validates itself when
@@ -25,6 +27,8 @@ class SchedulerSettingsTest {
         startMinuteOfDay: Int = 360,
         graceHours: Int = 6,
         minRuntimeMs: Long = 60_000L,
+        caps: Caps? = null,
+        runtimeFilter: RuntimeFilter? = null,
     ) = SchedulerSettings(
         orderingMode = orderingMode,
         seed = seed,
@@ -36,6 +40,8 @@ class SchedulerSettingsTest {
         startMinuteOfDay = startMinuteOfDay,
         graceHours = graceHours,
         minRuntimeMs = minRuntimeMs,
+        caps = caps,
+        runtimeFilter = runtimeFilter,
     )
 
     private fun rejects(build: () -> SchedulerSettings) {
@@ -111,7 +117,7 @@ class SchedulerSettingsTest {
 
     @Test
     fun theTypeHasNoDefaults() {
-        // Every constructor parameter is required: the only way to build one is to name all ten fields.
+        // Every constructor parameter is required: the only way to build one is to name all twelve fields.
         val s = settings()
         assertEquals(
             SchedulerSettings(
@@ -125,6 +131,8 @@ class SchedulerSettingsTest {
                 360,
                 6,
                 60_000L,
+                null,
+                null,
             ),
             s,
         )
@@ -139,5 +147,66 @@ class SchedulerSettingsTest {
         assertEquals(SchedulerSettings.MAX_EPOCH_MS, largest.epochMs)
         assertEquals(SchedulerSettings.MAX_GRACE_MS, largest.graceMs)
         rejects { settings(graceHours = 49) }
+    }
+
+    @Test
+    fun capsRangeIs1To10() {
+        for (n in listOf(1, 3, 10)) {
+            Caps(series = n, film = n)
+        }
+        for (n in listOf(0, -1, 11)) {
+            rejects { settings(caps = Caps(series = n, film = 1)) }
+            rejects { settings(caps = Caps(series = 1, film = n)) }
+        }
+    }
+
+    @Test
+    fun aRuntimeFilterNeedsABound() {
+        rejects { settings(runtimeFilter = RuntimeFilter(minMs = null, maxMs = null)) }
+        RuntimeFilter(minMs = 1L, maxMs = null)
+        RuntimeFilter(minMs = null, maxMs = 1L)
+    }
+
+    @Test
+    fun aRuntimeFilterRejectsMinAboveMax() {
+        RuntimeFilter(minMs = 5L, maxMs = 5L)
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(minMs = 6L, maxMs = 5L) }
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(minMs = 0L, maxMs = null) }
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(minMs = null, maxMs = 0L) }
+    }
+
+    @Test
+    fun isAirableAppliesTheRuntimeFilter() {
+        val s = settings(runtimeFilter = RuntimeFilter(minMs = 30 * 60_000L, maxMs = 60 * 60_000L))
+        assertFalse(s.isAirable(30 * 60_000L - 1))
+        assertTrue(s.isAirable(30 * 60_000L))
+        assertTrue(s.isAirable(60 * 60_000L))
+        assertFalse(s.isAirable(60 * 60_000L + 1))
+        val low = settings(minRuntimeMs = 120_000L, runtimeFilter = RuntimeFilter(minMs = null, maxMs = 60 * 60_000L))
+        assertFalse(low.isAirable(119_999L))
+        assertTrue(low.isAirable(120_000L))
+    }
+
+    @Test
+    fun noFilterLeavesIsAirableAsBefore() {
+        val s = settings()
+        assertFalse(s.isAirable(59_999L))
+        assertTrue(s.isAirable(60_000L))
+        assertTrue(s.isAirable(s.epochMs))
+        assertFalse(s.isAirable(s.epochMs + 1))
+    }
+
+    @Test
+    fun rotationNeedsCaps() {
+        rejects { settings(orderingMode = OrderingMode.Rotation, caps = null) }
+        settings(orderingMode = OrderingMode.Rotation, caps = Caps(series = 3, film = 1))
+    }
+
+    @Test
+    fun capsNeedA24HourEpoch() {
+        val caps = Caps(series = 3, film = 1)
+        rejects { settings(epochHours = 12, caps = caps) }
+        settings(epochHours = 24, caps = caps)
+        settings(orderingMode = OrderingMode.Chronological, epochHours = 12, caps = null)
     }
 }

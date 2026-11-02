@@ -16,10 +16,13 @@ import tv.stationbreak.core.model.Seed
  * - [utcOffsetMinutes] is -720 to 840 and a multiple of 15;
  * - [graceHours] is 0 to 48;
  * - [blockLength] is 1 to 100;
- * - [minRuntimeMs] is 1,000 to 3,600,000 (one second to one hour).
+ * - [minRuntimeMs] is 1,000 to 3,600,000 (one second to one hour);
+ * - [orderingMode] `Rotation` needs [caps], and [caps] need a 24-hour epoch.
  *
  * @property minRuntimeMs the shortest runtime that counts as a program (`timing.minRuntimeSeconds` in ms): the pool
  *   leaves out anything shorter, so a day holds at most `epochMs / minRuntimeMs` programs.
+ * @property caps the play-in-a-row caps, or null when none are in force (the mode ignores them)
+ * @property runtimeFilter the `filters.runtime` window, or null: an item outside it does not air
  * @property startMinuteOfDay when the broadcast day starts: minutes after midnight on the channel's clock, 0..1439.
  */
 data class SchedulerSettings(
@@ -33,6 +36,8 @@ data class SchedulerSettings(
     val startMinuteOfDay: Int,
     val graceHours: Int,
     val minRuntimeMs: Long,
+    val caps: Caps?,
+    val runtimeFilter: RuntimeFilter?,
 ) {
     init {
         require(blockLength in MIN_BLOCK_LENGTH..MAX_BLOCK_LENGTH) { "A run is 1 to 100 items" }
@@ -44,6 +49,8 @@ data class SchedulerSettings(
         require(startMinuteOfDay % gridMinutes == 0) { "The start must be on the grid" }
         require(graceHours in 0..MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
         require(minRuntimeMs in MIN_RUNTIME_MS..MAX_RUNTIME_MS) { "The minimum runtime is 1 second to 1 hour" }
+        require(orderingMode != OrderingMode.Rotation || caps != null) { "Rotation needs caps" }
+        require(caps == null || epochHours == MAX_EPOCH_HOURS) { "Caps need a 24-hour epoch" }
     }
 
     /** The grid spacing in milliseconds. */
@@ -62,10 +69,14 @@ data class SchedulerSettings(
     val graceMs: Long get() = graceHours * MS_PER_HOUR
 
     /**
-     * True when a program of [runtimeMs] can air: `minRuntimeMs <= runtimeMs <= epochMs`. A shorter item is not a
-     * program, and a longer one can never play without running over its epoch. The one place this rule is written.
+     * True when a program of [runtimeMs] can air: `minRuntimeMs <= runtimeMs <= epochMs`, and inside [runtimeFilter]
+     * when there is one. A shorter item is not a program, and a longer one can never play without running over its
+     * epoch. The one place this rule is written.
      */
-    fun isAirable(runtimeMs: Long): Boolean = runtimeMs in minRuntimeMs..epochMs
+    fun isAirable(runtimeMs: Long): Boolean {
+        val inFilter = runtimeFilter?.admits(runtimeMs) != false
+        return runtimeMs in minRuntimeMs..epochMs && inFilter
+    }
 
     companion object {
         private const val MS_PER_MINUTE = 60_000L

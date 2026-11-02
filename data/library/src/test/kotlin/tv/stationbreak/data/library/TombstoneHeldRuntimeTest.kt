@@ -121,7 +121,8 @@ class TombstoneHeldRuntimeTest {
     fun aDeletionThatLandsAfterTheCutoffDoesNotChangeTheDayBuiltFromIt() =
         runBlocking {
             // Day 0 of this channel starts at S = 6 h with a 6 h grace, so its cut-off S - G is the epoch (0 ms).
-            val settings = SchedulerSettings(OrderingMode.Shuffle, Seed(7uL), 1, true, 30, 24, 0, 360, 6, 60_000L)
+            val settings =
+                SchedulerSettings(OrderingMode.Shuffle, Seed(7uL), 1, true, 30, 24, 0, 360, 6, 60_000L, null, null)
             val cutoff = 0L
             repository.select(ALICE, setOf(MOVIES))
             clock.atMs(cutoff - hour)

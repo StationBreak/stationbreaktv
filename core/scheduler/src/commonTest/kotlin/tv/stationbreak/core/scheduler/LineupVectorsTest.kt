@@ -54,6 +54,8 @@ class LineupVectorsTest {
             startMinuteOfDay = hours * 60 + minutes,
             graceHours = timing.getValue("graceHours").jsonPrimitive.int,
             minRuntimeMs = timing.getValue("minRuntimeSeconds").jsonPrimitive.int * 1000L,
+            caps = null,
+            runtimeFilter = null,
         )
     }
 
