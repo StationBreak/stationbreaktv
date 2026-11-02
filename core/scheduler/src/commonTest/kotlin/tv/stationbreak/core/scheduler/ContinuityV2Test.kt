@@ -109,6 +109,7 @@ class ContinuityV2Test {
         assertEquals(80, cases)
     }
 
+    // The 60 joined days never reach the cycle's wrap on this fixture (the wrap is exempt from the cap: ruling 2).
     @Test
     fun rotationRegularLayoutNeverExceedsACap() {
         val fixture = big(1uL)
@@ -157,20 +158,24 @@ class ContinuityV2Test {
 
     @Test
     fun inOrderPlaysTheOrderedCycleThroughTheDayFromItsStartRun() {
-        val fixture = SeededGen(9uL).v2Fixture(series = 6, episodes = 9, films = 8, collections = 0)
-        for (blockLength in listOf(1, 2)) {
-            val settings = V2Order.InOrder.settings(5uL, aligned = false, blockLength = blockLength)
-            for (built in days(settings, fixture, 700L, 12)) {
-                val cycleItems = built.cycle.flatMap { it.items }
-                val first = built.cycle.take(built.day.startRunIndex).sumOf { it.items.size }
-                val pool = EpochPool.build(settings, fixture.items, built.n)
-                assertEquals(Orderings.inOrder(pool), cycleItems, "the cycle is the in-order walk, day ${built.n}")
-                val played =
-                    built.day.blocks
-                        .map { (it.content as? ScheduleContent.Program)?.itemId }
-                        .take(built.regularItems.size)
-                val expected = built.regularItems.indices.map { cycleItems[(first + it) % cycleItems.size].id }
-                assertEquals(expected, played, "block length $blockLength, day ${built.n}")
+        // With collections too: In order ignores the map, so a collection's films still play individually.
+        for (collections in listOf(0, 3)) {
+            val fixture = SeededGen(9uL).v2Fixture(series = 6, episodes = 9, films = 8, collections = collections)
+            assertEquals(collections == 0, fixture.films.isEmpty, "the fixture has collection films: $collections")
+            for (blockLength in listOf(1, 2)) {
+                val settings = V2Order.InOrder.settings(5uL, aligned = false, blockLength = blockLength)
+                for (built in days(settings, fixture, 700L, 12)) {
+                    val cycleItems = built.cycle.flatMap { it.items }
+                    val first = built.cycle.take(built.day.startRunIndex).sumOf { it.items.size }
+                    val pool = EpochPool.build(settings, fixture.items, built.n)
+                    assertEquals(Orderings.inOrder(pool), cycleItems, "the cycle is the in-order walk, day ${built.n}")
+                    val played =
+                        built.day.blocks
+                            .map { (it.content as? ScheduleContent.Program)?.itemId }
+                            .take(built.regularItems.size)
+                    val expected = built.regularItems.indices.map { cycleItems[(first + it) % cycleItems.size].id }
+                    assertEquals(expected, played, "collections $collections, block $blockLength, day ${built.n}")
+                }
             }
         }
     }
