@@ -101,12 +101,12 @@ internal object DayCases {
             episodeNumber = this["episode"]?.jsonPrimitive?.intOrNull,
         )
 
-    /** An item of a key-order file: only the fields an order reads, and a runtime of 30 minutes. */
+    /** An item of a key-order file: the fields an order reads, and a runtime of 30 minutes unless it gives one. */
     fun JsonObject.keyOrderItem(): ScheduleItem =
         ScheduleItem(
             id = CanonicalId.parse(string("id")),
             kind = kindOf(string("kind")),
-            runtimeMs = 30 * MS_MINUTE,
+            runtimeMs = optional("runtimeMs")?.toLong() ?: (30 * MS_MINUTE),
             createdAtMs = 0L,
             deletedAtMs = null,
             premiereDate = optional("premiere"),

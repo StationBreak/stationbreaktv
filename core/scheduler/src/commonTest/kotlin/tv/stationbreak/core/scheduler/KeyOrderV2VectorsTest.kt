@@ -45,6 +45,10 @@ class KeyOrderV2VectorsTest {
 
     private fun List<ScheduleItem>.ids(): List<String> = map { it.id.value }
 
+    private companion object {
+        const val HOURS_PER_DAY = 24L
+    }
+
     @Test
     fun theFileHasTheCasesThePlanPromises() {
         assertTrue(vectors.size >= 25, "the file has ${vectors.size} cases")
@@ -76,7 +80,8 @@ class KeyOrderV2VectorsTest {
                     name,
                 )
             }
-            val turns = rotationTurnsOfADay(pool, seed, caps, rules)
+            val epochMs = (case["epochHours"]?.jsonPrimitive?.content?.toLong() ?: HOURS_PER_DAY) * MS_HOUR
+            val turns = Orderings.rotationTurns(pool, seed, caps, rules, epochMs)
             assertEquals(case.strings("order"), turns.flatten().ids(), "$name order")
             assertEquals(case.expectedRuns(), turns.map { it.ids() }, "$name turns")
         }

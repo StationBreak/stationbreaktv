@@ -1,5 +1,5 @@
 {
-  "description": "Version 2 orders, one case per mode and pool. Items are in the version 1 key-order shape (id, kind, optional seriesId, premiere, year, season, episode). caps is {series, film} as the scheduler reads it (defaults already filled in); films maps a film ID to its collection ID, already resolved (only films of collections named in sources, a film in several under the smallest collection ID); an item not in films is not in a collection. rotation: groups are a series' episodes (group ID the series ID, in-group key of randomInOrder, cap caps.series), a collection's films (group ID the collection ID, release order: undated flag, date, ID; cap caps.film) and every other item alone (cap 1); group key = splitmix64(seed + fnv1a64(groupIdBytes)) with the channel seed, ascending unsigned, ties by group ID bytes; walk in rounds, each group's turn takes up to its cap of next items; groups lists them in key order with key, cap and itemIds; one turn is one run, blockLength is not read. capped shuffle (mode shuffle with caps): shuffleOrder is the version 1 shuffle with seedN (seedN = splitmix64(seed + n * gamma)), keys its keys; groups (sorted by group ID) gives each group's cap and items in shuffle order; walk lists every step's N (items left before the step), the tight group or null, the picked group and the item; order is the capped order and runs cut it into blockLength runs from the first item. inOrder: series groups (in-group key) and every other item, every film included, alone; groups in the order of (undated flag, date of the group's first dated item in its own order, group ID bytes), with undated 0 or 1 and date or null; runs of blockLength.",
+  "description": "Version 2 orders, one case per mode and pool. Items are in the version 1 key-order shape (id, kind, optional seriesId, premiere, year, season, episode). caps is {series, film} as the scheduler reads it (defaults already filled in); films maps a film ID to its collection ID, already resolved (only films of collections named in sources, a film in several under the smallest collection ID); an item not in films is not in a collection. rotation: groups are a series' episodes (group ID the series ID, in-group key of randomInOrder, cap caps.series), a collection's films (group ID the collection ID, release order: undated flag, date, ID; cap caps.film) and every other item alone (cap 1); group key = splitmix64(seed + fnv1a64(groupIdBytes)) with the channel seed, ascending unsigned, ties by group ID bytes; walk in rounds, each group's turn takes up to its cap of next items; groups lists them in key order with key, cap and itemIds; one turn is one run, blockLength is not read. A rotation case whose items carry runtimeMs (a decimal string of milliseconds) also gives epochHours (24): a turn stops before the item that would make the sum of its runtimes longer than epochHours * 3600000 (a turn always holds at least one item), and the group's next turn continues from that item; in a rotation case without runtimeMs no turn comes near that limit. capped shuffle (mode shuffle with caps): shuffleOrder is the version 1 shuffle with seedN (seedN = splitmix64(seed + n * gamma)), keys its keys; groups (sorted by group ID) gives each group's cap and items in shuffle order; walk lists every step's N (items left before the step), the tight group or null, the picked group and the item; order is the capped order and runs cut it into blockLength runs from the first item. inOrder: series groups (in-group key) and every other item, every film included, alone; groups in the order of (undated flag, date of the group's first dated item in its own order, group ID bytes), with undated 0 or 1 and date or null; runs of blockLength.",
   "source": "Computed with an independent Python reference written from docs/rules-format.md only (version 1 and version 2: Groups in version 2, rotation, the capped shuffle, inOrder, Filters, Building the schedule, Primitives), without reading any Kotlin. The reference script is not committed, as for the version 1 vectors; it reproduces every case of key-order.json and lineup.json. Item IDs are synthetic.",
   "vectors": [
     {
@@ -13028,6 +13028,1381 @@
         ],
         [
           "0000000000e9000c0000000000000002"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, the format doc's worked example: four 10-hour films at film cap 3",
+      "mode": "rotation",
+      "note": "One collection (...c011001e) of four 10-hour films F1 to F4 (films 301 to 304) and nothing else. The first turn takes F1 F2 (20 h); F3 would make 30 h, more than 24, so the turn stops before it. The next turn is F3 F4. Expected runs [F1 F2] [F3 F4].",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "00000000f1170000000000000000012d",
+          "kind": "movie",
+          "premiere": "2001-01-01",
+          "runtimeMs": "36000000"
+        },
+        {
+          "id": "00000000f1170000000000000000012e",
+          "kind": "movie",
+          "premiere": "2002-01-01",
+          "runtimeMs": "36000000"
+        },
+        {
+          "id": "00000000f1170000000000000000012f",
+          "kind": "movie",
+          "premiere": "2003-01-01",
+          "runtimeMs": "36000000"
+        },
+        {
+          "id": "00000000f11700000000000000000130",
+          "kind": "movie",
+          "premiere": "2004-01-01",
+          "runtimeMs": "36000000"
+        }
+      ],
+      "seed": {
+        "dec": "31",
+        "hex": "000000000000001f",
+        "hi": "00000000",
+        "lo": "0000001f"
+      },
+      "caps": {
+        "series": 3,
+        "film": 3
+      },
+      "films": {
+        "00000000f1170000000000000000012d": "00000000c011001e0000000000000000",
+        "00000000f1170000000000000000012e": "00000000c011001e0000000000000000",
+        "00000000f1170000000000000000012f": "00000000c011001e0000000000000000",
+        "00000000f11700000000000000000130": "00000000c011001e0000000000000000"
+      },
+      "groups": [
+        {
+          "groupId": "00000000c011001e0000000000000000",
+          "key": {
+            "dec": "4919838083300106891",
+            "hex": "4446c6ab9b8aa28b",
+            "hi": "4446c6ab",
+            "lo": "9b8aa28b"
+          },
+          "cap": 3,
+          "itemIds": [
+            "00000000f1170000000000000000012d",
+            "00000000f1170000000000000000012e",
+            "00000000f1170000000000000000012f",
+            "00000000f11700000000000000000130"
+          ]
+        }
+      ],
+      "order": [
+        "00000000f1170000000000000000012d",
+        "00000000f1170000000000000000012e",
+        "00000000f1170000000000000000012f",
+        "00000000f11700000000000000000130"
+      ],
+      "runs": [
+        [
+          "00000000f1170000000000000000012d",
+          "00000000f1170000000000000000012e"
+        ],
+        [
+          "00000000f1170000000000000000012f",
+          "00000000f11700000000000000000130"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, a collection of twelve 2.5 h films at film cap 10: the turn is cut at 9 films, seed 32",
+      "mode": "rotation",
+      "note": "Collection ...c011001f holds films 310 to 321 (150 min each) in release order. Nine films are 22.5 h; a tenth would make 25 h, so the first turn holds 9 films and the collection's next turn, in round 2, continues from the tenth film (films 319 to 321). The series ...5e0028 (4 episodes, cap 3) and film 330 take their turns as usual.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "00000000f11700000000000000000136",
+          "kind": "movie",
+          "premiere": "1970-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000137",
+          "kind": "movie",
+          "premiere": "1971-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000138",
+          "kind": "movie",
+          "premiere": "1972-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000139",
+          "kind": "movie",
+          "premiere": "1973-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013a",
+          "kind": "movie",
+          "premiere": "1974-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013b",
+          "kind": "movie",
+          "premiere": "1975-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013c",
+          "kind": "movie",
+          "premiere": "1976-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013d",
+          "kind": "movie",
+          "premiere": "1977-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013e",
+          "kind": "movie",
+          "premiere": "1978-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013f",
+          "kind": "movie",
+          "premiere": "1979-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000140",
+          "kind": "movie",
+          "premiere": "1980-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000141",
+          "kind": "movie",
+          "premiere": "1981-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "0000000000e900280000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e900280000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e900280000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e900280000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "00000000f1170000000000000000014a",
+          "kind": "movie",
+          "runtimeMs": "6000000"
+        }
+      ],
+      "seed": {
+        "dec": "32",
+        "hex": "0000000000000020",
+        "hi": "00000000",
+        "lo": "00000020"
+      },
+      "caps": {
+        "series": 3,
+        "film": 10
+      },
+      "films": {
+        "00000000f11700000000000000000136": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000137": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000138": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000139": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013a": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013b": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013c": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013d": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013e": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013f": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000140": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000141": "00000000c011001f0000000000000000"
+      },
+      "groups": [
+        {
+          "groupId": "00000000f1170000000000000000014a",
+          "key": {
+            "dec": "7351165003220273188",
+            "hex": "6604959f4e3a4824",
+            "hi": "6604959f",
+            "lo": "4e3a4824"
+          },
+          "cap": 1,
+          "itemIds": [
+            "00000000f1170000000000000000014a"
+          ]
+        },
+        {
+          "groupId": "00000000005e00280000000000000000",
+          "key": {
+            "dec": "11264557016374056392",
+            "hex": "9c53beec991c15c8",
+            "hi": "9c53beec",
+            "lo": "991c15c8"
+          },
+          "cap": 3,
+          "itemIds": [
+            "0000000000e900280000000000000001",
+            "0000000000e900280000000000000002",
+            "0000000000e900280000000000000003",
+            "0000000000e900280000000000000004"
+          ]
+        },
+        {
+          "groupId": "00000000c011001f0000000000000000",
+          "key": {
+            "dec": "13063356625802603482",
+            "hex": "b54a5da37735abda",
+            "hi": "b54a5da3",
+            "lo": "7735abda"
+          },
+          "cap": 10,
+          "itemIds": [
+            "00000000f11700000000000000000136",
+            "00000000f11700000000000000000137",
+            "00000000f11700000000000000000138",
+            "00000000f11700000000000000000139",
+            "00000000f1170000000000000000013a",
+            "00000000f1170000000000000000013b",
+            "00000000f1170000000000000000013c",
+            "00000000f1170000000000000000013d",
+            "00000000f1170000000000000000013e",
+            "00000000f1170000000000000000013f",
+            "00000000f11700000000000000000140",
+            "00000000f11700000000000000000141"
+          ]
+        }
+      ],
+      "order": [
+        "00000000f1170000000000000000014a",
+        "0000000000e900280000000000000001",
+        "0000000000e900280000000000000002",
+        "0000000000e900280000000000000003",
+        "00000000f11700000000000000000136",
+        "00000000f11700000000000000000137",
+        "00000000f11700000000000000000138",
+        "00000000f11700000000000000000139",
+        "00000000f1170000000000000000013a",
+        "00000000f1170000000000000000013b",
+        "00000000f1170000000000000000013c",
+        "00000000f1170000000000000000013d",
+        "00000000f1170000000000000000013e",
+        "0000000000e900280000000000000004",
+        "00000000f1170000000000000000013f",
+        "00000000f11700000000000000000140",
+        "00000000f11700000000000000000141"
+      ],
+      "runs": [
+        [
+          "00000000f1170000000000000000014a"
+        ],
+        [
+          "0000000000e900280000000000000001",
+          "0000000000e900280000000000000002",
+          "0000000000e900280000000000000003"
+        ],
+        [
+          "00000000f11700000000000000000136",
+          "00000000f11700000000000000000137",
+          "00000000f11700000000000000000138",
+          "00000000f11700000000000000000139",
+          "00000000f1170000000000000000013a",
+          "00000000f1170000000000000000013b",
+          "00000000f1170000000000000000013c",
+          "00000000f1170000000000000000013d",
+          "00000000f1170000000000000000013e"
+        ],
+        [
+          "0000000000e900280000000000000004"
+        ],
+        [
+          "00000000f1170000000000000000013f",
+          "00000000f11700000000000000000140",
+          "00000000f11700000000000000000141"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, a collection of twelve 2.5 h films at film cap 10: the turn is cut at 9 films, seed 9223372036854775840",
+      "mode": "rotation",
+      "note": "Collection ...c011001f holds films 310 to 321 (150 min each) in release order. Nine films are 22.5 h; a tenth would make 25 h, so the first turn holds 9 films and the collection's next turn, in round 2, continues from the tenth film (films 319 to 321). The series ...5e0028 (4 episodes, cap 3) and film 330 take their turns as usual.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "00000000f11700000000000000000136",
+          "kind": "movie",
+          "premiere": "1970-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000137",
+          "kind": "movie",
+          "premiere": "1971-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000138",
+          "kind": "movie",
+          "premiere": "1972-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000139",
+          "kind": "movie",
+          "premiere": "1973-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013a",
+          "kind": "movie",
+          "premiere": "1974-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013b",
+          "kind": "movie",
+          "premiere": "1975-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013c",
+          "kind": "movie",
+          "premiere": "1976-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013d",
+          "kind": "movie",
+          "premiere": "1977-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013e",
+          "kind": "movie",
+          "premiere": "1978-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f1170000000000000000013f",
+          "kind": "movie",
+          "premiere": "1979-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000140",
+          "kind": "movie",
+          "premiere": "1980-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "00000000f11700000000000000000141",
+          "kind": "movie",
+          "premiere": "1981-01-01",
+          "runtimeMs": "9000000"
+        },
+        {
+          "id": "0000000000e900280000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e900280000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e900280000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e900280000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "00000000f1170000000000000000014a",
+          "kind": "movie",
+          "runtimeMs": "6000000"
+        }
+      ],
+      "seed": {
+        "dec": "9223372036854775840",
+        "hex": "8000000000000020",
+        "hi": "80000000",
+        "lo": "00000020"
+      },
+      "caps": {
+        "series": 3,
+        "film": 10
+      },
+      "films": {
+        "00000000f11700000000000000000136": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000137": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000138": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000139": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013a": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013b": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013c": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013d": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013e": "00000000c011001f0000000000000000",
+        "00000000f1170000000000000000013f": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000140": "00000000c011001f0000000000000000",
+        "00000000f11700000000000000000141": "00000000c011001f0000000000000000"
+      },
+      "groups": [
+        {
+          "groupId": "00000000c011001f0000000000000000",
+          "key": {
+            "dec": "9294091707505598984",
+            "hex": "80fb3f2a6fc66208",
+            "hi": "80fb3f2a",
+            "lo": "6fc66208"
+          },
+          "cap": 10,
+          "itemIds": [
+            "00000000f11700000000000000000136",
+            "00000000f11700000000000000000137",
+            "00000000f11700000000000000000138",
+            "00000000f11700000000000000000139",
+            "00000000f1170000000000000000013a",
+            "00000000f1170000000000000000013b",
+            "00000000f1170000000000000000013c",
+            "00000000f1170000000000000000013d",
+            "00000000f1170000000000000000013e",
+            "00000000f1170000000000000000013f",
+            "00000000f11700000000000000000140",
+            "00000000f11700000000000000000141"
+          ]
+        },
+        {
+          "groupId": "00000000005e00280000000000000000",
+          "key": {
+            "dec": "9525953590433073138",
+            "hex": "8432fc51e09ec7f2",
+            "hi": "8432fc51",
+            "lo": "e09ec7f2"
+          },
+          "cap": 3,
+          "itemIds": [
+            "0000000000e900280000000000000001",
+            "0000000000e900280000000000000002",
+            "0000000000e900280000000000000003",
+            "0000000000e900280000000000000004"
+          ]
+        },
+        {
+          "groupId": "00000000f1170000000000000000014a",
+          "key": {
+            "dec": "15774187967285292827",
+            "hex": "dae92c618a47ef1b",
+            "hi": "dae92c61",
+            "lo": "8a47ef1b"
+          },
+          "cap": 1,
+          "itemIds": [
+            "00000000f1170000000000000000014a"
+          ]
+        }
+      ],
+      "order": [
+        "00000000f11700000000000000000136",
+        "00000000f11700000000000000000137",
+        "00000000f11700000000000000000138",
+        "00000000f11700000000000000000139",
+        "00000000f1170000000000000000013a",
+        "00000000f1170000000000000000013b",
+        "00000000f1170000000000000000013c",
+        "00000000f1170000000000000000013d",
+        "00000000f1170000000000000000013e",
+        "0000000000e900280000000000000001",
+        "0000000000e900280000000000000002",
+        "0000000000e900280000000000000003",
+        "00000000f1170000000000000000014a",
+        "00000000f1170000000000000000013f",
+        "00000000f11700000000000000000140",
+        "00000000f11700000000000000000141",
+        "0000000000e900280000000000000004"
+      ],
+      "runs": [
+        [
+          "00000000f11700000000000000000136",
+          "00000000f11700000000000000000137",
+          "00000000f11700000000000000000138",
+          "00000000f11700000000000000000139",
+          "00000000f1170000000000000000013a",
+          "00000000f1170000000000000000013b",
+          "00000000f1170000000000000000013c",
+          "00000000f1170000000000000000013d",
+          "00000000f1170000000000000000013e"
+        ],
+        [
+          "0000000000e900280000000000000001",
+          "0000000000e900280000000000000002",
+          "0000000000e900280000000000000003"
+        ],
+        [
+          "00000000f1170000000000000000014a"
+        ],
+        [
+          "00000000f1170000000000000000013f",
+          "00000000f11700000000000000000140",
+          "00000000f11700000000000000000141"
+        ],
+        [
+          "0000000000e900280000000000000004"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, a series of ten 3-hour episodes at series cap 10: 8 episodes (exactly 24 h) then 2",
+      "mode": "rotation",
+      "note": "Eight 3-hour episodes are exactly 86,400,000 ms, which is not longer than the epoch, so they stay in one turn; the ninth would make 27 h.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "0000000000e900290000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000005",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 5,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000006",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 6,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000007",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 7,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000008",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 8,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e900290000000000000009",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 9,
+          "runtimeMs": "10800000"
+        },
+        {
+          "id": "0000000000e90029000000000000000a",
+          "kind": "episode",
+          "seriesId": "00000000005e00290000000000000000",
+          "season": 1,
+          "episode": 10,
+          "runtimeMs": "10800000"
+        }
+      ],
+      "seed": {
+        "dec": "33",
+        "hex": "0000000000000021",
+        "hi": "00000000",
+        "lo": "00000021"
+      },
+      "caps": {
+        "series": 10,
+        "film": 1
+      },
+      "films": {},
+      "groups": [
+        {
+          "groupId": "00000000005e00290000000000000000",
+          "key": {
+            "dec": "5792188417187542074",
+            "hex": "5061fcad5698743a",
+            "hi": "5061fcad",
+            "lo": "5698743a"
+          },
+          "cap": 10,
+          "itemIds": [
+            "0000000000e900290000000000000001",
+            "0000000000e900290000000000000002",
+            "0000000000e900290000000000000003",
+            "0000000000e900290000000000000004",
+            "0000000000e900290000000000000005",
+            "0000000000e900290000000000000006",
+            "0000000000e900290000000000000007",
+            "0000000000e900290000000000000008",
+            "0000000000e900290000000000000009",
+            "0000000000e90029000000000000000a"
+          ]
+        }
+      ],
+      "order": [
+        "0000000000e900290000000000000001",
+        "0000000000e900290000000000000002",
+        "0000000000e900290000000000000003",
+        "0000000000e900290000000000000004",
+        "0000000000e900290000000000000005",
+        "0000000000e900290000000000000006",
+        "0000000000e900290000000000000007",
+        "0000000000e900290000000000000008",
+        "0000000000e900290000000000000009",
+        "0000000000e90029000000000000000a"
+      ],
+      "runs": [
+        [
+          "0000000000e900290000000000000001",
+          "0000000000e900290000000000000002",
+          "0000000000e900290000000000000003",
+          "0000000000e900290000000000000004",
+          "0000000000e900290000000000000005",
+          "0000000000e900290000000000000006",
+          "0000000000e900290000000000000007",
+          "0000000000e900290000000000000008"
+        ],
+        [
+          "0000000000e900290000000000000009",
+          "0000000000e90029000000000000000a"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, the sum test at the edge: 12 h + (12 h - 1 min) + 1 min = 24 h fits, the next 1-minute episode does not",
+      "mode": "rotation",
+      "note": "The first turn is E1 E2 E3, exactly 86,400,000 ms. E4 (60,000 ms) would make 86,460,000 ms, so it starts the next turn.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "0000000000e9002a0000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e002a0000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "43200000"
+        },
+        {
+          "id": "0000000000e9002a0000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e002a0000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "43140000"
+        },
+        {
+          "id": "0000000000e9002a0000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e002a0000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "60000"
+        },
+        {
+          "id": "0000000000e9002a0000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e002a0000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "60000"
+        }
+      ],
+      "seed": {
+        "dec": "34",
+        "hex": "0000000000000022",
+        "hi": "00000000",
+        "lo": "00000022"
+      },
+      "caps": {
+        "series": 10,
+        "film": 1
+      },
+      "films": {},
+      "groups": [
+        {
+          "groupId": "00000000005e002a0000000000000000",
+          "key": {
+            "dec": "9505360552380599919",
+            "hex": "83e9d30f92a80e6f",
+            "hi": "83e9d30f",
+            "lo": "92a80e6f"
+          },
+          "cap": 10,
+          "itemIds": [
+            "0000000000e9002a0000000000000001",
+            "0000000000e9002a0000000000000002",
+            "0000000000e9002a0000000000000003",
+            "0000000000e9002a0000000000000004"
+          ]
+        }
+      ],
+      "order": [
+        "0000000000e9002a0000000000000001",
+        "0000000000e9002a0000000000000002",
+        "0000000000e9002a0000000000000003",
+        "0000000000e9002a0000000000000004"
+      ],
+      "runs": [
+        [
+          "0000000000e9002a0000000000000001",
+          "0000000000e9002a0000000000000002",
+          "0000000000e9002a0000000000000003"
+        ],
+        [
+          "0000000000e9002a0000000000000004"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, a turn stops at the first item that does not fit, even when a later one would",
+      "mode": "rotation",
+      "note": "E1 is 20 h; E2 (5 h) would make 25 h, so the turn is [E1]. The next turn takes E2 E3 (6 h); E4 (22 h) would make 28 h, so it waits for the turn after. A turn never skips an item to take a later, shorter one.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "0000000000e9002b0000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e002b0000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "72000000"
+        },
+        {
+          "id": "0000000000e9002b0000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e002b0000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "0000000000e9002b0000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e002b0000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "3600000"
+        },
+        {
+          "id": "0000000000e9002b0000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e002b0000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "79200000"
+        }
+      ],
+      "seed": {
+        "dec": "35",
+        "hex": "0000000000000023",
+        "hi": "00000000",
+        "lo": "00000023"
+      },
+      "caps": {
+        "series": 3,
+        "film": 1
+      },
+      "films": {},
+      "groups": [
+        {
+          "groupId": "00000000005e002b0000000000000000",
+          "key": {
+            "dec": "291505229112092595",
+            "hex": "040ba2761f6527b3",
+            "hi": "040ba276",
+            "lo": "1f6527b3"
+          },
+          "cap": 3,
+          "itemIds": [
+            "0000000000e9002b0000000000000001",
+            "0000000000e9002b0000000000000002",
+            "0000000000e9002b0000000000000003",
+            "0000000000e9002b0000000000000004"
+          ]
+        }
+      ],
+      "order": [
+        "0000000000e9002b0000000000000001",
+        "0000000000e9002b0000000000000002",
+        "0000000000e9002b0000000000000003",
+        "0000000000e9002b0000000000000004"
+      ],
+      "runs": [
+        [
+          "0000000000e9002b0000000000000001"
+        ],
+        [
+          "0000000000e9002b0000000000000002",
+          "0000000000e9002b0000000000000003"
+        ],
+        [
+          "0000000000e9002b0000000000000004"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, a cut turn next to other groups: six 5-hour films at film cap 6, seed 36",
+      "mode": "rotation",
+      "note": "Collection ...c0110020 holds films 340 to 345 (5 h each). Its turn is cut at 4 films (20 h; a fifth would make 25 h) and its next turn, in round 2, takes the last 2. The series ...5e002c (7 episodes, cap 3), film 350 and the series-less episode take their turns between them.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "00000000f11700000000000000000154",
+          "kind": "movie",
+          "premiere": "1980-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000155",
+          "kind": "movie",
+          "premiere": "1981-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000156",
+          "kind": "movie",
+          "premiere": "1982-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000157",
+          "kind": "movie",
+          "premiere": "1983-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000158",
+          "kind": "movie",
+          "premiere": "1984-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000159",
+          "kind": "movie",
+          "premiere": "1985-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000005",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 5,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000006",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 6,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000007",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 7,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "00000000f1170000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "5700000"
+        },
+        {
+          "id": "0000000010053e900000000000000005",
+          "kind": "episode",
+          "runtimeMs": "1800000"
+        }
+      ],
+      "seed": {
+        "dec": "36",
+        "hex": "0000000000000024",
+        "hi": "00000000",
+        "lo": "00000024"
+      },
+      "caps": {
+        "series": 3,
+        "film": 6
+      },
+      "films": {
+        "00000000f11700000000000000000154": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000155": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000156": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000157": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000158": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000159": "00000000c01100200000000000000000"
+      },
+      "groups": [
+        {
+          "groupId": "0000000010053e900000000000000005",
+          "key": {
+            "dec": "7358302661555750545",
+            "hex": "661df148e3d78691",
+            "hi": "661df148",
+            "lo": "e3d78691"
+          },
+          "cap": 1,
+          "itemIds": [
+            "0000000010053e900000000000000005"
+          ]
+        },
+        {
+          "groupId": "00000000c01100200000000000000000",
+          "key": {
+            "dec": "11190067749140819432",
+            "hex": "9b4b1b549017ede8",
+            "hi": "9b4b1b54",
+            "lo": "9017ede8"
+          },
+          "cap": 6,
+          "itemIds": [
+            "00000000f11700000000000000000154",
+            "00000000f11700000000000000000155",
+            "00000000f11700000000000000000156",
+            "00000000f11700000000000000000157",
+            "00000000f11700000000000000000158",
+            "00000000f11700000000000000000159"
+          ]
+        },
+        {
+          "groupId": "00000000f1170000000000000000015e",
+          "key": {
+            "dec": "12479744052074486009",
+            "hex": "ad30f51847b198f9",
+            "hi": "ad30f518",
+            "lo": "47b198f9"
+          },
+          "cap": 1,
+          "itemIds": [
+            "00000000f1170000000000000000015e"
+          ]
+        },
+        {
+          "groupId": "00000000005e002c0000000000000000",
+          "key": {
+            "dec": "14773550655328126936",
+            "hex": "cd06320c221287d8",
+            "hi": "cd06320c",
+            "lo": "221287d8"
+          },
+          "cap": 3,
+          "itemIds": [
+            "0000000000e9002c0000000000000001",
+            "0000000000e9002c0000000000000002",
+            "0000000000e9002c0000000000000003",
+            "0000000000e9002c0000000000000004",
+            "0000000000e9002c0000000000000005",
+            "0000000000e9002c0000000000000006",
+            "0000000000e9002c0000000000000007"
+          ]
+        }
+      ],
+      "order": [
+        "0000000010053e900000000000000005",
+        "00000000f11700000000000000000154",
+        "00000000f11700000000000000000155",
+        "00000000f11700000000000000000156",
+        "00000000f11700000000000000000157",
+        "00000000f1170000000000000000015e",
+        "0000000000e9002c0000000000000001",
+        "0000000000e9002c0000000000000002",
+        "0000000000e9002c0000000000000003",
+        "00000000f11700000000000000000158",
+        "00000000f11700000000000000000159",
+        "0000000000e9002c0000000000000004",
+        "0000000000e9002c0000000000000005",
+        "0000000000e9002c0000000000000006",
+        "0000000000e9002c0000000000000007"
+      ],
+      "runs": [
+        [
+          "0000000010053e900000000000000005"
+        ],
+        [
+          "00000000f11700000000000000000154",
+          "00000000f11700000000000000000155",
+          "00000000f11700000000000000000156",
+          "00000000f11700000000000000000157"
+        ],
+        [
+          "00000000f1170000000000000000015e"
+        ],
+        [
+          "0000000000e9002c0000000000000001",
+          "0000000000e9002c0000000000000002",
+          "0000000000e9002c0000000000000003"
+        ],
+        [
+          "00000000f11700000000000000000158",
+          "00000000f11700000000000000000159"
+        ],
+        [
+          "0000000000e9002c0000000000000004",
+          "0000000000e9002c0000000000000005",
+          "0000000000e9002c0000000000000006"
+        ],
+        [
+          "0000000000e9002c0000000000000007"
+        ]
+      ]
+    },
+    {
+      "name": "rotation long turn, a cut turn next to other groups: six 5-hour films at film cap 6, seed 37",
+      "mode": "rotation",
+      "note": "Collection ...c0110020 holds films 340 to 345 (5 h each). Its turn is cut at 4 films (20 h; a fifth would make 25 h) and its next turn, in round 2, takes the last 2. The series ...5e002c (7 episodes, cap 3), film 350 and the series-less episode take their turns between them.",
+      "epochHours": 24,
+      "items": [
+        {
+          "id": "00000000f11700000000000000000154",
+          "kind": "movie",
+          "premiere": "1980-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000155",
+          "kind": "movie",
+          "premiere": "1981-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000156",
+          "kind": "movie",
+          "premiere": "1982-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000157",
+          "kind": "movie",
+          "premiere": "1983-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000158",
+          "kind": "movie",
+          "premiere": "1984-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "00000000f11700000000000000000159",
+          "kind": "movie",
+          "premiere": "1985-01-01",
+          "runtimeMs": "18000000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000001",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 1,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000002",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 2,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000003",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 3,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000004",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 4,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000005",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 5,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000006",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 6,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "0000000000e9002c0000000000000007",
+          "kind": "episode",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 7,
+          "runtimeMs": "1320000"
+        },
+        {
+          "id": "00000000f1170000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "5700000"
+        },
+        {
+          "id": "0000000010053e900000000000000005",
+          "kind": "episode",
+          "runtimeMs": "1800000"
+        }
+      ],
+      "seed": {
+        "dec": "37",
+        "hex": "0000000000000025",
+        "hi": "00000000",
+        "lo": "00000025"
+      },
+      "caps": {
+        "series": 3,
+        "film": 6
+      },
+      "films": {
+        "00000000f11700000000000000000154": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000155": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000156": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000157": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000158": "00000000c01100200000000000000000",
+        "00000000f11700000000000000000159": "00000000c01100200000000000000000"
+      },
+      "groups": [
+        {
+          "groupId": "00000000c01100200000000000000000",
+          "key": {
+            "dec": "414132918950639327",
+            "hex": "05bf4bb213d936df",
+            "hi": "05bf4bb2",
+            "lo": "13d936df"
+          },
+          "cap": 6,
+          "itemIds": [
+            "00000000f11700000000000000000154",
+            "00000000f11700000000000000000155",
+            "00000000f11700000000000000000156",
+            "00000000f11700000000000000000157",
+            "00000000f11700000000000000000158",
+            "00000000f11700000000000000000159"
+          ]
+        },
+        {
+          "groupId": "00000000005e002c0000000000000000",
+          "key": {
+            "dec": "1536707790816989034",
+            "hex": "15537b980b38cf6a",
+            "hi": "15537b98",
+            "lo": "0b38cf6a"
+          },
+          "cap": 3,
+          "itemIds": [
+            "0000000000e9002c0000000000000001",
+            "0000000000e9002c0000000000000002",
+            "0000000000e9002c0000000000000003",
+            "0000000000e9002c0000000000000004",
+            "0000000000e9002c0000000000000005",
+            "0000000000e9002c0000000000000006",
+            "0000000000e9002c0000000000000007"
+          ]
+        },
+        {
+          "groupId": "00000000f1170000000000000000015e",
+          "key": {
+            "dec": "6302880072250495606",
+            "hex": "5778540818611276",
+            "hi": "57785408",
+            "lo": "18611276"
+          },
+          "cap": 1,
+          "itemIds": [
+            "00000000f1170000000000000000015e"
+          ]
+        },
+        {
+          "groupId": "0000000010053e900000000000000005",
+          "key": {
+            "dec": "17047483053971110462",
+            "hex": "ec94d38422707a3e",
+            "hi": "ec94d384",
+            "lo": "22707a3e"
+          },
+          "cap": 1,
+          "itemIds": [
+            "0000000010053e900000000000000005"
+          ]
+        }
+      ],
+      "order": [
+        "00000000f11700000000000000000154",
+        "00000000f11700000000000000000155",
+        "00000000f11700000000000000000156",
+        "00000000f11700000000000000000157",
+        "0000000000e9002c0000000000000001",
+        "0000000000e9002c0000000000000002",
+        "0000000000e9002c0000000000000003",
+        "00000000f1170000000000000000015e",
+        "0000000010053e900000000000000005",
+        "00000000f11700000000000000000158",
+        "00000000f11700000000000000000159",
+        "0000000000e9002c0000000000000004",
+        "0000000000e9002c0000000000000005",
+        "0000000000e9002c0000000000000006",
+        "0000000000e9002c0000000000000007"
+      ],
+      "runs": [
+        [
+          "00000000f11700000000000000000154",
+          "00000000f11700000000000000000155",
+          "00000000f11700000000000000000156",
+          "00000000f11700000000000000000157"
+        ],
+        [
+          "0000000000e9002c0000000000000001",
+          "0000000000e9002c0000000000000002",
+          "0000000000e9002c0000000000000003"
+        ],
+        [
+          "00000000f1170000000000000000015e"
+        ],
+        [
+          "0000000010053e900000000000000005"
+        ],
+        [
+          "00000000f11700000000000000000158",
+          "00000000f11700000000000000000159"
+        ],
+        [
+          "0000000000e9002c0000000000000004",
+          "0000000000e9002c0000000000000005",
+          "0000000000e9002c0000000000000006"
+        ],
+        [
+          "0000000000e9002c0000000000000007"
         ]
       ]
     }

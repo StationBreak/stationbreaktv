@@ -631,7 +631,7 @@ item and a collection; the walk and the group keys compare group IDs as one set.
    order, up to its cap (the `series` cap for a show, the `film` cap for a collection, `1` for a single). A turn **stops
    before the item that would make its runtime longer than `epochMs`**: the turn's runtime is the sum of the `runtimeMs` of
    its items, and an item is added only while that sum stays at or below `epochMs`. A turn always holds at least one item
-   (an item longer than `epochMs` is not in the pool, so one item always fits). The group's next turn continues from the
+   (an item longer than `epochMs` is not in the pool, so one item always fits). The turn's runtime is the plain sum of its items' runtimes as read at the cut-off, not rounded up to the grid. A turn stops at the first item that does not fit and never skips ahead to a shorter later item. The group's next turn continues from the
    item the turn stopped before, so the group keeps its place. A group with fewer items left takes a short turn; a group
    with none is skipped.
 4. When every group is used up, start again at the first group with every position back at the first item.

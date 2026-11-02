@@ -12671,6 +12671,1291 @@
       "n": "0",
       "inputError": true,
       "reason": "`caps`: none, or the `series` and `film` caps, each 1 to 10."
+    },
+    {
+      "name": "rotation long turn, the format doc's worked example as a day: [F1 F2] then [F3 F4], nothing left out",
+      "note": "The cycle is [F1 F2] [F3 F4], 20 h each. The day plays one 20-hour turn; the next turn does not fit in the 4 hours left, and the planned end passes over its first film (10 h), so the rest of the collection is not eligible: a 4-hour closing slate. Without the stop, [F1 F2 F3] would be left out and only F4 would ever air.",
+      "settings": {
+        "seed": "31",
+        "ordering": {
+          "mode": "rotation"
+        },
+        "caps": {
+          "series": 3,
+          "film": 3
+        },
+        "films": {
+          "00000000f1170000000000000000012d": "00000000c011001e0000000000000000",
+          "00000000f1170000000000000000012e": "00000000c011001e0000000000000000",
+          "00000000f1170000000000000000012f": "00000000c011001e0000000000000000",
+          "00000000f11700000000000000000130": "00000000c011001e0000000000000000"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 24,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": -300,
+            "start": "06:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000f1170000000000000000012d",
+          "kind": "movie",
+          "runtimeMs": "36000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2001-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000012e",
+          "kind": "movie",
+          "runtimeMs": "36000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2002-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000012f",
+          "kind": "movie",
+          "runtimeMs": "36000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2003-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000130",
+          "kind": "movie",
+          "runtimeMs": "36000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "2004-01-01"
+        }
+      ],
+      "n": "20760",
+      "blocks": [
+        {
+          "startMs": "1793703600000",
+          "endMs": "1793739600000",
+          "itemId": "00000000f1170000000000000000012d"
+        },
+        {
+          "startMs": "1793739600000",
+          "endMs": "1793775600000",
+          "itemId": "00000000f1170000000000000000012e"
+        },
+        {
+          "startMs": "1793775600000",
+          "endMs": "1793790000000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "1793703600000",
+          "k": 2,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": [
+            1,
+            2
+          ]
+        },
+        {
+          "t": "1793739600000",
+          "k": 1,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "1793757600000",
+          "k": 3,
+          "blockIndex": 1,
+          "offsetMs": "18000000",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "1793775599999",
+          "k": 0,
+          "blockIndex": 1,
+          "offsetMs": "35999999",
+          "nextIndexes": []
+        },
+        {
+          "t": "1793775600000",
+          "k": 1,
+          "blockIndex": 2,
+          "nextIndexes": []
+        },
+        {
+          "t": "1793789999999",
+          "k": 3,
+          "blockIndex": 2,
+          "nextIndexes": []
+        }
+      ],
+      "errorTimes": [
+        "1793703599999",
+        "1793790000000"
+      ]
+    },
+    {
+      "name": "rotation long turn, a day that plays the 9-film turn of a collection at film cap 10 (22.5 h)",
+      "note": "Collection ...c011001f: twelve 150-minute films at film cap 10. Its first turn stops before the tenth film (9 films, 22.5 h), so the run fits the epoch and plays whole on this day.",
+      "settings": {
+        "seed": "32",
+        "ordering": {
+          "mode": "rotation"
+        },
+        "caps": {
+          "series": 3,
+          "film": 10
+        },
+        "films": {
+          "00000000f11700000000000000000136": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000137": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000138": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000139": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013a": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013b": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013c": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013d": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013e": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013f": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000140": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000141": "00000000c011001f0000000000000000"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 24,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": -300,
+            "start": "06:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000f11700000000000000000136",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1970-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000137",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1971-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000138",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1972-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000139",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1973-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013a",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1974-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013b",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1975-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013c",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1976-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013d",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1977-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013e",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1978-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013f",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1979-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000140",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1980-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000141",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1981-01-01"
+        },
+        {
+          "id": "0000000000e900280000000000000001",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "0000000000e900280000000000000002",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "0000000000e900280000000000000003",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "0000000000e900280000000000000004",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 4
+        },
+        {
+          "id": "00000000f1170000000000000000014a",
+          "kind": "movie",
+          "runtimeMs": "6000000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "20760",
+      "blocks": [
+        {
+          "startMs": "1793703600000",
+          "endMs": "1793712600000",
+          "itemId": "00000000f11700000000000000000136"
+        },
+        {
+          "startMs": "1793712600000",
+          "endMs": "1793721600000",
+          "itemId": "00000000f11700000000000000000137"
+        },
+        {
+          "startMs": "1793721600000",
+          "endMs": "1793730600000",
+          "itemId": "00000000f11700000000000000000138"
+        },
+        {
+          "startMs": "1793730600000",
+          "endMs": "1793739600000",
+          "itemId": "00000000f11700000000000000000139"
+        },
+        {
+          "startMs": "1793739600000",
+          "endMs": "1793748600000",
+          "itemId": "00000000f1170000000000000000013a"
+        },
+        {
+          "startMs": "1793748600000",
+          "endMs": "1793757600000",
+          "itemId": "00000000f1170000000000000000013b"
+        },
+        {
+          "startMs": "1793757600000",
+          "endMs": "1793766600000",
+          "itemId": "00000000f1170000000000000000013c"
+        },
+        {
+          "startMs": "1793766600000",
+          "endMs": "1793775600000",
+          "itemId": "00000000f1170000000000000000013d"
+        },
+        {
+          "startMs": "1793775600000",
+          "endMs": "1793784600000",
+          "itemId": "00000000f1170000000000000000013e"
+        },
+        {
+          "startMs": "1793784600000",
+          "endMs": "1793785920000",
+          "itemId": "0000000000e900280000000000000004"
+        },
+        {
+          "startMs": "1793785920000",
+          "endMs": "1793790000000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "1793703600000",
+          "k": 2,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": [
+            1,
+            2
+          ]
+        },
+        {
+          "t": "1793712600000",
+          "k": 1,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "1793753100000",
+          "k": 3,
+          "blockIndex": 5,
+          "offsetMs": "4500000",
+          "nextIndexes": [
+            6,
+            7,
+            8
+          ]
+        },
+        {
+          "t": "1793757599999",
+          "k": 0,
+          "blockIndex": 5,
+          "offsetMs": "8999999",
+          "nextIndexes": []
+        },
+        {
+          "t": "1793785920000",
+          "k": 1,
+          "blockIndex": 10,
+          "nextIndexes": []
+        },
+        {
+          "t": "1793789999999",
+          "k": 3,
+          "blockIndex": 10,
+          "nextIndexes": []
+        }
+      ],
+      "errorTimes": [
+        "1793703599999",
+        "1793790000000"
+      ]
+    },
+    {
+      "name": "rotation long turn, the cut turn's remainder continues in the next round: films 10 to 12 after the series' round-2 turn",
+      "note": "Cycle (seed 32): [film 330] [series E1 E2 E3] [collection films 1 to 9] [series E4] [collection films 10 to 12]. The collection's round-2 turn starts at the tenth film, the one its round-1 turn stopped before, and this day plays it right after the series' round-2 turn [E4].",
+      "settings": {
+        "seed": "32",
+        "ordering": {
+          "mode": "rotation"
+        },
+        "caps": {
+          "series": 3,
+          "film": 10
+        },
+        "films": {
+          "00000000f11700000000000000000136": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000137": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000138": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000139": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013a": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013b": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013c": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013d": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013e": "00000000c011001f0000000000000000",
+          "00000000f1170000000000000000013f": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000140": "00000000c011001f0000000000000000",
+          "00000000f11700000000000000000141": "00000000c011001f0000000000000000"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 24,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": -300,
+            "start": "06:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000f11700000000000000000136",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1970-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000137",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1971-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000138",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1972-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000139",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1973-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013a",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1974-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013b",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1975-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013c",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1976-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013d",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1977-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013e",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1978-01-01"
+        },
+        {
+          "id": "00000000f1170000000000000000013f",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1979-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000140",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1980-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000141",
+          "kind": "movie",
+          "runtimeMs": "9000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1981-01-01"
+        },
+        {
+          "id": "0000000000e900280000000000000001",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "0000000000e900280000000000000002",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "0000000000e900280000000000000003",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "0000000000e900280000000000000004",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e00280000000000000000",
+          "season": 1,
+          "episode": 4
+        },
+        {
+          "id": "00000000f1170000000000000000014a",
+          "kind": "movie",
+          "runtimeMs": "6000000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "20772",
+      "blocks": [
+        {
+          "startMs": "1794740400000",
+          "endMs": "1794741720000",
+          "itemId": "0000000000e900280000000000000004"
+        },
+        {
+          "startMs": "1794741720000",
+          "endMs": "1794742200000",
+          "slate": true
+        },
+        {
+          "startMs": "1794742200000",
+          "endMs": "1794751200000",
+          "itemId": "00000000f1170000000000000000013f"
+        },
+        {
+          "startMs": "1794751200000",
+          "endMs": "1794760200000",
+          "itemId": "00000000f11700000000000000000140"
+        },
+        {
+          "startMs": "1794760200000",
+          "endMs": "1794769200000",
+          "itemId": "00000000f11700000000000000000141"
+        },
+        {
+          "startMs": "1794769200000",
+          "endMs": "1794775200000",
+          "itemId": "00000000f1170000000000000000014a"
+        },
+        {
+          "startMs": "1794775200000",
+          "endMs": "1794776400000",
+          "slate": true
+        },
+        {
+          "startMs": "1794776400000",
+          "endMs": "1794777720000",
+          "itemId": "0000000000e900280000000000000001"
+        },
+        {
+          "startMs": "1794777720000",
+          "endMs": "1794779040000",
+          "itemId": "0000000000e900280000000000000002"
+        },
+        {
+          "startMs": "1794779040000",
+          "endMs": "1794780360000",
+          "itemId": "0000000000e900280000000000000003"
+        },
+        {
+          "startMs": "1794780360000",
+          "endMs": "1794781800000",
+          "slate": true
+        },
+        {
+          "startMs": "1794781800000",
+          "endMs": "1794790800000",
+          "itemId": "00000000f11700000000000000000136"
+        },
+        {
+          "startMs": "1794790800000",
+          "endMs": "1794799800000",
+          "itemId": "00000000f11700000000000000000137"
+        },
+        {
+          "startMs": "1794799800000",
+          "endMs": "1794808800000",
+          "itemId": "00000000f11700000000000000000138"
+        },
+        {
+          "startMs": "1794808800000",
+          "endMs": "1794817800000",
+          "itemId": "00000000f11700000000000000000139"
+        },
+        {
+          "startMs": "1794817800000",
+          "endMs": "1794826800000",
+          "itemId": "00000000f1170000000000000000013a"
+        }
+      ],
+      "queries": [
+        {
+          "t": "1794740400000",
+          "k": 2,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": [
+            1,
+            2
+          ]
+        },
+        {
+          "t": "1794741720000",
+          "k": 1,
+          "blockIndex": 1,
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "1794778380000",
+          "k": 3,
+          "blockIndex": 8,
+          "offsetMs": "660000",
+          "nextIndexes": [
+            9,
+            10,
+            11
+          ]
+        },
+        {
+          "t": "1794779039999",
+          "k": 0,
+          "blockIndex": 8,
+          "offsetMs": "1319999",
+          "nextIndexes": []
+        },
+        {
+          "t": "1794826799999",
+          "k": 3,
+          "blockIndex": 15,
+          "offsetMs": "8999999",
+          "nextIndexes": []
+        }
+      ],
+      "errorTimes": [
+        "1794740399999",
+        "1794826800000"
+      ]
+    },
+    {
+      "name": "rotation long turn at the day seam, day n: the 20-hour cut turn does not fit, the planned end fills the rest",
+      "note": "Collection ...c0110020: six 5-hour films at film cap 6, cut to [4 films] (20 h) and [2 films]. On this day the regular layout stops at the 4-film run, which does not fit before E. The planned end places that run's first two films one by one, passes over the third (so the rest of the collection is not eligible) and goes on to the next groups' items. Day n + 1 replays those two films: the planned end does not check what aired.",
+      "settings": {
+        "seed": "36",
+        "ordering": {
+          "mode": "rotation"
+        },
+        "caps": {
+          "series": 3,
+          "film": 6
+        },
+        "films": {
+          "00000000f11700000000000000000154": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000155": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000156": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000157": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000158": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000159": "00000000c01100200000000000000000"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 24,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": -300,
+            "start": "06:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000f11700000000000000000154",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1980-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000155",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1981-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000156",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1982-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000157",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1983-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000158",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1984-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000159",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1985-01-01"
+        },
+        {
+          "id": "0000000000e9002c0000000000000001",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "0000000000e9002c0000000000000002",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "0000000000e9002c0000000000000003",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "0000000000e9002c0000000000000004",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 4
+        },
+        {
+          "id": "0000000000e9002c0000000000000005",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 5
+        },
+        {
+          "id": "0000000000e9002c0000000000000006",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 6
+        },
+        {
+          "id": "0000000000e9002c0000000000000007",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 7
+        },
+        {
+          "id": "00000000f1170000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "5700000",
+          "createdAtMs": "-1000000000000"
+        },
+        {
+          "id": "0000000010053e900000000000000005",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "20761",
+      "blocks": [
+        {
+          "startMs": "1793790000000",
+          "endMs": "1793808000000",
+          "itemId": "00000000f11700000000000000000158"
+        },
+        {
+          "startMs": "1793808000000",
+          "endMs": "1793826000000",
+          "itemId": "00000000f11700000000000000000159"
+        },
+        {
+          "startMs": "1793826000000",
+          "endMs": "1793827320000",
+          "itemId": "0000000000e9002c0000000000000004"
+        },
+        {
+          "startMs": "1793827320000",
+          "endMs": "1793828640000",
+          "itemId": "0000000000e9002c0000000000000005"
+        },
+        {
+          "startMs": "1793828640000",
+          "endMs": "1793829960000",
+          "itemId": "0000000000e9002c0000000000000006"
+        },
+        {
+          "startMs": "1793829960000",
+          "endMs": "1793831400000",
+          "slate": true
+        },
+        {
+          "startMs": "1793831400000",
+          "endMs": "1793832720000",
+          "itemId": "0000000000e9002c0000000000000007"
+        },
+        {
+          "startMs": "1793832720000",
+          "endMs": "1793833200000",
+          "slate": true
+        },
+        {
+          "startMs": "1793833200000",
+          "endMs": "1793835000000",
+          "itemId": "0000000010053e900000000000000005"
+        },
+        {
+          "startMs": "1793835000000",
+          "endMs": "1793853000000",
+          "itemId": "00000000f11700000000000000000154"
+        },
+        {
+          "startMs": "1793853000000",
+          "endMs": "1793871000000",
+          "itemId": "00000000f11700000000000000000155"
+        },
+        {
+          "startMs": "1793871000000",
+          "endMs": "1793872320000",
+          "itemId": "0000000000e9002c0000000000000001"
+        },
+        {
+          "startMs": "1793872320000",
+          "endMs": "1793872800000",
+          "slate": true
+        },
+        {
+          "startMs": "1793872800000",
+          "endMs": "1793874120000",
+          "itemId": "0000000000e9002c0000000000000002"
+        },
+        {
+          "startMs": "1793874120000",
+          "endMs": "1793874600000",
+          "slate": true
+        },
+        {
+          "startMs": "1793874600000",
+          "endMs": "1793875920000",
+          "itemId": "0000000000e9002c0000000000000003"
+        },
+        {
+          "startMs": "1793875920000",
+          "endMs": "1793876400000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "1793790000000",
+          "k": 2,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": [
+            1,
+            2
+          ]
+        },
+        {
+          "t": "1793808000000",
+          "k": 1,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "1793834100000",
+          "k": 3,
+          "blockIndex": 8,
+          "offsetMs": "900000",
+          "nextIndexes": [
+            9,
+            10,
+            11
+          ]
+        },
+        {
+          "t": "1793834999999",
+          "k": 0,
+          "blockIndex": 8,
+          "offsetMs": "1799999",
+          "nextIndexes": []
+        },
+        {
+          "t": "1793829960000",
+          "k": 1,
+          "blockIndex": 5,
+          "nextIndexes": [
+            6
+          ]
+        },
+        {
+          "t": "1793876399999",
+          "k": 3,
+          "blockIndex": 16,
+          "nextIndexes": []
+        }
+      ],
+      "errorTimes": [
+        "1793789999999",
+        "1793876400000"
+      ]
+    },
+    {
+      "name": "rotation long turn at the day seam, day n + 1: the day starts at S with the 4-film turn",
+      "note": "The continuous playout of day n + 1 is inside the 4-film run at S, so the day starts that run at S exactly (Where the day starts), and its 20 hours fit.",
+      "settings": {
+        "seed": "36",
+        "ordering": {
+          "mode": "rotation"
+        },
+        "caps": {
+          "series": 3,
+          "film": 6
+        },
+        "films": {
+          "00000000f11700000000000000000154": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000155": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000156": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000157": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000158": "00000000c01100200000000000000000",
+          "00000000f11700000000000000000159": "00000000c01100200000000000000000"
+        },
+        "timing": {
+          "blockLength": 1,
+          "alignToGrid": true,
+          "epochHours": 24,
+          "graceHours": 6,
+          "gridMinutes": 30,
+          "minRuntimeSeconds": 60,
+          "broadcastDay": {
+            "utcOffsetMinutes": -300,
+            "start": "06:00"
+          }
+        }
+      },
+      "items": [
+        {
+          "id": "00000000f11700000000000000000154",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1980-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000155",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1981-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000156",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1982-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000157",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1983-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000158",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1984-01-01"
+        },
+        {
+          "id": "00000000f11700000000000000000159",
+          "kind": "movie",
+          "runtimeMs": "18000000",
+          "createdAtMs": "-1000000000000",
+          "premiereDate": "1985-01-01"
+        },
+        {
+          "id": "0000000000e9002c0000000000000001",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 1
+        },
+        {
+          "id": "0000000000e9002c0000000000000002",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 2
+        },
+        {
+          "id": "0000000000e9002c0000000000000003",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 3
+        },
+        {
+          "id": "0000000000e9002c0000000000000004",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 4
+        },
+        {
+          "id": "0000000000e9002c0000000000000005",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 5
+        },
+        {
+          "id": "0000000000e9002c0000000000000006",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 6
+        },
+        {
+          "id": "0000000000e9002c0000000000000007",
+          "kind": "episode",
+          "runtimeMs": "1320000",
+          "createdAtMs": "-1000000000000",
+          "seriesId": "00000000005e002c0000000000000000",
+          "season": 1,
+          "episode": 7
+        },
+        {
+          "id": "00000000f1170000000000000000015e",
+          "kind": "movie",
+          "runtimeMs": "5700000",
+          "createdAtMs": "-1000000000000"
+        },
+        {
+          "id": "0000000010053e900000000000000005",
+          "kind": "episode",
+          "runtimeMs": "1800000",
+          "createdAtMs": "-1000000000000"
+        }
+      ],
+      "n": "20762",
+      "blocks": [
+        {
+          "startMs": "1793876400000",
+          "endMs": "1793894400000",
+          "itemId": "00000000f11700000000000000000154"
+        },
+        {
+          "startMs": "1793894400000",
+          "endMs": "1793912400000",
+          "itemId": "00000000f11700000000000000000155"
+        },
+        {
+          "startMs": "1793912400000",
+          "endMs": "1793930400000",
+          "itemId": "00000000f11700000000000000000156"
+        },
+        {
+          "startMs": "1793930400000",
+          "endMs": "1793948400000",
+          "itemId": "00000000f11700000000000000000157"
+        },
+        {
+          "startMs": "1793948400000",
+          "endMs": "1793954100000",
+          "itemId": "00000000f1170000000000000000015e"
+        },
+        {
+          "startMs": "1793954100000",
+          "endMs": "1793955600000",
+          "slate": true
+        },
+        {
+          "startMs": "1793955600000",
+          "endMs": "1793956920000",
+          "itemId": "0000000000e9002c0000000000000001"
+        },
+        {
+          "startMs": "1793956920000",
+          "endMs": "1793958240000",
+          "itemId": "0000000000e9002c0000000000000002"
+        },
+        {
+          "startMs": "1793958240000",
+          "endMs": "1793959560000",
+          "itemId": "0000000000e9002c0000000000000003"
+        },
+        {
+          "startMs": "1793959560000",
+          "endMs": "1793961000000",
+          "slate": true
+        },
+        {
+          "startMs": "1793961000000",
+          "endMs": "1793962320000",
+          "itemId": "0000000000e9002c0000000000000004"
+        },
+        {
+          "startMs": "1793962320000",
+          "endMs": "1793962800000",
+          "slate": true
+        }
+      ],
+      "queries": [
+        {
+          "t": "1793876400000",
+          "k": 2,
+          "blockIndex": 0,
+          "offsetMs": "0",
+          "nextIndexes": [
+            1,
+            2
+          ]
+        },
+        {
+          "t": "1793894400000",
+          "k": 1,
+          "blockIndex": 1,
+          "offsetMs": "0",
+          "nextIndexes": [
+            2
+          ]
+        },
+        {
+          "t": "1793951250000",
+          "k": 3,
+          "blockIndex": 4,
+          "offsetMs": "2850000",
+          "nextIndexes": [
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "t": "1793954099999",
+          "k": 0,
+          "blockIndex": 4,
+          "offsetMs": "5699999",
+          "nextIndexes": []
+        },
+        {
+          "t": "1793954100000",
+          "k": 1,
+          "blockIndex": 5,
+          "nextIndexes": [
+            6
+          ]
+        },
+        {
+          "t": "1793962799999",
+          "k": 3,
+          "blockIndex": 11,
+          "nextIndexes": []
+        }
+      ],
+      "errorTimes": [
+        "1793876399999",
+        "1793962800000"
+      ]
     }
   ]
 }
