@@ -264,6 +264,8 @@ class LineupCodecTest {
             listOf(
                 """$version2Head,"ordering":{"mode":"rotation"},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
                 """$version2Head,"filters":{},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
+                """{"formatVersion":2,"seed":"1","sources":[{"type":"item","id":"${"a".repeat(32)}"}]}""",
+                """$version2Head,"ordering":{"mode":"shuffle","caps":{"series":2}}}""",
             )
         for (text in texts) {
             val first = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(text).toString())).lineup
@@ -271,6 +273,16 @@ class LineupCodecTest {
             val written = Json.parseToJsonElement(LineupCodec.encode(first).decodeToString()).jsonObject
             assertEquals(JsonPrimitive(text), written.channels()[0].source().getValue("rules"), text)
         }
+    }
+
+    @Test
+    fun aStarterChannelThatNeedsVersion2StaysUnusableAndWritesBackUnchanged() {
+        val text = """$version2Head,"ordering":{"mode":"inOrder"},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
+        val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(text))) }
+        val first = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        assertIs<ChannelSource.Unusable>(first.channels[0].source)
+        val written = Json.parseToJsonElement(LineupCodec.encode(first).decodeToString()).jsonObject
+        assertEquals(JsonPrimitive(text), written.channels()[0].source().getValue("rules"))
     }
 
     @Test

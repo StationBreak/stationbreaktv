@@ -1565,10 +1565,11 @@ A reader will meet files written by newer apps. Three cases must be handled diff
   and must write it back with the same JSON value when it writes the file again (see JSON profile: the value, not the bytes).
   `filters` and `ordering.caps` in a file that says `formatVersion` 1 are unknown fields in this sense: kept and ignored.
   `docs/rules-format/examples/forward-compat-extras.json` has unknown fields at every level.
-- **An unknown kind** (a `type` of a source, an ordering `mode`, a filler `mode` or, in version 2, a `filters.kind` that the
-  reader does not know) is **not** an unknown field. That includes a version 2 `mode` (`rotation`, `inOrder`) or source `type` (`item`) in a file that says
-  `formatVersion` 1: for that file the kind is unknown. The channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it
-  work. This keeps a channel from playing the wrong thing.
+- **An unknown kind** (a `type` of a source, an ordering `mode`, a filler `mode` or, in version 2, a `filters.kind`
+  that the reader does not know) is **not** an unknown field. That includes a version 2 `mode` (`rotation`,
+  `inOrder`) or source `type` (`item`) in a file that says `formatVersion` 1: for that file the kind is unknown. The
+  channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it work. This keeps a
+  channel from playing the wrong thing.
 - **A known kind that the reader does not schedule** is treated the same way: **unsupported**. In version 1 this is every
   filler mode except `none` (see Filler).
 
@@ -1650,8 +1651,8 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
 18. **A version 1 file that uses version 2.** A file that says `formatVersion` 1 and uses `rotation` or `inOrder` as its
     `mode`, or an `item` source, is **unsupported** (not scheduled, "update required"). The same file with `filters` or
     `ordering.caps` and only version 1 features is read, and both are kept and ignored. A file that says `formatVersion` 2
-    with `ordering.caps` and `epochHours` 12 is invalid. A version 2 file with a `filters.kind` that is not `movie` or `episode`
-    is unsupported.
+    with `ordering.caps` and `epochHours` 12 is invalid. A version 2 file with a `filters.kind` that is not `movie` or
+    `episode` is unsupported.
 
 ## Files
 
