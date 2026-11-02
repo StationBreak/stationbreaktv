@@ -101,7 +101,7 @@ visible range, the details of the focused program, the clock) and its screen. It
 `core:ui`, and applies the `hilt` convention plugin. It is not a route of its own: live TV owns the screen, the surface and
 the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
 the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
-guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
+guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open is the guide's, which walks the focus outwards and, from its menu row, leaves live TV);
 what it shows is the guide's. Where the picture is while the guide is open is live's too, and live is the one source of
 it: live moves its one surface to the top-right corner by its modifier alone (the surface is never made again), and the
 slot carries that hole (a `DpRect`, never null). The guide does not work out where the picture is: it leaves the hole
@@ -109,7 +109,7 @@ clear and lays its details panel and grid out around it, left to right whatever 
 is top-right in screen coordinates; live places its picture absolutely). A channel the guide picks (Select on a program
 on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
 so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
-channel management (spec 21) as a second slot, `ChannelsSlot`, behind its Channels button; `app` fills it with
+channel management (spec 21) as a second slot, `ChannelsSlot`, behind the Channels entry of its menu row (Channels and Exit, reached by Back); `app` fills it with
 `feature:channels`' `ChannelsDestination`. The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
 `onLineup()`) to see the lineup change under it while that screen shows and just after. Everything in
 `feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` type, the `GuideMeasured` qualifier `app`
