@@ -10,6 +10,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.scheduler.vectors.DayCases.keyOrderItem
 import tv.stationbreak.core.scheduler.vectors.KeyOrderVectorFile
 import tv.stationbreak.core.scheduler.vectors.VectorJson
 import tv.stationbreak.core.scheduler.vectors.VectorJson.array
@@ -29,23 +30,7 @@ class KeyOrderVectorsTest {
 
     private fun forMode(mode: String) = vectors.filter { it.string("mode") == mode }
 
-    private fun JsonObject.pool(): List<ScheduleItem> = array("items").objects().map { it.toItem() }
-
-    private fun JsonObject.toItem(): ScheduleItem {
-        fun optional(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
-        return ScheduleItem(
-            id = CanonicalId.parse(string("id")),
-            kind = if (string("kind") == "movie") ScheduleItemKind.Movie else ScheduleItemKind.Episode,
-            runtimeMs = 30 * MS_MINUTE,
-            createdAtMs = 0L,
-            deletedAtMs = null,
-            premiereDate = optional("premiere"),
-            productionYear = this["year"]?.jsonPrimitive?.intOrNull,
-            seriesId = optional("seriesId")?.let { CanonicalId.parse(it) },
-            seasonNumber = this["season"]?.jsonPrimitive?.intOrNull,
-            episodeNumber = this["episode"]?.jsonPrimitive?.intOrNull,
-        )
-    }
+    private fun JsonObject.pool(): List<ScheduleItem> = array("items").objects().map { it.keyOrderItem() }
 
     private fun JsonObject.expectedOrder(): List<String> = array("order").map { it.jsonPrimitive.content }
 

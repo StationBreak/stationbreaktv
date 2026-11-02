@@ -604,8 +604,13 @@ epoch) and the rules' `sources`. It is an input to building the day, as the item
 
 For `inOrder`, **every film is a group of one**: collections do not group films in that mode.
 
-The **cap of a group** is the `series` cap for a series, the `film` cap for a collection group, and `1` for a group of
-one (a cap on one item cannot be exceeded).
+The **cap of a group** is the `series` cap for a series, the `film` cap for a collection group, and `1` for an item that
+is in neither (an ungrouped item: a cap on one item cannot be exceeded). A series with one episode in the pool keeps the
+`series` cap, and a collection with one film keeps the `film` cap: this cannot change an order, but it is the cap the group
+has.
+
+Canonical IDs are unique across items, series and collections, so a group ID is never both a series and a collection, or an
+item and a collection; the walk and the group keys compare group IDs as one set.
 
 ### `rotation`
 
@@ -825,8 +830,12 @@ epoch) at a time, and a day is worked out from that day's items alone.
 filled in from the rules first; the scheduler has none of its own.
 
 - mode: `shuffle`, `chronological`, `randomInOrder`, `rotation` or `inOrder`;
-- `caps`: none, or the `series` and `film` caps, each 1 to 10. They are present, and so in force, for `rotation` (with the
-  defaults 3 and 1) and for a capped `shuffle`, and absent for the other modes;
+- `caps`: none, or the `series` and `film` caps, each 1 to 10. A scheduler always gets both values: the rules layer fills
+  in the defaults (3 and 1), the scheduler has none of its own. They are present, and so in force, for `rotation` (which
+  always carries them) and for a capped `shuffle`. The rules layer drops `caps` for the other modes, so a scheduler is not given
+  them there; one that is ignores them in the order and checks them like any caps (so `epochHours` must be 24 below);
+- `runtimeFilter`: none, or a window `minMs` and/or `maxMs` in milliseconds (`minMinutes * 60000`, `maxMinutes * 60000`):
+  a pool condition, see The pool of an epoch;
 - `seed`: the channel seed, an unsigned 64-bit number;
 - `blockLength`: items per run, 1 to 100 (not read by `rotation`);
 - `alignToGrid`: true or false;
@@ -837,8 +846,9 @@ filled in from the rules first; the scheduler has none of its own.
 - `graceHours`: 0 to 48;
 - `minRuntimeSeconds`: 1 to 3600.
 
-With caps in force, `epochHours` must be 24. A scheduler also takes the **film-to-collection map** of the epoch (see Groups
-in version 2) as an input; it is empty unless the mode is `rotation` or a capped `shuffle`.
+With caps in force, `epochHours` must be 24; any other value is an input error at the scheduler. A scheduler also takes the
+**film-to-collection map** of the epoch (see Groups in version 2) as an input; it is empty unless the mode is `rotation` or
+a capped `shuffle`, and every other mode ignores it.
 
 From these: `offsetMs`, `startMs` and `epochMs` as in Timing, and
 
@@ -933,7 +943,7 @@ product is the low 64 bits of `nU * 0x9E3779B97F4A7C15`, so `(2^64 - 1) * gamma`
 seed `1`, `n = -1`: the sum is `1 + (2^64 - gamma) = 0x61C8864680B583EC`, and `seed_n = splitmix64(0x61C8864680B583EC) =
 0x5692161D100B05E5`. The vectors are in `docs/rules-format/vectors/epoch-seed.json`, and include negative `n`.
 
-Only `shuffle` uses `seed_n`. The other two orders do not use it (see Ordering).
+Only `shuffle` (with or without `caps`) uses `seed_n`. `chronological`, `randomInOrder`, `rotation` and `inOrder` do not use it (see Ordering).
 
 ### The pool of an epoch
 
@@ -947,9 +957,11 @@ An item is in the pool of day `n` if and only if **all four** hold:
 4. runtimeMs <= epochMs
 ```
 
-A `runtime` filter (version 2) is applied to the same pool: it compares `runtimeMs` as read at the cut-off `S - G` with its
-bounds, so an item the filter rejects is not in the pool of day `n` either (see Filters). The other filters need no time
-and are applied when the pool is evaluated, as the sources are.
+A `runtime` filter (version 2) is a fifth condition of the same pool, a setting of the scheduler (`runtimeFilter`, see
+Inputs and outputs): it compares `runtimeMs` as read at the cut-off `S - G` with its bounds, both included and in
+milliseconds, `minMs <= runtimeMs` and `runtimeMs <= maxMs`, each only when given. An item the filter rejects is not in the
+pool of day `n` (see Filters). The other filters need no time and are applied when the pool is evaluated, as the sources
+are.
 
 1. **Added before the cut-off.** An item created inside the grace window waits for the next epoch. The server stamps
    `createdAt`, so two devices that have synced the library past `S - G` agree.
@@ -1297,7 +1309,8 @@ only primitives are `splitmix64` and `fnv1a64` (see Primitives).
 
 The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.json` and `epoch-seed.json` (the epoch number,
 `epochStart` and `seed_n`), `key-order.json` (the three orders, the group keys, the in-group order and runs) and
-`lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). They were computed
+`lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). Version 2 adds
+`key-order-v2.json` and `lineup-v2.json`, of the same shapes with `caps`, `films` and `runtimeFilter`. They were computed
 with a reference that was written from this text alone, not with the code that is tested. Version 1 is final (amended once,
 on 2026-10-19), so a wrong vector now means version 2.
 
@@ -1685,7 +1698,8 @@ Everything below is in this repository, under `docs/`:
   orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (whole
   days: the rules the scheduler reads, the items, the day number `n`, every block of the day, and queries giving the block
   that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors),
-  and `pool.json` (the pool: a library snapshot, the sources, the exclusions and the ceiling, and the IDs of the pool,
+  `key-order-v2.json` and `lineup-v2.json` (the same for the version 2 orders: `rotation`, the capped `shuffle` and
+  `inOrder`, with the caps, the film-to-collection map and the runtime filter), and `pool.json` (the pool: a library snapshot, the sources, the exclusions and the ceiling, and the IDs of the pool,
   for every row of rule 2, the exclusions with their fail-closed cases, rule 4 and the String matching cases).
 
 - `docs/rules-format/vectors/` (version 2): `pool-v2.json` (the pool with `item` sources and exclusions, every filter and

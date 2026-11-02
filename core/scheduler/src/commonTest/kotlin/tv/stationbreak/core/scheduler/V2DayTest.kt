@@ -67,6 +67,7 @@ class V2DayTest {
 
             // A day of a continuous playout is the cycle, repeated, from some run: a rotation of it.
             val matches = cycle.indices.any { k -> aired.indices.all { aired[it] == cycle[(k + it) % cycle.size] } }
+            if (filmCap == 3) assertNotEquals(programs(settings, noFilms()), aired, "the map changes the day")
             assertTrue(matches, "film cap $filmCap: the day follows the rotation with the collection as one group")
         }
         val capThree = Orderings.rotationTurns(pool, Seed(7uL), Caps(3, 3), GroupRules(map))

@@ -38,8 +38,8 @@ import kotlin.time.TimeSource
 
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
- * canonical-ID order. With `buildDay(settings, pool, n)` it is the input of the day's schedule. [hidden] is why the day
- * is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
+ * canonical-ID order. With `buildDay(settings, pool, n, films)` it is the input of the day's schedule. [hidden] is why
+ * the day is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
 @Suppress("LongParameterList") // The day's fixed facts, one for one.
 internal class ChannelDay private constructor(
