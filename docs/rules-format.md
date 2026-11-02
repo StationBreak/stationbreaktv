@@ -631,9 +631,10 @@ item and a collection; the walk and the group keys compare group IDs as one set.
    order, up to its cap (the `series` cap for a show, the `film` cap for a collection, `1` for a single). A turn **stops
    before the item that would make its runtime longer than `epochMs`**: the turn's runtime is the sum of the `runtimeMs` of
    its items, and an item is added only while that sum stays at or below `epochMs`. A turn always holds at least one item
-   (an item longer than `epochMs` is not in the pool, so one item always fits). The turn's runtime is the plain sum of its items' runtimes as read at the cut-off, not rounded up to the grid. A turn stops at the first item that does not fit and never skips ahead to a shorter later item. The group's next turn continues from the
-   item the turn stopped before, so the group keeps its place. A group with fewer items left takes a short turn; a group
-   with none is skipped.
+   (an item longer than `epochMs` is not in the pool, so one item always fits). The turn's runtime is the plain sum of its
+   items' runtimes as read at the cut-off, not rounded up to the grid. A turn stops at the first item that does not fit
+   and never skips ahead to a shorter later item. The group's next turn continues from the item the turn stopped before,
+   so the group keeps its place. A group with fewer items left takes a short turn; a group with none is skipped.
 4. When every group is used up, start again at the first group with every position back at the first item.
 
 One turn is one run, as in `randomInOrder`; `blockLength` is ignored. Rotation is **continuous playout** (see Where the
@@ -1089,8 +1090,8 @@ A run whose slot is **longer than `epochMs`** can never fit in a day, and it wou
 stall at the same place. So it is **left out**: removed from the list of runs. The list that remains, in order, is the
 **cycle**: runs `0` to `B - 1`, `B` runs in all. Runs are formed from the whole order first, and then removed, so a run
 that remains keeps exactly the items it had. The items of a left-out run are not in the cycle at all; the planned end of the
-day never visits them. The runs on each side of a left-out run become neighbours, so in `rotation` and the capped shuffle two
-turns of one group can end up together (see The planned end of the day, Where a cap can be exceeded).
+day never visits them. The runs on each side of a left-out run become neighbours, so in the capped shuffle two turns of one
+group can end up together (see The planned end of the day, Where a cap can be exceeded).
 
 A `rotation` turn is already cut so that its runtime is at most `epochMs` (see `rotation`), so no `rotation` run is left
 out. The other modes cut runs by `blockLength` alone, and a long run of those is left out as described.
@@ -1178,6 +1179,8 @@ For `chronological`, `randomInOrder`, `rotation` and `inOrder`, with an **unchan
 - Day `n` starts `delta_n` late against the continuous playout, `0 <= delta_n < slot(run j_n)`. So the runs from the first
   run that day `n` did not start, up to but not including the first run of day `n + 1`, **may be skipped**. They are not
   played on day `n` and day `n + 1` has moved past them.
+- Items that the planned end of day `n` placed may air again at the start of day `n + 1`, because day `n + 1` starts its
+  run from the run's beginning (see issue #546).
 - **Nothing is skipped when every slot is the same length and that length divides `epochMs`.** The runs of the day then fill
   it exactly, so the last one ends at `E`, the next day starts at the next run, and `delta` does not matter. Example:
   60-minute slots in a 4-hour epoch with a `:30` start give `delta = 30` minutes, and still skip nothing. Equal slots that
@@ -1249,7 +1252,7 @@ exceeded there.
 - the **planned end** of the day, as above.
 
 A separate consequence of the left-out rule: when a run is left out (see Left-out runs), the runs on each side of it
-become neighbours, and in `rotation` or the capped shuffle that can put two turns of one group together.
+become neighbours, and in the capped shuffle that can put two turns of one group together. (No `rotation` run is left out.)
 
 **Giving way is not an exceed case.** When only one group has items left, it plays on: in the capped shuffle the walk
 gives way to `last`, and in `rotation` the lone group takes its turns one after another, as `randomInOrder` does. That is
