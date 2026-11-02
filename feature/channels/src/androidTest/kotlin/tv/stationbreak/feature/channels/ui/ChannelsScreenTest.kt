@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -52,6 +53,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
 import java.util.concurrent.CopyOnWriteArrayList
@@ -151,6 +153,8 @@ class ChannelsScreenTest {
     private val tuned = CopyOnWriteArrayList<ChannelId>()
     private var closed = 0
     private val showing = mutableStateOf(true)
+    private val openedAt = mutableLongStateOf(1L)
+    private val currentNow = mutableStateOf<ChannelId?>(null)
     private lateinit var vm: ChannelsViewModel
     private lateinit var lineup: Lineup
 
@@ -175,6 +179,7 @@ class ChannelsScreenTest {
         schedule.channel(ALPHA, 6, emptyList())
         schedule.channel(BRAVO, 7, emptyList(), hidden = HiddenReason.NoMatches)
         lineup = Lineup(lineup(), access)
+        currentNow.value = current
         runBlocking { library.useAccount(account) }
         vm = ChannelsViewModel(library, lineup, lineup, schedule, clock, Dispatchers.Default)
         compose.setContent {
@@ -182,7 +187,9 @@ class ChannelsScreenTest {
                 // As in the app: live TV's root is focusable and the screen takes the focus from it.
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
                     if (showing.value) {
-                        ChannelsRoot(vm, current, HOLE, onTune = { tuned += it }, onClose = { closed++ })
+                        ChannelsRoot(vm, currentNow.value, openedAt.longValue, HOLE, onDone = { tune ->
+                            if (tune == null) closed++ else tuned += tune
+                        })
                     }
                 }
             }
@@ -230,7 +237,8 @@ class ChannelsScreenTest {
     fun listShowsGroupsAndReasons() {
         show(ALPHA)
         until { exists(ChannelsTags.reason(BRAVO)) }
-        listOf("On", "Shelf", "Off").forEach { assertTrue(it, exists(ChannelsTags.heading(it))) }
+        listOf(ChannelsTags.HEADING_ON, ChannelsTags.HEADING_SHELF, ChannelsTags.HEADING_OFF)
+            .forEach { assertTrue(it, exists(it)) }
         compose
             .onNodeWithTag(ChannelsTags.reason(BRAVO), useUnmergedTree = true)
             .assertTextContains("Nothing in your libraries fits this channel")
@@ -306,7 +314,7 @@ class ChannelsScreenTest {
                 .state == ChannelStatus.UserHidden && !exists(ChannelsTags.PANEL)
         }
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
-        val off = compose.onNodeWithTag(ChannelsTags.heading("Off")).getUnclippedBoundsInRoot()
+        val off = compose.onNodeWithTag(ChannelsTags.HEADING_OFF).getUnclippedBoundsInRoot()
         val row = compose.onNodeWithTag(ChannelsTags.row(ALPHA)).getUnclippedBoundsInRoot()
         assertTrue("Alpha ($row) sits under the Off heading ($off)", row.top > off.top)
     }
@@ -452,6 +460,30 @@ class ChannelsScreenTest {
         press(Pad.Select)
         assertTrue(exists(ChannelsTags.PICKER))
         assertTrue(lineup.changes.isEmpty())
+    }
+
+    @Test
+    fun reopeningWithANewTokenAndAnotherChannelStartsClean() {
+        show(ALPHA)
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        compose.runOnUiThread {
+            currentNow.value = BRAVO
+            openedAt.longValue = 2L
+        }
+        compose.waitForIdle()
+        until { vm.ui.value.focus == ChannelsFocus.Row(BRAVO) }
+        assertTrue(!exists(ChannelsTags.PANEL))
+        compose.onNodeWithTag(ChannelsTags.row(BRAVO)).assertIsSelected()
+    }
+
+    @Test
+    fun watchFinishesTheScreenOnceWithTheChannel() {
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        pressTogether(Pad.Select, Pad.Select, Pad.Select)
+        assertEquals(listOf(ALPHA), tuned.toList())
+        assertEquals(0, closed)
     }
 
     private companion object {

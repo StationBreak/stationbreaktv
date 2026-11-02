@@ -22,7 +22,7 @@
     <string name="channels_action_swap">Swap</string>
     <string name="channels_confirm_opt_in">%1$s shows adult content. Switch it on?</string>
     <string name="channels_number_taken">Channel %1$d is %2$s. Swap numbers?</string>
-    <string name="channels_refused_kids_band">Numbers 1 to 99 are for kids channels.</string>
+    <string name="channels_refused_kids_band">Numbers %1$d to %2$d are for kids channels.</string>
     <string name="channels_refused_last_on">At least one channel stays on.</string>
     <string name="channels_refused_no_number">There is no free number for this channel.</string>
     <string name="channels_not_editable">Channels can\'t be changed on this TV until the app is updated.</string>

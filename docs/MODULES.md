@@ -112,6 +112,17 @@ so Menu, the look-ahead and the tune line follow as for a flip (the line ends `v
 `feature:guide` is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for
 `app`'s tests.
 
+`feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
+groups, the focus as a value, the panel over the list, and the changes the viewer makes) and its D-pad-only screen. It depends
+on `core:domain`, `core:model` and `core:ui`, and applies the `hilt` convention plugin. It reaches the lineup only through the
+`core:domain` ports `ChannelRepository` (the rows), `ChannelEditor` (every change and the reset) and `ScheduleSource` (why a
+channel has nothing to air today); it never sees an engine type. The channel numbers it shows (`ChannelNumbers`: the whole range,
+the kids band, where a number is first offered) are in `core:domain`, taken from the engine, so the screen keeps no copy of
+the bands. Like the guide it is not a route of its own: the guide hosts it as a slot that `app` fills with
+`ChannelsDestination` (a feature may not depend on another), over the picture and around the same hole. It tells its host when
+it is finished with one `onDone(tune)` call. Everything in `feature:channels` is internal except `ChannelsDestination` and
+`ChannelsTags` for `app`'s tests.
+
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
 inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where live puts the corner
 picture; the guide is handed the result). `core:ui` has grown from the theme into the shared program UI of spec 17: the

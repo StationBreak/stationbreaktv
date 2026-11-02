@@ -21,7 +21,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
-import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsFocus
@@ -93,6 +93,13 @@ private fun Line.key(): String =
         Line.Reset -> "reset"
     }
 
+private fun headingTag(group: ChannelGroup): String =
+    when (group) {
+        ChannelGroup.On -> ChannelsTags.HEADING_ON
+        ChannelGroup.Shelf -> ChannelsTags.HEADING_SHELF
+        ChannelGroup.Off -> ChannelsTags.HEADING_OFF
+    }
+
 @Composable
 private fun HeadingLine(group: ChannelGroup) {
     val text = stringResource(groupName(group))
@@ -101,7 +108,7 @@ private fun HeadingLine(group: ChannelGroup) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .testTag(ChannelsTags.heading(group.name)),
+            .testTag(headingTag(group)),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -124,7 +131,7 @@ private fun RowLine(
     Column(
         Modifier
             .fillMaxWidth()
-            .then(FocusStyle.drawn(focused))
+            .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(ChannelsTags.row(row.id))
             .semantics { selected = focused },
@@ -178,7 +185,7 @@ private fun ResetLine(focused: Boolean) {
         stringResource(R.string.channels_reset),
         Modifier
             .fillMaxWidth()
-            .then(FocusStyle.drawn(focused))
+            .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.RESET)
             .semantics { selected = focused },

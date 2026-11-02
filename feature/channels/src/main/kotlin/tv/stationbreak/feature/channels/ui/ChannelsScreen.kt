@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ScreenLayout
@@ -44,7 +45,7 @@ internal fun ChannelsScreen(
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
-            val listWidth = pictureHole.left - safe.left - PanelGap
+            val listWidth = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
             Column(
                 Modifier
                     .offset(safe.left, safe.top)
@@ -78,30 +79,38 @@ private fun Header(ui: ChannelsUi) {
             style = MaterialTheme.typography.titleLarge,
         )
         val readOnly = ui.access == LineupAccess.ReadOnly
-        if (readOnly) NoteLine(R.string.channels_not_editable, ChannelsTags.NOT_EDITABLE)
+        if (readOnly) NoteLine(stringResource(R.string.channels_not_editable), ChannelsTags.NOT_EDITABLE)
         val message = ui.message
         // Said once: a read-only lineup already says it under the title.
         if (message != null && !(readOnly && message == ChannelsMessage.NotEditable)) {
             NoteLine(messageText(message), ChannelsTags.MESSAGE)
         }
-        if (ui.choosing) NoteLine(R.string.channels_choosing, ChannelsTags.CHOOSING)
+        if (ui.choosing) NoteLine(stringResource(R.string.channels_choosing), ChannelsTags.CHOOSING)
     }
 }
 
 @Composable
 private fun NoteLine(
-    text: Int,
+    text: String,
     tag: String,
 ) {
     Text(
-        stringResource(text),
+        text,
         Modifier.testTag(tag),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
-private fun messageText(message: ChannelsMessage): Int =
+@Composable
+private fun messageText(message: ChannelsMessage): String =
+    if (message == ChannelsMessage.KidsBand) {
+        stringResource(R.string.channels_refused_kids_band, ChannelNumbers.kids.first, ChannelNumbers.kids.last)
+    } else {
+        stringResource(messageRes(message))
+    }
+
+private fun messageRes(message: ChannelsMessage): Int =
     when (message) {
         ChannelsMessage.KidsBand -> R.string.channels_refused_kids_band
         ChannelsMessage.LastOn -> R.string.channels_refused_last_on

@@ -61,24 +61,37 @@ class ChannelsChoicesTest {
     @Test
     fun onlyWatchWhenTheLineupCannotBeWritten() {
         val on = row(ChannelGroup.On, override = true)
-        assertEquals(listOf(Choice.Watch), actionsOf(on, LineupAccess.ReadOnly))
-        assertEquals(listOf(Choice.Watch), actionsOf(on, LineupAccess.Loading))
+        assertEquals(listOf(Choice.Watch), actionsOf(on, LineupAccess.ReadOnly, reasonsRead = true))
+        assertEquals(listOf(Choice.Watch), actionsOf(on, LineupAccess.Loading, reasonsRead = true))
+    }
+
+    @Test
+    fun watchWaitsForTheFirstReadOfTheReasons() {
+        assertEquals(
+            listOf(Choice.SwitchOff, Choice.ChangeNumber),
+            actionsOf(row(ChannelGroup.On), LineupAccess.Editable, reasonsRead = false),
+        )
     }
 
     @Test
     fun editableActionsFollowTheRow() {
         assertEquals(
             listOf(Choice.Watch, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber),
-            actionsOf(row(ChannelGroup.On, override = true), LineupAccess.Editable),
+            actionsOf(row(ChannelGroup.On, override = true), LineupAccess.Editable, reasonsRead = true),
         )
         assertEquals(
             listOf(Choice.SwitchOn, Choice.ChangeNumber),
-            actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable),
+            actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true),
         )
         assertEquals(
             listOf(Choice.SwitchOff, Choice.ChangeNumber),
-            actionsOf(row(ChannelGroup.On, reason = HiddenReason.EmptyToday), LineupAccess.Editable),
+            actionsOf(
+                row(ChannelGroup.On, reason = HiddenReason.EmptyToday),
+                LineupAccess.Editable,
+                reasonsRead = true,
+            ),
         )
-        assertEquals(emptyList<Choice>(), actionsOf(row(ChannelGroup.Off, ChannelKind.Unusable), LineupAccess.Editable))
+        val unusable = row(ChannelGroup.Off, ChannelKind.Unusable)
+        assertEquals(emptyList<Choice>(), actionsOf(unusable, LineupAccess.Editable, reasonsRead = true))
     }
 }

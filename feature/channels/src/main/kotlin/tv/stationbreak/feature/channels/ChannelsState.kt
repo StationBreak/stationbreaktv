@@ -86,6 +86,8 @@ internal data class ChannelsUi(
     val choice: Int = 0,
     /** The number picker's digits while its panel is open. */
     val picker: PickerState? = null,
+    /** The first read of why channels have nothing to air has landed (until then Watch is not offered). */
+    val reasonsRead: Boolean = false,
 ) {
     companion object {
         val Empty =

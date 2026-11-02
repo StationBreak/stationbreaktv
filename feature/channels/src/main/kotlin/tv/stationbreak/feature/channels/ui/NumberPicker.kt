@@ -15,7 +15,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.PickerState
 
 /** The three digits side by side; the focused one is drawn with the shared focus treatment. */
@@ -33,7 +33,7 @@ internal fun NumberPicker(
             Box(
                 Modifier
                     .size(width = 48.dp, height = 64.dp)
-                    .then(FocusStyle.drawn(focused))
+                    .drawnFocus(focused)
                     .testTag(ChannelsTags.digit(i))
                     .semantics { selected = focused },
                 contentAlignment = Alignment.Center,

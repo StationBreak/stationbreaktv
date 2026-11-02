@@ -29,8 +29,10 @@ object ChannelsTags {
     const val ACTION_CANCEL = "channels:action:cancel"
     const val ACTION_CONFIRM = "channels:action:confirm"
 
-    /** The heading of a group: "On", "More channels" or "Off". */
-    fun heading(group: String) = "channels:heading:$group"
+    /** The heading of the On group, of More channels, and of Off. */
+    const val HEADING_ON = "channels:heading:on"
+    const val HEADING_SHELF = "channels:heading:shelf"
+    const val HEADING_OFF = "channels:heading:off"
 
     fun row(channel: ChannelId) = "channels:row:${channel.value}"
 

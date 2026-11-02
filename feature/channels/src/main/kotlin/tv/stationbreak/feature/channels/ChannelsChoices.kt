@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.channels
 
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
 
 /** One thing the viewer can pick in a panel. [Confirm] is the panel's own yes: Switch on, Swap or Reset. */
@@ -9,15 +10,18 @@ internal enum class Choice { Watch, SwitchOn, SwitchOff, ChangeNumber, DefaultNu
 
 /**
  * What the actions panel of [row] offers: Watch for a channel that is on, Switch on for one that is not (and can be
- * read), Switch off for one that is on, and the number changes only when the lineup can be written.
+ * read), Switch off for one that is on, and the number changes only when the lineup can be written. [reasonsRead]
+ * is whether the first read of why channels have nothing to air has landed.
  */
 internal fun actionsOf(
     row: ChannelRow,
     access: LineupAccess,
+    reasonsRead: Boolean,
 ): List<Choice> =
     buildList {
         val on = row.group == ChannelGroup.On
-        if (on && row.reason == null) add(Choice.Watch)
+        // Until the reasons have been read an On row may be one with nothing to air, so Watch is not offered yet.
+        if (on && reasonsRead && row.reason == null) add(Choice.Watch)
         if (access != LineupAccess.Editable) return@buildList
         if (row.kind == ChannelKind.Unusable) return@buildList
         add(if (on) Choice.SwitchOff else Choice.SwitchOn)
@@ -36,7 +40,7 @@ internal fun choicesOf(ui: ChannelsUi): List<Choice> {
         panel is ChannelsPanel.Actions -> {
             val row = ui.rows.firstOrNull { it.id == panel.id }
             // A panel with nothing to pick still needs a way out that can be seen.
-            row?.let { actionsOf(it, ui.access) }.orEmpty().ifEmpty { listOf(Choice.Cancel) }
+            row?.let { actionsOf(it, ui.access, ui.reasonsRead) }.orEmpty().ifEmpty { listOf(Choice.Cancel) }
         }
 
         panel != null || ui.confirmingReset -> {
@@ -55,9 +59,13 @@ internal fun startChoice(
     confirmingReset: Boolean,
 ): Int = if (panel is ChannelsPanel.ConfirmOptIn || (panel == null && confirmingReset)) 1 else 0
 
-private const val DIGITS = 3
 private const val BASE = 10
-private const val MAX_NUMBER = 999
+
+/** As many digits as the biggest channel number has. */
+private val DIGITS =
+    ChannelNumbers.all.last
+        .toString()
+        .length
 
 /** The picker's three digits and which one the D-pad is on. Nothing here is Android, so it can be tested on the JVM. */
 internal data class PickerState(
@@ -85,7 +93,7 @@ internal data class PickerState(
     companion object {
         /** A picker that shows [start], zero-padded to three digits, on its first digit. */
         fun of(start: Int): PickerState {
-            val n = start.coerceIn(0, MAX_NUMBER)
+            val n = start.coerceIn(0, ChannelNumbers.all.last)
             return PickerState(listOf(n / (BASE * BASE), n / BASE % BASE, n % BASE))
         }
     }

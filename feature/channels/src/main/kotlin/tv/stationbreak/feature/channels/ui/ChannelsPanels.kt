@@ -14,7 +14,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.Choice
@@ -79,7 +79,7 @@ private fun ChoiceRow(
         labelOf(choice, panel),
         Modifier
             .fillMaxWidth()
-            .then(FocusStyle.drawn(focused))
+            .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(tagOf(choice))
             .semantics { selected = focused },

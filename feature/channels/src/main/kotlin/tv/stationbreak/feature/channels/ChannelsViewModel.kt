@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.ChangeRefusal
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelEditor
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
@@ -39,10 +40,6 @@ import kotlin.time.Duration.Companion.seconds
 /** How long the lineup stays quiet before the reasons are read again (a burst of edits is read once). */
 internal val REASONS_DEBOUNCE = 1.seconds
 
-/** Where a number is first offered when the viewer changes a channel that has none. */
-private const val FIRST_NUMBER = 100
-private const val FIRST_KID_NUMBER = 1
-
 /**
  * Holds channel management (spec 21): the lineup as rows, the focus, the dialog over it, and the changes the viewer
  * makes through the [ChannelEditor]. The ViewModel outlives the screen (it is scoped to live's back-stack entry), so
@@ -50,6 +47,9 @@ private const val FIRST_KID_NUMBER = 1
  *
  * State is changed under [lock] in one assignment of [ChannelsUi], so a collector never reads a half-made state. A
  * result that arrives after the screen was opened again is dropped.
+ *
+ * A write started in one visit finishes on this ViewModel's scope even if the screen goes meanwhile. A reset that
+ * finishes after the screen was opened again is not used by [closing] (accepted: the new visit starts from the list).
  */
 @Suppress("TooManyFunctions") // One screen's actions, each small.
 @HiltViewModel
@@ -77,6 +77,8 @@ internal class ChannelsViewModel
             val account: LibraryAccount? = null,
             val channels: List<ChannelSummary> = emptyList(),
             val reasons: Map<ChannelId, HiddenReason?> = emptyMap(),
+            /** The first read of [reasons] has landed, or failed. */
+            val reasonsRead: Boolean = false,
             /** [channels] and [reasons] as rows, made only when one of them changes. */
             val rows: List<ChannelRow> = emptyList(),
             val access: LineupAccess = LineupAccess.Loading,
@@ -183,10 +185,12 @@ internal class ChannelsViewModel
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
+                    // The reasons stay as they were; the read has been tried, so Watch is not held back for good.
+                    change(generation) { it.copy(reasonsRead = true) }
                     return
                 }
             val reasons = airings.associate { it.id to it.hidden }
-            change(generation) { it.copy(reasons = reasons) }
+            change(generation) { it.copy(reasons = reasons, reasonsRead = true) }
         }
 
         /** A new list: it is kept, and a dialog about a channel that changed or went is closed. */
@@ -274,15 +278,43 @@ internal class ChannelsViewModel
             val choice = choicesOf(ui).getOrNull(ui.choice)
             var tune: ChannelId? = null
             when {
-                picker != null && panel != null -> if (picker.value > 0) setNumber(panel.id, picker.value)
-                choice == Choice.Cancel -> dismiss()
-                choice == Choice.Confirm -> confirm(panel)
-                panel == null || choice == null -> Unit
-                choice == Choice.Watch -> tune = panel.id
-                choice == Choice.SwitchOn -> switchOn(panel.id)
-                choice == Choice.SwitchOff -> switchOff(panel.id)
-                choice == Choice.ChangeNumber -> startNumber(panel.id)
-                choice == Choice.DefaultNumber -> defaultNumber(panel.id)
+                picker != null && panel != null -> {
+                    if (picker.value > 0) setNumber(panel.id, picker.value)
+                }
+
+                choice == Choice.Cancel -> {
+                    dismiss()
+                }
+
+                choice == Choice.Confirm -> {
+                    confirm(panel)
+                }
+
+                panel == null || choice == null -> {
+                    Unit
+                }
+
+                choice == Choice.Watch -> {
+                    // The panel is closed in the model first, so the screen is finished with nothing open over it.
+                    dismiss()
+                    tune = panel.id
+                }
+
+                choice == Choice.SwitchOn -> {
+                    switchOn(panel.id)
+                }
+
+                choice == Choice.SwitchOff -> {
+                    switchOff(panel.id)
+                }
+
+                choice == Choice.ChangeNumber -> {
+                    startNumber(panel.id)
+                }
+
+                choice == Choice.DefaultNumber -> {
+                    defaultNumber(panel.id)
+                }
             }
             return tune
         }
@@ -333,6 +365,7 @@ internal class ChannelsViewModel
                 confirmingReset = m.confirmingReset,
                 choice = m.choice,
                 picker = m.picker,
+                reasonsRead = m.reasonsRead,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> =
@@ -427,7 +460,7 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 val c = model.channels.firstOrNull { it.id == id } ?: return
                 if (notEditable()) return
-                val start = c.number ?: if (c.kid) FIRST_KID_NUMBER else FIRST_NUMBER
+                val start = c.number ?: ChannelNumbers.startFor(c.kid)
                 apply { it.copy(panel = ChannelsPanel.Number(id, start)) }
             }
         }
@@ -457,7 +490,7 @@ internal class ChannelsViewModel
         private fun submit(change: ChannelChange) {
             val (generation, account) =
                 synchronized(lock) {
-                    if (notEditable() || model.pending) return
+                    if (notEditable() || model.pending || model.choosing) return
                     val account = model.account ?: return
                     apply { it.copy(pending = true) }
                     model.generation to account
@@ -550,7 +583,7 @@ internal class ChannelsViewModel
         fun reset() {
             val (generation, account) =
                 synchronized(lock) {
-                    if (notEditable() || model.choosing) return
+                    if (notEditable() || model.pending || model.choosing) return
                     val account = model.account ?: return
                     apply {
                         it.copy(

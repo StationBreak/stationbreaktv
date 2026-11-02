@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -26,12 +27,15 @@ import tv.stationbreak.feature.channels.PanelMove
 
 /**
  * Channel management (spec 21), drawn by live TV over its picture while the screen is open: live owns whether it
- * shows, this owns what it shows. Each time it appears a session opens with the focus on [current]'s row, and it
- * closes when the screen goes.
+ * shows, this owns what it shows. Each showing opens a session with the focus on [current]'s row: [openedAtNanos] is
+ * the opening token (when the key that opened the screen arrived, `System.nanoTime`), and a new token starts a new
+ * session, clean, even if the screen was never taken off the composition between two showings. The session closes
+ * when the screen goes.
  *
- * [pictureHole] is where live TV laid its picture, in screen dp: the screen leaves that rectangle clear. [onTune] is
- * called for Watch, and for Back when the changes made leave another channel to tune ([ChannelsViewModel.closing]);
- * [onClose] for Back with nothing to tune.
+ * [pictureHole] is where live TV laid its picture, in screen dp: the screen leaves that rectangle clear. [onDone] is
+ * called once, when the screen is finished: with the channel to tune for Watch, and for Back with nothing open (the
+ * channel the changes made leave to tune, else null). The host closes the screen on [onDone] and tunes when `tune` is
+ * non-null.
  *
  * Keys: the screen moves its own focus (model-driven, not Compose focus search) with the D-pad and Select. Back closes
  * a panel, message or question first.
@@ -39,13 +43,13 @@ import tv.stationbreak.feature.channels.PanelMove
 @Composable
 fun ChannelsDestination(
     current: ChannelId?,
+    openedAtNanos: Long,
     pictureHole: DpRect,
-    onTune: (ChannelId) -> Unit,
-    onClose: () -> Unit,
+    onDone: (tune: ChannelId?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ChannelsViewModel = hiltViewModel()
-    ChannelsRoot(viewModel, current, pictureHole, onTune, onClose, modifier)
+    ChannelsRoot(viewModel, current, openedAtNanos, pictureHole, onDone, modifier)
 }
 
 /** [ChannelsDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -54,19 +58,21 @@ fun ChannelsDestination(
 internal fun ChannelsRoot(
     viewModel: ChannelsViewModel,
     current: ChannelId?,
+    openedAtNanos: Long,
     pictureHole: DpRect,
-    onTune: (ChannelId) -> Unit,
-    onClose: () -> Unit,
+    onDone: (tune: ChannelId?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    DisposableEffect(viewModel) {
+    // One session per showing, and per opening: the host can close and reopen the screen between two frames.
+    DisposableEffect(viewModel, openedAtNanos) {
         viewModel.open(current)
         onDispose { viewModel.close() }
     }
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
-    val actions = remember(viewModel, onTune, onClose) { ChannelsActions(viewModel, onTune, onClose) }
+    val done by rememberUpdatedState(onDone)
+    val actions = remember(viewModel, openedAtNanos) { ChannelsActions(viewModel) { done(it) } }
     ChannelsScreen(
         ui = ui,
         pictureHole = pictureHole,
@@ -94,7 +100,7 @@ private fun padOf(key: Key): Pad? =
 
 /**
  * The screen's keys, all consumed so the focus never leaves it: the D-pad (auto-repeat included, so holding Up or Down
- * scrolls) and Select once per press. Back is acted on at its release, as [tv.stationbreak.feature.guide]'s guide does:
+ * scrolls) and Select once per press. Back is acted on at its release, as the program guide's keys are:
  * a fast double Back can reach this screen as a release alone, and waiting for a down it saw would swallow that press.
  * Left unconsumed, Compose would spend it moving the focus out to live TV's root. The media keys are not the screen's.
  */
@@ -118,10 +124,13 @@ internal fun channelsKey(
  */
 internal class ChannelsActions(
     private val vm: ChannelsViewModel,
-    private val onTune: (ChannelId) -> Unit,
-    private val onClose: () -> Unit,
+    private val onDone: (ChannelId?) -> Unit,
 ) {
+    // The screen is finished once: a key that follows (a fast double Back) is ignored.
+    private var finished = false
+
     fun pad(pad: Pad) {
+        if (finished) return
         val ui = vm.ui.value
         val inPanel = ui.panel != null || ui.confirmingReset
         when {
@@ -131,13 +140,17 @@ internal class ChannelsActions(
         }
     }
 
+    private fun finish(tune: ChannelId?) {
+        finished = true
+        onDone(tune)
+    }
+
     private fun back(ui: ChannelsUi) {
         if (ui.panel != null || ui.confirmingReset || ui.message != null) {
             vm.dismiss()
-            return
+        } else {
+            finish(vm.closing())
         }
-        val tune = vm.closing()
-        if (tune != null) onTune(tune) else onClose()
     }
 
     private fun list(pad: Pad) {
@@ -155,7 +168,7 @@ internal class ChannelsActions(
             Pad.Down -> vm.panelMove(PanelMove.Down)
             Pad.Left -> vm.panelMove(PanelMove.Left)
             Pad.Right -> vm.panelMove(PanelMove.Right)
-            Pad.Select -> vm.panelSelect()?.let(onTune)
+            Pad.Select -> vm.panelSelect()?.let(::finish)
             Pad.Back -> Unit
         }
     }
