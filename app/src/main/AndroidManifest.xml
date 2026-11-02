@@ -38,9 +38,14 @@
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         tools:targetApi="31">
 
+        <!--
+            singleTask: whatever starts the app (the launcher, `am start -n`, monkey), a start while an instance exists
+            brings that instance forward instead of stacking a second one, so Back from the app leaves it (#529).
+        -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
