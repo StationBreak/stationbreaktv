@@ -61,7 +61,7 @@ class V2DayTest {
     fun aMapGroupsFilmsInRotation() {
         for (filmCap in listOf(1, 3)) {
             val settings = rotation(filmCap)
-            val turns = Orderings.rotationTurns(pool, settings.seed, settings.caps!!, GroupRules(map))
+            val turns = rotationTurnsOfADay(pool, settings.seed, settings.caps!!, GroupRules(map))
             val cycle = turns.flatten().map { it.id }
             val aired = programs(settings, map)
 
@@ -70,11 +70,11 @@ class V2DayTest {
             if (filmCap == 3) assertNotEquals(programs(settings, noFilms()), aired, "the map changes the day")
             assertTrue(matches, "film cap $filmCap: the day follows the rotation with the collection as one group")
         }
-        val capThree = Orderings.rotationTurns(pool, Seed(7uL), Caps(3, 3), GroupRules(map))
+        val capThree = rotationTurnsOfADay(pool, Seed(7uL), Caps(3, 3), GroupRules(map))
         assertTrue(capThree.any { turn -> turn.map { it.id } == films.map { it.id } }, "three films in one turn")
-        val unmapped = Orderings.rotationTurns(pool, Seed(7uL), Caps(3, 3), GroupRules(noFilms()))
+        val unmapped = rotationTurnsOfADay(pool, Seed(7uL), Caps(3, 3), GroupRules(noFilms()))
         assertTrue(unmapped.none { turn -> turn.size == films.size && turn.all { it in films } }, "no map, no group")
-        val capOne = Orderings.rotationTurns(pool, Seed(7uL), Caps(3, 1), GroupRules(map))
+        val capOne = rotationTurnsOfADay(pool, Seed(7uL), Caps(3, 1), GroupRules(map))
         assertTrue(capOne.none { turn -> turn.size > 1 && turn.all { it in films } }, "one film per turn")
     }
 

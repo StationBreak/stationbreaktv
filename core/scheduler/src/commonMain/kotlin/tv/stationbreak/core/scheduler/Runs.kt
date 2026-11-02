@@ -60,7 +60,7 @@ object Runs {
 
             OrderingMode.Rotation -> {
                 val caps = checkNotNull(settings.caps) { "Rotation needs caps" }
-                Orderings.rotationTurns(pool, settings.seed, caps, groups).map { Run(it) }
+                Orderings.rotationTurns(pool, settings.seed, caps, groups, settings.epochMs).map { Run(it) }
             }
 
             OrderingMode.InOrder -> {

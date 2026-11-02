@@ -627,9 +627,13 @@ item and a collection; the walk and the group keys compare group IDs as one set.
    sort a collection's films).
 2. Group keys: `splitmix64(seed + fnv1a64(groupIdBytes))` with the **channel seed**, sorted ascending as unsigned numbers,
    ties to the smaller group ID bytes: exactly as `randomInOrder`.
-3. Walk the groups in that order, in rounds. In each round every group takes its next turn of up to its cap items (the
-   `series` cap for a show, the `film` cap for a collection, `1` for a single). A group with fewer items left takes a
-   short turn; a group with none is skipped.
+3. Walk the groups in that order, in rounds. In each round every group takes its next turn: its next items in its own
+   order, up to its cap (the `series` cap for a show, the `film` cap for a collection, `1` for a single). A turn **stops
+   before the item that would make its runtime longer than `epochMs`**: the turn's runtime is the sum of the `runtimeMs` of
+   its items, and an item is added only while that sum stays at or below `epochMs`. A turn always holds at least one item
+   (an item longer than `epochMs` is not in the pool, so one item always fits). The group's next turn continues from the
+   item the turn stopped before, so the group keeps its place. A group with fewer items left takes a short turn; a group
+   with none is skipped.
 4. When every group is used up, start again at the first group with every position back at the first item.
 
 One turn is one run, as in `randomInOrder`; `blockLength` is ignored. Rotation is **continuous playout** (see Where the
@@ -645,6 +649,12 @@ round 2:         [A4 A5]    [C2]          (B is used up and skipped)
 round 3:                    [C3]          (only C is left)
 then it starts again: B1 B2 A1 A2 A3 C1 A4 A5 C2 C3 B1 ...
 ```
+
+Worked example of a long turn. `epochHours` is 24 and the film cap is 3. A collection named in `sources` has four films
+F1, F2, F3, F4 in release order, each 10 hours long, and nothing else is in the pool. The first turn takes F1 and F2
+(20 hours); F3 would make 30 hours, more than 24, so the turn stops before it. The next turn starts at F3 and takes F3
+and F4 (20 hours). The cycle is `[F1 F2] [F3 F4]`, then it starts again. Without the stop, `[F1 F2 F3]` (30 hours) would be
+a run longer than the epoch and would be left out whole (see Left-out runs), taking F1 to F3 out of the schedule.
 
 ### The capped shuffle
 
@@ -1081,6 +1091,9 @@ stall at the same place. So it is **left out**: removed from the list of runs. T
 that remains keeps exactly the items it had. The items of a left-out run are not in the cycle at all; the planned end of the
 day never visits them. The runs on each side of a left-out run become neighbours, so in `rotation` and the capped shuffle two
 turns of one group can end up together (see The planned end of the day, Where a cap can be exceeded).
+
+A `rotation` turn is already cut so that its runtime is at most `epochMs` (see `rotation`), so no `rotation` run is left
+out. The other modes cut runs by `blockLength` alone, and a long run of those is left out as described.
 
 A run whose slot is **equal** to `epochMs` stays in the cycle: it fits only on a day that starts with it.
 

@@ -123,7 +123,10 @@ object Orderings {
         val groupId: CanonicalId,
         /** `splitmix64(seed + fnv1a64(groupIdBytes))`, with the channel seed. */
         val key: ULong,
-        /** The group's items in [inGroupKey] order: the numbering decides. */
+        /**
+         * The group's items in [inGroupKey] order, the numbering deciding; the films of a collection group (Rotation)
+         * in [releaseKey] order.
+         */
         val items: List<ScheduleItem>,
     )
 
@@ -173,25 +176,50 @@ object Orderings {
         blockLength: Int,
     ): List<List<ScheduleItem>> {
         require(blockLength >= 1) { "A run is at least one item" }
-        return turns(groups(pool, seed), pool.size) { blockLength }
+        return turns(groups(pool, seed), pool.size) { group, from -> minOf(group.items.size, from + blockLength) }
     }
 
     /**
      * The Rotation walk of one cycle: the `randomInOrder` walk with each group's own turn length, [GroupRules.cap] of
      * [caps], and with the films of a collection as one group. The channel seed keys the groups, so the walk is the
      * same every day.
+     *
+     * A turn ends before the item that would make its run longer than [epochMs]; the group's next turn continues from
+     * that item, so its place is kept. A turn always holds at least one item.
      */
     internal fun rotationTurns(
         pool: List<ScheduleItem>,
         seed: Seed,
         caps: Caps,
         groups: GroupRules,
-    ): List<List<ScheduleItem>> = turns(groups(pool, seed, groups), pool.size) { groups.cap(it.items.first(), caps) }
+        epochMs: Long,
+    ): List<List<ScheduleItem>> =
+        turns(groups(pool, seed, groups), pool.size) { group, from ->
+            endOfRotationTurn(group.items, from, groups.cap(group.items.first(), caps), epochMs)
+        }
 
+    // The end (exclusive) of the turn that starts at [from]: up to [cap] items that fit in [epochMs], at least one.
+    private fun endOfRotationTurn(
+        items: List<ScheduleItem>,
+        from: Int,
+        cap: Int,
+        epochMs: Long,
+    ): Int {
+        val limit = minOf(items.size, from + cap)
+        var to = from + 1
+        var runtimeMs = items[from].runtimeMs
+        while (to < limit && runtimeMs + items[to].runtimeMs <= epochMs) {
+            runtimeMs += items[to].runtimeMs
+            to++
+        }
+        return to
+    }
+
+    // The walk: in each round every group with items left takes a turn, which ends at [endOfTurn] (exclusive).
     private fun turns(
         groups: List<OrderGroup>,
         size: Int,
-        turnLength: (OrderGroup) -> Int,
+        endOfTurn: (OrderGroup, Int) -> Int,
     ): List<List<ScheduleItem>> {
         val taken = IntArray(groups.size)
         val turns = ArrayList<List<ScheduleItem>>()
@@ -200,7 +228,7 @@ object Orderings {
             for ((index, group) in groups.withIndex()) {
                 val from = taken[index]
                 if (from >= group.items.size) continue
-                val to = minOf(group.items.size, from + turnLength(group))
+                val to = endOfTurn(group, from)
                 turns += group.items.subList(from, to)
                 taken[index] = to
                 remaining -= to - from

@@ -91,7 +91,7 @@ class RotationTest {
             val block = gen.nextInt(1..6)
             assertEquals(
                 Orderings.randomInOrderTurns(pool, seed, block),
-                Orderings.rotationTurns(pool, seed, Caps(block, block), GroupRules(noFilms())),
+                rotationTurnsOfADay(pool, seed, Caps(block, block), GroupRules(noFilms())),
             )
         }
     }
@@ -102,7 +102,7 @@ class RotationTest {
             val built = gen.pool(withCollections = true)
             val rules = GroupRules(built.films)
             val caps = Caps(gen.nextInt(1..5), gen.nextInt(1..3))
-            val turns = Orderings.rotationTurns(built.items, Seed(gen.nextULong()), caps, rules)
+            val turns = rotationTurnsOfADay(built.items, Seed(gen.nextULong()), caps, rules)
 
             assertEquals(built.items.sortedBy { it.id.value }, turns.flatten().sortedBy { it.id.value })
             val played = HashMap<CanonicalId, MutableList<ScheduleItem>>()
@@ -134,7 +134,7 @@ class RotationTest {
         val y1985 = film(idOf('3'), 1985)
         val films = FilmCollections.of(listOf(undated, y1990, y1985).associate { it.id to collection })
 
-        val turns = Orderings.rotationTurns(listOf(undated, y1990, y1985), Seed(5uL), Caps(3, 3), GroupRules(films))
+        val turns = rotationTurnsOfADay(listOf(undated, y1990, y1985), Seed(5uL), Caps(3, 3), GroupRules(films))
 
         assertEquals(listOf(listOf(y1985, y1990, undated)), turns)
     }
@@ -194,10 +194,10 @@ class RotationTest {
                 )
             val joinedFilms = FilmCollections.of(built.collections + members.associate { it.id to collection })
             val joinedRules = GroupRules(joinedFilms)
-            val before = Orderings.rotationTurns(built.items, seed, caps, rules)
+            val before = rotationTurnsOfADay(built.items, seed, caps, rules)
 
             for (joiner in joiners) {
-                val joined = Orderings.rotationTurns(built.items + joiner, seed, caps, joinedRules)
+                val joined = rotationTurnsOfADay(built.items + joiner, seed, caps, joinedRules)
                 val ids = joiner.map { it.id }.toSet()
                 assertEquals(before, joined.filter { turn -> turn.none { it.id in ids } })
             }
@@ -205,11 +205,38 @@ class RotationTest {
     }
 
     @Test
+    fun aRotationTurnLongerThanTheEpochIsCutBeforeTheItemThatWouldOverflowIt() {
+        // Four 10-hour films of one collection, film cap 3, a 24-hour epoch: two films fit (20 h), the third would
+        // make 30 h. The next turn of the group continues from the third film.
+        val collection = idOf('c')
+        val films = (1..4).map { film(idOf(('0' + it)), 1990 + it).copy(runtimeMs = 10 * MS_HOUR) }
+        val rules = GroupRules(FilmCollections.of(films.associate { it.id to collection }))
+
+        val turns = Orderings.rotationTurns(films, Seed(5uL), Caps(3, 3), rules, MS_DAY)
+
+        assertEquals(listOf(films.take(2), films.drop(2).take(2)), turns)
+        // An item longer than the epoch still gets a turn of its own: the left-out rule handles it.
+        val huge = films.first().copy(runtimeMs = 30 * MS_HOUR)
+        assertEquals(listOf(listOf(huge)), Orderings.rotationTurns(listOf(huge), Seed(5uL), Caps(3, 3), rules, MS_DAY))
+    }
+
+    @Test
+    fun randomInOrderTurnsAreNotCutByTheEpoch() {
+        val series = idOf('5')
+        val episodes =
+            (1..3).map {
+                episode(CanonicalId.parse(it.toString().repeat(32)), series, it).copy(runtimeMs = 10 * MS_HOUR)
+            }
+
+        assertEquals(listOf(episodes), Orderings.randomInOrderTurns(episodes, Seed(1uL), 3))
+    }
+
+    @Test
     fun aSingleGroupPlaysStraightThrough() {
         val series = idOf('5')
         val episodes = (1..20).map { episode(CanonicalId.parse(it.toString(16).padStart(32, '0')), series, it) }
 
-        val turns = Orderings.rotationTurns(episodes.reversed(), Seed(3uL), Caps(3, 1), GroupRules(noFilms()))
+        val turns = rotationTurnsOfADay(episodes.reversed(), Seed(3uL), Caps(3, 1), GroupRules(noFilms()))
 
         assertEquals(episodes, turns.flatten())
         assertEquals(List(6) { 3 } + 2, turns.map { it.size })
@@ -221,7 +248,7 @@ class RotationTest {
             val built = gen.pool(withCollections = true)
             val rules = GroupRules(built.films)
             val caps = Caps(gen.nextInt(1..5), gen.nextInt(1..3))
-            val turns = Orderings.rotationTurns(built.items, Seed(gen.nextULong()), caps, rules)
+            val turns = rotationTurnsOfADay(built.items, Seed(gen.nextULong()), caps, rules)
 
             for (index in 0 until turns.size - 1) {
                 val group = rules.groupOf(turns[index])
@@ -252,7 +279,7 @@ class RotationTest {
                     .map { run -> run.items.map { it.id } }
 
             assertEquals(runs(1), runs(9))
-            val turns = Orderings.rotationTurns(built.items, seed, caps, rules)
+            val turns = rotationTurnsOfADay(built.items, seed, caps, rules)
             assertEquals(turns.map { turn -> turn.map { it.id } }, runs(1))
         }
     }
@@ -264,10 +291,10 @@ class RotationTest {
             val rules = GroupRules(built.films)
             val seed = Seed(gen.nextULong())
             val caps = Caps(gen.nextInt(1..5), gen.nextInt(1..3))
-            val expected = Orderings.rotationTurns(built.items, seed, caps, rules)
+            val expected = rotationTurnsOfADay(built.items, seed, caps, rules)
 
-            assertEquals(expected, Orderings.rotationTurns(built.items.reversed(), seed, caps, rules))
-            assertEquals(expected, Orderings.rotationTurns(built.items.shuffledBy(gen.nextULong()), seed, caps, rules))
+            assertEquals(expected, rotationTurnsOfADay(built.items.reversed(), seed, caps, rules))
+            assertEquals(expected, rotationTurnsOfADay(built.items.shuffledBy(gen.nextULong()), seed, caps, rules))
         }
     }
 
@@ -282,7 +309,7 @@ class RotationTest {
             (1..3).map { episode(CanonicalId.parse(it.toString().repeat(32)), early, it) } +
                 episode(idOf('9'), late, 1)
 
-        val turns = Orderings.rotationTurns(pool, Seed(9uL), Caps(1, 1), GroupRules(noFilms()))
+        val turns = rotationTurnsOfADay(pool, Seed(9uL), Caps(1, 1), GroupRules(noFilms()))
 
         assertEquals(listOf(early, late, early, early), turns.map { it.single().seriesId })
         assertEquals(early, turns.last().single().seriesId)

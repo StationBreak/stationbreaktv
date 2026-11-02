@@ -76,7 +76,7 @@ class KeyOrderV2VectorsTest {
                     name,
                 )
             }
-            val turns = Orderings.rotationTurns(pool, seed, caps, rules)
+            val turns = rotationTurnsOfADay(pool, seed, caps, rules)
             assertEquals(case.strings("order"), turns.flatten().ids(), "$name order")
             assertEquals(case.expectedRuns(), turns.map { it.ids() }, "$name turns")
         }
