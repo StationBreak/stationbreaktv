@@ -67,7 +67,10 @@ private val DIGITS =
         .toString()
         .length
 
-/** The picker's three digits and which one the D-pad is on. Nothing here is Android, so it can be tested on the JVM. */
+/**
+ * The picker's digits (as many as the biggest channel number has) and which one the D-pad is on. Nothing here is
+ * Android, so it can be tested on the JVM.
+ */
 internal data class PickerState(
     val digits: List<Int>,
     val at: Int = 0,
@@ -91,10 +94,10 @@ internal data class PickerState(
     }
 
     companion object {
-        /** A picker that shows [start], zero-padded to three digits, on its first digit. */
+        /** A picker that shows [start], zero-padded to the digit count, on its first digit. */
         fun of(start: Int): PickerState {
             val n = start.coerceIn(0, ChannelNumbers.all.last)
-            return PickerState(listOf(n / (BASE * BASE), n / BASE % BASE, n % BASE))
+            return PickerState(n.toString().padStart(DIGITS, '0').map { it.digitToInt() })
         }
     }
 }

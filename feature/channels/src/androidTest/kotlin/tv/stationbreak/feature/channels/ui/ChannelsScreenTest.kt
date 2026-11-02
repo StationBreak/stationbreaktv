@@ -256,7 +256,7 @@ class ChannelsScreenTest {
             .forEach { assertTrue(it, exists(it)) }
         compose
             .onNodeWithTag(ChannelsTags.reason(BRAVO), useUnmergedTree = true)
-            .assertTextContains("Nothing in your libraries fits this channel")
+            .assertTextContains("Nothing in your libraries fits this channel", substring = true)
         assertTrue(!exists(ChannelsTags.reason(ALPHA)))
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
         assertTrue(exists(ChannelsTags.RESET))
@@ -303,7 +303,7 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.ACTION_CONFIRM) }
         compose
             .onNodeWithTag(ChannelsTags.PANEL_TEXT, useUnmergedTree = true)
-            .assertTextContains("Channel 7 is Bravo. Swap numbers?")
+            .assertTextContains("Channel 7 is Bravo. Swap numbers?", substring = true)
         press(Pad.Select)
         until {
             !exists(ChannelsTags.PANEL) && lineup.list.value
@@ -343,7 +343,7 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.ACTION_CONFIRM) }
         compose
             .onNodeWithTag(ChannelsTags.PANEL_TEXT, useUnmergedTree = true)
-            .assertTextContains("Night shows adult content. Switch it on?")
+            .assertTextContains("Night shows adult content. Switch it on?", substring = true)
         assertTrue("nothing is sent before the answer", lineup.changes.isEmpty())
         // The question starts on Cancel: a stray Select does not switch it on.
         compose.onNodeWithTag(ChannelsTags.ACTION_CANCEL).assertIsSelected()
@@ -363,7 +363,10 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.PANEL) }
         compose
             .onNodeWithTag(ChannelsTags.PANEL_TEXT, useUnmergedTree = true)
-            .assertTextContains("Reset channels? Your numbers and switched-off channels on this TV will be lost.")
+            .assertTextContains(
+                "Reset channels? Your numbers and switched-off channels on this TV will be lost.",
+                substring = true,
+            )
         press(Pad.Up, Pad.Select)
         until { exists(ChannelsTags.CHOOSING) }
         val choosing = compose.onNodeWithTag(ChannelsTags.CHOOSING, useUnmergedTree = true)
@@ -391,7 +394,7 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.NOT_EDITABLE) }
         compose
             .onNodeWithTag(ChannelsTags.NOT_EDITABLE, useUnmergedTree = true)
-            .assertTextContains("Channels can't be changed on this TV until the app is updated.")
+            .assertTextContains("Channels can't be changed on this TV until the app is updated.", substring = true)
         press(Pad.Select)
         until { exists(ChannelsTags.PANEL) }
         assertTrue(exists(ChannelsTags.ACTION_WATCH))
@@ -480,6 +483,5 @@ class ChannelsScreenTest {
         const val HEIGHT_DP = 540
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
-        const val REPEAT_HOLD_MS = 1_000L
     }
 }

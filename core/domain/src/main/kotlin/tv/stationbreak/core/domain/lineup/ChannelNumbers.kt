@@ -9,15 +9,13 @@ import tv.stationbreak.core.engine.lineup.LineupEdits
  * never keeps its own copy of the bands.
  */
 object ChannelNumbers {
-    /** A grown-up channel is first offered this number when it has none. */
-    private const val FIRST_GROWN_UP = 100
-
     /** Every number a channel may have. */
     val all: IntRange = LineupEdits.MIN_NUMBER..LineupEdits.MAX_NUMBER
 
     /** The numbers that belong to kids channels alone. */
     val kids: IntRange = Band.Kids.numbers
 
-    /** Where a number is first offered to a channel that has none: the start of the kids band for a kid channel. */
-    fun startFor(kid: Boolean): Int = if (kid) kids.first else FIRST_GROWN_UP
+    /** Where a number is first offered to a channel that has none: the start of the kids band for a kid
+     * channel, else the start of the general band. */
+    fun startFor(kid: Boolean): Int = if (kid) kids.first else Band.General.numbers.first
 }
