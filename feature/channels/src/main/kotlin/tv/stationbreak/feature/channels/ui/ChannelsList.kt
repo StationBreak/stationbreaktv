@@ -28,8 +28,6 @@ import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
 
-private const val DIMMED_ALPHA = 0.7f
-
 /** One line of the list: a group's heading, a channel, or the Reset row after the last group. */
 private sealed interface Line {
     data class Heading(
@@ -110,7 +108,7 @@ private fun HeadingLine(group: ChannelGroup) {
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag(headingTag(group)),
         style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = ChannelsPalette.secondary,
     )
 }
 
@@ -148,7 +146,7 @@ private fun RowLine(
                 stringResource(reasonText(reason)),
                 Modifier.testTag(ChannelsTags.reason(row.id)),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = ChannelsPalette.secondary,
             )
         }
     }

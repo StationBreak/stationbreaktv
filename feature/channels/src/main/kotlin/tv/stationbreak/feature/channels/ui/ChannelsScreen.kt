@@ -19,11 +19,11 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
-import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.channels.ChannelsMessage
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -51,20 +51,25 @@ internal fun ChannelsScreen(
                     .offset(safe.left, safe.top)
                     .width(listWidth)
                     .height(safe.bottom - safe.top)
-                    .background(BroadcastColors.Ink),
+                    .background(ChannelsPalette.ground),
             ) {
-                Header(ui)
-                ChannelList(ui, Modifier.weight(1f))
+                // Not inside a Surface, so the content colour would be tv-material's black default.
+                CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
+                    Header(ui)
+                    ChannelList(ui, Modifier.weight(1f))
+                }
             }
             val open = ui.panel != null || ui.confirmingReset
             if (open) {
-                ChannelsPanelView(
-                    ui,
-                    Modifier
-                        .offset(pictureHole.left, pictureHole.bottom + PanelGap)
-                        .width(safe.right - pictureHole.left)
-                        .background(BroadcastColors.Ink),
-                )
+                CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
+                    ChannelsPanelView(
+                        ui,
+                        Modifier
+                            .offset(pictureHole.left, pictureHole.bottom + PanelGap)
+                            .width(safe.right - pictureHole.left)
+                            .background(ChannelsPalette.ground),
+                    )
+                }
             }
         }
     }
@@ -98,7 +103,7 @@ private fun NoteLine(
         text,
         Modifier.testTag(tag),
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = ChannelsPalette.secondary,
     )
 }
 
