@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -76,6 +77,8 @@ internal class ChannelsViewModel
             val account: LibraryAccount? = null,
             val channels: List<ChannelSummary> = emptyList(),
             val reasons: Map<ChannelId, HiddenReason?> = emptyMap(),
+            /** [channels] and [reasons] as rows, made only when one of them changes. */
+            val rows: List<ChannelRow> = emptyList(),
             val access: LineupAccess = LineupAccess.Loading,
             val focus: ChannelsFocus? = null,
             /** The channel to focus when the list first arrives. */
@@ -87,6 +90,12 @@ internal class ChannelsViewModel
             val confirmingReset: Boolean = false,
             val choosing: Boolean = false,
             val reset: ResetResult? = null,
+            /** Lists that arrived while a reset ran: one of them is the lineup the reset made. */
+            val listsDuringReset: Int = 0,
+            /** A reset chose channels and the list it made has not arrived yet. */
+            val awaitingList: Boolean = false,
+            /** A change is out, so a second press sends nothing. */
+            val pending: Boolean = false,
             val current: ChannelId? = null,
             val currentNumber: Int? = null,
         )
@@ -114,44 +123,49 @@ internal class ChannelsViewModel
             session = scope.launch { run(generation) }
         }
 
-        private suspend fun run(generation: Int) {
-            val account = library.activeAccount().filterNotNull().first()
-            change(generation) { it.copy(account = account) }
-            val reasons = scope.launch { readReasons(generation, account) }
-            val access =
-                scope.launch {
-                    editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
-                }
-            var pending: Job? = reasons
-            var first = true
-            try {
-                repository.channels(account).collect { list ->
-                    change(generation) { onList(it, list) }
-                    if (first) first = false else pending = rereadLater(generation, account, pending)
-                }
-            } finally {
-                pending?.cancel()
-                access.cancel()
+        /** The screen has gone: nothing is read or watched until the next [open]. */
+        fun close() {
+            synchronized(lock) {
+                session?.cancel()
+                session = null
             }
         }
 
-        private fun rereadLater(
+        private suspend fun run(generation: Int) =
+            coroutineScope {
+                val account = library.activeAccount().filterNotNull().first()
+                change(generation) { it.copy(account = account) }
+                val reasons = launch { readReasons(generation) }
+                val access =
+                    launch {
+                        editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
+                    }
+                var pending: Job? = reasons
+                var first = true
+                try {
+                    repository.channels(account).collect { list ->
+                        change(generation) { onList(it, list) }
+                        if (first) first = false else pending = rereadLater(generation, pending)
+                    }
+                } finally {
+                    pending?.cancel()
+                    access.cancel()
+                }
+            }
+
+        private fun CoroutineScope.rereadLater(
             generation: Int,
-            account: LibraryAccount,
             pending: Job?,
         ): Job {
             pending?.cancel()
-            return scope.launch {
+            return launch {
                 delay(REASONS_DEBOUNCE)
-                readReasons(generation, account)
+                readReasons(generation)
             }
         }
 
         @Suppress("TooGenericExceptionCaught") // A failed read leaves the reasons as they were.
-        private suspend fun readReasons(
-            generation: Int,
-            account: LibraryAccount,
-        ) {
+        private suspend fun readReasons(generation: Int) {
             val airings =
                 try {
                     schedule.airings(clock.now())
@@ -161,7 +175,7 @@ internal class ChannelsViewModel
                     return
                 }
             val reasons = airings.associate { it.id to it.hidden }
-            change(generation) { if (it.account == account) it.copy(reasons = reasons) else it }
+            change(generation) { it.copy(reasons = reasons) }
         }
 
         /** A new list: it is kept, and a dialog about a channel that changed or went is closed. */
@@ -180,6 +194,8 @@ internal class ChannelsViewModel
                 panel = if (keep) panel else null,
                 holder = if (keep) m.holder else null,
                 currentNumber = currentNumber,
+                listsDuringReset = m.listsDuringReset + 1,
+                awaitingList = false,
             )
         }
 
@@ -195,9 +211,11 @@ internal class ChannelsViewModel
         }
 
         private fun apply(f: (Model) -> Model) {
-            val old = derive(model)
-            val next = f(model)
-            model = next.copy(focus = mended(next, old.rows.map { it.id }, derive(next).rows.map { it.id }))
+            val old = model
+            var next = f(old)
+            // The rows are sorted only when the channels or their reasons changed: a key press does no sorting.
+            if (next.channels !== old.channels || next.reasons !== old.reasons) next = next.copy(rows = rowsOf(next))
+            model = next.copy(focus = mended(next, old.rows.map { it.id }, next.rows.map { it.id }))
             shown.value = derive(model)
         }
 
@@ -230,7 +248,7 @@ internal class ChannelsViewModel
 
         private fun derive(m: Model): ChannelsUi =
             ChannelsUi(
-                rows = rowsOf(m),
+                rows = m.rows,
                 focus = m.focus,
                 access = m.access,
                 choosing = m.choosing,
@@ -267,7 +285,7 @@ internal class ChannelsViewModel
         /** Focus to the row above or below; Reset is the last stop. */
         fun move(up: Boolean) {
             synchronized(lock) {
-                val ids = derive(model).rows.map { it.id }
+                val ids = model.rows.map { it.id }
                 val stops = ids.map { ChannelsFocus.Row(it) } + ChannelsFocus.Reset
                 val at = stops.indexOf(model.focus)
                 val to = if (at < 0) 0 else (if (up) at - 1 else at + 1).coerceIn(0, stops.lastIndex)
@@ -300,14 +318,23 @@ internal class ChannelsViewModel
         }
 
         fun switchOn(id: ChannelId) {
-            val optIn = synchronized(lock) { model.channels.firstOrNull { it.id == id }?.optIn == true }
-            if (optIn) {
+            val asks =
                 synchronized(lock) {
-                    if (model.access == LineupAccess.Editable) apply { it.copy(panel = ChannelsPanel.ConfirmOptIn(id)) }
+                    if (notEditable()) return
+                    val optIn = model.channels.firstOrNull { it.id == id }?.optIn == true
+                    if (optIn) apply { it.copy(panel = ChannelsPanel.ConfirmOptIn(id)) }
+                    optIn
                 }
-            } else {
-                submit(ChannelChange.SwitchOn(id, confirmedOptIn = false))
+            if (!asks) submit(ChannelChange.SwitchOn(id, confirmedOptIn = false))
+        }
+
+        /** When the lineup may not be changed: closes what is open, says so, and returns true. Under [lock]. */
+        private fun notEditable(): Boolean {
+            if (model.access == LineupAccess.Editable) return false
+            apply {
+                it.copy(panel = null, holder = null, confirmingReset = false, message = ChannelsMessage.NotEditable)
             }
+            return true
         }
 
         fun confirmOptIn() {
@@ -321,7 +348,7 @@ internal class ChannelsViewModel
         fun startNumber(id: ChannelId) {
             synchronized(lock) {
                 val c = model.channels.firstOrNull { it.id == id } ?: return
-                if (model.access != LineupAccess.Editable) return
+                if (notEditable()) return
                 val start = c.number ?: if (c.kid) FIRST_KID_NUMBER else FIRST_NUMBER
                 apply { it.copy(panel = ChannelsPanel.Number(id, start)) }
             }
@@ -352,8 +379,10 @@ internal class ChannelsViewModel
         private fun submit(change: ChannelChange) {
             val (generation, account) =
                 synchronized(lock) {
-                    if (model.access != LineupAccess.Editable) return
-                    model.generation to (model.account ?: return)
+                    if (notEditable() || model.pending) return
+                    val account = model.account ?: return
+                    apply { it.copy(pending = true) }
+                    model.generation to account
                 }
             scope.launch {
                 val result = editor.change(account, change)
@@ -366,7 +395,9 @@ internal class ChannelsViewModel
             change: ChannelChange,
             result: ChangeResult,
         ): Model {
-            val closed = m.copy(panel = null, holder = null)
+            val own = m.panel?.id == change.channel
+            val closed =
+                if (own) m.copy(panel = null, holder = null, pending = false) else m.copy(pending = false)
             return when (result) {
                 ChangeResult.Done -> closed.copy(message = null)
                 is ChangeResult.Refused -> refused(m, closed, change, result.reason)
@@ -375,6 +406,15 @@ internal class ChannelsViewModel
                 ChangeResult.Failed -> closed.copy(message = ChannelsMessage.Failed)
             }
         }
+
+        private val ChannelChange.channel: ChannelId
+            get() =
+                when (this) {
+                    is ChannelChange.SwitchOn -> id
+                    is ChannelChange.SwitchOff -> id
+                    is ChannelChange.SetNumber -> id
+                    is ChannelChange.ClearNumber -> id
+                }
 
         private fun refused(
             m: Model,
@@ -425,16 +465,25 @@ internal class ChannelsViewModel
 
         fun askReset() {
             synchronized(lock) {
-                if (model.access == LineupAccess.Editable) apply { it.copy(confirmingReset = true, panel = null) }
+                if (!notEditable()) apply { it.copy(confirmingReset = true, panel = null) }
             }
         }
 
         fun reset() {
             val (generation, account) =
                 synchronized(lock) {
-                    if (model.access != LineupAccess.Editable) return
+                    if (notEditable() || model.choosing) return
                     val account = model.account ?: return
-                    apply { it.copy(confirmingReset = false, choosing = true, panel = null, message = null) }
+                    apply {
+                        it.copy(
+                            confirmingReset = false,
+                            choosing = true,
+                            panel = null,
+                            message = null,
+                            listsDuringReset = 0,
+                            awaitingList = false,
+                        )
+                    }
                     model.generation to account
                 }
             scope.launch {
@@ -449,7 +498,7 @@ internal class ChannelsViewModel
         ): Model {
             val done = m.copy(choosing = false)
             return when (result) {
-                ResetResult.Chosen -> done.copy(reset = result)
+                ResetResult.Chosen -> done.copy(reset = result, awaitingList = m.listsDuringReset == 0)
                 ResetResult.NotChosenYet -> done.copy(reset = result, message = ChannelsMessage.NotChosenYet)
                 ResetResult.NotEditable -> done.copy(message = ChannelsMessage.NotEditable)
                 ResetResult.SaveFailed -> done.copy(message = ChannelsMessage.SaveFailed)
@@ -467,8 +516,9 @@ internal class ChannelsViewModel
                         .sortedBy { it.number }
                 val current = model.current
                 when {
+                    // The lowest On of the list the reset made; until that list arrives there is nothing to name.
                     model.reset == ResetResult.Chosen -> {
-                        on.firstOrNull()?.id
+                        if (model.awaitingList) null else on.firstOrNull()?.id
                     }
 
                     model.reset == ResetResult.NotChosenYet -> {

@@ -3,6 +3,7 @@
 
 package tv.stationbreak.feature.channels
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,12 +13,16 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChangeResult
+import tv.stationbreak.core.domain.lineup.ChannelChange
+import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeChannelEditor
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ServerId
@@ -50,6 +55,27 @@ internal class FakeChannels(
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
 }
 
+/** The fake editor, which waits for a gate a test sets before it answers (a slow save or reset). */
+internal class GatedEditor(
+    val inner: FakeChannelEditor,
+) : ChannelEditor by inner {
+    var changeGate: CompletableDeferred<Unit>? = null
+    var resetGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun change(
+        account: LibraryAccount,
+        change: ChannelChange,
+    ): ChangeResult {
+        changeGate?.await()
+        return inner.change(account, change)
+    }
+
+    override suspend fun reset(account: LibraryAccount): ResetResult {
+        resetGate?.await()
+        return inner.reset(account)
+    }
+}
+
 /** What the ViewModel tests share: fakes for every port and a ViewModel on them. */
 internal class ChannelsRig(
     scope: TestScope,
@@ -59,12 +85,13 @@ internal class ChannelsRig(
     val library = InMemoryLibraryRepository()
     val repo = FakeChannels(channels)
     val editor = FakeChannelEditor()
+    val gated = GatedEditor(editor)
     val schedule = FakeSchedule()
     val clock: Clock =
         object : Clock {
             override fun now(): Instant = Instant.fromEpochMilliseconds(T0)
         }
-    val vm = ChannelsViewModel(library, repo, editor, schedule, clock, StandardTestDispatcher(scope.testScheduler))
+    val vm = ChannelsViewModel(library, repo, gated, schedule, clock, StandardTestDispatcher(scope.testScheduler))
     val ui get() = vm.ui.value
 
     suspend fun open(

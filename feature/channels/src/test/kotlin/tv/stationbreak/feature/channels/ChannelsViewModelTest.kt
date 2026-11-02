@@ -5,6 +5,7 @@ package tv.stationbreak.feature.channels
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
@@ -97,6 +98,7 @@ class ChannelsViewModelTest {
         channelsTest(listOf(summary(A, 5), summary(B, 7, Shelf))) { rig ->
             rig.open(this)
             rig.vm.switchOn(B)
+            runCurrent()
             rig.vm.switchOff(A)
             runCurrent()
             assertEquals(
@@ -175,7 +177,7 @@ class ChannelsViewModelTest {
             )
         }
 
-    private suspend fun kotlinx.coroutines.test.TestScope.refusal(
+    private suspend fun TestScope.refusal(
         result: ChangeResult,
         expected: ChannelsMessage,
     ) {
@@ -259,33 +261,134 @@ class ChannelsViewModelTest {
         channelsTest(trio) { rig ->
             rig.open(this)
             val gate = CompletableDeferred<Unit>()
-            val slow =
-                object : tv.stationbreak.core.domain.lineup.ChannelEditor by rig.editor {
-                    override suspend fun reset(account: tv.stationbreak.core.domain.LibraryAccount): ResetResult {
-                        gate.await()
-                        return rig.editor.reset(account)
-                    }
-                }
-            val vm =
-                ChannelsViewModel(
-                    rig.library,
-                    rig.repo,
-                    slow,
-                    rig.schedule,
-                    rig.clock,
-                    kotlinx.coroutines.test.StandardTestDispatcher(testScheduler),
-                )
-            vm.open(null)
+            rig.gated.resetGate = gate
+            rig.vm.askReset()
+            assertTrue(rig.ui.confirmingReset)
+            rig.vm.reset()
             runCurrent()
-            vm.askReset()
-            assertTrue(vm.ui.value.confirmingReset)
-            vm.reset()
-            runCurrent()
-            assertTrue(vm.ui.value.choosing)
-            assertEquals(false, vm.ui.value.confirmingReset)
+            assertTrue(rig.ui.choosing)
+            assertEquals(false, rig.ui.confirmingReset)
             gate.complete(Unit)
             runCurrent()
-            assertEquals(false, vm.ui.value.choosing)
+            assertEquals(false, rig.ui.choosing)
+        }
+
+    @Test
+    fun closeStopsReadingReasons() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            val reads = rig.schedule.airingsCalls
+            rig.repo.list.value = listOf(summary(A, 6), summary(B, 7), summary(C, 9))
+            runCurrent()
+            rig.vm.close()
+            advanceTimeBy(5_000)
+            runCurrent()
+            assertEquals(reads, rig.schedule.airingsCalls)
+            rig.repo.list.value = listOf(summary(A, 8), summary(B, 7), summary(C, 9))
+            advanceTimeBy(5_000)
+            runCurrent()
+            assertEquals(reads, rig.schedule.airingsCalls)
+            assertEquals(
+                listOf(B, A, C).map { it.value }.sorted(),
+                rig.ui.rows
+                    .map { it.id.value }
+                    .sorted(),
+            )
+        }
+
+    @Test
+    fun aDoublePressSendsOneChange() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            rig.gated.changeGate = CompletableDeferred()
+            rig.vm.switchOff(A)
+            rig.vm.switchOff(A)
+            runCurrent()
+            rig.gated.changeGate?.complete(Unit)
+            runCurrent()
+            assertEquals(1, rig.editor.changes.size)
+            rig.vm.switchOff(B)
+            runCurrent()
+            assertEquals(2, rig.editor.changes.size)
+        }
+
+    @Test
+    fun aResultLeavesAnotherChannelsPanelOpen() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            rig.gated.changeGate = CompletableDeferred()
+            rig.vm.switchOff(A)
+            runCurrent()
+            rig.vm.move(false)
+            rig.vm.select()
+            assertEquals(ChannelsPanel.Actions(B), rig.ui.panel)
+            rig.gated.changeGate?.complete(Unit)
+            runCurrent()
+            assertEquals(ChannelsPanel.Actions(B), rig.ui.panel)
+        }
+
+    @Test
+    fun anActionWithoutAccessClosesThePanelAndSaysSo() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            rig.vm.select()
+            rig.editor.setAccess(LineupAccess.ReadOnly)
+            runCurrent()
+            rig.vm.switchOff(A)
+            assertNull(rig.ui.panel)
+            assertEquals(ChannelsMessage.NotEditable, rig.ui.message)
+            assertTrue(rig.editor.changes.isEmpty())
+        }
+
+    @Test
+    fun selectOpensActionsWhateverTheAccess() =
+        channelsTest(trio) { rig ->
+            for (access in listOf(LineupAccess.ReadOnly, LineupAccess.Loading)) {
+                rig.editor.setAccess(access)
+                rig.open(this, current = A)
+                rig.vm.select()
+                assertEquals(ChannelsPanel.Actions(A), rig.ui.panel)
+            }
+        }
+
+    @Test
+    fun anEmptyingListMovesTheFocusToReset() =
+        channelsTest(trio) { rig ->
+            rig.open(this, current = B)
+            rig.repo.list.value = emptyList()
+            runCurrent()
+            assertEquals(ChannelsFocus.Reset, rig.ui.focus)
+        }
+
+    @Test
+    fun aStaleResultIsDropped() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            rig.gated.changeGate = CompletableDeferred()
+            rig.editor.changeResult = ChangeResult.Failed
+            rig.vm.switchOff(A)
+            runCurrent()
+            rig.vm.open(null)
+            runCurrent()
+            rig.gated.changeGate?.complete(Unit)
+            runCurrent()
+            assertNull(rig.ui.message)
+            rig.editor.changeResult = ChangeResult.Done
+            rig.vm.switchOff(B)
+            runCurrent()
+            assertEquals(2, rig.editor.changes.size)
+        }
+
+    @Test
+    fun closingAfterAResetThatReturnsFirstWaitsForTheNewList() =
+        channelsTest(trio) { rig ->
+            rig.open(this, current = C)
+            rig.vm.reset()
+            runCurrent()
+            assertNull(rig.vm.closing())
+            rig.repo.list.value = listOf(summary(D, 3), summary(C, 9))
+            runCurrent()
+            assertEquals(D, rig.vm.closing())
         }
 
     @Test
