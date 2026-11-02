@@ -129,6 +129,9 @@ filters were not part of the spike. They are expected to add work proportional t
 checks that expectation. Speed on the oldest supported TV hardware is measured when the scheduler tasks land; this record
 does not claim it.
 
+- Caps in the planned end (ruling 6): the capped shuffle was run over 60 consecutive days on a pool of more than 4,000
+  items, and it produced 0 cap exceeds, in the regular layout and in the planned end.
+
 ## Consequences
 
 - The document, a version 2 JSON Schema, version 2 examples and three version 2 vector files (`key-order-v2.json`,
