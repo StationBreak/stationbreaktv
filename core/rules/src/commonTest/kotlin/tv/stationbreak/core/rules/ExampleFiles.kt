@@ -1549,5 +1549,54 @@ internal object ExampleFiles {
                   }
                 }
                 """.trimIndent() + "\n",
+            "v1-file-in-order.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Version 1 In Order",
+                  "seed": "29",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "inOrder"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "v1-file-item-source.json" to
+                """
+                {
+                  "formatVersion": 1,
+                  "name": "Version 1 Item",
+                  "seed": "30",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    },
+                    {
+                      "type": "item",
+                      "id": "44444444444444444444444444444444"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
         )
 }

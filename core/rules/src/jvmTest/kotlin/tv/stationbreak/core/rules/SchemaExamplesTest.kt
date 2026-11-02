@@ -5,6 +5,10 @@ import com.networknt.schema.InputFormat
 import com.networknt.schema.Schema
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -59,7 +63,7 @@ class SchemaExamplesTest {
                 assertTrue(schemaV2.validate(text, InputFormat.JSON).isNotEmpty(), "$name should fail the v2 schema")
             }
             val result = RulesReader.read(text)
-            if (name == "v1-file-rotation.json") {
+            if (name in v1Files) {
                 assertTrue(result is RulesResult.Unsupported, "$name: $result")
             } else {
                 assertTrue(result is RulesResult.Invalid, "$name: $result")
@@ -69,10 +73,28 @@ class SchemaExamplesTest {
 
     @Test
     fun theV2SchemaStaysOpen() {
-        val text = RulesFormatFiles.schemaV2File.readText()
-        assertTrue("https://json-schema.org/draft/2020-12/schema" in text)
-        assertTrue("additionalProperties" !in text, "objects must stay open to extra fields")
-        assertTrue("unevaluatedProperties" !in text, "objects must stay open to extra fields")
+        // Behavioural: a valid v2 file keeps validating with an unknown field at every level that has its own object.
+        val full = Json.parseToJsonElement(RulesFormatFiles.validV2.getValue("full.json")).jsonObject
+        val extra = "futureField" to JsonPrimitive(true)
+
+        fun JsonObject.plus(
+            key: String,
+            change: (JsonObject) -> JsonObject,
+        ) = JsonObject(this + (key to change(getValue(key).jsonObject)))
+
+        fun JsonObject.add() = JsonObject(this + extra)
+        val opened =
+            listOf(
+                full.add(),
+                full.plus("ordering") { o -> o.plus("caps") { it.add() } },
+                full.plus("filters") { it.add() },
+                full.plus("filters") { f -> f.plus("years") { it.add() } },
+                full.plus("filters") { f -> f.plus("runtime") { it.add() } },
+            )
+        for ((i, doc) in opened.withIndex()) {
+            assertTrue(schemaV2.validate(doc.toString(), InputFormat.JSON).isEmpty(), "case $i should still validate")
+        }
+        assertTrue("https://json-schema.org/draft/2020-12/schema" in RulesFormatFiles.schemaV2File.readText())
     }
 
     @Test
@@ -172,6 +194,7 @@ class SchemaExamplesTest {
     }
 
     private companion object {
+        val v1Files = setOf("v1-file-rotation.json", "v1-file-in-order.json", "v1-file-item-source.json")
         val readerOnly =
             setOf("caps-short-epoch.json", "filters-years-reversed.json", "filters-runtime-min-over-max.json")
         val v2InvalidFiles =
@@ -184,6 +207,8 @@ class SchemaExamplesTest {
                 "filters-empty-genres.json",
                 "item-source-upper-case-id.json",
                 "v1-file-rotation.json",
+                "v1-file-in-order.json",
+                "v1-file-item-source.json",
             )
         val invalidCases =
             listOf(

@@ -1658,7 +1658,7 @@ Everything below is in this repository, under `docs/`:
 - `docs/rules-format/examples/`: one worked example per feature, each of which validates against the version 1 schema.
 - `docs/rules-format/examples/v2/`: one worked example per version 2 feature (`rotation`, `inOrder`, a capped `shuffle`,
   `filters`, an `item` source, and a file that uses all of them), each of which validates against the version 2 schema, and
-  `docs/rules-format/examples/v2/invalid/`, which it must reject.
+  `docs/rules-format/examples/v2/invalid/`, files a reader must reject (the schema rejects those it can).
 - `docs/rules-format/examples/invalid/`: files the schema must reject (wrong type, missing `formatVersion`,
   `formatVersion` 0, a missing or malformed seed, a hyphenated or upper-case ID, a rating off the ladder, an unknown
   source kind, no sources, a missing `timing` or offset, an offset that is not a multiple of 15, an `epochHours` not on

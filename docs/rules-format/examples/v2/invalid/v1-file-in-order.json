@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "name": "Version 1 In Order",
+  "seed": "29",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "inOrder"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}
