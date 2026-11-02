@@ -14,20 +14,23 @@ internal class FiltersDecoder(
 ) {
     fun filters(element: JsonElement): Filters? {
         val obj = element as? JsonObject ?: invalid("filters must be an object")
+        val genres = obj["genres"]?.let { genres(it) }
         val years = obj["years"]?.let { years(it) }
         val runtime = obj["runtime"]?.let { runtime(it) }
         val kind = obj["kind"]?.let { kind(it) }
+        val extras = extras(obj, RulesVocabulary.FILTERS)
+        // An unknown kind makes the file unsupported, but only after every other part has been checked.
         return if (obj["kind"] != null && kind == null) {
             null
         } else {
             Filters(
-                genres = obj["genres"]?.let { genres(it) },
+                genres = genres,
                 yearFrom = years?.from,
                 yearTo = years?.to,
                 minRuntimeMinutes = runtime?.min,
                 maxRuntimeMinutes = runtime?.max,
                 kind = kind,
-                extras = extras(obj, RulesVocabulary.FILTERS),
+                extras = extras,
                 yearsExtras = years?.extras ?: NO_EXTRAS,
                 runtimeExtras = runtime?.extras ?: NO_EXTRAS,
             )

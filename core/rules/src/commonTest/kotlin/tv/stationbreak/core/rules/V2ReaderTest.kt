@@ -214,4 +214,30 @@ class V2ReaderTest {
         assertEquals(false, positions.any { it < 0 })
         assertEquals(readOk(root.text()), readOk(written))
     }
+
+    @Test
+    fun anUnknownFilterKindDoesNotHideAnInvalidPart() {
+        val bad = filtersOf("kind" to JsonPrimitive("season"), "genres" to array())
+        assertEquals(true, invalid(bad).reason.contains("filters.genres"))
+        val years = obj("from" to JsonPrimitive(2000), "to" to JsonPrimitive(1999))
+        invalid(filtersOf("kind" to JsonPrimitive("season"), "years" to years))
+    }
+
+    @Test
+    fun unknownFieldsInsideFiltersAreKeptAndWrittenBack() {
+        val root =
+            filtersOf(
+                "genres" to array(JsonPrimitive("Comedy")),
+                "years" to
+                    obj("from" to JsonPrimitive(1990), "to" to JsonPrimitive(1999), "yearsNew" to JsonPrimitive(1)),
+                "runtime" to obj("minMinutes" to JsonPrimitive(5), "runtimeNew" to array(JsonPrimitive(true))),
+                "kind" to JsonPrimitive("movie"),
+                "filtersNew" to obj("deep" to JsonPrimitive("x")),
+            )
+        val rules = readOk(root.text())
+        assertEquals(setOf("filtersNew"), rules.filters?.extras?.keys)
+        assertEquals(setOf("yearsNew"), rules.filters?.yearsExtras?.keys)
+        assertEquals(setOf("runtimeNew"), rules.filters?.runtimeExtras?.keys)
+        assertEquals(root, Json.parseToJsonElement(RulesWriter.write(rules)))
+    }
 }
