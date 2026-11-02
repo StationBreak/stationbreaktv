@@ -8,6 +8,7 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.ChannelRules
@@ -30,6 +31,9 @@ class DayInputsDifferentialTest {
 
     // Beside the filling library, items the holds and ceilings tell apart: animation not made for kids, a kids'
     // title on a children's rating, and grown-up ratings the kids' ceiling blocks.
+    private val boxSet = id(900)
+    private val boxSetFilms = (810..812).map { movie(it, "Drama", rating = "G") }
+
     private val items =
         fillingLibrary() +
             listOf(
@@ -38,7 +42,7 @@ class DayInputsDifferentialTest {
                 movie(802, "Animation", rating = "G"),
                 movie(803, "Animation", "Kids", rating = "TV-Y"),
                 movie(804, "Animation", "Kids", rating = "PG-13"),
-            )
+            ) + boxSetFilms
 
     private fun custom(
         id: String,
@@ -66,23 +70,31 @@ class DayInputsDifferentialTest {
         filters,
     )
 
-    private val boxSet = id(900)
     private val years = Filters(null, 1990, 2010, null, null, null)
 
+    private fun rotation(
+        id: String,
+        number: Int?,
+        state: ChannelState,
+        caps: OrderingCaps?,
+        filters: Filters?,
+    ) = channel(
+        id,
+        number,
+        state,
+        ChannelSource.Custom(v2(id, Ordering(OrderingMode.Rotation, caps), filters, Source.Collection(boxSet))),
+    )
+
+    // Version 2 channels: plain, capped and filtered rotations (one in the Kids band, one hidden, one on the shelf).
     private val v2Fixture =
         lineupOf(
-            channel(
-                "custom-1",
-                600,
-                ChannelState.On,
-                ChannelSource.Custom(v2("one", Ordering(OrderingMode.Rotation), null, Source.Collection(boxSet))),
-            ),
-            channel(
-                "custom-2",
-                610,
-                ChannelState.UserHidden,
-                ChannelSource.Custom(v2("two", null, years, Source.Genre("Comedy"))),
-            ),
+            rotation("custom-1", 600, ChannelState.On, null, null),
+            rotation("custom-2", 610, ChannelState.On, OrderingCaps(series = 2, film = 2), null),
+            rotation("custom-3", 620, ChannelState.On, null, years),
+            rotation("custom-4", 50, ChannelState.On, OrderingCaps(series = null, film = 3), years),
+            rotation("custom-5", 630, ChannelState.UserHidden, OrderingCaps(series = 1, film = 1), null),
+            rotation("custom-6", null, ChannelState.Shelf, null, null),
+            leftovers("kids-odds-and-ends", 99, "PG"),
             leftovers("odds-and-ends", 199, null),
         )
 
@@ -163,22 +175,29 @@ class DayInputsDifferentialTest {
         return out
     }
 
+    private val collections =
+        boxSetFilms.map { it.item.id }.toSet().let { films ->
+            mapOf(boxSet to RuleCollection(boxSet, films, emptySet(), emptySet(), emptySet()))
+        }
+
     private fun describe(lineup: Lineup): Map<String, String> {
         val at = NOON.toEpochMilliseconds()
         val scheduled = days.scheduled(lineup, at)
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
-                RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
+                RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), collections, collectionsSynced = true)
             }
         return days.days(lineup, scheduled, snapshots).associate { day ->
             day.channel.id.value to
                 "pool=${day.pool.map { it.id.value }} hidden=${day.hidden} settings=${day.settings} " +
-                "n=${day.n} ceiling=${day.ceilingRank}"
+                "n=${day.n} ceiling=${day.ceilingRank} films=${day.films.entries}"
         }
     }
 
     @Test
     fun lineupsWithTheSameInputsHaveTheSameDays() {
+        val mapped = describe(v2Fixture).values.any { "films=[(" in it }
+        assertTrue(mapped, "a day of the fixtures has a map to compare")
         val groups = reachable().groupBy { days.inputsOf(it) }
         var compared = 0
         for ((_, lineups) in groups) {
@@ -192,25 +211,6 @@ class DayInputsDifferentialTest {
         }
         assertTrue(compared >= MIN_COMPARED, "only $compared pairs shared inputs: the test would prove little")
         assertTrue(groups.size >= MIN_GROUPS, "only ${groups.size} distinct inputs: the edits change too little")
-    }
-
-    @Test
-    fun aCapsEditOrAFilterEditChangesTheDigest() {
-        fun digestOf(edit: (ChannelRules) -> ChannelRules): String {
-            val custom = v2Fixture.channels.first { it.id.value == "custom-1" }
-            val rules = (custom.source as ChannelSource.Custom).rules
-            val edited = custom.copy(source = ChannelSource.Custom(edit(rules)))
-            return days.inputsOf(lineupOf(edited))
-        }
-
-        val digests =
-            setOf(
-                digestOf { it },
-                digestOf { it.copy(ordering = Ordering(OrderingMode.Rotation, OrderingCaps(series = 2, film = 2))) },
-                digestOf { it.copy(filters = Filters(null, 1990, 2010, null, null, null)) },
-            )
-
-        assertEquals(3, digests.size)
     }
 
     private companion object {

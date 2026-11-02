@@ -442,15 +442,9 @@ internal class LineupDays(
         // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling and its own policy.
         private fun hiddenRules(): List<PolicyRules> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
-                rulesOf(channel)?.let { PolicyRules(it.copy(maxRating = ceilings.of(channel)), policyOf(channel)) }
+                rulesOf(channel)?.let { ceilings.policyRules(it, channel) }
             }
     }
-
-    /** Rules to evaluate, and the policy the pool is narrowed by (ADR-0019, ADR-0020). */
-    private data class PolicyRules(
-        val rules: ChannelRules,
-        val policy: PoolPolicy,
-    )
 
     /**
      * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions, filters and ceiling,

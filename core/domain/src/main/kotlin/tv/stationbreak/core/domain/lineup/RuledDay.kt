@@ -22,6 +22,18 @@ internal class RuledDay(
     val films: FilmCollections,
 )
 
+/** Rules to evaluate, and the policy the pool is narrowed by (ADR-0019, ADR-0020). */
+internal data class PolicyRules(
+    val rules: ChannelRules,
+    val policy: PoolPolicy,
+)
+
+/** [rules] as [channel] airs them: under its scheduled ceiling and its own policy. The one place that decides both. */
+internal fun Ceilings.policyRules(
+    rules: ChannelRules,
+    channel: LineupChannel,
+): PolicyRules = PolicyRules(rules.copy(maxRating = of(channel)), KidStatus.policyOf(channel))
+
 /**
  * The day of [channel] under [rules] for epoch [n], from [snapshot]. The ceiling is [ceilings]' and the policy is
  * `KidStatus.policyOf(channel)`; nothing else decides them. [evaluate] is the pool provider: LineupDays passes its
@@ -38,8 +50,8 @@ internal fun ruledDayOf(
     n: Long,
     evaluate: (ChannelRules, PoolPolicy) -> Pool,
 ): RuledDay {
-    val ruled = rules.copy(maxRating = ceilings.of(channel))
-    val pool = evaluate(ruled, KidStatus.policyOf(channel))
+    val (ruled, policy) = ceilings.policyRules(rules, channel)
+    val pool = evaluate(ruled, policy)
     val day = EpochPool.build(settings, pool.items, n)
     return RuledDay(pool, day, GroupCollections.of(ruled, snapshot, day))
 }

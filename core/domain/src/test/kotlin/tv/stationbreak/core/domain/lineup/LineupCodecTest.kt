@@ -267,6 +267,11 @@ class LineupCodecTest {
                 """$version2Head,"filters":{},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
                 """{"formatVersion":2,"seed":"1","sources":[{"type":"item","id":"${"a".repeat(32)}"}],$utc}""",
                 """$version2Head,"ordering":{"mode":"shuffle","caps":{"series":2}},$utc}""",
+                """$version2Head,"ordering":{"mode":"inOrder"},$utc}""",
+                """$version2Head,"filters":{"genres":["Drama"],"years":{"from":1990,"to":1999},""" +
+                    """"runtime":{"minMinutes":60,"maxMinutes":180},"kind":"movie"},$utc}""",
+                """$version2Head,"exclusions":[{"type":"item","id":"${"b".repeat(32)}"}],$utc}""",
+                """$version2Head,"ordering":{"mode":"rotation","caps":{"series":2,"film":4}},$utc}""",
             )
         for (text in texts) {
             val first = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(text).toString())).lineup

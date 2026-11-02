@@ -27,8 +27,8 @@ import tv.stationbreak.core.rules.RulesWriter
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a version-1 file with an
  * unknown key or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside, never silently trimmed). The
- * rules of a starter or custom channel are a rules-format file held as a JSON string, so they keep their own format
- * (including its fields this app does not know) exactly.
+ * rules of a starter or custom channel are a rules-format file (version 1 or 2) held as a JSON string; they are read
+ * and written by the rules codec, so they keep their extras (the fields this app does not know) but not their bytes.
  *
  * One bad channel never discards the rest: when a channel's `source` cannot be used (its rules fail [RulesReader] or
  * need a newer app, a leftovers ceiling is not on the rating ladder, a field is missing or of the wrong type), that

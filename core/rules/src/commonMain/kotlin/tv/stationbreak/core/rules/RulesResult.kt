@@ -2,8 +2,7 @@
 package tv.stationbreak.core.rules
 
 /**
- * What [RulesReader.read] found in a rules file. Only [Ok] may be scheduled, and a caller that does not schedule
- * version 2 features yet checks [ChannelRules.requiredVersion] too.
+ * What [RulesReader.read] found in a rules file. Only [Ok] may be scheduled.
  */
 sealed interface RulesResult {
     /** A file of version 1 or 2 that this reader read in full. */

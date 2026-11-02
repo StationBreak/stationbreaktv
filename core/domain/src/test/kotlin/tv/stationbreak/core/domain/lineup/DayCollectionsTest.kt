@@ -19,9 +19,11 @@ import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.Source
@@ -128,6 +130,16 @@ class DayCollectionsTest {
         return runBlocking { persisted.load(ACCOUNT, key ?: keyOf(persisted, scheduled), scheduled, days::restore) }
     }
 
+    private fun savedBody() =
+        Json
+            .parseToJsonElement(
+                store
+                    .only()
+                    .second
+                    .decodeToString()
+                    .substringAfter('\n'),
+            ).jsonObject
+
     private fun lastMiss() = (events.last() as DaySnapshotEvent.Miss).reason
 
     @Test
@@ -138,6 +150,20 @@ class DayCollectionsTest {
         val ungrouped = buildDay(day.settings, day.pool, day.n, FilmCollections.of(emptyMap()))
         assertNotEquals(ungrouped.blocks, day.day.blocks, "the grouping reaches the layout")
         assertEquals(buildDay(day.settings, day.pool, day.n, day.films).blocks, day.day.blocks)
+
+        // Film cap 1: within the first turn of every group, no two films of the box set are back to back.
+        val order =
+            day.day.blocks
+                .map { it.content }
+                .filterIsInstance<ScheduleContent.Program>()
+                .map { it.itemId }
+        val firstCycle = order.takeWhile(HashSet<CanonicalId>()::add)
+        val inBoxSet =
+            day.films.entries
+                .map { it.first }
+                .toSet()
+        assertTrue(firstCycle.size > 1, "a turn of several groups")
+        assertTrue(firstCycle.zipWithNext().none { (a, b) -> a in inBoxSet && b in inBoxSet }, "$firstCycle")
     }
 
     @Test
@@ -191,15 +217,7 @@ class DayCollectionsTest {
         val key = keyOf(persisted, v1, scheduled)
         assertTrue(runBlocking { persisted.save(ACCOUNT, key, days.days(v1, scheduled, snapshotsOf(scheduled))) })
 
-        val body =
-            Json
-                .parseToJsonElement(
-                    store
-                        .only()
-                        .second
-                        .decodeToString()
-                        .substringAfter('\n'),
-                ).jsonObject
+        val body = savedBody()
 
         // The body's shape is the version 4 one: these keys and no others.
         assertEquals(setOf("series", "items", "days"), body.keys)
@@ -211,12 +229,7 @@ class DayCollectionsTest {
         fun digest(rules: ChannelRules) = days.inputsOf(lineupOf(custom(600, rules)))
         val base = rotation(Source.Collection(boxSet), Source.Genre("Comedy"))
         val capped = base.copy(ordering = Ordering(OrderingMode.Rotation, OrderingCaps(series = 2, film = 2)))
-        val filtered =
-            base.copy(
-                filters =
-                    tv.stationbreak.core.rules
-                        .Filters(null, 1990, 2010, null, null, null),
-            )
+        val filtered = base.copy(filters = Filters(null, 1990, 2010, null, null, null))
 
         assertEquals(3, setOf(digest(base), digest(capped), digest(filtered)).size)
     }
@@ -273,23 +286,22 @@ class DayCollectionsTest {
         return JsonObject(body + ("days" to JsonArray(edited)))
     }
 
+    // The saved file, forged to point the first film entry at [item]'s row; the unchanged body loads (the control).
+    private fun forgedToPointAt(item: CanonicalId) {
+        val (where, _) = store.only()
+        val body = savedBody()
+        store.files[where] = forged { it }
+        assertNotNull(load(), "the forging itself is sound: an unchanged body loads")
+        events.clear()
+        store.files[where] = forged { pointingAt(it, rowOf(body, item)) }
+    }
+
     @Test
     fun anEntryForAnItemOutsideTheChannelsPoolIsAMiss() {
         save()
-        val (where, _) = store.only()
         // A crime film is in the table, because the other channel airs it, but not in the rotation channel's pool.
         assertTrue(rotationDay().pool.none { it.id == crime.item.id })
-
-        val body =
-            Json
-                .parseToJsonElement(
-                    store
-                        .only()
-                        .second
-                        .decodeToString()
-                        .substringAfter('\n'),
-                ).jsonObject
-        store.files[where] = forged { pointingAt(it, rowOf(body, crime.item.id)) }
+        forgedToPointAt(crime.item.id)
 
         assertNull(load())
         assertIs<DaySnapshotEvent.Miss>(events.last())
@@ -298,19 +310,8 @@ class DayCollectionsTest {
     @Test
     fun anEntryForAnEpisodeIsAMiss() {
         save()
-        val (where, _) = store.only()
         assertTrue(rotationDay().pool.any { it.id == episode.item.id }, "the episode is in the channel's pool")
-
-        val body =
-            Json
-                .parseToJsonElement(
-                    store
-                        .only()
-                        .second
-                        .decodeToString()
-                        .substringAfter('\n'),
-                ).jsonObject
-        store.files[where] = forged { pointingAt(it, rowOf(body, episode.item.id)) }
+        forgedToPointAt(episode.item.id)
 
         assertNull(load())
         assertIs<DaySnapshotEvent.Miss>(events.last())
