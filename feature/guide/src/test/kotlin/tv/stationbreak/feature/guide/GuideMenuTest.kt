@@ -653,4 +653,33 @@ class GuideMenuTest : GuideRig() {
             assertEquals(before, vm.ready())
             assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
+
+    @Test
+    fun theDetailsPanelOnTheMenuFollowsAChannelRenumberedUnderTheScreen() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.toMenu()
+            vm.channelsOpened()
+            runCurrent()
+            assertEquals(7, vm.panel.value?.channelNumber)
+
+            // Channel 7 is renumbered to 20 while the screen shows; 7 is free.
+            fake.channel(CH7, 20, halfHours(600))
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 20), summary(CH9, 9))
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            val row =
+                vm
+                    .ready()
+                    .model.rows
+                    .single { it.channel == vm.focused().channel }
+            assertEquals(20, row.number)
+            assertEquals(row.number, vm.panel.value?.channelNumber)
+            assertEquals(row.name, vm.panel.value?.channelName)
+        }
 }

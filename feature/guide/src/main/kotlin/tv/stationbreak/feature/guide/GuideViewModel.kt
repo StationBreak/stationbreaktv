@@ -855,8 +855,10 @@ internal class GuideViewModel
             val row = model.rows[located.first]
             val cell = row.cells[located.second]
             if (before != null && before.channel == focus.channel && before.cellStartMs == focus.cellStartMs) {
-                // Same cell, maybe rebuilt (a window that was extended): show the new one, keep waiting or showing.
-                shownPanel.value = shownPanel.value?.let { if (it.cell == cell) it else it.copy(cell = cell) }
+                // Same cell, maybe rebuilt (a window that was extended, or a lineup change that renumbered or renamed
+                // its channel): show the new one, keep waiting or showing.
+                shownPanel.value =
+                    shownPanel.value?.copy(cell = cell, channelNumber = row.number, channelName = row.name)
                 return
             }
             dwellJob?.cancel()
