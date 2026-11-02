@@ -47,8 +47,11 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val ChipPadding = 6.dp
 private const val PROGRESS_TRACK_ALPHA = 0.35f
-private const val OVERVIEW_LINES_WITH_EPISODE = 2
-private const val OVERVIEW_LINES = 3
+
+// One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
+// ellipsis reads better than one clipped mid-line.
+private const val OVERVIEW_LINES_WITH_EPISODE = 1
+private const val OVERVIEW_LINES = 2
 private const val DESCRIBE_AFTER_MS = 150L
 
 /**

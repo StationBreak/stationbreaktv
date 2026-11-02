@@ -632,6 +632,8 @@ class GuideScreenTest {
             assertEquals("$key: $roots", 2, roots.count { it == "ui.GuideCellView" })
             val others = roots.filterNot { it == "ui.GuideCellView" || it.startsWith("ui.DetailsPanel") }
             assertTrue("$key: $roots", others.all { it.startsWith("ui.HintRow") })
+            // The Channels button reads only whether the focus is on it: a move on the grid leaves it alone.
+            assertTrue("$key: $roots", roots.none { it.startsWith("ui.ChannelsButton") })
         }
     }
 

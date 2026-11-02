@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.os.SystemClock
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +30,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -85,6 +89,10 @@ class GuideChannelsButtonUiTest {
     @Volatile
     private var done: ((ChannelId?) -> Unit)? = null
     private val tuned = CopyOnWriteArrayList<ChannelId>()
+    private var exits = 0
+
+    // Whether the slot, as the real screen does, finishes on the release of its own Back.
+    private var finishOnBack = false
 
     private val clock =
         object : Clock {
@@ -98,6 +106,8 @@ class GuideChannelsButtonUiTest {
         vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), InMemoryLibraryRepository(), QuietLineup)
         compose.setContent {
             StationBreakTheme {
+                // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
+                BackHandler { exits++ }
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
                     GuideRoot(
                         vm,
@@ -132,6 +142,7 @@ class GuideChannelsButtonUiTest {
                 .focusRequester(focus)
                 .onKeyEvent {
                     if (it.type == KeyEventType.KeyDown) slotKeys += it.key
+                    if (finishOnBack && it.key == Key.Back && it.type == KeyEventType.KeyUp) onDone(null)
                     true
                 }.focusable(),
         )
@@ -145,6 +156,16 @@ class GuideChannelsButtonUiTest {
 
     private fun press(key: Key) {
         compose.onRoot().performKeyInput { pressKey(key) }
+        compose.waitForIdle()
+    }
+
+    /** Back through the real input path, as the guide's own test does. */
+    private fun back() {
+        compose.awaitWindowFocus()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val at = SystemClock.uptimeMillis()
+        instrumentation.sendKeySync(KeyEvent(at, at, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0))
+        instrumentation.sendKeySync(KeyEvent(at, at + 50, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, 0))
         compose.waitForIdle()
     }
 
@@ -196,6 +217,24 @@ class GuideChannelsButtonUiTest {
         assertEquals(listOf(Key.DirectionDown, Key.DirectionRight), slotKeys.toList())
         button().assertIsSelected()
         cell(60).assertIsNotSelected()
+    }
+
+    @Test
+    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextTwoWalkOut() {
+        showReady()
+        finishOnBack = true
+        openTheSlot()
+        // The slot finishes on its own Back release; the guide does not take that press.
+        back()
+        compose.onNodeWithTag(SLOT).assertDoesNotExist()
+        button().assertIsSelected()
+        assertEquals(0, exits)
+        // Back from the button goes to the playing cell, and the next leaves live TV.
+        back()
+        cell(60).assertIsSelected()
+        assertEquals(0, exits)
+        back()
+        assertEquals(1, exits)
     }
 
     @Test

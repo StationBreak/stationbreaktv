@@ -170,7 +170,7 @@ internal fun GuideRoot(
             modifier =
                 Modifier
                     .focusRequester(keys)
-                    .onKeyEvent { !managing && guideKey(it, move, viewModel::select, back) }
+                    .onKeyEvent { managing || guideKey(it, move, viewModel::select, back) }
                     .focusable(),
         )
         if (managing) {

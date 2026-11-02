@@ -4,12 +4,14 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -46,7 +48,7 @@ class DetailsPanelTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             StationBreakTheme {
-                DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(400.dp, 200.dp))
+                DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(PANEL_WIDTH_DP.dp, PANEL_HEIGHT_DP.dp))
             }
         }
     }
@@ -111,7 +113,20 @@ class DetailsPanelTest {
         assertEquals("Fetched", text(GuideTags.PANEL_OVERVIEW))
     }
 
+    @Test
+    fun aLongDescriptionEndsInsideThePanelAsTheButtonTakesTheFoot() {
+        show(details(0, "A long description. ".repeat(30)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        val bottom = overview().getBoundsInRoot().bottom
+        val panelBottom = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().bottom
+        assertTrue("overview ends at $bottom, panel at $panelBottom", bottom <= panelBottom)
+    }
+
     private companion object {
+        // The guide's panel on a 960 x 540 dp screen: the band left of the picture, less the Channels button's row.
+        const val PANEL_WIDTH_DP = 502
+        const val PANEL_HEIGHT_DP = 162
+
         const val MIN = 60_000L
         const val STEP_MS = 50L
 

@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,15 +33,15 @@ private val ButtonPadding = 12.dp
 /**
  * The Channels button above the grid, which opens channel management. The guide's focus is its own (model-driven),
  * so the button does not take Compose focus: [focusedOf] says whether the guide's focus is on it, and it is drawn as a
- * focused cell is (Accent with a white ring) and told to a screen reader as selected. The focus is read here, so a
- * move on the grid recomposes nothing but the cells it touched.
+ * focused cell is (Accent with a white ring) and told to a screen reader as selected. The focus is read through a
+ * derived state, so the button recomposes only when the focus reaches or leaves it, never for a move on the grid.
  */
 @Composable
 internal fun ChannelsButton(
     focusedOf: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val focused = focusedOf()
+    val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
     val label = stringResource(R.string.guide_channels_button)
     Box(
         modifier

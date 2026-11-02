@@ -202,6 +202,69 @@ class GuideChannelsButtonTest : GuideRig() {
         }
 
     @Test
+    fun backWhileTheGuideReopensStaysOnTheButton() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.up()
+            vm.up()
+            vm.channelsOpened()
+            runCurrent()
+            val measured = vm.windowMs
+            fake.channel(ChannelId("ch-3"), 3, halfHours(600))
+            lineupList.list.value = lineupList.list.value + summary(ChannelId("ch-3"), 3)
+            runCurrent()
+
+            vm.channelsClosed()
+
+            // The new session has not loaded yet: Back is taken, and does not leave live TV.
+            assertTrue(vm.backToPlaying())
+            assertTrue(vm.onButton())
+            // The opening's figures are the first session's, not the reopen's.
+            assertEquals(measured, vm.windowMs)
+            runCurrent()
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+        }
+
+    @Test
+    fun anEditThatLandsAfterTheScreenClosedReopensTheGuideOnTheButton() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.up()
+            vm.up()
+            vm.channelsOpened()
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+            assertEquals(
+                3,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+
+            fake.channel(ChannelId("ch-3"), 3, halfHours(600))
+            lineupList.list.value = lineupList.list.value + summary(ChannelId("ch-3"), 3)
+            runCurrent()
+
+            assertEquals(
+                4,
+                vm
+                    .ready()
+                    .model.rows.size,
+            )
+            assertTrue(vm.onButton())
+        }
+
+    @Test
     fun aLineupThatDidNotChangeLeavesTheGuideAsItWas() =
         guideTest { vm ->
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))

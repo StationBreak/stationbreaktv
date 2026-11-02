@@ -112,6 +112,7 @@ internal class GuideViewModel
         private var lineupWatch: Job? = null
         private var lineupAtOpen: List<ChannelSummary>? = null
         private var lineupNow: List<ChannelSummary>? = null
+        private var managing = false
         private var firstWindowMs = NO_MEASURE
         private val wrapHold = WrapHold()
         private var asked = 0
@@ -279,6 +280,9 @@ internal class GuideViewModel
                 val ready = current.state as? GuideState.Ready
                 val target = current.playingFocus(currentChannel)
                 val focus = current.focus
+                // A reopen after a lineup change is on its way: Back stays on the button rather than leaving live TV.
+                val state = current.state
+                if (current.onButton && (state == GuideState.Closed || state == GuideState.Loading)) return true
                 if (ready == null || target == null || shownInfo.value != null) return false
                 // From the button Back goes to the playing cell even when the cell last focused is that one.
                 val moves = current.onButton || (focus != null && !focus.sameCellAs(target))
@@ -301,56 +305,73 @@ internal class GuideViewModel
             }
 
         /**
-         * Channel management opens over the guide: the session stays, and the lineup is watched from now, so
-         * [channelsClosed] can tell whether it changed meanwhile.
+         * Channel management opens over the guide: the session stays. The lineup is watched from the first opening to
+         * the end of the session, against the lineup the session opened with, so [channelsClosed] can tell whether it
+         * changed meanwhile, and an edit whose write lands just after the screen closed still reaches the grid.
          */
         fun channelsOpened() {
             synchronized(lock) {
                 val s = session ?: return
-                lineupWatch?.cancel()
-                lineupAtOpen = null
-                lineupNow = null
-                lineupWatch =
-                    s.launch {
-                        try {
-                            val account = library.activeAccount().filterNotNull().first()
-                            lineup.channels(account).collect { list ->
-                                synchronized(lock) {
-                                    if (session === s) {
-                                        if (lineupAtOpen == null) lineupAtOpen = list
-                                        lineupNow = list
-                                    }
+                managing = true
+                if (lineupWatch?.isActive == true) return
+                lineupWatch = s.launch { watchLineup(s) }
+            }
+        }
+
+        // Reopens on the first lineup that differs from the one the session opened with, unless the screen still shows
+        // (it reopens when it closes). A lineup that cannot be read is a lineup that did not change, as far as the
+        // guide knows.
+        private suspend fun watchLineup(s: CoroutineScope) {
+            try {
+                val account = library.activeAccount().filterNotNull().first()
+                lineup.channels(account).collect { list ->
+                    val reopen =
+                        synchronized(lock) {
+                            session === s &&
+                                run {
+                                    if (lineupAtOpen == null) lineupAtOpen = list
+                                    lineupNow = list
+                                    !managing && list != lineupAtOpen
                                 }
-                            }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            // A lineup that cannot be read is a lineup that did not change, as far as the guide knows.
                         }
-                    }
+                    if (reopen) reopenOnButton()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // See above.
             }
         }
 
         /**
          * Channel management closed without tuning: the guide shows again on the Channels button. When the lineup
          * changed meanwhile the session is closed and opened afresh (on the button), so the grid shows the new lineup
-         * at once; otherwise the grid is as it was.
+         * at once; otherwise the grid is as it was, and the lineup stays watched for a late edit.
          */
         fun channelsClosed() {
             val reopen =
                 synchronized(lock) {
+                    managing = false
                     val changed = lineupAtOpen != null && lineupNow != lineupAtOpen
-                    lineupWatch?.cancel()
-                    lineupWatch = null
-                    lineupAtOpen = null
-                    lineupNow = null
                     if (!changed) shownSnapshot.value = shownSnapshot.value.copy(onButton = true)
                     changed
                 }
-            if (reopen) {
-                val current = synchronized(lock) { currentChannel }
+            if (reopen) reopenOnButton()
+        }
+
+        // A new session on the button for the same channel. What the first session measured is kept: the measurement
+        // line describes the opening, not this reopen.
+        private fun reopenOnButton() {
+            synchronized(lock) {
+                val kept = Measured(firstWindowMs, asked, applied, tickLag, tickLate)
+                val current = currentChannel
                 close()
                 open(current, onButton = true)
+                firstWindowMs = kept.windowMs
+                asked = kept.asked
+                applied = kept.applied
+                tickLag = kept.tickLag
+                tickLate = kept.tickLate
             }
         }
 
@@ -366,6 +387,7 @@ internal class GuideViewModel
             lineupWatch = null
             lineupAtOpen = null
             lineupNow = null
+            managing = false
             session?.coroutineContext?.get(Job)?.cancel()
             session = null
             window = null
@@ -751,6 +773,15 @@ internal class GuideViewModel
         private fun nowMs(): Long = clock.now().toEpochMilliseconds()
 
         private fun originMs(): Long = nowMs().let { it - it.mod(SLOT_MS) }
+
+        // What a session measured, to carry over a reopen.
+        private class Measured(
+            val windowMs: Long,
+            val asked: Int,
+            val applied: Int,
+            val tickLag: Long,
+            val tickLate: Long,
+        )
 
         private companion object {
             const val DWELL_MS = 500L
