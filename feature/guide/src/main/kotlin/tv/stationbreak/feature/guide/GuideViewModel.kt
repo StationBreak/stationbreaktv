@@ -339,7 +339,7 @@ internal class GuideViewModel
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // See above.
+                // As for a lineup that cannot be read at all: no change is known, so the grid stays as it is.
             }
         }
 

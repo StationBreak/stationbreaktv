@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -16,6 +17,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -113,13 +115,49 @@ class DetailsPanelTest {
         assertEquals("Fetched", text(GuideTags.PANEL_OVERVIEW))
     }
 
+    private fun longTitled(
+        episode: Boolean,
+        overview: String,
+    ): CellDetails {
+        val long = "A very long title that needs a second line to be shown in full here"
+        val info =
+            if (episode) ScheduleFixtures.episodeInfo(1, long, 2, 3) else ScheduleFixtures.info(1, long)
+        // On now (the progress bar shows) with a two-line title: the most the lines above the overview can take.
+        val cell = GuideCell(-MIN, 30 * MIN, CellKind.Program, long, info, null)
+        val item = ItemDetails(ItemId("item-long"), overview, null, emptyList(), null)
+        return CellDetails(cell, 7, "Seven", item, loading = false)
+    }
+
+    private fun assertOverviewEndsInsidePanel() {
+        val panelBounds = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot()
+        val nodes = compose.onAllNodesWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true).fetchSemanticsNodes()
+        // With room for no whole line the overview is left out; otherwise it ends inside the panel.
+        if (nodes.isNotEmpty()) {
+            val bottom = overview().getBoundsInRoot().bottom
+            assertTrue("overview ends at $bottom, panel at ${panelBounds.bottom}", bottom <= panelBounds.bottom)
+        }
+    }
+
     @Test
     fun aLongDescriptionEndsInsideThePanelAsTheButtonTakesTheFoot() {
         show(details(0, "A long description. ".repeat(30)))
         compose.mainClock.advanceTimeBy(SETTLED_MS)
-        val bottom = overview().getBoundsInRoot().bottom
-        val panelBottom = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().bottom
-        assertTrue("overview ends at $bottom, panel at $panelBottom", bottom <= panelBottom)
+        overview().assertExists()
+        assertOverviewEndsInsidePanel()
+    }
+
+    @Test
+    fun aTwoLineTitleWithAProgressBarLeavesTheOverviewWholeLinesOrNone() {
+        show(longTitled(episode = false, overview = "A long description. ".repeat(30)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        assertOverviewEndsInsidePanel()
+    }
+
+    @Test
+    fun anEpisodeLineWithATwoLineTitleLeavesTheOverviewWholeLinesOrNone() {
+        show(longTitled(episode = true, overview = "A long description. ".repeat(30)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        assertOverviewEndsInsidePanel()
     }
 
     private companion object {
