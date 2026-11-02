@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.LineupStore
+import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
@@ -144,8 +146,40 @@ class ChannelManagerTest {
             val before = store.inner.peek(ACCOUNT)
 
             assertEquals(ResetResult.Failed, ChannelManager(failing) { LIBRARIES }.reset(ACCOUNT))
-            assertEquals(listOf(LineupEvent.RefreshFailed), events)
+            assertEquals(listOf(LineupEvent.ResetFailed), events)
             assertContentEquals(before, store.inner.peek(ACCOUNT), "nothing was saved")
+        }
+
+    // A store whose read throws (it never should): the port still never throws.
+    private val throwing =
+        object : LineupStore by store {
+            override suspend fun load(account: LibraryAccount): StoredBytes = error("store broke")
+        }
+
+    @Test
+    fun aChangeThatThrowsIsFailedNotThrown() =
+        runBlocking<Unit> {
+            val broken =
+                ChannelManager(LineupService(throwing, library, clock, { 0 }, { events += it }, TestCatalog)) {
+                    LIBRARIES
+                }
+
+            val result = broken.change(ACCOUNT, ChannelChange.SwitchOff(LineupIds.starter("laughs")))
+
+            assertEquals(ChangeResult.Failed, result)
+            assertEquals(listOf(LineupEvent.EditFailed), events)
+        }
+
+    @Test
+    fun anAccessThatThrowsIsReadOnlyNotThrown() =
+        runBlocking<Unit> {
+            val broken =
+                ChannelManager(LineupService(throwing, library, clock, { 0 }, { events += it }, TestCatalog)) {
+                    LIBRARIES
+                }
+
+            assertEquals(LineupAccess.ReadOnly, broken.access(ACCOUNT).first())
+            assertEquals(listOf(LineupEvent.AccessFailed), events)
         }
 
     @Test

@@ -70,6 +70,9 @@ sealed interface ChangeResult {
      */
     data object SaveFailed : ChangeResult
 
+    /** Something went wrong; nothing changed. */
+    data object Failed : ChangeResult
+
     /** The change was not made, for [reason]; nothing changed. */
     data class Refused(
         val reason: ChangeRefusal,
