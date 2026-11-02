@@ -19,6 +19,8 @@ internal object VectorJson {
 
     fun JsonObject.array(name: String): JsonArray = getValue(name).jsonArray
 
+    fun JsonObject.obj(name: String): JsonObject = getValue(name).jsonObject
+
     fun JsonObject.string(name: String): String = getValue(name).jsonPrimitive.content
 
     fun JsonObject.strings(name: String): List<String> = array(name).map { it.jsonPrimitive.content }

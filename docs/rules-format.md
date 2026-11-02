@@ -1700,7 +1700,8 @@ Everything below is in this repository, under `docs/`:
   that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors),
   `key-order-v2.json` and `lineup-v2.json` (the same for the version 2 orders: `rotation`, the capped `shuffle` and
   `inOrder`, with the caps, the film-to-collection map and the runtime filter), and `pool.json` (the pool: a library snapshot, the sources, the exclusions and the ceiling, and the IDs of the pool,
-  for every row of rule 2, the exclusions with their fail-closed cases, rule 4 and the String matching cases).
+  for every row of rule 2, the exclusions with their fail-closed cases, rule 4 and the String matching cases), and `pool-v2.json` (the same shape for version 2: `item` sources and
+  exclusions, the filters and the film-to-collection map).
 
 - `docs/rules-format/vectors/` (version 2): `pool-v2.json` (the pool with `item` sources and exclusions, every filter and
   the film-to-collection map), `key-order-v2.json` (the rotation turns, the capped shuffle and the `inOrder` order) and
