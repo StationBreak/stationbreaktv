@@ -29,7 +29,9 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
@@ -192,7 +194,22 @@ class LineupService internal constructor(
         libraries: Set<ItemId>,
         current: Lineup?,
         passActedOn: Long?,
-    ): Pair<Lineup, RefreshMeta> {
+    ): Pair<Lineup, RefreshMeta> = plannedFrom(owner, readForPlan(account, libraries), libraries, current, passActedOn)
+
+    /** What the library says at the moment of a plan. */
+    private class PlanRead(
+        val generation: Long,
+        val pass: Instant?,
+        val now: Instant,
+        val snapshot: RuleSnapshot,
+        val names: CollectionNames,
+        val giveUp: Boolean,
+    )
+
+    private suspend fun readForPlan(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+    ): PlanRead {
         // Before the read, so a write that lands during it leaves the generation behind and is seen next time.
         val generation = library.contentGeneration(account)
         val pass = library.collectionPassCompleted(account).first()
@@ -201,22 +218,32 @@ class LineupService internal constructor(
         val names = library.collectionNames(account)
         // Read now, whatever trigger asked: the lineup stops waiting for collections that are not coming.
         val giveUp = library.failedCollectionPasses(account) >= GIVE_UP_AFTER
+        return PlanRead(generation, pass, now, snapshot, names, giveUp)
+    }
+
+    private fun plannedFrom(
+        owner: Owner,
+        read: PlanRead,
+        libraries: Set<ItemId>,
+        current: Lineup?,
+        passActedOn: Long?,
+    ): Pair<Lineup, RefreshMeta> {
         val planned =
             LineupPlanner.plan(
                 current,
                 owner.server,
                 owner.user,
                 standardOffsetMinutes(),
-                snapshot,
-                names,
-                now.toEpochMilliseconds(),
+                read.snapshot,
+                read.names,
+                read.now.toEpochMilliseconds(),
                 catalog,
-                withoutCollections = giveUp,
+                withoutCollections = read.giveUp,
             )
-        val taken = pass?.takeIf { snapshot.collectionsSynced }?.toEpochMilliseconds()
+        val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
             RefreshMeta(
-                plannedGeneration = generation,
+                plannedGeneration = read.generation,
                 collectionPassActedOn = taken ?: passActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
             )
@@ -242,7 +269,7 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val held = entry.state.value?.takeIf { it.writable }
+            val held = reconciled(entry, start)
             val lineup = held?.lineup ?: start.current
             val meta = held?.meta ?: start.meta
             val ms = pass.toEpochMilliseconds()
@@ -281,7 +308,7 @@ class LineupService internal constructor(
         return entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val held = entry.state.value?.takeIf { it.writable }
+            val held = reconciled(entry, start)
             val lineup = held?.lineup ?: start.current
             if (!entry.writable || lineup == null) {
                 noteWritable(entry)
@@ -324,6 +351,7 @@ class LineupService internal constructor(
         try {
             LineupEdits.apply(lineup, edit, clock.now().toEpochMilliseconds(), catalog)
         } catch (_: IllegalArgumentException) {
+            report(LineupEvent.EditInvalid)
             null
         }
 
@@ -332,9 +360,12 @@ class LineupService internal constructor(
      * [refresh] it may set an unreadable or foreign file aside first. The old lineup stays until the new one is
      * planned and saved; the save, the forgetting of what was built from the old one and the publishing then finish
      * even if the caller is cancelled, so the lineup is never left forgotten or half replaced. [Saved.Failed]: the
-     * save failed or was rejected, and nothing changed. Null: the file may not be written, and nothing changes. Never
-     * throws for stored data; a failure to read the library does propagate.
+     * save failed or was rejected, and nothing changed. [Saved.Unavailable]: the library could not be read, and nothing
+     * changed. Null: the
+     * file may not be written, and nothing changes. Never throws for stored data; other failures (the planner's, say)
+     * propagate.
      */
+    @Suppress("TooGenericExceptionCaught") // Any failure to read the library: nothing is written and it is reported.
     internal suspend fun reset(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -348,7 +379,16 @@ class LineupService internal constructor(
                 noteWritable(entry)
                 return@withLock null
             }
-            val (fresh, meta) = planned(owner, account, libraries, null, null)
+            val read =
+                try {
+                    readForPlan(account, libraries)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    report(LineupEvent.ResetLibrariesUnavailable)
+                    return@withLock Saved.Unavailable
+                }
+            val (fresh, meta) = plannedFrom(owner, read, libraries, null, null)
             withContext(NonCancellable) {
                 if (saveVerified(owner, fresh, meta)) {
                     forgetDerived(owner.key)
@@ -363,11 +403,40 @@ class LineupService internal constructor(
         }
     }
 
-    // A held lineup shows whether it may be written now, at its own revision: no channel changed.
+    // [Revisioned.writable] means "this held lineup is the one to save from". A held lineup that was not published
+    // writable (planned while the file could not be read) is replaced, once the file reads again, by the stored one,
+    // under a new revision, so memory matches disk before anything is saved. Null: nothing held to save from.
+    private fun reconciled(
+        entry: Entry,
+        start: Start,
+    ): Revisioned? {
+        val held = entry.state.value
+        return when {
+            held?.writable == true && entry.writable -> {
+                held
+            }
+
+            held != null && start.save && start.current != null -> {
+                publish(entry, start.current, start.meta)
+                entry.state.value
+            }
+
+            else -> {
+                noteWritable(entry)
+                null
+            }
+        }
+    }
+
+    // The flag may only be lowered here, never raised: a lineup becomes writable by being published from disk or after
+    // a successful save.
     private fun noteWritable(entry: Entry) {
         val held = entry.state.value
-        if (held != null && held.writable != entry.writable) entry.state.value = held.copy(writable = entry.writable)
+        if (held != null && held.writable && !entry.writable) entry.state.value = held.copy(writable = false)
     }
+
+    /** Reports [event] as the service's own diagnostics do. */
+    internal fun reportEvent(event: LineupEvent) = report(event)
 
     /**
      * How many items of the [libraries] could air in a switched-on channel's day at [at] and yet air nowhere: in no
@@ -569,6 +638,9 @@ internal sealed interface Saved<out T> {
     data object Failed : Saved<Nothing>
 
     data object Invalid : Saved<Nothing>
+
+    /** A reset could not read the library; nothing changed. */
+    data object Unavailable : Saved<Nothing>
 }
 
 /**

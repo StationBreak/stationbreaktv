@@ -257,6 +257,78 @@ class LineupServiceEditTest {
             assertEquals(chosen.channels.size, saved.channels.size, "no from-scratch plan was saved over it")
         }
 
+    private fun hidden(
+        lineup: Lineup,
+        id: ChannelId,
+    ): Lineup {
+        val channels = lineup.channels.map { if (it.id == id) it.copy(state = ChannelState.UserHidden) else it }
+        return lineup.copy(channels = channels)
+    }
+
+    // The stored lineup holds the viewer's choices; one read fails, so this session plans from scratch and holds that.
+    private suspend fun afterAFailedRead(): Lineup {
+        val chosen = hidden(threeOn(), laughs)
+        seedStored(chosen)
+        store.inner.failReads = true
+        service.refresh(ACCOUNT, LIBRARIES)
+        store.inner.failReads = false
+        return chosen
+    }
+
+    private suspend fun assertEditKeepsTheChoices(chosen: Lineup) {
+        assertIs<EditOutcome.Applied>(edit(LineupEdit.SetNumber(frights, 311)))
+        val saved = checkNotNull(stored())
+        assertEquals(ChannelState.UserHidden, state(saved, laughs), "the viewer's choice is kept")
+        assertEquals(311, saved.channels.single { it.id == frights }.number)
+        assertEquals(chosen.channels.size, saved.channels.size, "no from-scratch plan was saved over it")
+    }
+
+    @Test
+    fun aRefusedEditAfterAFailedReadThenAnEditKeepsTheStoredChoices() =
+        runBlocking<Unit> {
+            val chosen = afterAFailedRead()
+
+            // 210 is whodunit's: refused without a swap.
+            assertIs<EditOutcome.Refused>(edit(LineupEdit.SetNumber(frights, 210)))
+
+            assertEditKeepsTheChoices(chosen)
+        }
+
+    @Test
+    fun aNoChangeEditAfterAFailedReadThenAnEditKeepsTheStoredChoices() =
+        runBlocking<Unit> {
+            val chosen = afterAFailedRead()
+
+            assertIs<EditOutcome.Applied>(edit(LineupEdit.SwitchOn(whodunit)))
+
+            assertEditKeepsTheChoices(chosen)
+        }
+
+    @Test
+    fun aPassNotedWithNothingToChangeAfterAFailedReadThenAnEditKeepsTheStoredChoices() =
+        runBlocking<Unit> {
+            val chosen = afterAFailedRead()
+
+            service.notePass(ACCOUNT, Instant.fromEpochMilliseconds(2_000L))
+
+            assertEditKeepsTheChoices(chosen)
+        }
+
+    @Test
+    fun accessIsNotEditableWhileTheHeldLineupIsAFromScratchPlan() =
+        runBlocking<Unit> {
+            val chosen = afterAFailedRead()
+            val manager = ChannelManager(service) { LIBRARIES }
+            assertEquals(LineupAccess.ReadOnly, manager.access(ACCOUNT).first(), "memory is not yet the stored lineup")
+
+            assertIs<EditOutcome.Refused>(edit(LineupEdit.SetNumber(frights, 210)))
+
+            assertEquals(LineupAccess.Editable, manager.access(ACCOUNT).first())
+            val shown = service.channels(ACCOUNT).first()
+            val ids = shown.map { it.id }.toSet()
+            assertEquals(chosen.channels.map { it.id }.toSet(), ids, "the stored lineup is shown")
+        }
+
     @Test
     fun aPassNotedAfterAFailedReadKeepsTheStoredChoices() =
         runBlocking<Unit> {

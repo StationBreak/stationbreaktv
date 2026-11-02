@@ -45,7 +45,7 @@ class ChannelManager(
                 ChangeResult.NotEditable
             }
 
-            Saved.Failed -> {
+            Saved.Failed, Saved.Unavailable -> {
                 ChangeResult.SaveFailed
             }
 
@@ -61,26 +61,30 @@ class ChannelManager(
             }
         }
 
-    // A library that cannot be read is an expected failure here (the choice was null or the read threw): nothing is
-    // written, and the caller may try again.
+    // A choice that cannot be read is an expected failure here, as is none chosen: nothing is written, and the caller
+    // may try again. A failure of the plan or the save itself is not, and propagates.
     @Suppress("TooGenericExceptionCaught")
-    override suspend fun reset(account: LibraryAccount): ResetResult =
-        try {
-            val chosen = libraries()
-            if (chosen.isNullOrEmpty()) {
-                ResetResult.LibrariesUnavailable
-            } else {
-                when (val saved = service.reset(account, chosen)) {
-                    null -> ResetResult.NotEditable
-                    Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
-                    is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
-                }
+    override suspend fun reset(account: LibraryAccount): ResetResult {
+        val chosen =
+            try {
+                libraries()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                service.reportEvent(LineupEvent.ResetLibrariesUnavailable)
+                null
             }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
+        return if (chosen.isNullOrEmpty()) {
             ResetResult.LibrariesUnavailable
+        } else {
+            when (val saved = service.reset(account, chosen)) {
+                null -> ResetResult.NotEditable
+                Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
+                Saved.Unavailable -> ResetResult.LibrariesUnavailable
+                is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
+            }
         }
+    }
 }
 
 private fun EditRefusal.toRefusal(): ChangeRefusal =

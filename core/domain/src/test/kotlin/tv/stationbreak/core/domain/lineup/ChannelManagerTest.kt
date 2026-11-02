@@ -27,7 +27,8 @@ class ChannelManagerTest {
         object : Clock {
             override fun now(): Instant = NOON
         }
-    private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
+    private val service = LineupService(store, library, clock, { 0 }, { events += it }, TestCatalog)
+    private val events = mutableListOf<LineupEvent>()
     private var chosen: Set<ItemId>? = LIBRARIES
     private val manager = ChannelManager(service) { chosen }
 
@@ -106,8 +107,10 @@ class ChannelManagerTest {
             assertEquals(ResetResult.LibrariesUnavailable, manager.reset(ACCOUNT))
             chosen = emptySet()
             assertEquals(ResetResult.LibrariesUnavailable, manager.reset(ACCOUNT))
+            assertTrue(events.isEmpty(), "none chosen is not a fault")
             val failing = ChannelManager(service) { error("settings unreadable") }
             assertEquals(ResetResult.LibrariesUnavailable, failing.reset(ACCOUNT))
+            assertEquals(listOf(LineupEvent.ResetLibrariesUnavailable), events)
 
             assertTrue("save" !in store.calls, "calls were ${store.calls}")
             assertContentEquals(before, store.inner.peek(ACCOUNT))
@@ -125,9 +128,10 @@ class ChannelManagerTest {
                         cutoff: Instant,
                     ): RuleSnapshot = error("library unreadable")
                 }
-            val failing = LineupService(store, broken, clock, { 0 }, {}, TestCatalog)
+            val failing = LineupService(store, broken, clock, { 0 }, { events += it }, TestCatalog)
 
             assertEquals(ResetResult.LibrariesUnavailable, ChannelManager(failing) { LIBRARIES }.reset(ACCOUNT))
+            assertEquals(listOf(LineupEvent.ResetLibrariesUnavailable), events)
         }
 
     @Test

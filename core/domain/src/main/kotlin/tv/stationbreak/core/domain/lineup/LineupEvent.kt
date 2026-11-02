@@ -29,4 +29,10 @@ enum class LineupEvent {
 
     /** A refresh stopped part-way (for example the planner refused its input). Nothing is lost; the next retries. */
     RefreshFailed,
+
+    /** A reset found no library to choose from (the choice or the library could not be read). Nothing was changed. */
+    ResetLibrariesUnavailable,
+
+    /** An edit would have built a lineup that breaks the lineup's rules. Nothing was changed. */
+    EditInvalid,
 }
