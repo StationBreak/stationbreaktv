@@ -77,6 +77,15 @@ class V2CompatibilityTest {
     }
 
     @Test
+    fun normalisedWritesTheLowestVersionTheFeaturesNeed() {
+        val plain = readOk(minimalRules().with("formatVersion", JsonPrimitive(2)).text())
+        assertEquals(1, plain.normalised().formatVersion)
+        val filtered = readOk(minimalRules().with("formatVersion", JsonPrimitive(2)).with("filters", obj()).text())
+        assertEquals(2, filtered.normalised().formatVersion)
+        assertEquals(filtered, filtered.normalised())
+    }
+
+    @Test
     fun aV1CopyWithAFiltersExtraUpgradesCleanly() {
         val old = readOk(minimalRules().with("filters", obj("kind" to JsonPrimitive("season"))).text())
         val upgraded = old.withVersion(2).copy(filters = Filters(null, null, null, null, null, FilterKind.Movie))

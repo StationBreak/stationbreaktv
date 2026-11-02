@@ -92,6 +92,9 @@ data class ChannelRules(
         )
 }
 
+/** These rules at the lowest version that has their features: what a writer that edits rules should write. */
+fun ChannelRules.normalised(): ChannelRules = withVersion(requiredVersion)
+
 /**
  * The `ordering` object. [caps] is a version 2 field; in a version 1 file `caps` is one of the [extras]. The extras are
  * checked against the file's version by [ChannelRules], which knows it; here only the names every version knows.

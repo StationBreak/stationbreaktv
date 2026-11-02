@@ -36,7 +36,6 @@ internal object RulesVocabulary {
     const val MIN_CAP = 1
     const val MAX_CAP = 10
     const val MAX_RUNTIME_MINUTES = 1440
-    const val MS_PER_MINUTE = 60_000L
     const val CAPS_EPOCH_HOURS = 24
     const val MAX_GRACE_HOURS = 48
     const val MAX_MIN_RUNTIME_SECONDS = 3600

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.rules
 
-/** What [RulesReader.read] found in a rules file. Only [Ok] may be scheduled. */
+/**
+ * What [RulesReader.read] found in a rules file. Only [Ok] may be scheduled, and a caller that does not schedule
+ * version 2 features yet checks [ChannelRules.requiredVersion] too.
+ */
 sealed interface RulesResult {
-    /** A version 1 file this app can schedule. */
+    /** A file of version 1 or 2 that this reader read in full. */
     data class Ok(
         val rules: ChannelRules,
     ) : RulesResult

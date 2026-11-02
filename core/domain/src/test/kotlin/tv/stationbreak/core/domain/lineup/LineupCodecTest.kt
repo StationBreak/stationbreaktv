@@ -245,10 +245,39 @@ class LineupCodecTest {
 
     @Test
     fun rulesThatNeedANewerAppAreUnusableNotUnreadable() {
-        val newer = """{"formatVersion":2,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
+        val newer = """{"formatVersion":3,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(newer))) }
         val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
         assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
+    }
+
+    private fun customWith(rulesText: String) =
+        tree().withChannel(0) {
+            it.with("source", JsonObject(mapOf("kind" to JsonPrimitive("custom"), "rules" to JsonPrimitive(rulesText))))
+        }
+
+    private val version2Head = """{"formatVersion":2,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]"""
+
+    @Test
+    fun rulesThatUseAVersion2FeatureAreUnusableUntilTheSchedulerHasThemAndWriteBackUnchanged() {
+        val texts =
+            listOf(
+                """$version2Head,"ordering":{"mode":"rotation"},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
+                """$version2Head,"filters":{},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
+            )
+        for (text in texts) {
+            val first = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(text).toString())).lineup
+            assertIs<ChannelSource.Unusable>(first.channels[0].source, text)
+            val written = Json.parseToJsonElement(LineupCodec.encode(first).decodeToString()).jsonObject
+            assertEquals(JsonPrimitive(text), written.channels()[0].source().getValue("rules"), text)
+        }
+    }
+
+    @Test
+    fun aVersion2FileWithNoVersion2FeatureStaysUsable() {
+        val text = """$version2Head,"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(text).toString())).lineup
+        assertIs<ChannelSource.Custom>(loaded.channels[0].source)
     }
 
     @Test
