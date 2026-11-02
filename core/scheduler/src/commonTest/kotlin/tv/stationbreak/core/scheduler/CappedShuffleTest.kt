@@ -231,7 +231,8 @@ class CappedShuffleTest {
     }
 
     @Test
-    fun aBalancedPoolEqualsThePlainWalk() {
+    fun aBalancedPoolMatchesThePlainWalkOnTheseSeeds() {
+        // Equality is not an invariant: a small leftover can become tight near the end. These seeds happen to match.
         forAllCases("balanced is plain", 0x9006uL, cases = 20) { gen ->
             val items = (1..20).flatMap { gen.series(10) } + gen.films(40)
             val seedN = gen.nextULong()
@@ -324,11 +325,6 @@ class CappedShuffleTest {
 
         val balancedWorst = worstDisplacement(balancedItems, 21uL, 0x900EuL, ::capped)
         val dominantWorst = worstDisplacement(dominantItems, 22uL, 0x900FuL, ::capped)
-        // The plain walk's numbers, for comparison in the PR text: the same removals.
-        val balancedPlain = worstDisplacement(balancedItems, 21uL, 0x900EuL, ::plainWalk)
-        val dominantPlain = worstDisplacement(dominantItems, 22uL, 0x900FuL, ::plainWalk)
-        println("Worst displaced of $REMOVALS removals, capped: balanced $balancedWorst, dominant $dominantWorst")
-        println("Worst displaced of $REMOVALS removals, plain: balanced $balancedPlain, dominant $dominantPlain")
 
         assertTrue(balancedWorst <= 1, "balanced pool: $balancedWorst displaced")
         assertTrue(dominantWorst <= 15, "dominant pool: $dominantWorst displaced")

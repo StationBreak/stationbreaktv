@@ -7,7 +7,8 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 
 /**
  * The capped shuffle of one cycle (docs/rules-format.md, "The capped shuffle"): the version 1 shuffle of [pool] with
- * [seedN], with items moved later only as far as [caps] need. Inside a group the order is the version 1 shuffle's.
+ * [seedN], with items moved later to keep [caps] and, while one group is tight, to space it. Inside a group the order
+ * is the version 1 shuffle's.
  * While one group is *tight* (it needs every remaining gap) it plays whenever its cap allows, so the other groups are
  * spread one per `cap + 1` places; otherwise the next item is the first, in shuffle order, whose group may go on. A
  * group runs past its cap only when nothing else is left.

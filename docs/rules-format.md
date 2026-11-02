@@ -639,8 +639,8 @@ then it starts again: B1 B2 A1 A2 A3 C1 A4 A5 C2 C3 B1 ...
 ### The capped shuffle
 
 The capped shuffle is `shuffle` with `ordering.caps`. It starts from the version 1 shuffle order of the epoch and moves
-items later only as far as the caps need. It is a **total function of (the pool, `seed_n`, the caps and the
-film-to-collection map)**.
+items later to keep the caps and, while one group is tight, to space it. It is a **total function of (the pool,
+`seed_n`, the caps and the film-to-collection map)**.
 
 ```text
 S      = the version 1 shuffle of the pool with seed_n              (unchanged: see shuffle)
