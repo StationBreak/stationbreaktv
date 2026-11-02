@@ -15,7 +15,9 @@ object ChannelNumbers {
     /** The numbers that belong to kids channels alone. */
     val kids: IntRange = Band.Kids.numbers
 
-    /** Where a number is first offered to a channel that has none: the start of the kids band for a kid
-     * channel, else the start of the general band. */
+    /**
+     * Where a number is first offered to a channel that has none: the start of the kids band for a kid channel, else
+     * the start of the general band.
+     */
     fun startFor(kid: Boolean): Int = if (kid) kids.first else Band.General.numbers.first
 }

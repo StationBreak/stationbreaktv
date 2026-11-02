@@ -133,6 +133,8 @@ class LiveKeysTest {
         val noLineup =
             object : ChannelRepository {
                 override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = emptyFlow()
+
+                override fun activeChannels(): Flow<List<ChannelSummary>> = emptyFlow()
             }
         val capabilities = DeviceCapabilities(setOf(Codecs.MP4), emptyList(), setOf(Codecs.AAC), emptySet(), 2)
         val sessions = SessionRepository(InMemorySecretStore(), server)

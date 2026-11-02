@@ -98,6 +98,8 @@ private class Lineup(
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
 
+    override fun activeChannels(): Flow<List<ChannelSummary>> = list
+
     override fun access(account: LibraryAccount): Flow<LineupAccess> = flowOf(access)
 
     override suspend fun change(

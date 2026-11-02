@@ -42,6 +42,7 @@ import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
@@ -525,12 +526,10 @@ class LiveChannel(
      * Calls [changed] whenever the On channels' ids or numbers change after the first list is seen (a switch-off or a
      * renumber from the channels screen), so flipping builds its order afresh at once.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun followLineup(changed: () -> Unit) {
-        library
-            .activeAccount()
-            .flatMapLatest { account -> if (account == null) emptyFlow() else channels.channels(account) }
-            .map { list -> list.filter { it.state == ChannelStatus.On }.map { it.id to it.number } }
+        channels
+            .activeChannels()
+            .map { it.onLineup() }
             .distinctUntilChanged()
             .drop(1)
             .collect { changed() }

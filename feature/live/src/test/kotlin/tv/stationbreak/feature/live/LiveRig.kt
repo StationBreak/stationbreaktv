@@ -377,6 +377,8 @@ class FakeChannels : ChannelRepository {
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = flow
 
+    override fun activeChannels(): Flow<List<ChannelSummary>> = flow
+
     fun publish(vararg ids: Pair<ChannelId, Int>) {
         flow.value =
             ids.map { (id, number) ->
