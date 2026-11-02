@@ -25,10 +25,12 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 
     // They pin the androidx.test versions that Hilt's test artifact would otherwise resolve to an older one, as the
-    // guide's do; the screen's instrumented tests (Task 5) use them.
+    // guide's do; the screen's instrumented tests use them.
     androidTestImplementation(testFixtures(project(":core:domain")))
     androidTestImplementation(libs.kotlinx.coroutines.core)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.compose.ui.test.manifest)
 }
