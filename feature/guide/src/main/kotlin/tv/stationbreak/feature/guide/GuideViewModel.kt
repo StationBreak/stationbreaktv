@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -15,12 +16,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
@@ -46,7 +51,7 @@ import kotlin.time.Instant
  * which is held only to look and to publish: the model is built outside it, so a key press never waits on a rebuild.
  * The keys arrive on the main thread and the session works on [dispatcher].
  */
-@Suppress("TooManyFunctions") // One session's steps (load, tick, extend, commit, follow), each small.
+@Suppress("TooManyFunctions", "LongParameterList", "LargeClass") // One session's steps, each small; its ports.
 @HiltViewModel
 internal class GuideViewModel
     internal constructor(
@@ -54,16 +59,21 @@ internal class GuideViewModel
         private val details: ProgramDetailsCache,
         private val clock: Clock,
         private val dispatcher: CoroutineDispatcher,
+        /** The lineup, watched for a change while channel management shows and just after (spec 21). */
+        private val lineup: ChannelRepository,
         /** Whether this build writes the guide's measurement line (Task 9); the app decides, per build type. */
         val measure: Boolean = false,
+        /** Where the one line about a lineup watch that ended by an error goes; numbers only. */
+        private val log: (String) -> Unit = {},
     ) : ViewModel() {
         @Inject
         constructor(
             schedule: ScheduleSource,
             details: ProgramDetailsCache,
             clock: Clock,
+            lineup: ChannelRepository,
             @GuideMeasured measure: Boolean,
-        ) : this(schedule, details, clock, Dispatchers.Default, measure)
+        ) : this(schedule, details, clock, Dispatchers.Default, lineup, measure, { Log.w(LOG_TAG, it) })
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
@@ -94,9 +104,20 @@ internal class GuideViewModel
         private var dwellJob: Job? = null
         private var infoJob: Job? = null
         private var infoOf: Pair<ChannelId, Long>? = null
+
+        // The info overlay's cell across a reload, until the new grid says whether it is still there.
+        private var infoKept: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
         private var scrollAsked: Pair<ChannelId, Long>? = null
+
+        // The lineup as channel management opened and as it stands, while that screen shows; null when it does not.
+        private var lineupWatch: Job? = null
+        private var lineupAtOpen: List<Pair<ChannelId, Int?>>? = null
+        private var lineupNow: List<Pair<ChannelId, Int?>>? = null
+        private var managing = false
+        private var loadJob: Job? = null
+        private var loadId = 0
         private var firstWindowMs = NO_MEASURE
         private val wrapHold = WrapHold()
         private var asked = 0
@@ -106,13 +127,27 @@ internal class GuideViewModel
 
         /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
         fun open(current: ChannelId?) {
-            val started =
-                synchronized(lock) {
-                    endSession()
-                    currentChannel = current
-                    CoroutineScope(dispatcher + SupervisorJob(root)).also { session = it }
-                }
-            started.launch { load(started) }
+            synchronized(lock) {
+                endSession()
+                currentChannel = current
+                val fresh = newSession()
+                startLoad(fresh)
+                startWatch(fresh)
+            }
+        }
+
+        private fun newSession(): CoroutineScope {
+            val fresh = CoroutineScope(dispatcher + SupervisorJob(root))
+            session = fresh
+            return fresh
+        }
+
+        // Runs the first read, build and fill-in of a session or of its reload; under [lock].
+        private fun startLoad(s: CoroutineScope) {
+            val id = ++loadId
+            // A reload has a grid on screen: it stays, with its focus, until a window with rows arrives.
+            val keepsGrid = shownSnapshot.value.state is GuideState.Ready
+            loadJob = s.launch { load(s, id, keepsGrid) }
         }
 
         /** How long the session's first schedule call took, in milliseconds, or -1 before it has returned (Task 9). */
@@ -154,21 +189,86 @@ internal class GuideViewModel
         ) {
             synchronized(lock) {
                 val current = shownSnapshot.value
-                val ready = current.state as? GuideState.Ready
-                val from = current.focus
-                if (ready == null || from == null || shownInfo.value != null) return
-                val to = ready.model.move(from, direction, ready.nowMs)
-                if (!wrapHold.allows(ready.model.wrapped(from, to, direction), repeat, atMs)) return
-                val shown =
-                    if (to == from) {
-                        ready
-                    } else {
-                        val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
-                        val row = ready.firstRowFor(to, ready.firstVisibleRow)
-                        ready.copy(viewportStartMs = viewport, firstVisibleRow = row).also { publish(it, to) }
-                    }
-                session?.let { extendIfScrolledNearTheEnd(it, shown, to) }
+                if (shownInfo.value != null) return
+                if (current.menu != null) {
+                    moveOnMenu(current, current.menu, direction)
+                } else {
+                    moveOnGrid(current, direction, repeat, atMs)
+                }
             }
+        }
+
+        // On the menu row Left and Right move between the entries (and stop at the ends); Down goes to the playing
+        // cell, or to the cell last focused when there is none; Up does nothing.
+        private fun moveOnMenu(
+            current: GuideSnapshot,
+            entry: GuideMenuEntry,
+            direction: GuideDirection,
+        ) {
+            val entries = GuideMenuEntry.entries
+            when (direction) {
+                GuideDirection.Left -> {
+                    entries.getOrNull(entry.ordinal - 1)?.let { shownSnapshot.value = current.copy(menu = it) }
+                }
+
+                GuideDirection.Right -> {
+                    entries.getOrNull(entry.ordinal + 1)?.let { shownSnapshot.value = current.copy(menu = it) }
+                }
+
+                GuideDirection.Down -> {
+                    leaveMenu(current)
+                }
+
+                GuideDirection.Up -> {
+                    Unit
+                }
+            }
+        }
+
+        // Down from the menu row: the playing cell, as Back from elsewhere on the grid goes to it, else the cell last
+        // focused; a guide with no cell keeps the focus on the menu.
+        private fun leaveMenu(current: GuideSnapshot) {
+            val ready = current.state as? GuideState.Ready ?: return
+            val playing = current.playingFocus(currentChannel)
+            val focus = current.focus
+            when {
+                playing != null -> showPlaying(ready, playing)
+                focus != null -> publish(ready, focus, menu = null)
+            }
+        }
+
+        // Up and Down on the grid wrap at the ends of the rows, a held key waiting at the end first. The menu row is
+        // reached by Back only, so a guide with no cell to focus (nothing on) has nothing for a direction to do.
+        private fun moveOnGrid(
+            current: GuideSnapshot,
+            direction: GuideDirection,
+            repeat: Boolean,
+            atMs: Long,
+        ) {
+            val ready = current.state as? GuideState.Ready
+            val from = current.focus
+            if (from != null && ready != null) {
+                val to = ready.model.move(from, direction, ready.nowMs)
+                val wraps = ready.model.wrapped(from, to, direction)
+                if (wrapHold.allows(wraps, repeat, atMs)) step(ready, from, to, direction)
+            }
+        }
+
+        private fun step(
+            ready: GuideState.Ready,
+            from: GuideFocus,
+            to: GuideFocus,
+            direction: GuideDirection,
+        ) {
+            val shown =
+                if (to == from) {
+                    ready
+                } else {
+                    val viewport = viewportStartFor(to, ready.model, ready.viewportStartMs, direction)
+                    val row = ready.firstRowFor(to, ready.firstVisibleRow)
+                    ready.copy(viewportStartMs = viewport, firstVisibleRow = row).also { publish(it, to) }
+                }
+            session?.let { extendIfScrolledNearTheEnd(it, shown, to) }
         }
 
         /**
@@ -179,6 +279,17 @@ internal class GuideViewModel
         fun select() {
             synchronized(lock) {
                 val current = shownSnapshot.value
+                if (current.menu != null) {
+                    if (shownInfo.value == null) {
+                        eventChannel.trySend(
+                            when (current.menu) {
+                                GuideMenuEntry.Channels -> GuideEvent.OpenChannels
+                                GuideMenuEntry.Exit -> GuideEvent.Exit
+                            },
+                        )
+                    }
+                    return
+                }
                 val ready = current.state as? GuideState.Ready
                 val located = current.focus?.let { ready?.model?.indexOf(it) }
                 if (ready == null || located == null || shownInfo.value != null) return
@@ -195,25 +306,46 @@ internal class GuideViewModel
         }
 
         /**
-         * Back with the info overlay closed: moves the focus to the cell on air now on the playing channel's row, with
-         * the grid back at now and that row at the top, as when the guide opened; true when it did. False when the
-         * focus is already there, the overlay is open, there is no grid, or the playing channel is not on it: Back
-         * then leaves live TV. Nothing is added for a screen reader: the jump changes the focused cell, so the details
-         * panel's polite live region reads the playing program as it does after any move.
+         * Back with the info overlay closed, one step outwards: from a cell that is not the playing channel's cell on
+         * air now to that cell, with the grid back at now and that row at the top, as when the guide opened; from that
+         * cell (or when there is none to go to) to the menu row, on Channels. True when it moved. False on the menu
+         * row, while the guide loads, when the overlay is open and when there is no grid or menu to go to: Back then
+         * leaves live TV. Nothing is added for a screen reader: the jump changes the focused cell or entry, so the
+         * details panel's polite live region reads the playing program as it does after any move.
          */
-        fun backToPlaying(): Boolean =
+        fun back(): Boolean =
             synchronized(lock) {
                 val current = shownSnapshot.value
                 val ready = current.state as? GuideState.Ready
                 val target = current.playingFocus(currentChannel)
                 val focus = current.focus
-                if (ready == null || target == null || focus == null) return false
-                if (shownInfo.value != null || focus.sameCellAs(target)) return false
-                val viewport = viewportStartFor(target, ready.model, ready.model.originMs, direction = null)
-                val shown = ready.copy(viewportStartMs = viewport, firstVisibleRow = 0)
-                publish(shown.copy(firstVisibleRow = shown.openingRowFor(target)), target)
-                true
+                val showsMenu = ready != null || current.state == GuideState.Empty
+                when {
+                    shownInfo.value != null || current.menu != null || !showsMenu -> {
+                        false
+                    }
+
+                    ready != null && target != null && focus != null && !focus.sameCellAs(target) -> {
+                        showPlaying(ready, target)
+                        true
+                    }
+
+                    else -> {
+                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels)
+                        true
+                    }
+                }
             }
+
+        // The grid at now, [target] focused and its row at the top.
+        private fun showPlaying(
+            ready: GuideState.Ready,
+            target: GuideFocus,
+        ) {
+            val viewport = viewportStartFor(target, ready.model, ready.model.originMs, direction = null)
+            val shown = ready.copy(viewportStartMs = viewport, firstVisibleRow = 0)
+            publish(shown.copy(firstVisibleRow = shown.openingRowFor(target)), target, menu = null)
+        }
 
         /** Closes the info overlay; true when there was one to close (so Back stops there). */
         fun closeInfo(): Boolean =
@@ -222,9 +354,116 @@ internal class GuideViewModel
                 infoJob?.cancel()
                 infoJob = null
                 infoOf = null
+                infoKept = null
                 shownInfo.value = null
                 true
             }
+
+        /**
+         * Channel management opens over the guide: the session stays, the clock stops ticking under it, and a change
+         * of the lineup waits until [channelsClosed] (the screen shows what it is changing).
+         */
+        fun channelsOpened() {
+            synchronized(lock) {
+                if (session == null) return
+                managing = true
+                tickJob?.cancel()
+                tickJob = null
+            }
+        }
+
+        // The lineup (the On channels and their numbers) is watched for the whole session, against what the grid was
+        // loaded from. A change that lands while the screen is not showing reloads the grid in place, with the focus
+        // where it is: a slow write (a reset on older hardware) can land long after the screen closed. A lineup that
+        // cannot be read is a lineup that did not change, as far as the guide knows; the watch ending that way is
+        // logged once.
+        //
+        // The baseline is the watch's first emission, with no read of the lineup ahead of the schedule read (the open
+        // path waits for nothing but the schedule). So a write that lands between that read and the first emission is
+        // missed until the next change or the next open: accepted.
+        private fun startWatch(s: CoroutineScope) {
+            lineupWatch = s.launch { watchLineup(s) }
+        }
+
+        private suspend fun watchLineup(s: CoroutineScope) {
+            try {
+                lineup
+                    .activeChannels()
+                    .map { it.onLineup() }
+                    .distinctUntilChanged()
+                    .collect { now ->
+                        synchronized(lock) {
+                            if (session === s) {
+                                if (lineupAtOpen == null) lineupAtOpen = now
+                                lineupNow = now
+                                if (!managing && now != lineupAtOpen) reload(menu = shownSnapshot.value.menu)
+                            }
+                        }
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                log("guide lineupWatch=failed")
+            }
+        }
+
+        /**
+         * Channel management closed without tuning: the guide shows again on the Channels entry. When the lineup
+         * changed meanwhile the grid is loaded again (see [reload]) so it shows the new lineup at once; otherwise it is
+         * as it was.
+         */
+        fun channelsClosed() {
+            synchronized(lock) {
+                managing = false
+                if (lineupAtOpen != null && lineupNow != lineupAtOpen) {
+                    reload(menu = GuideMenuEntry.Channels)
+                } else {
+                    shownSnapshot.value = shownSnapshot.value.copy(menu = GuideMenuEntry.Channels)
+                    resumeTick()
+                }
+            }
+        }
+
+        /** Channel management ended with a tune: the guide goes with it. */
+        fun channelsEnded() {
+            synchronized(lock) {
+                managing = false
+                resumeTick()
+            }
+        }
+
+        // The clock under the screen stopped; it starts again with a tick at once, as the minute may have turned.
+        private fun resumeTick() {
+            val s = session ?: return
+            if (window != null && tickJob == null) {
+                tickJob =
+                    s.launch {
+                        tick(s, nowMs())
+                        tickLoop(s)
+                    }
+            }
+        }
+
+        // The grid loaded again from the lineup as it is now, in a session of its own: the old one is cancelled whole,
+        // so a read or build of it that is already past its last suspension point finds `session === s` false and
+        // publishes nothing. The shown grid stays until the new one replaces it, and the focus stays on its cell
+        // (found again by identity, or the nearest row when its channel is gone), or on the menu entry [menu] names.
+        // The measurement stays as it is: the line describes the opening, so [windowMs] stays the first read's, while
+        // the extensions and tick lag of the reload count in the session's totals. Under [lock].
+        private fun reload(menu: GuideMenuEntry?) {
+            val old = session ?: return
+            old.coroutineContext[Job]?.cancel()
+            val fresh = newSession()
+            infoKept = if (shownInfo.value != null) infoOf else null
+            resetLoadState()
+            lineupWatch = null
+            lineupAtOpen = lineupNow
+            if (shownSnapshot.value.menu != menu) {
+                shownSnapshot.value = shownSnapshot.value.copy(menu = menu)
+            }
+            startLoad(fresh)
+            startWatch(fresh)
+        }
 
         override fun onCleared() {
             root.cancel()
@@ -232,11 +471,10 @@ internal class GuideViewModel
 
         // Sessions
 
-        // Ends the session and resets everything it published, including events it queued and nobody has taken yet.
-        private fun endSession() {
+        // What a load, a tick and the extensions of one scope hold, forgotten when that scope is replaced.
+        private fun resetLoadState() {
             wrapHold.reset()
-            session?.coroutineContext?.get(Job)?.cancel()
-            session = null
+            loadJob = null
             window = null
             loaded = false
             tickJob = null
@@ -246,6 +484,17 @@ internal class GuideViewModel
             extensionJob = null
             extendedFrom = NEVER
             scrollAsked = null
+        }
+
+        // Ends the session and resets everything it published, including events it queued and nobody has taken yet.
+        private fun endSession() {
+            session?.coroutineContext?.get(Job)?.cancel()
+            session = null
+            resetLoadState()
+            lineupWatch = null
+            lineupAtOpen = null
+            lineupNow = null
+            managing = false
             firstWindowMs = NO_MEASURE
             asked = 0
             applied = 0
@@ -256,25 +505,36 @@ internal class GuideViewModel
             }
             shownPanel.value = null
             shownInfo.value = null
+            infoKept = null
             shownSnapshot.value = GuideSnapshot.Closed
         }
+
+        // A snapshot of [state], on the menu entry the one it replaces is on: the menu outlives the grid being rebuilt.
+        private fun snapshotOf(
+            state: GuideState,
+            focus: GuideFocus?,
+        ) = GuideSnapshot(state, focus, shownSnapshot.value.menu)
 
         private fun publishIfCurrent(
             s: CoroutineScope,
             state: GuideState,
         ) {
-            synchronized(lock) { if (session === s) shownSnapshot.value = GuideSnapshot(state, null) }
+            synchronized(lock) { if (session === s) shownSnapshot.value = snapshotOf(state, null) }
         }
 
         // A first read that is quick shows nothing until the grid; one still out after [LOADING_AFTER_MS] says the
         // guide is loading, so a blank guide does not invite a second Back (which leaves live TV).
-        private suspend fun load(s: CoroutineScope) {
+        private suspend fun load(
+            s: CoroutineScope,
+            id: Int,
+            keepsGrid: Boolean,
+        ) {
             val slow =
                 s.launch {
                     delay(LOADING_AFTER_MS.milliseconds)
                     synchronized(lock) {
                         if (session === s && shownSnapshot.value.state == GuideState.Closed) {
-                            shownSnapshot.value = GuideSnapshot(GuideState.Loading, null)
+                            shownSnapshot.value = snapshotOf(GuideState.Loading, null)
                         }
                     }
                 }
@@ -283,33 +543,52 @@ internal class GuideViewModel
                 val nothing = ScheduleWindow(emptyList(), complete = false)
                 val cached = windowOrNull(origin, ScheduleBuild.CachedOnly, onFailure = nothing)
                 slow.cancel()
-                val nothingToShow = cached == null || (cached.rows.isEmpty() && cached.complete)
-                when {
-                    nothingToShow -> publishIfCurrent(s, GuideState.Empty)
-                    cached.rows.isEmpty() -> publishIfCurrent(s, GuideState.Loading)
-                    else -> apply(s, cached, extension = false)
-                }
-                if (cached != null && !cached.complete) fillIn(s, origin)
+                if (showCached(s, cached, keepsGrid)) fillIn(s, origin, keepsGrid)
+                settleInfo(s)
             } finally {
                 slow.cancel()
-                synchronized(lock) { if (session === s) loaded = true }
+                synchronized(lock) { if (session === s && loadId == id) loaded = true }
             }
+        }
+
+        // Shows what the first read found, and says whether the build is still to come. Nothing yet while a grid is
+        // shown (a reload) leaves that grid and its focus; the build says whether it is final.
+        private fun showCached(
+            s: CoroutineScope,
+            cached: ScheduleWindow?,
+            keepsGrid: Boolean,
+        ): Boolean {
+            val noRows = cached == null || cached.rows.isEmpty()
+            val final = cached == null || cached.complete
+            when {
+                !noRows -> apply(s, checkNotNull(cached), extension = false)
+                keepsGrid -> Unit
+                final -> publishIfCurrent(s, GuideState.Empty)
+                else -> publishIfCurrent(s, GuideState.Loading)
+            }
+            // No answer at all while a grid is shown (a reload) is not an answer either: the build decides.
+            return if (cached == null) keepsGrid else !final || (keepsGrid && noRows)
         }
 
         // The one build. An incomplete window after it is final: a channel stopped airing or the lineup changed.
         private suspend fun fillIn(
             s: CoroutineScope,
             origin: Long,
+            keepsGrid: Boolean,
         ) {
             val filled = windowOrNull(origin, ScheduleBuild.AsNeeded, onFailure = null)
             if (filled != null && filled.rows.isNotEmpty()) {
                 apply(s, filled, extension = false)
                 return
             }
-            // Nothing came of it: a guide that already has a grid keeps it, one still loading is empty.
+            // Nothing came of it. A reload's final build with no rows means nothing is on: the guide is empty. A failed
+            // read, or any other guide that already has a grid, keeps it; one still loading is empty.
             synchronized(lock) {
-                if (session === s && shownSnapshot.value.state !is GuideState.Ready) {
-                    shownSnapshot.value = GuideSnapshot(GuideState.Empty, null)
+                val finalEmpty = keepsGrid && filled != null
+                if (session === s && (finalEmpty || shownSnapshot.value.state !is GuideState.Ready)) {
+                    infoKept = null
+                    shownInfo.value = null
+                    shownSnapshot.value = snapshotOf(GuideState.Empty, null)
                 }
             }
         }
@@ -365,7 +644,7 @@ internal class GuideViewModel
                 if (extension) applied++
                 window = fresh
                 commit(model, now)
-                if (tickJob == null) tickJob = s.launch { tickLoop(s) }
+                if (tickJob == null && !managing) tickJob = s.launch { tickLoop(s) }
             }
         }
 
@@ -517,16 +796,45 @@ internal class GuideViewModel
             publish(ready.copy(firstVisibleRow = rows), focus)
         }
 
+        // An info overlay open across a reload stays when its cell is in the new grid (and fetches again, as its fetch
+        // went with the old scope); otherwise it closes. Settled once the load is done, not on the partial grid the
+        // first read may show: the cell may only be in the finished one.
+        private fun settleInfo(s: CoroutineScope) {
+            synchronized(lock) {
+                if (session !== s || infoKept == null) return
+                val model = (shownSnapshot.value.state as? GuideState.Ready)?.model
+                if (model == null) {
+                    infoKept = null
+                    shownInfo.value = null
+                } else {
+                    keepInfoAfterReload(model)
+                }
+            }
+        }
+
+        private fun keepInfoAfterReload(model: GuideModel) {
+            val kept = infoKept ?: return
+            infoKept = null
+            val at = model.indexOf(GuideFocus(kept.first, kept.second, kept.second))
+            if (at == null) {
+                shownInfo.value = null
+            } else {
+                val row = model.rows[at.first]
+                openInfo(row, row.cells[at.second])
+            }
+        }
+
         // One assignment, so the grid and its focus change together; then the panel follows the focus. A focus that
         // does not resolve in the model is a bug in the steps above, never something for the screen to cope with.
         private fun publish(
             ready: GuideState.Ready,
             focus: GuideFocus?,
+            menu: GuideMenuEntry? = shownSnapshot.value.menu,
         ) {
             val located = focus?.let { ready.model.indexOf(it) }
             check(focus == null || located != null) { "The focus is not in the model it is published with" }
             val before = shownSnapshot.value.focus
-            shownSnapshot.value = GuideSnapshot(ready, focus)
+            shownSnapshot.value = GuideSnapshot(ready, focus, menu)
             follow(ready.model, before, focus, located)
         }
 
@@ -547,8 +855,10 @@ internal class GuideViewModel
             val row = model.rows[located.first]
             val cell = row.cells[located.second]
             if (before != null && before.channel == focus.channel && before.cellStartMs == focus.cellStartMs) {
-                // Same cell, maybe rebuilt (a window that was extended): show the new one, keep waiting or showing.
-                shownPanel.value = shownPanel.value?.let { if (it.cell == cell) it else it.copy(cell = cell) }
+                // Same cell, maybe rebuilt (a window that was extended, or a lineup change that renumbered or renamed
+                // its channel): show the new one, keep waiting or showing.
+                shownPanel.value =
+                    shownPanel.value?.copy(cell = cell, channelNumber = row.number, channelName = row.name)
                 return
             }
             dwellJob?.cancel()

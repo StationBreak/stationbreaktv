@@ -59,11 +59,15 @@ internal fun GuideSnapshot.playingFocus(current: ChannelId?): GuideFocus? {
     return ready?.model?.initialFocus(current, ready.nowMs)?.takeIf { it.channel == current }
 }
 
-/** Whether the focus is off the cell [playingFocus] names (cell, not anchor); false when there is nothing playing. */
+/**
+ * Whether Back goes to the playing cell: the focus is on the grid, off the cell [playingFocus] names (cell, not
+ * anchor). False on the playing cell (Back goes to the menu row), on the menu row (Back leaves) and when nothing is
+ * playing.
+ */
 internal fun GuideSnapshot.isAwayFrom(current: ChannelId?): Boolean {
     val at = focus
     val playing = playingFocus(current)
-    return at != null && playing != null && !at.sameCellAs(playing)
+    return playing != null && menu == null && at != null && !at.sameCellAs(playing)
 }
 
 /** Whether both name the same cell (the anchor, the time Up and Down keep, does not count). */

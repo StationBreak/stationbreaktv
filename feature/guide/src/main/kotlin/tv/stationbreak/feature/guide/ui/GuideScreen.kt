@@ -51,6 +51,7 @@ import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 import tv.stationbreak.feature.guide.GuideFocus
+import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.R
@@ -124,7 +125,9 @@ internal fun GuideScreen(
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
-    val focusOf: () -> GuideFocus? = remember(shown) { { shown.value.focus } }
+    // No cell is focused while the focus is on the menu row, whatever cell it will return to.
+    val focusOf: () -> GuideFocus? = remember(shown) { { shown.value.let { if (it.menu != null) null else it.focus } } }
+    val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
     // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
     val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
     val viewport =
@@ -147,8 +150,10 @@ internal fun GuideScreen(
             ) {
                 // The info overlay says what the panel would, so the panel makes way while it is open: the title and
                 // the time are shown once. Its place is kept, so the grid does not move.
-                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
+                // The menu row takes the foot of that band, so the grid and the picture stay where they are.
+                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 if (info == null) DetailsPanel(panel, nowOf, panelSize) else Spacer(panelSize)
+                GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
                 Spacer(Modifier.height(HintGap))
@@ -258,13 +263,21 @@ private fun Message(
     }
 }
 
+/**
+ * Whether Back goes to the menu row: the guide shows a grid or says it is empty, the focus is not on the menu already,
+ * and it is not on the grid away from the playing cell (Back goes there first).
+ */
+private fun GuideSnapshot.isAtPlaying(current: ChannelId?): Boolean =
+    (state is GuideState.Ready || state == GuideState.Empty) && menu == null && !isAwayFrom(current)
+
 /** Which hint the focused cell calls for: what OK does on it, as `GuideViewModel.select` does it. */
 internal enum class HintKind { Watch, Info, BackOnly }
 
 internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
     val ready = snapshot.state as? GuideState.Ready
     val located = snapshot.focus?.let { ready?.model?.indexOf(it) }
-    if (ready == null || located == null) return HintKind.BackOnly
+    // On the menu row OK does what the entry says by itself.
+    if (ready == null || located == null || snapshot.menu != null) return HintKind.BackOnly
     val cell = ready.model.rows[located.first].cells[located.second]
     return when {
         cell.startMs <= ready.nowMs && ready.nowMs < cell.endMs -> HintKind.Watch
@@ -277,8 +290,8 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
  * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to
  * its channel), "OK Info" on a later program, nothing for OK on a later slate, and "Back Exit live TV", since
  * leaving from the guide is the one thing no one would guess, which becomes "Back To what's playing" while the focus
- * is off the playing channel's cell. Key names in Cream, what they do in Ground. Recomposes
- * only when the kind of the focused cell changes.
+ * is off the playing channel's cell and "Back To the menu" on it. Key names in Cream, what they do in Ground.
+ * Recomposes only when the kind of the focused cell changes.
  */
 @Composable
 private fun HintRow(
@@ -286,12 +299,20 @@ private fun HintRow(
     current: ChannelId?,
 ) {
     val kind by remember(snapshotOf) { derivedStateOf { hintKindOf(snapshotOf()) } }
-    // Away from the playing channel's cell, Back goes there before it exits; read like the kind, so it recomposes only
-    // when the answer changes.
+    // Away from the playing channel's cell, Back goes there; on it, to the menu row; from the menu row it exits. Read
+    // like the kind, so it recomposes only when the answer changes.
     val away by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAwayFrom(current) } }
     val ok = stringResource(R.string.guide_key_ok)
     val back = stringResource(R.string.guide_key_back)
-    val exit = stringResource(if (away) R.string.guide_hint_playing else R.string.guide_hint_exit)
+    val toMenu by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAtPlaying(current) } }
+    val exit =
+        stringResource(
+            when {
+                away -> R.string.guide_hint_playing
+                toMenu -> R.string.guide_hint_menu
+                else -> R.string.guide_hint_exit
+            },
+        )
     val action =
         when (kind) {
             HintKind.Watch -> stringResource(R.string.guide_hint_watch)

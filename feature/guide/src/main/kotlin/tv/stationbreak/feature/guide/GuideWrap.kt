@@ -3,18 +3,19 @@ package tv.stationbreak.feature.guide
 
 import kotlin.time.Duration.Companion.milliseconds
 
-/** How long a held Up or Down waits at the last (or first) row before it wraps: live's flipRepeatDelay (#430). */
+/**
+ * How long a held Down waits at the last row before it wraps, and a held Up at the top row: live's flipRepeatDelay
+ * (#430).
+ */
 internal val WRAP_HOLD = 400.milliseconds
 
 // The rows Up tries, in order: the ones above, then, wrapping, from the last up to the one below the focus.
-internal fun GuideModel.rowsUpFrom(row: Int): List<Int> = (row - 1 downTo 0) + (rows.lastIndex downTo row + 1)
+internal fun GuideModel.rowsUpFrom(row: Int): List<Int> = (row - 1 downTo 0) + (rows.size - 1 downTo row + 1)
 
 // The rows Down tries, in order: the ones below, then, wrapping, from the first down to the one above the focus.
 internal fun GuideModel.rowsDownFrom(row: Int): List<Int> = (row + 1 until rows.size) + (0 until row)
 
-/**
- * Whether a step from [from] to [to] went round the end of the rows: Down to a row above, or Up to a row below.
- */
+/** Whether a step from [from] to [to] went round the end of the rows: Down to a row above, Up to a row below. */
 internal fun GuideModel.wrapped(
     from: GuideFocus,
     to: GuideFocus,

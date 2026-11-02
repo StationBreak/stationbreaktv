@@ -4,7 +4,9 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -47,8 +50,12 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val ChipPadding = 6.dp
 private const val PROGRESS_TRACK_ALPHA = 0.35f
-private const val OVERVIEW_LINES_WITH_EPISODE = 2
-private const val OVERVIEW_LINES = 3
+
+// One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
+// ellipsis reads better than one clipped mid-line.
+private const val OVERVIEW_LINES_WITH_EPISODE = 1
+private const val OVERVIEW_LINES = 2
+private val OVERVIEW_LINE_HEIGHT = 22.sp
 private const val DESCRIBE_AFTER_MS = 150L
 
 /**
@@ -103,7 +110,7 @@ private fun restedOn(cell: Pair<Int, Long>): Boolean {
 }
 
 @Composable
-private fun PanelLines(
+private fun ColumnScope.PanelLines(
     details: CellDetails,
     nowMs: Long,
     describe: Boolean,
@@ -141,14 +148,33 @@ private fun PanelLines(
     TimeRow(cell, nowMs, onNow, copy)
     if (onNow && cell.kind == CellKind.Program) Progress(cell.startMs, cell.endMs, nowMs)
     details.item?.overview?.takeIf { describe }?.let {
-        Text(
-            text = it,
-            modifier = Modifier.testTag(GuideTags.PANEL_OVERVIEW),
-            style = TextStyle(fontSize = 16.sp, lineHeight = 22.sp),
-            color = BroadcastColors.Cream,
-            maxLines = if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Overview(it, if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES)
+    }
+}
+
+/**
+ * The overview takes the height the lines above it leave, up to [maxLines], and ends in an ellipsis on the last line
+ * that fits; with room for no whole line it is not drawn. The panel clips at its bounds, and a line cut through its
+ * glyphs reads worse than a shorter text.
+ */
+@Composable
+private fun ColumnScope.Overview(
+    text: String,
+    maxLines: Int,
+) {
+    val lineHeight = with(LocalDensity.current) { OVERVIEW_LINE_HEIGHT.toDp() }
+    BoxWithConstraints(Modifier.weight(1f, fill = false)) {
+        val lines = minOf(maxLines, (maxHeight / lineHeight).toInt())
+        if (lines > 0) {
+            Text(
+                text = text,
+                modifier = Modifier.testTag(GuideTags.PANEL_OVERVIEW),
+                style = TextStyle(fontSize = 16.sp, lineHeight = OVERVIEW_LINE_HEIGHT),
+                color = BroadcastColors.Cream,
+                maxLines = lines,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

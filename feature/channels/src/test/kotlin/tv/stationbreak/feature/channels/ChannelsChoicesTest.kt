@@ -4,6 +4,7 @@ package tv.stationbreak.feature.channels
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.model.ChannelId
@@ -31,6 +32,13 @@ class ChannelsChoicesTest {
         assertEquals(listOf(0, 0, 6), PickerState.of(6).digits)
         assertEquals(listOf(1, 0, 0), PickerState.of(100).digits)
         assertEquals(12, PickerState.of(12).value)
+    }
+
+    @Test
+    fun pickerHasAsManyDigitsAsTheBiggestNumber() {
+        assertEquals(999, ChannelNumbers.all.last)
+        assertEquals(3, PickerState.of(1).digits.size)
+        assertEquals(999, PickerState.of(5_000).value)
     }
 
     @Test

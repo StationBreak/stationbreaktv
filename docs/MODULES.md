@@ -101,16 +101,19 @@ visible range, the details of the focused program, the clock) and its screen. It
 `core:ui`, and applies the `hilt` convention plugin. It is not a route of its own: live TV owns the screen, the surface and
 the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
 the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
-guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open leaves live TV);
+guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open is the guide's, which walks the focus outwards and, from its menu row, leaves live TV);
 what it shows is the guide's. Where the picture is while the guide is open is live's too, and live is the one source of
 it: live moves its one surface to the top-right corner by its modifier alone (the surface is never made again), and the
 slot carries that hole (a `DpRect`, never null). The guide does not work out where the picture is: it leaves the hole
 clear and lays its details panel and grid out around it, left to right whatever the device's layout direction (the hole
 is top-right in screen coordinates; live places its picture absolutely). A channel the guide picks (Select on a program
 on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
-so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). Everything in
-`feature:guide` is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for
-`app`'s tests.
+so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
+channel management (spec 21) as a second slot, `ChannelsSlot`, behind the Channels entry of its menu row (Channels and Exit, reached by Back); `app` fills it with
+`feature:channels`' `ChannelsDestination`. The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
+`onLineup()`) to see the lineup change under it while that screen shows and just after. Everything in
+`feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` type, the `GuideMeasured` qualifier `app`
+provides, and `GuideTags` for `app`'s tests.
 
 `feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
 groups, the focus as a value, the panel over the list, and the changes the viewer makes) and its D-pad-only screen. It depends
@@ -233,7 +236,9 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ScheduleSource.airings` by building each switched-on channel's day with one `ruleSnapshot` per distinct cut-off and no
   `scheduleItems` call (#275), and keeps the built days (in memory, and on disk across processes) under what they depend
   on rather than the lineup revision, so a renumber or a swap that changes no channel's pool builds nothing.
-- `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` and `ScheduleSource`.
+- `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` (the rows),
+  `ChannelEditor` (every change a viewer makes, and the reset), `ScheduleSource` and `ChannelNumbers` (the bands, taken from
+  the engine).
 - Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
   channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
   land before F1.3.

@@ -59,4 +59,20 @@ interface ChannelRepository {
      * Empty while there is no lineup, and for an account whose IDs are not IDs.
      */
     fun channels(account: LibraryAccount): Flow<List<ChannelSummary>>
+
+    /**
+     * [channels] of the active account, following it: a switch of account ends the old list and starts the new one,
+     * and nothing is emitted while no account is active. The one signal a feature watches for the lineup changing
+     * under it (see [onLineup]).
+     */
+    fun activeChannels(): Flow<List<ChannelSummary>>
+}
+
+/**
+ * What the guide and flipping go by: the On channels' ids and numbers, in the order given. Two lists with the same
+ * [onLineup] show the same channels in the same places, whatever else changed (a name, a shelf channel).
+ */
+fun List<ChannelSummary>.onLineup(): List<Pair<ChannelId, Int?>> {
+    val on = filter { it.state == ChannelStatus.On }
+    return on.map { it.id to it.number }
 }

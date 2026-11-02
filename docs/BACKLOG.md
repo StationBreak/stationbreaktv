@@ -251,7 +251,7 @@ Before this feature starts, the lineup refresh and `airings` speed on the Insign
 📺 **Menu half built 2026-10-24** (spec 15, PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390) and PR [#391](https://github.com/StationBreak/stationbreaktv/pull/391)). **Banner "Last" action built 2026-10-26** (spec 17, PR [#419](https://github.com/StationBreak/stationbreaktv/pull/419)); device check done.
 - 📺 The now/next banner (opened with Select) offers a **"Last: <channel>"** action that tunes the previous channel; pressing it again toggles back.
 - 📺 The **Menu (☰)** key is a one-press shortcut for the same toggle. Back is **not** used for it (Q-UX-2).
-- 📺 Back follows the platform convention (Q-UX-2): it closes an open overlay (the banner, Info) first. From the full-screen show it then opens the guide, and Back in the guide leaves live TV. The tune banner never blocks input.
+- 📺 Back follows the platform convention (Q-UX-2): it closes an open overlay (the banner, Info) first. From the full-screen show it then opens the guide, and Back in the guide walks outwards: to the playing channel's cell, then to the menu row (Channels, Exit), then it leaves live TV. The tune banner never blocks input.
 
 **S1.4.4** As the owner, I want tune latency measured so that the Phase 1 gate is objective.
 
@@ -307,7 +307,7 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 **S2.1.2** As a viewer, I want to open the guide from live TV without losing the picture so that it feels like cable.
 
 📺 **Built 2026-10-27** (spec 17, PRs [#426](https://github.com/StationBreak/stationbreaktv/pull/426), [#439](https://github.com/StationBreak/stationbreaktv/pull/439) and [#443](https://github.com/StationBreak/stationbreaktv/pull/443)); device checks 1, 1b and 2 done on both TVs. Open: [#445](https://github.com/StationBreak/stationbreaktv/issues/445) (Info overlaps the corner picture on smaller screens).
-- 📺 Back from the full-screen show opens the guide over the live video. The picture continues in a corner window at the top right (Q-UX-4), with the details panel top-left and the grid below. It is the same video surface as full screen, so there is no re-tune. Back in the guide leaves live TV (Q-UX-2).
+- 📺 Back from the full-screen show opens the guide over the live video. The picture continues in a corner window at the top right (Q-UX-4), with the details panel top-left and the grid below. It is the same video surface as full screen, so there is no re-tune. Back in the guide walks outwards to the menu row and then leaves live TV (Q-UX-2). Up from the top row wraps to the bottom row.
 - 📺 The Guide key reaches the app on the Fire TV Stick but not on the older Fire TV, where Fire OS opens Amazon's own Live TV guide. Back and Select are the paths (A-DEV-2).
 
 ## F2.2 Now/next banner & info overlay (M)
@@ -338,6 +338,9 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 ## F2.4 Channel management (M)
 
 **S2.4.1** As a user, I want to renumber, hide, and favourite channels so that the lineup is mine.
+
+📺 **Built 2026-11-02, device check pending** (spec 21, PRs [#531](https://github.com/StationBreak/stationbreaktv/pull/531), [#532](https://github.com/StationBreak/stationbreaktv/pull/532), [#535](https://github.com/StationBreak/stationbreaktv/pull/535) and PR 3 of 3). Channel management opens from the Channels entry of the guide's menu row: renumber, switch on and off, hide, the shelf of channels not switched on, and reset. Deferred: favourites (until something uses them), and rename, copy-to-customise and delete (with the custom channel builder, F2.3). Accepted for now: each TV keeps its own lineup, so a change on one TV does not reach another. The device check, including timing a burst of five edits on the older hardware, is the 📺 line below.
+- 📺 Channel management on the Insignia: open it from the guide's Channels entry (Back from the playing cell reaches it); renumber a channel and see flipping and the guide follow at once; switch a channel off and on; reset the lineup; make a burst of five edits and time it on the older hardware; reset, then Back at once, and see the guide catch up; leave with Back (screen, then Channels entry, then the app; from a cell: playing cell, menu row, app), and try the Exit entry.
 - 🧪 Channel numbers are unique. Hidden channels are skipped by flipping and by the guide.
 - 🧪 A channel hidden automatically because it is empty ([#299](https://github.com/StationBreak/stationbreaktv/issues/299)) shows its reason here and needs no action to come back. A user's hide stays even when the channel has items.
 - 📺 Starter channels can be hidden. A channel the user hid or removed is never switched back on by a library change (S1.2.1; Q-UX-1). The shelf of channels not switched on is managed here.

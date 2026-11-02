@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.feature.guide.GuideFocus
+import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.buildGuideModel
@@ -52,6 +53,12 @@ class HintKindTest {
     @Test
     fun aLaterSlateHasOnlyBack() {
         assertEquals(HintKind.BackOnly, hintKindOf(snapshotAt(nowMin = 65, focusMin = 150)))
+    }
+
+    @Test
+    fun onTheChannelsButtonThereIsOnlyBack() {
+        val onMenu = snapshotAt(nowMin = 65, focusMin = 0).copy(menu = GuideMenuEntry.Channels)
+        assertEquals(HintKind.BackOnly, hintKindOf(onMenu))
     }
 
     @Test

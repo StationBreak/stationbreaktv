@@ -53,6 +53,8 @@ internal class FakeChannels(
     val list = MutableStateFlow(initial)
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
+
+    override fun activeChannels(): Flow<List<ChannelSummary>> = list
 }
 
 /** The fake editor, which waits for a gate a test sets before it answers (a slow save or reset). */

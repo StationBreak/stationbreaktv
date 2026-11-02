@@ -22,6 +22,12 @@ object GuideTags {
     const val EMPTY = "guide:empty"
     const val INFO = "guide:info"
 
+    /** The Channels entry of the menu row above the grid. */
+    const val CHANNELS_BUTTON = "guide:channelsButton"
+
+    /** The Exit entry of the menu row. */
+    const val EXIT_BUTTON = "guide:exitButton"
+
     /** The cell of [channel] that starts at [startMs]. */
     fun cell(
         channel: ChannelId,

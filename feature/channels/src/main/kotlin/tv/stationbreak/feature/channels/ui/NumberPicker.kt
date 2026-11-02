@@ -18,7 +18,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.PickerState
 
-/** The three digits side by side; the focused one is drawn with the shared focus treatment. */
+/** The picker's digits side by side; the focused one is drawn with the shared focus treatment. */
 @Composable
 internal fun NumberPicker(
     state: PickerState,
