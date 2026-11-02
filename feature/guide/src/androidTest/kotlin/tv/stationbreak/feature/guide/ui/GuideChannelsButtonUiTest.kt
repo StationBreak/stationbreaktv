@@ -96,6 +96,8 @@ class GuideChannelsButtonUiTest {
     // Whether the slot, as the real screen does, finishes on the release of its own Back.
     private var finishOnBack = false
 
+    private val guideOpenedAt = System.nanoTime()
+
     private val clock =
         object : Clock {
             override fun now() = Instant.fromEpochMilliseconds(T0 + 65 * MIN)
@@ -117,6 +119,8 @@ class GuideChannelsButtonUiTest {
                         pictureHole = HOLE,
                         onTune = { tuned += it },
                         channels = { _, openedAt, _, onDone -> Slot(openedAt, onDone) },
+                        // One showing of the guide: the value live TV holds for it, the same on every recomposition.
+                        openedAtNanos = guideOpenedAt,
                     )
                 }
             }
@@ -177,7 +181,8 @@ class GuideChannelsButtonUiTest {
 
     // The view model has the button focused at once; the semantics follow a frame later, so they are waited for.
     private fun awaitOnTheButton() {
-        assertTrue("the view model has the button focused", vm.snapshot.value.onButton)
+        val shown = vm.snapshot.value
+        assertTrue("the view model has the button focused (state ${shown.state::class.simpleName})", shown.onButton)
         compose.waitUntil(TIMEOUT_MS) { runCatching { button().assertIsSelected() }.isSuccess }
     }
 

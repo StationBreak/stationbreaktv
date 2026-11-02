@@ -64,7 +64,7 @@ fun GuideDestination(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureHole, onTune, channels, modifier, openedAtNanos, viewModel.measure)
+    GuideRoot(viewModel, current, pictureHole, onTune, channels, openedAtNanos, modifier, viewModel.measure)
 }
 
 /**
@@ -80,8 +80,14 @@ typealias ChannelsSlot =
         onDone: (tune: ChannelId?) -> Unit,
     ) -> Unit
 
-/** [GuideDestination] without Hilt, so a test can bring its own ViewModel. */
-@Suppress("LongParameterList", "LongMethod") // The destination's own six, and two a test leaves at their defaults.
+/**
+ * [GuideDestination] without Hilt, so a test can bring its own ViewModel.
+ *
+ * [openedAtNanos] has no default on purpose: it keys the session, and a default expression such as
+ * `System.nanoTime()` is evaluated again when this recomposes (once it has read state, Compose re-runs its defaults),
+ * which would end the session and open a new one on an ordinary recomposition, such as channel management closing.
+ */
+@Suppress("LongParameterList", "LongMethod") // The destination's own six, and one a test leaves at its default.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
@@ -89,8 +95,8 @@ internal fun GuideRoot(
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     channels: ChannelsSlot,
+    openedAtNanos: Long,
     modifier: Modifier = Modifier,
-    openedAtNanos: Long = System.nanoTime(),
     measure: Boolean = false,
 ) {
     // The session's measurement line (Task 9) is written when the session ends, and only when [measure] says this build
