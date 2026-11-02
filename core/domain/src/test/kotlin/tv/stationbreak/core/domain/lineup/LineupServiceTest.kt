@@ -494,7 +494,19 @@ class LineupServiceTest {
             val lineup = checkNotNull(current())
             assertEquals(lineup.channels.map { it.id }, summaries.map { it.id })
             val toons = summaries.first { it.id == LineupIds.starter("toons") }
-            assertEquals(ChannelSummary(toons.id, 10, "Toons", ChannelStatus.On, ChannelKind.Starter, now), toons)
+            val expected =
+                ChannelSummary(
+                    toons.id,
+                    10,
+                    "Toons",
+                    ChannelStatus.On,
+                    ChannelKind.Starter,
+                    now,
+                    defaultNumber = 10,
+                    kid = true,
+                    optIn = false,
+                )
+            assertEquals(expected, toons)
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(ChannelKind.Leftovers, odds.kind)
             assertEquals("Odds", odds.name)

@@ -27,6 +27,8 @@ import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
+import tv.stationbreak.core.domain.lineup.ChannelEditor
+import tv.stationbreak.core.domain.lineup.ChannelManager
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
@@ -114,6 +116,14 @@ internal object LineupModule {
 
     @Provides
     fun channelRepository(service: LineupService): ChannelRepository = service
+
+    /** How features change the lineup (spec 21): through the service's lock, with the libraries the viewer chose. */
+    @Provides
+    @Singleton
+    fun channelEditor(
+        service: LineupService,
+        settings: ServerSettings,
+    ): ChannelEditor = ChannelManager(service) { settings.loadLibraries() }
 
     @Provides
     @Singleton

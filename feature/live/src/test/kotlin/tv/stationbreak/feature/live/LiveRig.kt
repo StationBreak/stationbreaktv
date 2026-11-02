@@ -381,7 +381,17 @@ class FakeChannels : ChannelRepository {
         flow.value =
             ids.map { (id, number) ->
                 val since = Instant.fromEpochMilliseconds(T0)
-                ChannelSummary(id, number, "Test Channel $number", ChannelStatus.On, ChannelKind.Starter, since)
+                ChannelSummary(
+                    id,
+                    number,
+                    "Test Channel $number",
+                    ChannelStatus.On,
+                    ChannelKind.Starter,
+                    since,
+                    defaultNumber = number,
+                    kid = false,
+                    optIn = false,
+                )
             }
     }
 }

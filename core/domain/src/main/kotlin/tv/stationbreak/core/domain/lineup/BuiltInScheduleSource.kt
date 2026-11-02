@@ -430,10 +430,10 @@ class BuiltInScheduleSource(
         // again here, against the revision that is current now. Only a revision change sends a caller round: a change
         // to the library does not (the snapshot reads are shared, see SnapshotCache, and a build is given the state it
         // asked for). The loop is not bounded, and cannot be outrun: a pass round it needs a build to have found a
-        // newer revision, revisions are published only by LineupService.refresh (one at a time under its lock, and
-        // only when the library or the user's edits ask for one, never in a tight cycle), and a build that finishes
-        // while its revision is current is kept, so the next pass is a cache hit. Each await in it is a cancellation
-        // point, so a caller that gives up leaves at once.
+        // newer revision, revisions are published only by LineupService (one at a time under its lock: a refresh when
+        // the library asks for one, and an edit for each press of the user's, so a person's pace and not a loop's),
+        // and a build that finishes while its revision is current is kept, so the next pass is a cache hit. Each
+        // await in it is a cancellation point, so a caller that gives up leaves at once.
         while (true) {
             try {
                 return channelDaysOnce(account, libraries, at)

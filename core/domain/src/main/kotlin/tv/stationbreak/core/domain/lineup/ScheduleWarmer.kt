@@ -3,16 +3,19 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Builds the schedule's days before anyone needs them (#392). The first tune after launch and the first flip after a
@@ -29,6 +32,7 @@ import kotlin.time.Clock
  *
  * `delay` stops while the TV is in standby, so no wait is longer than [IDLE_MS], and [nudge] (the app coming to the
  * foreground) looks again at once. Both also pick up a change of the chosen libraries, which no revision announces.
+ * A new revision is followed only after [WARM_DEBOUNCE] of quiet, so a burst of edits warms once.
  */
 class ScheduleWarmer(
     private val source: BuiltInScheduleSource,
@@ -71,14 +75,19 @@ class ScheduleWarmer(
         return true
     }
 
+    @OptIn(FlowPreview::class)
     private suspend fun follow(account: LibraryAccount) {
         // `loaded` reads the stored lineup if nothing has yet, so a start with a saved lineup warms before any refresh.
         service.loaded(account)
+        var first = true
         service
             .lineup(account)
-            .map { it?.revision }
+            .mapNotNull { it?.revision }
             .distinctUntilChanged()
-            .collectLatest { revision -> if (revision != null) keepWarm() }
+            // A burst of edits (one per press) warms once, after it: each press would otherwise cancel and restart a
+            // build whose days the next press throws away. The first revision warms at once.
+            .debounce { if (first) 0L.also { first = false } else WARM_DEBOUNCE.inWholeMilliseconds }
+            .collectLatest { keepWarm() }
     }
 
     @Suppress("TooGenericExceptionCaught") // A failed warm is only a missed head start: see the class comment.
@@ -100,7 +109,10 @@ class ScheduleWarmer(
         }
     }
 
-    private companion object {
+    internal companion object {
+        /** How long the lineup must stay unchanged before the days are warmed for it (a burst of edits warms once). */
+        val WARM_DEBOUNCE = 1500.milliseconds
+
         /** Never look again sooner than this, so a wake time already past cannot spin the loop. */
         const val MIN_WAIT_MS = 1_000L
 

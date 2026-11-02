@@ -35,7 +35,10 @@ enum class ChannelKind {
 
 /**
  * One channel of an account's lineup, for features. [number] is null while the channel waits on the shelf without
- * one. [onSince] is when it was last switched on (for a channel never on, when it joined the lineup).
+ * one. [onSince] is when it was last switched on (for a channel never on, when it joined the lineup). [defaultNumber]
+ * is the number the channel has by default, so a feature can tell a number the user chose; [kid] is a channel made for
+ * kids (the 1 to 99 numbers are theirs alone); [optIn] is a starter whose recipe needs a deliberate confirmation to
+ * switch on.
  */
 data class ChannelSummary(
     val id: ChannelId,
@@ -44,6 +47,9 @@ data class ChannelSummary(
     val state: ChannelStatus,
     val kind: ChannelKind,
     val onSince: Instant,
+    val defaultNumber: Int?,
+    val kid: Boolean,
+    val optIn: Boolean,
 )
 
 /** The lineup as features see it (spec 12). */

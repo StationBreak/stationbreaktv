@@ -9,9 +9,13 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.EditOutcome
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.time.Clock
@@ -227,5 +231,36 @@ class ScheduleWarmerTest {
             advanceTimeBy(6.minutes)
             runCurrent()
             assertEquals(3, builds.size, "the capped wait looked again")
+        }
+
+    @Test
+    fun theFirstRevisionWarmsAtOnce() =
+        runTest {
+            val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "no debounce wait for the first revision")
+        }
+
+    @Test
+    fun aBurstOfRevisionsWarmsOnce() =
+        runTest {
+            val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "the first revision is warmed at once")
+
+            // Five edits, 200 ms apart: each is a new revision of the lineup.
+            repeat(5) {
+                advanceTimeBy(200)
+                val edit = LineupEdit.SetNumber(LineupIds.starter("laughs"), 111 + it)
+                assertIs<Saved.Ok<EditOutcome>>(service.edit(ACCOUNT, edit))
+            }
+            runCurrent()
+            assertEquals(1, builds.size, "the burst has not been quiet yet")
+
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
+            runCurrent()
+            assertEquals(2, builds.size, "one warm for the whole burst")
         }
 }

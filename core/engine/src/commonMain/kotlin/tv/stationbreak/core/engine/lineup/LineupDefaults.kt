@@ -15,7 +15,7 @@ object LineupDefaults {
     /** The broadcast day starts at this wall-clock time. */
     const val DAY_START: String = "06:00"
 
-    /** Numbers kept for the user's own channels. */
+    /** Numbers kept for the user's own channels: spec 12's reserved band, where a new custom channel is numbered. */
     val CUSTOM_NUMBERS: IntRange = 600..899
 
     /** Numbers kept for later (seasonal channels). */
