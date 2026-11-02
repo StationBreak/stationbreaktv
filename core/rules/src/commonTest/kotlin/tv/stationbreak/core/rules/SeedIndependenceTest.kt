@@ -84,13 +84,16 @@ class SeedIndependenceTest {
         return "$hour:${s.pick(minutes)}"
     }
 
+    // The rules here are version 1, so only the version 1 modes.
+    private val version1Modes = listOf(OrderingMode.Shuffle, OrderingMode.Chronological, OrderingMode.RandomInOrder)
+
     /** Each entry changes one field other than the seed. */
     private val edits: List<(ChannelRules, Stream) -> ChannelRules> =
         listOf(
             { r, s -> r.copy(name = randomName(s)) },
             { r, _ -> r.copy(name = null) },
             { r, s -> r.copy(maxRating = if (s.below(4) == 0) null else s.pick(ratings)) },
-            { r, s -> r.copy(ordering = if (s.below(4) == 0) null else Ordering(s.pick(OrderingMode.entries))) },
+            { r, s -> r.copy(ordering = if (s.below(4) == 0) null else Ordering(s.pick(version1Modes))) },
             { r, s -> r.withTiming { it.copy(blockLength = 1 + s.below(100)) } },
             { r, s -> r.withTiming { it.copy(alignToGrid = s.below(2) == 0) } },
             { r, s -> r.withTiming { it.copy(epochHours = s.pick(epochHours)) } },

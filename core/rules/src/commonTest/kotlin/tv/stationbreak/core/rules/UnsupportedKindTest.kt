@@ -43,6 +43,7 @@ class UnsupportedKindTest {
     fun anUnknownOrderingModeIsUnsupported() {
         unsupported(orderingOf("weighted").text())
         unsupported(orderingOf("SHUFFLE").text())
+        unsupported(orderingOf("Rotation").text())
     }
 
     @Test

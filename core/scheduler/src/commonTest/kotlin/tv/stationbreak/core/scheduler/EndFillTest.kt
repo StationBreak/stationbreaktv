@@ -225,7 +225,7 @@ internal fun generateCase(gen: SeededGen): GeneratedCase {
     val grid = gen.pick(listOf(15, 30, 60))
     val settings =
         testSettings(
-            orderingMode = gen.pick(OrderingMode.entries),
+            orderingMode = gen.pick(SCHEDULED_MODES),
             seed = Seed(gen.nextULong()),
             blockLength = gen.pick(listOf(1, 1, 2, 3, 5, 7)),
             alignToGrid = gen.chance(60),

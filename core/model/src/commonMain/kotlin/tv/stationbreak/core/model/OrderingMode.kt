@@ -2,8 +2,9 @@
 package tv.stationbreak.core.model
 
 /**
- * The ordering modes of rules format version 1, with the exact names a rules file uses (docs/rules-format.md,
- * "Ordering"). It lives here so that the rules format and the scheduler share one enum.
+ * The ordering modes of rules format versions 1 and 2, with the exact names a rules file uses (docs/rules-format.md,
+ * "Ordering"). [Rotation] and [InOrder] are read only in a version 2 file. It lives here so that the rules format and
+ * the scheduler share one enum.
  */
 enum class OrderingMode(
     val wireName: String,
@@ -11,4 +12,6 @@ enum class OrderingMode(
     Shuffle("shuffle"),
     Chronological("chronological"),
     RandomInOrder("randomInOrder"),
+    Rotation("rotation"),
+    InOrder("inOrder"),
 }

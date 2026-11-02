@@ -6,8 +6,9 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
- * The channel rules of format version 1 (docs/rules-format.md). A reader builds this from a file and a writer turns it
- * back into the same file.
+ * The channel rules of format versions 1 and 2 (docs/rules-format.md). A reader builds this from a file and a writer
+ * turns it back into the same file. A file holds only what its [formatVersion] allows: [requiredVersion] is the lowest
+ * version that has every feature the rules use, and the version must not be below it.
  *
  * A field with a default is `null` when the file did not write it, so a rewrite does not invent it. The `effective…`
  * properties give the value to use. Fields this version does not know are in the `extras` of the object that held them.
@@ -23,15 +24,23 @@ data class ChannelRules(
     val ordering: Ordering?,
     val timing: Timing,
     val filler: Filler?,
+    val filters: Filters? = null,
     val extras: JsonObject = NO_EXTRAS,
 ) {
     init {
-        require(formatVersion.toLong() == RulesLimits.SUPPORTED_FORMAT_VERSION) { "Only format version 1 can be held" }
+        require(formatVersion in 1..RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()) {
+            "Only format versions 1 and 2 can be held"
+        }
+        require(formatVersion >= requiredVersion) { "A version 1 file cannot use a version 2 feature" }
         name?.let { RulesVocabulary.requireText(it, RulesLimits.MAX_NAME_CODE_POINTS, "The name") }
         require(sources.size in 1..RulesLimits.MAX_LIST_ENTRIES) { "There are 1 to 256 sources" }
         require(effectiveExclusions.size <= RulesLimits.MAX_LIST_ENTRIES) { "There are at most 256 exclusions" }
         require(maxRating == null || maxRating in RulesVocabulary.RATINGS) { "The rating is not on the ladder" }
-        RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.TOP_LEVEL)
+        require(effectiveCaps == null || timing.effectiveEpochHours >= RulesVocabulary.CAPS_EPOCH_HOURS) {
+            "Caps need a 24-hour epoch"
+        }
+        RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.topLevel(formatVersion))
+        ordering?.let { RulesVocabulary.requireFreeExtras(it.extras, RulesVocabulary.ordering(formatVersion)) }
     }
 
     /** The ordering mode to use: `shuffle` when the file has no `ordering`. */
@@ -42,15 +51,85 @@ data class ChannelRules(
 
     /** The exclusions to use: none when the file has no `exclusions`. */
     val effectiveExclusions: List<Source> get() = exclusions.orEmpty()
+
+    /**
+     * The caps in force, or null when none are. `rotation` always has caps (the defaults when the file gives none), a
+     * `shuffle` has them only when the file gives `caps`, and the other modes ignore them.
+     */
+    val effectiveCaps: OrderingCaps?
+        get() =
+            when (orderingMode) {
+                OrderingMode.Rotation -> ordering?.caps ?: OrderingCaps(null, null)
+                OrderingMode.Shuffle -> ordering?.caps
+                else -> null
+            }
+
+    /** The lowest format version that has every feature these rules use: 2 for a version 2 feature, else 1. */
+    val requiredVersion: Int
+        get() {
+            val usesV2 =
+                sources.any { it is Source.Item } ||
+                    effectiveExclusions.any { it is Source.Item } ||
+                    filters != null ||
+                    orderingMode == OrderingMode.Rotation ||
+                    orderingMode == OrderingMode.InOrder ||
+                    ordering?.caps != null
+            return if (usesV2) 2 else 1
+        }
+
+    /**
+     * These rules at [version], with any extra whose key [version] knows dropped (top level and `ordering`), so a file
+     * that kept `filters` or `caps` as unknown fields can move to version 2 and get real ones.
+     */
+    fun withVersion(version: Int): ChannelRules =
+        copy(
+            formatVersion = version,
+            ordering =
+                ordering?.copy(
+                    extras = JsonObject(ordering.extras.filterKeys { it !in RulesVocabulary.ordering(version) }),
+                ),
+            extras = JsonObject(extras.filterKeys { it !in RulesVocabulary.topLevel(version) }),
+        )
 }
 
-/** The `ordering` object. */
+/**
+ * The `ordering` object. [caps] is a version 2 field; in a version 1 file `caps` is one of the [extras]. The extras are
+ * checked against the file's version by [ChannelRules], which knows it; here only the names every version knows.
+ */
 data class Ordering(
     val mode: OrderingMode,
+    val caps: OrderingCaps? = null,
     val extras: JsonObject = NO_EXTRAS,
 ) {
     init {
-        RulesVocabulary.requireFreeExtras(extras, setOf("mode"))
+        RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.ORDERING_V1)
+        require(caps == null || "caps" !in extras) { "An unknown field cannot reuse the known field name 'caps'" }
+    }
+}
+
+/** The `ordering.caps` object of version 2. A part the file leaves out is `null` here. */
+data class OrderingCaps(
+    val series: Int?,
+    val film: Int?,
+    val extras: JsonObject = NO_EXTRAS,
+) {
+    init {
+        val range = RANGE
+        require(series == null || series in range) { "A series cap is 1 to 10" }
+        require(film == null || film in range) { "A film cap is 1 to 10" }
+        RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.CAPS)
+    }
+
+    /** The most episodes of one show in a row: 3 when the file does not say. */
+    val effectiveSeries: Int get() = series ?: DEFAULT_SERIES
+
+    /** The most films of one collection in a row: 1 when the file does not say. */
+    val effectiveFilm: Int get() = film ?: DEFAULT_FILM
+
+    companion object {
+        const val DEFAULT_SERIES = 3
+        const val DEFAULT_FILM = 1
+        val RANGE = RulesVocabulary.MIN_CAP..RulesVocabulary.MAX_CAP
     }
 }
 

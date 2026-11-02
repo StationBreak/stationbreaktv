@@ -21,7 +21,7 @@ class InvariantsTest {
 
     @Test
     fun rulesNeedTheSupportedVersionAndAtLeastOneSource() {
-        rejects { base.copy(formatVersion = 2) }
+        rejects { base.copy(formatVersion = 3) }
         rejects { base.copy(formatVersion = 0) }
         rejects { base.copy(sources = emptyList()) }
         rejects { base.copy(sources = List(257) { Source.Library(id) }) }
@@ -38,14 +38,17 @@ class InvariantsTest {
 
     @Test
     fun extrasCannotCollideWithKnownKeys() {
-        for (key in RulesVocabulary.TOP_LEVEL) {
+        for (key in RulesVocabulary.TOP_LEVEL_V1) {
             rejects { base.copy(extras = extras(key)) }
+        }
+        for (key in RulesVocabulary.TOP_LEVEL_V2) {
+            rejects { base.copy(formatVersion = 2, extras = extras(key)) }
         }
         rejects { Source.Library(id, extras("type")) }
         rejects { Source.Library(id, extras("id")) }
         rejects { Source.Genre("x", extras("name")) }
         rejects { Source.YearRange(1, 2, extras("from")) }
-        rejects { Ordering(OrderingMode.Shuffle, extras("mode")) }
+        rejects { Ordering(OrderingMode.Shuffle, extras = extras("mode")) }
         rejects { base.timing.copy(extras = extras("broadcastDay")) }
         rejects { base.timing.broadcastDay.copy(extras = extras("start")) }
         rejects { Filler(FillerMode.None, null, null, extras("source")) }

@@ -83,7 +83,10 @@ internal object NaivePool {
             val missing =
                 when (source) {
                     is Source.Collection -> snapshot.collections[source.id] == null
-                    is Source.Library, is Source.Genre, is Source.Tag, is Source.YearRange, is Source.Series -> false
+
+                    is Source.Library, is Source.Genre, is Source.Tag, is Source.YearRange, is Source.Series,
+                    is Source.Item,
+                    -> false
                 }
             if (missing) out.add(index)
         }
@@ -156,6 +159,10 @@ internal object NaivePool {
 
             is Source.Series -> {
                 isEpisode && seriesId == source.id
+            }
+
+            is Source.Item -> {
+                item.id == source.id
             }
 
             is Source.Collection -> {

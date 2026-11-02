@@ -3,14 +3,21 @@ package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonObject
 
-/** The fixed names and ranges of format version 1, shared by the reader and by the checks on the types. */
+/** The fixed names and ranges of format versions 1 and 2, shared by the reader and by the checks on the types. */
 internal object RulesVocabulary {
     /** The names a `maxRating` may take: the rating ladder. */
     val RATINGS: Set<String> get() = RatingLadder.names
     val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
     val START_TIME = Regex("^([01][0-9]|2[0-3]):(00|30)$")
-    val TOP_LEVEL =
+    val TOP_LEVEL_V1 =
         setOf("formatVersion", "name", "seed", "sources", "exclusions", "maxRating", "ordering", "timing", "filler")
+    val TOP_LEVEL_V2 = TOP_LEVEL_V1 + "filters"
+    val ORDERING_V1 = setOf("mode")
+    val ORDERING_V2 = ORDERING_V1 + "caps"
+    val CAPS = setOf("series", "film")
+    val FILTERS = setOf("genres", "years", "runtime", "kind")
+    val FILTER_YEARS = setOf("from", "to")
+    val FILTER_RUNTIME = setOf("minMinutes", "maxMinutes")
     val GRID_MINUTES = setOf(15, 30, 60)
     val TIMING =
         setOf(
@@ -26,6 +33,11 @@ internal object RulesVocabulary {
     val FILLER = setOf("mode", "every", "source")
 
     const val MAX_BLOCK_LENGTH = 100
+    const val MIN_CAP = 1
+    const val MAX_CAP = 10
+    const val MAX_RUNTIME_MINUTES = 1440
+    const val MS_PER_MINUTE = 60_000L
+    const val CAPS_EPOCH_HOURS = 24
     const val MAX_GRACE_HOURS = 48
     const val MAX_MIN_RUNTIME_SECONDS = 3600
     const val HOURLY_GRID = 60
@@ -35,6 +47,12 @@ internal object RulesVocabulary {
     const val MIN_OFFSET = -720
     const val MAX_OFFSET = 840
     const val OFFSET_STEP = 15
+
+    /** The top-level field names that [version] knows. */
+    fun topLevel(version: Int): Set<String> = if (version >= 2) TOP_LEVEL_V2 else TOP_LEVEL_V1
+
+    /** The `ordering` field names that [version] knows. */
+    fun ordering(version: Int): Set<String> = if (version >= 2) ORDERING_V2 else ORDERING_V1
 
     /** Fails when [extras] holds a key the object already writes itself, which could change what the file means. */
     fun requireFreeExtras(

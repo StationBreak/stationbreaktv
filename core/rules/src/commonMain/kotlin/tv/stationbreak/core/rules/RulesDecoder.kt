@@ -8,12 +8,17 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
- * Builds [ChannelRules] from the JSON of a version 1 file. Throws [InvalidRules] for a wrong shape; an unknown kind is
- * recorded in [unsupported] and the rest of the file is still checked.
+ * Builds [ChannelRules] from the JSON of a file of format [version]; version 2 features are read only when it is 2.
+ * Throws [InvalidRules] for a wrong shape; an unknown kind is recorded in [unsupported] and the rest of the file is
+ * still checked.
  */
-internal class RulesDecoder {
+internal class RulesDecoder(
+    private val version: Int,
+) {
     val unsupported = UnsupportedKinds()
-    private val sources = SourceDecoder(unsupported)
+    private val sources = SourceDecoder(unsupported, version)
+    private val filtersDecoder = FiltersDecoder(unsupported)
+    private val modes = OrderingMode.entries.filter { version >= 2 || it !in V2_MODES }
 
     fun rules(root: JsonObject): ChannelRules =
         ChannelRules(
@@ -26,7 +31,8 @@ internal class RulesDecoder {
             ordering = root["ordering"]?.let { ordering(it) },
             timing = TimingDecoder.timing(required(root, "timing")),
             filler = root["filler"]?.let { filler(it) },
-            extras = extras(root, RulesVocabulary.TOP_LEVEL),
+            filters = if (version >= 2) root["filters"]?.let { filtersDecoder.filters(it) } else null,
+            extras = extras(root, RulesVocabulary.topLevel(version)),
         )
 
     private fun seed(root: JsonObject): Seed {
@@ -44,9 +50,20 @@ internal class RulesDecoder {
     private fun ordering(element: JsonElement): Ordering? {
         val obj = element as? JsonObject ?: invalid("ordering must be an object")
         val text = string(required(obj, "mode", "ordering"), "ordering.mode")
-        val mode = OrderingMode.entries.firstOrNull { it.wireName == text }
+        val mode = modes.firstOrNull { it.wireName == text }
         if (mode == null) unsupported.mark("ordering mode", text)
-        return mode?.let { Ordering(it, extras(obj, setOf("mode"))) }
+        val caps = if (version >= 2) obj["caps"]?.let { caps(it) } else null
+        return mode?.let { Ordering(it, caps, extras(obj, RulesVocabulary.ordering(version))) }
+    }
+
+    private fun caps(element: JsonElement): OrderingCaps {
+        val obj = element as? JsonObject ?: invalid("ordering.caps must be an object")
+        val range = OrderingCaps.RANGE
+        return OrderingCaps(
+            series = obj["series"]?.let { ranged(it, "ordering.caps.series", range.first, range.last) },
+            film = obj["film"]?.let { ranged(it, "ordering.caps.film", range.first, range.last) },
+            extras = extras(obj, RulesVocabulary.CAPS),
+        )
     }
 
     private fun filler(element: JsonElement): Filler? {
@@ -67,5 +84,9 @@ internal class RulesDecoder {
         val missingSource = mode != FillerMode.None && source == null && unsupported.reason == null
         if (missingSource) invalid("filler.source is required for ${mode.wireName}")
         return Filler(mode, every, source, extras(obj, setOf("mode", "every", "source")))
+    }
+
+    private companion object {
+        val V2_MODES = setOf(OrderingMode.Rotation, OrderingMode.InOrder)
     }
 }
