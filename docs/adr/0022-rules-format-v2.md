@@ -22,6 +22,9 @@ cannot say:
    subtract, so a narrowing condition cannot be written.
 5. **Single items.** "This one film, that one episode." Today a one-off has to be a whole series or a whole collection.
 
+Version 2 is a Draft until the scheduler change that builds it merges with independently computed vectors; only then
+does a later lineup change need `formatVersion` 3.
+
 Version 1 cannot change (it is final, and the apps in the field read it), and every TV must still compute the same
 schedule from the same rules and library (ADR-0002). So the additions are a second version of the file, defined in full
 in [docs/rules-format.md](../rules-format.md).

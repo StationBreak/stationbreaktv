@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 (2026-11-02) adds features to it and leaves version 1 unchanged (see Format version). Any later lineup change needs `formatVersion` 3.
+> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 (2026-11-02) is a Draft: it adds features to version 1 and leaves version 1 unchanged (see Format version), and the scheduler change that builds it finalises it once its independently computed vectors exist. Once version 2 is final, any later lineup change needs `formatVersion` 3.
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -99,7 +99,13 @@ holds a secret and never causes a client to fetch a URL.
 
 `formatVersion` is a whole number of 1 or more. This document defines versions `1` and `2`.
 
-**A writer writes the lowest version whose features the file uses.** A file that uses nothing from version 2 says `1`.
+**Version 2 is a Draft** until the scheduler change that builds its orders is merged with vectors computed by an independent
+reference; until then it can still change without a new version. The rule that a later lineup change needs `formatVersion` 3
+applies only once version 2 is final.
+
+**A writer that creates or edits rules writes the lowest version whose features the rules use.** A file that uses nothing
+from version 2 says `1`. A file that is read and written back unchanged keeps the version it had. The presence of `filters`
+(even `{}`) or of `ordering.caps` (even beside a mode that ignores them) counts as using version 2.
 **A reader that supports version 2 reads a version 1 file unchanged.** Version 2 adds, and changes nothing in version 1:
 the orders `rotation` and `inOrder`, `ordering.caps`, the `item` source and exclusion, and `filters`. Version 1 and
 version 2 coexist, and no file is migrated.
@@ -186,8 +192,9 @@ Unknown fields may hold any valid JSON, including numbers. When a file is writte
 JSON value, not as the same bytes: an escape may be written differently, and a number such as `1e2` may be written as
 `100.0`. Writing the shipped examples gives back the same bytes.
 
-**A writer must write the lowest `formatVersion` whose features the file uses.** A file that only uses version 1 features
-says `1`, even when the writer also knows version 2. That keeps older apps working for as long as possible.
+**A writer that creates or edits rules must write the lowest `formatVersion` whose features they use.** Rules that only use
+version 1 features say `1`, even when the writer also knows version 2. That keeps older apps working for as long as
+possible. (A file read and written back unchanged keeps its version.)
 
 **A change needs a new `formatVersion` when it could change which items air, or in what order.** That includes:
 
@@ -379,9 +386,11 @@ minus the exclusions (see Items and the pool). An item that fails a filter is ou
 | `runtime` | `{ "minMinutes", "maxMinutes" }` | Its runtime, as read at the cut-off `S - G` (see The pool of an epoch), is at least `minMinutes` and at most `maxMinutes`, both included, in whole minutes (compared in milliseconds: `minMinutes * 60000` and `maxMinutes * 60000`). Each is a whole number from 1 to 1440; `minMinutes` is not above `maxMinutes`; at least one is given. An item with no runtime is already out of the pool. |
 | `kind` | `"movie"` or `"episode"` | It is of that kind. |
 
-An empty `filters` object is valid and changes nothing. A part that is not on this list is an unknown field. A filter
+An unknown `kind` value (not `"movie"` or `"episode"`) is an unknown kind, not a bad value: the file is **unsupported**, as
+for an unknown source type (see Unknown fields and unsupported kinds). The other parts are still checked first, so a file with
+an unknown `kind` and a bad `genres` list is invalid. An empty `filters` object is valid and changes nothing. A part that is not on this list is an unknown field. A filter
 with a bad value (an empty `genres` list, `years` with `to` below `from`, `minMinutes` above `maxMinutes`, a `runtime`
-with neither bound, a `kind` that is not one of the two) makes the file invalid.
+with neither bound, a `kind` of the wrong type) makes the file invalid.
 
 `filters` change which items air, so they are a version 2 feature. They do not change the rating ceiling: an item still
 needs to pass `maxRating` (and its fail-closed rules) as well.
@@ -1551,12 +1560,13 @@ IDs are.
 A reader will meet files written by newer apps. Three cases must be handled differently:
 
 - **An unknown field** (a key the reader does not know, in any object: the top level, a source, `ordering`, `timing`,
-  `broadcastDay`, `filler` or a filler source) is **kept and ignored**. The reader must not use it, must not fail on it,
+  `broadcastDay`, `filler`, a filler source, and in version 2 `ordering.caps`, `filters`, `filters.years` and
+  `filters.runtime`) is **kept and ignored**. The reader must not use it, must not fail on it,
   and must write it back with the same JSON value when it writes the file again (see JSON profile: the value, not the bytes).
   `filters` and `ordering.caps` in a file that says `formatVersion` 1 are unknown fields in this sense: kept and ignored.
   `docs/rules-format/examples/forward-compat-extras.json` has unknown fields at every level.
-- **An unknown kind** (a `type` of a source, an ordering `mode` or a filler `mode` that the reader does not know) is **not**
-  an unknown field. That includes a version 2 `mode` (`rotation`, `inOrder`) or source `type` (`item`) in a file that says
+- **An unknown kind** (a `type` of a source, an ordering `mode`, a filler `mode` or, in version 2, a `filters.kind` that the
+  reader does not know) is **not** an unknown field. That includes a version 2 `mode` (`rotation`, `inOrder`) or source `type` (`item`) in a file that says
   `formatVersion` 1: for that file the kind is unknown. The channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it
   work. This keeps a channel from playing the wrong thing.
 - **A known kind that the reader does not schedule** is treated the same way: **unsupported**. In version 1 this is every
@@ -1640,7 +1650,8 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
 18. **A version 1 file that uses version 2.** A file that says `formatVersion` 1 and uses `rotation` or `inOrder` as its
     `mode`, or an `item` source, is **unsupported** (not scheduled, "update required"). The same file with `filters` or
     `ordering.caps` and only version 1 features is read, and both are kept and ignored. A file that says `formatVersion` 2
-    with `ordering.caps` and `epochHours` 12 is invalid.
+    with `ordering.caps` and `epochHours` 12 is invalid. A version 2 file with a `filters.kind` that is not `movie` or `episode`
+    is unsupported.
 
 ## Files
 
@@ -1658,7 +1669,8 @@ Everything below is in this repository, under `docs/`:
 - `docs/rules-format/examples/`: one worked example per feature, each of which validates against the version 1 schema.
 - `docs/rules-format/examples/v2/`: one worked example per version 2 feature (`rotation`, `inOrder`, a capped `shuffle`,
   `filters`, an `item` source, and a file that uses all of them), each of which validates against the version 2 schema, and
-  `docs/rules-format/examples/v2/invalid/`, files a reader must reject (the schema rejects those it can).
+  `docs/rules-format/examples/v2/invalid/`, files a reader must reject (the schema rejects those it can); a file there
+  whose kind is unknown (a version 1 file that uses version 2, or an unknown `filters.kind`) is rejected as unsupported.
 - `docs/rules-format/examples/invalid/`: files the schema must reject (wrong type, missing `formatVersion`,
   `formatVersion` 0, a missing or malformed seed, a hyphenated or upper-case ID, a rating off the ladder, an unknown
   source kind, no sources, a missing `timing` or offset, an offset that is not a multiple of 15, an `epochHours` not on

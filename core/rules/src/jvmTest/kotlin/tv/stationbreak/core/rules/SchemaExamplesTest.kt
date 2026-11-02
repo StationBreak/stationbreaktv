@@ -63,7 +63,7 @@ class SchemaExamplesTest {
                 assertTrue(schemaV2.validate(text, InputFormat.JSON).isNotEmpty(), "$name should fail the v2 schema")
             }
             val result = RulesReader.read(text)
-            if (name in v1Files) {
+            if (name in unsupportedFiles) {
                 assertTrue(result is RulesResult.Unsupported, "$name: $result")
             } else {
                 assertTrue(result is RulesResult.Invalid, "$name: $result")
@@ -194,7 +194,13 @@ class SchemaExamplesTest {
     }
 
     private companion object {
-        val v1Files = setOf("v1-file-rotation.json", "v1-file-in-order.json", "v1-file-item-source.json")
+        val unsupportedFiles =
+            setOf(
+                "v1-file-rotation.json",
+                "v1-file-in-order.json",
+                "v1-file-item-source.json",
+                "filters-kind-season.json",
+            )
         val readerOnly =
             setOf("caps-short-epoch.json", "filters-years-reversed.json", "filters-runtime-min-over-max.json")
         val v2InvalidFiles =
@@ -209,6 +215,7 @@ class SchemaExamplesTest {
                 "v1-file-rotation.json",
                 "v1-file-in-order.json",
                 "v1-file-item-source.json",
+                "filters-kind-season.json",
             )
         val invalidCases =
             listOf(

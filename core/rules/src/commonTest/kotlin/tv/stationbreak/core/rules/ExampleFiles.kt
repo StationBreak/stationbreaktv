@@ -1598,5 +1598,29 @@ internal object ExampleFiles {
                   }
                 }
                 """.trimIndent() + "\n",
+            "filters-kind-season.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Unknown Filter Kind",
+                  "seed": "31",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "kind": "season"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
         )
 }

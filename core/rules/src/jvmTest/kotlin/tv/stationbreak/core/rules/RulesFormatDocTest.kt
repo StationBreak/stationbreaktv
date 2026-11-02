@@ -106,8 +106,9 @@ class RulesFormatDocTest {
     fun hasTheScopeSectionsAndBanner() {
         val banner =
             "> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). " +
-                "Version 2 (2026-11-02) adds features to it and leaves version 1 unchanged (see Format version). " +
-                "Any later lineup change needs `formatVersion` 3."
+                "Version 2 (2026-11-02) is a Draft: it adds features to version 1 and leaves version 1 unchanged " +
+                "(see Format version), and the scheduler change that builds it finalises it once its independently " +
+                "computed vectors exist. Once version 2 is final, any later lineup change needs `formatVersion` 3."
         assertTrue(banner in doc.lines(), "the final banner is missing")
         assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
@@ -149,7 +150,7 @@ class RulesFormatDocTest {
         for (
         needle in
         listOf(
-            "A writer must write the lowest `formatVersion` whose features the file uses.",
+            "A writer that creates or edits rules must write the lowest `formatVersion` whose features they use.",
             "code points",
             "standard (non-daylight-saving) offset",
             "RFC 2119",
