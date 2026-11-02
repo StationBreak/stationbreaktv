@@ -9,9 +9,13 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.EditOutcome
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.time.Clock
@@ -113,6 +117,7 @@ class ScheduleWarmerTest {
                 }
             val warmer = ScheduleWarmer(sourceOn(), service, library, timeline)
             warmer.start(backgroundScope)
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "today's days are built at start")
 
@@ -137,6 +142,7 @@ class ScheduleWarmerTest {
             assertEquals(0, builds.size, "a process with no screen builds no day")
 
             warmer.foreground(backgroundScope)
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "the first foreground warms today")
 
@@ -173,6 +179,7 @@ class ScheduleWarmerTest {
                 ) { LIBRARIES }
             warmer = ScheduleWarmer(source, service, library, timeline)
             warmer.start(backgroundScope)
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "the nudge during the warm did not start another")
         }
@@ -198,6 +205,7 @@ class ScheduleWarmerTest {
                 }
             warmer = ScheduleWarmer(source, service, library, clock)
             warmer.start(backgroundScope)
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "the nudge made the warm try again at once, not after the idle wait")
         }
@@ -213,6 +221,7 @@ class ScheduleWarmerTest {
                 }
             val warmer = ScheduleWarmer(sourceOn(), service, library, timeline)
             warmer.start(backgroundScope)
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size)
 
@@ -227,5 +236,27 @@ class ScheduleWarmerTest {
             advanceTimeBy(6.minutes)
             runCurrent()
             assertEquals(3, builds.size, "the capped wait looked again")
+        }
+
+    @Test
+    fun aBurstOfRevisionsWarmsOnce() =
+        runTest {
+            val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(0, builds.size, "nothing is warmed until the lineup has been quiet")
+
+            // Five edits, 200 ms apart: each is a new revision of the lineup.
+            repeat(5) {
+                advanceTimeBy(200)
+                val edit = LineupEdit.SetNumber(LineupIds.starter("laughs"), 111 + it)
+                assertIs<EditOutcome.Applied>(service.edit(ACCOUNT, edit))
+            }
+            runCurrent()
+            assertEquals(0, builds.size, "the burst has not been quiet yet")
+
+            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
+            runCurrent()
+            assertEquals(1, builds.size, "one warm for the whole burst")
         }
 }

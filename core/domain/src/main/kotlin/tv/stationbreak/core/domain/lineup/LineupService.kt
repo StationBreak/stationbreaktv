@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,12 +15,16 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
@@ -33,12 +38,14 @@ import kotlin.time.TimeSource
 
 /**
  * A lineup with the revision it was published at, and the refresher's [meta] about it. A new refresh gives a new
- * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed.
+ * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed. [writable]
+ * is whether this session may write the account's file, as it stood when this was published (spec 21).
  */
 internal data class Revisioned(
     val revision: Long,
     val lineup: Lineup,
     val meta: RefreshMeta = RefreshMeta(),
+    val writable: Boolean = false,
 )
 
 /**
@@ -164,33 +171,7 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            // Before the read, so a write that lands during it leaves the generation behind and is seen next time.
-            val generation = library.contentGeneration(account)
-            val pass = library.collectionPassCompleted(account).first()
-            val now = clock.now()
-            val snapshot = library.ruleSnapshot(account, libraries, now)
-            val names = library.collectionNames(account)
-            // Read now, whatever trigger asked: the lineup stops waiting for collections that are not coming.
-            val giveUp = library.failedCollectionPasses(account) >= GIVE_UP_AFTER
-            val planned =
-                LineupPlanner.plan(
-                    start.current,
-                    owner.server,
-                    owner.user,
-                    standardOffsetMinutes(),
-                    snapshot,
-                    names,
-                    now.toEpochMilliseconds(),
-                    catalog,
-                    withoutCollections = giveUp,
-                )
-            val taken = pass?.takeIf { snapshot.collectionsSynced }?.toEpochMilliseconds()
-            val meta =
-                RefreshMeta(
-                    plannedGeneration = generation,
-                    collectionPassActedOn = taken ?: start.meta.collectionPassActedOn,
-                    plannedLibraries = libraries.map { it.value }.sorted(),
-                )
+            val (planned, meta) = planned(owner, account, libraries, start.current, start.meta.collectionPassActedOn)
             if (entry.writable) saveVerified(owner, planned, meta)
             publish(entry, planned, meta)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
@@ -198,6 +179,48 @@ class LineupService internal constructor(
         }
         // Only a refresh that ran to its publish is timed: load to publish, including any wait on the account's lock.
         seams.timed(began.elapsedNow().inWholeMilliseconds)
+    }
+
+    /**
+     * The lineup planned from [current] (null: from nothing) against the library's [libraries] now, and the meta to
+     * record with it: [passActedOn] is kept unless the planning read took in a newer collection pass. Reads as
+     * documented on [refresh]. Call under the account's lock.
+     */
+    private suspend fun planned(
+        owner: Owner,
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        current: Lineup?,
+        passActedOn: Long?,
+    ): Pair<Lineup, RefreshMeta> {
+        // Before the read, so a write that lands during it leaves the generation behind and is seen next time.
+        val generation = library.contentGeneration(account)
+        val pass = library.collectionPassCompleted(account).first()
+        val now = clock.now()
+        val snapshot = library.ruleSnapshot(account, libraries, now)
+        val names = library.collectionNames(account)
+        // Read now, whatever trigger asked: the lineup stops waiting for collections that are not coming.
+        val giveUp = library.failedCollectionPasses(account) >= GIVE_UP_AFTER
+        val planned =
+            LineupPlanner.plan(
+                current,
+                owner.server,
+                owner.user,
+                standardOffsetMinutes(),
+                snapshot,
+                names,
+                now.toEpochMilliseconds(),
+                catalog,
+                withoutCollections = giveUp,
+            )
+        val taken = pass?.takeIf { snapshot.collectionsSynced }?.toEpochMilliseconds()
+        val meta =
+            RefreshMeta(
+                plannedGeneration = generation,
+                collectionPassActedOn = taken ?: passActedOn,
+                plannedLibraries = libraries.map { it.value }.sorted(),
+            )
+        return planned to meta
     }
 
     /**
@@ -225,10 +248,96 @@ class LineupService internal constructor(
             if (lineup != null && acted != null && acted != ms) {
                 val updated = meta.copy(collectionPassActedOn = ms)
                 if (entry.writable) saveVerified(owner, lineup, updated)
-                if (held == null) publish(entry, lineup, updated) else entry.state.value = held.copy(meta = updated)
+                if (held == null) {
+                    publish(entry, lineup, updated)
+                } else {
+                    entry.state.value = held.copy(meta = updated, writable = entry.writable)
+                }
                 entry.loaded = true
             }
         }
+    }
+
+    /**
+     * Applies [edit] to [account]'s lineup (spec 21) under the account's lock, so it never lands between a refresh's
+     * read and its save: it waits for the refresh and edits what the refresh published. It starts from this session's
+     * lineup, as [notePass] does, so an earlier edit whose save failed is kept. An applied edit is saved when this
+     * session may write the file, and published with a new revision. Null: there is no lineup, or the file may not be
+     * written (a newer app's, say): nothing changes. A refusal publishes nothing. [nowMs] is when the edit is made.
+     */
+    internal suspend fun edit(
+        account: LibraryAccount,
+        edit: LineupEdit,
+        nowMs: Long = clock.now().toEpochMilliseconds(),
+    ): EditOutcome? {
+        val owner = ownerOf(account) ?: return null
+        val entry = entryOf(owner)
+        return entry.mutex.withLock {
+            val start = startOf(owner, entry)
+            entry.writable = start.save
+            val held = entry.state.value
+            val lineup = held?.lineup ?: start.current
+            if (!entry.writable || lineup == null) {
+                noteWritable(entry)
+                return@withLock null
+            }
+            val outcome = LineupEdits.apply(lineup, edit, nowMs, catalog)
+            if (outcome is EditOutcome.Applied) {
+                val meta = held?.meta ?: start.meta
+                saveVerified(owner, outcome.lineup, meta)
+                publish(entry, outcome.lineup, meta)
+                entry.loaded = true
+            }
+            outcome
+        }
+    }
+
+    /**
+     * Replaces [account]'s lineup with a fresh first choice from the [libraries] (null or none: an empty lineup, not
+     * yet finalised, which the refresher chooses from later), in one hold of the lock and once started it finishes
+     * even if the caller is cancelled: the lineup is never left forgotten. The old lineup stays until the new one is
+     * saved and published together with it, and what was built from it is forgotten. Null: the file may not be
+     * written, and nothing changes. Never throws for stored data.
+     */
+    internal suspend fun reset(
+        account: LibraryAccount,
+        libraries: Set<ItemId>?,
+    ): Lineup? {
+        val owner = ownerOf(account) ?: return null
+        val entry = entryOf(owner)
+        return withContext(NonCancellable) {
+            entry.mutex.withLock {
+                val start = startOf(owner, entry)
+                entry.writable = start.save
+                if (!entry.writable) {
+                    noteWritable(entry)
+                    return@withLock null
+                }
+                val (fresh, meta) =
+                    if (libraries.isNullOrEmpty()) {
+                        emptyLineup(owner) to RefreshMeta()
+                    } else {
+                        planned(owner, account, libraries, null, null)
+                    }
+                saveVerified(owner, fresh, meta)
+                forgetDerived(owner.key)
+                publish(entry, fresh, meta)
+                entry.loaded = true
+                fresh
+            }
+        }
+    }
+
+    // What the planner gives with no library to choose from: nothing yet, and not finalised.
+    private fun emptyLineup(owner: Owner): Lineup {
+        val offset = standardOffsetMinutes()
+        return Lineup(owner.server, owner.user, catalog.version, offset, false, emptyList())
+    }
+
+    // A held lineup shows whether it may be written now, at its own revision: no channel changed.
+    private fun noteWritable(entry: Entry) {
+        val held = entry.state.value
+        if (held != null && held.writable != entry.writable) entry.state.value = held.copy(writable = entry.writable)
     }
 
     /**
@@ -296,6 +405,7 @@ class LineupService internal constructor(
                     val stored = store.load(owner.key)
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
                     if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
+                        entry.writable = true
                         publish(entry, decoded.lineup, decoded.meta)
                     }
                     entry.loaded = stored != StoredBytes.Failed
@@ -405,7 +515,7 @@ class LineupService internal constructor(
         meta: RefreshMeta,
     ) {
         val revision = synchronized(lock) { ++revisions }
-        entry.state.value = Revisioned(revision, lineup, meta)
+        entry.state.value = Revisioned(revision, lineup, meta, entry.writable)
     }
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }

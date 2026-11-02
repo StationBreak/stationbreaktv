@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
@@ -30,7 +31,15 @@ internal fun LineupChannel.summary(catalog: StarterCatalogView) =
         state = state.domain,
         kind = source.kind,
         onSince = Instant.fromEpochMilliseconds(onSinceMs),
+        defaultNumber = defaultNumber,
+        kid = KidStatus.isKidChannel(this),
+        optIn = isOptIn(catalog),
     )
+
+private fun LineupChannel.isOptIn(catalog: StarterCatalogView): Boolean {
+    val starter = source as? ChannelSource.Starter ?: return false
+    return catalog.recipes.any { it.key == starter.recipeKey && it.optIn }
+}
 
 /** Number order, channels without a number last, then ID: the order features list channels in. */
 internal val CHANNEL_ORDER: Comparator<LineupChannel> =
