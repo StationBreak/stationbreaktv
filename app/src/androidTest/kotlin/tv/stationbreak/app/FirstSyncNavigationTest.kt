@@ -4,6 +4,7 @@ package tv.stationbreak.app
 import android.content.Context
 import android.view.KeyEvent
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isFocusable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -210,14 +211,20 @@ class FirstSyncNavigationTest {
     }
 
     /**
-     * Back from live TV opens the guide (spec 17, owner decision 3), and Back from the guide leaves the app: two
-     * presses where the rest of the app takes one, which is why the guide's hint row says so.
+     * Back walks out one step at a time (#475): from live TV it opens the guide, focused on the playing channel; from
+     * there it goes to the menu row's Channels entry; from the menu row it leaves the app.
      */
     private fun assertBackOpensTheGuideThenLeavesTheApp() {
         compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         awaitExists(GuideTags.SCREEN)
         assertFalse("the first Back only opens the guide", compose.activity.isFinishing)
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) {
+            runCatching { compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected() }.isSuccess
+        }
+        assertFalse("the second Back only reaches the menu row", compose.activity.isFinishing)
         assertBackLeavesTheApp()
     }
 

@@ -182,10 +182,12 @@ class GuideMenuUiTest {
 
     private fun cell(startMin: Long) = compose.onNodeWithTag(GuideTags.cell(CH5, T0 + startMin * MIN))
 
-    // The view model has the Channels entry focused at once; the semantics follow a frame later, so they are waited for.
+    // The view model has the Channels entry focused at once; the semantics follow a frame later, so they are
+    // waited for.
     private fun awaitOnChannels() {
         val shown = vm.snapshot.value
-        assertEquals("the view model's menu (state ${shown.state::class.simpleName})", GuideMenuEntry.Channels, shown.menu)
+        val state = shown.state::class.simpleName
+        assertEquals("the view model's menu (state $state)", GuideMenuEntry.Channels, shown.menu)
         compose.waitUntil(TIMEOUT_MS) { runCatching { channels().assertIsSelected() }.isSuccess }
     }
 
