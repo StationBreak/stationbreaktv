@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "name": "Version 1 Rotation",
+  "seed": "28",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "rotation"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

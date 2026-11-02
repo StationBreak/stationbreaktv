@@ -24,8 +24,12 @@ internal object RulesFormatFiles {
             .sortedBy { it.name }
             .associate { it.name to it.readText() }
 
+    val schemaV2File: File = File(dir, "channel-rules.v2.schema.json")
+
     val valid: Map<String, String> get() = jsonFiles("examples")
     val invalid: Map<String, String> get() = jsonFiles("examples/invalid")
+    val validV2: Map<String, String> get() = jsonFiles("examples/v2")
+    val invalidV2: Map<String, String> get() = jsonFiles("examples/v2/invalid")
 
     /** Parses JSON text into plain maps, lists, strings, numbers and booleans. */
     fun parse(text: String): Any? = mapper.readValue(text, Any::class.java)

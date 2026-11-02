@@ -1,0 +1,28 @@
+{
+  "formatVersion": 2,
+  "name": "Two Picks",
+  "seed": "15",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    },
+    {
+      "type": "item",
+      "id": "44444444444444444444444444444444"
+    }
+  ],
+  "exclusions": [
+    {
+      "type": "item",
+      "id": "55555555555555555555555555555555"
+    }
+  ],
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

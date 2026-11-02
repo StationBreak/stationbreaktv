@@ -1,0 +1,24 @@
+{
+  "formatVersion": 2,
+  "name": "Caps Short Epoch",
+  "seed": "23",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "rotation",
+    "caps": {
+      "series": 3
+    }
+  },
+  "timing": {
+    "epochHours": 12,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

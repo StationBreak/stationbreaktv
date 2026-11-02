@@ -1,0 +1,21 @@
+{
+  "formatVersion": 2,
+  "name": "Empty Genres",
+  "seed": "26",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filters": {
+    "genres": []
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

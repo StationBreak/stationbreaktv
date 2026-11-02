@@ -1,0 +1,24 @@
+{
+  "formatVersion": 2,
+  "name": "Capped Shuffle",
+  "seed": "13",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "shuffle",
+    "caps": {
+      "series": 2
+    }
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

@@ -25,6 +25,16 @@ class RulesRoundTripTest {
     }
 
     @Test
+    fun everyV2ExampleWritesBackIdentically() {
+        assertTrue(ExampleFiles.validV2.isNotEmpty())
+        for ((name, text) in ExampleFiles.validV2) {
+            val rules = readOk(text)
+            assertEquals(2, rules.formatVersion, name)
+            assertEquals(text, RulesWriter.write(rules), name)
+        }
+    }
+
+    @Test
     fun everyValidExampleReadsAsOkExceptTheUnscheduledFillerModes() {
         for ((name, text) in ExampleFiles.valid) {
             val result = RulesReader.read(text)

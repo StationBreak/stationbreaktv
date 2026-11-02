@@ -1,0 +1,32 @@
+{
+  "formatVersion": 2,
+  "name": "Short Nineties Comedy",
+  "seed": "14",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filters": {
+    "genres": [
+      "Comedy",
+      "Animation"
+    ],
+    "years": {
+      "from": 1990,
+      "to": 1999
+    },
+    "runtime": {
+      "maxMinutes": 40
+    },
+    "kind": "episode"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

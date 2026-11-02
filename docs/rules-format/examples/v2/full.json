@@ -1,0 +1,53 @@
+{
+  "formatVersion": 2,
+  "name": "Everything New",
+  "seed": "16",
+  "sources": [
+    {
+      "type": "collection",
+      "id": "22222222222222222222222222222222"
+    },
+    {
+      "type": "series",
+      "id": "33333333333333333333333333333333"
+    },
+    {
+      "type": "item",
+      "id": "44444444444444444444444444444444"
+    }
+  ],
+  "exclusions": [
+    {
+      "type": "item",
+      "id": "55555555555555555555555555555555"
+    }
+  ],
+  "ordering": {
+    "mode": "rotation",
+    "caps": {
+      "series": 4,
+      "film": 2
+    }
+  },
+  "filters": {
+    "genres": [
+      "Drama"
+    ],
+    "years": {
+      "from": 1980,
+      "to": 2010
+    },
+    "runtime": {
+      "minMinutes": 20,
+      "maxMinutes": 120
+    },
+    "kind": "movie"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}
