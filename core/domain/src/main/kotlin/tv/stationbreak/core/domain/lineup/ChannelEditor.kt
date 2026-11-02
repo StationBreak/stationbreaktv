@@ -41,6 +41,9 @@ sealed interface ChangeResult {
     /** The lineup may not be written on this TV, or there is none. */
     data object NotEditable : ChangeResult
 
+    /** The change could not be saved; nothing changed. */
+    data object SaveFailed : ChangeResult
+
     data object UnknownChannel : ChangeResult
 
     data object NotSwitchable : ChangeResult
@@ -63,7 +66,14 @@ sealed interface ChangeResult {
 }
 
 /** What a reset left: [NotChosenYet] is a new lineup with no channel on yet, which the planner finishes later. */
-enum class ResetResult { Chosen, NotChosenYet, NotEditable }
+enum class ResetResult {
+    Chosen,
+    NotChosenYet,
+    NotEditable,
+
+    /** The change could not be saved; nothing changed. */
+    SaveFailed,
+}
 
 /** How features change an account's channel lineup (spec 21). */
 interface ChannelEditor {
@@ -77,7 +87,8 @@ interface ChannelEditor {
 
     /**
      * Replaces the lineup with a fresh choice from the library already on this TV, in one step: there is never a
-     * moment with no lineup. NotChosenYet: the new lineup has no On channel yet (the planner finalises it later).
+     * moment with no lineup. NotChosenYet: the new lineup has no On channel yet (the planner finalises it later). A
+     * failure to read the library propagates (it is not stored data), so callers catch it.
      */
     suspend fun reset(account: LibraryAccount): ResetResult
 }

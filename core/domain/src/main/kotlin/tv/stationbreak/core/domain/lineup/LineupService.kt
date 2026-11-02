@@ -261,15 +261,16 @@ class LineupService internal constructor(
     /**
      * Applies [edit] to [account]'s lineup (spec 21) under the account's lock, so it never lands between a refresh's
      * read and its save: it waits for the refresh and edits what the refresh published. It starts from this session's
-     * lineup, as [notePass] does, so an earlier edit whose save failed is kept. An applied edit is saved when this
-     * session may write the file, and published with a new revision. Null: there is no lineup, or the file may not be
-     * written (a newer app's, say): nothing changes. A refusal publishes nothing. [nowMs] is when the edit is made.
+     * lineup, as [notePass] does. An applied edit is saved and then published with a new revision; one that changes
+     * nothing, and a refusal, publish nothing. [Saved.Failed]: the save failed or was rejected, and nothing changed.
+     * Null: there is no lineup, or the file may not be written (a newer app's, say): nothing changes.
+     * [nowMs] is when the edit is made.
      */
     internal suspend fun edit(
         account: LibraryAccount,
         edit: LineupEdit,
         nowMs: Long = clock.now().toEpochMilliseconds(),
-    ): EditOutcome? {
+    ): Saved<EditOutcome>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
         return entry.mutex.withLock {
@@ -282,13 +283,24 @@ class LineupService internal constructor(
                 return@withLock null
             }
             val outcome = LineupEdits.apply(lineup, edit, nowMs, catalog)
-            if (outcome is EditOutcome.Applied) {
-                val meta = held?.meta ?: start.meta
-                saveVerified(owner, outcome.lineup, meta)
-                publish(entry, outcome.lineup, meta)
-                entry.loaded = true
+            when {
+                // A refusal, or an edit that changes nothing: no save and no new revision (no schedule rebuild).
+                outcome !is EditOutcome.Applied || outcome.lineup == lineup -> {
+                    Saved.Ok(outcome)
+                }
+
+                else -> {
+                    val meta = held?.meta ?: start.meta
+                    // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
+                    if (saveVerified(owner, outcome.lineup, meta)) {
+                        publish(entry, outcome.lineup, meta)
+                        entry.loaded = true
+                        Saved.Ok(outcome)
+                    } else {
+                        Saved.Failed
+                    }
+                }
             }
-            outcome
         }
     }
 
@@ -296,13 +308,14 @@ class LineupService internal constructor(
      * Replaces [account]'s lineup with a fresh first choice from the [libraries] (null or none: an empty lineup, not
      * yet finalised, which the refresher chooses from later), in one hold of the lock and once started it finishes
      * even if the caller is cancelled: the lineup is never left forgotten. The old lineup stays until the new one is
-     * saved and published together with it, and what was built from it is forgotten. Null: the file may not be
-     * written, and nothing changes. Never throws for stored data.
+     * saved, then published, and what was built from it is forgotten. [Saved.Failed]: the save failed or was
+     * rejected, and nothing changed. Null: the file may not be written, and nothing changes. Never throws for stored
+     * data; a failure to read the library does propagate.
      */
     internal suspend fun reset(
         account: LibraryAccount,
         libraries: Set<ItemId>?,
-    ): Lineup? {
+    ): Saved<Lineup>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
         return withContext(NonCancellable) {
@@ -319,11 +332,15 @@ class LineupService internal constructor(
                     } else {
                         planned(owner, account, libraries, null, null)
                     }
-                saveVerified(owner, fresh, meta)
-                forgetDerived(owner.key)
-                publish(entry, fresh, meta)
-                entry.loaded = true
-                fresh
+                if (saveVerified(owner, fresh, meta)) {
+                    forgetDerived(owner.key)
+                    publish(entry, fresh, meta)
+                    entry.loaded = true
+                    Saved.Ok(fresh)
+                } else {
+                    // The old lineup and its days stay: a lineup that is not on disk would be undone by a refresh.
+                    Saved.Failed
+                }
             }
         }
     }
@@ -499,13 +516,17 @@ class LineupService internal constructor(
         owner: Owner,
         planned: Lineup,
         meta: RefreshMeta,
-    ) {
+    ): Boolean {
         val bytes = seams.encode(planned, meta)
         val back = LineupCodec.decode(bytes)
-        if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup)) {
+        return if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup)) {
             report(LineupEvent.SaveRejected)
+            false
         } else if (!store.save(owner.key, bytes)) {
             report(LineupEvent.SaveFailed)
+            false
+        } else {
+            true
         }
     }
 
@@ -526,6 +547,15 @@ class LineupService internal constructor(
  * lineup for its first choice, and a finalised one for a newer catalog (which it would otherwise never receive).
  */
 internal const val GIVE_UP_AFTER = 2
+
+/** What an edit or reset did at the service: it [Ok], or its save failed and nothing changed. */
+internal sealed interface Saved<out T> {
+    class Ok<T>(
+        val value: T,
+    ) : Saved<T>
+
+    data object Failed : Saved<Nothing>
+}
 
 /**
  * What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, where

@@ -9,7 +9,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.LibraryAccount
@@ -79,14 +79,15 @@ class ScheduleWarmer(
     private suspend fun follow(account: LibraryAccount) {
         // `loaded` reads the stored lineup if nothing has yet, so a start with a saved lineup warms before any refresh.
         service.loaded(account)
+        var first = true
         service
             .lineup(account)
-            .map { it?.revision }
+            .mapNotNull { it?.revision }
             .distinctUntilChanged()
             // A burst of edits (one per press) warms once, after it: each press would otherwise cancel and restart a
-            // build whose days the next press throws away.
-            .debounce(WARM_DEBOUNCE)
-            .collectLatest { revision -> if (revision != null) keepWarm() }
+            // build whose days the next press throws away. The first revision warms at once.
+            .debounce { if (first) 0L.also { first = false } else WARM_DEBOUNCE.inWholeMilliseconds }
+            .collectLatest { keepWarm() }
     }
 
     @Suppress("TooGenericExceptionCaught") // A failed warm is only a missed head start: see the class comment.

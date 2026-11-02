@@ -65,6 +65,17 @@ class ChannelManagerTest {
         }
 
     @Test
+    fun aFailedSaveIsReported() =
+        runBlocking<Unit> {
+            seed(lineup())
+            store.inner.failWrites = true
+
+            val off = ChannelChange.SwitchOff(LineupIds.starter("laughs"))
+            assertEquals(ChangeResult.SaveFailed, manager.change(ACCOUNT, off))
+            assertEquals(ResetResult.SaveFailed, manager.reset(ACCOUNT))
+        }
+
+    @Test
     fun resetReportsChosenWhenAChannelIsOn() =
         runBlocking<Unit> {
             seed(lineup(ChannelState.UserHidden))

@@ -117,7 +117,6 @@ class ScheduleWarmerTest {
                 }
             val warmer = ScheduleWarmer(sourceOn(), service, library, timeline)
             warmer.start(backgroundScope)
-            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "today's days are built at start")
 
@@ -142,7 +141,6 @@ class ScheduleWarmerTest {
             assertEquals(0, builds.size, "a process with no screen builds no day")
 
             warmer.foreground(backgroundScope)
-            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "the first foreground warms today")
 
@@ -179,7 +177,6 @@ class ScheduleWarmerTest {
                 ) { LIBRARIES }
             warmer = ScheduleWarmer(source, service, library, timeline)
             warmer.start(backgroundScope)
-            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "the nudge during the warm did not start another")
         }
@@ -205,7 +202,6 @@ class ScheduleWarmerTest {
                 }
             warmer = ScheduleWarmer(source, service, library, clock)
             warmer.start(backgroundScope)
-            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size, "the nudge made the warm try again at once, not after the idle wait")
         }
@@ -221,7 +217,6 @@ class ScheduleWarmerTest {
                 }
             val warmer = ScheduleWarmer(sourceOn(), service, library, timeline)
             warmer.start(backgroundScope)
-            advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
             assertEquals(1, builds.size)
 
@@ -239,24 +234,33 @@ class ScheduleWarmerTest {
         }
 
     @Test
+    fun theFirstRevisionWarmsAtOnce() =
+        runTest {
+            val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
+            warmer.start(backgroundScope)
+            runCurrent()
+            assertEquals(1, builds.size, "no debounce wait for the first revision")
+        }
+
+    @Test
     fun aBurstOfRevisionsWarmsOnce() =
         runTest {
             val warmer = ScheduleWarmer(sourceOn(), service, library, clock)
             warmer.start(backgroundScope)
             runCurrent()
-            assertEquals(0, builds.size, "nothing is warmed until the lineup has been quiet")
+            assertEquals(1, builds.size, "the first revision is warmed at once")
 
             // Five edits, 200 ms apart: each is a new revision of the lineup.
             repeat(5) {
                 advanceTimeBy(200)
                 val edit = LineupEdit.SetNumber(LineupIds.starter("laughs"), 111 + it)
-                assertIs<EditOutcome.Applied>(service.edit(ACCOUNT, edit))
+                assertIs<Saved.Ok<EditOutcome>>(service.edit(ACCOUNT, edit))
             }
             runCurrent()
-            assertEquals(0, builds.size, "the burst has not been quiet yet")
+            assertEquals(1, builds.size, "the burst has not been quiet yet")
 
             advanceTimeBy(ScheduleWarmer.WARM_DEBOUNCE)
             runCurrent()
-            assertEquals(1, builds.size, "one warm for the whole burst")
+            assertEquals(2, builds.size, "one warm for the whole burst")
         }
 }

@@ -10,6 +10,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.EditRefusal
+import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
@@ -35,16 +36,29 @@ class ChannelManager(
         account: LibraryAccount,
         change: ChannelChange,
     ): ChangeResult =
-        when (val outcome = service.edit(account, change.toEdit(), clock.now().toEpochMilliseconds())) {
-            null -> ChangeResult.NotEditable
-            is EditOutcome.Applied -> ChangeResult.Done
-            is EditOutcome.Refused -> outcome.refusal.toResult(account)
+        when (val saved = service.edit(account, change.toEdit(), clock.now().toEpochMilliseconds())) {
+            null -> {
+                ChangeResult.NotEditable
+            }
+
+            Saved.Failed -> {
+                ChangeResult.SaveFailed
+            }
+
+            is Saved.Ok -> {
+                when (val outcome = saved.value) {
+                    is EditOutcome.Applied -> ChangeResult.Done
+                    is EditOutcome.Refused -> outcome.refusal.toResult(account)
+                }
+            }
         }
 
-    override suspend fun reset(account: LibraryAccount): ResetResult {
-        val fresh = service.reset(account, libraries()) ?: return ResetResult.NotEditable
-        return if (fresh.channels.any { it.state == ChannelState.On }) ResetResult.Chosen else ResetResult.NotChosenYet
-    }
+    override suspend fun reset(account: LibraryAccount): ResetResult =
+        when (val saved = service.reset(account, libraries())) {
+            null -> ResetResult.NotEditable
+            Saved.Failed -> ResetResult.SaveFailed
+            is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
+        }
 
     private suspend fun EditRefusal.toResult(account: LibraryAccount): ChangeResult =
         when (this) {
@@ -69,8 +83,10 @@ class ChannelManager(
             ?.channels
             ?.firstOrNull { it.id == holder }
             ?.displayName(service.catalog)
-            ?: holder.value
+            .orEmpty()
 }
+
+private fun Lineup.hasOn() = channels.any { it.state == ChannelState.On }
 
 private fun ChannelChange.toEdit(): LineupEdit =
     when (this) {
