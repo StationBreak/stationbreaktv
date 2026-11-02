@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
+package tv.stationbreak.feature.channels
+
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import tv.stationbreak.core.domain.InMemoryLibraryRepository
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FakeChannelEditor
+import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.UserId
+import kotlin.time.Clock
+import kotlin.time.Instant
+
+internal val A = ChannelId("ch-a")
+internal val B = ChannelId("ch-b")
+internal val C = ChannelId("ch-c")
+internal val D = ChannelId("ch-d")
+
+@Suppress("LongParameterList") // A test builder: every field has a default.
+internal fun summary(
+    id: ChannelId,
+    number: Int?,
+    state: ChannelStatus = ChannelStatus.On,
+    name: String = "Test ${id.value}",
+    kind: ChannelKind = ChannelKind.Starter,
+    default: Int? = number,
+    kid: Boolean = false,
+    optIn: Boolean = false,
+) = ChannelSummary(id, number, name, state, kind, Instant.fromEpochMilliseconds(T0), default, kid, optIn)
+
+internal class FakeChannels(
+    initial: List<ChannelSummary> = emptyList(),
+) : ChannelRepository {
+    val list = MutableStateFlow(initial)
+
+    override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
+}
+
+/** What the ViewModel tests share: fakes for every port and a ViewModel on them. */
+internal class ChannelsRig(
+    scope: TestScope,
+    channels: List<ChannelSummary> = emptyList(),
+) {
+    val account = LibraryAccount(ServerId("srv1"), UserId("u1"))
+    val library = InMemoryLibraryRepository()
+    val repo = FakeChannels(channels)
+    val editor = FakeChannelEditor()
+    val schedule = FakeSchedule()
+    val clock: Clock =
+        object : Clock {
+            override fun now(): Instant = Instant.fromEpochMilliseconds(T0)
+        }
+    val vm = ChannelsViewModel(library, repo, editor, schedule, clock, StandardTestDispatcher(scope.testScheduler))
+    val ui get() = vm.ui.value
+
+    suspend fun open(
+        scope: TestScope,
+        current: ChannelId? = null,
+    ) {
+        library.useAccount(account)
+        vm.open(current)
+        scope.runCurrent()
+    }
+}
+
+internal fun channelsTest(
+    channels: List<ChannelSummary> = emptyList(),
+    body: suspend TestScope.(ChannelsRig) -> Unit,
+) = runTest {
+    val rig = ChannelsRig(this, channels)
+    body(rig)
+}
