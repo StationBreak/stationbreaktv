@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.LineupStore
+import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
@@ -132,6 +134,70 @@ class ChannelManagerTest {
 
             assertEquals(ResetResult.LibrariesUnavailable, ChannelManager(failing) { LIBRARIES }.reset(ACCOUNT))
             assertEquals(listOf(LineupEvent.ResetLibrariesUnavailable), events)
+        }
+
+    // The port never throws: a failure of the plan (here the device offset it reads) is a result, reported.
+    @Test
+    fun aPlannerFailureOnResetIsFailedNotThrown() =
+        runBlocking<Unit> {
+            seed(lineup())
+            val failing = LineupService(store, library, clock, { error("no offset") }, { events += it }, TestCatalog)
+            failing.loaded(ACCOUNT)
+            val before = store.inner.peek(ACCOUNT)
+
+            assertEquals(ResetResult.Failed, ChannelManager(failing) { LIBRARIES }.reset(ACCOUNT))
+            assertEquals(listOf(LineupEvent.ResetFailed), events)
+            assertContentEquals(before, store.inner.peek(ACCOUNT), "nothing was saved")
+        }
+
+    // A store whose read throws (it never should): the port still never throws.
+    private val throwing =
+        object : LineupStore by store {
+            override suspend fun load(account: LibraryAccount): StoredBytes = error("store broke")
+        }
+
+    @Test
+    fun aChangeThatThrowsIsFailedNotThrown() =
+        runBlocking<Unit> {
+            val broken =
+                ChannelManager(LineupService(throwing, library, clock, { 0 }, { events += it }, TestCatalog)) {
+                    LIBRARIES
+                }
+
+            val result = broken.change(ACCOUNT, ChannelChange.SwitchOff(LineupIds.starter("laughs")))
+
+            assertEquals(ChangeResult.Failed, result)
+            assertEquals(listOf(LineupEvent.EditFailed), events)
+        }
+
+    @Test
+    fun anAccessThatThrowsIsReadOnlyNotThrown() =
+        runBlocking<Unit> {
+            val broken =
+                ChannelManager(LineupService(throwing, library, clock, { 0 }, { events += it }, TestCatalog)) {
+                    LIBRARIES
+                }
+
+            assertEquals(LineupAccess.ReadOnly, broken.access(ACCOUNT).first())
+            assertEquals(listOf(LineupEvent.AccessFailed), events)
+        }
+
+    @Test
+    fun aFailedReadThenAFailedSaveLeavesMemoryAsTheStoredLineup() =
+        runBlocking<Unit> {
+            seed(lineup())
+            store.inner.failReads = true
+            service.refresh(ACCOUNT, LIBRARIES)
+            store.inner.failReads = false
+            store.inner.failWrites = true
+            val before = store.inner.peek(ACCOUNT)
+
+            val off = ChannelChange.SwitchOff(LineupIds.starter("laughs"))
+            assertEquals(ChangeResult.SaveFailed, manager.change(ACCOUNT, off))
+
+            assertContentEquals(before, store.inner.peek(ACCOUNT), "the stored file is unchanged")
+            val held = checkNotNull(service.lineup(ACCOUNT).value)
+            assertEquals(lineup(), held.lineup, "the reconcile published the stored lineup: memory matches disk")
         }
 
     @Test

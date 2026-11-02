@@ -109,6 +109,9 @@ internal object LineupCodec {
             Decoded.Unreadable
         }
 
+    /** [source] as the file holds it (the `source` of a channel): what the days' key ([LineupDays.inputsOf]) hashes. */
+    fun sourceOf(source: ChannelSource): JsonElement = SourceCodec.encode(source)
+
     // The version as a whole number of 1 or more (a too-big one is newer than any app), or null.
     private fun versionOf(root: JsonElement): Int? {
         val primitive = (root as? JsonObject)?.get("version") as? JsonPrimitive
@@ -164,6 +167,9 @@ internal object LineupCodec {
 /**
  * A channel's `source`. Unknown keys and an unknown `kind` throw [IllegalArgumentException] (the file is
  * unreadable); anything else wrong gives [ChannelSource.Unusable].
+ *
+ * Its output is also hashed into the days' key ([LineupCodec.sourceOf], `LineupDays.inputsOf`): a change to how a
+ * source is written changes every key, so the built days are built again once (and the day files are a miss).
  */
 private object SourceCodec {
     private const val KIND = "kind"
