@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -9,7 +8,6 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
-import kotlin.time.Duration.Companion.seconds
 
 /** A lineup change from the channels screen reaches flipping at once (spec 21, F2.4). */
 class FlipFollowsLineupTest {
@@ -35,14 +33,12 @@ class FlipFollowsLineupTest {
     fun aFlipAfterRenumberGoesInTheNewOrder() =
         runTest {
             val f = flipping()
-            // Channel 9 becomes 3: Up from 5 now wraps to 2, and Down from 5 goes to 3.
+            // Channel 9 becomes 3: Down from 5 now goes to 3.
             f.r.schedule.channel(CH9, 3, listOf(program(0, 600, 9)))
             f.r.publishSchedule()
             runCurrent()
             f.down()
             assertEquals(LiveState.Choosing(ChannelTag(3, "Test Channel 3"), overPicture = true), f.r.state)
-            advanceTimeBy(2.seconds)
-            runCurrent()
         }
 
     @Test
@@ -50,10 +46,11 @@ class FlipFollowsLineupTest {
         runTest {
             val f = flipping()
             f.up()
-            f.r.schedule.channels
-                .remove(CH9)
+            // Channel 2 becomes 20 while the flip moves: the new order would step 9 -> 20, the old one 9 -> 2.
+            f.r.schedule.channel(CH2, 20, listOf(program(0, 600, 2)))
             f.r.publishSchedule()
             runCurrent()
-            assertEquals(LiveState.Choosing(ChannelTag(9, "Test Channel 9"), overPicture = true), f.r.state)
+            f.up()
+            assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = true), f.r.state)
         }
 }

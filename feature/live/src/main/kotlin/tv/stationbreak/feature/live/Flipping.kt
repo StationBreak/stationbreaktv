@@ -142,7 +142,9 @@ internal class Flipper(
     /**
      * Drops the cached lineup: the On channels or their numbers changed (the channels screen), so the next press builds
      * its order afresh. A run of presses already moving keeps the order it took ([order]); the drop applies at its
-     * next build. A read in flight is cancelled, as it may carry the old lineup.
+     * next build. A refresh in flight is cancelled, as it may carry the old lineup. A read outside it (find() keeping
+     * what it read, readThenStep holding a lineup read before the drop) can still write the old lineup; the next
+     * landing's refresh heals that.
      */
     fun lineupChanged() {
         refreshing?.cancel()
