@@ -110,9 +110,10 @@ is top-right in screen coordinates; live places its picture absolutely). A chann
 on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
 so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
 channel management (spec 21) as a second slot, `ChannelsSlot`, behind its Channels button; `app` fills it with
-`feature:channels`' `ChannelsDestination`. Everything in
-`feature:guide` is internal except `GuideDestination`, the `GuideMeasured` qualifier `app` provides, and `GuideTags` for
-`app`'s tests.
+`feature:channels`' `ChannelsDestination`. The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
+`onLineup()`) to see the lineup change under it while that screen shows and just after. Everything in
+`feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` type, the `GuideMeasured` qualifier `app`
+provides, and `GuideTags` for `app`'s tests.
 
 `feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
 groups, the focus as a value, the panel over the list, and the changes the viewer makes) and its D-pad-only screen. It depends

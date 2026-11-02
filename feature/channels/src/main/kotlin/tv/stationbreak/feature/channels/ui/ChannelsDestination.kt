@@ -28,14 +28,18 @@ import tv.stationbreak.feature.channels.PanelMove
 /**
  * Channel management (spec 21), drawn by its host (the guide) over live TV's picture while the screen is open: the
  * host owns whether it shows, this owns what it shows. Each showing opens a session with the focus on [current]'s
- * row: [openedAtNanos] is the opening token (when the key that opened the screen arrived, `System.nanoTime`), and a
- * new token starts a new session, clean, even if the screen was never taken off the composition between two showings.
+ * row: [openedAtNanos] is an opaque token for the showing (the host gives each showing its own; nothing here reads it
+ * as a time), and a new token starts a new session, clean, even if the screen was never taken off the composition
+ * between two showings.
  * The session closes when the screen goes.
  *
  * [pictureHole] is where live TV laid its picture, in screen dp: the screen leaves that rectangle clear. [onDone] is
  * called once, when the screen is finished: with the channel to tune for Watch, and for Back with nothing open (the
  * channel the changes made leave to tune, else null). The host closes the screen on [onDone] and tunes when `tune` is
  * non-null.
+ *
+ * The Guide key, Home or standby closes the guide, and this screen with it, without the closing tune [onDone] would
+ * have given (accepted: nothing here ends the showing then).
  *
  * Keys: the screen moves its own focus (model-driven, not Compose focus search) with the D-pad and Select. Back closes
  * a panel, message or question first.
